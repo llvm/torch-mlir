@@ -796,17 +796,17 @@ static Value getScaleFactor(OpBuilder &builder, Location loc, Value dim,
 //              out_tensor[i, j, k, l] = input[i, j, k//H_factor, l//W_factor]
 
 namespace {
-class ConvertAtenUpsampleNearest2dVecOp
-    : public OpConversionPattern<AtenUpsampleNearest2dVecOp> {
+class ConvertAtenUpsampleNearest2dOp
+    : public OpConversionPattern<AtenUpsampleNearest2dOp> {
 
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenUpsampleNearest2dVecOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenUpsampleNearest2dOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
     Location loc = op->getLoc();
-    Value input = adaptor.input();
+    Value input = adaptor.self();
 
     Type resultType = getTypeConverter()->convertType(op.getResult().getType());
     auto inputType = input.getType().cast<RankedTensorType>();
@@ -819,48 +819,50 @@ public:
     // The dimension at which the scaling starts.
     unsigned hDimOffset = 2;
 
-    if (!adaptor.scale_factors().getType().isa<Torch::NoneType>()) {
-      SmallVector<Value, 2> scaleFactorsTorchFloat;
-      if (!getListConstructElements(op.scale_factors(), scaleFactorsTorchFloat))
-        return rewriter.notifyMatchFailure(
-            op, "unimplemented: the scale_factors is not constructed from "
-                "ListConstruct");
-      SmallVector<Value, 2> scaleFactorsFloatValues;
-      scaleFactorsFloatValues = getTypeConvertedValues(
-          rewriter, loc, getTypeConverter(), scaleFactorsTorchFloat);
+    SmallVector<Value, 2> outputSizeTorchInt;
+    if (!getListConstructElements(op.output_size(), outputSizeTorchInt))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: the output_size is not constructed from "
+              "ListConstruct");
+    SmallVector<Value, 2> outputSizeIntValues;
+    outputSizeIntValues = getTypeConvertedValues(
+        rewriter, loc, getTypeConverter(), outputSizeTorchInt);
+    
+    if (!op.scales_h().getType().isa<Torch::NoneType>()) {
       // Convert float values to int values.
       // int_value = (int64_t)ceil(float_value)
-      for (auto floatValue : scaleFactorsFloatValues) {
-        Value ceilVal = rewriter.create<math::CeilOp>(loc, floatValue);
-        Value intVal = rewriter.create<arith::FPToSIOp>(
+      Value ceilVal = rewriter.create<math::CeilOp>(loc, adaptor.scales_h());
+      Value intVal = rewriter.create<arith::FPToSIOp>(
             loc, rewriter.getI64Type(), ceilVal);
-        scaleFactorsInt.push_back(intVal);
-      }
-
-      for (unsigned i = 0; i < scaleFactorsFloatValues.size(); i++)
-        dims[hDimOffset + i] = getScaledDims(
-            rewriter, loc, dims[hDimOffset + i], scaleFactorsFloatValues[i]);
-
+      scaleFactorsInt.push_back(intVal);
+      dims[hDimOffset] = getScaledDims(
+            rewriter, loc, dims[hDimOffset], adaptor.scales_h());
     } else {
-
-      SmallVector<Value, 2> outputSizeTorchInt;
-      if (!getListConstructElements(op.output_size(), outputSizeTorchInt))
-        return rewriter.notifyMatchFailure(
-            op, "unimplemented: the output_size is not constructed from "
-                "ListConstruct");
-      SmallVector<Value, 2> outputSizeIntValues;
-      outputSizeIntValues = getTypeConvertedValues(
-          rewriter, loc, getTypeConverter(), outputSizeTorchInt);
-
-      for (unsigned i = 0; i < outputSizeTorchInt.size(); i++) {
-        auto scaleFactorVal = getScaleFactor(
-            rewriter, loc, dims[hDimOffset + i], outputSizeIntValues[i]);
-        scaleFactorsInt.push_back(scaleFactorVal);
-        dims[hDimOffset + i] =
-            castIntToIndex(rewriter, loc, outputSizeIntValues[i]);
-      }
+      auto scaleFactorVal = getScaleFactor(
+          rewriter, loc, dims[hDimOffset], outputSizeIntValues[0]);
+      scaleFactorsInt.push_back(scaleFactorVal);
+      dims[hDimOffset] =
+          castIntToIndex(rewriter, loc, outputSizeIntValues[0]);
     }
 
+    if (!op.scales_w().getType().isa<Torch::NoneType>()) {
+      // Convert float values to int values.
+      // int_value = (int64_t)ceil(float_value)
+      Value ceilVal = rewriter.create<math::CeilOp>(loc, adaptor.scales_w());
+      Value intVal = rewriter.create<arith::FPToSIOp>(
+            loc, rewriter.getI64Type(), ceilVal);
+      scaleFactorsInt.push_back(intVal);
+      dims[hDimOffset + 1] = getScaledDims(
+            rewriter, loc, dims[hDimOffset + 1], adaptor.scales_w());
+    } else {
+      auto scaleFactorVal = getScaleFactor(
+          rewriter, loc, dims[hDimOffset + 1], outputSizeIntValues[1]);
+      scaleFactorsInt.push_back(scaleFactorVal);
+      dims[hDimOffset + 1] =
+          castIntToIndex(rewriter, loc, outputSizeIntValues[1]);
+    }
+
+    
     Value outTensor = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(dims), elementType);
 
@@ -1102,8 +1104,8 @@ void mlir::torch::torch_to_linalg::
   patterns.add<ConvertAtenIndexTensorOp>(typeConverter, context);
   target.addIllegalOp<AtenEmbeddingBagPaddingIdxOp>();
   patterns.add<ConvertAtenEmbeddingBagPaddingIdxOp>(typeConverter, context);
-  target.addIllegalOp<AtenUpsampleNearest2dVecOp>();
-  patterns.add<ConvertAtenUpsampleNearest2dVecOp>(typeConverter, context);
+  target.addIllegalOp<AtenUpsampleNearest2dOp>();
+  patterns.add<ConvertAtenUpsampleNearest2dOp>(typeConverter, context);
   target.addIllegalOp<AtenUpsampleNearest2dBackwardOp>();
   patterns.add<ConvertAtenUpsampleNearest2dBackwardOp>(typeConverter, context);
 }

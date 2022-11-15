@@ -1213,8 +1213,8 @@ def aten〇linalg_vector_norm(self: List[int], ord: float = 2, dim: Optional[Lis
 def aten〇frobenius_norm〇dim(self: List[int], dim: List[int], keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, 0)
 
-def aten〇upsample_nearest2d〇vec(input: List[int], output_size: Optional[List[int]], scale_factors: Optional[List[float]]) -> List[int]:
-    return upstream_shape_functions.upsample_nearest2d(input, output_size, scale_factors)
+def aten〇upsample_nearest2d(self: List[int], output_size: List[int], scales_h: Optional[float] = None, scales_w: Optional[float] = None) -> List[int]:
+    return [self[0], self[1], output_size[0], output_size[1]]
 
 # ==============================================================================
 # Shape library generator main().
