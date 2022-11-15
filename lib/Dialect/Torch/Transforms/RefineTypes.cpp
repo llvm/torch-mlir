@@ -1169,6 +1169,16 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
+  if (isa<AtenVarMeanCorrectionOp>(op)) {
+    auto input = operands[0]->getValue();
+    auto knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    knowledge.dtype = input.dtype;
+    incorporateKnowledge(op->getResult(0), knowledge);
+    incorporateKnowledge(op->getResult(1), knowledge);
+    return;
+  }
+
   // Otherwise, this is an unknown operation, so reset the state.
   setAllToEntryStates(results);
   return;

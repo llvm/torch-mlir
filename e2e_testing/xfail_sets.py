@@ -625,5 +625,7 @@ LTC_XFAIL_SET = {
     "ConvolutionBackwardModule1D_basic",
     "ConvolutionBackwardModule2D_basic",
     "ConvolutionBackwardModule2DPadded_basic",
-    "ConvolutionBackwardModule3D_basic"
+    "ConvolutionBackwardModule3D_basic",
+    "VarMeanCorrectionModule_basic",
+    "VarMeanCorrectionNoneModule_basic"
 }
