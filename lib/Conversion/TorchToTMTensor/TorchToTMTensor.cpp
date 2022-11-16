@@ -435,7 +435,8 @@ public:
 
     SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
         {originalIndicesDimExprs, updatedIndicesDimExprs});
-    SmallVector<StringRef> iteratorTypes(tensorOperandRank + 1, "parallel");
+    SmallVector<utils::IteratorType> iteratorTypes(
+        tensorOperandRank + 1, utils::IteratorType::parallel);
 
     SmallVector<OpFoldResult> updatedIndicesShape =
         getAsOpFoldResult(getTensorSizes(rewriter, loc, indices));

@@ -1305,7 +1305,8 @@ public:
         indexingMap,                                // runningVar
         rewriter.getMultiDimIdentityMap(inputRank), // output
     };
-    SmallVector<StringRef> iteratorTypes(inputRank, "parallel");
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
     Value batchNorm =
         rewriter
             .create<linalg::GenericOp>(
@@ -1397,8 +1398,8 @@ public:
 
     SmallVector<AffineMap> indexingMaps{gradOutMap, targetMap, totalWeightMap,
                                         resultMap};
-    SmallVector<StringRef> iteratorTypes(inputRank,
-                                         getParallelIteratorTypeName());
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
 
     // The code generation is equivalent to the following pseudo-code:
     //

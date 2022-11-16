@@ -966,7 +966,8 @@ public:
     SmallVector<AffineMap> indexingMaps = {
         AffineMap::get(inputRank, 0, idExprs, op.getContext()),
         AffineMap::get(inputRank, 0, swapExprs, op.getContext())};
-    SmallVector<StringRef> iteratorTypes(inputRank, "parallel");
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
     auto transpose = rewriter
                          .create<linalg::GenericOp>(
                              loc, outVector.getType(), inVector, outVector,
@@ -1035,7 +1036,8 @@ public:
     AffineMap outputMap = AffineMap::get(inputRank, /*symbolCount=*/0, swapExprs,
                                          op->getContext());
     SmallVector<AffineMap> indexingMaps{inputMap, outputMap};
-    SmallVector<StringRef> iteratorTypes(inputRank, getParallelIteratorTypeName());
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
     auto transpose = rewriter
                          .create<linalg::GenericOp>(
                              loc, outVector.getType(), inVector, outVector,
@@ -1259,8 +1261,8 @@ public:
 
     AffineMap id = AffineMap::getMultiDimIdentityMap(selfType.getRank(),
                                                      rewriter.getContext());
-    SmallVector<StringRef> iteratorTypes(selfType.getRank(),
-                                         getParallelIteratorTypeName());
+    SmallVector<utils::IteratorType> iteratorTypes(
+        selfType.getRank(), utils::IteratorType::parallel);
     Value result = rewriter
                        .create<linalg::GenericOp>(
                            loc,

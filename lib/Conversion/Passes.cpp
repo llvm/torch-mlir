@@ -10,7 +10,7 @@
 #include "torch-mlir/Conversion/Passes.h"
 
 #ifdef TORCH_MLIR_ENABLE_MHLO
-#include "mlir-hlo/Dialect/mhlo/transforms/passes.h"
+#include "mhlo/transforms/passes.h"
 #include "mlir-hlo/Transforms/passes.h"
 #endif // TORCH_MLIR_ENABLE_MHLO
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"

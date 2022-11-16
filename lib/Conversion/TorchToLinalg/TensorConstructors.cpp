@@ -276,7 +276,7 @@ public:
     Value resultTensor = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(resultShape), dtype);
 
-    StringRef iteratorType = getParallelIteratorTypeName();
+    auto iteratorType = utils::IteratorType::parallel;
     AffineMap indexingMap =
         AffineMap::getMultiDimIdentityMap(1, op->getContext());
 

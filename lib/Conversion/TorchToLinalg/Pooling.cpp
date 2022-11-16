@@ -276,9 +276,10 @@ public:
     // and kW, respectively, as described in the algorithm above.
     SmallVector<AffineMap> indexingMaps =
         AffineMap::inferFromExprList({inputExprs, kernelExprs, outputExprs});
-    SmallVector<StringRef> iteratorTypes(4, getParallelIteratorTypeName());
-    iteratorTypes.push_back(getReductionIteratorTypeName());
-    iteratorTypes.push_back(getReductionIteratorTypeName());
+    SmallVector<utils::IteratorType> iteratorTypes(
+        4, utils::IteratorType::parallel);
+    iteratorTypes.push_back(utils::IteratorType::reduction);
+    iteratorTypes.push_back(utils::IteratorType::reduction);
 
     // Input format is : [N, C, H, W]
     Value inputShapeW = getDimOp(rewriter, loc, self, 3);
@@ -412,7 +413,8 @@ public:
         loc, getAsOpFoldResult(outTensorShape), resultElementType);
     SmallVector<AffineMap> indexingMapsAvg(2,
                                            rewriter.getMultiDimIdentityMap(4));
-    SmallVector<StringRef> iteratorTypesAvg(4, "parallel");
+    SmallVector<utils::IteratorType> iteratorTypesAvg(
+        4, utils::IteratorType::parallel);
 
     Value avgPool2d =
         rewriter

@@ -180,19 +180,19 @@ Value torch_to_linalg::createReductionLinalgGeneric(
   // iterate over the input and output tensors.
   // Here we also set the type of iterator: parallel or reduction.
   SmallVector<AffineExpr> exprs;
-  SmallVector<StringRef> iteratorTypes;
+  SmallVector<utils::IteratorType> iteratorTypes;
   SmallVector<AffineExpr> resultExprs;
   for (auto size : llvm::enumerate(inputType.getShape())) {
     exprs.push_back(b.getAffineDimExpr(size.index()));
 
     if (opInfo.dimSet.contains(size.index())) {
-      iteratorTypes.push_back(getReductionIteratorTypeName());
+      iteratorTypes.push_back(utils::IteratorType::reduction);
       // If `opInfo.keepDim`, create affine map to the first element
       // in the current dimension.
       if (opInfo.keepDim)
         resultExprs.push_back(b.getAffineConstantExpr(0));
     } else {
-      iteratorTypes.push_back(getParallelIteratorTypeName());
+      iteratorTypes.push_back(utils::IteratorType::parallel);
       resultExprs.push_back(b.getAffineDimExpr(size.index()));
     }
   }
@@ -300,8 +300,8 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
         /*dimCount=*/resultRank, /*symbolCount=*/0, exprs, b.getContext()));
   }
 
-  SmallVector<StringRef> iteratorTypes(resultRank,
-                                       getParallelIteratorTypeName());
+  SmallVector<utils::IteratorType> iteratorTypes(resultRank,
+                                                 utils::IteratorType::parallel);
   // Add the indexing map for the outs init tensor.
   indexingMaps.push_back(b.getMultiDimIdentityMap(resultRank));
 
@@ -385,7 +385,8 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
   SmallVector<AffineMap> indexingMaps = {
       AffineMap::get(broadcastToShape.size(), 0, outExpr, context),
       rewriter.getMultiDimIdentityMap(broadcastToShape.size())};
-  SmallVector<StringRef> iteratorTypes(broadcastToShape.size(), "parallel");
+  SmallVector<utils::IteratorType> iteratorTypes(broadcastToShape.size(),
+                                                 utils::IteratorType::parallel);
   result = rewriter
                .create<linalg::GenericOp>(
                    loc, outTensor.getType(), input, outTensor, indexingMaps,

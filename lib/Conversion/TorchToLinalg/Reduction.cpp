@@ -119,19 +119,19 @@ public:
     // iterate over the input and output tensors.
     // Here we also set the type of iterator: parallel or reduction.
     SmallVector<AffineExpr> exprs;
-    SmallVector<StringRef> iteratorTypes;
+    SmallVector<utils::IteratorType> iteratorTypes;
     SmallVector<AffineExpr> resultExprs;
     for (auto size : llvm::enumerate(inputType.getShape())) {
       exprs.push_back(rewriter.getAffineDimExpr(size.index()));
 
       if (unsigned(dim) == size.index()) {
-        iteratorTypes.push_back(getReductionIteratorTypeName());
+        iteratorTypes.push_back(utils::IteratorType::reduction);
         // If `keepDim`, create affine map to the first element
         // in the current dimension.
         if (keepDim)
           resultExprs.push_back(rewriter.getAffineConstantExpr(0));
       } else {
-        iteratorTypes.push_back(getParallelIteratorTypeName());
+        iteratorTypes.push_back(utils::IteratorType::parallel);
         resultExprs.push_back(rewriter.getAffineDimExpr(size.index()));
       }
     }
