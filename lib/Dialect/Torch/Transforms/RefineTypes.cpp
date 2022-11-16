@@ -658,7 +658,8 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenMaskedFillTensorOp, AtenRollOp, AtenPowTensorTensorOp,
           AtenLiftFreshCopyOp, AtenIndexTensorHackedTwinOp,
           AtenUpsampleNearest2dOp, AtenMishOp, AtenRoundOp, AtenFillTensorOp,
-          AtenUpsampleNearest2dBackwardOp, AtenLeakyReluBackwardOp>(op)) {
+          AtenUpsampleNearest2dBackwardOp, AtenLeakyReluBackwardOp,
+          PrimsSqueezeOp>(op)) {
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
@@ -1100,7 +1101,7 @@ void TypeAnalysis::visitOperation(Operation *op,
     incorporateKnowledge(embedding.getResult(), knowledge);
     return;
   }
-  
+
   if (isa<Aten_EmbeddingBagOp, AtenEmbeddingBagPaddingIdxOp>(op)) {
     visitAtenEmbeddingBagOp(op);
     return;

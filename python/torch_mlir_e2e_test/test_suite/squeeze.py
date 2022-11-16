@@ -184,3 +184,44 @@ class SqueezeDimUnitDimModule(torch.nn.Module):
     module_factory=lambda: SqueezeDimUnitDimModule())
 def SqueezeDimModule_unitDim(module, tu: TestUtils):
     module.forward(tu.rand(1))
+
+
+# ==============================================================================
+
+
+class PrimsSqueezeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 2, 3, 1, 4], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.prims.squeeze(a, dimensions=[0, 4, 1])
+
+
+@register_test_case(
+    module_factory=lambda: PrimsSqueezeModule())
+def PrimsSqueezeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 2, 3, 1, 4))
+
+
+class PrimsSqueezeEmptyDimensionsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 2, 1, 4], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.prims.squeeze(a, dimensions=[])
+
+
+@register_test_case(
+    module_factory=lambda: PrimsSqueezeEmptyDimensionsModule())
+def PrimsSqueezeEmptyDimensionsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 1, 4))
