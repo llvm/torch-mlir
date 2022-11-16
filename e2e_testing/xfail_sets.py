@@ -510,6 +510,7 @@ TOSA_PASS_SET = {
     "MseLossNoReductionModule_basic",
     "AddCMul_Module_basic",
     "AddCDiv_Module_basic",
+    "PrimsSqueezeModule_basic",
 }
 
 LTC_XFAIL_SET = {
@@ -649,4 +650,5 @@ LTC_XFAIL_SET = {
     "VarMeanCorrectionModule_basic",
     "VarMeanCorrectionNoneModule_basic",
     "PrimsConvertElementTypeModule_basic",
+    "PrimsSqueezeModule_basic",
 }

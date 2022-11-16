@@ -701,14 +701,15 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenTriuOp, AtenMaskedFillTensorOp, AtenRollOp, AtenPowTensorTensorOp,
           AtenLiftFreshCopyOp, AtenIndexTensorHackedTwinOp,
           AtenUpsampleNearest2dOp, AtenMishOp, AtenRoundOp, AtenFillTensorOp,
-          AtenUpsampleNearest2dBackwardOp>(op)) {
+          AtenUpsampleNearest2dBackwardOp, PrimsSqueezeOp>(op)) {
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
   // Dtype is always float32, except for bfloat16, float64 and nullptr.
   if (isa<AtenTanhOp, AtenExpOp, AtenExpm1Op, AtenSinOp, AtenCosOp,
           AtenSigmoidOp, AtenReciprocalOp, AtenLogOp, AtenSqrtOp, AtenLog2Op,
-          AtenLog1pOp, AtenRsqrtOp, AtenErfOp, AtenSoftplusOp, AtenFrobeniusNormDimOp>(op)) {
+          AtenLog1pOp, AtenRsqrtOp, AtenErfOp, AtenSoftplusOp,
+          AtenFrobeniusNormDimOp>(op)) {
     ValueKnowledge knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     Type dtype = operands[0]->getValue().dtype;
@@ -1119,7 +1120,7 @@ void TypeAnalysis::visitOperation(Operation *op,
     incorporateKnowledge(embedding.getResult(), knowledge);
     return;
   }
-  
+
   if (isa<Aten_EmbeddingBagOp, AtenEmbeddingBagPaddingIdxOp>(op)) {
     visitAtenEmbeddingBagOp(op);
     return;

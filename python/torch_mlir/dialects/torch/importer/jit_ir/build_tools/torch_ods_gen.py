@@ -658,6 +658,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     # ==========================================================================
 
     emit("prims::convert_element_type : (Tensor, int) -> (Tensor)")
+    emit("prims::squeeze : (Tensor, int[]) -> (Tensor)", has_folder=True)
 
     # ==========================================================================
     # `quantized::` namespace.

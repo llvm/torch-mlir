@@ -59,7 +59,7 @@ static Type computeReductionType(PatternRewriter &rewriter, Operation *op,
       if (keepDim)
         sizes[dimInt] = 1;
       else
-        sizes.erase(sizes.begin() + dimInt - 1);
+        sizes.erase(sizes.begin() + dimInt);
     } else {
       unsigned reducedRank = keepDim ? inputRank : inputRank - 1;
       sizes.resize(reducedRank, kUnknownSize);
@@ -3170,6 +3170,41 @@ public:
 } // namespace
 
 namespace {
+class DecomposePrimsSqueezeOp : public OpRewritePattern<PrimsSqueezeOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimsSqueezeOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.a();
+
+    SmallVector<int64_t> dimensions;
+    if (!matchPattern(op.dimensions(), m_TorchListOfConstantInts(dimensions)))
+      return rewriter.notifyMatchFailure(
+          op, "all dimensions must be constant ints");
+
+    std::sort(dimensions.begin(), dimensions.end());
+    std::reverse(dimensions.begin(), dimensions.end());
+
+    BaseTensorType inputTensorTy = input.getType().cast<BaseTensorType>();
+    Type squeezeDimResultTy = inputTensorTy;
+    Value squeeze = input;
+    for (unsigned i = 0; i < dimensions.size(); i++) {
+      Value dim = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(dimensions[i]));
+      squeezeDimResultTy = computeReductionType(
+          rewriter, op, squeezeDimResultTy.cast<BaseTensorType>(), dim,
+          /*keepDim=*/false);
+      squeeze = rewriter.create<AtenSqueezeDimOp>(loc, squeezeDimResultTy,
+                                                  squeeze, dim);
+    }
+    rewriter.replaceOp(op, squeeze);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 public:
@@ -3376,6 +3411,8 @@ public:
     target.addIllegalOp<AtenVarMeanCorrectionOp>();
     patterns.add<DecomposePrimsConvertElementTypeOp>(context);
     target.addIllegalOp<PrimsConvertElementTypeOp>();
+    patterns.add<DecomposePrimsSqueezeOp>(context);
+    target.addIllegalOp<PrimsSqueezeOp>();
 
     for (std::string opName : legalOps) {
       target.addLegalOp(OperationName(opName, context));
