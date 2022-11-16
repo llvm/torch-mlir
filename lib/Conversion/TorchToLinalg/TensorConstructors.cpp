@@ -47,7 +47,7 @@ public:
     // will get the lowered version of the operands which is harder to pattern
     // match.
     SmallVector<int64_t> padInts;
-    if (!matchPattern(op.pad(), m_TorchConstantIntList(padInts)))
+    if (!matchPattern(op.pad(), m_TorchListOfConstantInts(padInts)))
       return rewriter.notifyMatchFailure(
           op, "only support constant int pad ranges");
     uint64_t padRank = padInts.size() / 2;

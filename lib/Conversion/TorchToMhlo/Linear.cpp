@@ -693,23 +693,23 @@ public:
     if (inputTy.getRank() < 3)
       return op.emitError("only input with at least 3 dims valid");
     SmallVector<int64_t> stride;
-    if (!matchPattern(op.stride(), m_TorchConstantIntList(stride))) {
+    if (!matchPattern(op.stride(), m_TorchListOfConstantInts(stride))) {
       return rewriter.notifyMatchFailure(op,
                                          "non-const stride list unsupported");
     }
     SmallVector<int64_t> padding;
-    if (!matchPattern(op.padding(), m_TorchConstantIntList(padding))) {
+    if (!matchPattern(op.padding(), m_TorchListOfConstantInts(padding))) {
       return rewriter.notifyMatchFailure(op,
                                          "non-const padding list unsupported");
     }
     SmallVector<int64_t> dilation;
-    if (!matchPattern(op.dilation(), m_TorchConstantIntList(dilation))) {
+    if (!matchPattern(op.dilation(), m_TorchListOfConstantInts(dilation))) {
       return rewriter.notifyMatchFailure(op,
                                          "non-const dilation list unsupported");
     }
     SmallVector<int64_t> outputPadding;
     if (!matchPattern(op.output_padding(),
-                      m_TorchConstantIntList(outputPadding))) {
+                      m_TorchListOfConstantInts(outputPadding))) {
       return rewriter.notifyMatchFailure(
           op, "non-const output_padding list unsupported");
     }

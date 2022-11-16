@@ -278,7 +278,7 @@ private:
     SmallVector<int64_t> dimList;
     bool isNoneOrEmptyDimList =
         op.dim().getType().template isa<Torch::NoneType>();
-    if (matchPattern(op.dim(), m_TorchConstantIntList(dimList))) {
+    if (matchPattern(op.dim(), m_TorchListOfConstantInts(dimList))) {
       // Fix negative dimensions, if any, before adding to the list.
       for (int64_t dim : dimList) {
         dim = toPositiveDim(dim, inputType.getRank());

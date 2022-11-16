@@ -612,7 +612,7 @@ class ConvertAtenMultipleDimsReductionOp
                                           ElementsAttr &reduceDimsAttr,
                                           bool &keepDims) const override {
     SmallVector<int64_t, 4> reduceDims;
-    if (!matchPattern(op.dim(), m_TorchConstantIntList(reduceDims)))
+    if (!matchPattern(op.dim(), m_TorchListOfConstantInts(reduceDims)))
       return rewriter.notifyMatchFailure(op,
                                          "non-const dim parameter unsupported");
     int64_t N = reduceDims.size();
@@ -1775,11 +1775,11 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
                         : rewriter.getI32Type();
 
   SmallVector<int64_t, 2> stride;
-  if (!matchPattern(adaptor.stride(), m_TorchConstantIntList(stride)))
+  if (!matchPattern(adaptor.stride(), m_TorchListOfConstantInts(stride)))
     return rewriter.notifyMatchFailure(op, "non-const stride list unsupported");
 
   SmallVector<int64_t, 2> padding_2d;
-  if (!matchPattern(adaptor.padding(), m_TorchConstantIntList(padding_2d)))
+  if (!matchPattern(adaptor.padding(), m_TorchListOfConstantInts(padding_2d)))
     return rewriter.notifyMatchFailure(op,
                                        "non-const padding list unsupported");
   // TOSA uses 4D padding {t, b, l, r} while Torch defines 2D padding {t, l}.
@@ -1789,7 +1789,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
       {padding_2d[0], padding_2d[0], padding_2d[1], padding_2d[1]});
 
   SmallVector<int64_t, 2> dilation;
-  if (!matchPattern(adaptor.dilation(), m_TorchConstantIntList(dilation)))
+  if (!matchPattern(adaptor.dilation(), m_TorchListOfConstantInts(dilation)))
     return rewriter.notifyMatchFailure(op,
                                        "non-const dilation list unsupported");
 
@@ -1895,7 +1895,7 @@ LogicalResult ConvertAtenOp<AtenReshapeOp>::matchAndRewrite(
 
   // Check that at most one dimension is -1
   SmallVector<int64_t> newShape;
-  if (!matchPattern(op.shape(), m_TorchConstantIntList(newShape)))
+  if (!matchPattern(op.shape(), m_TorchListOfConstantInts(newShape)))
     return rewriter.notifyMatchFailure(
         op, "Only constant shape supported in TOSA Reshape");
 
@@ -2093,7 +2093,7 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
   // Check if all the arguments meet the requirements.
   SmallVector<int64_t> normalizedShapeSizesInt;
   if (!matchPattern(op.normalized_shape(),
-                    m_TorchConstantIntList(normalizedShapeSizesInt))) {
+                    m_TorchListOfConstantInts(normalizedShapeSizesInt))) {
     return rewriter.notifyMatchFailure(op, "Unimplemented normalized_shape not"
                                            "constructed from ListConstruct");
   }
@@ -2311,7 +2311,7 @@ LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewrite(
         "Only ranked tensor types with static shapes are currently supported");
 
   SmallVector<int64_t> dimListInt;
-  if (!matchPattern(adaptor.dims(), m_TorchConstantIntList(dimListInt)))
+  if (!matchPattern(adaptor.dims(), m_TorchListOfConstantInts(dimListInt)))
     return rewriter.notifyMatchFailure(
         op, "Only constant dimensions are currently supported");
 
@@ -2515,7 +2515,7 @@ LogicalResult ConvertAtenOp<AtenViewOp>::matchAndRewrite(
   }
 
   SmallVector<int64_t> outShape;
-  if (!matchPattern(op.size(), m_TorchConstantIntList(outShape)))
+  if (!matchPattern(op.size(), m_TorchListOfConstantInts(outShape)))
     return rewriter.notifyMatchFailure(op,
                                        "size must consist of Scalar constants");
 
@@ -2974,7 +2974,7 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
   }
 
   SmallVector<int64_t> outShape;
-  if (!matchPattern(op.size(), m_TorchConstantIntList(outShape)))
+  if (!matchPattern(op.size(), m_TorchListOfConstantInts(outShape)))
     return rewriter.notifyMatchFailure(op,
                                        "size must consist of Scalar constants");
 
@@ -3350,7 +3350,7 @@ public:
     int64_t inputWDim = inputShape[inputRank - 1];
 
     SmallVector<int64_t> outputSize;
-    if (!matchPattern(op.output_size(), m_TorchConstantIntList(outputSize)))
+    if (!matchPattern(op.output_size(), m_TorchListOfConstantInts(outputSize)))
       return rewriter.notifyMatchFailure(
           op, "Non-const output_size for adaptive pooling unsupported.");
 
@@ -3446,13 +3446,14 @@ static LogicalResult getOutputTypeAndPoolingParameters(
         op, "NCHW->NHWC transpose requires 3D or 4D tensor");
 
   SmallVector<int64_t, 2> kernelSizeInts, strideInts, paddingInts;
-  if (!matchPattern(op.kernel_size(), m_TorchConstantIntList(kernelSizeInts)))
+  if (!matchPattern(op.kernel_size(),
+                    m_TorchListOfConstantInts(kernelSizeInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const kernel_size for pooling op unsupported");
-  if (!matchPattern(op.stride(), m_TorchConstantIntList(strideInts)))
+  if (!matchPattern(op.stride(), m_TorchListOfConstantInts(strideInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const stride for pooling op unsupported");
-  if (!matchPattern(op.padding(), m_TorchConstantIntList(paddingInts)))
+  if (!matchPattern(op.padding(), m_TorchListOfConstantInts(paddingInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const padding factor for pooling op unsupported");
 
@@ -3486,7 +3487,7 @@ public:
                               ArrayAttr &kernel, ArrayAttr &stride,
                               ArrayAttr &pad, Type &outputTy) const override {
     SmallVector<int64_t, 2> dilationArray;
-    if (!matchPattern(op.dilation(), m_TorchConstantIntList(dilationArray)))
+    if (!matchPattern(op.dilation(), m_TorchListOfConstantInts(dilationArray)))
       return rewriter.notifyMatchFailure(
           op, "Non-const dilation for pooling op unsupported.");
     // TOSA pooling only supports unit dilation.
@@ -3572,7 +3573,7 @@ public:
     }
 
     SmallVector<int64_t> shape;
-    if (!matchPattern(op.size(), m_TorchConstantIntList(shape))) {
+    if (!matchPattern(op.size(), m_TorchListOfConstantInts(shape))) {
       return rewriter.notifyMatchFailure(
           op, "Shape must be a list of Scalar constants");
     }

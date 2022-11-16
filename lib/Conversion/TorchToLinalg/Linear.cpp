@@ -110,7 +110,7 @@ public:
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
 
     SmallVector<int64_t> axis;
-    if (!matchPattern(adaptor.dims(), m_TorchConstantIntList(axis)))
+    if (!matchPattern(adaptor.dims(), m_TorchListOfConstantInts(axis)))
       return rewriter.notifyMatchFailure(op,
                                          "only constant dim lists supported");
     // Only used to calculate flipped values, i.e. those on the flip axes. Other
@@ -507,11 +507,11 @@ public:
     paddingIntValues = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
                                               paddingIntValues);
     SmallVector<int64_t> strideInts;
-    if (!matchPattern(op.stride(), m_TorchConstantIntList(strideInts)))
+    if (!matchPattern(op.stride(), m_TorchListOfConstantInts(strideInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int strides");
     SmallVector<int64_t> dilationInts;
-    if (!matchPattern(op.dilation(), m_TorchConstantIntList(dilationInts)))
+    if (!matchPattern(op.dilation(), m_TorchListOfConstantInts(dilationInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int dilations");
 

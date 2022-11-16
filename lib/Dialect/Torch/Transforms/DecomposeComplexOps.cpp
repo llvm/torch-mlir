@@ -1220,7 +1220,7 @@ public:
     }
 
     SmallVector<bool> outMask;
-    if (!matchPattern(op.output_mask(), m_TorchConstantBoolList(outMask)))
+    if (!matchPattern(op.output_mask(), m_TorchListOfConstantBools(outMask)))
       return rewriter.notifyMatchFailure(
           op, "only constant bool output_mask is supported.");
     // Support for `False` values for output mask unimplemented.
