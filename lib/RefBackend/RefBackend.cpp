@@ -332,8 +332,8 @@ Operation *createLinalgCopyOp(OpBuilder &b, Location loc, Value from,
          memrefTypeFrom.getRank() == memrefTypeTo.getRank());
   AffineMap id =
       AffineMap::getMultiDimIdentityMap(memrefTypeTo.getRank(), b.getContext());
-  SmallVector<StringRef> iteratorTypes(memrefTypeTo.getRank(),
-                                       getParallelIteratorTypeName());
+  SmallVector<utils::IteratorType> iteratorTypes(memrefTypeTo.getRank(),
+                                                 utils::IteratorType::parallel);
   return b.create<linalg::GenericOp>(
       loc,
       /*inputs=*/from,

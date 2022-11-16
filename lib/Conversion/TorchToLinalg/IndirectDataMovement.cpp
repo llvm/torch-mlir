@@ -92,7 +92,8 @@ public:
 
     SmallVector<AffineMap, 2> affineMaps(2,
                                          rewriter.getMultiDimIdentityMap(rank));
-    SmallVector<StringRef> iteratorTypes(rank, getParallelIteratorTypeName());
+    SmallVector<utils::IteratorType> iteratorTypes(
+        rank, utils::IteratorType::parallel);
     auto genericOp = rewriter
                          .create<linalg::GenericOp>(
                              loc, result.getType(), indices, result, affineMaps,
@@ -146,8 +147,8 @@ public:
         indicesAffineMap,
         rewriter.getMultiDimIdentityMap(resultRank),
     };
-    SmallVector<StringRef> iteratorTypes(sizes.size(),
-                                         getParallelIteratorTypeName());
+    SmallVector<utils::IteratorType> iteratorTypes(
+        sizes.size(), utils::IteratorType::parallel);
     Value initTensor =
         rewriter.create<tensor::EmptyOp>(loc, getAsOpFoldResult(sizes), elemTy);
     Value embeddingResult =
@@ -311,9 +312,9 @@ public:
     };
 
     // Reduce along the indices dim
-    SmallVector<StringRef> iteratorTypes({getParallelIteratorTypeName(),
-                                          getReductionIteratorTypeName(),
-                                          getParallelIteratorTypeName()});
+    SmallVector<utils::IteratorType> iteratorTypes(
+        {utils::IteratorType::parallel, utils::IteratorType::reduction,
+         utils::IteratorType::parallel});
 
     Value embeddingDim = getDimOp(rewriter, loc, weight, 1);
     Value initTensor;
@@ -483,11 +484,11 @@ public:
 
     SmallVector<AffineExpr> resultExpr;
     AffineExpr indicesExpr = rewriter.getAffineDimExpr(dimInt);
-    SmallVector<StringRef> iteratorTypes;
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
 
     for (unsigned i = 0; i < inputRank; i++) {
       resultExpr.push_back(rewriter.getAffineDimExpr(i));
-      iteratorTypes.push_back(getParallelIteratorTypeName());
     }
 
     auto indexingMaps = AffineMap::inferFromExprList({indicesExpr, resultExpr});
@@ -680,7 +681,6 @@ public:
     Value initTensor = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(resultShape), elementType);
     SmallVector<AffineMap> indexingMaps;
-    SmallVector<StringRef> iteratorTypes;
 
     for (auto indexTensor : indexTensors) {
       RankedTensorType indexTensorType =
@@ -703,8 +703,9 @@ public:
     SmallVector<AffineExpr> resultExpr;
     for (auto i : llvm::seq(0, resultRank)) {
       resultExpr.push_back(rewriter.getAffineDimExpr(i));
-      iteratorTypes.push_back(getParallelIteratorTypeName());
     }
+    SmallVector<utils::IteratorType> iteratorTypes(
+        resultRank, utils::IteratorType::parallel);
 
     indexingMaps.push_back(
         AffineMap::get(resultRank, 0, resultExpr, op->getContext()));
@@ -865,8 +866,8 @@ public:
         loc, getAsOpFoldResult(dims), elementType);
 
     AffineMap idMap = rewriter.getMultiDimIdentityMap(inputRank);
-    SmallVector<StringRef> iteratorTypes(inputRank,
-                                         getParallelIteratorTypeName());
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
 
     Value finalRes =
         rewriter
@@ -1052,10 +1053,10 @@ public:
                        /*symbolCount=*/0, affineExprs, op->getContext());
 
     SmallVector<AffineMap> indexingMaps{kernelMap, outputMap};
-    SmallVector<StringRef> iteratorTypes(gradOutputRank,
-                                         getParallelIteratorTypeName());
-    iteratorTypes.push_back(getReductionIteratorTypeName());
-    iteratorTypes.push_back(getReductionIteratorTypeName());
+    SmallVector<utils::IteratorType> iteratorTypes(
+        gradOutputRank, utils::IteratorType::parallel);
+    iteratorTypes.push_back(utils::IteratorType::reduction);
+    iteratorTypes.push_back(utils::IteratorType::reduction);
 
     Value finalRes =
         rewriter

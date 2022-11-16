@@ -122,7 +122,8 @@ public:
     Value initTensor = createZeroInitTensor(
         rewriter, loc, getTensorSizes(rewriter, loc, self), elementType);
 
-    SmallVector<StringRef> iteratorTypes(selfRank, "parallel");
+    SmallVector<utils::IteratorType> iteratorTypes(
+        selfRank, utils::IteratorType::parallel);
     SmallVector<AffineMap> indexingMaps(
         2, AffineMap::getMultiDimIdentityMap(selfRank, context));
     Value flipped =
@@ -368,12 +369,12 @@ public:
       SmallVector<AffineExpr> lhsExpr;
       SmallVector<AffineExpr> rhsExpr;
       SmallVector<AffineExpr> outExpr;
-      SmallVector<StringRef> iteratorTypes;
+      SmallVector<utils::IteratorType> iteratorTypes(
+          batchRank, utils::IteratorType::parallel);
       for (unsigned i = 0; i < batchRank; i++) {
         lhsExpr.push_back(rewriter.getAffineDimExpr(i));
         rhsExpr.push_back(rewriter.getAffineDimExpr(i));
         outExpr.push_back(rewriter.getAffineDimExpr(i));
-        iteratorTypes.push_back(getParallelIteratorTypeName());
       }
       lhsExpr.insert(lhsExpr.end(), {rewriter.getAffineDimExpr(batchRank),
                                      rewriter.getAffineDimExpr(batchRank + 1)});
@@ -389,7 +390,9 @@ public:
       auto indexingMaps =
           AffineMap::inferFromExprList({lhsExpr, rhsExpr, outExpr});
       iteratorTypes.insert(iteratorTypes.end(),
-                           {"parallel", "reduction", "parallel"});
+                           {utils::IteratorType::parallel,
+                            utils::IteratorType::reduction,
+                            utils::IteratorType::parallel});
 
       Value finalRes =
           rewriter
@@ -568,8 +571,8 @@ public:
       outDims[1] = weightInitDims[0];
       Value weightInitTensor =
           createZeroInitTensor(rewriter, loc, weightInitDims, elementType);
-      SmallVector<StringRef> iteratorTypes(inRank,
-                                           getParallelIteratorTypeName());
+      SmallVector<utils::IteratorType> iteratorTypes(
+          inRank, utils::IteratorType::parallel);
       SmallVector<AffineMap> indexingMaps{
           AffineMap::getMultiDimIdentityMap(inRank, context)};
       weight = rewriter
@@ -678,8 +681,8 @@ public:
           AffineMap::get(/*dimCount=*/resultRank, /*symbolCount=*/0,
                          rewriter.getAffineDimExpr(1), context),
           rewriter.getMultiDimIdentityMap(resultRank)};
-      SmallVector<StringRef> iteratorTypes(resultRank,
-                                           getParallelIteratorTypeName());
+      SmallVector<utils::IteratorType> iteratorTypes(
+          resultRank, utils::IteratorType::parallel);
       outputTensor = rewriter
                          .create<linalg::GenericOp>(
                              loc, initTensor.getType(), bias, initTensor,

@@ -37,13 +37,13 @@ def ScalarLoopOpInterface : OpInterface<"ScalarLoopOpInterface"> {
       >,
       InterfaceMethod<
         /*desc=*/[{
-          Returns a list of `StringRef`s that describe the number of
+          Returns a list of `IteratorType`s that describe the number of
           loops and the iterator types of the operation. The list is
           expected to use
-          `getParallelIteratorTypeName()`/`getReductionIteratorTypeName()`
+          `utils::IteratorType::parallel`/`utils::IteratorType::reduction`
           from MLIR Structured Op Utils.
         }],
-        /*retType=*/"SmallVector<StringRef>",
+        /*retType=*/"SmallVector<utils::IteratorType>",
         /*methodName=*/"getLoopIteratorTypes"
       >,
       InterfaceMethod<

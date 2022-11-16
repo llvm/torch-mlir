@@ -113,8 +113,8 @@ public:
     auto resultRank = resultType.getRank();
     SmallVector<AffineMap, 1> indexingMaps(
         1, rewriter.getMultiDimIdentityMap(resultRank));
-    SmallVector<StringRef> iteratorTypes(resultRank,
-                                         getParallelIteratorTypeName());
+    SmallVector<utils::IteratorType> iteratorTypes(
+        resultRank, utils::IteratorType::parallel);
     SmallVector<Value> sizes = getTensorSizes(rewriter, loc, self);
     Value initTensor =
         rewriter.create<tensor::EmptyOp>(loc, getAsOpFoldResult(sizes), elemTy);

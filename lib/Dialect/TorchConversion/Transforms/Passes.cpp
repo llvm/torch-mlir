@@ -21,7 +21,7 @@
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #ifdef TORCH_MLIR_ENABLE_MHLO
-#include "mlir-hlo/Dialect/mhlo/transforms/passes.h"
+#include "mhlo/transforms/passes.h"
 #include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
 #endif
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"

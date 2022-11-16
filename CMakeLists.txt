@@ -134,7 +134,9 @@ if (TORCH_MLIR_ENABLE_MHLO)
     ${CMAKE_CURRENT_BINARY_DIR}/mlir-hlo
     EXCLUDE_FROM_ALL)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/mlir-hlo/include)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/mlir-hlo)
   include_directories(${CMAKE_CURRENT_BINARY_DIR}/mlir-hlo/include)
+  include_directories(${CMAKE_CURRENT_BINARY_DIR}/mlir-hlo)
 endif()
 
 set(TORCH_MLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
