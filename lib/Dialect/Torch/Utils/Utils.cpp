@@ -203,7 +203,7 @@ bool Torch::isViewLikeOp(Operation *op) {
              AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp, AtenToDtypeOp,
              AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
              TensorStaticInfoCastOp, AtenToDtypeLayoutOp, AtenNumpyTOp,
-             AtenNarrowOp, AtenToDeviceOp>(op);
+             AtenNarrowOp, AtenToDeviceOp, PrimsSqueezeOp>(op);
 }
 
 Value Torch::getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter,
@@ -254,4 +254,39 @@ SmallVector<int64_t> Torch::makeShapeTorchCompatible(ArrayRef<int64_t> shape) {
       updatedShape[i] = kUnknownSize;
   }
   return updatedShape;
+}
+
+// Helper function to squeeze the input tensor at given dim.
+// Return the squeezed tensor or failure.
+FailureOr<Value> Torch::squeezeTensor(PatternRewriter &rewriter, Operation *op,
+                                      Location loc, int64_t dim, Value input) {
+  BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+  if (!inputType.hasSizes()) {
+    return rewriter.notifyMatchFailure(loc, "input tensor must have size");
+  }
+  SmallVector<int64_t> inputShape{inputType.getSizes()};
+  unsigned inputRank = inputShape.size();
+  dim = toPositiveDim(dim, inputRank);
+  if (!isValidDim(dim, inputRank)) {
+    return rewriter.notifyMatchFailure(
+        op, "dimension to be squeezed is an invalid dim");
+  }
+  inputShape.erase(inputShape.begin() + dim);
+  Type squeezedType =
+      inputType.getWithSizesAndDtype(inputShape, inputType.getOptionalDtype());
+
+  Value cstDim = rewriter.create<Torch::ConstantIntOp>(
+      loc, rewriter.getI64IntegerAttr(dim));
+  // Adding a check to verify if the dimension to be squeezed has size 1 or not.
+  Value cstOne =
+      rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+  Value dimSize = rewriter.create<AtenSizeIntOp>(loc, input, cstDim);
+  Value cmp = rewriter.create<Torch::AtenEqIntOp>(loc, dimSize, cstOne);
+  rewriter.create<Torch::RuntimeAssertOp>(
+      loc, cmp,
+      "squeeze operation possible for dim only when input_shape[dim] == 1.");
+
+  Value result =
+      rewriter.create<AtenSqueezeDimOp>(loc, squeezedType, input, cstDim);
+  return result;
 }

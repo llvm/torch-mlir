@@ -3834,6 +3834,44 @@ public:
 } // namespace
 
 namespace {
+class DecomposePrimsSqueezeOp : public OpRewritePattern<PrimsSqueezeOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimsSqueezeOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getA();
+    SmallVector<int64_t> dimensions;
+    if (!matchPattern(op.getDimensions(),
+                      m_TorchListOfConstantInts(dimensions)))
+      return rewriter.notifyMatchFailure(
+          op, "all dimensions must be constant ints");
+
+    std::sort(dimensions.begin(), dimensions.end());
+    std::reverse(dimensions.begin(), dimensions.end());
+
+    if (dimensions.size() == 0) {
+      rewriter.replaceOp(op, input);
+      return success();
+    }
+
+    Value result = input;
+    for (unsigned i = 0; i < dimensions.size(); i++) {
+      auto squeezeTensorInfo =
+          squeezeTensor(rewriter, op, loc, dimensions[i], result);
+      if (failed(squeezeTensorInfo)) {
+        return rewriter.notifyMatchFailure(op,
+                                           "cannot generate unsqueeze tensor");
+      }
+      result = *squeezeTensorInfo;
+    }
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -3990,6 +4028,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluBackwardOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyStridedOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBucketizeTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposePrimsSqueezeOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

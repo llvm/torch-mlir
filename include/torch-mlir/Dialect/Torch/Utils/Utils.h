@@ -75,6 +75,12 @@ int64_t getNumberOfElements(RankedTensorType inputType);
 
 SmallVector<int64_t> makeShapeLLVMCompatible(ArrayRef<int64_t> shape);
 SmallVector<int64_t> makeShapeTorchCompatible(ArrayRef<int64_t> shape);
+
+// Helper function to squeeze the input tensor at given dim.
+// Return the squeezed tensor or failure.
+FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
+                               Location loc, int64_t dim, Value input);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
