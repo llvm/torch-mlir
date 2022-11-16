@@ -25,13 +25,13 @@ jobs:
       with:
         submodules: 'true'
 
+    # Continually update cache even if there's a "hit" during
+    # restore to avoid the cache going stale over time
+    # https://github.com/actions/cache/blob/main/workarounds.md#update-a-cache
     - name: Setup cache for bazel
       uses: actions/cache@v3
       with:
         path: ~/.cache/bazel
-        # Continually update cache even if there's a "hit" during
-        # restore to avoid the cache going stale over time
-        # https://github.com/actions/cache/blob/main/workarounds.md#update-a-cache
         key: torch_mlir-bazel-build-cache-${{ runner.os }}-${{ github.sha }}
         restore-keys: |
           torch_mlir-bazel-build-cache-${{ runner.os }}
@@ -59,6 +59,14 @@ jobs:
                    -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
                    torch-mlir:ci \
                    bazel build @torch-mlir//:torch-mlir-opt
+
+    - name: Bazel test torch-mlir (lit tests)
+      run: |
+        docker run --rm \
+                   -v "$(pwd)":"/opt/src/torch-mlir" \
+                   -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
+                   torch-mlir:ci \
+                   bazel test @torch-mlir//test/...
 
     # Switch back bazel cache directory to user ownership
     # to allow GHA post-cache step to save cache without
