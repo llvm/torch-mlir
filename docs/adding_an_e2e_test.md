@@ -146,7 +146,7 @@ object as the second argument. The `TestUtils` has some methods, such as
 and
 [`tu.randint`](https://github.com/llvm/torch-mlir/blob/8e880a2d009b67d45fb07434ab62ec2066a11185/python/torch_mlir_e2e_test/torchscript/framework.py#L185),
 that allow the creation of random tensors in a way that makes sure the compiled
-module and the golden trace recieve the same tensors as input. Therefore, all
+module and the golden trace receive the same tensors as input. Therefore, all
 random inputs should be generated through the `TestUtils` object.
 
 
