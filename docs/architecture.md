@@ -325,7 +325,7 @@ blend of the benefits of the other two.
 All the backends are implemented using the MLIR [Dialect Conversion
 infrastructure](https://mlir.llvm.org/docs/DialectConversion/). This involves
 converting the `torch` dialect types to other types, so we closely follow the
-principes from the "Type Conversions the Not-So-Hard Way" talk
+principles from the "Type Conversions the Not-So-Hard Way" talk
 ([slides](https://drive.google.com/file/d/1FVbzCXxZzS9LBLuvpPNLWJD-XDkt54ky/view?usp=sharing),
 [recording](https://drive.google.com/file/d/1VfVajitgf8ZPnd-HRkJvaJiFLhBsluXN/view?usp=sharing)).
 We follow the standard `{include,lib}/Conversion/TorchTo*` convention used in
@@ -396,7 +396,7 @@ Because of this, many Torch-MLIR patches adding support for new ops have no
 `.mlir` unit tests, and only include end-to-end test(s). We generally make sure
 that our end-to-end tests are as targeted as possible. As a result, when
 debugging end-to-end test failures, the resulting reproducers (which our test
-framework automaticaly produces for failures) are usually already fully reduced
+framework automatically produces for failures) are usually already fully reduced
 test cases.
 
 ### Do's and Don'ts for unit vs end-to-end testing.

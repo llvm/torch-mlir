@@ -273,7 +273,7 @@ docker build -t your-name/torch-mlir-ci --no-cache .
 
 ### Other configurable environmental variables
 
-The following additional environmental variables can be used to customie your docker build:
+The following additional environmental variables can be used to customize your docker build:
 
 * Custom Release Docker image:
   Defaults to `stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest`
