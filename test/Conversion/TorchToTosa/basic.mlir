@@ -903,6 +903,48 @@ func.func @torch.aten.to.dtype(%arg0: !torch.vtensor<[3,5],si64>) -> !torch.vten
 }
 
 // -----
+// CHECK-LABEL:   func.func @torch.aten.add$basic(
+// CHECK-SAME:                                    %[[VAL_0:.*]]: !torch.vtensor<[2,2],si32>,
+// CHECK-SAME:                                    %[[VAL_1:.*]]: !torch.vtensor<[2,2],si32>) -> !torch.vtensor<[2,2],si64> {
+// CHECK:           %[[VAL_2:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[2,2],si32> -> tensor<2x2xi32>
+// CHECK:           %[[VAL_3:.*]] = torch_c.to_builtin_tensor %[[VAL_1]] : !torch.vtensor<[2,2],si32> -> tensor<2x2xi32>
+// CHECK:           %[[VAL_4:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_5:.*]] = "tosa.const"() {value = dense<1> : tensor<i32>} : () -> tensor<i32>
+// CHECK:           %[[VAL_6:.*]] = "tosa.mul"(%[[VAL_3]], %[[VAL_5]]) {shift = 0 : i32} : (tensor<2x2xi32>, tensor<i32>) -> tensor<2x2xi32>
+// CHECK:           %[[VAL_7:.*]] = "tosa.add"(%[[VAL_2]], %[[VAL_6]]) : (tensor<2x2xi32>, tensor<2x2xi32>) -> tensor<2x2xi32>
+// CHECK:           %[[VAL_8:.*]] = "tosa.cast"(%[[VAL_7]]) : (tensor<2x2xi32>) -> tensor<2x2xi64>
+// CHECK:           %[[VAL_9:.*]] = torch_c.from_builtin_tensor %[[VAL_8]] : tensor<2x2xi64> -> !torch.vtensor<[2,2],si64>
+// CHECK:           return %[[VAL_9]] : !torch.vtensor<[2,2],si64>
+// CHECK:         }
+func.func @torch.aten.add$basic(%arg0: !torch.vtensor<[2, 2],si32>, %arg1: !torch.vtensor<[2, 2],si32>) -> !torch.vtensor<[2, 2],si64> {
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.add.Tensor %arg0, %arg1, %int1 : !torch.vtensor<[2, 2],si32>, !torch.vtensor<[2, 2],si32>, !torch.int -> !torch.vtensor<[2, 2],si64>
+  return %0 : !torch.vtensor<[2, 2],si64>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.Scalar$basic(
+// CHECK-SAME:                                       %[[VAL_0:.*]]: !torch.vtensor<[1,1,128,128],si64>) -> !torch.vtensor<[1,1,128,128],si64> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,128,128],si64> -> tensor<1x1x128x128xi64>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_3:.*]] = torch.constant.int 256
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() {value = dense<256> : tensor<i32>} : () -> tensor<i32>
+// CHECK:           %[[VAL_5:.*]] = "tosa.const"() {value = dense<1> : tensor<i32>} : () -> tensor<i32>
+// CHECK:           %[[VAL_6:.*]] = "tosa.mul"(%[[VAL_4]], %[[VAL_5]]) {shift = 0 : i32} : (tensor<i32>, tensor<i32>) -> tensor<i32>
+// CHECK:           %[[VAL_7:.*]] = "tosa.cast"(%[[VAL_1]]) : (tensor<1x1x128x128xi64>) -> tensor<1x1x128x128xi32>
+// CHECK:           %[[VAL_8:.*]] = "tosa.add"(%[[VAL_7]], %[[VAL_6]]) : (tensor<1x1x128x128xi32>, tensor<i32>) -> tensor<1x1x128x128xi32>
+// CHECK:           %[[VAL_9:.*]] = "tosa.cast"(%[[VAL_8]]) : (tensor<1x1x128x128xi32>) -> tensor<1x1x128x128xi64>
+// CHECK:           %[[VAL_10:.*]] = torch_c.from_builtin_tensor %[[VAL_9]] : tensor<1x1x128x128xi64> -> !torch.vtensor<[1,1,128,128],si64>
+// CHECK:           return %[[VAL_10]] : !torch.vtensor<[1,1,128,128],si64>
+// CHECK:         }
+func.func @torch.aten.Scalar$basic(%arg0: !torch.vtensor<[1,1,128,128],si64>) -> !torch.vtensor<[1,1,128,128],si64> {
+  %int1 = torch.constant.int 1
+  %int256 = torch.constant.int 256
+  %0 = torch.aten.add.Scalar %arg0, %int256, %int1 : !torch.vtensor<[1,1,128,128],si64>, !torch.int, !torch.int -> !torch.vtensor<[1,1,128,128],si64>
+  return %0 : !torch.vtensor<[1,1,128,128],si64>
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten.clamp(
 // CHECK-SAME:                                %[[VAL_0:.*]]: !torch.vtensor<[1,1,128,128],si64>) -> !torch.vtensor<[1,1,128,128],si64> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,128,128],si64> -> tensor<1x1x128x128xi64>

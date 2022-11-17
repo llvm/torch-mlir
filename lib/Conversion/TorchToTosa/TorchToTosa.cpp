@@ -220,6 +220,11 @@ public:
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    // left  : tensor: tensor<i32/i64/f32>
+    // right : scalar: i32/i64/f32
+    //         tensor: tensor<i32/i64/f32>
+    // alpha : scalar: i32/i64/f32
+    // output: tensor: tensor<i32/i64/f32>
     Value lhs = adaptor.getSelf();
     auto lhsType = lhs.getType().dyn_cast<TensorType>();
     Value rhs = adaptor.getOther();
@@ -230,11 +235,12 @@ public:
                                          "Only Tensor types supported in TOSA");
 
     if (auto lhsElemTy = lhsType.getElementType().dyn_cast<IntegerType>()) {
-      if (lhsElemTy.getWidth() > 32)
+      if (lhsElemTy.getWidth() > 64)
         return rewriter.notifyMatchFailure(
-            op, "Integers with widths greater than 32 are not supported");
+            op, "Integers with widths greater than 64 are not supported");
     }
 
+    // Get output type: tensor<i32/i64/f32>
     auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
                        ->convertType(op.getType())
                        .template cast<TensorType>();
@@ -245,40 +251,91 @@ public:
           op, "Only floating-point or integer datatype legalization supported");
     }
 
+    Type rhsAlphaMulElemType;
+    if (outElemTy.isa<mlir::FloatType>()) {
+      rhsAlphaMulElemType = outElemTy;
+    } else {
+      // if output type is 64, input type should also be 32
+      rhsAlphaMulElemType = rewriter.getIntegerType(32);
+    }
+
+    // if right is scalar, rhgType==None, which need to be manually cast to
+    // TensorType else right is tensor, rhsType==tensor<i32/i64/f32>
     Value rhsAsTensor;
     if (!rhsType) {
-      if (failed(torchScalarToTosaTensor(rewriter, op, op.getOther(), rhsAsTensor,
-                                         outElemTy, {})))
+      if (failed(torchScalarToTosaTensor(rewriter, op, op.getOther(),
+                                         rhsAsTensor, rhsAlphaMulElemType, {})))
         return rewriter.notifyMatchFailure(
             op, "Currently only scalar constants are supported for "
                 "conversion in TOSA operation");
+    } else if (rhsType.getElementType() != rhsAlphaMulElemType) {
+      // right is tensor, rhsType == tensor<i32/i64/f32>
+      // right must be cast to same type as the alpha, so MulOp success
+      rhs = rewriter.create<tosa::CastOp>(
+          op->getLoc(),
+          RankedTensorType::get(rhsType.getShape(), rhsAlphaMulElemType), rhs);
+      // reinitialize right value type to tensor<i32/f32>
+      rhsType = rhs.getType().dyn_cast<TensorType>();
     }
     auto rhsTensor = rhsType ? rhs : rhsAsTensor;
 
-    // Handle alpha.
+    // Handle scalar value alpha.
+    // It should be either f32/i32
     Value alphaTensor;
-    if (failed(torchAlphaToTosaTensor(rewriter, op.getOperation(), op.getAlpha(),
-                                      alphaTensor, outElemTy,
+    if (failed(torchAlphaToTosaTensor(rewriter, op.getOperation(),
+                                      op.getAlpha(), alphaTensor,
+                                      rhsAlphaMulElemType,
                                       /*checkForUnity=*/false))) {
       return rewriter.notifyMatchFailure(
           op, "Currently only scalar constants are supported for "
               "alpha in conversion to TOSA operation");
     }
 
+    // make sure input of MulOp is same datetype, otherwise the lowering to
+    // arith dialect will bug
     auto multTensor = rewriter.create<tosa::MulOp>(
-        op.getLoc(), rhsType ? rhsType : RankedTensorType::get({}, outElemTy),
+        op.getLoc(),
+        rhsType ? rhsType : RankedTensorType::get({}, rhsAlphaMulElemType),
         rhsTensor, alphaTensor, /*shift=*/0);
 
-    if (outElemTy.isa<mlir::FloatType>()) {
-      if (lhsType.getElementType() != outElemTy)
-        lhs = rewriter.create<tosa::CastOp>(op.getLoc(), outType, lhs);
+    if (outElemTy.isa<mlir::FloatType>() || outElemTy.isInteger(32)) {
+      // if outElemTy tensor<f32>, mulTensor must be tensor<f32>,
+      //    left value could be tensor<f32/i32/i64>, cast left value to
+      //    tensor<f32> type
+      // if outElemTy tensor<i32>, mulTensor must be tensor<i32>,
+      //    left value could be tensor<f32/i32/i64>, cast left value to
+      //    tensor<i32> type
+      if (lhsType.getElementType() != rhsAlphaMulElemType)
+        lhs = rewriter.create<tosa::CastOp>(
+            op.getLoc(),
+            RankedTensorType::get(lhsType.getShape(), rhsAlphaMulElemType),
+            lhs);
 
       rewriter.replaceOpWithNewOp<TosaOpT>(op, outType, lhs, multTensor);
 
       return success();
+    } else if (outElemTy.isInteger(64)) {
+      // if outElemTy tensor<i64>, mulTensor must be tensor<i32>,
+      //    left value could be tensor<f32/i32/i64> type, cast left value to
+      //    tensor<i32> type
+      if (lhsType.getElementType() != rhsAlphaMulElemType)
+        lhs = rewriter.create<tosa::CastOp>(
+            op.getLoc(),
+            RankedTensorType::get(lhsType.getShape(), rhsAlphaMulElemType),
+            lhs);
+
+      auto tosaOpTOutputTensor = rewriter.create<TosaOpT>(
+          op.getLoc(),
+          RankedTensorType::get(outType.getShape(), rhsAlphaMulElemType), lhs,
+          multTensor);
+      // cast tensor<i32> back to tensor<i64>
+      rewriter.replaceOpWithNewOp<tosa::CastOp>(op, outType,
+                                                tosaOpTOutputTensor);
+
+      return success();
     } else {
       return rewriter.notifyMatchFailure(
-          op, "Only floating-point datatype legalization supported");
+          op, "Only floating-point, i32, i64 datatype legalization supported");
     }
   }
 }; // namespace
