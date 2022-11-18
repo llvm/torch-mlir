@@ -58,41 +58,6 @@ def TanhBackward_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-
-class ConvolutionBackwardModule1D(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.float32, True),
-        ([-1, -1, -1], torch.float32, True),
-        ([-1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, grad_out, input_vec, weight):
-        return torch.ops.aten.convolution_backward(
-            grad_out,
-            input_vec,
-            weight,
-            bias_sizes=None,
-            stride=[1],
-            padding=[0],
-            dilation=[1],
-            transposed=False,
-            output_padding=[0],
-            groups=1,
-            output_mask=[True, True, True])
-
-
-@register_test_case(module_factory=lambda: ConvolutionBackwardModule1D())
-def ConvolutionBackwardModule1D_basic(module, tu: TestUtils):
-    with torch.backends.mkldnn.flags(enabled=False):
-        module.forward(tu.rand(3, 3, 3), tu.rand(3, 3, 3),
-                       tu.rand(3, 3, 1))
-
-
 class ConvolutionBackwardModule2D(torch.nn.Module):
 
     def __init__(self):
@@ -159,40 +124,6 @@ def ConvolutionBackwardModule2DPadded_basic(module, tu: TestUtils):
     with torch.backends.mkldnn.flags(enabled=False):
         module.forward(tu.rand(2, 2, 8, 8), tu.rand(2, 2, 6, 6),
                        tu.rand(2, 2, 3, 3))
-
-
-class ConvolutionBackwardModule3D(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1, -1, -1], torch.float32, True),
-        ([-1, -1, -1, -1, -1], torch.float32, True),
-        ([-1, -1, -1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, grad_out, input_vec, weight):
-        return torch.ops.aten.convolution_backward(
-            grad_out,
-            input_vec,
-            weight,
-            bias_sizes=None,
-            stride=[1, 1, 1],
-            padding=[0],
-            dilation=[1, 1, 1],
-            transposed=False,
-            output_padding=[0],
-            groups=1,
-            output_mask=[True, True, True])
-
-
-@register_test_case(module_factory=lambda: ConvolutionBackwardModule3D())
-def ConvolutionBackwardModule3D_basic(module, tu: TestUtils):
-    with torch.backends.mkldnn.flags(enabled=False):
-        module.forward(tu.rand(3, 3, 3, 3, 3), tu.rand(3, 3, 3, 3, 3),
-                       tu.rand(3, 3, 1, 1, 1))
 
 
 # ==============================================================================
