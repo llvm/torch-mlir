@@ -550,6 +550,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::insert.t : (t[], int, t) -> ()")
     emit("aten::ne.int_list : (int[], int[]) -> (bool)")
     emit("aten::any.bool : (bool[]) -> (bool)")
+    emit("aten::sort.int : (int[], bool) -> ()", has_canonicalizer=True)
 
     # Str ops.
     emit("aten::add.str : (str, str) -> (str)")

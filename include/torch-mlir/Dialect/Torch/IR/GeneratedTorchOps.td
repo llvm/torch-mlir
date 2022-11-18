@@ -8372,6 +8372,28 @@ def Torch_AtenAnyBoolOp : Torch_Op<"aten.any.bool", [
   }];
 }
 
+def Torch_AtenSortIntOp : Torch_Op<"aten.sort.int", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::sort.int : (int[], bool) -> ()`";
+  let arguments = (ins
+    AnyTorchListOfTorchIntType:$self,
+    Torch_BoolType:$reverse
+  );
+  let results = (outs
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenSortIntOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 0);
+    }
+    void AtenSortIntOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 0);
+    }
+  }];
+  let hasCanonicalizer = 1;
+}
+
 def Torch_AtenAddStrOp : Torch_Op<"aten.add.str", [
     AllowsTypeRefinement,
     HasValueSemantics,
