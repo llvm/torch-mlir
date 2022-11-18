@@ -17,3 +17,25 @@
 
 #define GET_OP_CLASSES
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpOps.cpp.inc"
+
+namespace mlir::tcp {
+LogicalResult BroadcastOp::verify() {
+  auto compareIntAttr = [](Attribute v1, Attribute v2) {
+    return v1.cast<IntegerAttr>().getInt() < v2.cast<IntegerAttr>().getInt();
+  };
+  if (!llvm::is_sorted(getAxes(), compareIntAttr))
+    return emitOpError(
+        "failed to verify that attribute `axes` must be in increasing order");
+
+  if (std::adjacent_find(std::begin(getAxes()), std::end(getAxes())) !=
+      std::end(getAxes()))
+    return emitOpError(
+        "failed to verify that attribute `axes` must not have any duplicates");
+
+  if (getNewDimSizes().size() != getAxes().size())
+    return emitOpError("failed to verify that argument `new_dim_sizes` has the "
+                       "same size as the attribute `axes`");
+
+  return success();
+}
+} // namespace mlir::tcp

@@ -104,6 +104,8 @@ def Tcp_BroadcastOp : Tcp_Op<"broadcast", [
   );
 
   let assemblyFormat = "$in `,` $new_dim_sizes attr-dict `:` type($in) `,` type($new_dim_sizes) `->` type($out)";
+
+  let hasVerifier = 1;
 }
 
 #endif // TORCH_MLIR_DIALECT_TCP_OPS

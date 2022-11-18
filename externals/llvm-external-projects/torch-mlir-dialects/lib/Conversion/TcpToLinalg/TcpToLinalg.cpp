@@ -48,8 +48,8 @@ public:
 
     RewritePatternSet patterns(context);
 
-    tcp_to_linalg::populateElementwisePatternsAndLegality(typeConverter, patterns, target);
-    tcp_to_linalg::populateMiscPatternsAndLegality(typeConverter, patterns, target);
+    TcpToLinalg::populateElementwisePatternsAndLegality(typeConverter, patterns, target);
+    TcpToLinalg::populateMiscPatternsAndLegality(typeConverter, patterns, target);
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns))))
       return signalPassFailure();

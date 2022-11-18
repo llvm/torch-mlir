@@ -10,7 +10,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 
 namespace mlir {
-namespace tcp_to_linalg {
+namespace TcpToLinalg {
 
 void populateElementwisePatternsAndLegality(TypeConverter &typeConverter,
                                             RewritePatternSet &patterns,
@@ -19,5 +19,5 @@ void populateMiscPatternsAndLegality(TypeConverter &typeConverter,
                                      RewritePatternSet &patterns,
                                      ConversionTarget &target);
 
-} // namespace tcp_to_linalg
+} // namespace TcpToLinalg
 } // namespace mlir

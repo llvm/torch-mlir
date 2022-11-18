@@ -31,7 +31,6 @@ Value createElementwiseLinalgGeneric(
     function_ref<void(OpBuilder&, Location, ValueRange)> bodyBuilder) {
   auto resultRank = resultTensorType.getRank();
   SmallVector<Value> resultDimSizes;
-  SmallVector<AffineMap> indexingMaps;
 
   // In order to populate the resultDimSizes, we only need to look at one of
   // the tensorOperands, since all the operands are expected to have the same
@@ -42,10 +41,8 @@ Value createElementwiseLinalgGeneric(
   }
 
   // Add indexing maps for all the tensor operands and for the result.
-  for (size_t i = 0; i < tensorOperands.size(); ++i) {
-    indexingMaps.push_back(b.getMultiDimIdentityMap(resultRank));
-  }
-  indexingMaps.push_back(b.getMultiDimIdentityMap(resultRank));
+  SmallVector<AffineMap> indexingMaps{tensorOperands.size() + 1,
+                                      b.getMultiDimIdentityMap(resultRank)};
 
   SmallVector<StringRef> iteratorTypes(resultRank,
                                        getParallelIteratorTypeName());
@@ -57,23 +54,21 @@ Value createElementwiseLinalgGeneric(
       iteratorTypes, bodyBuilder).getResult(0);
 }
 
-template<typename TcpOpT>
-Value createLinalgPayloadForElementwiseOp(
-    TcpOpT op, RankedTensorType resultTensorType, OpBuilder &b, ValueRange payloadArgs) {
+FailureOr<Value> createLinalgPayloadForElementwiseOp(
+    Operation* op, RankedTensorType resultTensorType, OpBuilder &b, ValueRange payloadArgs) {
   Location loc = op->getLoc();
   if (isa<TanhOp>(op)) {
-    return b.create<math::TanhOp>(loc, payloadArgs[0]);
+    return {b.create<math::TanhOp>(loc, payloadArgs[0])};
   }
   if (isa<AddOp>(op)) {
     auto elemType = resultTensorType.getElementType();
     if (elemType.isa<mlir::FloatType>()) {
-      return b.create<arith::AddFOp>(loc, payloadArgs[0], payloadArgs[1]);
+      return {b.create<arith::AddFOp>(loc, payloadArgs[0], payloadArgs[1])};
     } else {
-      return b.create<arith::AddIOp>(loc, payloadArgs[0], payloadArgs[1]);
+      return {b.create<arith::AddIOp>(loc, payloadArgs[0], payloadArgs[1])};
     }
   }
-  op->emitError("unimplemented lowering in createLinalgPayloadForElementwiseOp");
-  return nullptr;
+  return op->emitError("unimplemented lowering in createLinalgPayloadForElementwiseOp");
 }
 
 template<typename TcpOpT>
@@ -94,8 +89,9 @@ public:
 
     // Create Linalg payload
     auto bodyBuilder = [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
-      Value result = createLinalgPayloadForElementwiseOp<TcpOpT>(op, resultTensorType, b, payloadArgs);
-      b.create<linalg::YieldOp>(loc, result);
+      FailureOr<Value> result = createLinalgPayloadForElementwiseOp(op, resultTensorType, b, payloadArgs);
+      // TODO: Check for failure once GenericOp::build supports a body builder that can return a LogicalResult.
+      b.create<linalg::YieldOp>(loc, *result);
     };
 
     Value generic = createElementwiseLinalgGeneric(
@@ -107,14 +103,12 @@ public:
 
 } // namespace
 
-void mlir::tcp_to_linalg::populateElementwisePatternsAndLegality(TypeConverter &typeConverter,
+void mlir::TcpToLinalg::populateElementwisePatternsAndLegality(TypeConverter &typeConverter,
                                             RewritePatternSet &patterns,
                                             ConversionTarget &target) {
   MLIRContext *context = patterns.getContext();
 
-  target.addIllegalOp<TanhOp>();
+  target.addIllegalDialect<TcpDialect>();
   patterns.add<ConvertElementwiseOp<TanhOp>>(typeConverter, context);
-
-  target.addIllegalOp<AddOp>();
   patterns.add<ConvertElementwiseOp<AddOp>>(typeConverter, context);
 }

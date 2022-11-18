@@ -25,11 +25,12 @@ using namespace mlir::tcp;
 
 namespace {
 
-void getValuesFromIndexArrayAttribute(ArrayAttr attr,
-                                      SmallVector<int64_t> &arrayValues) {
+SmallVector<int64_t> getValuesFromIndexArrayAttribute(ArrayAttr attr) {
+  SmallVector<int64_t> arrayValues;
   for (Attribute val : attr.getValue()) {
     arrayValues.push_back(val.cast<IntegerAttr>().getValue().getSExtValue());
   }
+  return arrayValues;
 }
 
 class ConvertBroadcastOp : public OpConversionPattern<BroadcastOp> {
@@ -45,27 +46,29 @@ public:
                   ->convertType(op->getResult(0).getType()).template cast<RankedTensorType>();
     auto inputTensor = op->getOperands()[0];
 
-    SmallVector<int64_t> axes;
-    getValuesFromIndexArrayAttribute(op.getAxes(), axes);
+    SmallVector<int64_t> axes = getValuesFromIndexArrayAttribute(op.getAxes());
 
     auto resultRank = resultTensorType.getRank();
     SmallVector<Value> resultDimSizes;
-    SmallVector<AffineExpr> exprs;
+    SmallVector<AffineExpr> inputIndexingMapExprs;
     int64_t pos = 0;
     for (int64_t i = 0; i < resultRank; ++i) {
-      if (pos < static_cast<int64_t>(axes.size()) && axes[pos] == i) {
+      bool isOutputDimBroadcasted = pos < static_cast<int64_t>(axes.size()) && axes[pos] == i;
+      if (isOutputDimBroadcasted) {
         resultDimSizes.push_back(op->getOperands()[pos+1]);
-        exprs.push_back(b.getAffineConstantExpr(0));
+        inputIndexingMapExprs.push_back(b.getAffineConstantExpr(0));
         ++pos;
       } else {
         resultDimSizes.push_back(b.createOrFold<tensor::DimOp>(loc, inputTensor, i));
-        exprs.push_back(b.getAffineDimExpr(i));
+        inputIndexingMapExprs.push_back(b.getAffineDimExpr(i));
       }
     }
 
-    SmallVector<AffineMap> indexingMaps;
-    indexingMaps.push_back(AffineMap::get(resultRank, 0, exprs, b.getContext()));
-    indexingMaps.push_back(b.getMultiDimIdentityMap(resultRank));
+    auto inputIndexingMap = AffineMap::get(resultRank, 0, inputIndexingMapExprs, b.getContext());
+    auto outputIndexingMap = b.getMultiDimIdentityMap(resultRank);
+    SmallVector<AffineMap, 2> indexingMaps;
+    indexingMaps.push_back(inputIndexingMap);
+    indexingMaps.push_back(outputIndexingMap);
 
     SmallVector<StringRef> iteratorTypes(resultRank,
                                          getParallelIteratorTypeName());
@@ -80,7 +83,7 @@ public:
                                        emptyTensor.getType(),
                                        inputTensor,
                                        emptyTensor,
-                                       indexingMaps,
+                                                indexingMaps,
                                        iteratorTypes,
                                        bodyBuilder).getResult(0);
     b.replaceOp(op, generic);
@@ -90,7 +93,7 @@ public:
 
 } // namespace
 
-void mlir::tcp_to_linalg::populateMiscPatternsAndLegality(TypeConverter &typeConverter,
+void mlir::TcpToLinalg::populateMiscPatternsAndLegality(TypeConverter &typeConverter,
                                      RewritePatternSet &patterns,
                                      ConversionTarget &target) {
   MLIRContext *context = patterns.getContext();
