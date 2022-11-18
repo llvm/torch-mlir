@@ -1346,6 +1346,40 @@ OpFoldResult AtenIntScalarOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenSortIntOp
+//===----------------------------------------------------------------------===//
+
+void AtenSortIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                MLIRContext *context) {
+  patterns.add(+[](AtenSortIntOp op, PatternRewriter &rewriter) {
+    SmallVector<int64_t> listElements;
+    if (!matchPattern(op.self(), m_TorchListOfConstantInts(listElements)))
+      return rewriter.notifyMatchFailure(
+          op, "all input list elements must be constant ints");
+    bool reverse;
+    if (!matchPattern(op.reverse(), m_TorchConstantBool(&reverse)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected reverse arg to be constant bool.");
+
+    std::sort(listElements.begin(), listElements.end());
+    if (reverse)
+      std::reverse(listElements.begin(), listElements.end());
+
+    SmallVector<Value> sortedListElements;
+    for (int64_t elem : listElements)
+      sortedListElements.push_back(rewriter.create<Torch::ConstantIntOp>(
+          op->getLoc(), rewriter.getI64IntegerAttr(elem)));
+    Value result = rewriter.create<Torch::PrimListConstructOp>(
+        op->getLoc(), Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+        sortedListElements);
+
+    op.self().replaceAllUsesWith(result);
+    rewriter.eraseOp(op);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // NonValueTensorLiteralOp
 //===----------------------------------------------------------------------===//
 

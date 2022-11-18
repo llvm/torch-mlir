@@ -3053,3 +3053,48 @@ class UpSampleNearest2dBackwardScalesNone(torch.nn.Module):
 @register_test_case(module_factory=lambda: UpSampleNearest2dBackwardScalesNone())
 def UpSampleNearest2dBackwardScalesNone_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 4, 8))
+
+
+# ==============================================================================
+
+
+class SortIntList(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        a = [1, 0, 3, 2]
+        b = [0, 1, 2, 3]
+        a.sort()
+        return a == b
+
+
+@register_test_case(module_factory=lambda: SortIntList())
+def SortIntList_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class SortIntListReverse(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        a = [1, 0, 3, 2]
+        b = [3, 2, 1, 0]
+        a.sort(reverse=True)
+        return a == b
+
+
+@register_test_case(module_factory=lambda: SortIntListReverse())
+def SortIntListReverse_basic(module, tu: TestUtils):
+    module.forward()

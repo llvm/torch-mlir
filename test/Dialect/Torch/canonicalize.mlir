@@ -1734,3 +1734,39 @@ func.func @torch.aten.div.Tensor_mode$canonicalize_literal_0d_trunc() -> !torch.
     %2 = torch.aten.div.Tensor_mode %1, %0, %str : !torch.vtensor<[],si64>, !torch.vtensor<[],si64>, !torch.str -> !torch.vtensor<[],si64>
     return %2 : !torch.vtensor<[],si64>
 }
+
+// CHECK-LABEL:   func.func @torch.aten.sort.int$reverse_false() -> !torch.list<int> {
+// CHECK:             %[[INT0:.*]] = torch.constant.int 0
+// CHECK:             %[[INT1:.*]] = torch.constant.int 1
+// CHECK:             %[[INT2:.*]] = torch.constant.int 2
+// CHECK:             %[[INT3:.*]] = torch.constant.int 3
+// CHECK:             %[[RESULT:.*]] = torch.prim.ListConstruct %[[INT0]], %[[INT1]], %[[INT2]], %[[INT3]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:             return %[[RESULT]] : !torch.list<int>
+func.func @torch.aten.sort.int$reverse_false() -> !torch.list<int> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int0 = torch.constant.int 0
+  %int3 = torch.constant.int 3
+  %int2 = torch.constant.int 2
+  %0 = torch.prim.ListConstruct %int1, %int0, %int3, %int2 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  torch.aten.sort.int %0, %false : !torch.list<int>, !torch.bool
+  return %0 : !torch.list<int>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.sort.int$reverse_true() -> !torch.list<int> {
+// CHECK:             %[[INT3:.*]] = torch.constant.int 3
+// CHECK:             %[[INT2:.*]] = torch.constant.int 2
+// CHECK:             %[[INT1:.*]] = torch.constant.int 1
+// CHECK:             %[[INT0:.*]] = torch.constant.int 0
+// CHECK:             %[[RESULT:.*]] = torch.prim.ListConstruct %[[INT3]], %[[INT2]], %[[INT1]], %[[INT0]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:             return %[[RESULT]] : !torch.list<int>
+func.func @torch.aten.sort.int$reverse_true() -> !torch.list<int> {
+  %true = torch.constant.bool true
+  %int1 = torch.constant.int 1
+  %int0 = torch.constant.int 0
+  %int3 = torch.constant.int 3
+  %int2 = torch.constant.int 2
+  %0 = torch.prim.ListConstruct %int1, %int0, %int3, %int2 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  torch.aten.sort.int %0, %true : !torch.list<int>, !torch.bool
+  return %0 : !torch.list<int>
+}
