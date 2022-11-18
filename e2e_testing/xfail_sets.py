@@ -31,6 +31,110 @@ EAGER_MODE_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "ViewExpandInferredDimModule_basic",
 }
 
+TORCHDYNAMO_XFAIL_SET = {
+    #### General TorchDynamo/PyTorch errors
+
+    # https://github.com/pytorch/torchdynamo/issues/1891
+    # AssertionError: torch.* op returned non-Tensor bool call_function aten.Bool
+    "AllBoolFalseModule_basic",
+    "AllBoolTrueModule_basic",
+    "AnyBoolFalseModule_basic",
+    "AnyBoolTrueModule_basic",
+    "BoolFloatFalseModule_basic",
+    "BoolFloatTrueModule_basic",
+    "BoolFloatConstantModule_basic",
+    "BoolIntFalseModule_basic",
+    "BoolIntTrueModule_basic",
+    "BoolIntConstantModule_basic",
+    "CeilFloatModule_basic",
+    "ContainsIntList_False",
+    "ContainsIntList_True",
+    "GeIntModule_basic",
+    "LenStrModule_basic",
+    "SqrtIntConstantModule_basic",
+    "SqrtIntModule_basic",
+    "NumelModule_basic",
+    "NumelZeroRankModule_basic",
+
+    # RecursionError: maximum recursion depth exceeded
+    # RuntimeError: Failed running call_function aten.lift_fresh_copy(...
+    "LiftFreshCopyModule_basic",
+    # torch._subclasses.fake_tensor.DynamicOutputShapeException: aten.bincount.default
+    # RuntimeError: Failed running call_function aten.bincount(...
+    "BincountMinlengthModule_basic",
+    "BincountModule_basic",
+    "BincountStaticSizeModule_basic",
+    # TypeError: new_empty(): argument 'size' (position 1) must be tuple of ints, but found element of type NoneType at pos 0
+    # RuntimeError: Failed running call_function aten.convolution_backward(...
+    "ConvolutionBackwardModule2DPadded_basic",
+    "ConvolutionBackwardModule2D_basic",
+    # RuntimeError: Index tensor must have the same number of dimensions as self tensor
+    # RuntimeError: Failed running call_function aten.nll_loss_backward(...
+    "NllLossModuleBackward1DMeanWeight_basic",
+    "NllLossModuleBackward1DMean_basic",
+    "NllLossModuleBackward1DSumWeight_basic",
+    "NllLossModuleBackward1DSum_basic",
+    "NllLossModuleBackward1DWeight_basic",
+    "NllLossModuleBackward1D_basic",
+    # torch._subclasses.fake_tensor.DataDependentOutputException: aten._local_scalar_dense.default
+    # RuntimeError: Failed running call_module self_quantize(...
+    "QuantizedMLP_basic",
+    "ScalarImplicitFloatModule_basic",
+    "ScalarImplicitIntModule_basic",
+    # Decomposition assertion:
+    # assert device is not None or dtype is not None or memory_format is not None
+    "ToCopyModule_basic",
+    # TypeError: expected np.ndarray (got float)
+    "DivIntModule_basic",
+
+    #### Torch-MLIR internal compiler errors
+
+    # These are probably due to slightly different ops being recorded by
+    # torchdynamo vs. torchscript.
+
+    # error: unsupported by backend contract: tensor with unknown rank
+    "UpSampleNearest2dDynamicFactor_basic",
+    "AdaptiveAvgPool2dNonUnitOutputSizeDynamicModule_basic",
+    "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
+    "AtenEmbeddingBagSumExample_basic",
+    "BernoulliModule_basic",
+    "DropoutTrainModule_basic",
+    "ElementwiseWhereScalarModule_basic",
+    "ElementwiseWhereScalarOtherModule_basic",
+    "ElementwiseWhereScalarSelfModule_basic",
+    "IndexPutImpl1DFloatAccumulateModule_basic",
+    "IndexPutImpl1DFloatNonAccumulateModule_basic",
+    "IndexPutImpl1DIntAccumulateModule_basic",
+    "IndexPutImpl1DIntNonAccumulateModule_basic",
+    "IndexPutImpl2DFloatAccumulateModule_basic",
+    "IndexPutImpl2DFloatNonAccumulateModule_basic",
+    "IndexPutImpl3DFloatAccumulateModule_basic",
+    "IndexPutImpl3DFloatNonAccumulateModule_basic",
+    "Matmul_dot",
+    "Matmul_vecmat",
+    "StdBiasedModule_basic",
+    "StdDimBiasedModule_basic",
+    "StdDimEmptyDimModule_basic",
+    "StdDimKeepDimFalseModule_basic",
+    "StdDimKeepDimTrueModule_basic",
+    "StdDimNoneDimModule_basic",
+    "StdUnbiasedModule_basic",
+    "UniformModule_basic",
+    "UniformStaticModule_basic",
+    # https://github.com/llvm/torch-mlir/issues/1611
+    # error: 'tensor.cast' op operand type 'tensor<0xi64>' and result type 'tensor<18xi64>' are cast incompatible
+    "Aten_EmbeddingBagExample_basic",
+    # error: failed to legalize operation 'torch.valsem.aten.bernoulli.float' that was explicitly marked illegal
+    "BernoulliFloatModule_basic",
+    # error: failed to legalize operation 'torch.aten.bernoulli.Tensor' that was explicitly marked illegal
+    "BernoulliTensorModule_basic",
+    # error: failed to legalize operation 'torch.aten.view' that was explicitly marked illegal
+    "ElementwiseFlattenBroadcastModule_basic",
+    "FlattenRank0Module_basic",
+    # error: failed to materialize conversion for result #0 of operation 'torch.aten.t' that remained live after conversion
+    "TModuleRank1_basic",
+}
+
 MHLO_PASS_SET = {
     "ArangeDtypeFloatModule_basic",
     "ArangeDtypeIntModule_basic",

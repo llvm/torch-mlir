@@ -10,3 +10,4 @@ from .torchscript import TorchScriptTestConfig
 from .mhlo_backend import MhloBackendTestConfig
 from .tosa_backend import TosaBackendTestConfig
 from .eager_mode import EagerModeTestConfig
+from .torchdynamo import TorchDynamoTestConfig

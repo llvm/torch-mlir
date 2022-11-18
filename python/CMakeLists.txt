@@ -51,6 +51,7 @@ declare_mlir_python_sources(TorchMLIRPythonSources.TopLevel
   SOURCES
     __init__.py
     compiler_utils.py
+    dynamo.py
 )
 
 declare_mlir_python_sources(TorchMLIRPythonSources.Dialects
