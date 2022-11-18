@@ -3027,6 +3027,37 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
+    AtenClampOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return rewriter.notifyMatchFailure(
+        op, "only tensor types input are currently supported");
+
+  int64_t int_min, int_max;
+  if (!matchPattern(op.min(), m_TorchConstantInt(&int_min)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: value `int_min` should be a torch constant int");
+
+  if (!matchPattern(op.max(), m_TorchConstantInt(&int_max)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: value `int_max` should be a torch constant int");
+
+  IntegerAttr min_int = rewriter.getI64IntegerAttr(int_min);
+  IntegerAttr max_int = rewriter.getI64IntegerAttr(int_max);
+  FloatAttr min_fp = rewriter.getF32FloatAttr(float(int_min));
+  FloatAttr max_fp = rewriter.getF32FloatAttr(float(int_max));
+
+  auto outType = getTypeConverter()->convertType(op.getType());
+  rewriter.replaceOpWithNewOp<tosa::ClampOp>(
+      op, outType, adaptor.self(), min_int, max_int, min_fp, max_fp);
+
+  return success();
+}
 
 template <>
 LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
@@ -3855,6 +3886,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
+    INSERT_ATENOP_PATTERN(AtenClampOp);
     INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
     INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
     INSERT_ATENOP_PATTERN(AtenCopyOp);
