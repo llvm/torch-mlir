@@ -14,10 +14,10 @@ from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 
 REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 
-EAGER_MODE_XFAIL_SET = {
-    # RefBackend fails
-    "TableBatchEmbeddingModule_basic",
-    "QuantizedMLP_basic",
+EAGER_MODE_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
+    # RefBackend fails for some reason.
+    # These tests pass in the regular RefBackend flow, so it's unclear
+    # why they fail here.
     "Matmul_vecmat",
     "BatchMlpLayerModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
@@ -591,7 +591,6 @@ LTC_XFAIL_SET = {
     "StdUnbiasedModule_basic",
     "SubFloatModule_basic",
     "SubIntModule_basic",
-    "TableBatchEmbeddingModule_basic",
     "TensorsConcatNegativeDimModule_basic",
     "TensorToBoolZeroRank_basic",
     "TensorToBool_basic",
@@ -617,10 +616,8 @@ LTC_XFAIL_SET = {
     "Fill_TensorFloat32WithInt64_basic",
     "UpSampleNearest2dBackwardVec_basic",
     "UpSampleNearest2dBackwardOutputSizeNone_basic",
-    "ConvolutionBackwardModule1D_basic",
     "ConvolutionBackwardModule2D_basic",
     "ConvolutionBackwardModule2DPadded_basic",
-    "ConvolutionBackwardModule3D_basic",
     "VarMeanCorrectionModule_basic",
     "VarMeanCorrectionNoneModule_basic"
 }

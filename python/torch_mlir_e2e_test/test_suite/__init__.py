@@ -8,15 +8,6 @@
 # to the backend contract.
 COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "QuantizedMLP_basic",
-    "TableBatchEmbeddingModule_basic",
-    "Convolution3DModule_basic",
-    "Convolution1DModule_basic",
-    "Conv_Transpose3dModule_basic",
-    "Conv_Transpose1dModule_basic",
-    "MaxPool2dWith3dInputModule_basic",
-    "MaxPool2dWithIndicesWith3dInputModule_basic",
-    "ConvolutionBackwardModule1D_basic",
-    "ConvolutionBackwardModule3D_basic",
 }
 
 def register_all_tests():
@@ -47,7 +38,6 @@ def register_all_tests():
     from . import constant_alloc
     from . import threshold
     from . import histogram_binning_calibration
-    from . import table_batch_embedding
     from . import rng
     from . import cast
     from . import index_put

@@ -171,29 +171,6 @@ def MaxPool2dCeilModeTrueModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20, low=0.5, high=1.0))
 
 
-class MaxPool2dWith3dInputModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-        self.mp2d = torch.nn.MaxPool2d(kernel_size=[6, 8],
-                                       stride=[2, 2],
-                                       padding=[3, 4],
-                                       dilation=2)
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, x):
-        return self.mp2d(x)
-
-
-@register_test_case(module_factory=lambda: MaxPool2dWith3dInputModule())
-def MaxPool2dWith3dInputModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 20, 20, low=-1))
-
-
 # ==============================================================================
 
 
@@ -433,30 +410,6 @@ class MaxPool2dWithIndicesCeilModeTrueModule(torch.nn.Module):
     module_factory=lambda: MaxPool2dWithIndicesCeilModeTrueModule())
 def MaxPool2dWithIndicesCeilModeTrueModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 8, 8, low=0.5, high=1.0))
-
-
-class MaxPool2dWithIndicesWith3dInputModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, x):
-        return torch.ops.aten.max_pool2d_with_indices(x,
-                                                      kernel_size=[2, 2],
-                                                      stride=[1, 1],
-                                                      padding=[0, 0],
-                                                      dilation=[1, 1])
-
-
-@register_test_case(
-    module_factory=lambda: MaxPool2dWithIndicesWith3dInputModule())
-def MaxPool2dWithIndicesWith3dInputModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 8, 8, low=0.5, high=1.0))
 
 
 # ==============================================================================
