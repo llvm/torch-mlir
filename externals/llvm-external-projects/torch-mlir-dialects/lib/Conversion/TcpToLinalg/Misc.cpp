@@ -27,9 +27,8 @@ namespace {
 
 SmallVector<int64_t> getValuesFromIndexArrayAttribute(ArrayAttr attr) {
   SmallVector<int64_t> arrayValues;
-  for (Attribute val : attr.getValue()) {
+  for (Attribute val : attr.getValue())
     arrayValues.push_back(val.cast<IntegerAttr>().getValue().getSExtValue());
-  }
   return arrayValues;
 }
 

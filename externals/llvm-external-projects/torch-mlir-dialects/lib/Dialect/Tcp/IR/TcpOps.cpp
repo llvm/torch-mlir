@@ -23,6 +23,7 @@ LogicalResult BroadcastOp::verify() {
   auto compareIntAttr = [](Attribute v1, Attribute v2) {
     return v1.cast<IntegerAttr>().getInt() < v2.cast<IntegerAttr>().getInt();
   };
+
   if (!llvm::is_sorted(getAxes(), compareIntAttr))
     return emitOpError(
         "failed to verify that attribute `axes` must be in increasing order");

@@ -36,10 +36,9 @@ Value createElementwiseLinalgGeneric(
   // the tensorOperands, since all the operands are expected to have the same
   // shape.
   auto tensorOperand = tensorOperands[0];
-  for (int64_t i = 0; i < resultRank; ++i) {
+  for (int64_t i = 0; i < resultRank; ++i)
     resultDimSizes.push_back(
         b.createOrFold<tensor::DimOp>(loc, tensorOperand, i));
-  }
 
   // Add indexing maps for all the tensor operands and for the result.
   SmallVector<AffineMap> indexingMaps{tensorOperands.size() + 1,
@@ -63,16 +62,14 @@ createLinalgPayloadForElementwiseOp(Operation *op,
                                     RankedTensorType resultTensorType,
                                     OpBuilder &b, ValueRange payloadArgs) {
   Location loc = op->getLoc();
-  if (isa<TanhOp>(op)) {
+  if (isa<TanhOp>(op))
     return {b.create<math::TanhOp>(loc, payloadArgs[0])};
-  }
+
   if (isa<AddOp>(op)) {
     auto elemType = resultTensorType.getElementType();
-    if (elemType.isa<mlir::FloatType>()) {
+    if (elemType.isa<mlir::FloatType>())
       return {b.create<arith::AddFOp>(loc, payloadArgs[0], payloadArgs[1])};
-    } else {
-      return {b.create<arith::AddIOp>(loc, payloadArgs[0], payloadArgs[1])};
-    }
+    return {b.create<arith::AddIOp>(loc, payloadArgs[0], payloadArgs[1])};
   }
   return op->emitError(
       "unimplemented lowering in createLinalgPayloadForElementwiseOp");
