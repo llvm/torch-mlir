@@ -38,20 +38,21 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
-    target.addLegalDialect<linalg::LinalgDialect,
-                           math::MathDialect,
-                           tensor::TensorDialect,
-                           arith::ArithDialect>();
+    target.addLegalDialect<linalg::LinalgDialect, math::MathDialect,
+                           tensor::TensorDialect, arith::ArithDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
 
     RewritePatternSet patterns(context);
 
-    TcpToLinalg::populateElementwisePatternsAndLegality(typeConverter, patterns, target);
-    TcpToLinalg::populateMiscPatternsAndLegality(typeConverter, patterns, target);
+    TcpToLinalg::populateElementwisePatternsAndLegality(typeConverter, patterns,
+                                                        target);
+    TcpToLinalg::populateMiscPatternsAndLegality(typeConverter, patterns,
+                                                 target);
 
-    if (failed(applyPartialConversion(getOperation(), target, std::move(patterns))))
+    if (failed(applyPartialConversion(getOperation(), target,
+                                      std::move(patterns))))
       return signalPassFailure();
   }
 };

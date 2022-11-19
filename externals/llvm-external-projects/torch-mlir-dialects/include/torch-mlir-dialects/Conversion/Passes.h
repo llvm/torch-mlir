@@ -18,5 +18,4 @@ void registerConversionPasses();
 } // namespace torch_mlir_dialects
 } // namespace mlir
 
-
 #endif // TORCH_MLIR_DIALECTS_CONVERSION_PASSES_H
