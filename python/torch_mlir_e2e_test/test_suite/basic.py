@@ -1482,7 +1482,7 @@ class NumelModule(torch.nn.Module):
         ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, input):
-        return torch.numel(input)
+        return torch.ops.aten.numel(input)
 
 
 @register_test_case(module_factory=lambda: NumelModule())
@@ -1504,7 +1504,7 @@ class NumelZeroRankModule(torch.nn.Module):
         ([], torch.int64, True),
     ])
     def forward(self, input):
-        return torch.numel(input)
+        return torch.ops.aten.numel(input)
 
 
 @register_test_case(module_factory=lambda: NumelZeroRankModule())
