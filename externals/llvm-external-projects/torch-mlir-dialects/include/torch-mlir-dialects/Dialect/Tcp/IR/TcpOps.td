@@ -63,21 +63,7 @@ def Tcp_AddOp : Tcp_BinaryElementwiseOp<"add", [SameOperandsAndResultElementType
 
 def Tcp_BroadcastOp : Tcp_Op<"broadcast", [
           AllRanksMatch<["in", "out"]>,
-          AllElementTypesMatch<["in", "out"]>,
-          PredOpTrait<
-            "attribute `axes` must be in increasing order",
-            CPred<"::llvm::is_sorted(getAxes(), "
-                  "[](::mlir::Attribute v1, ::mlir::Attribute v2) {"
-                  "return v1.cast<::mlir::IntegerAttr>().getInt() < v2.cast<::mlir::IntegerAttr>().getInt(); })">
-          >,
-          PredOpTrait<
-            "attribute `axes` must not have any duplicates",
-            CPred<"std::adjacent_find(std::begin(getAxes()), std::end(getAxes())) == std::end(getAxes())">
-          >,
-          PredOpTrait<
-            "argument `new_dim_sizes` has the same size as the attribute `axes`",
-            CPred<"getNewDimSizes().size() == getAxes().size()">
-          >]> {
+          AllElementTypesMatch<["in", "out"]>]> {
   let summary = "Broadcasts input to a given shape";
 
   let description = [{

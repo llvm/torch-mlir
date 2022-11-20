@@ -15,6 +15,7 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpDialect.h"
@@ -30,15 +31,12 @@ Value createElementwiseLinalgGeneric(
     RankedTensorType resultTensorType,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuilder) {
   auto resultRank = resultTensorType.getRank();
-  SmallVector<Value> resultDimSizes;
 
   // In order to populate the resultDimSizes, we only need to look at one of
   // the tensorOperands, since all the operands are expected to have the same
   // shape.
-  auto tensorOperand = tensorOperands[0];
-  for (int64_t i = 0; i < resultRank; ++i)
-    resultDimSizes.push_back(
-        b.createOrFold<tensor::DimOp>(loc, tensorOperand, i));
+  SmallVector<OpFoldResult> resultDimSizes =
+      mlir::tensor::createDimValues(b, loc, tensorOperands[0]);
 
   // Add indexing maps for all the tensor operands and for the result.
   SmallVector<AffineMap> indexingMaps{tensorOperands.size() + 1,
@@ -47,9 +45,8 @@ Value createElementwiseLinalgGeneric(
   SmallVector<StringRef> iteratorTypes(resultRank,
                                        getParallelIteratorTypeName());
 
-  Value emptyTensor =
-      b.create<tensor::EmptyOp>(loc, getAsOpFoldResult(resultDimSizes),
-                                resultTensorType.getElementType());
+  Value emptyTensor = b.create<tensor::EmptyOp>(
+      loc, resultDimSizes, resultTensorType.getElementType());
   return b
       .create<linalg::GenericOp>(loc, emptyTensor.getType(), tensorOperands,
                                  emptyTensor, indexingMaps, iteratorTypes,
