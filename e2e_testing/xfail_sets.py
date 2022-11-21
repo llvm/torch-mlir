@@ -21,6 +21,9 @@ EAGER_MODE_XFAIL_SET = {
     "Matmul_vecmat",
     "BatchMlpLayerModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
+    "MobilenetV3Module_basic",
+    "ResNet18Module_basic",
+    "ResNet18StaticModule_basic",
 }
 
 MHLO_PASS_SET = {
