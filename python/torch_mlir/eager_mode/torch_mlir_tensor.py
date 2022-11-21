@@ -131,6 +131,8 @@ class TorchMLIRTensor(torch.Tensor):
                 if UNSUPPORTED_OPS.match(op_name):
                     raise UnsupportedByTorchMlirEagerMode(op_name)
 
+                requires_grad = requires_grad and "view" not in op_name
+
                 if not hasattr(func, "_schema"):
                     raise RuntimeError(f"op {func} has no schema.")
 
