@@ -627,6 +627,6 @@ LTC_XFAIL_SET = {
     "ConvolutionBackwardModule2DPadded_basic",
     "ConvolutionBackwardModule3D_basic",
     "VarMeanCorrectionModule_basic",
-    "VarMeanCorrectionNoneModule_basic"
+    "VarMeanCorrectionNoneModule_basic",
     "PrimsConvertElementTypeModule_basic",
 }

@@ -3373,6 +3373,12 @@ public:
     target.addIllegalOp<AtenIndexTensorHackedTwinOp>();
     patterns.add<DecomposeAtenMseLossOp>(context);
     target.addIllegalOp<AtenMseLossOp>();
+    patterns.add<DecomposeAtenRandintLowOp>(context);
+    target.addIllegalOp<AtenRandintLowOp>();
+    patterns.add<DecomposeAtenVarMeanCorrectionOp>(context);
+    target.addIllegalOp<AtenVarMeanCorrectionOp>();
+    patterns.add<DecomposePrimsConvertElementTypeOp>(context);
+    target.addIllegalOp<PrimsConvertElementTypeOp>();
 
     for (std::string opName : legalOps) {
       target.addLegalOp(OperationName(opName, context));

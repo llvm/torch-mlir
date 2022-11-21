@@ -433,6 +433,9 @@ def aten〇rsub〇Scalar(self: List[int], other: float, alpha: float = 1) -> Lis
 def aten〇to〇dtype(self: List[int], dtype: int, non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def prims〇convert_element_type(a: List[int], dtype: int) -> List[int]:
+    return upstream_shape_functions.unary(a)
+
 def aten〇to〇dtype_layout(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return self
 
