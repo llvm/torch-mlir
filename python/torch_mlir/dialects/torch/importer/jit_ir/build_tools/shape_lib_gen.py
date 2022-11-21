@@ -1027,6 +1027,9 @@ def aten〇index_put(self: List[int], indices: List[Optional[List[int]]], values
 def aten〇index_put〇hacked_twin(self: List[int], indices: List[List[int]], values: List[int], accumulate: bool = False) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇as_strided(self: List[int], size: List[int], stride: List[int], storage_offset: Optional[int] = None) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇embedding(weight: List[int], indices: List[int], padding_idx: int = -1, scale_grad_by_freq: bool = False, sparse: bool = False) -> List[int]:
     return upstream_shape_functions.embedding(weight, indices, padding_idx, scale_grad_by_freq, sparse)
 

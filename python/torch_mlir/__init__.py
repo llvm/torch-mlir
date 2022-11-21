@@ -344,6 +344,7 @@ def compile(model: torch.nn.Module,
     mb = ModuleBuilder()
     import_options = ImportOptions()
     import_options.ignoreExistingTensorShapesAndDtypes = ignore_traced_shapes
+    
     try:
         original_stderr = sys.stderr
         sys.stderr = StringIO()
@@ -363,11 +364,14 @@ PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
         return mb.module
 
     option_string = "{backend-legal-ops=" + ",".join(backend_legal_ops) + "}"
+    #mb.module.dump()
     run_pipeline_with_repro_report(
         mb.module,
         f"builtin.module(torchscript-module-to-torch-backend-pipeline{option_string})",
         "Lowering TorchScript IR -> Torch Backend IR",
     )
+
+    
 
     if verbose:
         print("\n====================")

@@ -2954,6 +2954,26 @@ def Aten_EmbeddingBagExample_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class AsStridedModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+
+    def forward(self):
+        x = torch.randn(5, 5)
+        print (x)
+        return torch.ops.aten.as_strided(x, (2, 2), (5, 3))
+
+@register_test_case(module_factory=lambda: AsStridedModule())
+def AsStridedModule_basic(module, tu: TestUtils):
+    module.forward()
+
+# ==============================================================================
+
 class CumsumModule(torch.nn.Module):
 
     def __init__(self):

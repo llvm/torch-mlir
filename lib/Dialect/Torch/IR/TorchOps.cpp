@@ -2133,6 +2133,18 @@ OpFoldResult AtenSqrtIntOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenAsStridedOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenAsStridedOp::fold(ArrayRef<Attribute> operands) {
+  if (auto tensorType = getOperand(0).getType().dyn_cast<BaseTensorType>()) {
+    if (tensorType.hasSizes() && tensorType.getSizes().size() == 0)
+      return getOperand(0);
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // PrimDtypeOp
 //===----------------------------------------------------------------------===//
 

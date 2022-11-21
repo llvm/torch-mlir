@@ -607,6 +607,7 @@ LTC_XFAIL_SET = {
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "AtenEmbeddingBagSumExample_basic",
     "Aten_EmbeddingBagExample_basic",
+    "AsStridedModule_basic",
     "ElementwiseRemainderScalarModule_Int_Float_basic",
     "ElementwiseRemainderScalarModule_Float_basic",
     "ElementwiseRemainderScalarModule_Int_basic",
@@ -627,5 +628,5 @@ LTC_XFAIL_SET = {
     "ConvolutionBackwardModule2DPadded_basic",
     "ConvolutionBackwardModule3D_basic",
     "VarMeanCorrectionModule_basic",
-    "VarMeanCorrectionNoneModule_basic"
+    "VarMeanCorrectionNoneModule_basic",
 }

@@ -2949,6 +2949,34 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenAsStridedOp
+    : public OpRewritePattern<AtenAsStridedOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAsStridedOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.self();
+    Value size = op.size();
+    Value stride = op.stride();
+    Value storage_offset = op.storage_offset();
+
+    //Value result = 
+
+    
+    //Value src = rewriter.create<AtenAsStridedOp>(loc, op.self().getType(), size, stride, storage_offset);
+    rewriter.replaceOpWithNewOp<AtenAsStridedOp>(
+        op, op.getType(), self, size, stride, storage_offset);
+    
+    
+
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAten_EmbeddingBagOp
     : public OpRewritePattern<Aten_EmbeddingBagOp> {
 public:
@@ -3328,6 +3356,8 @@ public:
     target.addIllegalOp<AtenStdDimOp>();
     patterns.add<DecomposeAtenNarrowOp>(context);
     target.addIllegalOp<AtenNarrowOp>();
+    patterns.add<DecomposeAtenAsStridedOp>(context);
+    target.addIllegalOp<AtenAsStridedOp>();
     patterns.add<DecomposeAten_EmbeddingBagOp>(context);
     target.addIllegalOp<Aten_EmbeddingBagOp>();
     patterns.add<DecomposeAtenLiftFreshCopyOp>(context);
