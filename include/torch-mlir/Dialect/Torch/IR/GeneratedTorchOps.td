@@ -10389,6 +10389,30 @@ def Torch_PrimAbsScalarOp : Torch_Op<"prim.abs.Scalar", [
   }];
 }
 
+def Torch_PrimsConvertElementTypeOp : Torch_Op<"prims.convert_element_type", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `prims::convert_element_type : (Tensor, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$a,
+    Torch_IntType:$dtype
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult PrimsConvertElementTypeOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void PrimsConvertElementTypeOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_QuantizedLinearOp : Torch_Op<"quantized.linear", [
     HasValueSemantics,
     AllowsTypeRefinement,

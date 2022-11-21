@@ -3136,6 +3136,25 @@ public:
 } // namespace
 
 namespace {
+// Decompose `prims.convert_element_type` op into `aten.to.dtype` op.
+class DecomposePrimsConvertElementTypeOp
+    : public OpRewritePattern<PrimsConvertElementTypeOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimsConvertElementTypeOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
+    rewriter.replaceOpWithNewOp<AtenToDtypeOp>(
+        op, op.getType(), op.a(), op.dtype(), /*non_blocking=*/cstFalse,
+        /*copy=*/cstFalse, /*memory_format=*/cstNone);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 public:
@@ -3340,6 +3359,8 @@ public:
     target.addIllegalOp<AtenRandintLowOp>();
     patterns.add<DecomposeAtenVarMeanCorrectionOp>(context);
     target.addIllegalOp<AtenVarMeanCorrectionOp>();
+    patterns.add<DecomposePrimsConvertElementTypeOp>(context);
+    target.addIllegalOp<PrimsConvertElementTypeOp>();
 
     for (std::string opName : legalOps) {
       target.addLegalOp(OperationName(opName, context));

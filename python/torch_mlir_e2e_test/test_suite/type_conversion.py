@@ -234,3 +234,22 @@ class TypeAsSameModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: TypeAsSameModule())
 def TypeAsSameModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5), tu.rand(3, 5))
+
+
+# ==============================================================================
+
+
+class PrimsConvertElementTypeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.prims.convert_element_type(x, dtype=torch.int64)
+
+
+@register_test_case(module_factory=lambda: PrimsConvertElementTypeModule())
+def PrimsConvertElementTypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5))
