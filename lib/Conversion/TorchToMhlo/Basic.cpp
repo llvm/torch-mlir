@@ -495,8 +495,11 @@ LogicalResult ConvertAtenOp<AtenSizeIntOp>::matchAndRewrite(
     dimInt = toPositiveDim(dimInt, selfType.getRank());
     dim = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), dimInt);
   } else {
-    dim = rewriter.create<arith::IndexCastOp>(
-        op.getLoc(), rewriter.getIndexType(), adaptor.dim());
+    Value inputRank = rewriter.create<arith::ConstantOp>(
+        op.getLoc(), rewriter.getI64IntegerAttr(selfType.getRank()));
+    dim = toPositiveDimDynamic(rewriter, op.getLoc(), adaptor.dim(), inputRank);
+    dim = rewriter.create<arith::IndexCastOp>(op.getLoc(),
+                                              rewriter.getIndexType(), dim);
   }
 
   auto dimSize = rewriter.create<tensor::DimOp>(
