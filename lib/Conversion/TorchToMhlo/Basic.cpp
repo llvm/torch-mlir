@@ -488,13 +488,23 @@ LogicalResult ConvertAtenOp<AtenSizeIntOp>::matchAndRewrite(
   auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
   if (!selfType)
     return op.emitError("only tensor types are currently supported");
-  auto dim = rewriter.create<arith::IndexCastOp>(
-      op.getLoc(), rewriter.getIndexType(), adaptor.dim());
+
+  Value dim;
+  int64_t dimInt;
+  if (matchPattern(op.dim(), m_TorchConstantInt(&dimInt))) {
+    dimInt = toPositiveDim(dimInt, selfType.getRank());
+    dim = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), dimInt);
+  } else {
+    dim = rewriter.create<arith::IndexCastOp>(
+        op.getLoc(), rewriter.getIndexType(), adaptor.dim());
+  }
+
   auto dimSize = rewriter.create<tensor::DimOp>(
       op.getLoc(), rewriter.getIndexType(), adaptor.self(), dim);
 
   rewriter.replaceOpWithNewOp<arith::IndexCastOp>(
       op, getTypeConverter()->convertType(op.getType()), dimSize);
+
   return success();
 }
 
