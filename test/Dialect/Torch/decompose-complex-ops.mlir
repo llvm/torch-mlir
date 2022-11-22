@@ -202,8 +202,8 @@ func.func @torch.aten.argmax(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
 // CHECK:           %[[CST0:.*]] = torch.constant.int 0
 // CHECK:           %[[CST1:.*]] = torch.constant.int 1
-// CHECK:           %[[CST:.*]]-1 = torch.constant.int -1
-// CHECK:           %[[T0:.*]] = torch.prim.ListConstruct %[[CST]]-1 : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[CST:.*]]-9223372036854775808 = torch.constant.int -9223372036854775808
+// CHECK:           %[[T0:.*]] = torch.prim.ListConstruct %[[CST]]-9223372036854775808 : (!torch.int) -> !torch.list<int>
 // CHECK:           %[[FLATTEN:.*]] = torch.aten.view %[[INP]], %[[T0]] :
 // CHECK-SAME:         !torch.vtensor<[?,?],f32>, !torch.list<int> -> !torch.vtensor<[?],f32>
 // CHECK:           %[[VAL:.*]], %[[IND:.*]] = torch.aten.max.dim %[[FLATTEN]], %[[CST0]], %[[FALSE]] :
@@ -1009,8 +1009,8 @@ func.func @torch.aten.std.dim(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vten
 // CHECK-SAME:                                            %[[ARG0:.*]]: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?],f32> {
 // CHECK:         %[[INT0:.*]] = torch.constant.int 0
 // CHECK:         %[[INT3:.*]] = torch.constant.int 3
-// CHECK:         %[[INT:.*]]-1 = torch.constant.int -1
-// CHECK:         %[[T0:.*]] = torch.prim.ListConstruct %[[INT]]-1 : (!torch.int) -> !torch.list<int>
+// CHECK:         %[[INT:.*]]-9223372036854775808 = torch.constant.int -9223372036854775808
+// CHECK:         %[[T0:.*]] = torch.prim.ListConstruct %[[INT]]-9223372036854775808 : (!torch.int) -> !torch.list<int>
 // CHECK:         %[[T1:.*]] = torch.aten.view %[[ARG0]], %[[T0]] : !torch.vtensor<[?,?,?,?],f32>, !torch.list<int> -> !torch.vtensor<[?],f32>
 // CHECK:         return %[[T1]] : !torch.vtensor<[?],f32>
 func.func @torch.aten.flatten.using_ints(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?],f32> {

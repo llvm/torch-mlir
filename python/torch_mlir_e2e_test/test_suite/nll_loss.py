@@ -20,8 +20,8 @@ class NllLossModule(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1, -1], torch.float32, True),
-      ([-1], torch.int64, True),
+      ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
   ])
   # Here the 2nd index is ignored.
   def forward(self, x, y):
@@ -44,8 +44,8 @@ class NllLossModule_mean(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1, -1], torch.float32, True),
-      ([-1], torch.int64, True),
+      ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
   ])
   # Here the 2nd index is ignored.
   def forward(self, x, y):
@@ -68,8 +68,8 @@ class NllLossModule_sum(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1, -1], torch.float32, True),
-      ([-1], torch.int64, True),
+      ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
   ])
   # Here the 2nd index is ignored.
   def forward(self, x, y):
@@ -92,7 +92,7 @@ class NllLossModule_1D(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1], torch.float32, True),
+      ([-9223372036854775808], torch.float32, True),
       ([], torch.int64, True),
   ])
   # Here the 2nd index is ignored.
@@ -117,8 +117,8 @@ class NllLossModule_ignore_index_out_of_bounds(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1, -1], torch.float32, True),
-      ([-1], torch.int64, True),
+      ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
   ])
   # None of the index is ignored here, since the ignored index is out of bounds.
   def forward(self, x, y):
@@ -141,9 +141,9 @@ class NllLossModule_backward(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1], torch.float32, True),
-      ([-1, -1], torch.float32, True),
-      ([-1], torch.int64, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
       ([], torch.float32, True),
   ])
   def forward(self, grad_output, input, target, total_weight):
@@ -170,10 +170,10 @@ class NllLossModule_backwardWeight(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1], torch.float32, True),
-      ([-1, -1], torch.float32, True),
-      ([-1], torch.int64, True),
-      ([-1], torch.float32, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
+      ([-9223372036854775808], torch.float32, True),
       ([], torch.float32, True),
   ])
   def forward(self, grad_output, input, target, weight, total_weight):
@@ -201,9 +201,9 @@ class NllLossModule_backward_ignore_index(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1], torch.float32, True),
-      ([-1, -1], torch.float32, True),
-      ([-1], torch.int64, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
       ([], torch.float32, True),
   ])
   def forward(self, grad_output, input, target, total_weight):
@@ -231,9 +231,9 @@ class NllLossModule_backwardMean(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1], torch.float32, True),
-      ([-1, -1], torch.float32, True),
-      ([-1], torch.int64, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
       ([], torch.float32, True),
   ])
   def forward(self, grad_output, input, target, total_weight):
@@ -260,10 +260,10 @@ class NllLossModule_backwardMeanWeight(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1], torch.float32, True),
-      ([-1, -1], torch.float32, True),
-      ([-1], torch.int64, True),
-      ([-1], torch.float32, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
+      ([-9223372036854775808], torch.float32, True),
       ([], torch.float32, True),
   ])
   def forward(self, grad_output, input, target, weight, total_weight):
@@ -290,9 +290,9 @@ class NllLossModule_backwardSum(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1], torch.float32, True),
-      ([-1, -1], torch.float32, True),
-      ([-1], torch.int64, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
       ([], torch.float32, True),
   ])
   def forward(self, grad_output, input, target, total_weight):
@@ -319,10 +319,10 @@ class NllLossModule_backwardSumWeight(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1], torch.float32, True),
-      ([-1, -1], torch.float32, True),
-      ([-1], torch.int64, True),
-      ([-1], torch.float32, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
+      ([-9223372036854775808], torch.float32, True),
       ([], torch.float32, True),
   ])
   def forward(self, grad_output, input, target, weight, total_weight):
@@ -349,9 +349,9 @@ class NllLossModule_backward1D(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1], torch.float32, True),
-      ([-1], torch.float32, True),
-      ([-1], torch.int64, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
       ([], torch.float32, True),
   ])
   def forward(self, grad_output, input, target, total_weight):
@@ -378,10 +378,10 @@ class NllLossModule_backward1DWeight(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1], torch.float32, True),
-      ([-1], torch.float32, True),
-      ([-1], torch.int64, True),
-      ([-1], torch.float32, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
+      ([-9223372036854775808], torch.float32, True),
       ([], torch.float32, True),
   ])
   def forward(self, grad_output, input, target, weight, total_weight):
@@ -408,9 +408,9 @@ class NllLossModule_backward1DMean(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1], torch.float32, True),
-      ([-1], torch.float32, True),
-      ([-1], torch.int64, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
       ([], torch.float32, True),
   ])
   def forward(self, grad_output, input, target, total_weight):
@@ -437,10 +437,10 @@ class NllLossModule_backward1DMeanWeight(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1], torch.float32, True),
-      ([-1], torch.float32, True),
-      ([-1], torch.int64, True),
-      ([-1], torch.float32, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
+      ([-9223372036854775808], torch.float32, True),
       ([], torch.float32, True),
   ])
   def forward(self, grad_output, input, target, weight, total_weight):
@@ -467,9 +467,9 @@ class NllLossModule_backward1DSum(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1], torch.float32, True),
-      ([-1], torch.float32, True),
-      ([-1], torch.int64, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
       ([], torch.float32, True),
   ])
   def forward(self, grad_output, input, target, total_weight):
@@ -496,10 +496,10 @@ class NllLossModule_backward1DSumWeight(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1], torch.float32, True),
-      ([-1], torch.float32, True),
-      ([-1], torch.int64, True),
-      ([-1], torch.float32, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.float32, True),
+      ([-9223372036854775808], torch.int64, True),
+      ([-9223372036854775808], torch.float32, True),
       ([], torch.float32, True),
   ])
   def forward(self, grad_output, input, target, weight, total_weight):

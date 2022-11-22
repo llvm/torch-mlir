@@ -18,7 +18,7 @@ class ElementwiseGtFloatScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.gt(x, 0.6)
@@ -37,7 +37,7 @@ class ElementwiseGtIntScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, x):
         return torch.gt(x, 10)
@@ -56,7 +56,7 @@ class ElementwiseGtMixed2ScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
     ])
     def forward(self, x):
         return torch.gt(x, 7)
@@ -75,7 +75,7 @@ class ElementwiseGeFloatScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ge(x, 0.6)
@@ -94,7 +94,7 @@ class ElementwiseGeIntScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, x):
         return torch.ge(x, 10)
@@ -113,7 +113,7 @@ class ElementwiseGeMixedIntScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
     ])
     def forward(self, x):
         return torch.ge(x, 7)
@@ -132,7 +132,7 @@ class ElementwiseGeFloatIntScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ge(x, 7)
@@ -151,8 +151,8 @@ class ElementwiseGtFloatTensorModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.float32, True),
     ])
     def forward(self, x, y):
         return torch.gt(x, y)
@@ -171,8 +171,8 @@ class ElementwiseGtIntTensorModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
-        ([-1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.gt(x, y)
@@ -191,7 +191,7 @@ class ElementwiseLtFloatScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.lt(x, 0.6)
@@ -210,7 +210,7 @@ class ElementwiseLtIntScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, x):
         return torch.lt(x, 0)
@@ -229,7 +229,7 @@ class ElementwiseLtDiffWidthScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
     ])
     def forward(self, x):
         return torch.lt(x, 2)
@@ -249,7 +249,7 @@ class ElementwiseLeFloatScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.le(x, 0.6)
@@ -268,7 +268,7 @@ class ElementwiseLeIntScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, x):
         return torch.le(x, 10)
@@ -287,7 +287,7 @@ class ElementwiseLeMixedIntScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
     ])
     def forward(self, x):
         return torch.le(x, 7)
@@ -306,7 +306,7 @@ class ElementwiseLeFloatIntScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.le(x, 7)
@@ -325,8 +325,8 @@ class ElementwiseLtFloatTensorModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.float32, True),
     ])
     def forward(self, x, y):
         return torch.lt(x, y)
@@ -345,8 +345,8 @@ class ElementwiseLtIntTensorModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
-        ([-1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.lt(x, y)
@@ -365,7 +365,7 @@ class ElementwiseEqFloatScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.eq(x, 6.0)
@@ -385,7 +385,7 @@ class ElementwiseEqIntScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, x):
         return torch.eq(x, 2)
@@ -404,7 +404,7 @@ class ElementwiseEqDiffWidthScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
     ])
     def forward(self, x):
         return torch.eq(x, 2)
@@ -424,8 +424,8 @@ class ElementwiseEqFloatTensorModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.float32, True),
     ])
     def forward(self, x, y):
         return torch.eq(x, y)
@@ -446,8 +446,8 @@ class ElementwiseEqIntTensorModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
-        ([-1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.eq(x, y)
@@ -466,7 +466,7 @@ class ElementwiseNeFloatScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ne(x, 2.0)
@@ -486,7 +486,7 @@ class ElementwiseNeIntScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, x):
         return torch.ne(x, 3)

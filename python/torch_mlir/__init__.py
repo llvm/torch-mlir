@@ -15,6 +15,9 @@ from torch_mlir.passmanager import PassManager
 from .compiler_utils import run_pipeline_with_repro_report
 from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ImportOptions, ModuleBuilder
 
+# This value is taken from `ShapedType::kDynamicSize` variable
+# defined here: "mlir/IR/BuiltinTypeInterfaces.h"
+MLIR_DYNAMIC_STRIDE = -9223372036854775808
 
 class OutputType(Enum):
     """The kind of output that `torch_mlir.compile` can produce.
@@ -112,7 +115,7 @@ class TensorPlaceholder:
         shape = []
         for i, dim in enumerate(tensor.shape):
             if i in dynamic_axes:
-                shape.append(-1)
+                shape.append(MLIR_DYNAMIC_STRIDE)
             else:
                 shape.append(dim)
         return TensorPlaceholder(shape, tensor.dtype)
@@ -221,7 +224,7 @@ class ExampleArgs:
                         # tracing, they are walking on thin ice already -- assume
                         # they know what they are doing and that their trace is
                         # correct for any specific concrete size.
-                        shape = [s if s != -1 else 7 for s in arg.shape]
+                        shape = [s if s != MLIR_DYNAMIC_STRIDE else 7 for s in arg.shape]
                         example_args_for_trace.append(
                             torch.ones(*shape, dtype=arg.dtype))
                     else:

@@ -18,7 +18,7 @@ class SliceModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return x[0:5:1, 1:3:1, 2:4:1]
@@ -58,7 +58,7 @@ class SliceOutOfUpperBoundIndexModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         # TODO: remove hacky cat tensor once refbackend supports 0 size dim
@@ -80,7 +80,7 @@ class SliceOutOfLowerBoundEndIndexModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return x[:-8,-7:,:]
@@ -99,7 +99,7 @@ class SliceOutOfLowerBoundStartIndexModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return x[-8:3:1, 1:3:1, 2:4:1]
@@ -119,7 +119,7 @@ class SliceEndSleStartModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         # TODO: remove hacky cat tensor once refbackend supports 0 size dim
@@ -142,7 +142,7 @@ class SliceStartEqEndModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         # TODO: remove hacky cat tensor once refbackend supports 0 size dim
@@ -164,7 +164,7 @@ class SliceSizeTwoStepModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return x[0:5:2, 0:3:2, 0:4:2]
@@ -183,7 +183,7 @@ class SliceNegIdxModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return x[:-1, -2:-1]
@@ -202,7 +202,7 @@ class SliceSingleIdxModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return x[0]
@@ -221,7 +221,7 @@ class SliceWholeTensorModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return x[:, :]
@@ -240,7 +240,7 @@ class SelectIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, x):
         return x.select(0,0)
@@ -261,8 +261,8 @@ class SliceScatterModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x, src):
         return torch.ops.aten.slice_scatter(x, src, dim = 1, start = 0, end = 1, step = 1)
@@ -278,8 +278,8 @@ class SliceScatterZeroDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x, src):
         return torch.ops.aten.slice_scatter(x, src, dim = 0, start = 0, end = 1, step = 1)
@@ -298,8 +298,8 @@ class SliceScatterNegativeDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x, src):
         return torch.ops.aten.slice_scatter(x,
@@ -321,8 +321,8 @@ class SliceScatterStepVariationModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x, src):
         return torch.ops.aten.slice_scatter(x, src, dim = 1, start = 0, end = 1, step = 2)
@@ -357,8 +357,8 @@ class SelectScatterModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x, src):
         return torch.ops.aten.select_scatter(x, src, dim = 0, index = 0)
@@ -395,7 +395,7 @@ class NarrowHorizontalTest(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.narrow(x, dim=0, start=0, length=2)
@@ -415,7 +415,7 @@ class NarrowVerticalTest(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.narrow(x, dim=1, start=0, length=2)
@@ -434,7 +434,7 @@ class NarrowHorizontalTest2(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.narrow(x, dim=0, start=0, length=2)
@@ -454,7 +454,7 @@ class NarrowVerticalTest2(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.narrow(x, dim=1, start=0, length=2)

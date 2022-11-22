@@ -268,7 +268,8 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
     int64_t axis_val = axes_elems.getValues<IntegerAttr>()[i].getInt();
     if (axis_val < 0)
       axis_val += input_rank;
-    num_elems_on_reduced_axis *= input_type.getShape()[axis_val];
+    int64_t inShape = input_type.getShape()[axis_val];
+    num_elems_on_reduced_axis *= inShape < 0 ? -1 : inShape;
   }
   double div_scale = 1.0 / static_cast<double>(num_elems_on_reduced_axis);
 

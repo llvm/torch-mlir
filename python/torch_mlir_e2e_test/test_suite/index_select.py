@@ -95,8 +95,8 @@ class IndexSelectDynamicModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
-        ([-1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
     ])
 
     def forward(self, input, indices):
@@ -114,7 +114,7 @@ class IndexSelectDynamicInputSizeModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([2], torch.int64, True),
     ])
 
@@ -134,7 +134,7 @@ class IndexSelectDynamicIndexSizeModule(torch.nn.Module):
     @annotate_args([
         None,
         ([4, 5, 6], torch.float32, True),
-        ([-1], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
     ])
 
     def forward(self, input, indices):

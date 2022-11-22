@@ -18,8 +18,8 @@ class MatmulDot(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.float32, True),
-        ([-1], torch.float32, True),
+        ([-9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.float32, True),
     ])
     def forward(self, lhs, rhs):
         return torch.matmul(lhs, rhs)
@@ -38,8 +38,8 @@ class Matmul2D(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, lhs, rhs):
         return torch.matmul(lhs, rhs)
@@ -58,8 +58,8 @@ class MatmulVecMat(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.float32, True),
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, lhs, rhs):
         return torch.matmul(lhs, rhs)
@@ -78,8 +78,8 @@ class MatmulMatVec(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.float32, True),
     ])
     def forward(self, lhs, rhs):
         return torch.matmul(lhs, rhs)
@@ -98,8 +98,8 @@ class Matmul3D(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, lhs, rhs):
         return torch.matmul(lhs, rhs)
@@ -118,8 +118,8 @@ class Matmul4d(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1, -1], torch.float32, True),
-        ([-1, -1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, lhs, rhs):
         return torch.matmul(lhs, rhs)
@@ -178,8 +178,8 @@ class MatmulSingleDynamicBatchDim(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([4, -1, -1, -1], torch.float32, True),
-        ([4, -1, -1, -1], torch.float32, True),
+        ([4, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([4, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, lhs, rhs):
         return torch.matmul(lhs, rhs)
@@ -198,8 +198,8 @@ class MatmulBroadcastBatchDim(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([4, -1, -1, -1], torch.float32, True),
-        ([-1, -1, -1], torch.float32, True),
+        ([4, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, lhs, rhs):
         return torch.matmul(lhs, rhs)
@@ -216,8 +216,8 @@ class Mv(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.float32, True),
     ])
     def forward(self, m, v):
         return torch.mv(m, v)

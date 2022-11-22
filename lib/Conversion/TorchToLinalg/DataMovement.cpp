@@ -299,14 +299,14 @@ public:
     int64_t outputDynamicValues = 0;
 
     for (int64_t value : inputShape) {
-      if (value == -1) {
+      if (value == kUnknownSize) {
         ++inputDynamicValues;
       } else {
         inputProduct *= value;
       }
     }
     for (int64_t value : outputShape) {
-      if (value == -1) {
+      if (value == kUnknownSize) {
         ++outputDynamicValues;
       } else {
         outputProduct *= value;
@@ -317,7 +317,7 @@ public:
       if (inputDynamicValues) {
         int64_t missingValue = outputProduct / inputProduct;
         for (size_t i = 0; i < inputShape.size(); i++) {
-          if (inputShape[i] == -1) {
+          if (inputShape[i] == kUnknownSize) {
             inputShape[i] = missingValue;
             break;
           }
@@ -325,7 +325,7 @@ public:
       } else {
         int64_t missingValue = inputProduct / outputProduct;
         for (size_t i = 0; i < outputShape.size(); i++) {
-          if (outputShape[i] == -1) {
+          if (outputShape[i] == kUnknownSize) {
             outputShape[i] = missingValue;
             break;
           }
@@ -415,7 +415,7 @@ public:
 
         if (inferredDimension.has_value()) {
           return rewriter.notifyMatchFailure(
-              op, "at most one element in size list is allowed to be -1");
+              op, "at most one element in size list is allowed to be kUnknownSize");
         }
         inferredDimension = outputDim;
       }
@@ -652,7 +652,7 @@ public:
 
       SmallVector<int64_t> intermediateShape;
       for (auto i : llvm::seq(0, (int)outputAssociations.size())) {
-        int sum = 1;
+        int64_t sum = 1;
 
         for (auto j : llvm::seq(0, (int)outputAssociations[i].size())) {
           if (outputShape[outputAssociations[i][j]] < 0) {

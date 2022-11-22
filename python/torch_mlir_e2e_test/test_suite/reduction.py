@@ -18,7 +18,7 @@ class ReduceSumFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.sum(a)
@@ -37,7 +37,7 @@ class ReduceSumDtypeFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, a):
         return torch.sum(a, dtype=torch.float32)
@@ -56,7 +56,7 @@ class ReduceSumElementTypeBoolModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.bool, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.bool, True),
     ])
     def forward(self, a):
         return torch.sum(a)
@@ -75,7 +75,7 @@ class ReduceSumDimIntListFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.sum(a, (0, 1))
@@ -94,7 +94,7 @@ class ReduceSumDimIntListDtypeFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, a):
         return torch.sum(a, (0, 1), dtype=torch.float32)
@@ -113,7 +113,7 @@ class ReduceSumDimIntListKeepDimFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.sum(a, (1, 2), keepdim=True)
@@ -151,7 +151,7 @@ class ReduceSumDimIntListEmptyDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.sum(a, dim=[])
@@ -170,7 +170,7 @@ class ReduceSumDimIntListElementTypeBoolModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.bool, True),
+        ([-9223372036854775808, -9223372036854775808], torch.bool, True),
     ])
     def forward(self, a):
         return torch.sum(a, dim=(-1), keepdim=False)
@@ -189,7 +189,7 @@ class ReduceSumUnsignedIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, a):
         return torch.sum(a)
@@ -208,7 +208,7 @@ class ReduceSumSignedIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, a):
         return torch.sum(a)
@@ -227,7 +227,7 @@ class ReduceSumDtypeIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.int32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int32, True),
     ])
     def forward(self, a):
         return torch.sum(a, dtype=torch.int64)
@@ -246,7 +246,7 @@ class ReduceSumDimIntListIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, a):
         return torch.sum(a, (0, 1))
@@ -265,7 +265,7 @@ class ReduceSumDimIntListDtypeIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.int32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int32, True),
     ])
     def forward(self, a):
         return torch.sum(a, (0, 1), dtype=torch.int64)
@@ -284,7 +284,7 @@ class ReduceSumDimIntListKeepDimIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, a):
         return torch.sum(a, (1, 2), keepdim=True)
@@ -303,7 +303,7 @@ class ReduceMaxAlongDim(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, a):
         return torch.ops.aten.max(a, 1)[0]
@@ -322,7 +322,7 @@ class ReduceMaxAlongDimNegative(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, a):
         return torch.ops.aten.max(a, 1)[0]
@@ -341,7 +341,7 @@ class ReduceMaxKeepDim(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, a):
         return torch.ops.aten.max(a, 1, keepdim=True)[1]
@@ -360,7 +360,7 @@ class ReduceMaxKeepDimReturnBoth(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.ops.aten.max(a, 1, keepdim=True)
@@ -379,7 +379,7 @@ class ReduceMaxAllDims(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1, -1, -1], torch.float32, True),
+      ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
   ])
   def forward(self, a):
     return torch.ops.aten.max(a)
@@ -397,7 +397,7 @@ class ReduceMaxNegativeDim(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.ops.aten.max(a, -1, keepdim=True)
@@ -415,7 +415,7 @@ class ReduceMaxFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.ops.aten.max(a)
@@ -433,7 +433,7 @@ class ReduceMaxSignedIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, a):
         return torch.ops.aten.max(a)
@@ -451,7 +451,7 @@ class ReduceMaxUnsignedIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, a):
         return torch.ops.aten.max(a)
@@ -469,7 +469,7 @@ class ReduceL1NormModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.linalg.vector_norm(a, dim=0, ord=1)
@@ -487,7 +487,7 @@ class ReduceL1NormWithDTypeModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.linalg.vector_norm(a, dim=0, ord=1, dtype=torch.float64)
@@ -505,7 +505,7 @@ class ReduceL2NormModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.linalg.vector_norm(a, dim=0)
@@ -523,7 +523,7 @@ class ReduceLN3NormModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.linalg.vector_norm(a, dim=0, ord=-3)
@@ -541,7 +541,7 @@ class ReduceL3NormAllDimsModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.linalg.vector_norm(a, dim=None, ord=3)
@@ -559,7 +559,7 @@ class ReduceL3NormKeepDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.linalg.vector_norm(a, keepdim=True, ord=3)
@@ -576,7 +576,7 @@ class ReduceFrobeniusNormModule(torch.nn.Module):
     @export 
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])  
     def forward(self, a):
         return torch.ops.aten.frobenius_norm(a, dim=[0, 1], keepdim=False)
@@ -593,7 +593,7 @@ class ReduceFrobeniusNormKeepDimModule(torch.nn.Module):
     @export 
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])  
     def forward(self, a):
         return torch.ops.aten.frobenius_norm(a, dim=[0, 1], keepdim=True)
@@ -611,8 +611,8 @@ class MseLossNoReductionModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1 , -1], torch.float32, True),
-        ([-1 , -1], torch.float32, True),
+        ([-9223372036854775808 , -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808 , -9223372036854775808], torch.float32, True),
     ])
 
     def forward(self, x, y):
@@ -630,8 +630,8 @@ class MseLossMeanReductionModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1 , -1], torch.float32, True),
-        ([-1 , -1], torch.float32, True),
+        ([-9223372036854775808 , -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808 , -9223372036854775808], torch.float32, True),
     ])
 
     def forward(self, x, y):
@@ -649,8 +649,8 @@ class MseLossSumReductionWithDifferentElemTypeModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1 , -1], torch.float32, True),
-        ([-1 , -1], torch.float64, True),
+        ([-9223372036854775808 , -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808 , -9223372036854775808], torch.float64, True),
     ])
 
     def forward(self, x, y):

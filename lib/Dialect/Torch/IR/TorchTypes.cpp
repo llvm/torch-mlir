@@ -231,7 +231,7 @@ Type parseTensorType(MLIRContext *context, AsmParser &parser,
         }
       }
       if (succeeded(parser.parseOptionalQuestion())) {
-        sizes.push_back(-1);
+        sizes.push_back(kUnknownSize);
         continue;
       }
       int64_t size;

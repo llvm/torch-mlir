@@ -320,7 +320,7 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
 // return -1.
 int64_t getNumberOfElements(RankedTensorType inputType) {
   if (!inputType.hasStaticShape())
-    return -1;
+    return kUnknownSize;
   ArrayRef<int64_t> inputShape = inputType.getShape();
   int64_t numel = 1;
   for (int64_t i = 0; i < inputType.getRank(); i++)

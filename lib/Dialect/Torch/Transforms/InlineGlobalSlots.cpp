@@ -239,14 +239,15 @@ bool InlineGlobalSlotsAnalysis::isValueSafeTransferFunction(Value value) {
       continue;
     // If the op is read-only and all results are safe, then this value is
     // safe. This covers, for example, view-like ops that create aliases.
-    if ((op->hasTrait<Torch::OpTrait::ReadOnly>() ||
-         MemoryEffectOpInterface::hasNoEffect(op)) &&
-        llvm::all_of(op->getResults(), [&](Value result) {
-          auto *state =
-              getOrCreateFor<InlineGlobalSlotsAnalysisState>(value, result);
-          return state->isSafe;
-        }))
-      continue;
+    if (auto effects = dyn_cast<MemoryEffectOpInterface>(op)) {
+      if ((op->hasTrait<Torch::OpTrait::ReadOnly>() || effects.hasNoEffect()) &&
+          llvm::all_of(op->getResults(), [&](Value result) {
+            auto *state =
+                getOrCreateFor<InlineGlobalSlotsAnalysisState>(value, result);
+            return state->isSafe;
+          }))
+        continue;
+    }
     if (auto initialize = dyn_cast<Torch::InitializeGlobalSlotsOp>(op)) {
       auto symName = initialize.slotSymNames()[use.getOperandNumber()]
                          .cast<FlatSymbolRefAttr>();
