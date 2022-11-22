@@ -2986,6 +2986,16 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenSliceScatterOp op,
                                 PatternRewriter &rewriter) const override {
+    int64_t inputRank = getTensorRank(op.self());
+    int64_t dimInt = 0;
+    if (matchPattern(op.dim(), m_TorchConstantInt(&dimInt))) {
+      dimInt = toPositiveDim(dimInt, inputRank);
+      if (!isValidDim(dimInt, inputRank))
+        return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
+    } else {
+      return rewriter.notifyMatchFailure(op, "dim must be constant");
+    }
+
     auto getOptionalVal = [&](Value val, Value defVal) -> Value {
       if (val.getType().isa<Torch::NoneType>()) {
         return defVal;
@@ -3005,15 +3015,31 @@ public:
     Value start = getOptionalVal(op.start(), zero);
     Value end = getOptionalVal(op.end(), dimSize);
     Value step = getOptionalVal(op.step(), one);
-    // Step 1. calculate scatter indices mask
+    // Step 0. create indices
     Type indicesType = ValueTensorType::get(
         op.getContext(), ArrayRef<int64_t>{ShapedType::kDynamicSize},
-        IntegerType::get(op.getContext(), 64));
-    Type maskType = ValueTensorType::get(
-        op.getContext(), ArrayRef<int64_t>{ShapedType::kDynamicSize},
-        IntegerType::get(op.getContext(), 1));
-    auto indices = rewriter.create<AtenArangeOp>(
+        IntegerType::get(op.getContext(), 64, IntegerType::Signed));
+    Value indices = rewriter.create<AtenArangeOp>(
         op.getLoc(), indicesType, dimSize, none, none, none, none);
+
+    // Step 1. make indices broadcastable to self's shape
+    SmallVector<int64_t> newIndicesShapeInt(inputRank, 1);
+    SmallVector<Value> newIndicesShape(inputRank, one);
+    newIndicesShape[dimInt] = dimSize;
+    newIndicesShapeInt[dimInt] = ShapedType::kDynamicSize;
+    Value newIndicesSizeList = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), ListType::get(IntType::get(op.getContext())),
+        newIndicesShape);
+    Type indicesDtype = indices.getType().cast<ValueTensorType>().getDtype();
+    Type newIndicesType = ValueTensorType::get(
+        op.getContext(), llvm::makeArrayRef(newIndicesShapeInt), indicesDtype);
+    indices = rewriter.create<AtenViewOp>(op.getLoc(), newIndicesType,
+                                                 indices, newIndicesSizeList);
+
+    // Step 2. calculate scatter indices mask
+    Type maskType = ValueTensorType::get(
+        op.getContext(), newIndicesType.cast<ValueTensorType>().getSizes(),
+        IntegerType::get(op.getContext(), 1));
     auto shiftIndices = rewriter.create<AtenSubScalarOp>(
         op.getLoc(), indices.getType(), indices, start, one);
     auto stepRemainder = rewriter.create<AtenRemainderScalarOp>(
@@ -3023,35 +3049,11 @@ public:
     auto maskStart = rewriter.create<AtenGeScalarOp>(op.getLoc(), maskType,
                                                      shiftIndices, zero);
     auto maskEnd =
-        rewriter.create<AtenGeScalarOp>(op.getLoc(), maskType, indices, end);
+        rewriter.create<AtenLtScalarOp>(op.getLoc(), maskType, indices, end);
     mask = rewriter.create<AtenBitwiseAndTensorOp>(op.getLoc(), maskType, mask,
                                                    maskStart);
     mask = rewriter.create<AtenBitwiseAndTensorOp>(op.getLoc(), maskType, mask,
                                                    maskEnd);
-
-    int64_t inputRank = getTensorRank(op.self());
-    int64_t dimInt = 0;
-    if (matchPattern(op.dim(), m_TorchConstantInt(&dimInt))) {
-      dimInt = toPositiveDim(dimInt, inputRank);
-      if (!isValidDim(dimInt, inputRank))
-        return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
-    } else {
-      return rewriter.notifyMatchFailure(op, "dim must be constant");
-    }
-
-    // Step 2. make mask broadcastable to self's shape
-    SmallVector<int64_t> maskViewShapeInt(inputRank, 1);
-    SmallVector<Value> maskViewShape(inputRank, one);
-    maskViewShape[dimInt] = dimSize;
-    maskViewShapeInt[dimInt] = ShapedType::kDynamicSize;
-    Value maskViewSizeList = rewriter.create<PrimListConstructOp>(
-        op.getLoc(), ListType::get(IntType::get(op.getContext())),
-        maskViewShape);
-    Type maskDtype = mask.getType().cast<ValueTensorType>().getDtype();
-    Type maskViewType = ValueTensorType::get(
-        op.getContext(), llvm::makeArrayRef(maskViewShapeInt), maskDtype);
-    Value maskView = rewriter.create<AtenViewOp>(op.getLoc(), maskViewType,
-                                                 mask, maskViewSizeList);
 
     // Step 3. make src broadcastable to self's shape
     Value src = op.src();
@@ -3076,7 +3078,7 @@ public:
     }
 
     // Step 4. replace output = mask? src: self
-    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, op.getType(), maskView,
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, op.getType(), mask,
                                                  src, op.self());
     return success();
   }

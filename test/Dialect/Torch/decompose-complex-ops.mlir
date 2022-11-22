@@ -813,26 +813,26 @@ func.func @torch.aten.repeat(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.int
 // CHECK-NEXT:    %[[INT0:.*]] = torch.constant.int 0
 // CHECK-NEXT:    %[[INT1:.*]] = torch.constant.int 1
 // CHECK-NEXT:    %[[INT1_0:.*]] = torch.constant.int 1
-// CHECK-NEXT:    %[[T0:.*]] = torch.aten.add.int %[[INT0]], %[[INT1_0]]
-// CHECK-NEXT:    %[[T1:.*]] = torch.aten.unsqueeze %[[SRC]], %[[INT1]]
+// CHECK-NEXT:    %[[T0:.*]] = torch.aten.add.int %[[INT0]], %[[INT1_0]] : !torch.int, !torch.int -> !torch.int
+// CHECK-NEXT:    %[[T1:.*]] = torch.aten.unsqueeze %[[SRC]], %[[INT1]] : !torch.vtensor<[?],f32>, !torch.int -> !torch.vtensor<[?,1],f32>
 // CHECK-NEXT:    %[[INT1_1:.*]] = torch.constant.int 1
 // CHECK-NEXT:    %[[INT0_2:.*]] = torch.constant.int 0
 // CHECK-NEXT:    %[[NONE:.*]] = torch.constant.none
-// CHECK-NEXT:    %[[T2:.*]] = torch.aten.size.int %[[SELF]], %[[INT1]]
+// CHECK-NEXT:    %[[T2:.*]] = torch.aten.size.int %[[SELF]], %[[INT1]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
 // CHECK-NEXT:    %[[INT0_3:.*]] = torch.constant.int 0
 // CHECK-NEXT:    %[[INT1_4:.*]] = torch.constant.int 1
-// CHECK-NEXT:    %[[T3:.*]] = torch.aten.arange.start_step %[[INT0_3]], %[[T2]], %[[INT1_4]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]]
-// CHECK-NEXT:    %[[T4:.*]] = torch.aten.sub.Scalar %[[T3]], %[[INT0]], %[[INT1_1]]
-// CHECK-NEXT:    %[[T5:.*]] = torch.aten.remainder.Scalar %[[T4]], %[[INT1_0]]
-// CHECK-NEXT:    %[[T6:.*]] = torch.aten.eq.Scalar %[[T5]], %[[INT0_2]]
-// CHECK-NEXT:    %[[T7:.*]] = torch.aten.ge.Scalar %[[T4]], %[[INT0_2]]
-// CHECK-NEXT:    %[[T8:.*]] = torch.aten.ge.Scalar %[[T3]], %[[T0]]
-// CHECK-NEXT:    %[[T9:.*]] = torch.aten.bitwise_and.Tensor %[[T6]], %[[T7]]
-// CHECK-NEXT:    %[[T10:.*]] = torch.aten.bitwise_and.Tensor %[[T9]], %[[T8]]
-// CHECK-NEXT:    %[[T11:.*]] = torch.prim.ListConstruct %[[INT1_1]], %[[T2]]
-// CHECK-NEXT:    %[[T12:.*]] = torch.aten.view %[[T10]], %[[T11]]
-// CHECK-NEXT:    %[[T13:.*]] = torch.aten.where.self %[[T12]], %[[T1]], %[[SELF]]
-// CHECK-NEXT:    return %[[T13]]
+// CHECK-NEXT:    %[[T3:.*]] = torch.aten.arange.start_step %[[INT0_3]], %[[T2]], %[[INT1_4]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.int, !torch.int, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?],si64>
+// CHECK-NEXT:    %[[T4:.*]] = torch.prim.ListConstruct %[[INT1_1]], %[[T2]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK-NEXT:    %[[T5:.*]] = torch.aten.view %[[T3]], %[[T4]] : !torch.vtensor<[?],si64>, !torch.list<int> -> !torch.vtensor<[1,?],si64>
+// CHECK-NEXT:    %[[T6:.*]] = torch.aten.sub.Scalar %[[T5]], %[[INT0]], %[[INT1_1]] : !torch.vtensor<[1,?],si64>, !torch.int, !torch.int -> !torch.vtensor<[1,?],si64>
+// CHECK-NEXT:    %[[T7:.*]] = torch.aten.remainder.Scalar %[[T6]], %[[INT1_0]] : !torch.vtensor<[1,?],si64>, !torch.int -> !torch.vtensor<[1,?],si64>
+// CHECK-NEXT:    %[[T8:.*]] = torch.aten.eq.Scalar %[[T7]], %[[INT0_2]] : !torch.vtensor<[1,?],si64>, !torch.int -> !torch.vtensor<[1,?],i1>
+// CHECK-NEXT:    %[[T9:.*]] = torch.aten.ge.Scalar %[[T6]], %[[INT0_2]] : !torch.vtensor<[1,?],si64>, !torch.int -> !torch.vtensor<[1,?],i1>
+// CHECK-NEXT:    %[[T10:.*]] = torch.aten.lt.Scalar %[[T5]], %[[T0]] : !torch.vtensor<[1,?],si64>, !torch.int -> !torch.vtensor<[1,?],i1>
+// CHECK-NEXT:    %[[T11:.*]] = torch.aten.bitwise_and.Tensor %[[T8]], %[[T9]] : !torch.vtensor<[1,?],i1>, !torch.vtensor<[1,?],i1> -> !torch.vtensor<[1,?],i1>
+// CHECK-NEXT:    %[[T12:.*]] = torch.aten.bitwise_and.Tensor %[[T11]], %[[T10]] : !torch.vtensor<[1,?],i1>, !torch.vtensor<[1,?],i1> -> !torch.vtensor<[1,?],i1>
+// CHECK-NEXT:    %[[T13:.*]] = torch.aten.where.self %[[T12]], %[[T1]], %[[SELF]] : !torch.vtensor<[1,?],i1>, !torch.vtensor<[?,1],f32>, !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
+// CHECK-NEXT:    return %[[T13]] : !torch.vtensor<[?,?],f32>
 func.func @torch.aten.select_scatter(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32> {
   %int0 = torch.constant.int 0 
   %int1 = torch.constant.int 1
