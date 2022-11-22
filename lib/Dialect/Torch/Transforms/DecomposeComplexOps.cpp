@@ -168,6 +168,55 @@ static Value createSoftmaxBackwardCommonKernel(PatternRewriter &rewriter,
 }
 
 namespace {
+/// We decompose aten.amax into a set of aten.max.dim op(s) depending on the
+/// number of dimensions across which the max needs to be computed.
+/// Eg:
+///   INPUT:
+///      final_output = aten.amax(initial_input, dim=(0, 2, 1), keepdim=False)
+///
+///   OUTPUT:
+///      input_1 = aten.max.dim(initial_input, 2, keepdim)  #1
+///      input_2 = aten.max.dim(input_1, 1, keepdim)   #2
+///      final_output = aten.max.dim(input_2, 0, keepdim) #3
+///
+/// NOTE: We iterate over, in reverse order, every dimension included in `dim`
+///       of the `aten.amax` op and create an `aten.amax.dim` op.
+///       Input tensor to the next `aten.amax.dim` op is thus the output of the
+///       previous `aten.amax.dim` op.
+class DecomposeAtenAmaxOp : public OpRewritePattern<AtenAmaxOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAmaxOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    SmallVector<int64_t, 4> dims;
+    if (!matchPattern(op.dim(), m_TorchListOfConstantInts(dims)))
+      return rewriter.notifyMatchFailure(op,
+                                         "non-const dim parameter unsupported");
+
+    bool keepDim;
+    if (!matchPattern(op.keepdim(), m_TorchConstantBool(&keepDim)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected a constant boolean value for keepDim");
+
+    Value input = op.self();
+    std::sort(dims.begin(), dims.end());
+    // For every dimension included in `dim` of the op, iterated over in
+    // reverse order, we create a call to aten.max.dim.
+    for (int64_t i = dims.size() - 1; i >= 0; i--) {
+      Value dim = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(dims[i]));
+      // The input to the next invocation of aten.max.dim is the output of the
+      // previous aten.max.dim op.
+      input = createMaxAlongDimension(rewriter, loc, op, input, dim, keepDim);
+    }
+    rewriter.replaceOp(op, input);
+    return success();
+  }
+};
+} // end namespace
+
+namespace {
 class DecomposeAtenSizeOp : public OpRewritePattern<AtenSizeOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -3364,6 +3413,8 @@ public:
     target.addIllegalOp<AtenSelectScatterOp>();
     patterns.add<DecomposeAtenVarDimOp>(context);
     target.addIllegalOp<AtenVarDimOp>();
+    patterns.add<DecomposeAtenAmaxOp>(context);
+    target.addIllegalOp<AtenAmaxOp>();
     patterns.add<DecomposeAtenVarCorrectionOp>(context);
     target.addIllegalOp<AtenVarCorrectionOp>();
     patterns.add<DecomposeAtenStdDimOp>(context);

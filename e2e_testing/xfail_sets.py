@@ -524,6 +524,7 @@ TOSA_PASS_SET = {
     "SquareModule_basic",
     "MaxPool2dStaticModule_basic",
     "ResNet18StaticModule_basic",
+    "ReduceAmaxKeepDim_basic",
     "NativeLayerNormModule4D_basic",
     "LayerNormNormalizeOverAllDimsModule_basic",
     "PermuteModule_basic",

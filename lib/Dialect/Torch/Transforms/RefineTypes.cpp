@@ -1006,9 +1006,9 @@ void TypeAnalysis::visitOperation(Operation *op,
         getDtypeOrDefault(mean.getContext(), mean.dtype(), defaultDtype);
     visitReductionAlongAllDimsOp(mean, dtype, operands);
     return;
-  } else if (auto max = dyn_cast<AtenMaxOp>(op)) {
+  } else if (isa<AtenMaxOp, AtenAmaxOp>(op)) {
     Type dtype = operands[0]->getValue().dtype;
-    visitReductionAlongAllDimsOp(max, dtype, operands);
+    visitReductionAlongAllDimsOp(op, dtype, operands);
     return;
   } else if (isa<AtenStdOp, AtenStdDimOp, AtenVarOp, AtenVarDimOp,
                  AtenVarCorrectionOp>(op)) {
