@@ -15,6 +15,7 @@
 #include "mlir_lowering_context.h"
 #include "mlir_node.h"
 #include "ops/device_data.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 
 #include <ATen/Functions.h>
 #include <c10/core/ScalarType.h>
@@ -143,7 +144,8 @@ get_tensor_type_shape(c10::TensorType& tensor_type) {
   dims.resize(*symbolic_shape.rank());
   for (size_t i = 0; i < dims.size(); ++i) {
     auto shape_symbol = symbolic_shape[i];
-    dims[i] = shape_symbol.is_static() ? shape_symbol.static_size() : -1;
+    dims[i] = shape_symbol.is_static() ? shape_symbol.static_size()
+                                       : mlir::torch::Torch::kUnknownSize;
   }
 
   return dims;

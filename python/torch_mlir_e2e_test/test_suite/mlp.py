@@ -24,7 +24,7 @@ class Mlp1LayerModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return self.tanh0(self.fc0(x))
@@ -46,7 +46,7 @@ class Mlp2LayerModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         x = self.tanh0(self.fc0(x))
@@ -70,7 +70,7 @@ class Mlp2LayerModuleNoBias(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         x = self.tanh0(self.fc0(x))
@@ -91,7 +91,7 @@ class BatchMlpLayerModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return self.tanh0(self.fc0(x))

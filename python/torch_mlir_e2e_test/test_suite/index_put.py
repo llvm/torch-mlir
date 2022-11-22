@@ -20,9 +20,9 @@ class IndexPutImpl1DFloatNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1], torch.float32, True),
+        ([-9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten._index_put_impl_(input, (index, ),
@@ -45,9 +45,9 @@ class IndexPutImpl2DFloatNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten._index_put_impl_(input, (index, ),
@@ -70,9 +70,9 @@ class IndexPutImpl3DFloatNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten._index_put_impl_(input, (index, ),
@@ -99,9 +99,9 @@ class IndexPutImpl1DIntNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.int64, True),
-        ([-1], torch.int64, True),
-        ([-1], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten._index_put_impl_(input, (index, ),
@@ -128,9 +128,9 @@ class IndexPutImpl1DFloatAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1], torch.float32, True),
+        ([-9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten._index_put_impl_(input, (index, ),
@@ -153,9 +153,9 @@ class IndexPutImpl2DFloatAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten._index_put_impl_(input.clone(), (index, ),
@@ -178,9 +178,9 @@ class IndexPutImpl3DFloatAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten._index_put_impl_(input.clone(), (index, ),
@@ -207,9 +207,9 @@ class IndexPutImpl1DIntAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.int64, True),
-        ([-1], torch.int64, True),
-        ([-1], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten._index_put_impl_(input, (index, ),
@@ -235,9 +235,9 @@ class IndexPut1DFloatNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1], torch.float32, True),
+        ([-9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -259,9 +259,9 @@ class IndexPut2DFloatNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -283,9 +283,9 @@ class IndexPut3DFloatNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -311,9 +311,9 @@ class IndexPut1DIntNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.int64, True),
-        ([-1], torch.int64, True),
-        ([-1], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -335,9 +335,9 @@ class IndexPut2DIntNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
-        ([-1], torch.int64, True),
-        ([-1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -359,9 +359,9 @@ class IndexPut3DIntNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.int64, True),
-        ([-1], torch.int64, True),
-        ([-1, -1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -386,9 +386,9 @@ class IndexPut1DFloatAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1], torch.float32, True),
+        ([-9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -409,9 +409,9 @@ class IndexPut2DFloatAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -432,9 +432,9 @@ class IndexPut3DFloatAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -459,9 +459,9 @@ class IndexPut1DIntAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.int64, True),
-        ([-1], torch.int64, True),
-        ([-1], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -483,9 +483,9 @@ class IndexPut2DIntAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
-        ([-1], torch.int64, True),
-        ([-1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -507,9 +507,9 @@ class IndexPut3DIntAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.int64, True),
-        ([-1], torch.int64, True),
-        ([-1, -1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -535,9 +535,9 @@ class IndexPutHackedTwin1DFloatNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1], torch.float32, True),
+        ([-9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index],
@@ -559,9 +559,9 @@ class IndexPutHackedTwin2DFloatNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index],
@@ -583,9 +583,9 @@ class IndexPutHackedTwin3DFloatNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index],
@@ -611,9 +611,9 @@ class IndexPutHackedTwin1DIntNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.int64, True),
-        ([-1], torch.int64, True),
-        ([-1], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index],
@@ -636,9 +636,9 @@ class IndexPutHackedTwin2DIntNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
-        ([-1], torch.int64, True),
-        ([-1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index],
@@ -661,9 +661,9 @@ class IndexPutHackedTwin3DIntNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.int64, True),
-        ([-1], torch.int64, True),
-        ([-1, -1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index],
@@ -689,9 +689,9 @@ class IndexPutHackedTwin1DFloatAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1], torch.float32, True),
+        ([-9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index], value, accumulate=True)
@@ -711,9 +711,9 @@ class IndexPutHackedTwin2DFloatAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index], value, accumulate=True)
@@ -733,9 +733,9 @@ class IndexPutHackedTwin3DFloatAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
-        ([-1], torch.int64, True),
-        ([-1, -1, -1], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index], value, accumulate=True)
@@ -759,9 +759,9 @@ class IndexPutHackedTwin1DIntAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.int64, True),
-        ([-1], torch.int64, True),
-        ([-1], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index], value, accumulate=True)
@@ -782,9 +782,9 @@ class IndexPutHackedTwin2DIntAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
-        ([-1], torch.int64, True),
-        ([-1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index], value, accumulate=True)
@@ -805,9 +805,9 @@ class IndexPutHackedTwin3DIntAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.int64, True),
-        ([-1], torch.int64, True),
-        ([-1, -1, -1], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index], value, accumulate=True)

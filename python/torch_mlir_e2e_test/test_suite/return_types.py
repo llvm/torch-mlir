@@ -20,11 +20,11 @@ class TestMultipleTensorReturn(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1, -1], torch.float64, True),
-        ([-1, -1], torch.int32, True),
-        ([-1, -1], torch.int64, True),
-        ([-1, -1], torch.bool, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.bool, True),
     ])
     def forward(self, a, b, c, d, e):
         return a, b, c, d, e
@@ -48,9 +48,9 @@ class TestMultipleTensorAndPrimitiveTypesReturn(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int32, True),
-        ([-1, -1], torch.float64, True),
-        ([-1, -1], torch.bool, True),
+        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.bool, True),
     ])
     def forward(self, a, b, c):
         d = 1

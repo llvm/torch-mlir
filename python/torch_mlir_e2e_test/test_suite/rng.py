@@ -14,9 +14,9 @@ class UniformModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float64, True),
-        ([-1, -1, -1], torch.float64, True),
-        ([-1, -1, -1], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x, y, z):
         a = torch.ops.aten.uniform_(x, 1.0, 10.0)
@@ -89,9 +89,9 @@ class BernoulliModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float64, True),
-        ([-1, -1, -1], torch.float64, True),
-        ([-1, -1, -1], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x, y, z):
         a = torch.bernoulli(x)
@@ -126,7 +126,7 @@ class BernoulliZerosModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x):
         return torch.bernoulli(x)
@@ -145,7 +145,7 @@ class BernoulliOnesModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x):
         return torch.bernoulli(x)
@@ -164,9 +164,9 @@ class BernoulliFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float64, True),
-        ([-1, -1, -1], torch.float64, True),
-        ([-1, -1, -1], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x, y, z):
         a = torch.ops.aten.bernoulli_(x, 0.4)
@@ -201,12 +201,12 @@ class BernoulliTensorModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float64, True),
-        ([-1, -1, -1], torch.float64, True),
-        ([-1, -1, -1], torch.float64, True),
-        ([-1, -1, -1], torch.float64, True),
-        ([-1, -1, -1], torch.float64, True),
-        ([-1, -1, -1], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x, px, y, py, z, pz):
         a = torch.ops.aten.bernoulli_(x, px)
@@ -244,7 +244,7 @@ class RandLikeModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x):
         a = torch.ops.aten.rand_like(x)
@@ -265,7 +265,7 @@ class RandLikeDtypeModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x):
         a = torch.ops.aten.rand_like(x, dtype=torch.float32)
