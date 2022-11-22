@@ -641,7 +641,8 @@ static Type getPromotedResultTypeAssumingNonZeroRank(
 
 void TypeAnalysis::fillInDTypeGivenDTypeIntAndInputDType(
     ValueKnowledge &knowledge, Value dtype, Type inputDType) {
-  assert(isBuiltInType(inputDType) && "`inputDType` must be a builtin type");
+  assert(!inputDType ||
+         isBuiltInType(inputDType) && "`inputDType` must be a builtin type");
   int64_t dtypeInt;
   if (dtype.getType().isa<Torch::NoneType>())
     knowledge.dtype = inputDType;
@@ -939,6 +940,12 @@ void TypeAnalysis::visitOperation(Operation *op,
   }
   if (auto sumDimIntList = dyn_cast<AtenSumDimIntListOp>(op)) {
     Type defaultDtype = operands[0]->getValue().dtype;
+    if (!defaultDtype) {
+      incorporateKnowledge(
+          sumDimIntList.getResult(),
+          ValueKnowledge::getTensorPessimisticValueState(op->getContext()));
+      return;
+    }
     // If the input dtype is bool, the result type should be i64.
     if (defaultDtype.isInteger(1))
       defaultDtype =
