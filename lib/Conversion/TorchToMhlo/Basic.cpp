@@ -621,6 +621,30 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
+    AtenWhereSelfOp op,
+    OpAdaptor adaptor,
+    ConversionPatternRewriter& rewriter) const {
+  Value self = adaptor.self();
+  Value cond = adaptor.condition();
+  Value other = adaptor.other();
+
+  if (failed(
+          broadcastRanks(rewriter, op, self, cond, options.dimSizeIndexBits)))
+    return op.emitError("failed broadcast self and condition ranks");
+
+  if (failed(
+          broadcastRanks(rewriter, op, other, cond, options.dimSizeIndexBits)))
+    return op.emitError("failed broadcast other and condition ranks");
+
+  rewriter.replaceOpWithNewOp<chlo::BroadcastSelectOp>(
+      op,
+      getTypeConverter()->convertType(op.getType()),
+      ArrayRef<Value>{cond, self, other});
+  return success();
+}
+
 // AtenBroadcastToOp
 template <>
 LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
