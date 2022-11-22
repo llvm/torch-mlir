@@ -589,6 +589,9 @@ def aten〇max〇dim(self: List[int], dim: int, keepdim: bool = False) -> Tuple[
     reduced_shape = _reduce_along_dim(self, dim, keepdim)
     return reduced_shape, reduced_shape
 
+def aten〇amax(self: List[int], dim: List[int] = (), keepdim: bool = False) -> List[int]:
+    return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
+
 def aten〇mean〇dim(self: List[int], dim: Optional[List[int]], keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, dtype)
 

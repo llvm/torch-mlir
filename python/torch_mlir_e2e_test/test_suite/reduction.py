@@ -462,6 +462,78 @@ def ReduceMaxUnsignedIntModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ReduceAmaxSingleDim(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.amax(a, 1)
+
+@register_test_case(module_factory=lambda: ReduceAmaxSingleDim())
+def ReduceAmaxSingleDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5, high=100))
+
+# ==============================================================================
+
+class ReduceAmaxMultiDim(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.amax(a, (0, 2))
+
+@register_test_case(module_factory=lambda: ReduceAmaxMultiDim())
+def ReduceAmaxMultiDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5, high=100))
+
+# ==============================================================================
+
+class ReduceAmaxOutOfOrderDim(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.amax(a, (2, 1, 3))
+
+@register_test_case(module_factory=lambda: ReduceAmaxOutOfOrderDim())
+def ReduceAmaxOutOfOrderDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5, 6, high=100))
+
+# ==============================================================================
+
+class ReduceAmaxKeepDim(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.amax(a, (0, 2), keepdim=True)
+
+@register_test_case(module_factory=lambda: ReduceAmaxKeepDim())
+def ReduceAmaxKeepDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5, high=100))
+
+# ==============================================================================
+
 class ReduceL1NormModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
