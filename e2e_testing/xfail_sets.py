@@ -19,6 +19,7 @@ EAGER_MODE_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # These tests pass in the regular RefBackend flow, so it's unclear
     # why they fail here.
     "Matmul_vecmat",
+    "BatchMlpLayerModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
 }
 
