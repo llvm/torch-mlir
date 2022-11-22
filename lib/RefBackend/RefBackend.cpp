@@ -258,9 +258,10 @@ static Value lowerGetNextSeed(OpBuilder &b, Location loc) {
   // temp = multiplier * currentSeed + incrementStep
   Value mul = b.create<arith::MulIOp>(loc, currentSeed, multiplier);
   Value temp = b.create<arith::AddIOp>(loc, mul, incrementStep);
-  // temp mod 64 = temp & 63
-  Value cst127 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(127));
-  Value nextSeed = b.create<arith::AndIOp>(loc, temp, cst127);
+  // temp mod 2**64 = temp & (2**64 - 1) = temp & i64MaxValue
+  Value i64Max = b.create<arith::ConstantOp>(
+      loc, b.getIntegerAttr(b.getIntegerType(64), APInt::getMaxValue(64)));
+  Value nextSeed = b.create<arith::AndIOp>(loc, temp, i64Max);
   b.create<memref::StoreOp>(loc, nextSeed, globalVar);
   return nextSeed;
 }
