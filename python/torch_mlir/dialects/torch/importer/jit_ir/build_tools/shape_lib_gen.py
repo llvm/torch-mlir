@@ -907,7 +907,13 @@ def aten〇eq〇Tensor(self: List[int], other: List[int]) -> List[int]:
 def aten〇gt〇Tensor(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
+def aten〇ge〇Tensor(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, other)
+
 def aten〇lt〇Tensor(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, other)
+
+def aten〇le〇Tensor(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
 def aten〇unsqueeze(self: List[int], dim: int) -> List[int]:
