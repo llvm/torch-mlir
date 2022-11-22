@@ -9,6 +9,7 @@ set(LIBS
   MLIRFuncDialect
   MLIRTensorDialect
   MLIRTransforms
+  TorchMLIRDialectsConversionPasses
   TorchMLIRTMTensorDialect
   TorchMLIRTMTensorPasses
 )
