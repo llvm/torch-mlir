@@ -7,16 +7,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TORCH_MLIR_DIALECTS_DIALECT_TCP_IR_TCPOPS_H_
-#define TORCH_MLIR_DIALECTS_DIALECT_TCP_IR_TCPOPS_H_
+#ifndef TORCH_MLIR_DIALECTS_CONVERSION_PASSES_H
+#define TORCH_MLIR_DIALECTS_CONVERSION_PASSES_H
 
-#include "mlir/IR/Attributes.h"
-#include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/Dialect.h"
-#include "mlir/IR/OpDefinition.h"
-#include "mlir/Interfaces/SideEffectInterfaces.h"
+namespace mlir {
+namespace torch_mlir_dialects {
 
-#define GET_OP_CLASSES
-#include "torch-mlir-dialects/Dialect/Tcp/IR/TcpOps.h.inc"
+void registerConversionPasses();
 
-#endif // TORCH_MLIR_DIALECTS_DIALECT_TCP_IR_TCPOPS_H_
+} // namespace torch_mlir_dialects
+} // namespace mlir
+
+#endif // TORCH_MLIR_DIALECTS_CONVERSION_PASSES_H

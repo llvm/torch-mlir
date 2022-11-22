@@ -1,0 +1,7 @@
+set(LLVM_TARGET_DEFINITIONS Passes.td)
+if(TORCH_MLIR_DIALECTS_ENABLE_TCP)
+  mlir_tablegen(Passes.h.inc -gen-pass-decls -DTORCH_MLIR_DIALECTS_ENABLE_TCP)
+else()
+  mlir_tablegen(Passes.h.inc -gen-pass-decls)
+endif()
+add_public_tablegen_target(TorchMLIRDialectsConversionPassIncGen)
