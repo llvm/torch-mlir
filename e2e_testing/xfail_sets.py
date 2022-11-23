@@ -95,6 +95,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "StdDimNoneDimModule_basic",
     "StdUnbiasedModule_basic",
     "UniformModule_basic",
+    "UniformNoCorrelationModule_basic",
     # %1 = torch.operator "aten.scalar_tensor"(%float8.000000e00, %int6, %int0, %cpu, %none) : (!torch.float, !torch.int, !torch.int, !torch.Device, !torch.none) -> !torch.tensor
     "ElementwiseWhereScalarModule_basic",
     "ElementwiseWhereScalarOtherModule_basic",
@@ -750,6 +751,7 @@ LTC_XFAIL_SET = {
     "TensorToInt_basic",
     "TensorsConcatModule_basic",
     "UniformModule_basic",
+    "UniformNoCorrelationModule_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "AtenEmbeddingBagSumExample_basic",
