@@ -13,6 +13,7 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 
 class IndexSelectSingleIdxModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -22,9 +23,9 @@ class IndexSelectSingleIdxModule(torch.nn.Module):
         ([4, 5, 6], torch.float32, True),
         ([1], torch.int64, True),
     ])
-
     def forward(self, input, indices):
         return torch.index_select(input, 1, indices)
+
 
 @register_test_case(module_factory=lambda: IndexSelectSingleIdxModule())
 def IndexSelectSingleIdxModule_basic(module, tu: TestUtils):
@@ -32,6 +33,7 @@ def IndexSelectSingleIdxModule_basic(module, tu: TestUtils):
 
 
 class IndexSelectTwoIdxModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -41,9 +43,9 @@ class IndexSelectTwoIdxModule(torch.nn.Module):
         ([4, 5, 6], torch.float32, True),
         ([2], torch.int64, True),
     ])
-
     def forward(self, input, indices):
         return torch.index_select(input, 2, indices)
+
 
 @register_test_case(module_factory=lambda: IndexSelectTwoIdxModule())
 def IndexSelectTwoIdxModule_basic(module, tu: TestUtils):
@@ -51,6 +53,7 @@ def IndexSelectTwoIdxModule_basic(module, tu: TestUtils):
 
 
 class IndexSelectWholeDimensionModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -60,9 +63,9 @@ class IndexSelectWholeDimensionModule(torch.nn.Module):
         ([4, 5, 6], torch.float32, True),
         ([4], torch.int64, True),
     ])
-
     def forward(self, input, indices):
         return torch.index_select(input, 0, indices)
+
 
 @register_test_case(module_factory=lambda: IndexSelectWholeDimensionModule())
 def IndexSelectWholeDimensionModule_basic(module, tu: TestUtils):
@@ -70,6 +73,7 @@ def IndexSelectWholeDimensionModule_basic(module, tu: TestUtils):
 
 
 class IndexSelectWholeTensorModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -79,9 +83,9 @@ class IndexSelectWholeTensorModule(torch.nn.Module):
         ([3], torch.float32, True),
         ([3], torch.int64, True),
     ])
-
     def forward(self, input, indices):
         return torch.index_select(input, 0, indices)
+
 
 @register_test_case(module_factory=lambda: IndexSelectWholeTensorModule())
 def IndexSelectWholeTensorModule_basic(module, tu: TestUtils):
@@ -89,18 +93,20 @@ def IndexSelectWholeTensorModule_basic(module, tu: TestUtils):
 
 
 class IndexSelectDynamicModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
         ([-9223372036854775808], torch.int64, True),
     ])
-
     def forward(self, input, indices):
         return torch.index_select(input, 2, indices)
+
 
 @register_test_case(module_factory=lambda: IndexSelectDynamicModule())
 def IndexSelectDynamicModulebasic(module, tu: TestUtils):
@@ -108,18 +114,20 @@ def IndexSelectDynamicModulebasic(module, tu: TestUtils):
 
 
 class IndexSelectDynamicInputSizeModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
         ([2], torch.int64, True),
     ])
-
     def forward(self, input, indices):
         return torch.index_select(input, 2, indices)
+
 
 @register_test_case(module_factory=lambda: IndexSelectDynamicInputSizeModule())
 def IndexSelectDynamicInputSizeModule_basic(module, tu: TestUtils):
@@ -127,6 +135,7 @@ def IndexSelectDynamicInputSizeModule_basic(module, tu: TestUtils):
 
 
 class IndexSelectDynamicIndexSizeModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -136,9 +145,9 @@ class IndexSelectDynamicIndexSizeModule(torch.nn.Module):
         ([4, 5, 6], torch.float32, True),
         ([-9223372036854775808], torch.int64, True),
     ])
-
     def forward(self, input, indices):
         return torch.index_select(input, 1, indices)
+
 
 @register_test_case(module_factory=lambda: IndexSelectDynamicIndexSizeModule())
 def IndexSelectDynamicIndexSizeModule_basic(module, tu: TestUtils):

@@ -18,7 +18,10 @@ class TypeConversionF32ToF64Module(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808], torch.float32, True)])
+    @annotate_args([
+        None,
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True)
+    ])
     def forward(self, x):
         return x.to(torch.float64)
 
@@ -34,7 +37,10 @@ class TypeConversionF64ToF32Module(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808], torch.float64, True)])
+    @annotate_args([
+        None,
+        ([-9223372036854775808, -9223372036854775808], torch.float64, True)
+    ])
     def forward(self, x):
         return x.to(torch.float32)
 
@@ -50,7 +56,9 @@ class TypeConversionI32ToI64Module(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808], torch.int32, True)])
+    @annotate_args([
+        None, ([-9223372036854775808, -9223372036854775808], torch.int32, True)
+    ])
     def forward(self, x):
         return x.to(torch.int64)
 
@@ -66,7 +74,9 @@ class TypeConversionI64ToI32Module(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808], torch.int64, True)])
+    @annotate_args([
+        None, ([-9223372036854775808, -9223372036854775808], torch.int64, True)
+    ])
     def forward(self, x):
         return x.to(torch.int32)
 
@@ -82,7 +92,9 @@ class TypeConversionI1ToI32Module(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808], torch.bool, True)])
+    @annotate_args([
+        None, ([-9223372036854775808, -9223372036854775808], torch.bool, True)
+    ])
     def forward(self, x):
         return x.to(torch.int32)
 
@@ -99,7 +111,9 @@ class TypeConversionI1ToI64Module(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808], torch.bool, True)])
+    @annotate_args([
+        None, ([-9223372036854775808, -9223372036854775808], torch.bool, True)
+    ])
     def forward(self, x):
         return x.to(torch.int64)
 
@@ -116,7 +130,9 @@ class TypeConversionI1ToF32Module(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808], torch.bool, True)])
+    @annotate_args([
+        None, ([-9223372036854775808, -9223372036854775808], torch.bool, True)
+    ])
     def forward(self, x):
         return x.to(torch.float32)
 
@@ -133,7 +149,9 @@ class TypeConversionI1ToF64Module(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808], torch.bool, True)])
+    @annotate_args([
+        None, ([-9223372036854775808, -9223372036854775808], torch.bool, True)
+    ])
     def forward(self, x):
         return x.to(torch.float64)
 
@@ -153,7 +171,10 @@ class ToDtypeLayoutNoneModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808], torch.float32, True)])
+    @annotate_args([
+        None,
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True)
+    ])
     def forward(self, x):
         return torch.ops.aten.to(x,
                                  dtype=torch.float64,
@@ -176,7 +197,10 @@ class ToDtypeLayoutStridedModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808], torch.float32, True)])
+    @annotate_args([
+        None,
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True)
+    ])
     def forward(self, x):
         return torch.ops.aten.to(x,
                                  dtype=torch.float64,
@@ -245,7 +269,10 @@ class PrimsConvertElementTypeModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808], torch.float32, True)])
+    @annotate_args([
+        None,
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True)
+    ])
     def forward(self, x):
         return torch.ops.prims.convert_element_type(x, dtype=torch.int64)
 

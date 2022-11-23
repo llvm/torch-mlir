@@ -20,8 +20,10 @@ class SoftmaxBackwardModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
     ])
     def forward(self, grad_output, output):
         return torch.ops.aten._softmax_backward_data(grad_output,
@@ -58,6 +60,7 @@ def TanhBackward_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+
 class ConvolutionBackwardModule2D(torch.nn.Module):
 
     def __init__(self):
@@ -66,9 +69,18 @@ class ConvolutionBackwardModule2D(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, grad_out, input_vec, weight):
         return torch.ops.aten.convolution_backward(
@@ -100,9 +112,18 @@ class ConvolutionBackwardModule2DPadded(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, grad_out, input_vec, weight):
         return torch.ops.aten.convolution_backward(
@@ -157,8 +178,10 @@ class LogSoftmaxBackwardModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
     ])
     def forward(self, grad_output, output):
         return torch.ops.aten._log_softmax_backward_data(grad_output,

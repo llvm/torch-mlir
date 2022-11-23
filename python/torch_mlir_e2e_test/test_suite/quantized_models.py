@@ -14,6 +14,7 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 
 class QuantizedMLP(nn.Module):
+
     def __init__(self):
         super().__init__()
         torch.random.manual_seed(0)

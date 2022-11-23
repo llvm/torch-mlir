@@ -14,13 +14,16 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # Multi-layer perceptron (MLP) models.
 
+
 class Mlp1LayerModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
         # Reset seed to make model deterministic.
         torch.manual_seed(0)
         self.fc0 = nn.Linear(3, 5)
         self.tanh0 = nn.Tanh()
+
     @export
     @annotate_args([
         None,
@@ -29,11 +32,14 @@ class Mlp1LayerModule(torch.nn.Module):
     def forward(self, x):
         return self.tanh0(self.fc0(x))
 
+
 @register_test_case(module_factory=lambda: Mlp1LayerModule())
 def Mlp1LayerModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 3))
 
+
 class Mlp2LayerModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
         # Reset seed to make model deterministic.
@@ -43,6 +49,7 @@ class Mlp2LayerModule(torch.nn.Module):
         self.tanh0 = nn.Tanh()
         self.fc1 = nn.Linear(N_HIDDEN, 2)
         self.tanh1 = nn.Tanh()
+
     @export
     @annotate_args([
         None,
@@ -53,11 +60,14 @@ class Mlp2LayerModule(torch.nn.Module):
         x = self.tanh1(self.fc1(x))
         return x
 
+
 @register_test_case(module_factory=lambda: Mlp2LayerModule())
 def Mlp2LayerModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 3))
 
+
 class Mlp2LayerModuleNoBias(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
         # Reset seed to make model deterministic.
@@ -67,6 +77,7 @@ class Mlp2LayerModuleNoBias(torch.nn.Module):
         self.tanh0 = nn.Tanh()
         self.fc1 = nn.Linear(N_HIDDEN, 2, bias=False)
         self.tanh1 = nn.Tanh()
+
     @export
     @annotate_args([
         None,
@@ -77,24 +88,30 @@ class Mlp2LayerModuleNoBias(torch.nn.Module):
         x = self.tanh1(self.fc1(x))
         return x
 
+
 @register_test_case(module_factory=lambda: Mlp2LayerModuleNoBias())
 def Mlp2LayerModuleNoBias_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 3))
 
+
 class BatchMlpLayerModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
         # Reset seed to make model deterministic.
         torch.manual_seed(0)
         self.fc0 = nn.Linear(3, 5)
         self.tanh0 = nn.Tanh()
+
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return self.tanh0(self.fc0(x))
+
 
 @register_test_case(module_factory=lambda: BatchMlpLayerModule())
 def BatchMlpLayerModule_basic(module, tu: TestUtils):

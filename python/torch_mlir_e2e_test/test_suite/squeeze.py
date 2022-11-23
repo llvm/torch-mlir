@@ -13,6 +13,7 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 
 class SqueezeStaticModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -25,8 +26,7 @@ class SqueezeStaticModule(torch.nn.Module):
         return torch.squeeze(a)
 
 
-@register_test_case(
-    module_factory=lambda: SqueezeStaticModule())
+@register_test_case(module_factory=lambda: SqueezeStaticModule())
 def SqueezeModule_static(module, tu: TestUtils):
     module.forward(tu.rand(1, 7, 1, 3, 1))
 
@@ -35,6 +35,7 @@ def SqueezeModule_static(module, tu: TestUtils):
 
 
 class SqueezeAllUnitDimModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -47,8 +48,7 @@ class SqueezeAllUnitDimModule(torch.nn.Module):
         return torch.squeeze(a)
 
 
-@register_test_case(
-    module_factory=lambda: SqueezeAllUnitDimModule())
+@register_test_case(module_factory=lambda: SqueezeAllUnitDimModule())
 def SqueezeModule_allUnitDim(module, tu: TestUtils):
     module.forward(tu.rand(1, 1))
 
@@ -57,6 +57,7 @@ def SqueezeModule_allUnitDim(module, tu: TestUtils):
 
 
 class SqueezeBroadcastModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -70,8 +71,7 @@ class SqueezeBroadcastModule(torch.nn.Module):
         return a * b.squeeze()
 
 
-@register_test_case(
-    module_factory=lambda: SqueezeBroadcastModule())
+@register_test_case(module_factory=lambda: SqueezeBroadcastModule())
 def SqueezeModule_broadcast(module, tu: TestUtils):
     module.forward(tu.rand(4, 3), tu.rand())
 
@@ -80,6 +80,7 @@ def SqueezeModule_broadcast(module, tu: TestUtils):
 
 
 class SqueezeDimStaticModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -92,30 +93,30 @@ class SqueezeDimStaticModule(torch.nn.Module):
         return torch.squeeze(a, 0)
 
 
-@register_test_case(
-    module_factory=lambda: SqueezeDimStaticModule())
+@register_test_case(module_factory=lambda: SqueezeDimStaticModule())
 def SqueezeDimModule_static(module, tu: TestUtils):
     module.forward(tu.rand(1, 7))
-    
+
 
 # ==============================================================================
 
 
 class SqueezeDimDynamicModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, 1, 384, -9223372036854775808, 1], torch.float32, True),
+        ([-9223372036854775808, 1, 384, -9223372036854775808,
+          1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.squeeze(a, 4)
 
 
-@register_test_case(
-    module_factory=lambda: SqueezeDimDynamicModule())
+@register_test_case(module_factory=lambda: SqueezeDimDynamicModule())
 def SqueezeDimModule_dynamic(module, tu: TestUtils):
     module.forward(tu.rand(8, 1, 384, 12, 1))
 
@@ -124,20 +125,21 @@ def SqueezeDimModule_dynamic(module, tu: TestUtils):
 
 
 class SqueezeDimNegDimModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([1, -9223372036854775808, 1, 384, -9223372036854775808, 1], torch.float32, True),
+        ([1, -9223372036854775808, 1, 384, -9223372036854775808,
+          1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.squeeze(a, -6)
 
 
-@register_test_case(
-    module_factory=lambda: SqueezeDimNegDimModule())
+@register_test_case(module_factory=lambda: SqueezeDimNegDimModule())
 def SqueezeDimModule_negDim(module, tu: TestUtils):
     module.forward(tu.rand(1, 8, 1, 384, 12, 1))
 
@@ -146,6 +148,7 @@ def SqueezeDimModule_negDim(module, tu: TestUtils):
 
 
 class SqueezeDimIdentityModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -158,8 +161,7 @@ class SqueezeDimIdentityModule(torch.nn.Module):
         return torch.squeeze(a, 0)
 
 
-@register_test_case(
-    module_factory=lambda: SqueezeDimIdentityModule())
+@register_test_case(module_factory=lambda: SqueezeDimIdentityModule())
 def SqueezeDimModule_identity(module, tu: TestUtils):
     module.forward(tu.rand(4, 1, 3))
 
@@ -168,6 +170,7 @@ def SqueezeDimModule_identity(module, tu: TestUtils):
 
 
 class SqueezeDimUnitDimModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -180,7 +183,6 @@ class SqueezeDimUnitDimModule(torch.nn.Module):
         return torch.squeeze(a, 0)
 
 
-@register_test_case(
-    module_factory=lambda: SqueezeDimUnitDimModule())
+@register_test_case(module_factory=lambda: SqueezeDimUnitDimModule())
 def SqueezeDimModule_unitDim(module, tu: TestUtils):
     module.forward(tu.rand(1))

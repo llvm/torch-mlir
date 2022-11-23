@@ -118,7 +118,8 @@ class ElementwiseTernaryModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
         ([-9223372036854775808, -9223372036854775808], torch.float32, True),
         ([-9223372036854775808], torch.float32, True),
     ])
@@ -152,7 +153,8 @@ class ElementwiseAtenWhereSelfModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseAtenWhereSelfModule())
 def ElementwiseAtenWhereSelfModule_basic(module, tu: TestUtils):
-    module.forward(torch.zeros(1, 1, 5, 5, dtype=torch.bool), torch.rand(1, 12, 5, 5), torch.rand(()))
+    module.forward(torch.zeros(1, 1, 5, 5, dtype=torch.bool),
+                   torch.rand(1, 12, 5, 5), torch.rand(()))
 
 
 # ==============================================================================
@@ -166,7 +168,8 @@ class ElementwiseWhereSelfModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
         ([-9223372036854775808, -9223372036854775808], torch.float32, True),
         ([-9223372036854775808], torch.float32, True),
     ])
@@ -190,7 +193,8 @@ class ElementwiseWhereScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.where(a > 0.5, 4.0, 8.0)
@@ -212,7 +216,8 @@ class ElementwiseWhereScalarOtherModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
         ([-9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, a, b):
@@ -235,7 +240,8 @@ class ElementwiseWhereScalarSelfModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
         ([-9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, a, b):
@@ -913,7 +919,8 @@ class ElementwiseAtan2TensorIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseAtan2TensorIntModule())
 def ElementwiseAtan2TensorIntModule_basic(module, tu: TestUtils):
     module.forward(
-        tu.randint(4, low=1, high=10).type(torch.int32), tu.randint(4, low=1, high=10))
+        tu.randint(4, low=1, high=10).type(torch.int32),
+        tu.randint(4, low=1, high=10))
 
 
 # ==============================================================================
@@ -936,8 +943,9 @@ class ElementwiseAtan2FloatIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseAtan2FloatIntModule())
 def ElementwiseAtan2FloatIntModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(4, 4, low=1, high=10).to(torch.int32),
-                   tu.rand(4, 4).double())
+    module.forward(
+        tu.randint(4, 4, low=1, high=10).to(torch.int32),
+        tu.rand(4, 4).double())
 
 
 # ==============================================================================
@@ -982,6 +990,7 @@ class ElementwiseLogIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseLogIntModule())
 def ElementwiseLogIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
+
 
 # ==============================================================================
 
@@ -1200,7 +1209,8 @@ class ElementwisePowTensorBroadcastModule(torch.nn.Module):
         return torch.pow(a, b)
 
 
-@register_test_case(module_factory=lambda: ElementwisePowTensorBroadcastModule())
+@register_test_case(
+    module_factory=lambda: ElementwisePowTensorBroadcastModule())
 def ElementwisePowTensorBroadcastModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1), tu.rand(3, 4))
 
@@ -1214,7 +1224,10 @@ class ElementwiseToDtypeF32ToI64Module(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808], torch.float32, True)])
+    @annotate_args([
+        None,
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True)
+    ])
     def forward(self, x):
         return x.to(torch.int64)
 
@@ -1233,7 +1246,10 @@ class ElementwiseToDtypeIdentityModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808], torch.float32, True)])
+    @annotate_args([
+        None,
+        ([-9223372036854775808, -9223372036854775808], torch.float32, True)
+    ])
     def forward(self, x):
         return x.to(torch.float32, False, False)
 
@@ -1342,7 +1358,8 @@ class ElementwiseAbsModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.abs(a)
@@ -1418,6 +1435,7 @@ class ElementwiseDivScalarModule(torch.nn.Module):
 def ElementwiseDivScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
+
 # ==============================================================================
 
 
@@ -1435,7 +1453,8 @@ class ElementwiseRemainderScalarModule_Int_Float(torch.nn.Module):
         return torch.remainder(x, 2.0)
 
 
-@register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Int_Float())
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderScalarModule_Int_Float())
 def ElementwiseRemainderScalarModule_Int_Float_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, high=10).to(torch.int32))
 
@@ -1457,12 +1476,14 @@ class ElementwiseRemainderScalarModule_Float(torch.nn.Module):
         return torch.remainder(x, 2.0)
 
 
-@register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Float())
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderScalarModule_Float())
 def ElementwiseRemainderScalarModule_Float_basic(module, tu: TestUtils):
     module.forward(torch.rand(10, 3))
 
 
 # ==============================================================================
+
 
 class ElementwiseRemainderScalarModule_Int(torch.nn.Module):
 
@@ -1478,11 +1499,14 @@ class ElementwiseRemainderScalarModule_Int(torch.nn.Module):
         return torch.remainder(x, 2)
 
 
-@register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Int())
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderScalarModule_Int())
 def ElementwiseRemainderScalarModule_Int_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 2, high=10).to(torch.int32))
 
+
 # ==============================================================================
+
 
 class ElementwiseRemainderScalarModule_Bool(torch.nn.Module):
 
@@ -1498,7 +1522,8 @@ class ElementwiseRemainderScalarModule_Bool(torch.nn.Module):
         return torch.remainder(x, 2)
 
 
-@register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Bool())
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderScalarModule_Bool())
 def ElementwiseRemainderScalarModule_Bool_basic(module, tu: TestUtils):
     module.forward(torch.tensor([True, False, True, True, True]))
 
@@ -1786,7 +1811,8 @@ class ElementwiseCloneModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.clone(x)
@@ -1808,7 +1834,8 @@ class ElementwiseCloneContiguousModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.clone(x, memory_format=torch.contiguous_format)
@@ -1830,7 +1857,8 @@ class LiftFreshCopyModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.lift_fresh_copy(x)
@@ -2038,9 +2066,12 @@ class ElementwiseNegModule(torch.nn.Module):
 def ElementwiseNegModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
+
 # ==============================================================================
 
+
 class ElementwiseAtenLogicalOrOpModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -2053,11 +2084,14 @@ class ElementwiseAtenLogicalOrOpModule(torch.nn.Module):
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
 
+
 @register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpModule())
 def ElementwiseAtenLogicalOrOpModule_basic(module, tu: TestUtils):
     module.forward(torch.tensor([False, True]), torch.tensor([False, False]))
 
+
 class ElementwiseAtenLogicalOrOpDiffArgs1Module(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -2070,13 +2104,18 @@ class ElementwiseAtenLogicalOrOpDiffArgs1Module(torch.nn.Module):
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
 
-@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpDiffArgs1Module())
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAtenLogicalOrOpDiffArgs1Module())
 def ElementwiseAtenLogicalOrOpDiffArgs1Module_basic(module, tu: TestUtils):
     module.forward(torch.tensor([0.2, 0.1]), torch.tensor([0, 1]))
 
+
 # ==============================================================================
 
+
 class ElementwiseAtenLogicalOrOpDiffArgs2Module(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -2089,13 +2128,18 @@ class ElementwiseAtenLogicalOrOpDiffArgs2Module(torch.nn.Module):
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
 
-@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpDiffArgs2Module())
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAtenLogicalOrOpDiffArgs2Module())
 def ElementwiseAtenLogicalOrOpDiffArgs2Module_basic(module, tu: TestUtils):
     module.forward(torch.tensor([True, False]), torch.tensor([0, 1]))
 
+
 # ==============================================================================
 
+
 class ElementwiseAtenLogicalOrOpDiffArgs3Module(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -2108,83 +2152,125 @@ class ElementwiseAtenLogicalOrOpDiffArgs3Module(torch.nn.Module):
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
 
-@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpDiffArgs3Module())
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAtenLogicalOrOpDiffArgs3Module())
 def ElementwiseAtenLogicalOrOpDiffArgs3Module_basic(module, tu: TestUtils):
     module.forward(torch.tensor([1, 2]), torch.tensor([False, True]))
 
+
 # ==============================================================================
+
 
 class ElementwiseAtenLogicalOrOpRandomModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.int64, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
 
-@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpRandomModule())
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAtenLogicalOrOpRandomModule())
 def ElementwiseAtenLogicalOrOpRandomModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(2, 3, 4, 5, low=3, high=10), tu.randint(2, 3, 4, 5, low=10, high=100))
+    module.forward(tu.randint(2, 3, 4, 5, low=3, high=10),
+                   tu.randint(2, 3, 4, 5, low=10, high=100))
+
 
 # ==============================================================================
 
+
 class ElementwiseAtenLogicalOrOpRandomFloatModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
 
-@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpRandomFloatModule())
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAtenLogicalOrOpRandomFloatModule())
 def ElementwiseAtenLogicalOrOpRandomFloatModule_basic(module, tu: TestUtils):
     module.forward(torch.rand(2, 3, 3, 5), torch.rand(2, 3, 3, 5))
 
+
 # ==============================================================================
 
+
 class ElementwiseAtenLogicalOrOpNegativeModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.int64, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
 
-@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpNegativeModule())
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAtenLogicalOrOpNegativeModule())
 def ElementwiseAtenLogicalOrOpNegativeModule_basic(module, tu: TestUtils):
-    module.forward(torch.neg(tu.randint(2, 3, 4, 5, low=3, high=10)), torch.neg(tu.randint(2, 3, 4, 5, low=10, high=100)))
+    module.forward(torch.neg(tu.randint(2, 3, 4, 5, low=3, high=10)),
+                   torch.neg(tu.randint(2, 3, 4, 5, low=10, high=100)))
+
 
 # ==============================================================================
 
+
 class ElementwiseAtenLogicalOrOpBrodcastModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808],     torch.int64, True),
+        ([-9223372036854775808], torch.int64, True),
         ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
 
-@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpBrodcastModule())
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAtenLogicalOrOpBrodcastModule())
 def ElementwiseAtenLogicalOrOpBrodcastModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, high=3), tu.randint(4, 3, high=3))
 
@@ -2244,7 +2330,10 @@ class AtenTriuModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808, -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return torch.triu(x)
@@ -2266,7 +2355,8 @@ class AtenTriuWithPosDiagonalModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.triu(x, diagonal=2)
@@ -2288,7 +2378,10 @@ class AtenTriuWithNegDiagonalModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return torch.triu(x, diagonal=-4)
@@ -2297,6 +2390,7 @@ class AtenTriuWithNegDiagonalModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenTriuWithNegDiagonalModule())
 def AtenTriuWithNegDiagonalModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 5, 9))
+
 
 # ==============================================================================
 
@@ -2317,7 +2411,8 @@ class AtenRoundFloatModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AtenRoundFloatModule())
 def AtenRoundFloatModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(5, 5, low = -3.0, high = 3.0))
+    module.forward(tu.rand(5, 5, low=-3.0, high=3.0))
+
 
 class AtenRoundIntModule(torch.nn.Module):
 
@@ -2335,7 +2430,7 @@ class AtenRoundIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AtenRoundIntModule())
 def AtenRoundIntModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(5, 5, low = -10))
+    module.forward(tu.randint(5, 5, low=-10))
 
 
 # ==============================================================================
@@ -2349,7 +2444,8 @@ class Fill_TensorFloat64WithFloat32(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
     ])
     def forward(self, tensor):
         return torch.ops.aten.fill_(tensor, 3.0)
@@ -2368,7 +2464,8 @@ class Fill_TensorFloat64WithFloat64(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
     ])
     def forward(self, tensor):
         return torch.ops.aten.fill_(tensor, 3.0)
@@ -2387,7 +2484,8 @@ class Fill_TensorFloat64WithInt64(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
     ])
     def forward(self, tensor):
         return torch.ops.aten.fill_(tensor, 3)
@@ -2409,11 +2507,13 @@ class Fill_TensorFloat32WithFloat32(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
         ([], torch.float32, True),
     ])
     def forward(self, tensor, value):
         return torch.ops.aten.fill_(tensor, value)
+
 
 @register_test_case(module_factory=lambda: Fill_TensorFloat32WithFloat32())
 def Fill_TensorFloat32WithFloat32_basic(module, tu: TestUtils):
@@ -2428,11 +2528,13 @@ class Fill_TensorFloat32WithFloat64(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
         ([], torch.float64, True),
     ])
     def forward(self, tensor, value):
         return torch.ops.aten.fill_(tensor, value)
+
 
 @register_test_case(module_factory=lambda: Fill_TensorFloat32WithFloat64())
 def Fill_TensorFloat32WithFloat64_basic(module, tu: TestUtils):
@@ -2447,11 +2549,13 @@ class Fill_TensorFloat32WithInt64(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
         ([], torch.int64, True),
     ])
     def forward(self, tensor, value):
         return torch.ops.aten.fill_(tensor, value)
+
 
 @register_test_case(module_factory=lambda: Fill_TensorFloat32WithInt64())
 def Fill_TensorFloat32WithInt64_basic(module, tu: TestUtils):

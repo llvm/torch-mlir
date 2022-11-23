@@ -6,6 +6,7 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
+
 class UniformModule(torch.nn.Module):
 
     def __init__(self):
@@ -14,9 +15,12 @@ class UniformModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x, y, z):
         a = torch.ops.aten.uniform_(x, 1.0, 10.0)
@@ -42,7 +46,9 @@ def UniformModule_basic(module, tu: TestUtils):
         tu.rand(512, 1024, 4).double(),
         tu.rand(512, 256, 4).double())
 
+
 # ==============================================================================
+
 
 class UniformStaticModule(torch.nn.Module):
 
@@ -80,18 +86,24 @@ def UniformStaticModule_basic(module, tu: TestUtils):
         tu.rand(512, 1024, 4).double(),
         tu.rand(512, 256, 4).double())
 
+
 # ==============================================================================
 
+
 class BernoulliModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x, y, z):
         a = torch.bernoulli(x)
@@ -107,7 +119,7 @@ class BernoulliModule(torch.nn.Module):
             torch.flatten(torch.std(b)),
             torch.flatten(torch.std(c))
         ])
-        return  mean, std
+        return mean, std
 
 
 @register_test_case(module_factory=lambda: BernoulliModule())
@@ -117,9 +129,12 @@ def BernoulliModule_basic(module, tu: TestUtils):
         tu.rand(1024, 2048, 4).double(),
         tu.rand(1024, 256, 4).double())
 
+
 # ==============================================================================
 
+
 class BernoulliZerosModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -136,9 +151,12 @@ class BernoulliZerosModule(torch.nn.Module):
 def BernoulliZerosModule_basic(module, tu: TestUtils):
     module.forward(torch.zeros(4, 8).double())
 
+
 # ==============================================================================
 
+
 class BernoulliOnesModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -155,18 +173,24 @@ class BernoulliOnesModule(torch.nn.Module):
 def BernoulliOnesModule_basic(module, tu: TestUtils):
     module.forward(torch.ones(4, 8).double())
 
+
 # ==============================================================================
 
+
 class BernoulliFloatModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x, y, z):
         a = torch.ops.aten.bernoulli_(x, 0.4)
@@ -182,7 +206,7 @@ class BernoulliFloatModule(torch.nn.Module):
             torch.flatten(torch.std(b)),
             torch.flatten(torch.std(c))
         ])
-        return  mean, std
+        return mean, std
 
 
 @register_test_case(module_factory=lambda: BernoulliFloatModule())
@@ -192,21 +216,30 @@ def BernoulliFloatModule_basic(module, tu: TestUtils):
         tu.rand(1024, 2048, 4).double(),
         tu.rand(1024, 512, 4).double())
 
+
 # ==============================================================================
 
+
 class BernoulliTensorModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x, px, y, py, z, pz):
         a = torch.ops.aten.bernoulli_(x, px)
@@ -222,7 +255,7 @@ class BernoulliTensorModule(torch.nn.Module):
             torch.flatten(torch.std(b)),
             torch.flatten(torch.std(c))
         ])
-        return  mean, std
+        return mean, std
 
 
 @register_test_case(module_factory=lambda: BernoulliTensorModule())
@@ -235,9 +268,12 @@ def BernoulliTensorModule_basic(module, tu: TestUtils):
         tu.rand(1024, 512, 8).double(),
         tu.rand(1024, 512, 8).double())
 
+
 # ==============================================================================
 
+
 class RandLikeModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -256,9 +292,12 @@ class RandLikeModule(torch.nn.Module):
 def RandLikeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1024, 1024).double())
 
+
 # ==============================================================================
 
+
 class RandLikeDtypeModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -277,9 +316,12 @@ class RandLikeDtypeModule(torch.nn.Module):
 def RandLikeDtypeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1024, 1024).double())
 
+
 # ==============================================================================
 
+
 class RandIntLowModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -297,9 +339,12 @@ class RandIntLowModule(torch.nn.Module):
 def RandIntLowModule_basic(module, tu: TestUtils):
     module.forward()
 
+
 # ==============================================================================
 
+
 class RandIntLowDtypeModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -308,7 +353,10 @@ class RandIntLowDtypeModule(torch.nn.Module):
         None,
     ])
     def forward(self):
-        a = torch.ops.aten.randint(low=1, high=1000, size=[128, 256, 512], dtype=torch.float64)
+        a = torch.ops.aten.randint(low=1,
+                                   high=1000,
+                                   size=[128, 256, 512],
+                                   dtype=torch.float64)
         mean = torch.mean(a)
         return mean
 
