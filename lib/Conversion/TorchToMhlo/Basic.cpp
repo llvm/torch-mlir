@@ -182,19 +182,6 @@ public:
       return op.emitError(
           "only floating-point or integer datatype legalization supported");
 
-    // FIXME: Handle layout, device and pin_memory. Assume dtype has been
-    // processed to set output type correctly?
-    if (!op.layout().getType().template isa<Torch::NoneType>())
-      return op.emitError("only default layout is supported");
-
-    bool pinMemory;
-    if (!op.pin_memory().getType().template isa<Torch::NoneType>() &&
-        (!matchPattern(op.pin_memory(), m_TorchConstantBool(&pinMemory)) ||
-         pinMemory)) {
-      return op.emitError(
-          "unsupported pin_memory, should be either None or false");
-    }
-
     SmallVector<int64_t> shape;
     if (!matchPattern(op.size(), m_TorchListOfConstantInts(shape))) {
       return op.emitError("shape must be a list of Scalar constants");
@@ -1222,15 +1209,6 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
     AtenArangeStartStepOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Location loc = op->getLoc();
-
-  // The pinMemory should be either `none` or `false`.
-  bool pinMemory;
-  if (!op.pin_memory().getType().isa<Torch::NoneType>() &&
-      (!matchPattern(op.pin_memory(), m_TorchConstantBool(&pinMemory)) ||
-       pinMemory)) {
-    return rewriter.notifyMatchFailure(
-        op, "unimplemented: pin_memory must be either None or false");
-  }
 
   // Get element type of resultType as dtype
   auto outType = this->getTypeConverter()
