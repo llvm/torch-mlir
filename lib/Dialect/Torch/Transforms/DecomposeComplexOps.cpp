@@ -3393,6 +3393,128 @@ public:
 } // namespace
 
 namespace {
+// def slice_scatter(self, values, dim, start, end, step):
+//     size = self.size(dim)
+//     indices = torch.arange(size)
+//     shift_indices = indices - start
+//     mask = shift_indices % step == 0
+//     start_mask = shift_indices >= 0
+//     end_mask = shift_indices < end
+//     mask = mask * start_mask
+//     mask = mask * end_mask
+//     sizes = list(self.size())
+//     rank = len(sizes)
+//     shape = [1] * rank
+//     shape[dim] = size
+//     mask = mask.view(shape)
+//     return torch.where(mask, values, self)
+//
+class DecomposeAtenSliceScatterOp
+    : public OpRewritePattern<AtenSliceScatterOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSliceScatterOp op,
+                                PatternRewriter &rewriter) const override {
+    int64_t inputRank = getTensorRank(op.self());
+    int64_t dimInt = 0;
+    if (matchPattern(op.dim(), m_TorchConstantInt(&dimInt))) {
+      dimInt = toPositiveDim(dimInt, inputRank);
+      if (!isValidDim(dimInt, inputRank))
+        return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
+    } else {
+      return rewriter.notifyMatchFailure(op, "dim must be constant");
+    }
+
+    auto getOptionalVal = [&](Value val, Value defVal) -> Value {
+      if (val.getType().isa<Torch::NoneType>()) {
+        return defVal;
+      } else {
+        return val;
+      }
+    };
+
+    Value one = rewriter.create<Torch::ConstantIntOp>(
+        op.getLoc(), rewriter.getI64IntegerAttr(1));
+    Value zero = rewriter.create<Torch::ConstantIntOp>(
+        op.getLoc(), rewriter.getI64IntegerAttr(0));
+    Value none = rewriter.create<ConstantNoneOp>(op.getLoc());
+    Value dimSize =
+        rewriter.create<AtenSizeIntOp>(op.getLoc(), op.self(), op.dim());
+
+    Value start = getOptionalVal(op.start(), zero);
+    Value end = getOptionalVal(op.end(), dimSize);
+    Value step = getOptionalVal(op.step(), one);
+    // Step 0. create indices
+    Type indicesType = ValueTensorType::get(
+        op.getContext(), ArrayRef<int64_t>{ShapedType::kDynamicSize},
+        IntegerType::get(op.getContext(), 64, IntegerType::Signed));
+    Value indices = rewriter.create<AtenArangeOp>(
+        op.getLoc(), indicesType, dimSize, none, none, none, none);
+
+    // Step 1. make indices broadcastable to self's shape
+    SmallVector<int64_t> newIndicesShapeInt(inputRank, 1);
+    SmallVector<Value> newIndicesShape(inputRank, one);
+    newIndicesShape[dimInt] = dimSize;
+    newIndicesShapeInt[dimInt] = ShapedType::kDynamicSize;
+    Value newIndicesSizeList = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), ListType::get(IntType::get(op.getContext())),
+        newIndicesShape);
+    Type indicesDtype = indices.getType().cast<ValueTensorType>().getDtype();
+    Type newIndicesType = ValueTensorType::get(
+        op.getContext(), llvm::makeArrayRef(newIndicesShapeInt), indicesDtype);
+    indices = rewriter.create<AtenViewOp>(op.getLoc(), newIndicesType,
+                                                 indices, newIndicesSizeList);
+
+    // Step 2. calculate scatter indices mask
+    Type maskType = ValueTensorType::get(
+        op.getContext(), newIndicesType.cast<ValueTensorType>().getSizes(),
+        IntegerType::get(op.getContext(), 1));
+    auto shiftIndices = rewriter.create<AtenSubScalarOp>(
+        op.getLoc(), indices.getType(), indices, start, one);
+    auto stepRemainder = rewriter.create<AtenRemainderScalarOp>(
+        op.getLoc(), indices.getType(), shiftIndices, step);
+    Value mask = rewriter.create<AtenEqScalarOp>(op.getLoc(), maskType,
+                                                 stepRemainder, zero);
+    auto maskStart = rewriter.create<AtenGeScalarOp>(op.getLoc(), maskType,
+                                                     shiftIndices, zero);
+    auto maskEnd =
+        rewriter.create<AtenLtScalarOp>(op.getLoc(), maskType, indices, end);
+    mask = rewriter.create<AtenBitwiseAndTensorOp>(op.getLoc(), maskType, mask,
+                                                   maskStart);
+    mask = rewriter.create<AtenBitwiseAndTensorOp>(op.getLoc(), maskType, mask,
+                                                   maskEnd);
+
+    // Step 3. make src broadcastable to self's shape
+    Value src = op.src();
+    BaseTensorType srcTensorType = src.getType().cast<BaseTensorType>();
+    if (!srcTensorType.hasSizes())
+      return rewriter.notifyMatchFailure(op, "src tensor must have size");
+
+    ArrayRef<int64_t> srcShape = srcTensorType.getSizes();
+    int64_t srcRank = srcShape.size();
+    if (srcRank != inputRank) {
+      if (srcRank + 1 == inputRank) {
+        SmallVector<int64_t> sizes;
+        sizes.append(srcShape.begin(), srcShape.end());
+        sizes.insert(sizes.begin() + dimInt, 1);
+        Type srcType = srcTensorType.getWithSizesAndDtype(
+            llvm::makeArrayRef(sizes), srcTensorType.getDtype());
+        src = rewriter.create<AtenUnsqueezeOp>(op.getLoc(), srcType, src,
+                                               op.dim());
+      } else {
+        return rewriter.notifyMatchFailure(op, "src's rank doesn't match");
+      }
+    }
+
+    // Step 4. replace output = mask? src: self
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, op.getType(), mask,
+                                                 src, op.self());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAten_EmbeddingBagOp
     : public OpRewritePattern<Aten_EmbeddingBagOp> {
 public:
@@ -3958,6 +4080,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeLayerNormBackwardOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeDropoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeDropoutBackwardOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSliceScatterOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
