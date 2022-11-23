@@ -37,16 +37,13 @@ jobs:
         echo "Found torchvision release ${VISION_RELEASE}"
 
         # Fetch the whl file associated with the nightly torchvision release
-        rm -f torchvision-"${VISION_RELEASE}"*.whl
+        rm -f torch*.whl
         python -m pip download -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html --pre "torchvision==${VISION_RELEASE}"
 
-        PT_RELEASE=$(unzip -p torchvision-"${VISION_RELEASE}"*.whl 'torchvision-*/METADATA' | grep "^Requires-Dist: torch" | tr -d "()=" | awk '{ print $3 }' | sed 's/\([^+]*\).*/\1/')
+        # Downloading the torchvision WHL also downloads the PyTorch WHL file
+        # Read the version from the downloaded whl file without extracting it
+        PT_RELEASE=$(unzip -p torch-*.whl 'torch-*/METADATA' | grep "^Version:" | awk '{ print $2 }' | sed 's/\([^+]*\).*/\1/')
         echo "Found torch release ${PT_RELEASE}"
-
-        # Fetch the whl file associated with the nightly release
-        rm -f torch-"${PT_RELEASE}"*.whl
-        python -m pip download -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html --pre "torch==${PT_RELEASE}"
-
         printf -- "-f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html\n--pre\ntorch==%s\ntorchvision==%s\n" "${PT_RELEASE}" "${VISION_RELEASE}" > pytorch-requirements.txt
 
         # Read the commit hash from the downloaded whl file without extracting it
