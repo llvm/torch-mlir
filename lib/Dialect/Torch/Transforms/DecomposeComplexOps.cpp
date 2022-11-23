@@ -59,7 +59,7 @@ static Type computeReductionType(PatternRewriter &rewriter, Operation *op,
       if (keepDim)
         sizes[dimInt] = 1;
       else
-        sizes.erase(sizes.begin() + dimInt - 1);
+        sizes.erase(sizes.begin() + dimInt);
     } else {
       unsigned reducedRank = keepDim ? inputRank : inputRank - 1;
       sizes.resize(reducedRank, kUnknownSize);
