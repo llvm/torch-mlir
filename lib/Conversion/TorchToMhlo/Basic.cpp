@@ -31,11 +31,9 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 using namespace mlir::torch::torch_to_mhlo;
 
-LogicalResult BroadcastTensorRanks(
-    PatternRewriter& rewriter,
-    Operation* op,
-    mlir::Value& self,
-    mlir::Value& other, size_t dimSizeIndexBits) {
+LogicalResult broadcastRanks(PatternRewriter &rewriter, Operation *op,
+                             mlir::Value &self, mlir::Value &other,
+                             size_t dimSizeIndexBits) {
   auto selfTy = self.getType().template dyn_cast<RankedTensorType>();
   auto otherTy = other.getType().template dyn_cast<RankedTensorType>();
   auto selfRank = selfTy.getRank();
@@ -43,21 +41,21 @@ LogicalResult BroadcastTensorRanks(
   if (selfRank == 0 || otherRank == 0)
     return success();
   if (selfRank > otherRank) {
-    auto inputUnsqzDims =
+    auto unsqueezeDims =
         llvm::to_vector<4>(llvm::seq<int64_t>(0, selfRank - otherRank));
-    auto unsqzInfo = mhlo::unsqueezeTensor(
-        rewriter, op, other, inputUnsqzDims, dimSizeIndexBits);
-    if (failed(unsqzInfo))
+    auto unsqueezeInfo = mhlo::unsqueezeTensor(rewriter, op, other,
+                                               unsqueezeDims, dimSizeIndexBits);
+    if (failed(unsqueezeInfo))
       return failure();
-    other = *unsqzInfo;
+    other = *unsqueezeInfo;
   } else if (otherRank > selfRank) {
-    auto inputUnsqzDims =
+    auto unsqueezeDims =
         llvm::to_vector<4>(llvm::seq<int64_t>(0, otherRank - selfRank));
-    auto unsqzInfo = mhlo::unsqueezeTensor(
-        rewriter, op, self, inputUnsqzDims, dimSizeIndexBits);
-    if (failed(unsqzInfo))
+    auto unsqueezeInfo = mhlo::unsqueezeTensor(rewriter, op, self,
+                                               unsqueezeDims, dimSizeIndexBits);
+    if (failed(unsqueezeInfo))
       return failure();
-    self = *unsqzInfo;
+    self = *unsqueezeInfo;
   }
   return success();
 }
@@ -552,10 +550,12 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
   Value cond = adaptor.condition();
   Value other = adaptor.other();
 
-  if (failed(BroadcastTensorRanks(rewriter, op, self, cond, options.dimSizeIndexBits)))
+  if (failed(
+          broadcastRanks(rewriter, op, self, cond, options.dimSizeIndexBits)))
     return op.emitError("failed broadcast self and condition ranks");
 
-  if (failed(BroadcastTensorRanks(rewriter, op, other, cond, options.dimSizeIndexBits)))
+  if (failed(
+          broadcastRanks(rewriter, op, other, cond, options.dimSizeIndexBits)))
     return op.emitError("failed broadcast other and condition ranks");
 
   rewriter.replaceOpWithNewOp<chlo::BroadcastSelectOp>(
