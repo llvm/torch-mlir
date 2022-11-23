@@ -17,7 +17,9 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 # the PyTorch op registry permanently.
 import torch_mlir._torch_mlir_custom_op_example
 
+
 class CustomOpExampleModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 

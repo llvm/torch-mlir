@@ -43,7 +43,10 @@ class AdaptiveAvgPool2dNonUnitOutputSizeDynamicModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return self.aap2d(x)
@@ -86,7 +89,10 @@ class AdaptiveAvgPool2dUnitOutputSizeDynamicModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return self.aap2d(x)
@@ -113,7 +119,10 @@ class MaxPool2dModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return self.mp2d(x)
@@ -160,7 +169,10 @@ class MaxPool2dCeilModeTrueModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return self.mp2d(x)
@@ -182,7 +194,10 @@ class MaxPool2dWithIndicesModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.max_pool2d_with_indices(x,
@@ -205,7 +220,10 @@ class MaxPool2dWithIndicesFullSizeKernelModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.max_pool2d_with_indices(x,
@@ -229,7 +247,10 @@ class MaxPool2dWithIndicesNonDefaultPaddingModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.max_pool2d_with_indices(x,
@@ -253,7 +274,10 @@ class MaxPool2dWithIndicesNonDefaultStrideModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.max_pool2d_with_indices(x,
@@ -277,7 +301,10 @@ class MaxPool2dWithIndicesNonDefaultDilationModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.max_pool2d_with_indices(x,
@@ -301,7 +328,10 @@ class MaxPool2dWithIndicesNonDefaultParamsModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.max_pool2d_with_indices(x,
@@ -325,7 +355,10 @@ class MaxPool2dWithIndicesAllNegativeValuesModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.max_pool2d_with_indices(x,
@@ -372,7 +405,10 @@ class MaxPool2dWithIndicesAllOnesModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.max_pool2d_with_indices(x,
@@ -395,7 +431,10 @@ class MaxPool2dWithIndicesCeilModeTrueModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.max_pool2d_with_indices(x,
@@ -483,9 +522,18 @@ class MaxPool2dWithIndicesBackwardDynamic4DModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.int64, True),
     ])
     def forward(self, output, input, indices):
         kernel_size = [2, 2]
@@ -513,9 +561,12 @@ class MaxPool2dWithIndicesBackwardDynamic3DModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808,
+          -9223372036854775808], torch.int64, True),
     ])
     def forward(self, output, input, indices):
         kernel_size = [2, 2]
@@ -552,14 +603,19 @@ class AvgPool2dFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return self.ap2d(x)
 
+
 @register_test_case(module_factory=lambda: AvgPool2dFloatModule())
 def AvgPool2dFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 20, 20, low=-1))
+
 
 class AvgPool2dIntModule(torch.nn.Module):
 
@@ -575,7 +631,10 @@ class AvgPool2dIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.int64, True),
     ])
     def forward(self, x):
         return self.ap2d(x)
@@ -650,10 +709,14 @@ class AvgPool2dCeilModeTrueModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([
+            -9223372036854775808, -9223372036854775808, -9223372036854775808,
+            -9223372036854775808
+        ], torch.float32, True),
     ])
     def forward(self, x):
         return self.ap2d(x)
+
 
 @register_test_case(module_factory=lambda: AvgPool2dCeilModeTrueModule())
 def AvgPool2dCeilModeTrueModule_basic(module, tu: TestUtils):

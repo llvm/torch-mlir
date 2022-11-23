@@ -13,14 +13,15 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
+
 class TorchPrimLoopForLikeModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
-        None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True)
+        None, ([-9223372036854775808, -9223372036854775808], torch.int64, True)
     ])
     def forward(self, x):
         x_val = x.size(0)
@@ -28,29 +29,30 @@ class TorchPrimLoopForLikeModule(torch.nn.Module):
         for i in range(x_val):
             sum += i
         return sum
-        
+
 
 @register_test_case(module_factory=lambda: TorchPrimLoopForLikeModule())
 def TorchPrimLoopForLikeModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(6, 8, high=10))
 
+
 # ==============================================================================
 class TorchPrimLoopWhileLikeModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
-        None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True)
+        None, ([-9223372036854775808, -9223372036854775808], torch.int64, True)
     ])
     def forward(self, x):
         x_val = x.size(0)
         sum = 0
-        while(x_val > sum):
+        while (x_val > sum):
             sum += 1
         return sum
-        
+
 
 @register_test_case(module_factory=lambda: TorchPrimLoopWhileLikeModule())
 def TorchPrimLoopWhileLikeModule_basic(module, tu: TestUtils):

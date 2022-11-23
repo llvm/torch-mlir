@@ -13,6 +13,7 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 
 class TypePromotionSameCategoryDifferentWidthModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -30,11 +31,11 @@ class TypePromotionSameCategoryDifferentWidthModule(torch.nn.Module):
     module_factory=lambda: TypePromotionSameCategoryDifferentWidthModule())
 def TypePromotionSameCategoryDifferentWidthModule_basic(module, tu: TestUtils):
     module.forward(
-        tu.randint(4, high=10).type(torch.int32),
-        tu.randint(4, high=10))
+        tu.randint(4, high=10).type(torch.int32), tu.randint(4, high=10))
 
 
 class TypePromotionDifferentCategoryModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -55,6 +56,7 @@ def TypePromotionDifferentCategoryModule_basic(module, tu: TestUtils):
 
 
 class TypePromotionSameCategoryZeroRankWiderModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -75,6 +77,7 @@ def TypePromotionSameCategoryZeroRankWider_basic(module, tu: TestUtils):
 
 
 class TypePromotionZeroRankHigherCategoryModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -95,6 +98,7 @@ def TypePromotionZeroRankHigherCategoryModule_basic(module, tu: TestUtils):
 
 
 class TypePromotionAlphaWiderModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 

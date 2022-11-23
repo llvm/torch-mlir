@@ -11,7 +11,9 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
+
 class ElementwiseGtFloatScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -28,9 +30,12 @@ class ElementwiseGtFloatScalarModule(torch.nn.Module):
 def ElementwiseGtFloatScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
 
+
 # ==============================================================================
 
+
 class ElementwiseGtIntScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -47,9 +52,12 @@ class ElementwiseGtIntScalarModule(torch.nn.Module):
 def ElementwiseGtIntScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-10, high=15))
 
+
 # ==============================================================================
 
+
 class ElementwiseGtMixed2ScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -66,9 +74,12 @@ class ElementwiseGtMixed2ScalarModule(torch.nn.Module):
 def ElementwiseGtMixed2ScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-10, high=15).to(torch.int32))
 
+
 # ==============================================================================
 
+
 class ElementwiseGeFloatScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -85,9 +96,12 @@ class ElementwiseGeFloatScalarModule(torch.nn.Module):
 def ElementwiseGeFloatScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
 
+
 # ==============================================================================
 
+
 class ElementwiseGeIntScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -104,9 +118,12 @@ class ElementwiseGeIntScalarModule(torch.nn.Module):
 def ElementwiseGeIntScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-10, high=15))
 
+
 # ==============================================================================
 
+
 class ElementwiseGeMixedIntScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -123,9 +140,12 @@ class ElementwiseGeMixedIntScalarModule(torch.nn.Module):
 def ElementwiseGeMixedIntScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-10, high=15).to(torch.int32))
 
+
 # ==============================================================================
 
+
 class ElementwiseGeFloatIntScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -142,9 +162,12 @@ class ElementwiseGeFloatIntScalarModule(torch.nn.Module):
 def ElementwiseGeFloatIntScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
 
+
 # ==============================================================================
 
+
 class ElementwiseGtFloatTensorModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -162,9 +185,12 @@ class ElementwiseGtFloatTensorModule(torch.nn.Module):
 def ElementwiseGtFloatTensorModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5), tu.rand(5))
 
+
 # ==============================================================================
 
+
 class ElementwiseGtIntTensorModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -182,9 +208,12 @@ class ElementwiseGtIntTensorModule(torch.nn.Module):
 def ElementwiseGtIntTensorModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 5, high=10), tu.randint(5, high=10))
 
+
 # ==============================================================================
 
+
 class ElementwiseLtFloatScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -201,9 +230,12 @@ class ElementwiseLtFloatScalarModule(torch.nn.Module):
 def ElementwiseLtFloatScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
 
+
 # ==============================================================================
 
+
 class ElementwiseLtIntScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -220,9 +252,12 @@ class ElementwiseLtIntScalarModule(torch.nn.Module):
 def ElementwiseLtIntScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-10, high=15))
 
+
 # ==============================================================================
 
+
 class ElementwiseLtDiffWidthScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -240,9 +275,12 @@ class ElementwiseLtDiffWidthScalarModule(torch.nn.Module):
 def ElementwiseLtDiffWidthScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-10, high=15).to(torch.int32))
 
+
 # ==============================================================================
 
+
 class ElementwiseLeFloatScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -259,9 +297,12 @@ class ElementwiseLeFloatScalarModule(torch.nn.Module):
 def ElementwiseLeFloatScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
 
+
 # ==============================================================================
 
+
 class ElementwiseLeIntScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -278,9 +319,12 @@ class ElementwiseLeIntScalarModule(torch.nn.Module):
 def ElementwiseLeIntScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-10, high=15))
 
+
 # ==============================================================================
 
+
 class ElementwiseLeMixedIntScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -297,9 +341,12 @@ class ElementwiseLeMixedIntScalarModule(torch.nn.Module):
 def ElementwiseLeMixedIntScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-10, high=15).to(torch.int32))
 
+
 # ==============================================================================
 
+
 class ElementwiseLeFloatIntScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -316,9 +363,12 @@ class ElementwiseLeFloatIntScalarModule(torch.nn.Module):
 def ElementwiseLeFloatIntScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
 
+
 # ==============================================================================
 
+
 class ElementwiseLtFloatTensorModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -336,9 +386,12 @@ class ElementwiseLtFloatTensorModule(torch.nn.Module):
 def ElementwiseLtFloatTensorModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5), tu.rand(5))
 
+
 # ==============================================================================
 
+
 class ElementwiseLtIntTensorModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -356,9 +409,12 @@ class ElementwiseLtIntTensorModule(torch.nn.Module):
 def ElementwiseLtIntTensorModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 5, high=10), tu.randint(5, high=10))
 
+
 # ==============================================================================
 
+
 class ElementwiseEqFloatScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -376,9 +432,12 @@ def ElementwiseEqFloatScalarModule_basic(module, tu: TestUtils):
     module.forward(
         torch.tensor([[1.0, 2.2, 6.0], [6.0, 2.0, 3.1]]).to(torch.float32))
 
+
 # ==============================================================================
 
+
 class ElementwiseEqIntScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -395,9 +454,12 @@ class ElementwiseEqIntScalarModule(torch.nn.Module):
 def ElementwiseEqIntScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(5, 8, low=2, high=4))
 
+
 # ==============================================================================
 
+
 class ElementwiseEqDiffWidthScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -415,9 +477,12 @@ class ElementwiseEqDiffWidthScalarModule(torch.nn.Module):
 def ElementwiseEqDiffWidthScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(5, 8, low=2, high=4).to(torch.int32))
 
+
 # ==============================================================================
 
+
 class ElementwiseEqFloatTensorModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -437,9 +502,12 @@ def ElementwiseEqFloatTensorModule_basic(module, tu: TestUtils):
         torch.tensor([[1.0, 2.2, 6.0], [6.0, 2.0, 3.1]]).to(torch.float32),
         torch.tensor([1.0, 2.4, 6.0]).to(torch.float32))
 
+
 # ==============================================================================
 
+
 class ElementwiseEqIntTensorModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -455,11 +523,16 @@ class ElementwiseEqIntTensorModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseEqIntTensorModule())
 def ElementwiseEqIntTensorModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(8, 5, low=2, high=4), tu.randint(5, low=2, high=4))
+    module.forward(tu.randint(8, 5, low=2, high=4), tu.randint(5,
+                                                               low=2,
+                                                               high=4))
+
 
 # ==============================================================================
 
+
 class ElementwiseNeFloatScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -477,9 +550,12 @@ def ElementwiseNeFloatTensorModule_basic(module, tu: TestUtils):
     module.forward(
         torch.tensor([[1.0, 2.2, 2.0], [6.0, 2.0, 3.1]]).to(torch.float32))
 
+
 # ==============================================================================
 
+
 class ElementwiseNeIntScalarModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -496,9 +572,12 @@ class ElementwiseNeIntScalarModule(torch.nn.Module):
 def ElementwiseNeIntScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(8, 5, low=2, high=4))
 
+
 # ==============================================================================
 
+
 class AnyBoolTrueModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -517,6 +596,7 @@ def AnyBoolTrueModule_basic(module, tu: TestUtils):
 
 
 class AnyBoolFalseModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -533,7 +613,9 @@ class AnyBoolFalseModule(torch.nn.Module):
 def AnyBoolFalseModule_basic(module, tu: TestUtils):
     module.forward()
 
+
 # =================================================================================
+
 
 class AllBoolTrueModule(torch.nn.Module):
 
@@ -553,7 +635,9 @@ class AllBoolTrueModule(torch.nn.Module):
 def AllBoolTrueModule_basic(module, tu: TestUtils):
     module.forward()
 
+
 # =================================================================================
+
 
 class AllBoolFalseModule(torch.nn.Module):
 
@@ -567,7 +651,8 @@ class AllBoolFalseModule(torch.nn.Module):
     def forward(self):
         input = [True, False, True, True, False]
         return torch.ops.aten.all(input)
-        
+
+
 @register_test_case(module_factory=lambda: AllBoolFalseModule())
 def AllBoolFalseModule_basic(module, tu: TestUtils):
     module.forward()

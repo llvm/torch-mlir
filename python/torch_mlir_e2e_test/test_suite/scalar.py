@@ -29,7 +29,8 @@ class AddIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AddIntModule())
 def AddIntModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(low=-100, high=100), tu.randint(low=-100, high=100))
+    module.forward(tu.randint(low=-100, high=100),
+                   tu.randint(low=-100, high=100))
 
 
 # ==============================================================================
@@ -52,7 +53,8 @@ class SubIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: SubIntModule())
 def SubIntModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(low=-100, high=100), tu.randint(low=-100, high=100))
+    module.forward(tu.randint(low=-100, high=100),
+                   tu.randint(low=-100, high=100))
 
 
 # ==============================================================================
@@ -98,7 +100,8 @@ class MulIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: MulIntModule())
 def MulIntModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(low=-100, high=100), tu.randint(low=-100, high=100))
+    module.forward(tu.randint(low=-100, high=100),
+                   tu.randint(low=-100, high=100))
 
 
 # ==============================================================================
@@ -337,9 +340,12 @@ class BoolIntConstantModule(torch.nn.Module):
 def BoolIntConstantModule_basic(module, tu: TestUtils):
     module.forward()
 
+
 # ==============================================================================
 
+
 class AtenIntTensorByteDtypeModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -348,9 +354,9 @@ class AtenIntTensorByteDtypeModule(torch.nn.Module):
         None,
         ([], torch.uint8, True),
     ])
-
     def forward(self, val):
         return int(val)
+
 
 @register_test_case(module_factory=lambda: AtenIntTensorByteDtypeModule())
 def AtenIntTensorByteDtypeModule_basic(module, tu: TestUtils):
@@ -359,7 +365,9 @@ def AtenIntTensorByteDtypeModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+
 class AtenIntTensorCharDtypeModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -368,9 +376,9 @@ class AtenIntTensorCharDtypeModule(torch.nn.Module):
         None,
         ([], torch.int8, True),
     ])
-
     def forward(self, val):
         return int(val)
+
 
 @register_test_case(module_factory=lambda: AtenIntTensorCharDtypeModule())
 def AtenIntTensorCharDtypeModule_basic(module, tu: TestUtils):
