@@ -50,11 +50,6 @@ TORCHDYNAMO_XFAIL_SET = {
     # RecursionError: maximum recursion depth exceeded
     # RuntimeError: Failed running call_function aten.lift_fresh_copy(...
     "LiftFreshCopyModule_basic",
-    # torch._subclasses.fake_tensor.DynamicOutputShapeException: aten.bincount.default
-    # RuntimeError: Failed running call_function aten.bincount(...
-    "BincountMinlengthModule_basic",
-    "BincountModule_basic",
-    "BincountStaticSizeModule_basic",
     # TypeError: new_empty(): argument 'size' (position 1) must be tuple of ints, but found element of type NoneType at pos 0
     # RuntimeError: Failed running call_function aten.convolution_backward(...
     "ConvolutionBackwardModule2DPadded_basic",
@@ -67,11 +62,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "NllLossModuleBackward1DSum_basic",
     "NllLossModuleBackward1DWeight_basic",
     "NllLossModuleBackward1D_basic",
-    # torch._subclasses.fake_tensor.DataDependentOutputException: aten._local_scalar_dense.default
-    # RuntimeError: Failed running call_module self_quantize(...
-    "QuantizedMLP_basic",
-    "ScalarImplicitFloatModule_basic",
-    "ScalarImplicitIntModule_basic",
     # Decomposition assertion:
     # assert device is not None or dtype is not None or memory_format is not None
     "ToCopyModule_basic",
