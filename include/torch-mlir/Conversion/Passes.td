@@ -125,6 +125,14 @@ def ConvertTorchToTMTensor : Pass<"convert-torch-to-tmtensor", "func::FuncOp"> {
   let constructor = "mlir::torch::createConvertTorchToTMTensorPass()";
 }
 
+def ConvertTorchConversionToMLProgram : Pass<"convert-torch-conversion-to-mlprogram", "func::FuncOp"> {
+  let summary = "Convert recognized TorchConversion ops to MLProgram ops";
+  let description = [{
+    Convert TorchConversion ops to mlprogram ops.
+  }];
+  let constructor = "mlir::torch::createConvertTorchConversionToMLProgramPass()";
+}
+
 #ifdef TORCH_MLIR_ENABLE_MHLO
 def ConvertTorchToMhlo : Pass<"convert-torch-to-mhlo", "func::FuncOp"> {
   let summary = "Convert Torch ops to MHLO ops";

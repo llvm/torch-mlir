@@ -27,7 +27,7 @@ std::unique_ptr<OperationPass<ModuleOp>> createMungeCallingConventionsPass();
 
 std::unique_ptr<OperationPass<func::FuncOp>> createExpandOpsForLLVMPass();
 
-std::unique_ptr<OperationPass<ModuleOp>> createInsertRngGlobalsPass();
+std::unique_ptr<OperationPass<ModuleOp>> createMLProgramBufferizePass();
 
 std::unique_ptr<OperationPass<func::FuncOp>> createMungeMemrefCopyPass();
 
