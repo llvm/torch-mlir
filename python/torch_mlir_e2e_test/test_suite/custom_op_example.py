@@ -24,7 +24,7 @@ class CustomOpExampleModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.ops._torch_mlir_custom_op_example.identity(a)

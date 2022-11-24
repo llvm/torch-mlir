@@ -35,7 +35,7 @@ using GetTensorTypeFn =
     llvm::function_ref<Type(MLIRContext *, Optional<ArrayRef<int64_t>>, Type)>;
 
 /// The representation of an unknown dimension size in an ArrayRef<int64_t>.
-constexpr static int64_t kUnknownSize = ShapedType::kDynamicSize;
+constexpr static int64_t kUnknownSize = -1;
 
 class BaseTensorType : public Type {
 public:

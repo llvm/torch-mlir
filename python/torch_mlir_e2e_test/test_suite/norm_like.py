@@ -122,11 +122,11 @@ class NativeBatchNorm1DModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
     def forward(self, x, weight, bias, running_mean, running_var):
         return torch.ops.aten.native_batch_norm(
@@ -148,11 +148,11 @@ class NativeBatchNorm2DModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
     def forward(self, x, weight, bias, running_mean, running_var):
         return torch.ops.aten.native_batch_norm(
@@ -174,11 +174,11 @@ class NativeBatchNorm3DModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
     def forward(self, x, weight, bias, running_mean, running_var):
         return torch.ops.aten.native_batch_norm(
@@ -200,10 +200,10 @@ class NativeBatchNormNoneWeightModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
     def forward(self, x, bias, running_mean, running_var):
         return torch.ops.aten.native_batch_norm(
@@ -245,9 +245,9 @@ class NativeLayerNormDynamicModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, x, weight, bias):
         list = [2, 2, 3]

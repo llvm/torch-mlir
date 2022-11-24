@@ -20,7 +20,7 @@ class TorchPrimLoopForLikeModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True)
+        ([-1, -1], torch.int64, True)
     ])
     def forward(self, x):
         x_val = x.size(0)
@@ -42,7 +42,7 @@ class TorchPrimLoopWhileLikeModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True)
+        ([-1, -1], torch.int64, True)
     ])
     def forward(self, x):
         x_val = x.size(0)

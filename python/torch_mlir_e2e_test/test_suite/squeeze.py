@@ -63,7 +63,7 @@ class SqueezeBroadcastModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
         ([], torch.float32, True),
     ])
     def forward(self, a, b):
@@ -108,7 +108,7 @@ class SqueezeDimDynamicModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, 1, 384, -9223372036854775808, 1], torch.float32, True),
+        ([-1, 1, 384, -1, 1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.squeeze(a, 4)
@@ -130,7 +130,7 @@ class SqueezeDimNegDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([1, -9223372036854775808, 1, 384, -9223372036854775808, 1], torch.float32, True),
+        ([1, -1, 1, 384, -1, 1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.squeeze(a, -6)
@@ -152,7 +152,7 @@ class SqueezeDimIdentityModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([4, 1, -9223372036854775808], torch.float32, True),
+        ([4, 1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.squeeze(a, 0)

@@ -608,7 +608,7 @@ public:
         auto resultDimSize = refinedResultShape[i];
         if (ShapedType::isDynamic(resultDimSize)) {
           SmallVector<Value> dynamicDims;
-          int64_t staticDimSize = kUnknownSize;
+          int64_t staticDimSize = -1;
           for (auto indexTensor : indexTensors) {
             RankedTensorType indexTensorType =
                 indexTensor.getType().cast<RankedTensorType>();

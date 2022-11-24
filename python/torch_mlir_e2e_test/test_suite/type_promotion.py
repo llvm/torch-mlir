@@ -19,8 +19,8 @@ class TypePromotionSameCategoryDifferentWidthModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.int32, True),
-        ([-9223372036854775808], torch.int64, True),
+        ([-1], torch.int32, True),
+        ([-1], torch.int64, True),
     ])
     def forward(self, a, b):
         return torch.add(a, b, alpha=3)
@@ -41,8 +41,8 @@ class TypePromotionDifferentCategoryModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.int64, True),
-        ([-9223372036854775808], torch.float32, True),
+        ([-1], torch.int64, True),
+        ([-1], torch.float32, True),
     ])
     def forward(self, a, b):
         return torch.add(a, b, alpha=3)
@@ -61,7 +61,7 @@ class TypePromotionSameCategoryZeroRankWiderModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
+        ([-1], torch.float32, True),
         ([], torch.float64, True),
     ])
     def forward(self, a, b):
@@ -81,7 +81,7 @@ class TypePromotionZeroRankHigherCategoryModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.int64, True),
+        ([-1], torch.int64, True),
         ([], torch.float32, True),
     ])
     def forward(self, a, b):
@@ -101,7 +101,7 @@ class TypePromotionAlphaWiderModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
+        ([-1], torch.float32, True),
         ([], torch.float32, True),
     ])
     def forward(self, a, b):

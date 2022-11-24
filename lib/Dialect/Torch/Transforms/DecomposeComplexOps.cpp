@@ -974,8 +974,8 @@ public:
         newSizes.push_back(
             rewriter.create<AtenSizeIntOp>(loc, self, /*dim=*/dim));
       }
-      Value flattenDimSize = rewriter.create<ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(kUnknownSize));
+      Value flattenDimSize =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
       newSizes.push_back(flattenDimSize);
       for (int64_t k = end + 1; k < rank; ++k) {
         Value dim =

@@ -37,7 +37,7 @@ class TensorToInt(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1], torch.int64, True),
     ])
     def forward(self, x):
         return int(x)
@@ -75,7 +75,7 @@ class TensorToFloat(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-1, -1], torch.float64, True),
     ])
     def forward(self, x):
         return float(x)
@@ -113,7 +113,7 @@ class TensorToBool(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.bool, True),
+        ([-1, -1], torch.bool, True),
     ])
     def forward(self, x):
         return bool(x)

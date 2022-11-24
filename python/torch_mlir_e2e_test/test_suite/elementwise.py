@@ -27,7 +27,7 @@ class ElementwiseUnaryModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.tanh(a)
@@ -49,7 +49,7 @@ class ElementwiseUnaryIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, a):
         return torch.tanh(a)
@@ -71,8 +71,8 @@ class ElementwiseBinaryModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
     def forward(self, a, b):
         return a * b
@@ -118,9 +118,9 @@ class ElementwiseTernaryModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
     def forward(self, a, b, c):
         return torch.lerp(a, b, c)
@@ -166,9 +166,9 @@ class ElementwiseWhereSelfModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
     def forward(self, a, b, c):
         return torch.where(a > 0.5, b, c)
@@ -190,7 +190,7 @@ class ElementwiseWhereScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.where(a > 0.5, 4.0, 8.0)
@@ -212,8 +212,8 @@ class ElementwiseWhereScalarOtherModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-1, -1, -1], torch.float64, True),
+        ([-1, -1], torch.float64, True),
     ])
     def forward(self, a, b):
         return torch.where(a > 0.5, b, 8.0)
@@ -235,8 +235,8 @@ class ElementwiseWhereScalarSelfModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-1, -1, -1], torch.float64, True),
+        ([-1, -1], torch.float64, True),
     ])
     def forward(self, a, b):
         return torch.where(a > 0.5, 4.0, b)
@@ -260,7 +260,7 @@ class ElementwiseAddModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
+        ([-1], torch.float32, True),
         ([], torch.float32, True),
     ])
     def forward(self, a, b):
@@ -283,7 +283,7 @@ class ElementwiseUnsqueezeBroadcastModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
+        ([-1], torch.float32, True),
         ([], torch.float32, True),
     ])
     def forward(self, a, b):
@@ -307,7 +307,7 @@ class ElementwiseUnsqueezeNegDimsModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         # As mentioned in `unsqueeze` docstring,
@@ -332,7 +332,7 @@ class ElementwiseFlattenBroadcastModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
+        ([-1], torch.float32, True),
         ([], torch.float32, True),
     ])
     def forward(self, a, b):
@@ -355,7 +355,7 @@ class ElementwiseReluModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.relu(x)
@@ -377,7 +377,7 @@ class ElementwiseRelu6Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.relu6(x)
@@ -399,7 +399,7 @@ class ElementwiseLeakyReluModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.leaky_relu(x, negative_slope=0.1)
@@ -422,7 +422,7 @@ class ElementwiseGeluModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return self.gelu(x)
@@ -444,7 +444,7 @@ class ElementwiseSigmoidModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.sigmoid(x)
@@ -466,7 +466,7 @@ class ElementwiseSigmoidIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, x):
         return torch.sigmoid(x)
@@ -488,8 +488,8 @@ class ElementwiseMinimumModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.minimum(x, y)
@@ -511,8 +511,8 @@ class ElementwiseMinimumIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.minimum(x, y)
@@ -534,8 +534,8 @@ class ElementwiseMaximumModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.maximum(x, y)
@@ -557,8 +557,8 @@ class ElementwiseMaximumIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.maximum(x, y)
@@ -580,7 +580,7 @@ class ElementwiseClampModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         float_min = torch.clamp(x, min=-2.0)
@@ -607,7 +607,7 @@ class ElementwiseClampMinModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         float_min = torch.ops.aten.clamp_min(x, min=-2.0)
@@ -632,7 +632,7 @@ class ElementwiseClampMaxModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         float_max = torch.ops.aten.clamp_max(x, max=2.0)
@@ -657,7 +657,7 @@ class RsubFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.rsub(x, 3.0, alpha=1.0)
@@ -679,7 +679,7 @@ class RsubFloatModule_noalpha(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.rsub(x, 2.0)
@@ -701,7 +701,7 @@ class RsubIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1], torch.int64, True),
     ])
     def forward(self, x):
         return torch.rsub(x, 2, alpha=3)
@@ -723,7 +723,7 @@ class RsubIntModule_noalpha(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1], torch.int64, True),
     ])
     def forward(self, x):
         return torch.rsub(x, 2.)
@@ -745,7 +745,7 @@ class ElementwiseMulScalarIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1], torch.int64, True),
     ])
     def forward(self, x):
         return torch.mul(x, 4)
@@ -767,7 +767,7 @@ class ElementwiseMulScalarFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.mul(x, 100.0)
@@ -789,7 +789,7 @@ class ElementwiseMulScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, x):
         return torch.mul(x, 8.0)
@@ -811,8 +811,8 @@ class ElementwiseMulTensorFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float64, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float64, True),
     ])
     def forward(self, a, b):
         return torch.mul(a, b)
@@ -834,8 +834,8 @@ class ElementwiseMulTensorIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.int32, True),
-        ([-9223372036854775808], torch.int64, True),
+        ([-1], torch.int32, True),
+        ([-1], torch.int64, True),
     ])
     def forward(self, a, b):
         return torch.mul(a, b)
@@ -858,7 +858,7 @@ class ElementwiseMishModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.mish(x)
@@ -880,8 +880,8 @@ class ElementwiseAtan2TensorFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a, b):
         return torch.atan2(a, b)
@@ -903,8 +903,8 @@ class ElementwiseAtan2TensorIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.int32, True),
-        ([-9223372036854775808], torch.int64, True),
+        ([-1], torch.int32, True),
+        ([-1], torch.int64, True),
     ])
     def forward(self, a, b):
         return torch.atan2(a, b)
@@ -927,8 +927,8 @@ class ElementwiseAtan2FloatIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-1, -1], torch.int32, True),
+        ([-1, -1], torch.float64, True),
     ])
     def forward(self, a, b):
         return torch.atan2(a, b)
@@ -951,7 +951,7 @@ class ElementwiseLogModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.log(a)
@@ -973,7 +973,7 @@ class ElementwiseLogIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, a):
         return torch.log(a)
@@ -994,7 +994,7 @@ class ElementwiseLog1pModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.log1p(a)
@@ -1016,7 +1016,7 @@ class ElementwiseErfModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.ops.aten.erf(a)
@@ -1038,7 +1038,7 @@ class ElementwiseErfIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, a):
         return torch.ops.aten.erf(a)
@@ -1060,7 +1060,7 @@ class ElementwiseSqrtModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.sqrt(a)
@@ -1082,7 +1082,7 @@ class ElementwiseSqrtIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, a):
         return torch.sqrt(a)
@@ -1104,7 +1104,7 @@ class ElementwiseFloorModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.floor(a)
@@ -1126,7 +1126,7 @@ class ElementwiseCeilModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.ceil(a)
@@ -1148,7 +1148,7 @@ class ElementwisePowModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.pow(a, 2.0)
@@ -1170,8 +1170,8 @@ class ElementwisePowTensorModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a, b):
         return torch.pow(a, b)
@@ -1193,8 +1193,8 @@ class ElementwisePowTensorBroadcastModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, 1], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, 1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a, b):
         return torch.pow(a, b)
@@ -1214,7 +1214,7 @@ class ElementwiseToDtypeF32ToI64Module(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808], torch.float32, True)])
+    @annotate_args([None, ([-1, -1], torch.float32, True)])
     def forward(self, x):
         return x.to(torch.int64)
 
@@ -1233,7 +1233,7 @@ class ElementwiseToDtypeIdentityModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808], torch.float32, True)])
+    @annotate_args([None, ([-1, -1], torch.float32, True)])
     def forward(self, x):
         return x.to(torch.float32, False, False)
 
@@ -1254,7 +1254,7 @@ class ElementwiseLog2Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.log2(a)
@@ -1276,7 +1276,7 @@ class ElementwiseLog2IntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, a):
         return torch.log2(a)
@@ -1298,7 +1298,7 @@ class ElementwiseRsqrtModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.rsqrt(a)
@@ -1320,7 +1320,7 @@ class ElementwiseRsqrtIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, a):
         return torch.rsqrt(a)
@@ -1342,7 +1342,7 @@ class ElementwiseAbsModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.abs(a)
@@ -1364,7 +1364,7 @@ class ElementwiseReciprocalModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.reciprocal(a)
@@ -1386,7 +1386,7 @@ class ElementwiseReciprocalIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.int32, True),
+        ([-1], torch.int32, True),
     ])
     def forward(self, a):
         return torch.reciprocal(a)
@@ -1408,7 +1408,7 @@ class ElementwiseDivScalarModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.div(x, 10.0)
@@ -1429,7 +1429,7 @@ class ElementwiseRemainderScalarModule_Int_Float(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.int32, True),
+        ([-1], torch.int32, True),
     ])
     def forward(self, x):
         return torch.remainder(x, 2.0)
@@ -1451,7 +1451,7 @@ class ElementwiseRemainderScalarModule_Float(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.remainder(x, 2.0)
@@ -1472,7 +1472,7 @@ class ElementwiseRemainderScalarModule_Int(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, x):
         return torch.remainder(x, 2)
@@ -1492,7 +1492,7 @@ class ElementwiseRemainderScalarModule_Bool(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.bool, True),
+        ([-1], torch.bool, True),
     ])
     def forward(self, x):
         return torch.remainder(x, 2)
@@ -1514,8 +1514,8 @@ class ElementwiseDivTensorFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float64, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float64, True),
     ])
     def forward(self, a, b):
         return torch.div(a, b)
@@ -1537,8 +1537,8 @@ class ElementwiseDivRoundingModeTruncModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float64, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float64, True),
     ])
     def forward(self, a, b):
         return torch.div(a, b, rounding_mode="trunc")
@@ -1558,8 +1558,8 @@ class ElementwiseDivRoundingModeFloorModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float64, True),
     ])
     def forward(self, a, b):
         return torch.div(a, b, rounding_mode="floor")
@@ -1582,8 +1582,8 @@ class ElementwiseAndIntegerModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1], torch.int32, True),
+        ([-1, -1], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.bitwise_and(x, y)
@@ -1607,8 +1607,8 @@ class ElementwiseOrIntegerModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1], torch.int32, True),
+        ([-1, -1], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.bitwise_or(x, y)
@@ -1632,7 +1632,7 @@ class ElementwiseNotIntegerModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1], torch.int64, True),
     ])
     def forward(self, x):
         return torch.bitwise_not(x)
@@ -1654,7 +1654,7 @@ class ElementwiseNotInt32Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, x):
         return torch.bitwise_not(x)
@@ -1676,7 +1676,7 @@ class ElementwiseSubScalarIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, x):
         return torch.sub(x, 2.1, alpha=2)
@@ -1698,7 +1698,7 @@ class ElementwiseSubScalarFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.sub(x, 2.1)
@@ -1720,7 +1720,7 @@ class ElementwiseAddScalarInt64Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1], torch.int64, True),
     ])
     def forward(self, x):
         return torch.add(x, 3.0)
@@ -1742,7 +1742,7 @@ class ElementwiseAddScalarIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, x):
         return torch.add(x, 3.0)
@@ -1764,7 +1764,7 @@ class ElementwiseAddScalarFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.add(x, 3.0, alpha=2)
@@ -1786,7 +1786,7 @@ class ElementwiseCloneModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.clone(x)
@@ -1808,7 +1808,7 @@ class ElementwiseCloneContiguousModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.clone(x, memory_format=torch.contiguous_format)
@@ -1830,7 +1830,7 @@ class LiftFreshCopyModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.lift_fresh_copy(x)
@@ -1852,7 +1852,7 @@ class ElementwiseExpModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.exp(a)
@@ -1874,7 +1874,7 @@ class ElementwiseExpIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, a):
         return torch.exp(a)
@@ -1896,7 +1896,7 @@ class ElementwiseExpm1Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.special.expm1(a)
@@ -1918,7 +1918,7 @@ class ElementwiseExpm1IntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, a):
         return torch.special.expm1(a)
@@ -1940,7 +1940,7 @@ class ElementwiseSinModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.sin(a)
@@ -1962,7 +1962,7 @@ class ElementwiseSinIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, a):
         return torch.sin(a)
@@ -1984,7 +1984,7 @@ class ElementwiseCosModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.cos(a)
@@ -2006,7 +2006,7 @@ class ElementwiseCosIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int32, True),
+        ([-1, -1], torch.int32, True),
     ])
     def forward(self, a):
         return torch.cos(a)
@@ -2028,7 +2028,7 @@ class ElementwiseNegModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.neg(a)
@@ -2047,8 +2047,8 @@ class ElementwiseAtenLogicalOrOpModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.bool, True),
-        ([-9223372036854775808], torch.bool, True),
+        ([-1], torch.bool, True),
+        ([-1], torch.bool, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
@@ -2064,8 +2064,8 @@ class ElementwiseAtenLogicalOrOpDiffArgs1Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float64, True),
-        ([-9223372036854775808], torch.int64, True),
+        ([-1], torch.float64, True),
+        ([-1], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
@@ -2083,8 +2083,8 @@ class ElementwiseAtenLogicalOrOpDiffArgs2Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.bool, True),
-        ([-9223372036854775808], torch.int64, True),
+        ([-1], torch.bool, True),
+        ([-1], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
@@ -2102,8 +2102,8 @@ class ElementwiseAtenLogicalOrOpDiffArgs3Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.int64, True),
-        ([-9223372036854775808], torch.bool, True),
+        ([-1], torch.int64, True),
+        ([-1], torch.bool, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
@@ -2121,8 +2121,8 @@ class ElementwiseAtenLogicalOrOpRandomModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1, -1, -1], torch.int64, True),
+        ([-1, -1, -1, -1], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
@@ -2140,8 +2140,8 @@ class ElementwiseAtenLogicalOrOpRandomFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
@@ -2159,8 +2159,8 @@ class ElementwiseAtenLogicalOrOpNegativeModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1, -1, -1], torch.int64, True),
+        ([-1, -1, -1, -1], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
@@ -2178,8 +2178,8 @@ class ElementwiseAtenLogicalOrOpBrodcastModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808],     torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1],     torch.int64, True),
+        ([-1, -1], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.logical_or(x, y)
@@ -2200,8 +2200,8 @@ class ElementwiseAtenFloorDivideModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.floor_divide(x, y)
@@ -2220,8 +2220,8 @@ class ElementwiseAtenFloorDivideBroadcastModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.floor_divide(x, y)
@@ -2244,7 +2244,7 @@ class AtenTriuModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.triu(x)
@@ -2266,7 +2266,7 @@ class AtenTriuWithPosDiagonalModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.triu(x, diagonal=2)
@@ -2288,7 +2288,7 @@ class AtenTriuWithNegDiagonalModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.triu(x, diagonal=-4)
@@ -2309,7 +2309,7 @@ class AtenRoundFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.round(x)
@@ -2327,7 +2327,7 @@ class AtenRoundIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1], torch.int64, True),
     ])
     def forward(self, x):
         return torch.ops.aten.round(x)
@@ -2349,7 +2349,7 @@ class Fill_TensorFloat64WithFloat32(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, tensor):
         return torch.ops.aten.fill_(tensor, 3.0)
@@ -2368,7 +2368,7 @@ class Fill_TensorFloat64WithFloat64(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-1, -1, -1], torch.float64, True),
     ])
     def forward(self, tensor):
         return torch.ops.aten.fill_(tensor, 3.0)
@@ -2387,7 +2387,7 @@ class Fill_TensorFloat64WithInt64(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-1, -1, -1], torch.float64, True),
     ])
     def forward(self, tensor):
         return torch.ops.aten.fill_(tensor, 3)
@@ -2409,7 +2409,7 @@ class Fill_TensorFloat32WithFloat32(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
         ([], torch.float32, True),
     ])
     def forward(self, tensor, value):
@@ -2428,7 +2428,7 @@ class Fill_TensorFloat32WithFloat64(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
         ([], torch.float64, True),
     ])
     def forward(self, tensor, value):
@@ -2447,7 +2447,7 @@ class Fill_TensorFloat32WithInt64(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
         ([], torch.int64, True),
     ])
     def forward(self, tensor, value):

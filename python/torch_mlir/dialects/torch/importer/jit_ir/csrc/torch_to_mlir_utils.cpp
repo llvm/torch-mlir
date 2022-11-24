@@ -21,7 +21,6 @@
 #include "mlir-c/Diagnostics.h"
 #include "torch-mlir-c/TorchOps.h"
 #include "torch-mlir-c/TorchTypes.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 
 using namespace torch_mlir;
 
@@ -163,8 +162,7 @@ torch_mlir::getMlirTypeFromTorchType(MlirLocation loc,
     dims.resize(*sizes.rank());
     for (size_t i = 0; i < dims.size(); ++i) {
       auto shapeSymbol = symbolicShape[i];
-      dims[i] = shapeSymbol.is_static() ? shapeSymbol.static_size()
-                                        : mlir::torch::Torch::kUnknownSize;
+      dims[i] = shapeSymbol.is_static() ? shapeSymbol.static_size() : -1;
     }
 
     // `std::vector`'s `.data()` method can return nullptr when the
