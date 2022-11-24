@@ -24,7 +24,6 @@ from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import (
 )
 
 NUMPY_TO_TORCH_DTYPE_DICT = {
-    np.bool: torch.bool,
     np.bool_: torch.bool,
     np.uint8: torch.uint8,
     np.int8: torch.int8,
