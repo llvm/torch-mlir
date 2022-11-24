@@ -357,10 +357,7 @@ class EmptyLikeMemoryFormatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.empty_like(a,
@@ -399,8 +396,7 @@ class EmptyLikeFalsePinMemoryModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.empty_like(a, dtype=torch.float64,
@@ -480,8 +476,7 @@ class ZerosLikeFalsePinMemoryModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.zeros_like(a, dtype=torch.float64, pin_memory=False)
@@ -560,8 +555,7 @@ class OnesLikeFalsePinMemoryModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.ones_like(a, dtype=torch.float64, pin_memory=False)
@@ -602,8 +596,7 @@ class NewZerosModuleInt2D(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.ops.aten.new_zeros(a, [3, 4], dtype=torch.int64)
@@ -641,8 +634,7 @@ class NewZerosModuleFloat2D(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, a):
         return torch.ops.aten.new_zeros(a, [3, 4], dtype=torch.float32)
@@ -723,8 +715,7 @@ class NewOnesModuleInt2D(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.ops.aten.new_ones(a, [3, 4], dtype=torch.int64)
@@ -762,8 +753,7 @@ class NewOnesModuleFloat2D(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, a):
         return torch.ops.aten.new_ones(a, [3, 4], dtype=torch.float32)
@@ -977,8 +967,7 @@ class FullLikeModuleInt3D(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int32, True),
     ])
     def forward(self, a):
         return torch.ops.aten.full_like(a, 5.0, dtype=torch.int64)
@@ -1035,8 +1024,7 @@ class FullLikeModuleFloat3D(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, a):
         return torch.ops.aten.full_like(a, 15, dtype=torch.float32)
@@ -1178,8 +1166,7 @@ class NewEmptyModuleInt2D(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.ops.aten.new_empty(a, [3, 4], dtype=torch.int64).fill_(0)
@@ -1218,8 +1205,7 @@ class NewEmptyModuleFloat2D(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, a):
         return torch.ops.aten.new_empty(a, [3, 4],

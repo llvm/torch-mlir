@@ -10,9 +10,7 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
-
 class ArgmaxModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -21,6 +19,7 @@ class ArgmaxModule(torch.nn.Module):
         None,
         ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
+
     def forward(self, a):
         return torch.argmax(a)
 
@@ -29,46 +28,37 @@ class ArgmaxModule(torch.nn.Module):
 def ArgmaxModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
-
 # ==============================================================================
 
-
 class ArgmaxWithDimModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.argmax(a, dim=1)
-
 
 @register_test_case(module_factory=lambda: ArgmaxWithDimModule())
 def ArgmaxModule_with_dim(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
-
 # ==============================================================================
 
-
 class ArgmaxKeepDimsModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
-        None,
+        None, 
         ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, a):
         return torch.argmax(a, 0, True)
-
 
 @register_test_case(module_factory=lambda: ArgmaxKeepDimsModule())
 def ArgmaxModule_keepDim(module, tu: TestUtils):

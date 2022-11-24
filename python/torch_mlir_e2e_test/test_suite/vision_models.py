@@ -14,7 +14,6 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 
 class ResNet18Module(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
         # Reset seed to make model deterministic.
@@ -25,8 +24,7 @@ class ResNet18Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, 3, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, 3, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, img):
         return self.resnet.forward(img)
@@ -38,7 +36,6 @@ def ResNet18Module_basic(module, tu: TestUtils):
 
 
 class ResNet18StaticModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
         # Reset seed to make model deterministic.
@@ -61,7 +58,6 @@ def ResNet18StaticModule_basic(module, tu: TestUtils):
 
 
 class IouOfModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -88,9 +84,7 @@ class IouOfModule(torch.nn.Module):
 def IouOfModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1024, 4), tu.rand(1024, 4))
 
-
 class MobilenetV2Module(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
         # Reset seed to make model deterministic.
@@ -101,12 +95,10 @@ class MobilenetV2Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, 3, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, 3, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, img):
         return self.mobilenetv2.forward(img)
-
 
 # TODO (cathyzhyi) The runtime assertion for conv2d with group != 1 is exposed
 # after aten.hardtanh is implemented. Reenable once the the runtime assertion
@@ -115,9 +107,7 @@ class MobilenetV2Module(torch.nn.Module):
 def MobilenetV2Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 3, 224, 224))
 
-
 class MobilenetV3Module(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
         # Reset seed to make model deterministic.
@@ -128,8 +118,7 @@ class MobilenetV3Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, 3, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, 3, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, img):
         return self.mobilenetv3.forward(img)
