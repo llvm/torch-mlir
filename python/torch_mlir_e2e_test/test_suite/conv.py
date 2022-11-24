@@ -22,7 +22,7 @@ class Conv2dNoPaddingModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return self.conv(x)
@@ -45,7 +45,7 @@ class Conv2dBiasNoPaddingModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return self.conv(x)
@@ -68,7 +68,7 @@ class Conv2dWithPaddingModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return self.conv(x)
@@ -97,7 +97,7 @@ class Conv2dWithPaddingDilationStrideModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return self.conv(x)
@@ -149,8 +149,8 @@ class Convolution2DModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten.convolution(inputVec,
@@ -200,8 +200,8 @@ class Convolution2DStridedModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten.convolution(inputVec,
@@ -225,8 +225,8 @@ class _Convolution2DAllFalseModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten._convolution(inputVec,
@@ -254,8 +254,8 @@ class _Convolution2DBenchmarkModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten._convolution(inputVec,
@@ -283,8 +283,8 @@ class _Convolution2DDeterministicModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten._convolution(inputVec,
@@ -312,8 +312,8 @@ class _Convolution2DCudnnModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten._convolution(inputVec,
@@ -341,8 +341,8 @@ class _Convolution2DTF32Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten._convolution(inputVec,
@@ -370,8 +370,8 @@ class _ConvolutionDeprecated2DAllFalseModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten._convolution(inputVec,
@@ -398,8 +398,8 @@ class _ConvolutionDeprecated2DBenchmarkModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten._convolution(inputVec,
@@ -426,8 +426,8 @@ class _ConvolutionDeprecated2DDeterministicModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten._convolution(inputVec,
@@ -454,8 +454,8 @@ class _ConvolutionDeprecated2DCudnnModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten._convolution(inputVec,
@@ -482,8 +482,8 @@ class ConvolutionModule2DGroups(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten.convolution(inputVec,
@@ -510,8 +510,8 @@ class ConvolutionModule2DTranspose(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten.convolution(inputVec,
@@ -537,8 +537,8 @@ class ConvolutionModule2DTransposeStrided(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten.convolution(inputVec,
@@ -592,8 +592,8 @@ class Conv_Transpose2dModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten.conv_transpose2d(inputVec,
@@ -619,7 +619,7 @@ class UpSampleNearest2d(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
+        ([-1, -1, -1, -1], torch.float64, True),
     ])
     def forward(self, input):
         return torch.ops.aten.upsample_nearest2d(input,
@@ -640,7 +640,7 @@ class UpSampleNearest2dSameSize(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec):
         return torch._C._nn.upsample_nearest2d(inputVec,
@@ -660,7 +660,7 @@ class UpSampleNearest2dDiffSize(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True)])
+    @annotate_args([None, ([-1, -1, -1, -1], torch.float32, True)])
     def forward(self, inputVec):
         return torch._C._nn.upsample_nearest2d(inputVec,
                                                output_size=[8, 11],
@@ -679,7 +679,7 @@ class UpSampleNearest2dDiffFactor(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True)])
+    @annotate_args([None, ([-1, -1, -1, -1], torch.float32, True)])
     def forward(self, inputVec):
         return torch._C._nn.upsample_nearest2d(inputVec,
                                                output_size=[6, 10],
@@ -700,7 +700,7 @@ class UpSampleNearest2dSameFactor(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, inputVec):
         return torch._C._nn.upsample_nearest2d(inputVec,

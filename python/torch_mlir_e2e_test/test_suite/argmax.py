@@ -17,7 +17,7 @@ class ArgmaxModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -37,7 +37,7 @@ class ArgmaxWithDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.argmax(a, dim=1)
@@ -55,7 +55,7 @@ class ArgmaxKeepDimsModule(torch.nn.Module):
     @export
     @annotate_args([
         None, 
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.argmax(a, 0, True)

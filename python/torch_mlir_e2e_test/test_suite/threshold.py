@@ -19,7 +19,7 @@ class Threshold1dIntI32Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.int32, True),
+        ([-1], torch.int32, True),
     ])
 
     def forward(self, input):
@@ -37,7 +37,7 @@ class Threshold1dIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.int64, True),
+        ([-1], torch.int64, True),
     ])
 
     def forward(self, input):
@@ -55,7 +55,7 @@ class Threshold2dIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1], torch.int64, True),
     ])
 
     def forward(self, input):
@@ -73,7 +73,7 @@ class Threshold3dIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1, -1], torch.int64, True),
     ])
 
     def forward(self, input):
@@ -91,7 +91,7 @@ class Threshold1dFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
 
     def forward(self, input):
@@ -109,7 +109,7 @@ class Threshold2dFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
 
     def forward(self, input):
@@ -127,7 +127,7 @@ class Threshold3dFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
 
     def forward(self, input):
@@ -145,8 +145,8 @@ class ThresholdBackward1dIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.int64, True),
-        ([-9223372036854775808], torch.int64, True),
+        ([-1], torch.int64, True),
+        ([-1], torch.int64, True),
     ])
 
     def forward(self, grad, input):
@@ -164,8 +164,8 @@ class ThresholdBackward2dIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.int64, True),
     ])
 
     def forward(self, grad, input):
@@ -183,8 +183,8 @@ class ThresholdBackward3dIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1, -1], torch.int64, True),
+        ([-1, -1, -1], torch.int64, True),
     ])
 
     def forward(self, grad, input):
@@ -202,8 +202,8 @@ class ThresholdBackward1dFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
 
     def forward(self, grad, input):
@@ -221,8 +221,8 @@ class ThresholdBackward2dFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
 
     def forward(self, grad, input):
@@ -240,8 +240,8 @@ class ThresholdBackward3dFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
 
     def forward(self, grad, input):
@@ -259,8 +259,8 @@ class ThresholdBackward1dMixedModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
-        ([-9223372036854775808], torch.int64, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.int64, True),
     ])
 
     def forward(self, grad, input):
@@ -278,8 +278,8 @@ class ThresholdBackward2dMixedModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.float32, True),
     ])
 
     def forward(self, grad, input):
@@ -297,8 +297,8 @@ class ThresholdBackward3dMixedModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.int64, True),
     ])
 
     def forward(self, grad, input):

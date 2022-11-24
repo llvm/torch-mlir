@@ -1900,11 +1900,8 @@ LogicalResult ConvertAtenOp<AtenReshapeOp>::matchAndRewrite(
         op, "Only constant shape supported in TOSA Reshape");
 
   int auto_sz = 0;
-  for (unsigned i = 0; i < newShape.size(); i++)
-    if (newShape[i] == -1) {
-      auto_sz += 1;
-      newShape[i] = kUnknownSize;
-    }
+  for (auto s : newShape)
+    auto_sz += (s == -1 ? 1 : 0);
   if (auto_sz > 1)
     return rewriter.notifyMatchFailure(
         op, "At most one dimension may be specified as -1 to "

@@ -12,12 +12,7 @@
 
 from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 
-REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
-    "UnsafeView1DFoldModule_basic",
-    "View1DFoldModule_basic",
-    "ViewCollapseInferredDimModule_basic",
-    "ViewExpandInferredDimModule_basic",
-}
+REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 
 EAGER_MODE_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # RefBackend fails for some reason.
@@ -25,10 +20,6 @@ EAGER_MODE_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # why they fail here.
     "Matmul_vecmat",
     "UpSampleNearest2dDynamicFactor_basic",
-    "UnsafeView1DFoldModule_basic",
-    "View1DFoldModule_basic",
-    "ViewCollapseInferredDimModule_basic",
-    "ViewExpandInferredDimModule_basic",
 }
 
 TORCHDYNAMO_XFAIL_SET = {
@@ -299,6 +290,8 @@ MHLO_PASS_SET = {
     "TModuleRank1_basic",
     "TModuleRank0_basic",
     "ElementwiseToDtypeIdentityModule_basic",
+    "View1DFoldModule_basic",
+    "UnsafeView1DFoldModule_basic",
     "RsubFloatModule_basic",
     "RsubFloatModule_noalpha_basic",
     "RsubIntModule_basic",
@@ -363,6 +356,7 @@ MHLO_PASS_SET = {
     "ContiguousModule_basic",
     "DropoutModule_basic",
     "ViewCollapseModule_basic",
+    "ViewCollapseInferredDimModule_basic",
     "ViewDynamicExpandCollapseModule_basic",
     "ViewDynamicExpandModule_basic",
     "ViewExpandModule_basic",
@@ -371,6 +365,7 @@ MHLO_PASS_SET = {
     "ViewExpandOnesMiddleModule_basic",
     "ViewExpandCollapseModule_basic",
     "ViewExpandCollapseWithOnesModule_basic",
+    "ViewExpandInferredDimModule_basic",
     "ViewNoChangeStaticModule_basic",
     "ViewNoChange1dModule_basic",
     "ViewNoChange2dModule_basic",
@@ -432,7 +427,6 @@ MHLO_PASS_SET = {
     "UnsafeViewCollapseModule_basic",
     "UnsafeViewDynamicExpandModule_basic",
     "AtenRoundIntModule_basic",
-    "PrimsConvertElementTypeModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -478,6 +472,8 @@ TOSA_PASS_SET = {
     "TModuleRank0_basic",
     "ElementwiseToDtypeIdentityModule_basic",
     "AtenToDeviceModule_basic",
+    "View1DFoldModule_basic",
+    "UnsafeView1DFoldModule_basic",
     "SqueezeDimModule_static",
     "SqueezeDimModule_identity",
     "SqueezeDimModule_unitDim",
@@ -574,6 +570,8 @@ TOSA_PASS_SET = {
     "ViewExpandOnesMiddleModule_basic",
     "ViewExpandCollapseModule_basic",
     "ViewExpandCollapseWithOnesModule_basic",
+    "ViewCollapseInferredDimModule_basic",
+    "ViewExpandInferredDimModule_basic",
     "ViewNoChangeStaticModule_basic",
     "UnsafeViewExpandModule_basic",
     "ReshapeCollapseModule_basic",
@@ -772,8 +770,4 @@ LTC_XFAIL_SET = {
     "VarMeanCorrectionModule_basic",
     "VarMeanCorrectionNoneModule_basic",
     "PrimsConvertElementTypeModule_basic",
-    "UnsafeView1DFoldModule_basic",
-    "View1DFoldModule_basic",
-    "ViewCollapseInferredDimModule_basic",
-    "ViewExpandInferredDimModule_basic",
 }

@@ -24,7 +24,7 @@ class ResNet18Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, 3, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, 3, -1, -1], torch.float32, True),
     ])
     def forward(self, img):
         return self.resnet.forward(img)
@@ -64,8 +64,8 @@ class IouOfModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, bbox1, bbox2):
         area1 = (bbox1[:, 2] - bbox1[:, 0]) * (bbox1[:, 3] - bbox1[:, 1])
@@ -95,7 +95,7 @@ class MobilenetV2Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, 3, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, 3, -1, -1], torch.float32, True),
     ])
     def forward(self, img):
         return self.mobilenetv2.forward(img)
@@ -118,7 +118,7 @@ class MobilenetV3Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, 3, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, 3, -1, -1], torch.float32, True),
     ])
     def forward(self, img):
         return self.mobilenetv3.forward(img)

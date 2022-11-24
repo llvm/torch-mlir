@@ -112,7 +112,7 @@ class ViewDynamicExpandModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, 30, 384], torch.float32, True),
+        ([-1, -1, 30, 384], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -131,7 +131,7 @@ class ViewDynamicExpandWithAtenSizeIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -150,7 +150,7 @@ class ViewCollapseModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -169,7 +169,7 @@ class ViewCollapseDynamicWithAtenSizeIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1, -1, -1], torch.float32, True),
         ([], torch.int64, True),
         ([], torch.int64, True),
     ])
@@ -228,7 +228,7 @@ class ViewDynamicExpandCollapseModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, 4, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, 4, -1, -1], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -247,7 +247,7 @@ class ViewDynamicExpandCollapseWithAtenIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -342,11 +342,11 @@ class View1DFoldModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
 
     def forward(self, a):
-        return a.view(-9223372036854775808)
+        return a.view(-1)
 
 @register_test_case(module_factory=lambda: View1DFoldModule())
 def View1DFoldModule_basic(module, tu: TestUtils):
@@ -365,7 +365,7 @@ class ViewCollapseInferredDimModule(torch.nn.Module):
     ])
 
     def forward(self, a):
-        return a.view(-9223372036854775808, 4)
+        return a.view(-1, 4)
 
 @register_test_case(module_factory=lambda: ViewCollapseInferredDimModule())
 def ViewCollapseInferredDimModule_basic(module, tu: TestUtils):
@@ -384,7 +384,7 @@ class ViewExpandInferredDimModule(torch.nn.Module):
     ])
 
     def forward(self, a):
-        return a.view(3, -9223372036854775808, 2)
+        return a.view(3, -1, 2)
 
 @register_test_case(module_factory=lambda: ViewExpandInferredDimModule())
 def ViewExpandInferredDimModule_basic(module, tu: TestUtils):
@@ -399,7 +399,7 @@ class ViewExpandDynamicDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([1, -9223372036854775808, 128], torch.float32, True),
+        ([1, -1, 128], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -418,7 +418,7 @@ class ViewFlattenAndExpandModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -456,7 +456,7 @@ class UnsafeViewDynamicExpandModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, 30, 384], torch.float32, True),
+        ([-1, -1, 30, 384], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -475,7 +475,7 @@ class UnsafeViewDynamicExpandWithAtenSizeIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -494,7 +494,7 @@ class UnsafeViewCollapseModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -513,7 +513,7 @@ class UnsafeViewCollapseDynamicWithAtenSizeIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1, -1, -1, -1], torch.float32, True),
         ([], torch.int64, True),
         ([], torch.int64, True),
     ])
@@ -534,11 +534,11 @@ class UnsafeView1DFoldModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
 
     def forward(self, a):
-        return torch.ops.aten._unsafe_view(a, [-9223372036854775808])
+        return torch.ops.aten._unsafe_view(a, [-1])
 
 @register_test_case(module_factory=lambda: UnsafeView1DFoldModule())
 def UnsafeView1DFoldModule_basic(module, tu: TestUtils):
@@ -553,7 +553,7 @@ class ReshapeExpandModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -572,7 +572,7 @@ class ReshapeCollapseModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -591,7 +591,7 @@ class ViewNoChange1dModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -609,7 +609,7 @@ class ViewNoChange2dModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -627,7 +627,7 @@ class ViewNoChange3dModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -666,7 +666,7 @@ class ReshapeAliasExpandModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
 
     def forward(self, a):
@@ -685,7 +685,7 @@ class ReshapeAliasCollapseModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
 
     def forward(self, a):
