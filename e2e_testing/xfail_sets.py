@@ -49,13 +49,16 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # RecursionError: maximum recursion depth exceeded
     # RuntimeError: Failed running call_function aten.lift_fresh_copy(...
+    # https://github.com/pytorch/pytorch/issues/89627
     "LiftFreshCopyModule_basic",
     # TypeError: new_empty(): argument 'size' (position 1) must be tuple of ints, but found element of type NoneType at pos 0
     # RuntimeError: Failed running call_function aten.convolution_backward(...
+    # https://github.com/pytorch/pytorch/issues/89629
     "ConvolutionBackwardModule2DPadded_basic",
     "ConvolutionBackwardModule2D_basic",
     # RuntimeError: Index tensor must have the same number of dimensions as self tensor
     # RuntimeError: Failed running call_function aten.nll_loss_backward(...
+    # https://github.com/pytorch/pytorch/issues/89630
     "NllLossModuleBackward1DMeanWeight_basic",
     "NllLossModuleBackward1DMean_basic",
     "NllLossModuleBackward1DSumWeight_basic",
@@ -64,8 +67,11 @@ TORCHDYNAMO_XFAIL_SET = {
     "NllLossModuleBackward1D_basic",
     # Decomposition assertion:
     # assert device is not None or dtype is not None or memory_format is not None
+    # https://github.com/pytorch/pytorch/issues/89633
     "ToCopyModule_basic",
     # TypeError: expected np.ndarray (got float)
+    # TODO: This is due to returning a scalar float as output from the test.
+    # We should probably just standardize all tests to return tensors.
     "DivIntModule_basic",
 
     #### Torch-MLIR internal compiler errors
