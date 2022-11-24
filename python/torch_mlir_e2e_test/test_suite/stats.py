@@ -11,9 +11,7 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
-
 class MeanModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -30,12 +28,9 @@ class MeanModule(torch.nn.Module):
 def MeanModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
-
 # ==============================================================================
 
-
 class MeanDynamicSizesModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -52,20 +47,16 @@ class MeanDynamicSizesModule(torch.nn.Module):
 def MeanDynamicSizesModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
-
 # ==============================================================================
 
-
 class MeanDtypeModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x):
         return torch.ops.aten.mean(x, dtype=torch.float32)
@@ -75,22 +66,16 @@ class MeanDtypeModule(torch.nn.Module):
 def MeanDtypeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5).to(torch.float64))
 
-
 # ==============================================================================
 
-
 class MeanLargeInputModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.mean(x)
@@ -100,20 +85,16 @@ class MeanLargeInputModule(torch.nn.Module):
 def MeanLargeInputModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 128, 1024, low=100, high=200))
 
-
 # ==============================================================================
 
-
 class MeanDimModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.mean(x, (0, 2))
@@ -123,22 +104,16 @@ class MeanDimModule(torch.nn.Module):
 def MeanDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 7))
 
-
 # ==============================================================================
 
-
 class MeanDimLargeInputModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.mean(x, (0, 2))
@@ -151,40 +126,33 @@ def MeanDimLargeInputModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-
 class MeanDimDtypeModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x):
-        return torch.ops.aten.mean(x, (0, ), dtype=torch.float32)
+        return torch.ops.aten.mean(x, (0,), dtype=torch.float32)
 
 
 @register_test_case(module_factory=lambda: MeanDimDtypeModule())
 def MeanDimDtypeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5).to(torch.float64))
 
-
 # ==============================================================================
 
-
 class MeanDimKeepdimModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.mean(x, (1, 2), keepdim=True)
@@ -194,20 +162,16 @@ class MeanDimKeepdimModule(torch.nn.Module):
 def MeanDimKeepdimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
-
 # ==============================================================================
 
-
 class MeanDimAllReduceModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.mean(x, (0, 1, 2))
@@ -217,20 +181,16 @@ class MeanDimAllReduceModule(torch.nn.Module):
 def MeanDimAllReduceModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
-
 # ==============================================================================
 
-
 class MeanDimAllReduceKeepdimModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.mean(x, (0, 1, 2), keepdim=True)
@@ -240,20 +200,16 @@ class MeanDimAllReduceKeepdimModule(torch.nn.Module):
 def MeanDimAllReduceKeepdimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
-
 # ==============================================================================
 
-
 class MeanDimNegativeModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.mean(x, (-1, 1))
@@ -266,17 +222,14 @@ def MeanDimNegativeModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-
 class MeanDimEmptyDimModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.mean(x, dim=[])
@@ -286,20 +239,16 @@ class MeanDimEmptyDimModule(torch.nn.Module):
 def MeanDimEmptyDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
-
 # ==============================================================================
 
-
 class MeanDimNoneDimModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.mean(x, dim=None)
@@ -309,93 +258,73 @@ class MeanDimNoneDimModule(torch.nn.Module):
 def MeanDimNoneDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
-
 # ==============================================================================
 
-
 class VarUnbiasedModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x, unbiased=True)
-
 
 @register_test_case(module_factory=lambda: VarUnbiasedModule())
 def VarUnbiasedModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))
 
-
 # ==============================================================================
 
-
 class VarBiasedModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x, unbiased=False)
-
 
 @register_test_case(module_factory=lambda: VarBiasedModule())
 def VarBiasedModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))
 
-
 # ==============================================================================
 
-
 class StdUnbiasedModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.std(x, unbiased=True)
-
 
 @register_test_case(module_factory=lambda: StdUnbiasedModule())
 def StdUnbiasedModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))
 
-
 # ==============================================================================
 
-
 class StdBiasedModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.std(x, unbiased=False)
-
 
 @register_test_case(module_factory=lambda: StdBiasedModule())
 def StdBiasedModule_basic(module, tu: TestUtils):
@@ -413,8 +342,7 @@ class StdDimKeepDimFalseModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.std(x, dim=(1, 2), keepdim=False)
@@ -436,8 +364,7 @@ class StdDimKeepDimTrueModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.std(x, dim=(0, 1, 2), keepdim=True)
@@ -459,8 +386,7 @@ class StdDimBiasedModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.std(x, dim=(0, 2), unbiased=False)
@@ -482,8 +408,7 @@ class StdDimEmptyDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.std(x, dim=[], keepdim=False)
@@ -505,8 +430,7 @@ class StdDimNoneDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.std(x, dim=None, keepdim=False)
@@ -528,8 +452,7 @@ class VarDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x, dim=(0, 2), keepdim=True)
@@ -551,8 +474,7 @@ class VarDimUnbiasedModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x, dim=(0, 2), unbiased=True, keepdim=True)
@@ -574,11 +496,10 @@ class VarDimBiasedModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x):
-        return torch.ops.aten.var(x, dim=(0, 1), unbiased=False, keepdim=True)
+        return torch.ops.aten.var(x, dim=(0,1), unbiased=False, keepdim=True)
 
 
 @register_test_case(module_factory=lambda: VarDimBiasedModule())
@@ -597,11 +518,10 @@ class VarDimSingleDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x):
-        return torch.ops.aten.var(x, dim=(0, ), keepdim=True)
+        return torch.ops.aten.var(x, dim=(0,), keepdim=True)
 
 
 @register_test_case(module_factory=lambda: VarDimSingleDimModule())
@@ -620,8 +540,7 @@ class VarDimMultiDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x, dim=[0, 2], keepdim=False)
@@ -643,8 +562,7 @@ class VarDimAllDimReduceModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x, dim=(0, 1, 2), keepdim=True)
@@ -666,8 +584,7 @@ class VarDimNegativeModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x, dim=(-1, 1), keepdim=True)
@@ -689,8 +606,7 @@ class VarDimEmptyDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x, dim=[], keepdim=False)
@@ -712,8 +628,7 @@ class VarDimNoneDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x, dim=None, keepdim=False)
@@ -735,8 +650,7 @@ class VarCorrectionModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x, dim=None, correction=2)
@@ -758,15 +672,13 @@ class VarCorrectionSingleDimReduceModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x, dim=[1], correction=1)
 
 
-@register_test_case(
-    module_factory=lambda: VarCorrectionSingleDimReduceModule())
+@register_test_case(module_factory=lambda: VarCorrectionSingleDimReduceModule())
 def VarCorrectionSingleDimReduceModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 7))
 
@@ -782,8 +694,7 @@ class VarCorrectionAllDimReduceModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x,
@@ -808,8 +719,7 @@ class VarCorrectionKeepDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x, dim=[0, 1], correction=None, keepdim=True)
@@ -831,8 +741,7 @@ class VarCorrectionNoneModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x, dim=None, correction=None)
@@ -854,8 +763,7 @@ class VarCorrectionEmptyDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x, dim=[], correction=2)
@@ -877,10 +785,7 @@ class VarCorrectionLargeInputModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var(x, dim=[2, 3], correction=2)
@@ -902,16 +807,10 @@ class VarMeanCorrectionModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
-        return torch.ops.aten.var_mean(x,
-                                       dim=[1, 2],
-                                       correction=2,
-                                       keepdim=True)
+        return torch.ops.aten.var_mean(x, dim=[1, 2], correction=2, keepdim=True)
 
 
 @register_test_case(module_factory=lambda: VarMeanCorrectionModule())
@@ -930,14 +829,10 @@ class VarMeanCorrectionNoneModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
-        return torch.ops.aten.var_mean(x,
-                                       dim=None,
-                                       correction=None,
-                                       keepdim=False)
+        return torch.ops.aten.var_mean(x, dim=None, correction=None, keepdim=False)
 
 
 @register_test_case(module_factory=lambda: VarMeanCorrectionNoneModule())

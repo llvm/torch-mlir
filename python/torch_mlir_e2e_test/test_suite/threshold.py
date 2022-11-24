@@ -13,7 +13,6 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 
 class Threshold1dIntI32Module(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -22,9 +21,9 @@ class Threshold1dIntI32Module(torch.nn.Module):
         None,
         ([-9223372036854775808], torch.int32, True),
     ])
+
     def forward(self, input):
         return torch.ops.aten.threshold(input, 1, 2)
-
 
 @register_test_case(module_factory=lambda: Threshold1dIntI32Module())
 def Threshold1dIntI32Module_basic(module, tu: TestUtils):
@@ -32,7 +31,6 @@ def Threshold1dIntI32Module_basic(module, tu: TestUtils):
 
 
 class Threshold1dIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -41,9 +39,9 @@ class Threshold1dIntModule(torch.nn.Module):
         None,
         ([-9223372036854775808], torch.int64, True),
     ])
+
     def forward(self, input):
         return torch.ops.aten.threshold(input, 1, 2)
-
 
 @register_test_case(module_factory=lambda: Threshold1dIntModule())
 def Threshold1dIntModule_basic(module, tu: TestUtils):
@@ -51,7 +49,6 @@ def Threshold1dIntModule_basic(module, tu: TestUtils):
 
 
 class Threshold2dIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -60,9 +57,9 @@ class Threshold2dIntModule(torch.nn.Module):
         None,
         ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
+
     def forward(self, input):
         return torch.ops.aten.threshold(input, 0.5, 2)
-
 
 @register_test_case(module_factory=lambda: Threshold2dIntModule())
 def Threshold2dIntModule_basic(module, tu: TestUtils):
@@ -70,19 +67,17 @@ def Threshold2dIntModule_basic(module, tu: TestUtils):
 
 
 class Threshold3dIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
+
     def forward(self, input):
         return torch.ops.aten.threshold(input, 1, 2.2)
-
 
 @register_test_case(module_factory=lambda: Threshold3dIntModule())
 def Threshold3dIntModule_basic(module, tu: TestUtils):
@@ -90,7 +85,6 @@ def Threshold3dIntModule_basic(module, tu: TestUtils):
 
 
 class Threshold1dFloatModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -99,9 +93,9 @@ class Threshold1dFloatModule(torch.nn.Module):
         None,
         ([-9223372036854775808], torch.float32, True),
     ])
+
     def forward(self, input):
         return torch.ops.aten.threshold(input, 1, 2)
-
 
 @register_test_case(module_factory=lambda: Threshold1dFloatModule())
 def Threshold1dFloatModule_basic(module, tu: TestUtils):
@@ -109,7 +103,6 @@ def Threshold1dFloatModule_basic(module, tu: TestUtils):
 
 
 class Threshold2dFloatModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -118,9 +111,9 @@ class Threshold2dFloatModule(torch.nn.Module):
         None,
         ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
+
     def forward(self, input):
         return torch.ops.aten.threshold(input, 0.5, 2)
-
 
 @register_test_case(module_factory=lambda: Threshold2dFloatModule())
 def Threshold2dFloatModule_basic(module, tu: TestUtils):
@@ -128,19 +121,17 @@ def Threshold2dFloatModule_basic(module, tu: TestUtils):
 
 
 class Threshold3dFloatModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
+
     def forward(self, input):
         return torch.ops.aten.threshold(input, 1.4, 2.0)
-
 
 @register_test_case(module_factory=lambda: Threshold3dFloatModule())
 def Threshold3dFloatModule_basic(module, tu: TestUtils):
@@ -148,7 +139,6 @@ def Threshold3dFloatModule_basic(module, tu: TestUtils):
 
 
 class ThresholdBackward1dIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -158,9 +148,9 @@ class ThresholdBackward1dIntModule(torch.nn.Module):
         ([-9223372036854775808], torch.int64, True),
         ([-9223372036854775808], torch.int64, True),
     ])
+
     def forward(self, grad, input):
         return torch.ops.aten.threshold_backward(grad, input, 1)
-
 
 @register_test_case(module_factory=lambda: ThresholdBackward1dIntModule())
 def ThresholdBackward1dIntModule_basic(module, tu: TestUtils):
@@ -168,7 +158,6 @@ def ThresholdBackward1dIntModule_basic(module, tu: TestUtils):
 
 
 class ThresholdBackward2dIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -178,9 +167,9 @@ class ThresholdBackward2dIntModule(torch.nn.Module):
         ([-9223372036854775808, -9223372036854775808], torch.int64, True),
         ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
+
     def forward(self, grad, input):
         return torch.ops.aten.threshold_backward(grad, input, 0.5)
-
 
 @register_test_case(module_factory=lambda: ThresholdBackward2dIntModule())
 def ThresholdBackward2dIntModule_basic(module, tu: TestUtils):
@@ -188,21 +177,18 @@ def ThresholdBackward2dIntModule_basic(module, tu: TestUtils):
 
 
 class ThresholdBackward3dIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
+
     def forward(self, grad, input):
         return torch.ops.aten.threshold_backward(grad, input, 1)
-
 
 @register_test_case(module_factory=lambda: ThresholdBackward3dIntModule())
 def ThresholdBackward3dIntModule_basic(module, tu: TestUtils):
@@ -210,7 +196,6 @@ def ThresholdBackward3dIntModule_basic(module, tu: TestUtils):
 
 
 class ThresholdBackward1dFloatModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -220,9 +205,9 @@ class ThresholdBackward1dFloatModule(torch.nn.Module):
         ([-9223372036854775808], torch.float32, True),
         ([-9223372036854775808], torch.float32, True),
     ])
+
     def forward(self, grad, input):
         return torch.ops.aten.threshold_backward(grad, input, 1)
-
 
 @register_test_case(module_factory=lambda: ThresholdBackward1dFloatModule())
 def ThresholdBackward1dFloatModule_basic(module, tu: TestUtils):
@@ -230,7 +215,6 @@ def ThresholdBackward1dFloatModule_basic(module, tu: TestUtils):
 
 
 class ThresholdBackward2dFloatModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -240,9 +224,9 @@ class ThresholdBackward2dFloatModule(torch.nn.Module):
         ([-9223372036854775808, -9223372036854775808], torch.float32, True),
         ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
+
     def forward(self, grad, input):
         return torch.ops.aten.threshold_backward(grad, input, 0.5)
-
 
 @register_test_case(module_factory=lambda: ThresholdBackward2dFloatModule())
 def ThresholdBackward2dFloatModule_basic(module, tu: TestUtils):
@@ -250,21 +234,18 @@ def ThresholdBackward2dFloatModule_basic(module, tu: TestUtils):
 
 
 class ThresholdBackward3dFloatModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
+
     def forward(self, grad, input):
         return torch.ops.aten.threshold_backward(grad, input, 1.4)
-
 
 @register_test_case(module_factory=lambda: ThresholdBackward3dFloatModule())
 def ThresholdBackward3dFloatModule_basic(module, tu: TestUtils):
@@ -272,7 +253,6 @@ def ThresholdBackward3dFloatModule_basic(module, tu: TestUtils):
 
 
 class ThresholdBackward1dMixedModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -282,9 +262,9 @@ class ThresholdBackward1dMixedModule(torch.nn.Module):
         ([-9223372036854775808], torch.float32, True),
         ([-9223372036854775808], torch.int64, True),
     ])
+
     def forward(self, grad, input):
         return torch.ops.aten.threshold_backward(grad, input, 1)
-
 
 @register_test_case(module_factory=lambda: ThresholdBackward1dMixedModule())
 def ThresholdBackward1dMixedModule_basic(module, tu: TestUtils):
@@ -292,7 +272,6 @@ def ThresholdBackward1dMixedModule_basic(module, tu: TestUtils):
 
 
 class ThresholdBackward2dMixedModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -302,9 +281,9 @@ class ThresholdBackward2dMixedModule(torch.nn.Module):
         ([-9223372036854775808, -9223372036854775808], torch.int64, True),
         ([-9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
+
     def forward(self, grad, input):
         return torch.ops.aten.threshold_backward(grad, input, 0.5)
-
 
 @register_test_case(module_factory=lambda: ThresholdBackward2dMixedModule())
 def ThresholdBackward2dMixedModule_basic(module, tu: TestUtils):
@@ -312,21 +291,18 @@ def ThresholdBackward2dMixedModule_basic(module, tu: TestUtils):
 
 
 class ThresholdBackward3dMixedModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
+
     def forward(self, grad, input):
         return torch.ops.aten.threshold_backward(grad, input, 1.4)
-
 
 @register_test_case(module_factory=lambda: ThresholdBackward3dMixedModule())
 def ThresholdBackward3dMixedModule_basic(module, tu: TestUtils):

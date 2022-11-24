@@ -29,8 +29,7 @@ class NeIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NeIntModule())
 def NeIntModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(low=-100, high=100),
-                   tu.randint(low=-100, high=100))
+    module.forward(tu.randint(low=-100, high=100), tu.randint(low=-100, high=100))
 
 
 # ==============================================================================
@@ -53,8 +52,7 @@ class EqIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: EqIntModule())
 def EqIntModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(low=-100, high=100),
-                   tu.randint(low=-100, high=100))
+    module.forward(tu.randint(low=-100, high=100), tu.randint(low=-100, high=100))
 
 
 # ==============================================================================
@@ -77,8 +75,7 @@ class GtIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: GtIntModule())
 def GtIntModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(low=-100, high=100),
-                   tu.randint(low=-100, high=100))
+    module.forward(tu.randint(low=-100, high=100), tu.randint(low=-100, high=100))
 
 
 # ==============================================================================
@@ -101,8 +98,7 @@ class GeIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: GeIntModule())
 def GeIntModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(low=-100, high=100),
-                   tu.randint(low=-100, high=100))
+    module.forward(tu.randint(low=-100, high=100), tu.randint(low=-100, high=100))
 
 
 # ==============================================================================

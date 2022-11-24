@@ -49,10 +49,8 @@ class BmmModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, lhs, rhs):
         return torch.bmm(lhs, rhs)
@@ -111,16 +109,14 @@ def IsFloatingPointFloat_True(module, tu: TestUtils):
 
 
 class ContainsIntList(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
-
     @export
-    @annotate_args([None])
+    @annotate_args([
+        None
+    ])
     def forward(self):
-        return torch.ops.aten.__contains__([1, 2, 3], 3)
-
-
+        return torch.ops.aten.__contains__([1,2,3], 3)
 @register_test_case(module_factory=lambda: ContainsIntList())
 def ContainsIntList_True(module, tu: TestUtils):
     module.forward()
@@ -130,16 +126,14 @@ def ContainsIntList_True(module, tu: TestUtils):
 
 
 class ContainsIntListFalse(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
-
     @export
-    @annotate_args([None])
+    @annotate_args([
+        None
+    ])
     def forward(self):
-        return torch.ops.aten.__contains__([1, 2, 3], 4)
-
-
+        return torch.ops.aten.__contains__([1,2,3], 4)
 @register_test_case(module_factory=lambda: ContainsIntListFalse())
 def ContainsIntList_False(module, tu: TestUtils):
     module.forward()
@@ -326,10 +320,7 @@ class FlattenDynamicModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            9, 3, -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, 9, 3, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return self.flat(x)
@@ -374,10 +365,7 @@ class PadModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         pad = [0, 1, 2, 3]
@@ -401,10 +389,7 @@ class PadWithNoneValModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         pad = [0, 1, 2, 3]
@@ -428,10 +413,7 @@ class ConstantPadNdModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808, -9223372036854775808, -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.constant_pad_nd(x, (0, 1), -float('inf'))
@@ -475,8 +457,7 @@ class ConstantPadNdPartialStaticModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([1, 1, 20, 20, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([1, 1, 20, 20, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.constant_pad_nd(x, (0, 1, 2, 3), -float('inf'))
@@ -599,12 +580,9 @@ class TensorsConcatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x, y, z):
         return torch.cat([x, y, z], 1)
@@ -626,12 +604,9 @@ class TensorsConcatNegativeDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x, y, z):
         return torch.cat([x, y, z], dim=-2)
@@ -653,10 +628,8 @@ class GatherModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, tensor, indices):
         return torch.gather(tensor, 2, indices)
@@ -671,21 +644,17 @@ def GatherModule_basic(module, tu: TestUtils):
 
 
 class GatherRandomIndexModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
-
+    
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, tensor, indices):
         return torch.gather(tensor, 1, indices)
-
 
 @register_test_case(module_factory=lambda: GatherRandomIndexModule())
 def GatherRandomIndexModule_basic(module, tu: TestUtils):
@@ -696,10 +665,9 @@ def GatherRandomIndexModule_basic(module, tu: TestUtils):
 
 
 class Gather2DInputModdule(torch.nn.Module):
-
     def __init__(self) -> None:
         super().__init__()
-
+    
     @export
     @annotate_args([
         None,
@@ -708,7 +676,6 @@ class Gather2DInputModdule(torch.nn.Module):
     ])
     def forward(self, tensor, indices):
         return torch.gather(tensor, 1, indices)
-
 
 @register_test_case(module_factory=lambda: Gather2DInputModdule())
 def Gather2DInputModdule_basic(module, tu: TestUtils):
@@ -842,7 +809,6 @@ def EmbeddingModuleI32_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-
 class EmbeddingModuleI32Static(torch.nn.Module):
 
     def __init__(self):
@@ -904,8 +870,7 @@ class SoftmaxIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, tensor):
         return self.softmax.forward(tensor)
@@ -927,8 +892,7 @@ class _SoftmaxModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, tensor):
         return torch.ops.aten._softmax(tensor, 0, False)
@@ -952,8 +916,7 @@ class SoftmaxIntNegDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, tensor):
         return self.softmax.forward(tensor)
@@ -977,8 +940,7 @@ class SoftmaxIntArgTypeF64Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, tensor):
         return self.softmax.forward(tensor)
@@ -1000,8 +962,7 @@ class _LogSoftmaxModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, tensor):
         return torch.ops.aten._log_softmax(tensor, dim=0, half_to_float=False)
@@ -1168,11 +1129,9 @@ class BroadcastZeroRankInputStaticModule(torch.nn.Module):
         return torch.ops.aten.sub(x, y)
 
 
-@register_test_case(
-    module_factory=lambda: BroadcastZeroRankInputStaticModule())
+@register_test_case(module_factory=lambda: BroadcastZeroRankInputStaticModule())
 def BroadcastZeroRankInputStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 8), tu.rand())
-
 
 # ==============================================================================
 
@@ -1195,7 +1154,6 @@ class RollModule(torch.nn.Module):
 def RollModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 2))
 
-
 # ==============================================================================
 
 
@@ -1216,7 +1174,6 @@ class RepeatModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: RepeatModule())
 def RepeatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 2))
-
 
 # ==============================================================================
 
@@ -1274,8 +1231,7 @@ class LogSoftmaxIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, tensor):
         return self.log_softmax.forward(tensor)
@@ -1523,8 +1479,7 @@ class NumelModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input):
         return torch.ops.aten.numel(input)
@@ -1817,12 +1772,11 @@ class IndexTensorModule3dInput(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, x, index):
-        return torch.ops.aten.index(x, (index, ))
+        return torch.ops.aten.index(x, (index,))
 
 
 @register_test_case(module_factory=lambda: IndexTensorModule3dInput())
@@ -1841,8 +1795,7 @@ class IndexTensorSelectDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, a, ind):
@@ -1852,7 +1805,6 @@ class IndexTensorSelectDimModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: IndexTensorSelectDimModule())
 def IndexTensorSelectDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 6), tu.randint(2, 3, high=3))
-
 
 # ==============================================================================
 
@@ -1865,22 +1817,17 @@ class IndexTensorMultiInput(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([3, 3], torch.int64, True),
         ([3], torch.int64, True),
     ])
     def forward(self, x, index1, index2):
-        return torch.ops.aten.index(x, (
-            index1,
-            index2,
-        ))
+        return torch.ops.aten.index(x, (index1, index2,))
 
 
 @register_test_case(module_factory=lambda: IndexTensorMultiInput())
 def IndexTensorMultiInput_basic(module, tu: TestUtils):
-    module.forward(tu.rand(5, 4, 3), tu.randint(3, 3, high=3),
-                   tu.randint(3, high=3))
+    module.forward(tu.rand(5, 4, 3), tu.randint(3, 3, high=3), tu.randint(3, high=3))
 
 
 # ==============================================================================
@@ -1894,22 +1841,17 @@ class IndexTensorMultiInputOneDim(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([6, 1], torch.int64, True),
         ([3], torch.int64, True),
     ])
     def forward(self, x, index1, index2):
-        return torch.ops.aten.index(x, (
-            index1,
-            index2,
-        ))
+        return torch.ops.aten.index(x, (index1, index2,))
 
 
 @register_test_case(module_factory=lambda: IndexTensorMultiInputOneDim())
 def IndexTensorMultiInputOneDim_basic(module, tu: TestUtils):
-    module.forward(tu.rand(5, 4, 3), tu.randint(6, 1, high=4),
-                   tu.randint(3, high=3))
+    module.forward(tu.rand(5, 4, 3), tu.randint(6, 1, high=4), tu.randint(3, high=3))
 
 
 # ==============================================================================
@@ -1923,8 +1865,7 @@ class IndexTensorMultiInputContiguousOneDimDynamic(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([-9223372036854775808, 1], torch.int64, True),
         ([-9223372036854775808], torch.int64, True),
     ])
@@ -1954,8 +1895,7 @@ class IndexTensorMultiInputNonContiguousOneDimDynamic(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([-9223372036854775808, 1], torch.int64, True),
         ([-9223372036854775808], torch.int64, True),
     ])
@@ -1986,8 +1926,7 @@ class IndexTensorMultiInputNonContiguousDynamic(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([-9223372036854775808, 2], torch.int64, True),
         ([-9223372036854775808], torch.int64, True),
     ])
@@ -2017,10 +1956,7 @@ class IndexTensorMultiInputNonContiguousMultipleStaticDims(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([4, 1], torch.int64, True),
         ([1, 3], torch.int64, True),
         ([-9223372036854775808, 3], torch.int64, True),
@@ -2048,10 +1984,7 @@ class IndexTensorMultiInputNonContiguous(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([4, 2], torch.int64, True),
         ([4, 2], torch.int64, True),
     ])
@@ -2059,11 +1992,9 @@ class IndexTensorMultiInputNonContiguous(torch.nn.Module):
         return torch.ops.aten.index(x, (index1, None, index2))
 
 
-@register_test_case(
-    module_factory=lambda: IndexTensorMultiInputNonContiguous())
+@register_test_case(module_factory=lambda: IndexTensorMultiInputNonContiguous())
 def IndexTensorMultiInputNonContiguous_basic(module, tu: TestUtils):
-    module.forward(tu.rand(5, 4, 3, 2), tu.randint(4, 2, high=3),
-                   tu.randint(4, 2, high=1))
+    module.forward(tu.rand(5, 4, 3, 2), tu.randint(4, 2, high=3), tu.randint(4, 2, high=1))
 
 
 # ==============================================================================
@@ -2077,24 +2008,21 @@ class IndexTensorMultiInputThreeIndexers(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808, -9223372036854775808, -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([8, 4, 2], torch.int64, True),
         ([8, 1, 1], torch.int64, True),
         ([4, 2], torch.int64, True),
     ])
     def forward(self, x, index1, index2, index3):
-        return torch.ops.aten.index(x,
-                                    (None, None, index1, None, index2, index3))
+        return torch.ops.aten.index(x, (None, None, index1, None, index2, index3))
 
 
-@register_test_case(
-    module_factory=lambda: IndexTensorMultiInputThreeIndexers())
+@register_test_case(module_factory=lambda: IndexTensorMultiInputThreeIndexers())
 def IndexTensorMultiInputThreeIndexers_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 2, 4, 4, 5, 3), tu.randint(8, 4, 2, high=3),
-                   tu.randint(8, 1, 1, high=4), tu.randint(4, 2, high=2))
+    module.forward(tu.rand(1, 2, 4, 4, 5, 3),
+                   tu.randint(8, 4, 2, high=3),
+                   tu.randint(8, 1, 1, high=4),
+                   tu.randint(4, 2, high=2))
 
 
 # ==============================================================================
@@ -2108,10 +2036,7 @@ class IndexTensorMultiInputContiguousCenter(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([2, 2], torch.int64, True),
         ([2], torch.int64, True),
     ])
@@ -2119,11 +2044,9 @@ class IndexTensorMultiInputContiguousCenter(torch.nn.Module):
         return torch.ops.aten.index(x, (None, index1, index2, None))
 
 
-@register_test_case(
-    module_factory=lambda: IndexTensorMultiInputContiguousCenter())
+@register_test_case(module_factory=lambda: IndexTensorMultiInputContiguousCenter())
 def IndexTensorMultiInputContiguousCenter_basic(module, tu: TestUtils):
-    module.forward(tu.rand(5, 4, 3, 2), tu.randint(2, 2, high=3),
-                   tu.randint(2, high=2))
+    module.forward(tu.rand(5, 4, 3, 2), tu.randint(2, 2, high=3), tu.randint(2, high=2))
 
 
 # ==============================================================================
@@ -2160,8 +2083,7 @@ class IndexTensorHackedTwinModule3dInput(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([-9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, x, index):
@@ -2186,10 +2108,7 @@ class IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims(
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([4, 1], torch.int64, True),
         ([1, 3], torch.int64, True),
         ([-9223372036854775808, 3], torch.int64, True),
@@ -2218,8 +2137,7 @@ class SquareModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.square(x)
@@ -2418,8 +2336,7 @@ class ExpandAsFloatModule(torch.nn.Module):
     @annotate_args([
         None,
         ([-9223372036854775808, 1, 1], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.expand_as(x, y)
@@ -2439,8 +2356,7 @@ class ExpandAsIntModule(torch.nn.Module):
     @annotate_args([
         None,
         ([1, 1, 1], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.expand_as(x, y)
@@ -2448,8 +2364,8 @@ class ExpandAsIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ExpandAsIntModule())
 def ExpandAsIntModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(1, 1, 1, high=100), tu.randint(4, 5, 6,
-                                                             high=200))
+    module.forward(tu.randint(1, 1, 1, high=100),
+                   tu.randint(4, 5, 6, high=200))
 
 
 # ==============================================================================
@@ -2463,10 +2379,8 @@ class CopyModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.copy_(x, y)
@@ -2505,10 +2419,8 @@ class CopyWithDifferentDTypesModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.copy_(x, y)
@@ -2551,8 +2463,7 @@ class ToCopyModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten._to_copy(x)
@@ -2571,8 +2482,7 @@ class ToCopyWithDTypeModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten._to_copy(x, dtype=torch.int64)
@@ -2591,8 +2501,7 @@ class ToCopyWithDTypeFalsePinMemoryModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten._to_copy(x, dtype=torch.int64, pin_memory=False)
@@ -2634,8 +2543,7 @@ class FlipModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.flip(x, [1, 2])
@@ -2657,8 +2565,7 @@ class DetachModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.detach(x)
@@ -2743,12 +2650,9 @@ class BaddbmmDynamicModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, batch1, batch2):
         return torch.ops.aten.baddbmm(input, batch1, batch2)
@@ -2788,12 +2692,9 @@ class BaddbmmDifferentDtypesModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, batch1, batch2):
         return torch.ops.aten.baddbmm(input, batch1, batch2)
@@ -2813,12 +2714,9 @@ class BaddbmmWithAlphaModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, batch1, batch2):
         return torch.ops.aten.baddbmm(input, batch1, batch2, alpha=5)
@@ -2837,12 +2735,9 @@ class BaddbmmWithBetaModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, batch1, batch2):
         return torch.ops.aten.baddbmm(input, batch1, batch2, beta=0.5)
@@ -2861,12 +2756,9 @@ class BaddbmmWithAlphaBetaModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, batch1, batch2):
         return torch.ops.aten.baddbmm(input, batch1, batch2, beta=6, alpha=2.4)
@@ -2895,7 +2787,7 @@ class BaddbmmBroadcast1DInputModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: BaddbmmBroadcast1DInputModule())
 def BaddbmmBroadcast1DInputModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, ), tu.rand(5, 2, 9), tu.rand(5, 9, 7))
+    module.forward(tu.rand(1,), tu.rand(5, 2, 9), tu.rand(5, 9, 7))
 
 
 class BaddbmmBroadcast2DInputModule(torch.nn.Module):
@@ -2949,10 +2841,7 @@ class NumpyTRankNDynamicModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808, -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, lhs):
         return torch.ops.aten.numpy_T(lhs)
@@ -3019,7 +2908,6 @@ class NumpyTRank0Module(torch.nn.Module):
 def NumpyTRank0Module_basic(module, tu: TestUtils):
     module.forward(torch.tensor(7, dtype=torch.float32))
 
-
 class AtenEmbeddingBagSumExample(torch.nn.Module):
 
     def __init__(self):
@@ -3033,25 +2921,14 @@ class AtenEmbeddingBagSumExample(torch.nn.Module):
         ([-9223372036854775808], torch.int64, True),
     ])
     def forward(self, weight, indices, offsets):
-        return torch.ops.aten.embedding_bag(weight,
-                                            indices,
-                                            offsets,
-                                            scale_grad_by_freq=False,
-                                            mode=0,
-                                            sparse=False,
-                                            per_sample_weights=None,
-                                            include_last_offset=False,
-                                            padding_idx=None)
-
+        return torch.ops.aten.embedding_bag(weight, indices, offsets, scale_grad_by_freq=False, mode=0, sparse=False, per_sample_weights=None, include_last_offset=False, padding_idx=None)
 
 @register_test_case(module_factory=lambda: AtenEmbeddingBagSumExample())
 def AtenEmbeddingBagSumExample_basic(module, tu: TestUtils):
-    weight = torch.rand(100, 10)
-    indices = torch.LongTensor(
-        [0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
+    weight  = torch.rand(100, 10)
+    indices = torch.LongTensor([0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
     offsets = torch.LongTensor([0, 3, 5, 7, 9, 10, 15])
     module.forward(weight, indices, offsets)
-
 
 class Aten_EmbeddingBagExample(torch.nn.Module):
 
@@ -3068,18 +2945,14 @@ class Aten_EmbeddingBagExample(torch.nn.Module):
     def forward(self, weight, indices, offsets):
         return torch.ops.aten._embedding_bag(weight, indices, offsets)
 
-
 @register_test_case(module_factory=lambda: Aten_EmbeddingBagExample())
 def Aten_EmbeddingBagExample_basic(module, tu: TestUtils):
-    weight = torch.rand(100, 10)
-    indices = torch.LongTensor(
-        [0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
+    weight  = torch.rand(100, 10)
+    indices = torch.LongTensor([0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
     offsets = torch.LongTensor([0, 3, 5, 7, 9, 10, 15])
     module.forward(weight, indices, offsets)
 
-
 # ==============================================================================
-
 
 class CumsumModule(torch.nn.Module):
 
@@ -3089,17 +2962,14 @@ class CumsumModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, val):
         return torch.ops.aten.cumsum(val, 1)
 
-
 @register_test_case(module_factory=lambda: CumsumModule())
 def CumsumModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 7, 4))
-
 
 class CumsumStaticModule(torch.nn.Module):
 
@@ -3114,36 +2984,28 @@ class CumsumStaticModule(torch.nn.Module):
     def forward(self, val):
         return torch.ops.aten.cumsum(val, 1)
 
-
 @register_test_case(module_factory=lambda: CumsumStaticModule())
 def CumsumStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 7, 4))
 
-
 # ==============================================================================
 
-
 class AtenToDeviceModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808 , -9223372036854775808], torch.float32, True),
     ])
-    def forward(self, val):
-        return torch.ops.aten.to(val,
-                                 device='cpu',
-                                 dtype=torch.float,
-                                 non_blocking=False)
 
+    def forward(self, val):
+        return torch.ops.aten.to(val, device='cpu', dtype=torch.float, non_blocking=False)
 
 @register_test_case(module_factory=lambda: AtenToDeviceModule())
 def AtenToDeviceModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(2, 4))
-
 
 # ==============================================================================
 
@@ -3156,18 +3018,14 @@ class UpSampleNearest2dBackward(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808
-        ], torch.float64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float64, True),
     ])
     def forward(self, input):
-        return torch.ops.aten.upsample_nearest2d_backward(
-            input,
-            output_size=[6, 12],
-            input_size=[1, 1, 2, 3],
-            scales_h=3.0,
-            scales_w=4.0)
+        return torch.ops.aten.upsample_nearest2d_backward(input,
+                                               output_size=[6, 12],
+                                               input_size=[1, 1, 2, 3],
+                                               scales_h=3.0,
+                                               scales_w=4.0)
 
 
 @register_test_case(module_factory=lambda: UpSampleNearest2dBackward())
@@ -3183,22 +3041,16 @@ class UpSampleNearest2dBackwardScalesNone(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([
-            -9223372036854775808, -9223372036854775808, -9223372036854775808,
-            -9223372036854775808
-        ], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input):
-        return torch.ops.aten.upsample_nearest2d_backward(
-            input,
-            output_size=[4, 8],
-            input_size=[1, 1, 2, 3],
-            scales_h=None,
-            scales_w=None)
+        return torch.ops.aten.upsample_nearest2d_backward(input,
+                                               output_size=[4, 8],
+                                               input_size=[1, 1, 2, 3],
+                                               scales_h=None,
+                                               scales_w=None)
 
-
-@register_test_case(
-    module_factory=lambda: UpSampleNearest2dBackwardScalesNone())
+@register_test_case(module_factory=lambda: UpSampleNearest2dBackwardScalesNone())
 def UpSampleNearest2dBackwardScalesNone_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 4, 8))
 

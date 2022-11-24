@@ -70,11 +70,9 @@ class IndexPutImpl3DFloatNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([-9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten._index_put_impl_(input, (index, ),
@@ -86,7 +84,8 @@ class IndexPutImpl3DFloatNonAccumulateModule(torch.nn.Module):
 @register_test_case(
     module_factory=lambda: IndexPutImpl3DFloatNonAccumulateModule())
 def IndexPutImpl3DFloatNonAccumulateModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(10, 8, 6), tu.randint(5, high=4), tu.rand(5, 8, 6))
+    module.forward(tu.rand(10, 8, 6), tu.randint(5, high=4),
+                   tu.rand(5, 8, 6))
 
 
 # ==============================================================================
@@ -179,11 +178,9 @@ class IndexPutImpl3DFloatAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([-9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten._index_put_impl_(input.clone(), (index, ),
@@ -195,7 +192,8 @@ class IndexPutImpl3DFloatAccumulateModule(torch.nn.Module):
 @register_test_case(
     module_factory=lambda: IndexPutImpl3DFloatAccumulateModule())
 def IndexPutImpl3DFloatAccumulateModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(10, 8, 6), tu.randint(5, high=4), tu.rand(5, 8, 6))
+    module.forward(tu.rand(10, 8, 6), tu.randint(5, high=4),
+                   tu.rand(5, 8, 6))
 
 
 # ==============================================================================
@@ -285,11 +283,9 @@ class IndexPut3DFloatNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([-9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -300,7 +296,8 @@ class IndexPut3DFloatNonAccumulateModule(torch.nn.Module):
 @register_test_case(
     module_factory=lambda: IndexPut3DFloatNonAccumulateModule())
 def IndexPut3DFloatNonAccumulateModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(10, 8, 6), tu.randint(5, high=4), tu.rand(5, 8, 6))
+    module.forward(tu.rand(10, 8, 6), tu.randint(5, high=4),
+                   tu.rand(5, 8, 6))
 
 
 # ==============================================================================
@@ -362,11 +359,9 @@ class IndexPut3DIntNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
         ([-9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -437,11 +432,9 @@ class IndexPut3DFloatAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([-9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -451,7 +444,8 @@ class IndexPut3DFloatAccumulateModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: IndexPut3DFloatAccumulateModule())
 def IndexPut3DFloatAccumulateModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(10, 8, 6), tu.randint(5, high=4), tu.rand(5, 8, 6))
+    module.forward(tu.rand(10, 8, 6), tu.randint(5, high=4),
+                   tu.rand(5, 8, 6))
 
 
 # ==============================================================================
@@ -513,11 +507,9 @@ class IndexPut3DIntAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
         ([-9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, (index, ),
@@ -591,11 +583,9 @@ class IndexPutHackedTwin3DFloatNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([-9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index],
@@ -606,7 +596,8 @@ class IndexPutHackedTwin3DFloatNonAccumulateModule(torch.nn.Module):
 @register_test_case(
     module_factory=lambda: IndexPutHackedTwin3DFloatNonAccumulateModule())
 def IndexPutHackedTwin3DFloatNonAccumulateModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(10, 8, 6), tu.randint(5, high=4), tu.rand(5, 8, 6))
+    module.forward(tu.rand(10, 8, 6), tu.randint(5, high=4),
+                   tu.rand(5, 8, 6))
 
 
 # ==============================================================================
@@ -670,11 +661,9 @@ class IndexPutHackedTwin3DIntNonAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
         ([-9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index],
@@ -744,11 +733,9 @@ class IndexPutHackedTwin3DFloatAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
         ([-9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.float32, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.float32, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index], value, accumulate=True)
@@ -757,7 +744,8 @@ class IndexPutHackedTwin3DFloatAccumulateModule(torch.nn.Module):
 @register_test_case(
     module_factory=lambda: IndexPutHackedTwin3DFloatAccumulateModule())
 def IndexPutHackedTwin3DFloatAccumulateModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(10, 8, 6), tu.randint(5, high=4), tu.rand(5, 8, 6))
+    module.forward(tu.rand(10, 8, 6), tu.randint(5, high=4),
+                   tu.rand(5, 8, 6))
 
 
 # ==============================================================================
@@ -817,11 +805,9 @@ class IndexPutHackedTwin3DIntAccumulateModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
         ([-9223372036854775808], torch.int64, True),
-        ([-9223372036854775808, -9223372036854775808,
-          -9223372036854775808], torch.int64, True),
+        ([-9223372036854775808, -9223372036854775808, -9223372036854775808], torch.int64, True),
     ])
     def forward(self, input, index, value):
         return torch.ops.aten.index_put(input, [index], value, accumulate=True)
