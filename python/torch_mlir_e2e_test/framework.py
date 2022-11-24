@@ -84,7 +84,7 @@ def clone_torch_script_value(v: TorchScriptValue):
 def clone_trace(trace: Trace) -> Trace:
     return [
         TraceItem(symbol=item.symbol,
-                  inputs=item.inputs,
+                  inputs=clone_torch_script_value(item.inputs),
                   output=clone_torch_script_value(item.output))
         for item in trace
     ]
@@ -312,7 +312,7 @@ def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
                       compilation_error=None,
                       runtime_error=None,
                       trace=clone_trace(trace),
-                      golden_trace=golden_trace)
+                      golden_trace=clone_trace(golden_trace))
 
 
 def run_tests(tests: List[Test], config: TestConfig, sequential=False, verbose=False) -> List[TestResult]:
