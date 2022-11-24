@@ -16,12 +16,14 @@
 
 #include "PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Math/Transforms/Approximation.h"
 #include "mlir/Dialect/Math/Transforms/Passes.h"
+#include "mlir/Dialect/MLProgram/IR/MLProgram.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
@@ -67,7 +69,6 @@ static bool isArgMemRefTypeValid(Type type) {
         return true;
       if (integerTy.isSignlessInteger(1))
         return true;
-
     }
   }
   return false;
@@ -219,74 +220,129 @@ mlir::torch::RefBackend::createMungeCallingConventionsPass() {
 }
 
 //===----------------------------------------------------------------------===//
-// InsertRngGlobals
+// MLProgramBufferize
 //===----------------------------------------------------------------------===//
 
-static constexpr StringRef getSeedGobalVarName() { return "global_seed"; }
+static LogicalResult bufferizeMLProgramGlobalOp(ml_program::GlobalOp globalOp,
+                                                OpBuilder &b) {
+  if (!globalOp.getValue().has_value())
+    return globalOp.emitError("global op must have a value");
 
-// Declare a memref<i64> global variable for the seed.
-static void createGlobalVariableForSeed(OpBuilder &b, ModuleOp module) {
-  b.setInsertionPointToStart(module.getBody());
-  Type elemTy = b.getI64Type();
-  auto memref0D = MemRefType::get({}, elemTy);
-  auto tensor0D = RankedTensorType::get({}, elemTy);
+  RankedTensorType tensorType = globalOp.getType().cast<RankedTensorType>();
+  MemRefType memrefType =
+      MemRefType::get(tensorType.getShape(), tensorType.getElementType());
+
+  b.setInsertionPointToStart(globalOp->getParentOfType<ModuleOp>().getBody());
   b.create<memref::GlobalOp>(
-      UnknownLoc::get(b.getContext()), getSeedGobalVarName(),
-      /*sym_visibility=*/b.getStringAttr("private"),
-      /*type=*/memref0D,
-      /*initial_value=*/DenseIntElementsAttr::get(tensor0D, {APInt(64, 0)}),
-      /*constant=*/false,
+      UnknownLoc::get(b.getContext()), globalOp.getSymName(),
+      /*sym_visibility=*/globalOp.getSymVisibilityAttr(),
+      /*type=*/memrefType,
+      /*initial_value=*/globalOp.getValue().value(),
+      /*constant=*/globalOp.getIsMutable() ? false : true,
       /*alignment=*/nullptr);
+  return success();
 }
 
-// Generate sequence for getting the next seed with LCG step:
-//    nextSeed = (multiplier * currentSeed + incrementStep) mod 64.
-// Refer to https://en.wikipedia.org/wiki/Linear_congruential_generator.
-static Value lowerGetNextSeed(OpBuilder &b, Location loc) {
-  // Get the current seed value.
-  auto memref1DType = MemRefType::get({}, b.getI64Type());
-  Value globalVar =
-      b.create<memref::GetGlobalOp>(loc, memref1DType, getSeedGobalVarName());
-  Value currentSeed = b.create<memref::LoadOp>(loc, globalVar);
+static LogicalResult
+bufferizeMLProgramGlobaLoadOp(ml_program::GlobalLoadOp globalLoadOp,
+                              OpBuilder &b, SmallVector<Operation *> &toErase) {
+  RankedTensorType tensorType = globalLoadOp.getType().cast<RankedTensorType>();
+  MemRefType memrefType =
+      MemRefType::get(tensorType.getShape(), tensorType.getElementType());
 
-  // The value of multiplier and incrementStep are referenced from
-  // https://en.wikipedia.org/wiki/Linear_congruential_generator for 2^64.
-  Value multiplier = b.create<arith::ConstantOp>(
-      loc, b.getI64IntegerAttr(6364136223846793005));
-  Value incrementStep = b.create<arith::ConstantOp>(
-      loc, b.getI64IntegerAttr(1442695040888963407));
-  // temp = multiplier * currentSeed + incrementStep
-  Value mul = b.create<arith::MulIOp>(loc, currentSeed, multiplier);
-  Value nextSeed = b.create<arith::AddIOp>(loc, mul, incrementStep);
-  b.create<memref::StoreOp>(loc, nextSeed, globalVar);
-  return nextSeed;
+  b.setInsertionPoint(globalLoadOp);
+  Value globalVal = b.create<memref::GetGlobalOp>(
+      globalLoadOp.getLoc(), memrefType,
+      globalLoadOp.getGlobalAttr().getLeafReference());
+  globalVal = b.create<bufferization::ToTensorOp>(globalLoadOp->getLoc(),
+                                                  tensorType, globalVal);
+  globalLoadOp->getResult(0).replaceAllUsesWith(globalVal);
+  return success();
 }
 
-// The global seed is stored into a memref<i64> global variable as the only
-// element.
+static LogicalResult
+bufferizeMLProgramGlobaStoreOp(ml_program::GlobalStoreOp globalStoreOp,
+                               OpBuilder &b,
+                               SmallVector<Operation *> &toErase) {
+  RankedTensorType tensorType =
+      globalStoreOp.getValue().getType().cast<RankedTensorType>();
+  MemRefType memrefType =
+      MemRefType::get(tensorType.getShape(), tensorType.getElementType());
+
+  b.setInsertionPoint(globalStoreOp);
+  Value memref = b.create<memref::GetGlobalOp>(
+      globalStoreOp.getLoc(), memrefType,
+      globalStoreOp.getGlobalAttr().getLeafReference());
+  Value copyValue = b.create<bufferization::ToMemrefOp>(
+      globalStoreOp->getLoc(), memrefType, globalStoreOp.getValue());
+  b.create<memref::CopyOp>(globalStoreOp->getLoc(), copyValue, memref);
+  return success();
+}
+
 namespace {
-class InsertRngGlobals : public InsertRngGlobalsBase<InsertRngGlobals> {
+/// Converts MLProgram operations that work on tensor-type operands or results
+/// to work on buffers.
+class MLProgramBufferize : public MLProgramBufferizeBase<MLProgramBufferize> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry
+        .insert<bufferization::BufferizationDialect, memref::MemRefDialect>();
+  }
+
   void runOnOperation() override {
     auto module = getOperation();
     OpBuilder b(module.getBodyRegion());
-    createGlobalVariableForSeed(b, module);
     SmallVector<Operation *> toErase;
-    module.walk([&](TorchConversion::GetNextSeedOp op) {
-      b.setInsertionPoint(op);
-      Value seed = lowerGetNextSeed(b, op.getLoc());
-      op.replaceAllUsesWith(seed);
+
+    auto walkResult = module.walk([&](ml_program::GlobalOp op) {
+      if (auto type = op.getType().dyn_cast<RankedTensorType>()) {
+        if (!type.hasStaticShape()) {
+          // If the ml_program.global has dynamically shaped tensor.
+          op.emitError(
+              "unimplemented: global op bufferization with dynamic shape");
+          return WalkResult::interrupt();
+        }
+      } else {
+        // If the ml_program.global is of non-tensor type.
+        op.emitError("unsupported global op type");
+        return WalkResult::interrupt();
+      }
+
+      if (failed(bufferizeMLProgramGlobalOp(op, b))) {
+        op.emitError("bufferization for this op failed");
+        return WalkResult::interrupt();
+      }
+      toErase.push_back(op);
+      return WalkResult::advance();
+    });
+
+    if (walkResult.wasInterrupted())
+      return signalPassFailure();
+
+    module.walk([&](ml_program::GlobalLoadOp op) {
+      if (failed(bufferizeMLProgramGlobaLoadOp(op, b, toErase))) {
+        op.emitError("bufferization for this op failed");
+        return;
+      }
       toErase.push_back(op);
     });
 
-    for (auto op : toErase)
+    module.walk([&](ml_program::GlobalStoreOp op) {
+      if (failed(bufferizeMLProgramGlobaStoreOp(op, b, toErase))) {
+        op.emitError("bufferization for this op failed");
+        return;
+      }
+      toErase.push_back(op);
+    });
+
+    for (auto op : llvm::reverse(toErase))
       op->erase();
   }
 };
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::RefBackend::createInsertRngGlobalsPass() {
-  return std::make_unique<InsertRngGlobals>();
+mlir::torch::RefBackend::createMLProgramBufferizePass() {
+  return std::make_unique<MLProgramBufferize>();
 }
 
 //===----------------------------------------------------------------------===//

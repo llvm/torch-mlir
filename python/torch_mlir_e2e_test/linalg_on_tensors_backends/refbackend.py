@@ -123,6 +123,7 @@ LOWERING_PIPELINE = "builtin.module(" + ",".join([
     "func.func(linalg-bufferize)",
     "func-bufferize",
     "arith-bufferize",
+    "refback-mlprogram-bufferize",
     "func.func(tensor-bufferize)",
     "func.func(finalizing-bufferize)",
     # Munge to make it ExecutionEngine compatible.
@@ -134,7 +135,6 @@ LOWERING_PIPELINE = "builtin.module(" + ",".join([
     "refback-munge-calling-conventions",
     # Insert global variable and instruction sequence for getting the next
     # global seed used in stateful rng.
-    "refback-insert-rng-globals",
     # Lower to LLVM
     "func.func(tm-tensor-to-loops)",
     "func.func(refback-munge-memref-copy)",

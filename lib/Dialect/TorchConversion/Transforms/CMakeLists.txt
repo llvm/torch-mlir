@@ -8,6 +8,7 @@ set(LinkedLibs  MLIRIR
                 TorchMLIRTorchToTMTensor
                 TorchMLIRTorchToArith
                 TorchMLIRTorchToSCF
+                TorchMLIRTorchConversionToMLProgram
                 MLIRMemRefTransforms)
                 
 if(TORCH_MLIR_ENABLE_MHLO)
