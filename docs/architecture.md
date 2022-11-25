@@ -401,8 +401,8 @@ test cases.
 
 ### Do's and Don'ts for unit vs end-to-end testing.
 
-DO use an end-to-end test if you are implementing a new op or extending the
-support for an existing op.
+DO use an [end-to-end test](adding_an_e2e_test.md) if you are implementing a
+new op or extending the support for an existing op.
 
 DO use a unit test if your lowering for an op has multiple cases / logic. This
 also helps future maintainers of the lowering to see in one place all the
