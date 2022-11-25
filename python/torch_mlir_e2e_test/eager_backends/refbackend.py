@@ -88,4 +88,4 @@ class EagerModeRefBackend(TorchMLIREagerBackend):
         return torch.from_numpy(e).clone()
 
     def transfer_from_torch_to_device(self, tensor: torch.Tensor) -> np.ndarray:
-        return tensor.numpy()
+        return tensor.detach().numpy()
