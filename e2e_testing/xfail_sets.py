@@ -80,25 +80,14 @@ TORCHDYNAMO_XFAIL_SET = {
     # torchdynamo vs. torchscript.
 
     # error: unsupported by backend contract: tensor with unknown rank
-    "UpSampleNearest2dDynamicFactor_basic",
+    # %3 = torch.operator "aten._adaptive_avg_pool2d"(%1, %2) : (!torch.tensor<*,f32>, !torch.list<int>) -> !torch.tensor
     "AdaptiveAvgPool2dNonUnitOutputSizeDynamicModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
+    # %6:4 = torch.operator "aten._embedding_bag_forward_only"(%1, %3, %5, %false, %int0, %false, %none, %false, %int-1) : (!torch.tensor<*,f32>, !torch.tensor<*,si64>, !torch.tensor<*,si64>, !torch.bool, !torch.int, !torch.bool, !torch.none, !torch.bool, !torch.int) -> (!torch.tensor, !torch.tensor, !torch.tensor, !torch.tensor)
     "AtenEmbeddingBagSumExample_basic",
+    # %42 = torch.operator "aten.std.correction"(%7, %none, %int1, %false) : (!torch.tensor<*,f64>, !torch.none, !torch.int, !torch.bool) -> !torch.tensor
     "BernoulliModule_basic",
     "DropoutTrainModule_basic",
-    "ElementwiseWhereScalarModule_basic",
-    "ElementwiseWhereScalarOtherModule_basic",
-    "ElementwiseWhereScalarSelfModule_basic",
-    "IndexPutImpl1DFloatAccumulateModule_basic",
-    "IndexPutImpl1DFloatNonAccumulateModule_basic",
-    "IndexPutImpl1DIntAccumulateModule_basic",
-    "IndexPutImpl1DIntNonAccumulateModule_basic",
-    "IndexPutImpl2DFloatAccumulateModule_basic",
-    "IndexPutImpl2DFloatNonAccumulateModule_basic",
-    "IndexPutImpl3DFloatAccumulateModule_basic",
-    "IndexPutImpl3DFloatNonAccumulateModule_basic",
-    "Matmul_dot",
-    "Matmul_vecmat",
     "StdBiasedModule_basic",
     "StdDimBiasedModule_basic",
     "StdDimEmptyDimModule_basic",
@@ -108,6 +97,25 @@ TORCHDYNAMO_XFAIL_SET = {
     "StdUnbiasedModule_basic",
     "UniformModule_basic",
     "UniformStaticModule_basic",
+    # %1 = torch.operator "aten.scalar_tensor"(%float8.000000e00, %int6, %int0, %cpu, %none) : (!torch.float, !torch.int, !torch.int, !torch.Device, !torch.none) -> !torch.tensor
+    "ElementwiseWhereScalarModule_basic",
+    "ElementwiseWhereScalarOtherModule_basic",
+    "ElementwiseWhereScalarSelfModule_basic",
+    # %7 = torch.operator "aten._index_put_impl_.hacked_twin"(%1, %6, %5, %true, %false) : (!torch.tensor<*,f32>, !torch.list<tensor>, !torch.tensor<*,f32>, !torch.bool, !torch.bool) -> !torch.tensor
+    "IndexPutImpl1DFloatAccumulateModule_basic",
+    "IndexPutImpl1DFloatNonAccumulateModule_basic",
+    "IndexPutImpl1DIntAccumulateModule_basic",
+    "IndexPutImpl1DIntNonAccumulateModule_basic",
+    "IndexPutImpl2DFloatAccumulateModule_basic",
+    "IndexPutImpl2DFloatNonAccumulateModule_basic",
+    "IndexPutImpl3DFloatAccumulateModule_basic",
+    "IndexPutImpl3DFloatNonAccumulateModule_basic",
+    # %4 = torch.operator "aten.dot"(%1, %3) : (!torch.tensor<*,f32>, !torch.tensor<*,f32>) -> !torch.tensor
+    "Matmul_dot",
+    # %4 = torch.operator "aten.squeeze_.dim"(%3, %int0) : (!torch.tensor<*,f32>, !torch.int) -> !torch.tensor
+    "Matmul_vecmat",
+    # ERROR: shape (torch.Size([2, 3, 4, 9])) is not equal to golden shape (torch.Size([2, 3, 6, 10]))
+    "UpSampleNearest2dDynamicFactor_basic",
     # https://github.com/llvm/torch-mlir/issues/1611
     # error: 'tensor.cast' op operand type 'tensor<0xi64>' and result type 'tensor<18xi64>' are cast incompatible
     "Aten_EmbeddingBagExample_basic",
