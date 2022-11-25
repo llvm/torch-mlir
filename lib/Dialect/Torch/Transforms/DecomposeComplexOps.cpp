@@ -384,9 +384,10 @@ public:
   LogicalResult matchAndRewrite(AtenSoftmaxIntOp op,
                                 PatternRewriter &rewriter) const override {
     Value self = op.getSelf();
-    if (!op.getDtype().getType().isa<Torch::NoneType>())
-      return rewriter.notifyMatchFailure(
-          op, "Unimplemented non-None dtype for softmax");
+    // Do not need check dtype args here, since dtype have been infered in op.getType()
+    // if (!op.getDtype().getType().isa<Torch::NoneType>())
+    //   return rewriter.notifyMatchFailure(
+    //       op, "Unimplemented non-None dtype for softmax");
 
     BaseTensorType tensorType = self.getType().cast<BaseTensorType>();
     if (!tensorType.hasDtype() || !tensorType.getDtype().isa<mlir::FloatType>())
