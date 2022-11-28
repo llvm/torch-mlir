@@ -4244,6 +4244,97 @@ def Torch_AtenNativeLayerNormOp : Torch_Op<"aten.native_layer_norm", [
   }];
 }
 
+def Torch_AtenInstanceNormOp : Torch_Op<"aten.instance_norm", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::instance_norm : (Tensor, Tensor?, Tensor?, Tensor?, Tensor?, bool, float, float, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchOptionalTensorType:$weight,
+    AnyTorchOptionalTensorType:$bias,
+    AnyTorchOptionalTensorType:$running_mean,
+    AnyTorchOptionalTensorType:$running_var,
+    Torch_BoolType:$use_input_stats,
+    Torch_FloatType:$momentum,
+    Torch_FloatType:$eps,
+    Torch_BoolType:$cudnn_enabled
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenInstanceNormOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 9, 1);
+    }
+    void AtenInstanceNormOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 9, 1);
+    }
+  }];
+}
+
+def Torch_AtenGroupNormOp : Torch_Op<"aten.group_norm", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::group_norm : (Tensor, int, Tensor?, Tensor?, float, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    Torch_IntType:$num_groups,
+    AnyTorchOptionalTensorType:$weight,
+    AnyTorchOptionalTensorType:$bias,
+    Torch_FloatType:$eps,
+    Torch_BoolType:$cudnn_enabled
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenGroupNormOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 6, 1);
+    }
+    void AtenGroupNormOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 6, 1);
+    }
+  }];
+}
+
+def Torch_AtenNativeGroupNormOp : Torch_Op<"aten.native_group_norm", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::native_group_norm : (Tensor, Tensor?, Tensor?, int, int, int, int, float) -> (Tensor, Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchOptionalTensorType:$weight,
+    AnyTorchOptionalTensorType:$bias,
+    Torch_IntType:$N,
+    Torch_IntType:$C,
+    Torch_IntType:$HxW,
+    Torch_IntType:$group,
+    Torch_FloatType:$eps
+  );
+  let results = (outs
+    AnyTorchTensorType:$result0,
+    AnyTorchTensorType:$result1,
+    AnyTorchTensorType:$result2
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenNativeGroupNormOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 8, 3);
+    }
+    void AtenNativeGroupNormOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 8, 3);
+    }
+  }];
+}
+
 def Torch_AtenMaxPool2dOp : Torch_Op<"aten.max_pool2d", [
     AllowsTypeRefinement,
     HasValueSemantics,

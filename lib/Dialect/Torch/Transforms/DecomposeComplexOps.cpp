@@ -1800,6 +1800,119 @@ class DecomposeAtenLayerNormOp : public OpRewritePattern<AtenLayerNormOp> {
     return success();
   }
 };
+
+class DecomposeAtenGroupNormOp : public OpRewritePattern<AtenGroupNormOp> {
+  using OpRewritePattern<AtenGroupNormOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenGroupNormOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto context = op.getContext();
+    Value input = op.input();
+    auto inputTy = input.getType().cast<BaseTensorType>();
+    if (!inputTy.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "input tensor should have known sizes.");
+    ArrayRef<int64_t> inputSize = inputTy.getSizes();
+    int64_t inputRank = inputTy.getSizes().size();
+    if (inputRank != 4) {
+      return rewriter.notifyMatchFailure(
+          op, "group norm only support 4D input now.");
+    }
+    Value num_groups = op.num_groups();
+    int64_t num_groups_int;
+    if (!matchPattern(num_groups, m_TorchConstantInt(&num_groups_int)))
+      return rewriter.notifyMatchFailure(
+          op, "non const num_groups for AtenGroupNormOp");
+
+    // reshape input -> [N, G, -1(G//C), H, W]
+    Value negOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+    Value one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+    SmallVector<int64_t, 5> inputForNormTySize(inputRank + 1,
+                                               ShapedType::kDynamicSize);
+    inputForNormTySize[1] = num_groups_int;
+    Type inputForNormTy = inputTy.getWithSizesAndDtype(
+        llvm::makeArrayRef(inputForNormTySize), inputTy.getDtype());
+    SmallVector<Value> orginInputSize;
+    for (int i = 0; i < inputRank; ++i) {
+      Value index =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i));
+      orginInputSize.push_back(
+          rewriter.create<AtenSizeIntOp>(loc, input, index));
+    }
+    SmallVector<Value, 5> inputForNormSize{orginInputSize.begin(),
+                                           orginInputSize.end()};
+    inputForNormSize.insert(inputForNormSize.begin() + 1, num_groups);
+    inputForNormSize[2] = negOne;
+    Value inputForNormSizeList = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)), inputForNormSize);
+    Value reshapedInput = rewriter.create<AtenViewOp>(
+        loc, inputForNormTy, input, inputForNormSizeList);
+    // only keep N, G, reduce G//C, H, W
+    int64_t axis = 2;
+    std::vector<int64_t> meanVarTySizes(inputForNormTySize.size(), 1);
+    for (int i = 0; i < axis; i++)
+      meanVarTySizes[i] = inputForNormTySize[i];
+    auto meanVarTy = inputTy.getWithSizesAndDtype(
+        llvm::makeArrayRef(meanVarTySizes), inputTy.getDtype());
+    SmallVector<Value> normalizedShapeSize{inputForNormSize.begin() + axis,
+                                           inputForNormSize.end()};
+    auto normalizedSizeList = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)), normalizedShapeSize);
+
+    auto nativeLayerNorm =
+        rewriter
+            .create<AtenNativeLayerNormOp>(
+                loc, inputForNormTy, meanVarTy, meanVarTy, reshapedInput,
+                normalizedSizeList, none, none, op.eps())
+            .getResult(0);
+    // rehshape back to origin shape
+    Value inputSizeList = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)), orginInputSize);
+    Value originOutput = rewriter.create<AtenViewOp>(
+        loc, op.getType(), nativeLayerNorm, inputSizeList);
+    // reshape weight and bias to [1, C, 1, 1]
+    Value weight = op.weight();
+    Value bias = op.bias();
+    if (!weight.getType().isa<Torch::NoneType>() ||
+        !bias.getType().isa<Torch::NoneType>()) {
+      SmallVector<Value> weightsAndBiasSize(inputRank - 1, one);
+      weightsAndBiasSize[0] = orginInputSize[1];
+
+      SmallVector<int64_t> weightsAndBiasTySize(inputRank - 1,
+                                                ShapedType::kDynamicSize);
+      // weightsAndBiasTySize[1] = ShapedType::kDynamicSize;
+
+      Value weightsAndBiasSizeList = rewriter.create<PrimListConstructOp>(
+          loc, ListType::get(IntType::get(context)), weightsAndBiasSize);
+      if (!weight.getType().isa<Torch::NoneType>()) {
+        BaseTensorType weightType = weight.getType().cast<BaseTensorType>();
+        Type weightTy = weightType.getWithSizesAndDtype(
+            llvm::makeArrayRef(weightsAndBiasTySize), weightType.getDtype());
+        weight = rewriter.create<AtenViewOp>(loc, weightTy, weight,
+                                             weightsAndBiasSizeList);
+        originOutput = rewriter.create<AtenMulTensorOp>(loc, op.getType(),
+                                                        originOutput, weight);
+      }
+      if (!bias.getType().isa<Torch::NoneType>()) {
+        BaseTensorType biasType = bias.getType().cast<BaseTensorType>();
+        Type biasTy = biasType.getWithSizesAndDtype(
+            llvm::makeArrayRef(weightsAndBiasTySize), biasType.getDtype());
+        bias = rewriter.create<AtenViewOp>(loc, biasTy, bias,
+                                           weightsAndBiasSizeList);
+        Value alpha =
+            rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1));
+        originOutput = rewriter.create<AtenAddTensorOp>(
+            loc, op.getType(), originOutput, bias, alpha);
+      }
+    }
+    rewriter.replaceOp(op, {originOutput});
+    return success();
+  }
+};
+
 } // namespace
 
 namespace {
@@ -2504,12 +2617,6 @@ public:
       else if (pinMemory)
         return rewriter.notifyMatchFailure(
             op, "unimplemented: pin_memory is expected to be false");
-    }
-
-    // TODO: Add support for non-None device arg.
-    if (!op.device().getType().isa<Torch::NoneType>()) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: device arg must be None");
     }
 
     // TODO: Add support for non-strided layout.
@@ -3378,6 +3485,8 @@ public:
     patterns.add<DecomposeAtenLayerNormOp>(context);
     target.addIllegalOp<AtenNativeLayerNormOp>();
     patterns.add<DecomposeAtenNativeLayerNormOp>(context);
+    target.addIllegalOp<AtenGroupNormOp>();
+    patterns.add<DecomposeAtenGroupNormOp>(context);
     target.addIllegalOp<AtenNativeLayerNormBackwardOp>();
     patterns.add<DecomposeAtenNativeLayerNormBackwardOp>(context);
 
