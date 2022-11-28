@@ -114,8 +114,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "Matmul_dot",
     # %4 = torch.operator "aten.squeeze_.dim"(%3, %int0) : (!torch.tensor<*,f32>, !torch.int) -> !torch.tensor
     "Matmul_vecmat",
-    # ERROR: shape (torch.Size([2, 3, 4, 9])) is not equal to golden shape (torch.Size([2, 3, 6, 10]))
-    "UpSampleNearest2dDynamicFactor_basic",
     # https://github.com/llvm/torch-mlir/issues/1611
     # error: 'tensor.cast' op operand type 'tensor<0xi64>' and result type 'tensor<18xi64>' are cast incompatible
     "Aten_EmbeddingBagExample_basic",
