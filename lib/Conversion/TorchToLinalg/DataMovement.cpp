@@ -29,6 +29,8 @@
 
 #include <numeric>
 
+#include <iostream>
+
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
@@ -1089,6 +1091,110 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenAsStridedOp : public OpConversionPattern<AtenAsStridedOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenAsStridedOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+                    op.dump();
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Location loc = op.getLoc();
+    Value self = op.self();
+    int64_t rank = getTensorRank(self);
+
+    std::cout << "Rank: " << rank << std::endl;
+    TypeConverter *typeConverter = getTypeConverter();
+    MLIRContext *context = op.getContext();
+
+    auto input = adaptor.self();
+    RankedTensorType resultType =
+        typeConverter->convertType(op->getResult(0).getType())
+            .cast<RankedTensorType>();
+
+    
+
+    Value so_value = op.storage_offset();
+    Value zero = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(0));
+    
+    Value one = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value matrixSize = rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(25));
+
+    SmallVector<ReassociationIndices> flattenShapeIndices;
+    flattenShapeIndices.emplace_back();
+    int j = 0;
+    for (auto i : llvm::seq<int64_t>(0, resultType.getRank())) {
+      flattenShapeIndices[0].push_back(i);
+    }
+
+    SmallVector<Value> flattenShapeValue;
+    flattenShapeValue.push_back(matrixSize);
+
+    SmallVector<int64_t> flattenShape;
+    flattenShape.push_back(kUnknownSize);
+
+    auto reducedResultType =
+        RankedTensorType::get(flattenShape, resultType.getElementType());
+    
+
+    auto input_flattened =
+          rewriter
+              .create<tensor::CollapseShapeOp>(loc, reducedResultType,
+                                               input, flattenShapeIndices)
+              .getResult();
+
+    int64_t storage_offset;
+    if (!matchPattern(so_value, m_TorchConstantInt(&storage_offset)))
+      return op.emitError("unknown error: storage_offset not found");
+    SmallVector<Value> offsets;
+    Value constantSize =
+            rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(storage_offset));
+
+    offsets.push_back(constantSize);
+    offsets.push_back(one);
+
+    SmallVector<Value> resultShape;
+    if (!getListConstructElements(op.size(), resultShape)) {
+      return rewriter.notifyMatchFailure(op,
+                                         "unimplemented: the target size is "
+                                         "not constructed from ListConstruct");
+    }
+
+    SmallVector<Value> convertedSizeVector = getTypeConvertedValues(
+        rewriter, loc, typeConverter, resultShape);
+
+    SmallVector<Value> strides;
+    if (!getListConstructElements(op.stride(), strides)) {
+      return rewriter.notifyMatchFailure(op,
+                                         "unimplemented: the target size is "
+                                         "not constructed from ListConstruct");
+    }
+
+    SmallVector<Value> convertedStridesVector = getTypeConvertedValues(
+        rewriter, loc, typeConverter, strides);
+    
+
+    auto index_storage_offset = castIntVectorToIndexVector(rewriter, loc, offsets);
+
+    auto index_size = castIntVectorToIndexVector(rewriter, loc, convertedSizeVector);
+
+    auto index_strides = castIntVectorToIndexVector(rewriter, loc, convertedStridesVector);
+
+    Value result = rewriter.create<tensor::ExtractSliceOp>(
+        loc, reducedResultType, input_flattened, index_storage_offset, index_size, index_strides);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, reducedResultType, result);
+
+    op.dump();
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenCatOp : public OpConversionPattern<AtenCatOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -1359,6 +1465,8 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   patterns.add<ConvertAtenSliceTensorOp>(typeConverter, context);
   target.addIllegalOp<AtenCatOp>();
   patterns.add<ConvertAtenCatOp>(typeConverter, context);
+  target.addIllegalOp<AtenAsStridedOp>();
+  patterns.add<ConvertAtenAsStridedOp>(typeConverter, context);
   target.addIllegalOp<AtenBroadcastToOp>();
   patterns.add<ConvertAtenBroadcastToOp>(typeConverter, context);
   target.addIllegalOp<AtenContiguousOp>();

@@ -2410,6 +2410,29 @@ class CopyWithDifferentSizesModule(torch.nn.Module):
 def CopyWithDifferentSizesModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4), tu.rand(3, 2, 1))
 
+# ==============================================================================
+
+class AsStridedModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+
+    def forward(self, x):
+        return torch.ops.aten.as_strided(x, (2, 2), (3, 3), 1)
+
+@register_test_case(module_factory=lambda: AsStridedModule())
+def AsStridedModule_basic(module, tu: TestUtils):
+    x = torch.randn(25, 1, 1)
+    print(x)
+    print (torch.ops.aten.as_strided(x, (2, 2), (3,3), 1))
+    module.forward(x)
+
+# ==============================================================================
 
 class CopyWithDifferentDTypesModule(torch.nn.Module):
 
