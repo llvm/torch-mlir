@@ -313,7 +313,10 @@ public:
 
       // Check if the result of the matrix multiplication has more than one
       // dynamic batch dimensions.
-      ArrayRef<int64_t> batchDimsInt = resultType.getShape().drop_back(2);
+      SmallVector<int64_t> batchDimsInt =
+          makeShapeTorchCompatible(resultType.getShape());
+      batchDimsInt.pop_back();
+      batchDimsInt.pop_back();
       bool multipleDynamicBatchDims =
           llvm::count(batchDimsInt, kUnknownSize) > 1;
 
@@ -723,8 +726,10 @@ public:
               .getResult(0);
     } else {
       // Special depthwise case
-      auto inShape = input.getType().cast<RankedTensorType>().getShape();
-      auto weightShape = weight.getType().cast<RankedTensorType>().getShape();
+      auto inShape = makeShapeTorchCompatible(
+          input.getType().cast<RankedTensorType>().getShape());
+      auto weightShape = makeShapeTorchCompatible(
+          weight.getType().cast<RankedTensorType>().getShape());
       if (weightShape[0] != kUnknownSize && inShape[1] == groupSize &&
           weightShape[0] % inShape[1] == 0 && weightShape[1] == 1) {
         // Collapse weight shape
@@ -733,7 +738,8 @@ public:
             (weightShape[0] == kUnknownSize ? kUnknownSize
                                             : weightShape[0] * weightShape[1]),
             weightShape[2], weightShape[3]};
-        Type collapsedType = RankedTensorType::get(collapsedShape, elementType);
+        Type collapsedType = RankedTensorType::get(
+            makeShapeLLVMCompatible(collapsedShape), elementType);
         Value collapsedWeight = rewriter.create<tensor::CollapseShapeOp>(
             loc, collapsedType, weight, collapsedDims);
 
@@ -752,7 +758,7 @@ public:
       // Grouped case, use the grouped conv linalg op
       auto expandGroups = [&](Value tensor, size_t dim) {
         auto inType = tensor.getType().cast<RankedTensorType>();
-        auto inShape = inType.getShape();
+        auto inShape = makeShapeTorchCompatible(inType.getShape());
 
         SmallVector<int64_t> outShape;
         for (auto i = 0; i < (long)inShape.size(); i++) {
@@ -777,14 +783,14 @@ public:
           indices.push_back({i});
         }
 
-        auto retType = inType.clone(outShape);
+        auto retType = inType.clone(makeShapeLLVMCompatible(outShape));
         return rewriter.create<tensor::ExpandShapeOp>(loc, retType, tensor,
                                                       indices);
       };
 
       auto expandWeight = [&](Value tensor) {
         auto inType = tensor.getType().cast<RankedTensorType>();
-        auto inShape = inType.getShape();
+        auto inShape = makeShapeTorchCompatible(inType.getShape());
 
         SmallVector<int64_t> outShape{
             groupSize, (inShape[0] == kUnknownSize ? kUnknownSize
@@ -795,7 +801,7 @@ public:
         for (auto i = 2; i <= (long)inShape.size(); i++)
           indices.push_back({i});
 
-        auto retType = inType.clone(outShape);
+        auto retType = inType.clone(makeShapeLLVMCompatible(outShape));
         return rewriter.create<tensor::ExpandShapeOp>(loc, retType, tensor,
                                                       indices);
       };

@@ -89,9 +89,10 @@ Value torch_to_linalg::getDynamicZeroPaddedTensor(
     *pad = castIntToIndex(b, loc, *pad);
 
   Type elementType = input.getType().cast<RankedTensorType>().getElementType();
-  Type inputType = RankedTensorType::get(
-      llvm::ArrayRef<int64_t>(SmallVector<int64_t>(inRank, kUnknownSize)),
-      elementType);
+  Type inputType =
+      RankedTensorType::get(makeShapeLLVMCompatible(llvm::ArrayRef<int64_t>(
+                                SmallVector<int64_t>(inRank, kUnknownSize))),
+                            elementType);
 
   Value cf0 =
       b.create<arith::ConstantOp>(loc, b.getFloatAttr(elementType, 0.0));
@@ -182,7 +183,8 @@ Value torch_to_linalg::createReductionLinalgGeneric(
   SmallVector<AffineExpr> exprs;
   SmallVector<utils::IteratorType> iteratorTypes;
   SmallVector<AffineExpr> resultExprs;
-  for (auto size : llvm::enumerate(inputType.getShape())) {
+  for (auto size :
+       llvm::enumerate(makeShapeTorchCompatible(inputType.getShape()))) {
     exprs.push_back(b.getAffineDimExpr(size.index()));
 
     if (opInfo.dimSet.contains(size.index())) {
@@ -251,7 +253,8 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
   for (Value tensorOperand : tensorOperands) {
     SmallVector<AffineExpr> exprs;
     auto type = tensorOperand.getType().cast<RankedTensorType>();
-    for (auto size : llvm::enumerate(type.getShape())) {
+    for (auto size :
+         llvm::enumerate(makeShapeTorchCompatible(type.getShape()))) {
       // If the size is statically known to be 1, we don't want any
       // error guards to be spuriously emitted, since we are specifically
       // allowing size-1 broadcasts in this case, as they correspond to a
@@ -321,7 +324,8 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
     Operation *op, PatternRewriter &rewriter, Value input,
     SmallVector<Value> broadcastToShape, Value &result) {
   RankedTensorType inputType = input.getType().cast<RankedTensorType>();
-  ArrayRef<int64_t> inputShape = inputType.getShape();
+  SmallVector<int64_t> inputShape =
+      makeShapeTorchCompatible(inputType.getShape());
   if (broadcastToShape.size() < inputShape.size()) {
     return rewriter.notifyMatchFailure(
         op, "invalid shape: broadcastToShape size must not be smaller than the "
@@ -404,5 +408,6 @@ Value torch_to_linalg::removeSizeInformation(OpBuilder &b, Location loc,
   auto tensorType = tensor.getType().cast<RankedTensorType>();
   auto rank = tensorType.getRank();
   SmallVector<int64_t> unknownSizes(rank, kUnknownSize);
-  return b.create<tensor::CastOp>(loc, tensorType.clone(unknownSizes), tensor);
+  return b.create<tensor::CastOp>(
+      loc, tensorType.clone(makeShapeLLVMCompatible(unknownSizes)), tensor);
 }

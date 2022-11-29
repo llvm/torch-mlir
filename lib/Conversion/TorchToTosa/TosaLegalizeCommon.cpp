@@ -64,8 +64,9 @@ llvm::Optional<Value> convertReduceOpCommon(
       auto axis_attr = rewriter.getI64IntegerAttr(axis_val);
 
       shape_vec[axis_val] = 1;
-      RankedTensorType reduce_type =
-          RankedTensorType::get(shape_vec, reduce_element_type);
+      RankedTensorType reduce_type = RankedTensorType::get(
+          shape_vec,
+          reduce_element_type);
 
       auto reduce_op = CreateOpAndInfer<T>(rewriter, op->getLoc(), reduce_type,
                                            val, axis_attr);
@@ -263,12 +264,16 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
   }
 
   int64_t input_rank = input_type.getRank();
+  ArrayRef<int64_t> inputShape = input_type.getShape();
   int64_t num_elems_on_reduced_axis = 1;
   for (int i = 0; i < axes_elems.getNumElements(); i++) {
     int64_t axis_val = axes_elems.getValues<IntegerAttr>()[i].getInt();
     if (axis_val < 0)
       axis_val += input_rank;
-    num_elems_on_reduced_axis *= input_type.getShape()[axis_val];
+    if (inputShape[axis_val] < 0)
+      op->emitOpError("Failed convertReduceMean: support for dynamic input "
+                      "shape not implemented");
+    num_elems_on_reduced_axis *= inputShape[axis_val];
   }
   double div_scale = 1.0 / static_cast<double>(num_elems_on_reduced_axis);
 

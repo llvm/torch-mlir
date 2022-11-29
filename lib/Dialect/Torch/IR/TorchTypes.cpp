@@ -9,6 +9,7 @@
 
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "llvm/ADT/STLExtras.h"
@@ -205,6 +206,14 @@ verifyTensorType(function_ref<InFlightDiagnostic()> emitError,
                 << " for !torch.tensor type";
     return failure();
   }
+  if (optionalSizes.has_value()) {
+    for (int64_t size : optionalSizes.value()) {
+      if (size < 0 && size != kUnknownSize) {
+        emitError() << "invalid size " << size << " for !torch.tensor type";
+        return failure();
+      }
+    }
+  }
   return success();
 }
 
@@ -373,7 +382,7 @@ TensorType ValueTensorType::toBuiltinTensor() const {
   Type elementType = convertDtypeToBuiltinElementType(getContext(), getDtype());
   if (!elementType)
     return nullptr;
-  return RankedTensorType::get(getSizes(), elementType);
+  return RankedTensorType::get(makeShapeLLVMCompatible(getSizes()), elementType);
 }
 
 LogicalResult

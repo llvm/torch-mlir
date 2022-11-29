@@ -342,7 +342,8 @@ public:
     Location loc = op.getLoc();
     Value input = adaptor.self();
     auto inputType = input.getType().cast<RankedTensorType>();
-    ArrayRef<int64_t> inputShape = inputType.getShape();
+    SmallVector<int64_t> inputShape =
+        makeShapeTorchCompatible(inputType.getShape());
     int64_t inputRank = inputType.getRank();
     TypeConverter *typeConverter = getTypeConverter();
     auto resultType =
@@ -637,10 +638,10 @@ public:
       return success();
     }
 
-    Type adjustedResultType =
-        RankedTensorType::get(outputShape, resultType.getElementType());
-    Type adjustedInputType =
-        RankedTensorType::get(inputShapeVec, resultType.getElementType());
+    Type adjustedResultType = RankedTensorType::get(
+        makeShapeLLVMCompatible(outputShape), resultType.getElementType());
+    Type adjustedInputType = RankedTensorType::get(
+        makeShapeLLVMCompatible(inputShapeVec), resultType.getElementType());
     Value castedInput =
         rewriter.create<tensor::CastOp>(loc, adjustedInputType, input);
     llvm::Optional<Value> expandedInput;
@@ -665,8 +666,8 @@ public:
         intermediateShape.push_back(sum);
       }
 
-      Type intermediateResultType =
-          RankedTensorType::get(intermediateShape, resultType.getElementType());
+      Type intermediateResultType = RankedTensorType::get(
+          makeShapeLLVMCompatible(intermediateShape), resultType.getElementType());
 
       expandedInput =
           rewriter
@@ -1322,8 +1323,8 @@ public:
     auto srcType = src.getType().cast<RankedTensorType>();
     int64_t srcRank = srcType.getRank();
     SmallVector<int64_t> srcAbstractSizes(srcRank, kUnknownSize);
-    auto abstractSrcType =
-        RankedTensorType::get(srcAbstractSizes, srcType.getElementType());
+    auto abstractSrcType = RankedTensorType::get(
+        makeShapeLLVMCompatible(srcAbstractSizes), srcType.getElementType());
     Value abstractSrc =
         rewriter.create<tensor::CastOp>(loc, abstractSrcType, src);
 

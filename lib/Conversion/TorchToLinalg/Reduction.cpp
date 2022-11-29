@@ -121,7 +121,8 @@ public:
     SmallVector<AffineExpr> exprs;
     SmallVector<utils::IteratorType> iteratorTypes;
     SmallVector<AffineExpr> resultExprs;
-    for (auto size : llvm::enumerate(inputType.getShape())) {
+    for (auto size :
+         llvm::enumerate(makeShapeTorchCompatible(inputType.getShape()))) {
       exprs.push_back(rewriter.getAffineDimExpr(size.index()));
 
       if (unsigned(dim) == size.index()) {

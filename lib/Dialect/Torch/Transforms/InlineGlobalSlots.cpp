@@ -239,8 +239,7 @@ bool InlineGlobalSlotsAnalysis::isValueSafeTransferFunction(Value value) {
       continue;
     // If the op is read-only and all results are safe, then this value is
     // safe. This covers, for example, view-like ops that create aliases.
-    if ((op->hasTrait<Torch::OpTrait::ReadOnly>() ||
-         MemoryEffectOpInterface::hasNoEffect(op)) &&
+    if ((op->hasTrait<Torch::OpTrait::ReadOnly>() || isMemoryEffectFree(op)) &&
         llvm::all_of(op->getResults(), [&](Value result) {
           auto *state =
               getOrCreateFor<InlineGlobalSlotsAnalysisState>(value, result);
