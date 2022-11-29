@@ -8,11 +8,37 @@ from typing import List
 import torch
 from torch.fx.experimental.proxy_tensor import make_fx
 from functorch._src.compile_utils import strip_overloads
-
+from torch._decomp import get_decompositions
 
 import warnings
 # https://github.com/pytorch/pytorch/issues/89064
 warnings.filterwarnings("ignore", module="torch.jit._check")
+
+
+def _get_decomposition_table():
+    """Get a decomposition table suitable for Torch-MLIR.
+    
+    Sometimes TorchDynamo traces slightly different ops than what TorchScript
+    captures. Historically we have been driven by the ops captured by
+    TorchScript, so we try to decompose the ops captured by TorchDynamo into
+    other ops that we already support.
+    
+    There isn't a highly principled solution here. Torch-MLIR currently supports
+    a somewhat random set of ops, added in a demand-driven way over time,
+    including direct backend support and decompositions internal to Torch-MLIR.
+    As described in the
+    [long-term roadmap](https://github.com/llvm/torch-mlir/blob/main/docs/long_term_roadmap.md),
+    eventually this situation is expected to be made a lot more principled
+    by aligning more with how Torch-MLIR would have looked if some of the new
+    upstream PyTorch infra had been available at the beginning -- in particular
+    the new decomposition infra and PrimTorch.
+    """
+    aten = torch.ops.aten
+    return get_decompositions([
+        aten._adaptive_avg_pool2d,
+        aten.std.correction,
+        aten.dot,
+    ])
 
 
 def _unwrap_single_tuple_return(fx_g: torch.fx.GraphModule) -> bool:
@@ -55,7 +81,8 @@ def make_simple_dynamo_backend(user_backend):
     def wrapper_backend(fx_graph: torch.fx.GraphModule,
                         example_inputs: List[torch.Tensor]):
         did_unwrap = _unwrap_single_tuple_return(fx_graph)
-        dispatcher_ops = make_fx(fx_graph)(*example_inputs)
+        dispatcher_ops = make_fx(
+            fx_graph, decomposition_table=_get_decomposition_table())(*example_inputs)
         strip_overloads(dispatcher_ops)
         user_callable = user_backend(dispatcher_ops, example_inputs)
 
