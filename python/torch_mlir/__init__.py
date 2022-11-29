@@ -301,7 +301,7 @@ def compile(model: torch.nn.Module,
     else:
         backend_legal_ops = BACKEND_LEGAL_OPS.get(output_type, [])
 
-    # For functorch-based models, automatically strip overloads
+    # For FX-based models, automatically strip overloads
     if isinstance(model, torch.fx.GraphModule):
         strip_overloads(model)
 

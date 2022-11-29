@@ -3099,22 +3099,3 @@ class SortIntListReverse(torch.nn.Module):
 @register_test_case(module_factory=lambda: SortIntListReverse())
 def SortIntListReverse_basic(module, tu: TestUtils):
     module.forward()
-
-
-# ==============================================================================
-
-
-def AutomaticallyStripOverloads():
-    def simple(x):
-        return x * x
-    graph = functorch.make_fx(simple)(torch.randn(1,))
-    annotate_args([
-        None,
-        ([-1], torch.float32, True),
-    ])(graph.forward.__func__)
-    return graph
-
-
-@register_test_case(module_factory=lambda: AutomaticallyStripOverloads())
-def AutomaticallyStripOverloads_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1,))
