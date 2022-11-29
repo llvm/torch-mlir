@@ -144,8 +144,8 @@ class BernoulliTensorModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float64, True),
-        ([-1, -1, -1], torch.float64, True),
+        ([-1, -1], torch.float64, True),
+        ([-1, -1], torch.float64, True),
     ])
     def forward(self, x, px):
         a = torch.ops.aten.bernoulli_(x, px)
@@ -157,8 +157,8 @@ class BernoulliTensorModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: BernoulliTensorModule())
 def BernoulliTensorModule_basic(module, tu: TestUtils):
     module.forward(
-        tu.rand(512, 512, 2).double(),
-        tu.rand(512, 512, 2).double())
+        tu.rand(512, 512).double(),
+        tu.rand(512, 512).double())
 
 # ==============================================================================
 

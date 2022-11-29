@@ -1465,7 +1465,7 @@ class DropoutTrainModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: DropoutTrainModule())
 def DropoutTrainModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(256, 256))
+    module.forward(tu.rand(1024, 1536))
 
 
 # ==============================================================================
