@@ -685,7 +685,8 @@ public:
     for (auto indexTensor : indexTensors) {
       RankedTensorType indexTensorType =
           indexTensor.getType().cast<RankedTensorType>();
-      auto indexTensorShape = indexTensorType.getShape();
+      auto indexTensorShape =
+          makeShapeTorchCompatible(indexTensorType.getShape());
       int rank = indexTensorShape.size();
       SmallVector<AffineExpr> indicesExpr;
       for (auto dim : llvm::seq(0, rank)) {

@@ -829,7 +829,7 @@ public:
       ArrayRef<int64_t> inputShape = selfTy.getSizes();
       SmallVector<int64_t> sizes;
       sizes.append(inputShape.begin(), inputShape.end());
-      sizes[cstDim] = ShapedType::kDynamicSize;
+      sizes[cstDim] = kUnknownSize;
       Type sliceTy = selfTy.getWithSizesAndDtype(llvm::makeArrayRef(sizes),
                                                  selfTy.getDtype());
       Value slice0 = rewriter.create<AtenSliceTensorOp>(
@@ -921,7 +921,7 @@ public:
                        if (matchPattern(val, m_TorchConstantInt(&cst_val))) {
                          return cst_val;
                        } else {
-                         return ShapedType::kDynamicSize;
+                         return kUnknownSize;
                        }
                      });
     };
@@ -945,7 +945,7 @@ public:
     for (int i = 0; i < rank; i++) {
       auto scale = repeats[i + leadingRank];
       Value dimSize;
-      if (selfShape[i] == ShapedType::kDynamicSize) {
+      if (selfShape[i] == kUnknownSize) {
         Value dim = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(i));
         dimSize = rewriter.create<AtenSizeIntOp>(loc, self, dim);
@@ -2173,7 +2173,7 @@ class DecomposeAtenNativeBatchNormOp
         loc, ListType::get(IntType::get(context)), runningStatsShape);
 
     SmallVector<int64_t> runningStatsShapeInt(inputRank, 1);
-    runningStatsShapeInt[1] = ShapedType::kDynamicSize;
+    runningStatsShapeInt[1] = kUnknownSize;
     Type dtype = input.getType().cast<ValueTensorType>().getDtype();
     Type reshapeType = ValueTensorType::get(
         context, llvm::makeArrayRef(runningStatsShapeInt), dtype);

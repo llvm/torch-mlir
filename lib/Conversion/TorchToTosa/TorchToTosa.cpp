@@ -10,6 +10,7 @@
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 
 #include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -19,6 +20,7 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
@@ -721,7 +723,7 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
   // Multiple dims require chained construct.
   auto buildArgmax = [&](int64_t reduceDim, Value input) -> Value {
     auto inputTy = input.getType().cast<RankedTensorType>();
-    auto inputShape = inputTy.getShape();
+    auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
     SmallVector<int64_t> outputShapeArr = {};
     int32_t i = 0;
 
@@ -736,7 +738,8 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
 
     // Tosa argmax output is i32, while Torch backend mandates i64.
     auto outputReduceTy = RankedTensorType::get(
-        ArrayRef<int64_t>(outputShapeArr), rewriter.getI32Type());
+        makeShapeLLVMCompatible(ArrayRef<int64_t>(outputShapeArr)),
+        rewriter.getI32Type());
     auto reduceDimAttr =
         rewriter.getIntegerAttr(rewriter.getI64Type(), reduceDim);
     return rewriter
@@ -754,8 +757,9 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
       return rewriter.notifyMatchFailure(op,
                                          "Argmax: Result is not a shaped type");
 
-    auto resShape = resTy.getShape();
-    auto outTy = RankedTensorType::get(resShape, outputETy);
+    auto resShape = makeShapeTorchCompatible(resTy.getShape());
+    auto outTy =
+        RankedTensorType::get(makeShapeLLVMCompatible(resShape), outputETy);
 
     rewriter.replaceOpWithNewOp<arith::ExtSIOp>(
         op, getTypeConverter()->convertType(outTy), result);
@@ -814,7 +818,8 @@ public:
                         .template cast<RankedTensorType>();
     auto resultElemTy = resultTy.getElementType();
 
-    auto newOutputTy = RankedTensorType::get(newOutputShape, resultElemTy);
+    auto newOutputTy = RankedTensorType::get(
+        makeShapeLLVMCompatible(newOutputShape), resultElemTy);
 
     auto reshapeOp = rewriter.create<tosa::ReshapeOp>(
         op->getLoc(),
@@ -849,7 +854,7 @@ class ConvertAtenSqueezeOneDimOp : public ConvertAtenSqueezeOp<AtenOpT> {
     if (squeezeDim < 0)
       squeezeDim = squeezeDim + selfTy.getRank();
 
-    auto selfShape = selfTy.getShape();
+    auto selfShape = makeShapeTorchCompatible(selfTy.getShape());
 
     // Only dims statically known to have size=1 are reduced.
     // Dynamic dims are treated as unknowns and will not be squeezed
@@ -874,7 +879,7 @@ class ConvertAtenSqueezeAllDimsOp : public ConvertAtenSqueezeOp<AtenOpT> {
   generateSqueezedShape(AtenOpT op, RankedTensorType selfTy,
                         ConversionPatternRewriter &rewriter,
                         SmallVector<int64_t> &squeezedShape) const override {
-    auto selfShape = selfTy.getShape();
+    auto selfShape = makeShapeTorchCompatible(selfTy.getShape());
 
     // Dims that may dynamically resolve to 1 are not reduced here. Only
     // compile-time resolvable dims are handled here.
@@ -947,8 +952,8 @@ public:
     auto lhsRank = lhsTy.getRank();
     auto rhsRank = rhsTy.getRank();
 
-    auto lhsShape = lhsTy.getShape();
-    auto rhsShape = rhsTy.getShape();
+    auto lhsShape = makeShapeTorchCompatible(lhsTy.getShape());
+    auto rhsShape = makeShapeTorchCompatible(rhsTy.getShape());
 
     auto lhsElemTy = lhsTy.getElementType();
     auto rhsElemTy = rhsTy.getElementType();
@@ -976,7 +981,7 @@ public:
     auto getRankBroadcastedShape = [&](Value tensor,
                                        bool isRHS) -> SmallVector<int64_t> {
       auto tensorTy = tensor.getType().cast<TensorType>();
-      auto tensorShape = tensorTy.getShape();
+      auto tensorShape = makeShapeTorchCompatible(tensorTy.getShape());
       auto tensorRank = tensorTy.getRank();
 
       SmallVector<int64_t> bcastedShape;
@@ -1002,11 +1007,11 @@ public:
 
     // Step: Rank broadcast the two inputs.
     auto lhsBroadcastedShape = getRankBroadcastedShape(lhs, false);
-    auto lhsBroadcastedTy =
-        RankedTensorType::get(lhsBroadcastedShape, lhsElemTy);
+    auto lhsBroadcastedTy = RankedTensorType::get(
+        makeShapeLLVMCompatible(lhsBroadcastedShape), lhsElemTy);
     auto rhsBroadcastedShape = getRankBroadcastedShape(rhs, true);
-    auto rhsBroadcastedTy =
-        RankedTensorType::get(rhsBroadcastedShape, rhsElemTy);
+    auto rhsBroadcastedTy = RankedTensorType::get(
+        makeShapeLLVMCompatible(rhsBroadcastedShape), rhsElemTy);
 
     auto rankBroadcastedLhs =
         lhsRank == maxInputRank
@@ -1036,7 +1041,7 @@ public:
       if (rank == 3)
         return tensor;
 
-      auto shape = tensorTy.getShape();
+      auto shape = makeShapeTorchCompatible(tensorTy.getShape());
       SmallVector<int64_t> newShape({1, 1, 1});
 
       if (rank == 2) { // batchsize = 1
@@ -1045,7 +1050,8 @@ public:
       } else { // rank 1
         newShape[2] = shape[0];
       }
-      auto newType = RankedTensorType::get(newShape, tensorTy.getElementType());
+      auto newType = RankedTensorType::get(makeShapeLLVMCompatible(newShape),
+                                           tensorTy.getElementType());
 
       return rewriter.create<tosa::ReshapeOp>(
           op->getLoc(),
@@ -1167,10 +1173,11 @@ public:
           commonElems.push_back({dim, lhsBroadcastedShape[dim]});
         }
       }
+      commonValue =  commonValue < 0 ? kUnknownSize : commonValue;
 
       // TODO: Handle the case when there are dynamic batch dimensions.
       if (hasDynamicDims)
-        commonValue = ShapedType::kDynamicSize;
+        commonValue = kUnknownSize;
 
       // Step: generate the LHS squeezed dim/shape information.
       for (uint32_t dim = 0; dim < maxInputRank - 2; dim++) {
@@ -1185,6 +1192,7 @@ public:
       lhsSqueezedElems.push_back(
           {maxInputRank - 2, lhsBroadcastedShape[maxInputRank - 2]});
       lhsSqueezedValue *= lhsBroadcastedShape[maxInputRank - 2];
+      lhsSqueezedValue = lhsSqueezedValue < 0 ? kUnknownSize : lhsSqueezedValue;
 
       // Step: Create the tosa.transpose array. If this array has a
       // non-monotonic series of dims, perform transpose.
@@ -1207,8 +1215,8 @@ public:
       auto lhsReshapeInput = rankBroadcastedLhs;
 
       if (lhsNeedsTranspose) {
-        auto transposedLhsType =
-            RankedTensorType::get(transposedLhsShape, rhsElemTy);
+        auto transposedLhsType = RankedTensorType::get(
+            makeShapeLLVMCompatible(transposedLhsShape), rhsElemTy);
 
         llvm::Optional<Value> transposedLhsDimsConst =
             tosa::getConstTensor<int32_t>(
@@ -1230,10 +1238,10 @@ public:
       SmallVector<int64_t> newLhsShape(
           {1, 1, lhsBroadcastedShape[maxInputRank - 1]});
       newLhsShape[0] = commonValue;
-      newLhsShape[1] =
-          hasDynamicDims ? ShapedType::kDynamicSize : lhsSqueezedValue;
+      newLhsShape[1] = hasDynamicDims ? kUnknownSize : lhsSqueezedValue;
 
-      auto newLhsType = RankedTensorType::get(newLhsShape, lhsElemTy);
+      auto newLhsType = RankedTensorType::get(
+          makeShapeLLVMCompatible(newLhsShape), lhsElemTy);
 
       matmulLhs = rewriter.create<tosa::ReshapeOp>(
           op->getLoc(),
@@ -1273,16 +1281,17 @@ public:
         transposedRhsDims.push_back(rhsSqueezedElems[i].dim);
       }
 
-      auto transposedRhsType =
-          RankedTensorType::get(transposedRhsShape, rhsElemTy);
+      auto transposedRhsType = RankedTensorType::get(
+          makeShapeLLVMCompatible(transposedRhsShape), rhsElemTy);
 
       if (hasDynamicDims)
-        rhsSqueezedValue = ShapedType::kDynamicSize;
+        rhsSqueezedValue = kUnknownSize;
 
-      SmallVector<int64_t> newRhsShape({commonValue,
-                                        rhsBroadcastedShape[maxInputRank - 2],
-                                        rhsSqueezedValue});
-      auto newRhsType = RankedTensorType::get(newRhsShape, rhsElemTy);
+      SmallVector<int64_t> newRhsShape(
+          {commonValue < 0 ? kUnknownSize : commonValue,
+           rhsBroadcastedShape[maxInputRank - 2], rhsSqueezedValue});
+      auto newRhsType = RankedTensorType::get(
+          makeShapeLLVMCompatible(newRhsShape), rhsElemTy);
 
       bool rhsNeedsTranspose = isTransposeRequired(transposedRhsDims);
 
@@ -1313,10 +1322,10 @@ public:
           transposedRhsValue, rewriter.getI64ArrayAttr(newRhsShape));
     }
 
-    auto matmulLhsShape =
-        matmulLhs.getType().template cast<RankedTensorType>().getShape();
-    auto matmulRhsShape =
-        matmulRhs.getType().template cast<RankedTensorType>().getShape();
+    auto matmulLhsShape = makeShapeTorchCompatible(
+        matmulLhs.getType().template cast<RankedTensorType>().getShape());
+    auto matmulRhsShape = makeShapeTorchCompatible(
+        matmulRhs.getType().template cast<RankedTensorType>().getShape());
 
     // The reshape/transpose should ensure the tosa.matmul always has same
     // batch size for either matrix. If if shapes are dynamic, they'll be
@@ -1333,7 +1342,8 @@ public:
       outputElemTy = rewriter.getIntegerType(32);
     }
 
-    auto mmOutputTy = RankedTensorType::get(matmulOutputShape, outputElemTy);
+    auto mmOutputTy = RankedTensorType::get(
+        makeShapeLLVMCompatible(matmulOutputShape), outputElemTy);
     auto mmOpResult =
         rewriter
             .create<tosa::MatMulOp>(
@@ -1407,7 +1417,7 @@ public:
         // Final transposed output shape construction
         for (uint32_t i = 0; i < maxInputRank - 2; i++) {
           if (lhsBroadcastedTy.isDynamicDim(i)) {
-            transposedOpShapes.push_back(ShapedType::kDynamicSize);
+            transposedOpShapes.push_back(kUnknownSize);
           } else {
             if (lhsBroadcastedShape[i] == rhsBroadcastedShape[i]) {
               transposedOpShapes.push_back(lhsBroadcastedShape[i]);
@@ -1434,8 +1444,8 @@ public:
       bool opNeedsTranspose = isTransposeRequired(transposedOpDims);
 
       // Perform reshape
-      auto reshapedOpType =
-          RankedTensorType::get(reshapedOpShape, outputElemTy);
+      auto reshapedOpType = RankedTensorType::get(
+          makeShapeLLVMCompatible(reshapedOpShape), outputElemTy);
       auto reshapedOp = rewriter.create<tosa::ReshapeOp>(
           op->getLoc(),
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -1450,8 +1460,8 @@ public:
                 /*vec=*/transposedOpDims,
                 /*shape=*/{static_cast<int32_t>(transposedOpDims.size())});
 
-        auto transposedOpType =
-            RankedTensorType::get(transposedOpShape, outputElemTy);
+        auto transposedOpType = RankedTensorType::get(
+            makeShapeLLVMCompatible(transposedOpShape), outputElemTy);
         output = rewriter
                      .create<tosa::TransposeOp>(
                          op->getLoc(),
@@ -1618,7 +1628,7 @@ public:
     // multiplication.
     auto rhsTy = rhs.getType().cast<RankedTensorType>();
     auto rhsRank = rhsTy.getRank();
-    auto rhsShape = rhsTy.getShape();
+    auto rhsShape = makeShapeTorchCompatible(rhsTy.getShape());
     auto rhsElemTy = rhsTy.getElementType();
 
     // Create a non-const shape array to transpose dims.
@@ -1639,8 +1649,8 @@ public:
             /*vec=*/transposedRhsDims,
             /*shape=*/{static_cast<int32_t>(transposedRhsDims.size())});
 
-    auto transposedRhsType =
-        RankedTensorType::get(transposedRhsShape, rhsElemTy);
+    auto transposedRhsType = RankedTensorType::get(
+        makeShapeLLVMCompatible(transposedRhsShape), rhsElemTy);
     rhs = rewriter.create<tosa::TransposeOp>(
         op->getLoc(),
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -1736,8 +1746,8 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
 
   auto inputElemTy = inputTy.getElementType();
   auto weightElemTy = weightTy.getElementType();
-  auto inputShape = inputTy.getShape();
-  auto weightShape = weightTy.getShape();
+  auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
+  auto weightShape = makeShapeTorchCompatible(weightTy.getShape());
 
   if (inputTy.getRank() != 4)
     return rewriter.notifyMatchFailure(
@@ -1800,8 +1810,8 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
                                     /*shape=*/{static_cast<int32_t>(4)});
   SmallVector<int64_t> transposedInputShape(
       {inputShape[0], inputShape[2], inputShape[3], inputShape[1]});
-  auto transposedInputType =
-      RankedTensorType::get(transposedInputShape, inputElemTy);
+  auto transposedInputType = RankedTensorType::get(
+      makeShapeLLVMCompatible(transposedInputShape), inputElemTy);
   auto transposedInput =
       rewriter
           .create<tosa::TransposeOp>(
@@ -1812,8 +1822,8 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
 
   SmallVector<int64_t> transposedWeightShape(
       {weightShape[0], weightShape[2], weightShape[3], weightShape[1]});
-  auto transposedWeightType =
-      RankedTensorType::get(transposedWeightShape, weightElemTy);
+  auto transposedWeightType = RankedTensorType::get(
+      makeShapeLLVMCompatible(transposedWeightShape), weightElemTy);
   auto transposedWeight =
       rewriter
           .create<tosa::TransposeOp>(
@@ -1833,15 +1843,16 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
                      stride[1] +
                  1;
   } else {
-    outputHDim = ShapedType::kDynamicSize;
-    outputWDim = ShapedType::kDynamicSize;
+    outputHDim = kUnknownSize;
+    outputWDim = kUnknownSize;
   }
 
   // Output shape is NHWC, to be transposed back to NCHW. Output elemTy for
   // quantized input is i32, which gets rescaled down to quantized output range.
   SmallVector<int64_t> outputShape = {transposedInputShape[0], outputHDim,
                                       outputWDim, transposedWeightShape[0]};
-  auto convOpTy = RankedTensorType::get(outputShape, biasElemTy);
+  auto convOpTy =
+      RankedTensorType::get(makeShapeLLVMCompatible(outputShape), biasElemTy);
 
   Value convOpResult =
       rewriter
@@ -1859,8 +1870,8 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
                                     /*shape=*/{static_cast<int32_t>(4)});
   SmallVector<int64_t> transposedOutputShape(
       {outputShape[0], outputShape[3], outputShape[1], outputShape[2]});
-  auto transposedOutputType =
-      RankedTensorType::get(transposedOutputShape, biasElemTy);
+  auto transposedOutputType = RankedTensorType::get(
+      makeShapeLLVMCompatible(transposedOutputShape), biasElemTy);
   auto transposedOutput =
       rewriter
           .create<tosa::TransposeOp>(
@@ -1907,7 +1918,8 @@ LogicalResult ConvertAtenOp<AtenReshapeOp>::matchAndRewrite(
         op, "At most one dimension may be specified as -1 to "
             "automatically calculate its size");
 
-  auto newType = RankedTensorType::get(newShape, selfTy.getElementType());
+  auto newType = RankedTensorType::get(makeShapeLLVMCompatible(newShape),
+                                       selfTy.getElementType());
 
   rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
       op, getTypeConverter()->convertType(newType), self,
@@ -2002,11 +2014,12 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
       return rewriter.notifyMatchFailure(op, "Rank cannot be more than 1");
 
     RankedTensorType outTensorType = outType.cast<RankedTensorType>();
-    SmallVector<int64_t> newShape = {toBcastType.getShape()[0]};
+    SmallVector<int64_t> newShape = {
+        makeShapeTorchCompatible(toBcastType.getShape())[0]};
     for (auto i = 2; i < outTensorType.getRank(); ++i)
       newShape.push_back(1);
-    auto newType =
-        RankedTensorType::get(newShape, outTensorType.getElementType());
+    auto newType = RankedTensorType::get(makeShapeLLVMCompatible(newShape),
+                                         outTensorType.getElementType());
 
     result = rewriter.create<tosa::ReshapeOp>(
         op->getLoc(), newType, toBcast, rewriter.getI64ArrayAttr(newShape));
@@ -2089,6 +2102,8 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
   auto biasType = adaptor.bias().getType().cast<RankedTensorType>();
   int64_t inputRank = inputType.getRank();
   Type elemTy = inputType.getElementType();
+  SmallVector<int64_t> inputTypeShape(
+      makeShapeTorchCompatible(inputType.getShape()));
 
   // Check if all the arguments meet the requirements.
   SmallVector<int64_t> normalizedShapeSizesInt;
@@ -2110,9 +2125,9 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
   for (auto en : llvm::enumerate((normalizedShapeSizesInt))) {
     int64_t index = en.index();
     int64_t value = en.value();
-    if (inputType.getShape()[index + meanAndVarShapeRank] != value ||
-        weightType.getShape()[index] != value ||
-        biasType.getShape()[index] != value)
+    if (inputTypeShape[index + meanAndVarShapeRank] != value ||
+        makeShapeTorchCompatible(weightType.getShape())[index] != value ||
+        makeShapeTorchCompatible(biasType.getShape())[index] != value)
       return rewriter.notifyMatchFailure(op,
                                          "mismatching contracting dimension");
   }
@@ -2121,13 +2136,14 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
   auto computeSumAndReshape = [&](Value toReduce, RankedTensorType toReduceType,
                                   Type outType, SmallVector<int64_t> outShape) {
     Value sumDiv = toReduce;
-    SmallVector<int64_t> toReduceShape(toReduceType.getShape().begin(),
-                                       toReduceType.getShape().end());
+    SmallVector<int64_t> toReduceShape(
+        makeShapeTorchCompatible(toReduceType.getShape()));
     for (int64_t i = toReduceShape.size() - 1; i >= meanAndVarShapeRank; i--) {
       toReduceShape[i] = 1;
       sumDiv = rewriter.create<tosa::ReduceSumOp>(
           op.getLoc(),
-          RankedTensorType::get(toReduceShape, inputType.getElementType()),
+          RankedTensorType::get(makeShapeLLVMCompatible(toReduceShape),
+                                inputType.getElementType()),
           sumDiv, rewriter.getI64IntegerAttr(i));
     }
 
@@ -2150,12 +2166,13 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
 
   // Broadcast type and shape for various intermediate values.
   SmallVector<int64_t> bcastOutShape;
-  for (auto en : llvm::enumerate(inputType.getShape())) {
+  for (auto en : llvm::enumerate(inputTypeShape)) {
     bcastOutShape.push_back(
         static_cast<int64_t>(en.index()) >= meanAndVarShapeRank ? 1
                                                                 : en.value());
   }
-  auto bcastOutType = RankedTensorType::get(bcastOutShape, elemTy);
+  auto bcastOutType =
+      RankedTensorType::get(makeShapeLLVMCompatible(bcastOutShape), elemTy);
 
   // Compute mean.
   Value sum = computeSumAndReshape(adaptor.input(), inputType, bcastOutType,
@@ -2176,13 +2193,14 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
 
   // Reshape weight and bias.
   SmallVector<int64_t> weightAndBiasBcastShape;
-  for (auto en : llvm::enumerate(inputType.getShape())) {
+  for (auto en :
+       llvm::enumerate(makeShapeTorchCompatible(inputType.getShape()))) {
     weightAndBiasBcastShape.push_back(
         static_cast<int64_t>(en.index()) < meanAndVarShapeRank ? 1
                                                                : en.value());
   }
-  auto weightAndMeanBcastType =
-      RankedTensorType::get(weightAndBiasBcastShape, elemTy);
+  auto weightAndMeanBcastType = RankedTensorType::get(
+      makeShapeLLVMCompatible(weightAndBiasBcastShape), elemTy);
 
   Value weightVal = rewriter.create<tosa::ReshapeOp>(
       op.getLoc(), weightAndMeanBcastType, adaptor.weight(),
@@ -2272,7 +2290,8 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
                                        "end_dim must be larger than start_dim");
 
   SmallVector<int64_t> newShape;
-  for (auto s : llvm::enumerate(selfType.getShape())) {
+  for (auto s :
+       llvm::enumerate(makeShapeTorchCompatible(selfType.getShape()))) {
     int64_t idx = s.index();
     if (idx < start_dim || idx > end_dim) {
       newShape.push_back(s.value());
@@ -2288,7 +2307,8 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
   if (newShape.size() == 0)
     newShape.push_back(1);
 
-  auto newType = RankedTensorType::get(newShape, selfType.getElementType());
+  auto newType = RankedTensorType::get(makeShapeLLVMCompatible(newShape),
+                                       selfType.getElementType());
   auto reshapeOp = rewriter.create<tosa::ReshapeOp>(
       op.getLoc(), newType, adaptor.self(), rewriter.getI64ArrayAttr(newShape));
 
@@ -2439,7 +2459,8 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
   SmallVector<int64_t> outShape;
-  for (auto en : llvm::enumerate(selfType.getShape())) {
+  for (auto en :
+       llvm::enumerate(makeShapeTorchCompatible(selfType.getShape()))) {
     if (static_cast<int64_t>(en.index()) == dim)
       outShape.push_back(1);
 
@@ -2570,8 +2591,9 @@ static Value approximateErfOp(ConversionPatternRewriter &rewriter,
   // Deal with negative x.
   auto cond = rewriter.create<tosa::GreaterEqualOp>(
       loc,
-      RankedTensorType::get(outType.getShape(), rewriter.getIntegerType(1)), x,
-      zero);
+      RankedTensorType::get(outType.getShape(),
+                            rewriter.getIntegerType(1)),
+      x, zero);
   auto negateErf = rewriter.create<tosa::NegateOp>(loc, outType, erf);
 
   return rewriter.create<tosa::SelectOp>(loc, outType, cond, erf, negateErf);
@@ -2744,8 +2766,8 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
   //    Condition: num_embeddings > Indices [x, y] forall x in X, y in Y
 
   // Reshape the weight, since tosa.gather expects a 3D tensor
-  auto indicesShape = indicesType.getShape();
-  auto weightShape = weightType.getShape();
+  auto indicesShape = makeShapeTorchCompatible(indicesType.getShape());
+  auto weightShape = makeShapeTorchCompatible(weightType.getShape());
 
   SmallVector<int64_t> newWeightShape = {1};
   for (auto s : weightShape)
@@ -2753,7 +2775,8 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
 
   auto reshapedWeight = rewriter.create<tosa::ReshapeOp>(
       op->getLoc(),
-      RankedTensorType::get(newWeightShape, weightType.getElementType()),
+      RankedTensorType::get(makeShapeLLVMCompatible(newWeightShape),
+                            weightType.getElementType()),
       weight, rewriter.getI64ArrayAttr(newWeightShape));
 
   int64_t numIndices = 1;
@@ -2761,28 +2784,32 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
     for (auto s : indicesShape)
       numIndices *= s;
   } else {
-    numIndices = ShapedType::kDynamicSize;
+    numIndices = kUnknownSize;
   }
 
   SmallVector<int64_t> newIndicesShape = {1, numIndices};
   auto reshapedIndices = rewriter.create<tosa::ReshapeOp>(
       op->getLoc(),
-      RankedTensorType::get(newIndicesShape, indicesType.getElementType()),
+      RankedTensorType::get(makeShapeLLVMCompatible(newIndicesShape),
+                            indicesType.getElementType()),
       indices, rewriter.getI64ArrayAttr(newIndicesShape));
 
   auto castIndices = rewriter.create<tosa::CastOp>(
       op->getLoc(),
-      RankedTensorType::get(newIndicesShape, rewriter.getIntegerType(32)),
+      RankedTensorType::get(makeShapeLLVMCompatible(newIndicesShape),
+                            rewriter.getIntegerType(32)),
       reshapedIndices);
 
   SmallVector<int64_t> intermediateOutShape = {1, numIndices, weightShape[1]};
   auto gatherOp = rewriter.create<tosa::GatherOp>(
       op->getLoc(),
-      RankedTensorType::get(intermediateOutShape, weightType.getElementType()),
+      RankedTensorType::get(makeShapeLLVMCompatible(intermediateOutShape),
+                            weightType.getElementType()),
       reshapedWeight, castIndices);
 
   rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
-      op, outType, gatherOp, rewriter.getI64ArrayAttr(outType.getShape()));
+      op, outType, gatherOp,
+      rewriter.getI64ArrayAttr(makeShapeTorchCompatible(outType.getShape())));
 
   return success();
 }
@@ -2861,7 +2888,8 @@ LogicalResult ConvertAtenOp<AtenMaxDimOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "keepdim must be a Scalar constant");
 
   SmallVector<int64_t> reducedShape, prunedShape;
-  for (auto en : llvm::enumerate(selfType.getShape())) {
+  for (auto en :
+       llvm::enumerate(makeShapeTorchCompatible(selfType.getShape()))) {
     if (static_cast<int64_t>(en.index()) == dim) {
       reducedShape.push_back(1);
       continue;
@@ -2874,11 +2902,13 @@ LogicalResult ConvertAtenOp<AtenMaxDimOp>::matchAndRewrite(
   auto prunedShapeAttr = rewriter.getI64ArrayAttr(prunedShape);
 
   Value reduceMax = rewriter.create<tosa::ReduceMaxOp>(
-      op->getLoc(), RankedTensorType::get(reducedShape, selfElemType),
+      op->getLoc(),
+      RankedTensorType::get(makeShapeLLVMCompatible(reducedShape), selfElemType),
       adaptor.self(), dimAttr);
 
   Value argMax = rewriter.create<tosa::ArgMaxOp>(
-      op->getLoc(), RankedTensorType::get(prunedShape, indicesElemType),
+      op->getLoc(),
+      RankedTensorType::get(makeShapeLLVMCompatible(prunedShape), indicesElemType),
       adaptor.self(), dimAttr);
 
   if (argMax.getType() != indicesType) {
@@ -2889,7 +2919,8 @@ LogicalResult ConvertAtenOp<AtenMaxDimOp>::matchAndRewrite(
 
   if (!keepDim) {
     reduceMax = rewriter.create<tosa::ReshapeOp>(
-        op->getLoc(), RankedTensorType::get(prunedShape, selfElemType),
+        op->getLoc(),
+        RankedTensorType::get(makeShapeLLVMCompatible(prunedShape), selfElemType),
         reduceMax, prunedShapeAttr);
   }
 
@@ -2943,7 +2974,8 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
         op, "step value other than 1 is currently unsupported");
 
   SmallVector<int64_t> startSlice(selfType.getRank(), 0);
-  SmallVector<int64_t> sizeSlice = llvm::to_vector(selfType.getShape());
+  SmallVector<int64_t> sizeSlice =
+      llvm::to_vector(makeShapeTorchCompatible(selfType.getShape()));
 
   startSlice[dim] = start;
   sizeSlice[dim] = end - start;
@@ -2978,7 +3010,8 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op,
                                        "size must consist of Scalar constants");
 
-  SmallVector<int64_t> inputShape(selfType.getShape());
+  SmallVector<int64_t> inputShape(
+      makeShapeTorchCompatible(selfType.getShape()));
   if (inputShape.size() == outShape.size() || inputShape.size() == 0) {
     // Check for identity case i.e, for ex: [a, b, c] -> [a, b, c]. If this is
     // true then we can replace the op result with the input operand
@@ -3158,8 +3191,8 @@ LogicalResult ConvertAtenOp<AtenCopyOp>::matchAndRewrite(
         op, "unimplemented: non_blocking is expected to be false");
   }
 
-  SmallVector<int64_t> selfShape(selfType.getShape());
-  SmallVector<int64_t> srcShape(srcType.getShape());
+  SmallVector<int64_t> selfShape(makeShapeTorchCompatible(selfType.getShape()));
+  SmallVector<int64_t> srcShape(makeShapeTorchCompatible(srcType.getShape()));
 
   if (llvm::equal(selfShape, srcShape) || selfShape.size() == 0) {
     // If we reach here, then it means the given case is handled by implicit
@@ -3257,8 +3290,8 @@ public:
   static int64_t getOutputDim(int64_t inputDim, int64_t kernelDim,
                               int64_t stride, int64_t padBefore,
                               int64_t padAfter, int64_t dilation) {
-    if (inputDim == ShapedType::kDynamicSize) {
-      return ShapedType::kDynamicSize;
+    if (inputDim == kUnknownSize) {
+      return kUnknownSize;
     } else {
       return (
           (inputDim + padBefore + padAfter - dilation * (kernelDim - 1) - 1) /
@@ -3272,7 +3305,7 @@ public:
                         Value input, ArrayRef<int32_t> transposeDims) const {
     auto inputTy = input.getType().template cast<RankedTensorType>();
     auto inputElemTy = inputTy.getElementType();
-    auto inputShape = inputTy.getShape();
+    auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
     auto inputRank = inputTy.getRank();
 
     llvm::Optional<Value> transposeDimsConst = tosa::getConstTensor<int32_t>(
@@ -3283,8 +3316,8 @@ public:
     SmallVector<int64_t> transposedInputShape;
     for (auto &dim : transposeDims)
       transposedInputShape.push_back(inputShape[dim]);
-    auto transposedInputType =
-        RankedTensorType::get(transposedInputShape, inputElemTy);
+    auto transposedInputType = RankedTensorType::get(
+        makeShapeLLVMCompatible(transposedInputShape), inputElemTy);
     return rewriter
         .create<tosa::TransposeOp>(op->getLoc(), transposedInputType, input,
                                    transposeDimsConst.value())
@@ -3368,7 +3401,7 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Adaptive avgpool requires ranked tensor input");
 
-    auto inputShape = inputTy.getShape();
+    auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
     auto inputRank = inputTy.getRank();
     auto inputElemTy = inputTy.getElementType();
 
@@ -3427,7 +3460,8 @@ public:
     stride = rewriter.getI64ArrayAttr({strideH, strideW});
     // Adaptive pooling does unit dilation and zero pad.
     pad = rewriter.getI64ArrayAttr({0, 0, 0, 0});
-    outputTy = RankedTensorType::get(outputShape, inputElemTy);
+    outputTy =
+        RankedTensorType::get(makeShapeLLVMCompatible(outputShape), inputElemTy);
 
     return success();
   }
@@ -3438,7 +3472,7 @@ static Type getOutputTypeForNonAdaptivePoolingOp(
     RankedTensorType inputTy, SmallVectorImpl<int64_t> &kernelSize,
     SmallVectorImpl<int64_t> &strideArray, SmallVectorImpl<int64_t> &padArray,
     SmallVectorImpl<int64_t> &dilationArray) {
-  auto inputShape = inputTy.getShape();
+  auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
   auto inputRank = inputTy.getRank();
   auto inputElemTy = inputTy.getElementType();
 
@@ -3454,7 +3488,7 @@ static Type getOutputTypeForNonAdaptivePoolingOp(
   outputShape.push_back(outputHDim);
   outputShape.push_back(outputWDim);
   outputShape.push_back(inputShape[inputRank - 3]);
-  return RankedTensorType::get(outputShape, inputElemTy);
+  return RankedTensorType::get(makeShapeLLVMCompatible(outputShape), inputElemTy);
 }
 
 // Checks the validity of pooling parameters and stores them in the respective
@@ -3645,8 +3679,9 @@ public:
           op, "Only floating-point or integer datatype legalization supported");
     }
     Value constOp;
-    if (failed(torchScalarToTosaTensor(rewriter, op, op.value(), constOp,
-                                       outElemTy, outType.getShape())))
+    if (failed(torchScalarToTosaTensor(
+            rewriter, op, op.value(), constOp, outElemTy,
+            makeShapeTorchCompatible(outType.getShape()))))
       return rewriter.notifyMatchFailure(
           op, "Supplied value must be a Scalar constant");
 

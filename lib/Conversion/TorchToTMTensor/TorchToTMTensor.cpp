@@ -162,7 +162,8 @@ public:
     // `input`.
     // 3.) `bincount` a 1-d tensor maps to the original in scatter op
     // with size equal to the max(max(input) + 1, minlength).
-    SmallVector<int64_t> expandedInputSizes{inputType.getShape()[0], 1};
+    SmallVector<int64_t> expandedInputSizes{
+        makeShapeTorchCompatible(inputType.getShape())[0], 1};
     ValueTensorType expandInputType = ValueTensorType::get(
         context, llvm::makeArrayRef(expandedInputSizes),
         torchTypeInput.getType().cast<ValueTensorType>().getDtype());
@@ -497,8 +498,8 @@ public:
       reassociationCollapse[0].push_back(i);
     RankedTensorType gradOutputFlattenedType;
     int64_t numelGradOutput = getNumberOfElements(gradOutputType);
-    gradOutputFlattenedType =
-        RankedTensorType::get({numelGradOutput}, gradOutputElemType);
+    gradOutputFlattenedType = RankedTensorType::get(
+        makeShapeLLVMCompatible({numelGradOutput}), gradOutputElemType);
     Value gradOutputFlattened = rewriter.create<tensor::CollapseShapeOp>(
         loc, gradOutputFlattenedType, gradOutput, reassociationCollapse);
 
@@ -510,8 +511,9 @@ public:
     int64_t numelIndices = getNumberOfElements(indicesType);
     Value indicesCollapsed = rewriter.create<tensor::CollapseShapeOp>(
         loc,
-        RankedTensorType::get({numelIndices, tensorOperandRank},
-                              indicesElemType),
+        RankedTensorType::get(
+            makeShapeLLVMCompatible({numelIndices, tensorOperandRank}),
+            indicesElemType),
         updatedIndices, reassociationCollapseIndices);
 
     bool invalidInputTypeFound = false;
@@ -581,10 +583,12 @@ public:
 
     SmallVector<Value> accSizes(sizes);
     accSizes.erase(accSizes.begin() + dim);
-    SmallVector<int64_t> accStatic(resultType.getShape());
+    SmallVector<int64_t> accStatic(
+        makeShapeTorchCompatible(resultType.getShape()));
     accStatic.erase(accStatic.begin() + dim);
     Value acc = createZeroInitTensor(rewriter, loc, accSizes, elementType);
-    Type accType = RankedTensorType::get(accStatic, elementType);
+    Type accType =
+        RankedTensorType::get(makeShapeLLVMCompatible(accStatic), elementType);
     acc = rewriter.create<tensor::CastOp>(loc, accType, acc);
 
     Value result = createTMTensorScanOp(

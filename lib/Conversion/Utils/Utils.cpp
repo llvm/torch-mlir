@@ -321,11 +321,34 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
 int64_t getNumberOfElements(RankedTensorType inputType) {
   if (!inputType.hasStaticShape())
     return -1;
-  ArrayRef<int64_t> inputShape = inputType.getShape();
+  SmallVector<int64_t> inputShape =
+      makeShapeTorchCompatible(inputType.getShape());
   int64_t numel = 1;
   for (int64_t i = 0; i < inputType.getRank(); i++)
     numel *= inputShape[i];
   return numel;
+}
+
+SmallVector<int64_t> makeShapeLLVMCompatible(ArrayRef<int64_t> shape) {
+  SmallVector<int64_t> updatedShape(shape);
+  int64_t kDynamicSize = ShapedType::kDynamicSize;
+  for (unsigned i = 0; i < shape.size(); i++) {
+    assert(shape[i] >= 0 || shape[i] == kUnknownSize);
+    if (shape[i] == kUnknownSize)
+      updatedShape[i] = kDynamicSize;
+  }
+  return updatedShape;
+}
+
+SmallVector<int64_t> makeShapeTorchCompatible(ArrayRef<int64_t> shape) {
+  SmallVector<int64_t> updatedShape(shape);
+  int64_t kDynamicSize = ShapedType::kDynamicSize;
+  for (unsigned i = 0; i < shape.size(); i++) {
+    assert(shape[i] >= 0 || shape[i] == kDynamicSize);
+    if (shape[i] == kDynamicSize)
+      updatedShape[i] = kUnknownSize;
+  }
+  return updatedShape;
 }
 
 } // namespace Torch

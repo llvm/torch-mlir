@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
@@ -1400,7 +1401,8 @@ LogicalResult NonValueTensorLiteralOp::inferReturnTypes(
 
 static bool areSizesAndDtypesCompatible(BaseTensorType a, BaseTensorType b) {
   if (a.hasSizes() && b.hasSizes()) {
-    if (failed(verifyCompatibleShape(a.getSizes(), b.getSizes())))
+    if (failed(verifyCompatibleShape(makeShapeLLVMCompatible(a.getSizes()),
+                                     makeShapeLLVMCompatible(b.getSizes()))))
       return false;
   }
   if (a.hasDtype() && b.hasDtype()) {
