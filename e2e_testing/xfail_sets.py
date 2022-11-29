@@ -766,4 +766,8 @@ LTC_XFAIL_SET = {
     "VarMeanCorrectionModule_basic",
     "VarMeanCorrectionNoneModule_basic",
     "PrimsConvertElementTypeModule_basic",
+    "CopyModule_basic",
+    "CopyWithDifferentDTypesAndSizesModule_basic",
+    "CopyWithDifferentDTypesModule_basic",
+    "CopyWithDifferentSizesModule_basic",
 }
