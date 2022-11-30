@@ -807,6 +807,31 @@ class EmbeddingModuleI32(torch.nn.Module):
 def EmbeddingModuleI32_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 3, high=100).to(torch.int32))
 
+# ==============================================================================
+
+
+class EmbeddingModuleF16(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        torch.manual_seed(0)
+        self.embed = torch.nn.Embedding(num_embeddings=100,
+                                        embedding_dim=50,
+                                        padding_idx=4).to(torch.half)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, indices):
+        return self.embed.forward(indices)
+
+
+@register_test_case(module_factory=lambda: EmbeddingModuleF16())
+def EmbeddingModuleF16_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 3, high=100).to(torch.int32))
+
 
 # ==============================================================================
 

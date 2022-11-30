@@ -155,6 +155,7 @@ MHLO_PASS_SET = {
     "EmbeddingModuleI32Static_basic",
     "EmbeddingModuleI32_basic",
     "EmbeddingModuleI64_basic",
+    "EmbeddingModuleF16_basic",
     "ExpandAsIntModule_basic",
     "ExpandModule_basic",
     "FullLikeModuleDefaultDtype_basic",
