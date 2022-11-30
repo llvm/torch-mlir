@@ -9,6 +9,7 @@ from enum import Enum
 import sys
 from io import StringIO
 
+from functorch._src.compile_utils import strip_overloads
 import torch
 
 from torch_mlir.passmanager import PassManager
@@ -299,6 +300,10 @@ def compile(model: torch.nn.Module,
         backend_legal_ops = list(sorted(set(backend_legal_ops)))
     else:
         backend_legal_ops = BACKEND_LEGAL_OPS.get(output_type, [])
+
+    # For FX-based models, automatically strip overloads.
+    if isinstance(model, torch.fx.GraphModule):
+        strip_overloads(model)
 
     # Get the model as JIT IR (TorchScript) for import.
     # TODO: Longer-term, we probably need to split `torch_mlir.compile`.
