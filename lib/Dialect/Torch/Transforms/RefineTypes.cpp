@@ -1088,7 +1088,7 @@ void TypeAnalysis::visitOperation(Operation *op,
   if (auto embedding = dyn_cast<AtenEmbeddingOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = Float32Type::get(op->getContext());
+    knowledge.dtype = operands[0]->getValue().dtype;
     incorporateKnowledge(embedding.getResult(), knowledge);
     return;
   }
