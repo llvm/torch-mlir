@@ -66,5 +66,25 @@ def TestMultipleTensorAndPrimitiveTypesReturn_basic(module, tu: TestUtils):
         tu.rand(2, 3).to(torch.float64),
         tu.rand(2, 3).to(torch.bool))
 
+class TestF16Return(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float16, True),
+    ])
+    def forward(self, a):
+        return a
+
+
+@register_test_case(
+    module_factory=lambda: TestF16Return())
+def TestF16Return_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(3, 4).to(torch.float16))
+
 
 # ==============================================================================

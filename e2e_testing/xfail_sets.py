@@ -405,6 +405,7 @@ MHLO_PASS_SET = {
     "UnsafeViewCollapseModule_basic",
     "UnsafeViewDynamicExpandModule_basic",
     "AtenRoundIntModule_basic",
+    "TestF16Return_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -616,6 +617,7 @@ TOSA_PASS_SET = {
     "MseLossNoReductionModule_basic",
     "AddCMul_Module_basic",
     "AddCDiv_Module_basic",
+    "TestF16Return_basic",
 }
 
 LTC_XFAIL_SET = {
