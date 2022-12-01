@@ -331,21 +331,21 @@ int64_t getNumberOfElements(RankedTensorType inputType) {
 
 SmallVector<int64_t> makeShapeLLVMCompatible(ArrayRef<int64_t> shape) {
   SmallVector<int64_t> updatedShape(shape);
-  int64_t kDynamicSize = ShapedType::kDynamicSize;
+  int64_t kDynamic = ShapedType::kDynamic;
   for (unsigned i = 0; i < shape.size(); i++) {
     assert(shape[i] >= 0 || shape[i] == kUnknownSize);
     if (shape[i] == kUnknownSize)
-      updatedShape[i] = kDynamicSize;
+      updatedShape[i] = kDynamic;
   }
   return updatedShape;
 }
 
 SmallVector<int64_t> makeShapeTorchCompatible(ArrayRef<int64_t> shape) {
   SmallVector<int64_t> updatedShape(shape);
-  int64_t kDynamicSize = ShapedType::kDynamicSize;
+  int64_t kDynamic = ShapedType::kDynamic;
   for (unsigned i = 0; i < shape.size(); i++) {
-    assert(shape[i] >= 0 || shape[i] == kDynamicSize);
-    if (shape[i] == kDynamicSize)
+    assert(shape[i] >= 0 || shape[i] == kDynamic);
+    if (shape[i] == kDynamic)
       updatedShape[i] = kUnknownSize;
   }
   return updatedShape;

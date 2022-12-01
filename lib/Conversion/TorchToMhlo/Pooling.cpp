@@ -279,9 +279,9 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
 
   SmallVector<int64_t> initIndexShapeForType(inputShape.begin(),
                                              inputShape.end() - 2);
-  if (inputShape[inputRank - 1] == ShapedType::kDynamicSize ||
-      inputShape[inputRank - 2] == ShapedType::kDynamicSize) {
-    initIndexShapeForType.push_back(ShapedType::kDynamicSize);
+  if (inputShape[inputRank - 1] == ShapedType::kDynamic ||
+      inputShape[inputRank - 2] == ShapedType::kDynamic) {
+    initIndexShapeForType.push_back(ShapedType::kDynamic);
   } else {
     initIndexShapeForType.push_back(inputShape[inputRank - 1] *
                                     inputShape[inputRank - 2]);
@@ -501,7 +501,7 @@ LogicalResult ConvertAtenOp<AtenAvgPool2dOp>::matchAndRewrite(
       op->getLoc(),
       RankedTensorType::get(inputTy.getShape(), outTy.getElementType()),
       windowSizeConst, inputShapeTensor, rewriter.getI64TensorAttr({}));
-  
+
   Value zero = createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter);
   auto reduceWindowSize = rewriter.create<mhlo::ReduceWindowOp>(
       op->getLoc(), RankedTensorType::get(outShape, inputElemTy),

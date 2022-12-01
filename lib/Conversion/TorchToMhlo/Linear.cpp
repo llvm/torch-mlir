@@ -88,12 +88,12 @@ RankedTensorType castContractingDim(PatternRewriter &rewriter, Operation *op,
   auto lhsContractingDimSize = lhsShape[lhsContractingDim];
   auto rhsContractingDimSize = rhsShape[rhsContractingDim];
   if (lhsContractingDimSize != rhsContractingDimSize) {
-    if (lhsContractingDimSize == ShapedType::kDynamicSize &&
+    if (lhsContractingDimSize == ShapedType::kDynamic &&
         rhsContractingDimSize >= 0) {
       lhsShape[lhsContractingDim] = rhsContractingDimSize;
       auto newRankTy = RankedTensorType::get(lhsShape, lhsTy.getElementType());
       lhs = rewriter.create<tensor::CastOp>(op->getLoc(), newRankTy, lhs);
-    } else if (rhsContractingDimSize == ShapedType::kDynamicSize &&
+    } else if (rhsContractingDimSize == ShapedType::kDynamic &&
                lhsContractingDimSize >= 0) {
       rhsShape[rhsContractingDim] = lhsContractingDimSize;
       auto newRankTy = RankedTensorType::get(rhsShape, rhsTy.getElementType());
@@ -112,7 +112,7 @@ RankedTensorType castContractingDim(PatternRewriter &rewriter, Operation *op,
       break;
     if (k == rhsResultDim || k == rhsContractingDim)
       continue;
-    if (outShape[b] == ShapedType::kDynamicSize && rhsShape[k] >= 0) {
+    if (outShape[b] == ShapedType::kDynamic && rhsShape[k] >= 0) {
       outShape[b] = rhsShape[k];
     }
     b++;
@@ -477,7 +477,7 @@ public:
     weightShapeVec[0] = ICDivGValue;
     weightShapeVec.insert(weightShapeVec.begin(), GValue);
 
-    if (weightShapeInt[0] == ShapedType::kDynamicSize) {
+    if (weightShapeInt[0] == ShapedType::kDynamic) {
       weightShapeInt.insert(weightShapeInt.begin(), groups);
     } else {
       weightShapeInt[0] /= groups;
@@ -499,7 +499,7 @@ public:
 
     // 3. [IC//G, G, OC, H, W, ...] => [IC//G, G*OC, H, W, ...]
     weightShapeInt.erase(weightShapeInt.begin());
-    if (weightShapeInt[1] != ShapedType::kDynamicSize) {
+    if (weightShapeInt[1] != ShapedType::kDynamic) {
       weightShapeInt[1] *= groups;
     }
     weightShapeVec.erase(weightShapeVec.begin());
@@ -533,7 +533,7 @@ public:
       auto finalOutShape = outType.getShape();
       std::copy(finalOutShape.begin(), finalOutShape.end(), outShape.begin());
       for (int i = 2; i < nDims; ++i) {
-        if (finalOutShape[i] == ShapedType::kDynamicSize)
+        if (finalOutShape[i] == ShapedType::kDynamic)
           continue;
         outShape[i] = finalOutShape[i] - outputPadding[i - 2];
       }
@@ -741,11 +741,11 @@ public:
 
     auto nSpatialDims = padding.size();
     auto nDims = inputTy.getRank();
-    
+
     // Kernel size must be constant.
     auto weightShape = weightTy.getShape();
     for (int i = 2; i < nDims; ++i) {
-      if (weightShape[i] == ShapedType::kDynamicSize) {
+      if (weightShape[i] == ShapedType::kDynamic) {
         return rewriter.notifyMatchFailure(
             op, "only constant kernel size is supported");
       }

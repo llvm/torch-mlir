@@ -308,7 +308,7 @@ LogicalResult ConvertAtenOp<AtenSqueezeOp>::matchAndRewrite(
   dims.reserve(rank);
   for (int r = 0; r < rank; ++r) {
     auto dSize = selfTy.getShape()[r];
-    if (dSize == ShapedType::kDynamicSize)
+    if (dSize == ShapedType::kDynamic)
       return rewriter.notifyMatchFailure(
           op, "the size of the dimension being squeezed can't be unknown");
     if (dSize != 1)
@@ -353,7 +353,7 @@ LogicalResult ConvertAtenOp<AtenSqueezeDimOp>::matchAndRewrite(
 
   dim = toPositiveDim(dim, rank);
   if (selfTy.getShape()[dim] != 1) {
-    if (selfTy.getShape()[dim] == ShapedType::kDynamicSize)
+    if (selfTy.getShape()[dim] == ShapedType::kDynamic)
       return rewriter.notifyMatchFailure(
           op, "the size of the dimension being squeezed is can't be unknown");
 
