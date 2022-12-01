@@ -38,9 +38,62 @@ class UniformModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: UniformModule())
 def UniformModule_basic(module, tu: TestUtils):
     module.forward(
-        tu.rand(256, 512, 8).double(),
-        tu.rand(512, 1024, 4).double(),
-        tu.rand(512, 256, 4).double())
+        tu.rand(256, 512, 12).double(),
+        tu.rand(512, 1024, 12).double(),
+        tu.rand(512, 256, 12).double())
+
+# ==============================================================================
+
+class UniformNoCorrelationModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    def correlation(self, stack):
+        """Calculate the correlation of the two rows in `stack`.
+
+        TODO: Remove this by adding support for `torch.corrcoef`.
+        """
+        m = stack - torch.mean(stack, dim=1, keepdim=True)
+        cov = torch.matmul(m, m.t()) / (stack.size()[1] - 1)
+        return cov[0, 1] / torch.sqrt(cov[0, 0] * cov[1, 1])
+
+    @export
+    @annotate_args([
+        None,
+        ([1000], torch.float64, True),
+    ])
+    def forward(self, x):
+        # Correlation of two independent uniforms
+        a = torch.ops.aten.uniform(x)
+        b = torch.ops.aten.uniform(x)
+        stack = torch.cat((a.unsqueeze(0), b.unsqueeze(0)))
+        corr_a_b = self.correlation(stack)
+
+        # Split first dimension of large buffer
+        larger = torch.empty((2,) + x.size(), dtype=torch.float64)
+        larger = torch.ops.aten.uniform(larger)
+        corr_major = self.correlation(larger)
+
+        # Split second dimension of large buffer
+        corr_minor = self.correlation(larger.t().reshape(2, -1))
+
+        # This is hacky. The problem with returning just the correlations
+        # is that `torch.allclose` becomes stricter the closer values are to
+        # zero. Since the correlations are on the order of 1E-3, `rtol=1E-3`,
+        # and `atol=1E-7`, the correlations have to have a difference smaller
+        # than `atol + rtol * correlation = 1E-6`, which is too strict.
+        # Instead, the correlations are explicitly required to be less than
+        # 0.001.
+        return torch.where(torch.abs(corr_a_b) < 0.001, 1, 2), \
+            torch.where(torch.abs(corr_major) < 0.001, 1, 2), \
+            torch.where(torch.abs(corr_minor) < 0.001, 1, 2)
+
+
+@register_test_case(module_factory=lambda: UniformNoCorrelationModule())
+def UniformNoCorrelationModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(1000).double())
 
 # ==============================================================================
 
@@ -132,8 +185,8 @@ class BernoulliFloatModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: BernoulliFloatModule())
 def BernoulliFloatModule_basic(module, tu: TestUtils):
     module.forward(
-        tu.rand(512, 512, 10).double(),
-        tu.rand(512, 512, 10).double())
+        tu.rand(512, 512, 16).double(),
+        tu.rand(512, 512, 16).double())
 
 # ==============================================================================
 
