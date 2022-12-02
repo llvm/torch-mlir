@@ -11,10 +11,12 @@
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "torch-lower-to-backend-contract"
@@ -26,6 +28,10 @@ using namespace mlir::torch::Torch;
 //===----------------------------------------------------------------------===//
 // Checking the backend contract.
 //===----------------------------------------------------------------------===//
+
+static void markDecomposedOpsAsIllegal(MLIRContext *context,
+                                       ConversionTarget &target,
+                                       ArrayRef<std::string> backendLegalOps);
 
 static LogicalResult checkType(Operation *op, Type type,
                                bool actuallyEmitDiagnostics) {
@@ -149,7 +155,24 @@ static LogicalResult checkType(Operation *op, Type type,
   }
 }
 
+static LogicalResult checkOpIsBackendLegal(Operation *op,
+                                           const ConversionTarget &target,
+                                           bool actuallyEmitDiagnostics) {
+  if (target.isLegal(op))
+    return success();
+
+  if (actuallyEmitDiagnostics) {
+    return op->emitError("found an op that was marked as backend illegal")
+        .attachNote()
+        .append("this is likely due to DecomposeComplexOps being unable to "
+                "decompose this op");
+  } else {
+    return failure();
+  }
+}
+
 static bool satisfiesBackendContract(ModuleOp module,
+                                     const ConversionTarget &target,
                                      bool actuallyEmitDiagnostics = false) {
   // We do not permit `torch.global_slot`'s in the backend contract, since
   // support for them is not widespread, and this does not align with PyTorch's
@@ -174,7 +197,8 @@ static bool satisfiesBackendContract(ModuleOp module,
   if (walkResult0.wasInterrupted())
     return false;
 
-  // Check all the type of all Value's in the program.
+  // Check all the types of all Value's in the program and the legality of all
+  // the ops.
   //
   // A pre-order walk gives a more intuitive "first error".
   // TODO: Should we report more than the first error?
@@ -185,10 +209,14 @@ static bool satisfiesBackendContract(ModuleOp module,
                            actuallyEmitDiagnostics))) {
         return WalkResult::interrupt();
       }
-    for (Operation &op : *block)
+    for (Operation &op : *block) {
+      if (failed(checkOpIsBackendLegal(&op, target, actuallyEmitDiagnostics)))
+        return WalkResult::interrupt();
+
       for (OpResult result : op.getResults())
         if (failed(checkType(&op, result.getType(), actuallyEmitDiagnostics)))
           return WalkResult::interrupt();
+    }
 
     return WalkResult::advance();
   });
@@ -210,6 +238,11 @@ public:
   }
   void runOnOperation() override {
     ModuleOp module = getOperation();
+    MLIRContext *context = &getContext();
+    ConversionTarget target(*context);
+    target.addLegalDialect<func::FuncDialect, Torch::TorchDialect>();
+    if (decompose)
+      markDecomposedOpsAsIllegal(context, target, backendLegalOps);
 
     OpPassManager pm(module.getOperationName());
     TorchLoweringPipelineOptions options;
@@ -227,14 +260,14 @@ public:
                        << " iterations of the simplification pipeline\n";
         });
         // Show the diagnostics.
-        (void)satisfiesBackendContract(module,
+        (void)satisfiesBackendContract(module, target,
                                        /*actuallyEmitDiagnostics=*/true);
         return signalPassFailure();
       }
 
       if (failed(runPipeline(pm, module)))
         return signalPassFailure();
-    } while (!satisfiesBackendContract(module));
+    } while (!satisfiesBackendContract(module, target));
     LLVM_DEBUG({
       llvm::dbgs() << "LowerToBackendContractPass: "
                    << "succeeded after " << i
@@ -247,7 +280,10 @@ class VerifyBackendContractPass
     : public VerifyBackendContractBase<VerifyBackendContractPass> {
 public:
   void runOnOperation() override {
-    if (!satisfiesBackendContract(getOperation(), /*actuallyEmitDiagnostics=*/true)) {
+    MLIRContext *context = &getContext();
+    ConversionTarget target(*context);
+    if (!satisfiesBackendContract(getOperation(), target,
+                                  /*actuallyEmitDiagnostics=*/true)) {
       return signalPassFailure();
     }
   }
@@ -264,4 +300,125 @@ mlir::torch::Torch::createLowerToBackendContractPass(
 std::unique_ptr<OperationPass<ModuleOp>>
 mlir::torch::Torch::createVerifyBackendContractPass() {
   return std::make_unique<VerifyBackendContractPass>();
+}
+
+// The backend contract guarantees that ops with decompositions available will
+// be decomposed. The only way to have an op reach the backend contract without
+// getting decomposed is by having the user explicitly specify that op in the
+// `backendLegalOps` argument to the `LowerToBackendContractPass`. Therefore,
+// here we mark as illegal all ops with decompositions except for those in
+// `backendLegalOps`.
+//
+// The legality check takes place here instead of in the `DecomposeComplexOps`
+// pass for two reasons:
+// 1. Makes sure the `DecomposeComplexOps` pass always succeeds, allowing it to
+//   run multiple times. This is needed for graphs where static information such
+//   as dtypes and shapes takes multiple iterations to propagate through the
+//   entire graph. `DecomposeComplexOps` pass failing would cause the entire
+//   `LowerToBackendContractPass` to fail
+// 2. Makes the legality requirements in the backend contract for ops with
+//   decompositions explicit in this file
+static void markDecomposedOpsAsIllegal(MLIRContext *context,
+                                       ConversionTarget &target,
+                                       ArrayRef<std::string> backendLegalOps) {
+  target.addIllegalOp<AtenSoftmaxIntOp>();
+  target.addIllegalOp<Aten_SoftmaxOp>();
+  target.addIllegalOp<Aten_LogSoftmaxOp>();
+  target.addIllegalOp<AtenLogSoftmaxIntOp>();
+  target.addIllegalOp<AtenEmptyLikeOp>();
+  target.addIllegalOp<AtenOnesLikeOp>();
+  target.addIllegalOp<AtenZerosLikeOp>();
+  target.addIllegalOp<AtenRollOp>();
+  target.addIllegalOp<AtenRepeatOp>();
+  target.addIllegalOp<AtenExpandOp>();
+  target.addIllegalOp<AtenFlattenUsingIntsOp>();
+  target.addIllegalOp<AtenWhereScalarOp>();
+  target.addIllegalOp<AtenWhereScalarOtherOp>();
+  target.addIllegalOp<AtenWhereScalarSelfOp>();
+  target.addIllegalOp<AtenConvolutionBackwardOverrideableOp>();
+  target.addIllegalOp<AtenSizeOp>();
+  target.addIllegalOp<AtenReshapeOp>();
+  target.addIllegalOp<Aten_SoftmaxBackwardDataOp>();
+  target.addIllegalOp<AtenTanhBackwardOp>();
+  target.addIllegalOp<AtenAddmmOp>();
+  target.addIllegalOp<AtenMeanOp>();
+  target.addIllegalOp<AtenMeanDimOp>();
+  target.addIllegalOp<AtenSelectIntOp>();
+  target.addIllegalOp<AtenMvOp>();
+  target.addIllegalOp<AtenTOp>();
+  target.addIllegalOp<Aten_LogSoftmaxBackwardDataOp>();
+  target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
+    int lhsRank = getTensorRank(op.getSelf());
+    int rhsRank = getTensorRank(op.getOther());
+    // Make aten.matmul legal if the following condition is satisfied.
+    return (lhsRank != 2 || rhsRank != 2) && (lhsRank != 3 || rhsRank != 3);
+  });
+  target.addIllegalOp<AtenAddcmulOp>();
+  target.addIllegalOp<AtenAddcdivOp>();
+  target.addIllegalOp<AtenLayerNormOp>();
+  target.addIllegalOp<AtenNativeLayerNormOp>();
+  target.addIllegalOp<AtenNativeBatchNormOp>();
+  target.addIllegalOp<AtenConvolutionOverrideableOp>();
+  target.addIllegalOp<Aten_ConvolutionOp, Aten_ConvolutionDeprecatedOp>();
+  target.addIllegalOp<AtenConvolutionBackwardOp>();
+  target.addIllegalOp<AtenConv2dOp>();
+  target.addIllegalOp<AtenConvTranspose2dInputOp>();
+  target.addIllegalOp<AtenArangeOp>();
+  target.addIllegalOp<AtenArangeStartOp>();
+  target.addIllegalOp<AtenArgmaxOp>();
+  target.addIllegalOp<AtenSquareOp>();
+  target.addIllegalOp<AtenVarOp>();
+  target.addIllegalOp<AtenStdOp>();
+  target.addIllegalOp<Aten_UnsafeViewOp>();
+  target.addIllegalOp<Aten_ReshapeAliasOp>();
+  target.addIllegalOp<AtenBernoulliOp>();
+  target.addIllegalOp<ValsemVariantAtenBernoulliFloatOp>();
+  target.addIllegalOp<AtenBernoulliTensorOp>();
+  target.addIllegalOp<AtenZeroOp>();
+  target.addIllegalOp<AtenRandLikeOp>();
+  target.addIllegalOp<AtenHardsigmoidOp>();
+  target.addIllegalOp<AtenRelu6Op>();
+  target.addIllegalOp<AtenHardswishOp>();
+  target.addIllegalOp<AtenSoftplusOp>();
+  target.addIllegalOp<AtenSiluOp>();
+  target.addIllegalOp<AtenNewZerosOp>();
+  target.addIllegalOp<AtenNewOnesOp>();
+  target.addIllegalOp<AtenHardtanhOp>();
+  target.addIllegalOp<AtenFullOp>();
+  target.addIllegalOp<AtenLinearOp>();
+  target.addIllegalOp<AtenMishOp>();
+  target.addIllegalOp<AtenFullLikeOp>();
+  target.addIllegalOp<AtenIndexPutOp>();
+  target.addIllegalOp<AtenExpandAsOp>();
+  target.addIllegalOp<Aten_ToCopyOp>();
+  target.addIllegalOp<AtenDropoutOp>();
+  target.addIllegalOp<AtenNewEmptyOp>();
+  target.addIllegalOp<AtenIndexPutHackedTwinOp>();
+  target.addIllegalOp<AtenPadOp>();
+  target.addIllegalOp<AtenToDtypeLayoutOp>();
+  target.addIllegalOp<AtenToDeviceOp>();
+  target.addIllegalOp<AtenAdaptiveAvgPool2dOp>();
+  target.addIllegalOp<AtenClampMinOp>();
+  target.addIllegalOp<AtenClampMaxOp>();
+  target.addIllegalOp<AtenBaddbmmOp>();
+  target.addIllegalOp<AtenFloorDivideOp>();
+  target.addIllegalOp<AtenNumpyTOp>();
+  target.addIllegalOp<AtenSelectScatterOp>();
+  target.addIllegalOp<AtenVarDimOp>();
+  target.addIllegalOp<AtenAmaxOp>();
+  target.addIllegalOp<AtenVarCorrectionOp>();
+  target.addIllegalOp<AtenStdDimOp>();
+  target.addIllegalOp<AtenNarrowOp>();
+  target.addIllegalOp<Aten_EmbeddingBagOp>();
+  target.addIllegalOp<AtenLiftFreshCopyOp>();
+  target.addIllegalOp<AtenIndexTensorHackedTwinOp>();
+  target.addIllegalOp<AtenMseLossOp>();
+  target.addIllegalOp<AtenRandintLowOp>();
+  target.addIllegalOp<AtenVarMeanCorrectionOp>();
+  target.addIllegalOp<PrimsConvertElementTypeOp>();
+  target.addIllegalOp<AtenRandnOp>();
+  target.addIllegalOp<AtenRandnGeneratorOp>();
+  for (std::string opName : backendLegalOps) {
+    target.addLegalOp(OperationName(opName, context));
+  }
 }
