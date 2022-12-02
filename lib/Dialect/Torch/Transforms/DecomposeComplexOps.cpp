@@ -1425,6 +1425,15 @@ public:
     BaseTensorType outputTensorType = output.getType().cast<BaseTensorType>();
     Type outputTensorTypeAsF64 = outputTensorType.getWithSizesAndDtype(
         outputTensorType.getSizes(), rewriter.getF64Type());
+
+    // Upcasting the input tensor to `F64` dtype for higher precision during the
+    // computation of the result.
+    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+    if (inputType.getDtype().getIntOrFloatBitWidth() != 64) {
+      input = convertTensorToDtype(rewriter, loc, input, rewriter.getF64Type());
+      inputType = input.getType().cast<BaseTensorType>();
+    }
+
     Value sum = rewriter.create<AtenSumOp>(
         loc, outputTensorTypeAsF64, input,
         rewriter.create<Torch::ConstantIntOp>(
@@ -1472,6 +1481,13 @@ public:
         !dimList.getType().isa<Torch::NoneType>()) {
       return rewriter.notifyMatchFailure(
           op, "expected `dim` to be `None` or constructed from list construct");
+    }
+
+    // Upcasting the input tensor to `F64` dtype for higher precision during the
+    // computation of the result.
+    if (inputType.getDtype().getIntOrFloatBitWidth() != 64) {
+      input = convertTensorToDtype(rewriter, loc, input, rewriter.getF64Type());
+      inputType = input.getType().cast<BaseTensorType>();
     }
 
     // Compute sum along dimensions specified in `dimList`.
