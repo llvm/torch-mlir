@@ -970,6 +970,37 @@ def aten〇index〇Tensor_hacked_twin〡shape(self: List[int], indices: List[Lis
 def aten〇cat〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
     return upstream_shape_functions.cat(tensors, dim)
 
+def aten〇fft_fft〡shape(self: List[int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> List[int]:
+    return self
+
+@check_dtype_function([
+    Invocation(NonZeroDTensorWithDtype(torch.complex64)),
+    Invocation(NonZeroDTensorWithDtype(torch.complex128)),
+    Invocation(NonZeroDTensorWithDtype(torch.float)),
+    Invocation(NonZeroDTensorWithDtype(torch.double)),
+    Invocation(NonZeroDTensorWithDtype(torch.bool)),
+    Invocation(NonZeroDTensorWithDtype(torch.uint8)),
+    Invocation(NonZeroDTensorWithDtype(torch.int8)),
+    Invocation(NonZeroDTensorWithDtype(torch.int16)),
+    Invocation(NonZeroDTensorWithDtype(torch.int32)),
+    Invocation(NonZeroDTensorWithDtype(torch.int64)),
+    ErrorInvocation(NonZeroDTensorWithDtype(torch.float16)),
+    ErrorInvocation(NonZeroDTensorWithDtype(torch.bfloat16)),
+])
+def aten〇fft_fft〡dtype(self_rank: int, self_dtype: int, n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> int:
+    if self_dtype == torch.complex64 or self_dtype == torch.complex128:
+        return self_dtype
+    elif self_dtype == torch.float:
+        return torch.complex64
+    elif self_dtype == torch.double:
+        return torch.complex128
+    elif self_dtype == torch.bool or self_dtype == torch.uint8 or \
+         self_dtype == torch.int8 or self_dtype == torch.int16 or \
+         self_dtype == torch.int32 or self_dtype == torch.int64:
+        return torch.complex64
+    else:
+        assert False, "Unsupported dtype"
+
 class DummyClassType:
     def __init__(self):
         pass

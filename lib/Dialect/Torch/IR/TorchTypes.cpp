@@ -147,6 +147,10 @@ void Torch::UnionType::print(AsmPrinter &printer) const {
 //===----------------------------------------------------------------------===//
 
 static bool isValidTorchDtype(Type dtype) {
+  // For complex types, get the underlying element type
+  if (dtype.isa<ComplexType>()) {
+    dtype = dtype.cast<ComplexType>().getElementType();
+  }
   // Torch quantized types.
   if (dtype.isa<Torch::QInt8Type, Torch::QUInt8Type>())
     return true;
