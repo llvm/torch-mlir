@@ -84,7 +84,7 @@ SmallVector<Value> getTypeConvertedValues(OpBuilder &b, Location loc,
 // should be converted builtin types.
 Value convertScalarToDtype(
     OpBuilder &b, Location loc, Value scalar, Type dtype,
-    llvm::Optional<Type> srcOriginalDtype = llvm::NoneType());
+    llvm::Optional<Type> srcOriginalDtype = llvm::None);
 
 // Return the number of elements of a tensor if the shape is static; otherwise,
 // return -1.
