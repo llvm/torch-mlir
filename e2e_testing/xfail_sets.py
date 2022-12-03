@@ -111,6 +111,7 @@ MHLO_PASS_SET = {
     "ElementwiseAtenLogicalOrOpPromoteBroadcastStaticShapeModule_basic",
     "ElementwiseAtenLogicalXorOpPromoteBroadcastStaticShapeModule_basic",
     "ElementwiseAtenWhereSelfModule_basic",
+    "ElementwiseWhereScalarModule_basic",
     "ElementwiseClampModule_basic",
     "ElementwiseClampMinModule_basic",
     "ElementwiseClampMaxModule_basic",

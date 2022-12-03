@@ -1356,6 +1356,72 @@ public:
 };
 } // namespace
 
+// AtenStackOp
+// aten.stack = mhlo.cat + mhlo.dynamic_reshape
+template <>
+LogicalResult ConvertAtenOp<AtenStackOp>::matchAndRewrite(
+    AtenStackOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto outType =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+  auto outElemType = outType.getElementType();
+  int64_t dim;
+  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim))) {
+    return rewriter.notifyMatchFailure(op,
+                                       "only constant dim param is supported");
+  }
+  SmallVector<Value> torchTensors;
+  if (!getListConstructElements(op.tensors(), torchTensors)) {
+    return rewriter.notifyMatchFailure(
+        op, "input should comes from a PrimListConstructOp");
+  }
+  SmallVector<Value> builtinTensors = getTypeConvertedValues(
+      rewriter, op->getLoc(), getTypeConverter(), torchTensors);
+
+  // Promote type
+  for (auto &v : builtinTensors) {
+    v = mhlo::promoteType(rewriter, v, outType);
+  }
+
+  auto inputTensorType = builtinTensors[0].getType().cast<RankedTensorType>();
+  auto inputRank = inputTensorType.getRank();
+  int64_t posDim = toPositiveDim(dim, inputRank + 1);
+
+  // Get final output tensor shape
+  auto inputShapeInfo = mhlo::getDimSizesOfTensor(rewriter, op, builtinTensors[0], options.dimSizeIndexBits);
+  if (failed(inputShapeInfo)) {
+    return rewriter.notifyMatchFailure(op, "failed to get tensor shape of input");
+  }
+  auto outputShape = *inputShapeInfo;
+  auto intType = rewriter.getIntegerType(options.dimSizeIndexBits);
+  Value addedDimSize = rewriter.create<arith::ConstantOp>(
+        op->getLoc(), rewriter.getIntegerAttr(intType, builtinTensors.size()));
+      
+  if (posDim == inputRank) {
+    outputShape.emplace_back(addedDimSize);
+  } else {
+    outputShape.insert(outputShape.begin()+posDim, addedDimSize);
+  }
+  auto outputShapeTensor = rewriter.create<tensor::FromElementsOp>(op->getLoc(), outputShape);
+  
+  // Construct mhlo.cat op
+  Value cat;
+  auto inputTensorShape = inputTensorType.getShape();
+  SmallVector<int64_t> catOutShape(inputTensorShape.begin(), inputTensorShape.end());
+  if (posDim == inputRank) 
+    posDim--;
+  if (catOutShape[posDim] != ShapedType::kDynamicSize) {
+    catOutShape[posDim] *= builtinTensors.size();
+  }
+  cat = rewriter.create<mhlo::ConcatenateOp>(op->getLoc(), RankedTensorType::get(catOutShape, outElemType), ValueRange(builtinTensors), posDim);
+  
+  // Reshape
+  rewriter.replaceOpWithNewOp<mhlo::DynamicReshapeOp>(
+      op, outType, cat, outputShapeTensor);
+  return success();
+}
+
+
 void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToMhloOptions &options) {
@@ -1455,6 +1521,7 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenGeluBackwardOp);
 
   INSERT_ATENOP_PATTERN(AtenCatOp);
+  INSERT_ATENOP_PATTERN(AtenStackOp);
   INSERT_ATENOP_PATTERN(AtenClampOp);
   INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
 
@@ -1464,6 +1531,7 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenSizeIntOp);
   INSERT_ATENOP_PATTERN(AtenToDtypeOp);
   INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
+  INSERT_ATENOP_PATTERN(AtenSigmoidOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, MhloOp)                        \
