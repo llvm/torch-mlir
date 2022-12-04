@@ -177,12 +177,15 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
       with:
         release_id: ${{ github.event.inputs.release_id }}
+    - name: DEBUG List Files
+      if: github.event.inputs.release_id != ''
+      run: dir /s
     - name: Create dist directory
       if: github.event.inputs.release_id != ''
       run: mkdir dist
     - name: Copy releases to publish to dist directory
       if: github.event.inputs.release_id != ''
-      run: cp build_tools/python_deploy/wheelhouse/torch_mlir-*.whl dist/
+      run: cp ./wheelhouse/torch_mlir-*.whl dist/
 
     # Wheels must be published from a linux environment.
     #
