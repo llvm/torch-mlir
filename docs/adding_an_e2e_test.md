@@ -167,3 +167,20 @@ random inputs should be generated through the `TestUtils` object.
   in. An attempt has been made to keep all E2E test files with consistent style,
   but file specific variations do exist
 
+## Special kinds of tests
+
+The testing of functions that produce random values (e.g. `torch.rand`) is
+supported by our e2e test suite. The basic approach is that you generate a
+"sufficiently large" random sample and then take a statistic (such as mean or
+standard deviation) and compare it to the analytically expected value. For a
+sufficiently large random sample, the test will be non-flaky. However, try to
+avoid excessively large random samples, since our end-to-end test suite
+currently runs on the RefBackend and so it can be very slow and
+memory-inefficient to operate on large data. See examples in
+[test_suite/rng.py](https://github.com/llvm/torch-mlir/blob/6c5360e281f31059f9c565e9ccc0f6edaa2c9a69/python/torch_mlir_e2e_test/test_suite/rng.py#L1).
+
+The testing of functions with special numerical precision considerations can
+also be tricky. Our rule of thumb is that if a test would fail across two
+upstream PyTorch backends (e.g. CPU and CUDA) due to different numerical
+precision choices, then it should not be included in our e2e test suite.
+See [this PR](https://github.com/llvm/torch-mlir/pull/1605) for context.
