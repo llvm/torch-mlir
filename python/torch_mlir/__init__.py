@@ -9,7 +9,7 @@ from enum import Enum
 import sys
 from io import StringIO
 
-from functorch._src.compile_utils import strip_overloads
+from torch._functorch.compile_utils import strip_overloads
 import torch
 
 from torch_mlir.passmanager import PassManager

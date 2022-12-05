@@ -7,7 +7,7 @@ from typing import List
 
 import torch
 from torch.fx.experimental.proxy_tensor import make_fx
-from functorch._src.compile_utils import strip_overloads
+from torch._functorch.compile_utils import strip_overloads
 from torch._decomp import get_decompositions
 
 import warnings
