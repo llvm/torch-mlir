@@ -16,8 +16,8 @@ from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
 
 
 @make_simple_dynamo_backend
-def refbackend_torchdynamo_backend(fx_graph: torch.fx.GraphModule,
-                                   example_inputs: List[torch.Tensor]):
+def _refbackend_torchdynamo_backend(fx_graph: torch.fx.GraphModule,
+                                    example_inputs: List[torch.Tensor]):
     # Use the LinalgOnTensors backend, since it is the most complete.
     # In theory we could mix and match TorchDynamo with the other backends,
     # since they all lower through the same backend contract.
@@ -49,10 +49,6 @@ def refbackend_torchdynamo_backend(fx_graph: torch.fx.GraphModule,
     return compiled_callable
 
 
-@dynamo.optimize(refbackend_torchdynamo_backend)
-def f(method, *inputs):
-    return method(*inputs)
-
 class TorchDynamoTestConfig(TestConfig):
     """TestConfig that runs the torch.nn.Module with TorchDynamo"""
 
@@ -67,7 +63,9 @@ class TorchDynamoTestConfig(TestConfig):
         # stateful then it does not mutate the original compiled program.
         result: Trace = []
         for item in trace:
-            output = f(getattr(artifact, item.symbol), *item.inputs)
+            f = lambda method, *inputs: method(*inputs)
+            dynamo_f = dynamo.optimize(_refbackend_torchdynamo_backend)(f)
+            output = dynamo_f(getattr(artifact, item.symbol), *item.inputs)
             result.append(
                 TraceItem(symbol=item.symbol,
                           inputs=item.inputs,
