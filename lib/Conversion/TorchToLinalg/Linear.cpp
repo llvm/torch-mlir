@@ -36,8 +36,8 @@ public:
   matchAndRewrite(AtenMmOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
-    Value lhs = adaptor.self();
-    Value rhs = adaptor.mat2();
+    Value lhs = adaptor.getSelf();
+    Value rhs = adaptor.getMat2();
 
     // A user can write an errorneous program where `aten.mm` is in fact called
     // with operands of invalid rank or dtype. We cannot convert to linalg in
@@ -102,15 +102,15 @@ public:
 
     Location loc = op->getLoc();
     MLIRContext *context = op.getContext();
-    Value self = adaptor.self();
-    auto selfRank = adaptor.self().getType().cast<RankedTensorType>().getRank();
+    Value self = adaptor.getSelf();
+    auto selfRank = adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
     Type elementType =
-        adaptor.self().getType().cast<RankedTensorType>().getElementType();
+        adaptor.getSelf().getType().cast<RankedTensorType>().getElementType();
     Value c1 =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
 
     SmallVector<int64_t> axis;
-    if (!matchPattern(adaptor.dims(), m_TorchListOfConstantInts(axis)))
+    if (!matchPattern(adaptor.getDims(), m_TorchListOfConstantInts(axis)))
       return rewriter.notifyMatchFailure(op,
                                          "only constant dim lists supported");
     // Only used to calculate flipped values, i.e. those on the flip axes. Other
@@ -160,8 +160,8 @@ public:
   matchAndRewrite(AtenMatmulOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
-    Value lhs = adaptor.self();
-    Value rhs = adaptor.other();
+    Value lhs = adaptor.getSelf();
+    Value rhs = adaptor.getOther();
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
@@ -430,8 +430,8 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op->getLoc();
-    Value lhs = adaptor.self();
-    Value rhs = adaptor.mat2();
+    Value lhs = adaptor.getSelf();
+    Value rhs = adaptor.getMat2();
     RankedTensorType lhsType = lhs.getType().cast<RankedTensorType>();
     RankedTensorType rhsType = rhs.getType().cast<RankedTensorType>();
 
@@ -483,11 +483,11 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
     MLIRContext *context = op->getContext();
-    Value input = adaptor.input();   /* in form of N*C*H*W */
-    Value weight = adaptor.weight(); /* in form of F*C*H*W */
+    Value input = adaptor.getInput();   /* in form of N*C*H*W */
+    Value weight = adaptor.getWeight(); /* in form of F*C*H*W */
 
     bool transposed = true;
-    if (!matchPattern(op.transposed(), m_TorchConstantBool(&transposed)))
+    if (!matchPattern(op.getTransposed(), m_TorchConstantBool(&transposed)))
       return rewriter.notifyMatchFailure(
           op, "unimplemented: only constant transposed supported");
 
@@ -507,17 +507,17 @@ public:
     };
 
     SmallVector<Value> paddingIntValues;
-    if (!getListConstructElements(op.padding(), paddingIntValues))
+    if (!getListConstructElements(op.getPadding(), paddingIntValues))
       return rewriter.notifyMatchFailure(
           op, "only support padding from a list construct");
     paddingIntValues = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
                                               paddingIntValues);
     SmallVector<int64_t> strideInts;
-    if (!matchPattern(op.stride(), m_TorchListOfConstantInts(strideInts)))
+    if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int strides");
     SmallVector<int64_t> dilationInts;
-    if (!matchPattern(op.dilation(), m_TorchListOfConstantInts(dilationInts)))
+    if (!matchPattern(op.getDilation(), m_TorchListOfConstantInts(dilationInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int dilations");
 
@@ -534,10 +534,10 @@ public:
 
     // Checks for valid group size
     int64_t groupSize;
-    if (!matchPattern(op.groups(), m_TorchConstantInt(&groupSize)))
+    if (!matchPattern(op.getGroups(), m_TorchConstantInt(&groupSize)))
       return rewriter.notifyMatchFailure(op,
                                          "only constant group size supported.");
-    Value groups = castIntToIndex(rewriter, loc, adaptor.groups());
+    Value groups = castIntToIndex(rewriter, loc, adaptor.getGroups());
 
     auto validate = [&](Value toValidate, std::string err) {
       Value c0 =
@@ -664,7 +664,7 @@ public:
     Value initTensor = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(outDims), elementType);
 
-    Value bias = adaptor.bias();
+    Value bias = adaptor.getBias();
     Value outputTensor;
     if (bias.getType().isa<Torch::NoneType>()) {
       Value c0float = rewriter.create<arith::ConstantOp>(

@@ -156,14 +156,14 @@ LogicalResult InlineGlobalSlotsAnalysis::initialize(Operation *top) {
     if (auto globalSlot = dyn_cast<Torch::GlobalSlotOp>(op)) {
       auto *state = getOrCreate<InlineGlobalSlotsAnalysisState>(
           getProgramPoint<FlatSymbolRefProgramPoint>(
-              FlatSymbolRefAttr::get(globalSlot.sym_nameAttr())));
+              FlatSymbolRefAttr::get(globalSlot.getSymNameAttr())));
       propagateIfChanged(state,
                          state->setSafe(globalSlot.getVisibility() !=
                                         SymbolTable::Visibility::Public));
     }
     if (auto globalSlotSet = dyn_cast<Torch::GlobalSlotSetOp>(op)) {
       auto *state = getOrCreate<InlineGlobalSlotsAnalysisState>(
-          getProgramPoint<FlatSymbolRefProgramPoint>(globalSlotSet.slotAttr()));
+          getProgramPoint<FlatSymbolRefProgramPoint>(globalSlotSet.getSlotAttr()));
       propagateIfChanged(state, state->setSafe(false));
     }
     // Save the InitializeGlobalSlotsOp for later referencee
@@ -192,9 +192,9 @@ LogicalResult InlineGlobalSlotsAnalysis::visit(ProgramPoint point) {
       if (auto globalSlotGet =
               dyn_cast<Torch::GlobalSlotGetOp>(opResult.getOwner())) {
         auto *flatSymbolRefPoint = getProgramPoint<FlatSymbolRefProgramPoint>(
-            globalSlotGet.slotAttr());
+            globalSlotGet.getSlotAttr());
         auto *valueState = getOrCreateFor<InlineGlobalSlotsAnalysisState>(
-            flatSymbolRefPoint, globalSlotGet.result());
+            flatSymbolRefPoint, globalSlotGet.getResult());
         auto *globalState =
             getOrCreate<InlineGlobalSlotsAnalysisState>(flatSymbolRefPoint);
         propagateIfChanged(globalState,
@@ -209,10 +209,10 @@ LogicalResult InlineGlobalSlotsAnalysis::visit(ProgramPoint point) {
             dyn_cast<FlatSymbolRefProgramPoint>(genericProgramPoint)) {
       if (initializeGlobalSlotsOp) {
         auto it =
-            llvm::find(initializeGlobalSlotsOp.slotSymNames(),
+            llvm::find(initializeGlobalSlotsOp.getSlotSymNames(),
                        static_cast<Attribute>(flatSymbolRefPoint->getValue()));
         Value value = initializeGlobalSlotsOp->getOperand(
-            std::distance(initializeGlobalSlotsOp.slotSymNames().begin(), it));
+            std::distance(initializeGlobalSlotsOp.getSlotSymNames().begin(), it));
         auto *flatSymbolRefState =
             getOrCreateFor<InlineGlobalSlotsAnalysisState>(value,
                                                            flatSymbolRefPoint);
@@ -247,7 +247,7 @@ bool InlineGlobalSlotsAnalysis::isValueSafeTransferFunction(Value value) {
         }))
       continue;
     if (auto initialize = dyn_cast<Torch::InitializeGlobalSlotsOp>(op)) {
-      auto symName = initialize.slotSymNames()[use.getOperandNumber()]
+      auto symName = initialize.getSlotSymNames()[use.getOperandNumber()]
                          .cast<FlatSymbolRefAttr>();
       auto *state = getOrCreateFor<InlineGlobalSlotsAnalysisState>(
           value, getProgramPoint<FlatSymbolRefProgramPoint>(symName));
@@ -300,10 +300,10 @@ class InlineGlobalSlotsPass
         if (auto globalSlot = dyn_cast<Torch::GlobalSlotOp>(op)) {
           auto *state = solver.lookupState<InlineGlobalSlotsAnalysisState>(
               solver.getProgramPoint<FlatSymbolRefProgramPoint>(
-                  FlatSymbolRefAttr::get(globalSlot.sym_nameAttr())));
+                  FlatSymbolRefAttr::get(globalSlot.getSymNameAttr())));
           state->print(llvm::dbgs());
           llvm::dbgs() << ": "
-                       << FlatSymbolRefAttr::get(globalSlot.sym_nameAttr())
+                       << FlatSymbolRefAttr::get(globalSlot.getSymNameAttr())
                        << "\n";
           return;
         }
@@ -331,10 +331,10 @@ class InlineGlobalSlotsPass
 
     DenseSet</*FlatSymbolRefAttr*/ Attribute> safeToInline;
     for (int i = 0, e = initialize->getNumOperands(); i != e; i++) {
-      auto slotSymName = initialize.slotSymNames()[i].cast<FlatSymbolRefAttr>();
+      auto slotSymName = initialize.getSlotSymNames()[i].cast<FlatSymbolRefAttr>();
       Value operand = initialize.getOperand(i);
       auto symbolRefPoint = solver.getProgramPoint<FlatSymbolRefProgramPoint>(
-          initialize.slotSymNames()[i].cast<FlatSymbolRefAttr>());
+          initialize.getSlotSymNames()[i].cast<FlatSymbolRefAttr>());
       auto *state =
           solver.lookupState<InlineGlobalSlotsAnalysisState>(symbolRefPoint);
       // We roll the analysis of whether a slot is set or public into the
@@ -362,12 +362,12 @@ class InlineGlobalSlotsPass
     SymbolTable symbolTable(module);
     DenseSet<Operation *> toErase;
     module.walk([&](Torch::GlobalSlotGetOp op) {
-      if (!safeToInline.count(op.slotAttr()))
+      if (!safeToInline.count(op.getSlotAttr()))
         return;
       // TODO: Make this more ergonomic.
-      auto it = llvm::find(initialize.slotSymNames(), op.slotAttr());
+      auto it = llvm::find(initialize.getSlotSymNames(), op.getSlotAttr());
       Value initialValue = initialize.getOperand(
-          std::distance(initialize.slotSymNames().begin(), it));
+          std::distance(initialize.getSlotSymNames().begin(), it));
       // It seems inefficient to get a backward slice again here, but we are
       // going to be cloning the whole slice anyway, so it doesn't seem like a
       // big deal.
@@ -405,7 +405,7 @@ class InlineGlobalSlotsPass
     SmallVector<Attribute> newSlotSymNames;
     SmallVector<Value> newInitialValues;
     for (int i = 0, e = initialize.getNumOperands(); i != e; i++) {
-      auto slotSymName = initialize.slotSymNames()[i].cast<FlatSymbolRefAttr>();
+      auto slotSymName = initialize.getSlotSymNames()[i].cast<FlatSymbolRefAttr>();
       if (!safeToInline.count(slotSymName)) {
         newSlotSymNames.push_back(slotSymName);
         newInitialValues.push_back(initialize.getOperand(i));

@@ -43,7 +43,7 @@ public:
   LogicalResult
   matchAndRewrite(AtenDimOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto rank = rewriter.create<tensor::RankOp>(op->getLoc(), adaptor.self());
+    auto rank = rewriter.create<tensor::RankOp>(op->getLoc(), adaptor.getSelf());
     rewriter.replaceOpWithNewOp<arith::IndexCastOp>(
         op, getTypeConverter()->convertType(op.getType()), rank);
     return success();
@@ -59,7 +59,7 @@ public:
   LogicalResult
   matchAndRewrite(AtenIsFloatingPointOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto tensorType = op.self().getType().cast<BaseTensorType>();
+    auto tensorType = op.getSelf().getType().cast<BaseTensorType>();
     bool result =
         tensorType.hasDtype() && tensorType.getDtype().isa<mlir::FloatType>();
     rewriter.replaceOpWithNewOp<arith::ConstantOp>(
@@ -76,8 +76,8 @@ public:
   LogicalResult
   matchAndRewrite(RuntimeAssertOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<cf::AssertOp>(op, adaptor.condition(),
-                                              adaptor.message());
+    rewriter.replaceOpWithNewOp<cf::AssertOp>(op, adaptor.getCondition(),
+                                              adaptor.getMessage());
     return success();
   }
 };
@@ -92,7 +92,7 @@ public:
   matchAndRewrite(AtenOp op,
                   typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.template replaceOpWithNewOp<BinOp>(op, adaptor.a(), adaptor.b());
+    rewriter.template replaceOpWithNewOp<BinOp>(op, adaptor.getA(), adaptor.getB());
     return success();
   }
 };
@@ -108,7 +108,7 @@ public:
                   typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    Value input = adaptor.a();
+    Value input = adaptor.getA();
     Type resultType =
         this->getTypeConverter()->convertType(op->getResult(0).getType());
     if (!input.getType().isa<mlir::FloatType>())
@@ -131,9 +131,9 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value a =
-        convertScalarToDtype(rewriter, loc, adaptor.a(), rewriter.getF64Type());
+        convertScalarToDtype(rewriter, loc, adaptor.getA(), rewriter.getF64Type());
     Value b =
-        convertScalarToDtype(rewriter, loc, adaptor.b(), rewriter.getF64Type());
+        convertScalarToDtype(rewriter, loc, adaptor.getB(), rewriter.getF64Type());
     rewriter.replaceOpWithNewOp<arith::DivFOp>(op, a, b);
     return success();
   }
@@ -150,8 +150,8 @@ public:
   matchAndRewrite(AtenOp op,
                   typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<arith::CmpIOp>(op, Pred, adaptor.a(),
-                                               adaptor.b());
+    rewriter.replaceOpWithNewOp<arith::CmpIOp>(op, Pred, adaptor.getA(),
+                                               adaptor.getB());
     return success();
   }
 };
@@ -167,7 +167,7 @@ public:
   matchAndRewrite(AtenOp op,
                   typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Value lhs = adaptor.a(), rhs = adaptor.b();
+    Value lhs = adaptor.getA(), rhs = adaptor.getB();
     rhs = convertScalarToDtype(rewriter, op.getLoc(), rhs, lhs.getType());
     rewriter.replaceOpWithNewOp<arith::CmpFOp>(op, Pred, lhs, rhs);
     return success();
@@ -188,8 +188,8 @@ public:
   matchAndRewrite(ValueTensorLiteralOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     MLIRContext *context = op->getContext();
-    if (auto elements = op.valueAttr().dyn_cast<DenseIntElementsAttr>()) {
-      Type elemTy = op.valueAttr().getElementType();
+    if (auto elements = op.getValueAttr().dyn_cast<DenseIntElementsAttr>()) {
+      Type elemTy = op.getValueAttr().getElementType();
       unsigned bitWidth = elemTy.getIntOrFloatBitWidth();
       Type builtinTensorElemTy = IntegerType::get(context, bitWidth);
       rewriter.replaceOpWithNewOp<arith::ConstantOp>(
@@ -198,7 +198,7 @@ public:
           }));
       return success();
     }
-    if (auto elements = op.valueAttr().dyn_cast<DenseResourceElementsAttr>()) {
+    if (auto elements = op.getValueAttr().dyn_cast<DenseResourceElementsAttr>()) {
       if (auto type = elements.getType().dyn_cast<RankedTensorType>()) {
         if (auto intType = type.getElementType().dyn_cast<IntegerType>()) {
           Type builtinTensorElemTy =
@@ -213,7 +213,7 @@ public:
         }
       }
     }
-    rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, op.valueAttr());
+    rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, op.getValueAttr());
     return success();
   }
 };
@@ -228,7 +228,7 @@ public:
   LogicalResult
   matchAndRewrite(OpTy op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, op.valueAttr());
+    rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, op.getValueAttr());
     return success();
   }
 };
@@ -246,7 +246,7 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
 
     SmallVector<Value> inputListTorchBool;
-    if (!getListConstructElements(op.self(), inputListTorchBool)) {
+    if (!getListConstructElements(op.getSelf(), inputListTorchBool)) {
       return rewriter.notifyMatchFailure(
           op, "Unimplemented input list not constructed from ListConstruct");
     }
@@ -293,7 +293,7 @@ public:
   matchAndRewrite(OpTy op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    Type inputType = adaptor.a().getType();
+    Type inputType = adaptor.getA().getType();
     Value cstZero = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getZeroAttr(inputType));
     Value cstTrue =
@@ -302,7 +302,7 @@ public:
         rewriter.create<arith::ConstantOp>(loc, rewriter.getBoolAttr(false));
 
     Value cmpPred;
-    cmpPred = rewriter.create<CmpOpTy>(loc, Pred, adaptor.a(), cstZero);
+    cmpPred = rewriter.create<CmpOpTy>(loc, Pred, adaptor.getA(), cstZero);
     rewriter.replaceOpWithNewOp<arith::SelectOp>(op, cmpPred, cstTrue,
                                                  cstFalse);
     return success();

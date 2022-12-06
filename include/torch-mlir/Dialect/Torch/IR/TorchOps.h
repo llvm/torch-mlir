@@ -39,7 +39,7 @@ struct torch_constant_int_op_binder {
 
   bool match(Operation *op) {
     if (auto constantInt = dyn_cast<Torch::ConstantIntOp>(op)) {
-      *bind_value = constantInt.value().getSExtValue();
+      *bind_value = constantInt.getValue().getSExtValue();
       return true;
     }
     return false;
@@ -54,7 +54,7 @@ struct torch_constant_float_op_binder {
 
   bool match(Operation *op) {
     if (auto constantFloat = dyn_cast<Torch::ConstantFloatOp>(op)) {
-      *bind_value = constantFloat.value().convertToDouble();
+      *bind_value = constantFloat.getValue().convertToDouble();
       return true;
     }
     return false;
@@ -69,7 +69,7 @@ struct torch_constant_str_op_binder {
 
   bool match(Operation *op) {
     if (auto constantString = dyn_cast<Torch::ConstantStrOp>(op)) {
-      bind_value = constantString.value().str();
+      bind_value = constantString.getValue().str();
       return true;
     }
     return false;
@@ -84,7 +84,7 @@ struct torch_constant_device_op_binder {
 
   bool match(Operation *op) {
     if (auto constantDevice = dyn_cast<Torch::ConstantDeviceOp>(op)) {
-      bind_value = constantDevice.value().str();
+      bind_value = constantDevice.getValue().str();
       return true;
     }
     return false;
@@ -126,7 +126,7 @@ struct torch_constant_bool_op_binder {
 
   bool match(Operation *op) {
     if (auto constantBool = dyn_cast<Torch::ConstantBoolOp>(op)) {
-      *bind_value = constantBool.value();
+      *bind_value = constantBool.getValue();
       return true;
     }
     return false;
@@ -153,7 +153,7 @@ struct torch_list_of_constant_ints_op_binder {
     auto listConstruct = dyn_cast<Torch::PrimListConstructOp>(op);
     if (!listConstruct)
       return false;
-    for (Value value : listConstruct.elements()) {
+    for (Value value : listConstruct.getElements()) {
       int64_t num;
       if (matchPattern(value, m_TorchConstantInt(&num)))
         bind_values.push_back(num);
@@ -184,7 +184,7 @@ struct torch_list_of_constant_bools_op_binder {
     auto listConstruct = dyn_cast<Torch::PrimListConstructOp>(op);
     if (!listConstruct)
       return false;
-    for (Value value : listConstruct.elements()) {
+    for (Value value : listConstruct.getElements()) {
       bool num;
       if (matchPattern(value, m_TorchConstantBool(&num)))
         bind_values.push_back(num);
@@ -214,8 +214,8 @@ struct torch_tensor_size_int_op_binder {
 
   bool match(Operation *op) {
     if (auto atenSizeIntOp = dyn_cast<Torch::AtenSizeIntOp>(op)) {
-      if (atenSizeIntOp.self() == tensor) {
-        if (matchPattern(atenSizeIntOp.dim(), m_TorchConstantInt(dim)))
+      if (atenSizeIntOp.getSelf() == tensor) {
+        if (matchPattern(atenSizeIntOp.getDim(), m_TorchConstantInt(dim)))
           return true;
       }
     }

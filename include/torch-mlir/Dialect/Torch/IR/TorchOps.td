@@ -497,12 +497,12 @@ def Torch_PrimCallMethodOp : Torch_Op<"prim.CallMethod", []> {
   let arguments = (ins
     StrAttr:$name,
     Torch_NnModuleType:$receiver,
-    Variadic<AnyTorchType>:$operands
+    Variadic<AnyTorchType>:$methodOperands
   );
   let results = (outs AnyTorchType:$result);
 
   let assemblyFormat = [{
-    $receiver `[` $name `]` `(` $operands `)` attr-dict `:` qualified(type($receiver)) `,` functional-type($operands, $result)
+    $receiver `[` $name `]` `(` $methodOperands `)` attr-dict `:` qualified(type($receiver)) `,` functional-type($methodOperands, $result)
   }];
 }
 

@@ -36,15 +36,15 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op->getLoc();
-    Value self = adaptor.self();
-    Value dim = adaptor.dim();
+    Value self = adaptor.getSelf();
+    Value dim = adaptor.getDim();
     auto type = self.getType().cast<RankedTensorType>();
     Value inputRank = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI64IntegerAttr(type.getRank()));
     Value dimPositive = toPositiveDimDynamic(rewriter, loc, dim, inputRank);
     assertIsValidDim(rewriter, loc, dimPositive, inputRank);
     Value size = rewriter.create<tensor::DimOp>(
-        loc, adaptor.self(), castIntToIndex(rewriter, loc, dimPositive));
+        loc, adaptor.getSelf(), castIntToIndex(rewriter, loc, dimPositive));
     rewriter.replaceOp(op, castIndexToInt64(rewriter, loc, size));
     return success();
   }
@@ -61,7 +61,7 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    Value tensorSize = getTensorSize(rewriter, loc, adaptor.self());
+    Value tensorSize = getTensorSize(rewriter, loc, adaptor.getSelf());
     rewriter.replaceOp(op, tensorSize);
     return success();
   }
@@ -81,11 +81,11 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    Value input = adaptor.a();
+    Value input = adaptor.getA();
     SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
     int64_t inputRank = inputSizes.size();
     Type inputDtype =
-        op.a().getType().template cast<BaseTensorType>().getDtype();
+        op.getA().getType().template cast<BaseTensorType>().getDtype();
 
     // The `input` tensor must contain exactly one element, i.e., either the
     // `input` is a zero rank tensor or all the dimensions of the `input` tensor
@@ -130,17 +130,17 @@ public:
     Value elemVal, dtype, device, requires_grad;
     if (AtenTensorIntOp tensorIntOp = dyn_cast<AtenTensorIntOp>(op)) {
       AtenTensorIntOp::Adaptor adaptor(operands);
-      elemVal = adaptor.t();
-      dtype = tensorIntOp.dtype();
-      device = tensorIntOp.device();
-      requires_grad = tensorIntOp.requires_grad();
+      elemVal = adaptor.getT();
+      dtype = tensorIntOp.getDtype();
+      device = tensorIntOp.getDevice();
+      requires_grad = tensorIntOp.getRequiresGrad();
     }
     if (AtenTensorFloatOp tensorFloatOp = dyn_cast<AtenTensorFloatOp>(op)) {
       AtenTensorFloatOp::Adaptor adaptor(operands);
-      elemVal = adaptor.t();
-      dtype = tensorFloatOp.dtype();
-      device = tensorFloatOp.device();
-      requires_grad = tensorFloatOp.requires_grad();
+      elemVal = adaptor.getT();
+      dtype = tensorFloatOp.getDtype();
+      device = tensorFloatOp.getDevice();
+      requires_grad = tensorFloatOp.getRequiresGrad();
     }
     // TODO: Dtype conversion.
     if (!dtype.getType().isa<Torch::NoneType>())
@@ -176,7 +176,7 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    Value a = adaptor.a();
+    Value a = adaptor.getA();
     Value outTensor =
         rewriter
             .create<tensor::EmptyOp>(loc, ArrayRef<OpFoldResult>{}, a.getType())
@@ -196,7 +196,7 @@ public:
   LogicalResult
   matchAndRewrite(AtenScalarImplicitOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<tensor::ExtractOp>(op, adaptor.a());
+    rewriter.replaceOpWithNewOp<tensor::ExtractOp>(op, adaptor.getA());
     return success();
   }
 };

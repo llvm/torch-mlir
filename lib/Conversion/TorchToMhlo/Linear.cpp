@@ -301,10 +301,10 @@ public:
   LogicalResult readMatMulInputs(AtenOpT op, OpAdaptor adaptor,
                                  ConversionPatternRewriter &rewriter,
                                  Value &lhs, Value &rhs) const override {
-    lhs = adaptor.self();
+    lhs = adaptor.getSelf();
     auto lhsTy = lhs.getType().cast<RankedTensorType>();
 
-    rhs = adaptor.other();
+    rhs = adaptor.getOther();
     auto rhsTy = rhs.getType().cast<RankedTensorType>();
 
     if (!lhsTy || !rhsTy)
@@ -324,10 +324,10 @@ public:
   LogicalResult readMatMulInputs(AtenOpT op, OpAdaptor adaptor,
                                  ConversionPatternRewriter &rewriter,
                                  Value &lhs, Value &rhs) const override {
-    lhs = adaptor.self();
+    lhs = adaptor.getSelf();
     auto lhsTy = lhs.getType().cast<RankedTensorType>();
 
-    rhs = adaptor.mat2();
+    rhs = adaptor.getMat2();
     auto rhsTy = rhs.getType().cast<RankedTensorType>();
 
     if (!lhsTy || !rhsTy)
@@ -360,10 +360,10 @@ public:
   LogicalResult readMatMulInputs(AtenOpT op, OpAdaptor adaptor,
                                  ConversionPatternRewriter &rewriter,
                                  Value &lhs, Value &rhs) const override {
-    lhs = adaptor.input();
+    lhs = adaptor.getInput();
     auto lhsTy = lhs.getType().cast<RankedTensorType>();
 
-    rhs = adaptor.weight();
+    rhs = adaptor.getWeight();
     auto rhsTy = rhs.getType().cast<RankedTensorType>();
 
     if (!lhsTy || !rhsTy)
@@ -392,7 +392,7 @@ public:
 
     // The aten.Linear op has a bias tensor that is added to the matmul
     // output.
-    auto bias = adaptor.bias();
+    auto bias = adaptor.getBias();
     auto biasTy = bias.getType();
 
     // MHLO does not mandate that elementwise op tensors need to be ranked.
@@ -675,8 +675,8 @@ public:
   LogicalResult
   matchAndRewrite(AtenConvolutionOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Value input = adaptor.input();
-    Value weight = adaptor.weight();
+    Value input = adaptor.getInput();
+    Value weight = adaptor.getWeight();
 
     // The input shape is [N, C, H, W]
     auto inputTy = input.getType().template cast<RankedTensorType>();
@@ -693,32 +693,32 @@ public:
     if (inputTy.getRank() < 3)
       return op.emitError("only input with at least 3 dims valid");
     SmallVector<int64_t> stride;
-    if (!matchPattern(op.stride(), m_TorchListOfConstantInts(stride))) {
+    if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(stride))) {
       return rewriter.notifyMatchFailure(op,
                                          "non-const stride list unsupported");
     }
     SmallVector<int64_t> padding;
-    if (!matchPattern(op.padding(), m_TorchListOfConstantInts(padding))) {
+    if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding))) {
       return rewriter.notifyMatchFailure(op,
                                          "non-const padding list unsupported");
     }
     SmallVector<int64_t> dilation;
-    if (!matchPattern(op.dilation(), m_TorchListOfConstantInts(dilation))) {
+    if (!matchPattern(op.getDilation(), m_TorchListOfConstantInts(dilation))) {
       return rewriter.notifyMatchFailure(op,
                                          "non-const dilation list unsupported");
     }
     SmallVector<int64_t> outputPadding;
-    if (!matchPattern(op.output_padding(),
+    if (!matchPattern(op.getOutputPadding(),
                       m_TorchListOfConstantInts(outputPadding))) {
       return rewriter.notifyMatchFailure(
           op, "non-const output_padding list unsupported");
     }
     int64_t groups;
-    if (!matchPattern(op.groups(), m_TorchConstantInt(&groups))) {
+    if (!matchPattern(op.getGroups(), m_TorchConstantInt(&groups))) {
       return rewriter.notifyMatchFailure(op, "non-int groups unsupported");
     }
     bool transposed;
-    if (!matchPattern(op.transposed(), m_TorchConstantBool(&transposed))) {
+    if (!matchPattern(op.getTransposed(), m_TorchConstantBool(&transposed))) {
       return rewriter.notifyMatchFailure(op, "non-bool transposed unsupported");
     }
     // Whether need to handle outputpadding
@@ -761,10 +761,10 @@ public:
                                          stride, padding, dilation, groups);
     }
 
-    auto bias = adaptor.bias();
+    auto bias = adaptor.getBias();
 
     // No bias provided
-    if (failed(checkNotNone(rewriter, op, op.bias()))) {
+    if (failed(checkNotNone(rewriter, op, op.getBias()))) {
       rewriter.replaceOp(op, mhloConvResult);
       return success();
     }
@@ -774,7 +774,7 @@ public:
       return op.emitError("bias provided but not a ranked tensor");
     }
 
-    auto biasTy = bias.getType().template cast<RankedTensorType>();
+    auto biasTy = bias.getType().cast<RankedTensorType>();
     if (!biasTy.getElementType().isIntOrFloat()) {
       return op.emitError("only floating-point or integer datatype "
                           "legalization for bias supported");

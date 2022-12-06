@@ -192,7 +192,7 @@ template <>
 LogicalResult ConvertAtenReductionOp<AtenArgmaxOp>::matchAndRewrite(
     AtenArgmaxOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  Value input = adaptor.self();
+  Value input = adaptor.getSelf();
   auto inputTy = input.getType().template cast<RankedTensorType>();
   if (!inputTy) {
     return rewriter.notifyMatchFailure(op, "only Tensor types supported in MHLO");
@@ -212,7 +212,7 @@ LogicalResult ConvertAtenReductionOp<AtenArgmaxOp>::matchAndRewrite(
   }
 
   int64_t dim;
-  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim))) {
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim))) {
     return rewriter.notifyMatchFailure(op, "non-int dim unsupported");
   }
   dim = toPositiveDim(dim, inputTy.getRank());
@@ -221,7 +221,7 @@ LogicalResult ConvertAtenReductionOp<AtenArgmaxOp>::matchAndRewrite(
   }
 
   bool keepDim = false;
-  if (!matchPattern(op.keepdim(), m_TorchConstantBool(&keepDim))) {
+  if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim))) {
     return rewriter.notifyMatchFailure(op, "non-bool keepdim unsupported");
   }
 
@@ -263,7 +263,7 @@ template <>
 LogicalResult ConvertAtenReductionOp<AtenMaxDimOp>::matchAndRewrite(
     AtenMaxDimOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  Value input = adaptor.self();
+  Value input = adaptor.getSelf();
   auto inputTy = input.getType().template dyn_cast<RankedTensorType>();
   if (!inputTy) {
     return rewriter.notifyMatchFailure(op, "only Tensor types supported in MHLO");
@@ -293,7 +293,7 @@ LogicalResult ConvertAtenReductionOp<AtenMaxDimOp>::matchAndRewrite(
   }
 
   int64_t dim;
-  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim))) {
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim))) {
     return rewriter.notifyMatchFailure(op, "non-int dim unsupported");
   }
   dim = toPositiveDim(dim, inputTy.getRank());
@@ -301,7 +301,7 @@ LogicalResult ConvertAtenReductionOp<AtenMaxDimOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
   }
   bool keepDim = false;
-  if (!matchPattern(op.keepdim(), m_TorchConstantBool(&keepDim))) {
+  if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim))) {
     return rewriter.notifyMatchFailure(op, "non-bool keepdim unsupported");
   }
 
@@ -345,7 +345,7 @@ template <>
 LogicalResult ConvertAtenReductionOp<AtenSumOp>::matchAndRewrite(
     AtenSumOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  Value input = adaptor.self();
+  Value input = adaptor.getSelf();
   auto inputTy = input.getType().dyn_cast<RankedTensorType>();
   auto outTy = getTypeConverter()
                    ->convertType(op.getType())
@@ -413,7 +413,7 @@ template <>
 LogicalResult ConvertAtenReductionOp<AtenMaxOp>::matchAndRewrite(
     AtenMaxOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  Value input = adaptor.self();
+  Value input = adaptor.getSelf();
   auto inputTy = input.getType().dyn_cast<RankedTensorType>();
   if (!inputTy) {
     return rewriter.notifyMatchFailure(op, "only Tensor types supported in MHLO");
@@ -473,7 +473,7 @@ template <>
 LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
     AtenSumDimIntListOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  Value input = adaptor.self();
+  Value input = adaptor.getSelf();
   auto inputTy = input.getType().dyn_cast<RankedTensorType>();
   auto outTy = getTypeConverter()
                    ->convertType(op.getType())
@@ -503,7 +503,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
 
   SmallVector<int64_t> inputDims;
   SmallVector<int64_t> dims;
-  if (!matchPattern(op.dim(), m_TorchListOfConstantInts(inputDims))) {
+  if (!matchPattern(op.getDim(), m_TorchListOfConstantInts(inputDims))) {
     return rewriter.notifyMatchFailure(op, "non-int dim list unsupported");
   }
   if (inputDims.size() == 0) {
@@ -519,7 +519,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
   }
 
   bool keepDim = false;
-  if (!matchPattern(op.keepdim(), m_TorchConstantBool(&keepDim))) {
+  if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim))) {
     return rewriter.notifyMatchFailure(op, "non-bool keepdim unsupported");
   }
   Value initValue =
@@ -587,7 +587,7 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   const TorchToMhloOptions &options = getOptions();
 
-  Value input = adaptor.self();
+  Value input = adaptor.getSelf();
   auto inputType = input.getType().dyn_cast<RankedTensorType>();
   if (!inputType) {
     return op.emitError(
@@ -601,7 +601,7 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
   }
 
   SmallVector<int64_t> dims;
-  if (!matchPattern(op.dim(), m_TorchListOfConstantInts(dims))) {
+  if (!matchPattern(op.getDim(), m_TorchListOfConstantInts(dims))) {
     return rewriter.notifyMatchFailure(
         op, "non-const integer `dim` is not supported");
   }
@@ -618,7 +618,7 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
   std::sort(dims.begin(), dims.end());
 
   bool keepDim = false;
-  if (!matchPattern(op.keepdim(), m_TorchConstantBool(&keepDim))) {
+  if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim))) {
     return rewriter.notifyMatchFailure(
         op, "non-const bool `keepdim` is not supported");
   }

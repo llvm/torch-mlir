@@ -174,8 +174,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (auto clone = dyn_cast<AtenCloneOp>(op)) {
     int64_t memoryFormat;
-    if (!clone.memory_format().getType().isa<Torch::NoneType>() &&
-        (!matchPattern(clone.memory_format(),
+    if (!clone.getMemoryFormat().getType().isa<Torch::NoneType>() &&
+        (!matchPattern(clone.getMemoryFormat(),
                        m_TorchConstantInt(&memoryFormat)) ||
          memoryFormat != torch_upstream::MemoryFormat::Contiguous)) {
       clone.emitError("unimplemented: only default memory format is supported");
@@ -294,7 +294,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     // TODO: Take approximation into account.
     std::string approximate;
-    if (!matchPattern(gelu.approximate(), m_TorchConstantStr(approximate)) ||
+    if (!matchPattern(gelu.getApproximate(), m_TorchConstantStr(approximate)) ||
         approximate != "none")
       return nullptr;
     Value cdf = buildUnitNormalCdf(b, loc, payloadArgs[0]);
@@ -310,7 +310,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     // TODO: Take approximation into account.
     std::string approximate;
-    if (!matchPattern(geluBackward.approximate(),
+    if (!matchPattern(geluBackward.getApproximate(),
                       m_TorchConstantStr(approximate)) ||
         approximate != "none")
       return nullptr;
@@ -344,7 +344,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
-    Value alpha = convertScalarToDtype(b, loc, adaptor.alpha(), dtype);
+    Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), dtype);
     if (dtype.isa<mlir::FloatType>()) {
       Value scaled = b.create<arith::MulFOp>(loc, rhs, alpha);
       return b.create<arith::AddFOp>(loc, lhs, scaled);
@@ -360,7 +360,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
-    Value alpha = convertScalarToDtype(b, loc, adaptor.alpha(), dtype);
+    Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), dtype);
     if (dtype.isa<mlir::FloatType>()) {
       Value scaled = b.create<arith::MulFOp>(loc, rhs, alpha);
       return b.create<arith::SubFOp>(loc, lhs, scaled);
@@ -443,7 +443,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
 
     Type elementalType =
-        gtTensor.self().getType().cast<BaseTensorType>().getDtype();
+        gtTensor.getSelf().getType().cast<BaseTensorType>().getDtype();
     return createGreaterThan(b, loc, elementalType, payloadArgs[0],
                              payloadArgs[1]);
   }
@@ -460,7 +460,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
 
     Type elementalType =
-        eqTensor.self().getType().cast<BaseTensorType>().getDtype();
+        eqTensor.getSelf().getType().cast<BaseTensorType>().getDtype();
 
     if (elementalType.isa<mlir::FloatType>())
       return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UEQ,
@@ -485,7 +485,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
 
     Type elementalType =
-        ltTensor.self().getType().cast<BaseTensorType>().getDtype();
+        ltTensor.getSelf().getType().cast<BaseTensorType>().getDtype();
     return createLessThan(b, loc, elementalType, payloadArgs[0],
                           payloadArgs[1]);
   }
@@ -515,11 +515,11 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
     Value div = b.create<arith::DivFOp>(loc, lhs, rhs);
 
-    if (divTensorMode.rounding_mode().getType().isa<Torch::NoneType>())
+    if (divTensorMode.getRoundingMode().getType().isa<Torch::NoneType>())
       return div;
 
     std::string roundingMode;
-    if (!matchPattern(divTensorMode.rounding_mode(),
+    if (!matchPattern(divTensorMode.getRoundingMode(),
                       m_TorchConstantStr(roundingMode))) {
       divTensorMode.emitError("only support constant str rounding mode");
       return nullptr;
@@ -550,7 +550,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       pow.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    Type dtype = pow.self().getType().cast<ValueTensorType>().getDtype();
+    Type dtype = pow.getSelf().getType().cast<ValueTensorType>().getDtype();
     Value expPromoted = convertScalarToDtype(b, loc, operands[1], dtype);
     return b.create<math::PowFOp>(loc, payloadArgs[0], expPromoted);
   }
@@ -569,7 +569,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto gtScalar = dyn_cast<AtenGtScalarOp>(op)) {
-    Type dtype = gtScalar.self().getType().cast<BaseTensorType>().getDtype();
+    Type dtype = gtScalar.getSelf().getType().cast<BaseTensorType>().getDtype();
 
     // TODO: `gtTensor` and `gtScalar` share similar code and can be called from
     // one static function.
@@ -599,7 +599,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto geScalar = dyn_cast<AtenGeScalarOp>(op)) {
-    Type dtype = geScalar.self().getType().cast<BaseTensorType>().getDtype();
+    Type dtype = geScalar.getSelf().getType().cast<BaseTensorType>().getDtype();
 
     // TODO: The `AtenGeScalarOp` and `AtenGtScalarOp` share a lot of code that
     // can be refactored.
@@ -629,7 +629,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto eqScalar = dyn_cast<AtenEqScalarOp>(op)) {
-    Type dtype = eqScalar.self().getType().cast<BaseTensorType>().getDtype();
+    Type dtype = eqScalar.getSelf().getType().cast<BaseTensorType>().getDtype();
     Value otherPromoted =
         convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
 
@@ -645,7 +645,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto neScalar = dyn_cast<AtenNeScalarOp>(op)) {
-    Type dtype = neScalar.self().getType().cast<BaseTensorType>().getDtype();
+    Type dtype = neScalar.getSelf().getType().cast<BaseTensorType>().getDtype();
     Value otherPromoted =
         convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
 
@@ -661,7 +661,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto ltScalar = dyn_cast<AtenLtScalarOp>(op)) {
-    Type dtype = ltScalar.self().getType().cast<BaseTensorType>().getDtype();
+    Type dtype = ltScalar.getSelf().getType().cast<BaseTensorType>().getDtype();
     Value otherPromoted =
         convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
 
@@ -689,7 +689,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto leScalar = dyn_cast<AtenLeScalarOp>(op)) {
-    Type dtype = leScalar.self().getType().cast<BaseTensorType>().getDtype();
+    Type dtype = leScalar.getSelf().getType().cast<BaseTensorType>().getDtype();
     Value otherPromoted =
         convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
 
@@ -734,9 +734,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       return nullptr;
     }
     AtenLerpTensorOp::Adaptor adaptor(payloadArgs);
-    auto start = adaptor.self();
-    auto end = adaptor.end();
-    auto weight = adaptor.weight();
+    auto start = adaptor.getSelf();
+    auto end = adaptor.getEnd();
+    auto weight = adaptor.getWeight();
     auto delta = b.create<arith::SubFOp>(loc, end, start);
     auto weightedDelta = b.create<arith::MulFOp>(loc, delta, weight);
     return b.create<arith::AddFOp>(loc, start, weightedDelta);
@@ -770,8 +770,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       return nullptr;
     }
     AtenClampOp::Adaptor adaptor(operands);
-    auto min = adaptor.min();
-    auto max = adaptor.max();
+    auto min = adaptor.getMin();
+    auto max = adaptor.getMax();
     if (min.getType().isa<Torch::OptionalType>() ||
         max.getType().isa<Torch::OptionalType>()) {
       clamp.emitError("unimplemented: runtime optional type");
@@ -890,8 +890,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
 
     Value self = payloadArgs[0];
-    Value threshold = convertScalarToDtype(b, loc, adaptor.threshold(), dtype);
-    Value value = convertScalarToDtype(b, loc, adaptor.value(), dtype);
+    Value threshold = convertScalarToDtype(b, loc, adaptor.getThreshold(), dtype);
+    Value value = convertScalarToDtype(b, loc, adaptor.getValue(), dtype);
 
     Value predicate;
     if (dtype.isa<mlir::FloatType>())
@@ -912,7 +912,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 
     Value grad = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value self = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
-    Value threshold = convertScalarToDtype(b, loc, adaptor.threshold(), dtype);
+    Value threshold = convertScalarToDtype(b, loc, adaptor.getThreshold(), dtype);
     Value constantZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
 
     Value predicate;
@@ -929,7 +929,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(fillScalar.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    return convertScalarToDtype(b, loc, adaptor.value(), dtype);
+    return convertScalarToDtype(b, loc, adaptor.getValue(), dtype);
   }
   if (auto maskedFillScalar = dyn_cast<AtenMaskedFillScalarOp>(op)) {
     AtenMaskedFillScalarOp::Adaptor adaptor(operands);
@@ -939,7 +939,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 
     Value input = payloadArgs[0];
     Value mask = payloadArgs[1];
-    Value fillValue = convertScalarToDtype(b, loc, adaptor.value(), dtype);
+    Value fillValue = convertScalarToDtype(b, loc, adaptor.getValue(), dtype);
 
     return b.create<arith::SelectOp>(loc, mask, fillValue, input);
   }
@@ -965,7 +965,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   if (auto triu = dyn_cast<AtenTriuOp>(op)) {
     // Check if the rank of the input tensor is valid.
     AtenTriuOp::Adaptor adaptor(operands);
-    auto inputType = adaptor.self().getType().cast<RankedTensorType>();
+    auto inputType = adaptor.getSelf().getType().cast<RankedTensorType>();
     uint64_t inputRank = inputType.getRank();
     if (inputRank < 2) {
       triu.emitError("too few dimensions to compute triangular part of matrix");
@@ -979,7 +979,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value colIndexI64 = castIndexToInt64(b, loc, colIndex);
 
     // columnIndex >= rowIndex + diagonal?
-    auto sum = b.create<arith::AddIOp>(loc, rowIndexI64, adaptor.diagonal());
+    auto sum = b.create<arith::AddIOp>(loc, rowIndexI64, adaptor.getDiagonal());
     auto pred = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge,
                                         colIndexI64, sum);
 
@@ -1102,12 +1102,12 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op->getLoc();
-    Value input = adaptor.self();
-    Value target = adaptor.target();
-    Value weight = adaptor.weight();
+    Value input = adaptor.getSelf();
+    Value target = adaptor.getTarget();
+    Value weight = adaptor.getWeight();
 
     int64_t reduction;
-    if (!matchPattern(op.reduction(), m_TorchConstantInt(&reduction)))
+    if (!matchPattern(op.getReduction(), m_TorchConstantInt(&reduction)))
       return rewriter.notifyMatchFailure(op, "dim must be constant");
 
     // TODO: Incorporate the weight argument.
@@ -1115,7 +1115,7 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Unimplemented, the weight operand is not incorporated.");
 
-    Value ignoreIndex = adaptor.ignore_index();
+    Value ignoreIndex = adaptor.getIgnoreIndex();
     Value ignoreIndexVal = castIntToIndex(rewriter, loc, ignoreIndex);
 
     unsigned inputRank = input.getType().cast<RankedTensorType>().getRank();
@@ -1233,13 +1233,13 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     MLIRContext *context = op->getContext();
     Location loc = op->getLoc();
-    Value input = adaptor.input();
-    Value weight = adaptor.weight();
-    Value bias = adaptor.bias();
-    Value runningMean = adaptor.running_mean();
-    Value runningVar = adaptor.running_var();
-    Value training = adaptor.training();
-    Value eps = adaptor.eps();
+    Value input = adaptor.getInput();
+    Value weight = adaptor.getWeight();
+    Value bias = adaptor.getBias();
+    Value runningMean = adaptor.getRunningMean();
+    Value runningVar = adaptor.getRunningVar();
+    Value training = adaptor.getTraining();
+    Value eps = adaptor.getEps();
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
@@ -1343,13 +1343,13 @@ public:
       return failure();
 
     Location loc = op->getLoc();
-    Value gradOutput = adaptor.grad_output();
-    Value input = adaptor.self();
-    Value target = adaptor.target();
-    Value weight = adaptor.weight();
-    bool weightIsNone = op.weight().getType().isa<Torch::NoneType>();
-    Value ignoreIndex = castIntToIndex(rewriter, loc, adaptor.ignore_index());
-    Value totalWeight = adaptor.total_weight();
+    Value gradOutput = adaptor.getGradOutput();
+    Value input = adaptor.getSelf();
+    Value target = adaptor.getTarget();
+    Value weight = adaptor.getWeight();
+    bool weightIsNone = op.getWeight().getType().isa<Torch::NoneType>();
+    Value ignoreIndex = castIntToIndex(rewriter, loc, adaptor.getIgnoreIndex());
+    Value totalWeight = adaptor.getTotalWeight();
 
     auto inputType = input.getType().cast<RankedTensorType>();
     int inputRank = inputType.getRank();
@@ -1357,7 +1357,7 @@ public:
     Type resultElementType = gradOutputType.getElementType();
 
     int64_t reduction;
-    if (!matchPattern(op.reduction(), m_TorchConstantInt(&reduction)))
+    if (!matchPattern(op.getReduction(), m_TorchConstantInt(&reduction)))
       return rewriter.notifyMatchFailure(op, "dim must be constant");
 
     if (!hasElementType<mlir::FloatType>(gradOutput) ||
@@ -1489,7 +1489,7 @@ public:
       return failure();
 
     Type resultType = getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, adaptor.self());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, adaptor.getSelf());
     return success();
   }
 };
@@ -1507,7 +1507,7 @@ public:
                                       ->convertType(op->getResult(0).getType())
                                       .cast<RankedTensorType>();
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
-                                                adaptor.operand());
+                                                adaptor.getOperand());
     return success();
   }
 };

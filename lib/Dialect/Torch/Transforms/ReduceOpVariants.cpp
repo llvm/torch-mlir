@@ -88,13 +88,13 @@ public:
                   "from list construct");
         }
 
-        if (listConstruct.elements().empty())
+        if (listConstruct.getElements().empty())
           continue;
 
         // TODO: Handle optional type in list type.
         if (auto optionalType =
                 listType.getContainedType().dyn_cast<OptionalType>()) {
-          if (!llvm::all_of(listConstruct.elements(), [](Value val) {
+          if (!llvm::all_of(listConstruct.getElements(), [](Value val) {
                 return val.getType().isa<NonValueTensorType, Torch::NoneType>();
               })) {
             rewriter.cancelRootUpdate(op);
@@ -105,7 +105,7 @@ public:
         }
 
         auto newListElements = llvm::to_vector(llvm::map_range(
-            listConstruct.elements(), [&](Value tensor) -> Value {
+            listConstruct.getElements(), [&](Value tensor) -> Value {
               if (tensor.getType().isa<NonValueTensorType>()) {
                 return rewriter.create<CopyToValueTensorOp>(op->getLoc(),
                                                             tensor);
@@ -137,10 +137,10 @@ public:
                   "derefine");
         }
 
-        if (!derefine.operand().getType().isa<NonValueTensorType>())
+        if (!derefine.getOperand().getType().isa<NonValueTensorType>())
           continue;
         auto newOperand = rewriter.create<CopyToValueTensorOp>(
-            op->getLoc(), derefine.operand());
+            op->getLoc(), derefine.getOperand());
         opOperand.set(rewriter.create<DerefineOp>(
             op->getLoc(), Torch::OptionalType::get(newOperand.getType()),
             newOperand));
@@ -233,7 +233,7 @@ static LogicalResult
 reduceNonValueTensorLiteralOpToValueTensorLiteralOp(NonValueTensorLiteralOp op,
                                                     PatternRewriter &rewriter) {
   Value valueTensor =
-      rewriter.create<ValueTensorLiteralOp>(op->getLoc(), op.value());
+      rewriter.create<ValueTensorLiteralOp>(op->getLoc(), op.getValue());
   Value tensor =
       copyTensorToType(rewriter, op->getLoc(), op.getType(), valueTensor);
   rewriter.replaceOp(op, {tensor});

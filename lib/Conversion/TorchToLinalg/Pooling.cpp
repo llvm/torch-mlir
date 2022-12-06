@@ -40,19 +40,19 @@ checkAndGetPoolingParameters(OpTy op, ConversionPatternRewriter &rewriter,
   // will get the lowered version of the operands which is harder to pattern
   // match.
   SmallVector<Value, 2> kernelSizeTorchInt;
-  if (!getListConstructElements(op.kernel_size(), kernelSizeTorchInt)) {
+  if (!getListConstructElements(op.getKernelSize(), kernelSizeTorchInt)) {
     return rewriter.notifyMatchFailure(op,
                                        "unimplemented: the kernel size is "
                                        "not constructed from ListConstruct");
   }
   kernelSizeIntValues = getTypeConvertedValues(
       rewriter, op.getLoc(), typeConverter, kernelSizeTorchInt);
-  if (!matchPattern(op.stride(), m_TorchListOfConstantInts(strideInts)))
+  if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts)))
     return rewriter.notifyMatchFailure(op, "only support constant int strides");
-  if (!matchPattern(op.padding(), m_TorchListOfConstantInts(paddingInts)))
+  if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(paddingInts)))
     return rewriter.notifyMatchFailure(op,
                                        "only support constant int paddings");
-  if (!matchPattern(op.ceil_mode(), m_TorchConstantBool(&ceilMode)))
+  if (!matchPattern(op.getCeilMode(), m_TorchConstantBool(&ceilMode)))
     return rewriter.notifyMatchFailure(op,
                                        "only support constant bool ceil_mode");
   return success();
@@ -135,7 +135,7 @@ public:
       return failure();
 
     TypeConverter *typeConverter = getTypeConverter();
-    Value self = adaptor.self();
+    Value self = adaptor.getSelf();
     int64_t selfRank = self.getType().cast<RankedTensorType>().getRank();
     // TODO: Add support for 3D inputs.
     if (selfRank == 3)
@@ -145,7 +145,7 @@ public:
     bool ceilMode;
     SmallVector<Value, 2> kernelSizeIntValues;
     SmallVector<int64_t, 2> strideInts, paddingInts, dilationInts;
-    if (!matchPattern(op.dilation(), m_TorchListOfConstantInts(dilationInts)))
+    if (!matchPattern(op.getDilation(), m_TorchListOfConstantInts(dilationInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int dilations");
     if (failed(checkAndGetPoolingParameters<AtenMaxPool2dOp>(
@@ -207,7 +207,7 @@ public:
       return failure();
     Location loc = op->getLoc();
     TypeConverter *typeConverter = getTypeConverter();
-    Value self = adaptor.self();
+    Value self = adaptor.getSelf();
     RankedTensorType selfType = self.getType().cast<RankedTensorType>();
     Type elementType = selfType.getElementType();
     RankedTensorType indicesRankedTensorType =
@@ -223,7 +223,7 @@ public:
     bool ceilMode;
     SmallVector<Value, 2> kernelSizeIntValues;
     SmallVector<int64_t, 2> strideInts, paddingInts, dilationInts;
-    if (!matchPattern(op.dilation(), m_TorchListOfConstantInts(dilationInts)))
+    if (!matchPattern(op.getDilation(), m_TorchListOfConstantInts(dilationInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int dilations");
     if (failed(checkAndGetPoolingParameters<AtenMaxPool2dWithIndicesOp>(
@@ -365,7 +365,7 @@ public:
       return failure();
     Location loc = op->getLoc();
     TypeConverter *typeConverter = getTypeConverter();
-    Value self = adaptor.self();
+    Value self = adaptor.getSelf();
 
     Type inputElementType =
         self.getType().cast<RankedTensorType>().getElementType();
@@ -383,7 +383,7 @@ public:
 
     // TODO: Add support for count_include_pad equal to `False`.
     bool countIncludePad;
-    if (!matchPattern(op.count_include_pad(),
+    if (!matchPattern(op.getCountIncludePad(),
                       m_TorchConstantBool(&countIncludePad)))
       return rewriter.notifyMatchFailure(
           op, "count_include_pad must be a constant");
@@ -404,9 +404,9 @@ public:
 
     Value kHtimeskW = rewriter.create<arith::MulIOp>(
         loc, kernelSizeIntValues[0], kernelSizeIntValues[1]);
-    Value divisor = op.divisor_override().getType().isa<Torch::NoneType>()
+    Value divisor = op.getDivisorOverride().getType().isa<Torch::NoneType>()
                         ? kHtimeskW
-                        : adaptor.divisor_override();
+                        : adaptor.getDivisorOverride();
     divisor = convertScalarToDtype(rewriter, loc, divisor, resultElementType);
 
     Value outputTensor = rewriter.create<tensor::EmptyOp>(

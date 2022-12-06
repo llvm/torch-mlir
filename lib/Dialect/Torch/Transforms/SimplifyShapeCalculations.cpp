@@ -42,7 +42,7 @@ public:
     if (!op.isForLike())
       return failure();
     int64_t maxTripCount;
-    if (!matchPattern(op.maxTripCount(), m_TorchConstantInt(&maxTripCount)))
+    if (!matchPattern(op.getMaxTripCount(), m_TorchConstantInt(&maxTripCount)))
       return failure();
     SmallVector<Value> indices;
     for (int64_t i = 0; i < maxTripCount; i++) {
@@ -57,23 +57,23 @@ public:
     BlockAndValueMapping bvm;
     // TODO: Helper for region().front()
     auto condition =
-        cast<PrimLoopConditionOp>(op.region().front().getTerminator());
+        cast<PrimLoopConditionOp>(op.getRegion().front().getTerminator());
     for (int64_t i = 0; i < maxTripCount; i++) {
       SmallVector<Value> iterArgs;
       if (i == 0) {
-        llvm::append_range(iterArgs, op.iterArgsInit());
+        llvm::append_range(iterArgs, op.getIterArgsInit());
       } else {
         llvm::append_range(
-            iterArgs, llvm::map_range(condition.iterArgs(),
+            iterArgs, llvm::map_range(condition.getIterArgs(),
                                       [&](Value v) { return bvm.lookup(v); }));
       }
       bvm.clear();
-      bvm.map(op.region().front().getArgument(0), indices[i]);
-      bvm.map(op.region().front().getArguments().slice(1), iterArgs);
+      bvm.map(op.getRegion().front().getArgument(0), indices[i]);
+      bvm.map(op.getRegion().front().getArguments().slice(1), iterArgs);
 
-      op.region().cloneInto(afterBlock->getParent(), afterBlock->getIterator(),
+      op.getRegion().cloneInto(afterBlock->getParent(), afterBlock->getIterator(),
                             bvm);
-      Block *clonedBlock = bvm.lookup(&op.region().front());
+      Block *clonedBlock = bvm.lookup(&op.getRegion().front());
       rewriter.eraseOp(clonedBlock->getTerminator());
       blocksToMerge.push_back(clonedBlock);
     }
@@ -82,10 +82,10 @@ public:
     for (Block *block : blocksToMerge)
       rewriter.mergeBlocks(block, beforeBlock);
     if (maxTripCount == 0) {
-      rewriter.replaceOp(op, op.iterArgsInit());
+      rewriter.replaceOp(op, op.getIterArgsInit());
     } else {
       rewriter.replaceOp(op, llvm::to_vector<6>(llvm::map_range(
-                                 condition.iterArgs(),
+                                 condition.getIterArgs(),
                                  [&](Value v) { return bvm.lookup(v); })));
     }
     return success();
@@ -150,8 +150,8 @@ public:
       if (auto append = dyn_cast<AtenAppendTOp>(user)) {
         if (!append.use_empty())
           return failure();
-        if (append.self() == op) {
-          runningList.push_back(append.el());
+        if (append.getSelf() == op) {
+          runningList.push_back(append.getEl());
           generatedNewLiteral = true;
         }
         listLiterals.push_back(runningList);
@@ -161,13 +161,13 @@ public:
         if (!insert.use_empty())
           return failure();
         int64_t index;
-        if (!matchPattern(insert.idx(), m_TorchConstantInt(&index)))
+        if (!matchPattern(insert.getIdx(), m_TorchConstantInt(&index)))
           return failure();
         // The index might be statically out of bounds.
         if (index < 0 || index > static_cast<int64_t>(runningList.size()))
           return failure();
-        if (insert.self() == op) {
-          runningList.insert(runningList.begin() + index, insert.el());
+        if (insert.getSelf() == op) {
+          runningList.insert(runningList.begin() + index, insert.getEl());
           generatedNewLiteral = true;
         }
         listLiterals.push_back(runningList);
@@ -177,13 +177,13 @@ public:
         if (!setItem.use_empty())
           return failure();
         llvm::Optional<int64_t> indexOpt =
-            matchLegalConstantIndexIntoListOfSize(setItem.idx(),
+            matchLegalConstantIndexIntoListOfSize(setItem.getIdx(),
                                                   runningList.size());
         // The index might be statically out of bounds.
         if (!indexOpt)
           return failure();
-        if (setItem.l() == op) {
-          runningList[*indexOpt] = setItem.el();
+        if (setItem.getL() == op) {
+          runningList[*indexOpt] = setItem.getEl();
           generatedNewLiteral = true;
         }
         listLiterals.push_back(runningList);
@@ -207,7 +207,7 @@ public:
         rewriter.setInsertionPoint(append);
         latestLiteral = rewriter.create<PrimListConstructOp>(
             append->getLoc(), op.getType(), listLiterals[nextLiteral++]);
-        if (append.self() == op)
+        if (append.getSelf() == op)
           rewriter.eraseOp(append);
         continue;
       }
@@ -215,7 +215,7 @@ public:
         rewriter.setInsertionPoint(insert);
         latestLiteral = rewriter.create<PrimListConstructOp>(
             insert->getLoc(), op.getType(), listLiterals[nextLiteral++]);
-        if (insert.self() == op)
+        if (insert.getSelf() == op)
           rewriter.eraseOp(insert);
         continue;
       }
@@ -223,7 +223,7 @@ public:
         rewriter.setInsertionPoint(setItem);
         latestLiteral = rewriter.create<PrimListConstructOp>(
             setItem->getLoc(), op.getType(), listLiterals[nextLiteral++]);
-        if (setItem.l() == op)
+        if (setItem.getL() == op)
           rewriter.eraseOp(setItem);
         continue;
       }
@@ -248,7 +248,7 @@ public:
   LogicalResult matchAndRewrite(AtenSizeOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    Value self = op.self();
+    Value self = op.getSelf();
     MLIRContext *context = op.getContext();
     auto tensorType = self.getType().cast<BaseTensorType>();
     if (!tensorType.hasSizes())
@@ -275,11 +275,11 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(PrimUncheckedCastOp op,
                                 PatternRewriter &rewriter) const override {
-    if (!isValidSubtype(op.x().getType(), op.result().getType())) {
+    if (!isValidSubtype(op.getX().getType(), op.getResult().getType())) {
       return rewriter.notifyMatchFailure(
           op, "input tensor type is not a valid subtype of result type");
     }
-    rewriter.replaceOp(op, op.x());
+    rewriter.replaceOp(op, op.getX());
     return success();
   }
 };
@@ -288,8 +288,8 @@ public:
 static void refineShapeCalculateResult(ShapeCalculateOp op, int resultNum,
                                        PatternRewriter &rewriter,
                                        bool &madeChange) {
-  auto yieldValues = op.body().front().getTerminator();
-  auto yieldShapes = op.shapeCalculation().front().getTerminator();
+  auto yieldValues = op.getBody().front().getTerminator();
+  auto yieldShapes = op.getShapeCalculation().front().getTerminator();
   auto shape = yieldShapes->getOperand(resultNum);
   auto result = op->getResult(resultNum);
 
@@ -312,7 +312,7 @@ static void refineShapeCalculateResult(ShapeCalculateOp op, int resultNum,
       // If the index is statically known, we can clobber only a single index.
       // Otherwise, we conservatively clobber all of them.
       llvm::Optional<int64_t> indexOpt = matchLegalConstantIndexIntoListOfSize(
-          setItem.idx(), listConstruct->getNumOperands());
+          setItem.getIdx(), listConstruct->getNumOperands());
       if (indexOpt)
         clobberedElements.set(*indexOpt);
       else
@@ -368,7 +368,7 @@ static void refineShapeCalculateResult(ShapeCalculateOp op, int resultNum,
   // Update the value yielded from the body to match the new result type. If we
   // can refine the def in place, do that, otherwise insert a
   // TensorStaticInfoCastOp.
-  OpOperand &use = op.body().front().getTerminator()->getOpOperand(resultNum);
+  OpOperand &use = op.getBody().front().getTerminator()->getOpOperand(resultNum);
   Value def = use.get();
   Value newYieldedValue;
   if (def.isa<OpResult>() &&

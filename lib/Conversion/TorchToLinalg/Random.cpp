@@ -41,7 +41,7 @@ public:
       return failure();
 
     bool train;
-    if (!matchPattern(op.train(), m_TorchConstantBool(&train)))
+    if (!matchPattern(op.getTrain(), m_TorchConstantBool(&train)))
       return rewriter.notifyMatchFailure(op,
                                          "Expected train to be constant bool.");
 
@@ -51,7 +51,7 @@ public:
                           ->convertType(op->getResult(0).getType())
                           .cast<RankedTensorType>();
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
-                                                adaptor.input());
+                                                adaptor.getInput());
     return success();
   }
 };
@@ -123,10 +123,10 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    Value self = adaptor.self();
-    Value from = adaptor.from();
-    Value to = adaptor.to();
-    Value generator = adaptor.generator();
+    Value self = adaptor.getSelf();
+    Value from = adaptor.getFrom();
+    Value to = adaptor.getTo();
+    Value generator = adaptor.getGenerator();
     RankedTensorType resultType = self.getType().cast<RankedTensorType>();
     Type elemTy = resultType.getElementType();
 

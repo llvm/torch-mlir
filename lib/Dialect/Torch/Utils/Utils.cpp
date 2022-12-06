@@ -38,7 +38,7 @@ bool Torch::getListConstructElements(Value v, SmallVectorImpl<Value> &elems) {
   auto listConstruct = v.getDefiningOp<PrimListConstructOp>();
   if (!listConstruct)
     return false;
-  elems = llvm::to_vector<4>(listConstruct.elements());
+  elems = llvm::to_vector<4>(listConstruct.getElements());
   return true;
 }
 

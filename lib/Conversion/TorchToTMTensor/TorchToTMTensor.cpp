@@ -62,7 +62,7 @@ static Value createTMTensorScatterOp(
       loc, originalTensorType, ValueRange{updates, indices},
       ValueRange{original}, uniqueIndices);
 
-  Region &scatterOpRegion = scatterOp.region();
+  Region &scatterOpRegion = scatterOp.getRegion();
   auto &scatterOpBlock = scatterOpRegion.emplaceBlock();
   scatterOpBlock.addArguments({originalElementType, originalElementType},
                               {loc, loc});
@@ -86,7 +86,7 @@ static Value createTMTensorScanOp(
       ValueRange{output, accumulator}, b.getI64IntegerAttr(dim),
       b.getBoolAttr(inclusive));
 
-  Region &scanOpRegion = scanOp.region();
+  Region &scanOpRegion = scanOp.getRegion();
   auto &scanOpBlock = scanOpRegion.emplaceBlock();
   scanOpBlock.addArguments({elementType, elementType}, {loc, loc});
   OpBuilder regionBuilder(scanOpRegion);
@@ -111,10 +111,10 @@ public:
     Location loc = op.getLoc();
     MLIRContext *context = op->getContext();
     TypeConverter *typeConverter = getTypeConverter();
-    Value input = adaptor.self();
-    Value torchTypeInput = op.self();
-    Value minlength = adaptor.minlength();
-    Value weights = adaptor.weights();
+    Value input = adaptor.getSelf();
+    Value torchTypeInput = op.getSelf();
+    Value minlength = adaptor.getMinlength();
+    Value weights = adaptor.getWeights();
 
     // TODO: Add a check to verify that the input tensor elements are all
     // non-negative.
@@ -227,17 +227,17 @@ public:
       return failure();
     Location loc = op.getLoc();
     MLIRContext *context = op->getContext();
-    Value input = adaptor.self();
-    Value values = adaptor.values();
+    Value input = adaptor.getSelf();
+    Value values = adaptor.getValues();
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
     RankedTensorType valuesType = values.getType().cast<RankedTensorType>();
     auto resultType = typeConverter->convertType(op->getResult(0).getType())
                           .cast<RankedTensorType>();
 
     // The unsafe should be either `False` or `none`.
-    if (!op.unsafe().getType().isa<Torch::NoneType>()) {
+    if (!op.getUnsafe().getType().isa<Torch::NoneType>()) {
       bool unsafe;
-      if (!matchPattern(op.unsafe(), m_TorchConstantBool(&unsafe)))
+      if (!matchPattern(op.getUnsafe(), m_TorchConstantBool(&unsafe)))
         return rewriter.notifyMatchFailure(
             op, "unimplemented: unsafe must be a constant");
       else if (unsafe)
@@ -247,7 +247,7 @@ public:
 
     // The accumulate should be a torch constant of boolean type.
     bool accumulate;
-    if (!matchPattern(op.accumulate(), m_TorchConstantBool(&accumulate)))
+    if (!matchPattern(op.getAccumulate(), m_TorchConstantBool(&accumulate)))
       return rewriter.notifyMatchFailure(
           op, "Expected accumulate to be constant bool.");
 
@@ -257,7 +257,7 @@ public:
           op, "Input element type should be same as the values element type.");
 
     SmallVector<Value> indicesList;
-    getListConstructElements(adaptor.indices(), indicesList);
+    getListConstructElements(adaptor.getIndices(), indicesList);
     // The size of the list of the index tensors should not be greater than the
     // input rank.
     if ((int64_t)indicesList.size() > inputType.getRank())
@@ -366,8 +366,8 @@ public:
 
     Location loc = op.getLoc();
     MLIRContext *context = op->getContext();
-    Value gradOutput = adaptor.grad_output();
-    Value input = adaptor.self();
+    Value gradOutput = adaptor.getGradOutput();
+    Value input = adaptor.getSelf();
     RankedTensorType gradOutputType =
         gradOutput.getType().cast<RankedTensorType>();
     Type gradOutputElemType = gradOutputType.getElementType();
@@ -377,7 +377,7 @@ public:
 
     // `TMTensor::ScatterOp` expects indices of element type i32.
     Value indices = convertTensorToDtype(
-        rewriter, loc, op.indices(),
+        rewriter, loc, op.getIndices(),
         mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
     indices = typeConverter->materializeTargetConversion(
         rewriter, loc, typeConverter->convertType(indices.getType()), indices);
@@ -559,18 +559,18 @@ public:
   matchAndRewrite(AtenCumsumOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
-    Value input = adaptor.self();
+    Value input = adaptor.getSelf();
     auto resultType = input.getType().cast<RankedTensorType>();
     Type elementType = resultType.getElementType();
     int64_t inputRank = resultType.getRank();
     Location loc = op->getLoc();
-    Value dtype = op.dtype();
+    Value dtype = op.getDtype();
     if (!dtype.getType().isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(
           op, "unsupported: dtype argument not supported");
 
     int64_t dim;
-    if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
       return rewriter.notifyMatchFailure(
           op, "unimplemented: only constant dim value is supported");
     dim = toPositiveDim(dim, inputRank);

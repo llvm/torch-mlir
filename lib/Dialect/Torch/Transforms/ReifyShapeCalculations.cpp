@@ -53,7 +53,7 @@ static Value adjustListArg(Value operand, Torch::ListType desiredType,
   {
     OpBuilder::InsertionGuard guard(b);
     Block *body =
-        b.createBlock(&loop.region(), loop.region().begin(),
+        b.createBlock(&loop.getRegion(), loop.getRegion().begin(),
                       TypeRange({b.getType<Torch::IntType>()}), {loc});
     Value iterationNumber = body->getArgument(0);
     Value element = b.create<Aten__Getitem__TOp>(
@@ -111,13 +111,13 @@ static Value adjustShapeFunctionArg(Value operand, Type desiredType,
       auto isNone = b.create<Aten__Is__Op>(loc, operand, none);
       auto primIf = b.create<PrimIfOp>(loc, desiredType, isNone);
       {
-        Region &thenRegion = primIf.thenRegion();
+        Region &thenRegion = primIf.getThenRegion();
         b.createBlock(&thenRegion, thenRegion.end());
         auto derefineNone = b.create<DerefineOp>(loc, desiredType, none);
         b.create<PrimIfYieldOp>(loc, ValueRange{derefineNone});
       }
       {
-        Region &elseRegion = primIf.elseRegion();
+        Region &elseRegion = primIf.getElseRegion();
         b.createBlock(&elseRegion, elseRegion.end());
         auto downcasted = b.create<PrimUncheckedCastOp>(
             loc, operandOptionalType.getContainedType(), operand);
@@ -174,7 +174,7 @@ populateShapeCalculationRegion(ShapeCalculateOp op, ValueRange originalOperands,
   // We will import the callee from the shape library later.
   OpBuilder b(op.getContext());
   Location loc = op->getLoc();
-  b.createBlock(&op.shapeCalculation());
+  b.createBlock(&op.getShapeCalculation());
   // Massage the op operands to match the shape function signature.
   // The shape function generally takes the same operands as the op, with a few
   // systematic modifications, such as replacing tensors with their shapes.
@@ -252,7 +252,7 @@ class ReifyShapeCalculationsPass
         // Move the op into the body of the `torch.shape.calculate` op and yield
         // its results.
         OpBuilder b(context);
-        Block *block = b.createBlock(&shapeCalculate.body());
+        Block *block = b.createBlock(&shapeCalculate.getBody());
         op->moveBefore(block, block->end());
         b.setInsertionPointAfter(op);
         b.create<ShapeCalculateYieldOp>(loc, op->getResults());

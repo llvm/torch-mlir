@@ -91,6 +91,23 @@ func.func @unmodeled_mutation(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !
   return %result : !torch.vtensor
 }
 
+// CHECK-LABEL:   func.func @control_flow$no_overwrites(
+// CHECK-SAME:                                          %[[ARG0:.*]]: !torch.vtensor, %[[ARG1:.*]]: !torch.vtensor, %[[COND:.*]]: !torch.bool) -> !torch.vtensor {
+// CHECK:             torch.prim.If.yield %[[ARG0]] : !torch.vtensor
+// CHECK:             torch.prim.If.yield %[[ARG1]] : !torch.vtensor
+func.func @control_flow$no_overwrites(%arg0: !torch.vtensor, %arg1: !torch.vtensor, %cond: !torch.bool) -> (!torch.vtensor) {
+  %tensor0 = torch.copy.to_tensor %arg0 : !torch.tensor
+  %tensor1 = torch.copy.to_tensor %arg1 : !torch.tensor
+  %new_tensor = torch.prim.If %cond -> (!torch.vtensor) {
+    %vtensor0 = torch.copy.to_vtensor %tensor0 : !torch.vtensor
+    torch.prim.If.yield %vtensor0 : !torch.vtensor
+  } else {
+    %vtensor1 = torch.copy.to_vtensor %tensor1 : !torch.vtensor
+    torch.prim.If.yield %vtensor1 : !torch.vtensor
+  }
+  return %new_tensor : !torch.vtensor
+}
+
 // We don't yet handle nontrivial cases involving control flow.
 // CHECK-LABEL:   func.func @unimplemented_control_flow(
 // CHECK:           torch.copy.to_vtensor

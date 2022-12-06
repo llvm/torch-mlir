@@ -43,7 +43,6 @@ def TMTensor_Dialect : Dialect {
     to.
   }];
   let hasCanonicalizer = 1;
-  let emitAccessorPrefix = kEmitAccessorPrefix_Raw;
 }
 
 //===----------------------------------------------------------------------===//

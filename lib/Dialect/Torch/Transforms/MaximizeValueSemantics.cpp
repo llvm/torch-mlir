@@ -64,7 +64,7 @@ public:
     InterpretedOps result;
     result.copyLikeOps.push_back(copyToNonValueTensor);
     DenseSet<Value> availableAliases{
-        assertNonValueTensor(copyToNonValueTensor.result())};
+        assertNonValueTensor(copyToNonValueTensor.getResult())};
     for (Operation *user : nonValueTensorUsers) {
       for (Value operand : nonValueTensorsUsedByOp.lookup(user)) {
         if (!availableAliases.contains(operand)) {
@@ -90,7 +90,7 @@ public:
         // only aliases used after an overwrite are the aliases generated
         // after plus the alias being overwritten.
         availableAliases.clear();
-        availableAliases.insert(assertNonValueTensor(overwrite.overwritten()));
+        availableAliases.insert(assertNonValueTensor(overwrite.getOverwritten()));
         result.overwriteTensorContentsOps.push_back(overwrite);
       } else if (auto returnOp = dyn_cast<mlir::func::ReturnOp>(user)) {
         result.returnOp = returnOp;
@@ -127,9 +127,9 @@ public:
     // overwritten tensor.
     for (OverwriteTensorContentsOp overwrite :
          llvm::reverse(ops.overwriteTensorContentsOps)) {
-      Value overwritten = assertNonValueTensor(overwrite.overwritten());
+      Value overwritten = assertNonValueTensor(overwrite.getOverwritten());
       overwritten.replaceUsesWithIf(
-          overwrite.value(), [&](const OpOperand &operand) {
+          overwrite.getValue(), [&](const OpOperand &operand) {
             return !operand.getOwner()->isBeforeInBlock(overwrite);
           });
       rewriter.eraseOp(overwrite);
@@ -183,7 +183,7 @@ public:
     DenseSet<Operation *> viewLikeOpsToCheck;
 
     using OpOperandRefs = SmallVector<std::reference_wrapper<OpOperand>>;
-    OpOperandRefs workList(copy.result().getUses());
+    OpOperandRefs workList(copy.getResult().getUses());
     while (!workList.empty()) {
       OpOperand &operand = workList.pop_back_val();
       Operation *op = operand.getOwner();
@@ -292,12 +292,12 @@ public:
     if (copyToValueTensorOps.empty() && viewLikeOps.empty())
       return rewriter.notifyMatchFailure(copy, "no types to change");
 
-    // All uses of `copy` will be updated by the logic below.
-    copy.replaceAllUsesWith(copy.getOperand());
     // All CopyToValueTensorOp operands will be changed to the correct type
     // by the logic below.
     for (CopyToValueTensorOp op : copyToValueTensorOps)
       rewriter.replaceOp(op, op.getOperand());
+    // All uses of `copy` will be updated by the logic below.
+    copy.replaceAllUsesWith(copy.getOperand());
     // Keep track of the original types of any view-like ops, so that we can
     // correctly copy them back to their mlir::func::ReturnOp's expected types.
     DenseMap<Value, Type> originalTypes;

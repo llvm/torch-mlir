@@ -78,7 +78,7 @@ template <>
 LogicalResult ConvertAtenOp<AtenMaxPool2dOp>::matchAndRewrite(
     AtenMaxPool2dOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  Value input = adaptor.self();
+  Value input = adaptor.getSelf();
   auto inputTy = input.getType().cast<RankedTensorType>();
   auto inputElemTy = inputTy.getElementType();
 
@@ -93,23 +93,23 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dOp>::matchAndRewrite(
   SmallVector<int64_t, 2> padding, kernelSize, stride, dilation;
   bool ceilMode = false;
 
-  if (!(matchPattern(op.kernel_size(),
+  if (!(matchPattern(op.getKernelSize(),
                      m_TorchListOfConstantInts(kernelSize)))) {
     return rewriter.notifyMatchFailure(
         op, "non-const int kernel size unsupported!");
   }
-  if (!(matchPattern(op.stride(), m_TorchListOfConstantInts(stride)))) {
+  if (!(matchPattern(op.getStride(), m_TorchListOfConstantInts(stride)))) {
     return rewriter.notifyMatchFailure(op, "non-const int stride unsupported!");
   }
-  if (!(matchPattern(op.padding(), m_TorchListOfConstantInts(padding)))) {
+  if (!(matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding)))) {
     return rewriter.notifyMatchFailure(op,
                                        "non-const int padding unsupported!");
   }
-  if (!(matchPattern(op.dilation(), m_TorchListOfConstantInts(dilation)))) {
+  if (!(matchPattern(op.getDilation(), m_TorchListOfConstantInts(dilation)))) {
     return rewriter.notifyMatchFailure(op,
                                        "non-const int dilation unsupported!");
   }
-  if (!(matchPattern(op.ceil_mode(), m_TorchConstantBool(&ceilMode)))) {
+  if (!(matchPattern(op.getCeilMode(), m_TorchConstantBool(&ceilMode)))) {
     return rewriter.notifyMatchFailure(op,
                                        "non-const bool ceil_mode unsupported!");
   }
@@ -181,7 +181,7 @@ template <>
 LogicalResult ConvertAtenOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
     AtenMaxPool2dWithIndicesOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  Value input = adaptor.self();
+  Value input = adaptor.getSelf();
   auto inputTy = input.getType().cast<RankedTensorType>();
   auto inputElemTy = inputTy.getElementType();
   auto inputShape = inputTy.getShape();
@@ -198,23 +198,23 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
   SmallVector<int64_t, 2> padding, kernelSize, stride, dilation;
   bool ceilMode = false;
 
-  if (!(matchPattern(op.kernel_size(),
+  if (!(matchPattern(op.getKernelSize(),
                      m_TorchListOfConstantInts(kernelSize)))) {
     return rewriter.notifyMatchFailure(
         op, "non-const int kernel size unsupported!");
   }
-  if (!(matchPattern(op.stride(), m_TorchListOfConstantInts(stride)))) {
+  if (!(matchPattern(op.getStride(), m_TorchListOfConstantInts(stride)))) {
     return rewriter.notifyMatchFailure(op, "non-const int stride unsupported!");
   }
-  if (!(matchPattern(op.padding(), m_TorchListOfConstantInts(padding)))) {
+  if (!(matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding)))) {
     return rewriter.notifyMatchFailure(op,
                                        "non-const int padding unsupported!");
   }
-  if (!(matchPattern(op.dilation(), m_TorchListOfConstantInts(dilation)))) {
+  if (!(matchPattern(op.getDilation(), m_TorchListOfConstantInts(dilation)))) {
     return rewriter.notifyMatchFailure(op,
                                        "non-const int dilation unsupported!");
   }
-  if (!(matchPattern(op.ceil_mode(), m_TorchConstantBool(&ceilMode)))) {
+  if (!(matchPattern(op.getCeilMode(), m_TorchConstantBool(&ceilMode)))) {
     return rewriter.notifyMatchFailure(op,
                                        "non-const bool ceil_mode unsupported!");
   }
@@ -375,7 +375,7 @@ template <>
 LogicalResult ConvertAtenOp<AtenAvgPool2dOp>::matchAndRewrite(
     AtenAvgPool2dOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  Value input = adaptor.self();
+  Value input = adaptor.getSelf();
   auto inputTy = input.getType().cast<RankedTensorType>();
   auto inputElemTy = inputTy.getElementType();
   auto inputRank = inputTy.getRank();
@@ -391,28 +391,28 @@ LogicalResult ConvertAtenOp<AtenAvgPool2dOp>::matchAndRewrite(
   bool ceilMode = false;
   bool countIncludePad = true;
 
-  if (!(matchPattern(op.kernel_size(),
+  if (!(matchPattern(op.getKernelSize(),
                      m_TorchListOfConstantInts(kernelSize)))) {
     return rewriter.notifyMatchFailure(
         op, "non-const int kernel size unsupported!");
   }
-  if (!(matchPattern(op.stride(), m_TorchListOfConstantInts(stride)))) {
+  if (!(matchPattern(op.getStride(), m_TorchListOfConstantInts(stride)))) {
     return rewriter.notifyMatchFailure(op, "non-const int stride unsupported!");
   }
-  if (!(matchPattern(op.padding(), m_TorchListOfConstantInts(padding)))) {
+  if (!(matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding)))) {
     return rewriter.notifyMatchFailure(op,
                                        "non-const int padding unsupported!");
   }
-  if (!(matchPattern(op.ceil_mode(), m_TorchConstantBool(&ceilMode)))) {
+  if (!(matchPattern(op.getCeilMode(), m_TorchConstantBool(&ceilMode)))) {
     return rewriter.notifyMatchFailure(op,
                                        "non-const bool ceil_mode unsupported!");
   }
-  if (!(matchPattern(op.count_include_pad(),
+  if (!(matchPattern(op.getCountIncludePad(),
                      m_TorchConstantBool(&countIncludePad)))) {
     return rewriter.notifyMatchFailure(
         op, "non-const bool count_include_pad unsupported!");
   }
-  if (succeeded(checkNotNone(rewriter, op, op.divisor_override()))) {
+  if (succeeded(checkNotNone(rewriter, op, op.getDivisorOverride()))) {
     return rewriter.notifyMatchFailure(
         op, "only None divisor_override supported for now!");
   }

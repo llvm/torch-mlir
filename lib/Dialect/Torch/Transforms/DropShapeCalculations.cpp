@@ -33,7 +33,7 @@ public:
   LogicalResult
   matchAndRewrite(ShapeCalculateOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Block *block = &op.body().front();
+    Block *block = &op.getBody().front();
     Operation *terminator = block->getTerminator();
     ValueRange results = terminator->getOperands();
     rewriter.mergeBlockBefore(block, op);
