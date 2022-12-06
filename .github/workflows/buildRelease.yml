@@ -9,11 +9,6 @@ on:
       python_package_version:
         description: 'Version to use for creating the Python package'
         default: ''
-  
-  # For testing in the pull request.  Remove before merging.
-  pull_request:
-    branches:
-      - main
 
 jobs:
   build_linux:
@@ -56,9 +51,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
       with:
         release_id: ${{ github.event.inputs.release_id }}
-    - name: DEBUG List Files
-      if: github.event.inputs.release_id != ''
-      run: find .
     - name: Create dist directory
       if: github.event.inputs.release_id != ''
       run: mkdir dist
@@ -116,9 +108,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
       with:
         release_id: ${{ github.event.inputs.release_id }}
-    - name: DEBUG List Files
-      if: github.event.inputs.release_id != ''
-      run: find .
     - name: Create dist directory
       if: github.event.inputs.release_id != ''
       run: mkdir dist
@@ -177,9 +166,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
       with:
         release_id: ${{ github.event.inputs.release_id }}
-    - name: DEBUG List Files
-      if: github.event.inputs.release_id != ''
-      run: Get-ChildItem -name -recurse
     - name: Create dist directory
       if: github.event.inputs.release_id != ''
       run: mkdir dist
@@ -222,8 +208,6 @@ jobs:
       with:
         name: wheels
         path: dist
-    - name: DEBUG List Files
-      run: find .
     - name: Publish to PyPI
       if: github.event.inputs.release_id != ''
       uses: pypa/gh-action-pypi-publish@v1.5.1
