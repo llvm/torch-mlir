@@ -179,10 +179,11 @@ jobs:
         release_id: ${{ github.event.inputs.release_id }}
     - name: DEBUG List Files
       if: github.event.inputs.release_id != ''
-      run: dir /s
+      run: Get-ChildItem -name -recurse
     - name: Create dist directory
       if: github.event.inputs.release_id != ''
       run: mkdir dist
+      continue-on-error: true
     - name: Copy releases to publish to dist directory
       if: github.event.inputs.release_id != ''
       run: cp ./wheelhouse/torch_mlir-*.whl dist/
