@@ -68,25 +68,6 @@ def MeanDtypeModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-class MeanLargeInputModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, x):
-        return torch.ops.aten.mean(x)
-
-
-@register_test_case(module_factory=lambda: MeanLargeInputModule())
-def MeanLargeInputModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 128, 1024, low=100, high=200))
-
-# ==============================================================================
-
 class MeanDimModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -103,26 +84,6 @@ class MeanDimModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: MeanDimModule())
 def MeanDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 7))
-
-# ==============================================================================
-
-class MeanDimLargeInputModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, x):
-        return torch.ops.aten.mean(x, (0, 2))
-
-
-@register_test_case(module_factory=lambda: MeanDimLargeInputModule())
-def MeanDimLargeInputModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 128, 1024, low=100, high=200))
-
 
 # ==============================================================================
 
@@ -570,7 +531,7 @@ class VarDimAllDimReduceModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: VarDimAllDimReduceModule())
 def VarDimAllDimReduceModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 128, 1024, low=100, high=200))
+    module.forward(tu.rand(3, 4, 5))
 
 
 # ==============================================================================
@@ -793,7 +754,7 @@ class VarCorrectionLargeInputModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: VarCorrectionLargeInputModule())
 def VarCorrectionLargeInputModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 128, 1024, low=100, high=200))
+    module.forward(100 + tu.rand(3, 4, 1024, 8192))
 
 
 # ==============================================================================
@@ -807,7 +768,7 @@ class VarMeanCorrectionModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.var_mean(x, dim=[1, 2], correction=2, keepdim=True)
@@ -815,7 +776,7 @@ class VarMeanCorrectionModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: VarMeanCorrectionModule())
 def VarMeanCorrectionModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 128, 1024, low=100, high=200))
+    module.forward(tu.rand(3, 4, 7))
 
 
 # ==============================================================================
