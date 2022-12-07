@@ -1427,18 +1427,11 @@ public:
     Value input = op.getSelf();
     Value output = op.getResult();
     BaseTensorType outputTensorType = output.getType().cast<BaseTensorType>();
-    Type outputTensorTypeAsF64 = outputTensorType.getWithSizesAndDtype(
-        outputTensorType.getSizes(), rewriter.getF64Type());
-    Value sum = rewriter.create<AtenSumOp>(
-        loc, outputTensorTypeAsF64, input,
-        rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(
-                     (int)getScalarTypeForType(rewriter.getF64Type()))));
+    Value sum =
+        rewriter.create<AtenSumOp>(loc, outputTensorType, input, op.getDtype());
     Value numTensorElements = rewriter.create<AtenNumelOp>(loc, input);
-    Value mean = rewriter.create<AtenDivScalarOp>(loc, outputTensorTypeAsF64,
-                                                  sum, numTensorElements);
-    rewriter.replaceOp(op, convertTensorToDtype(rewriter, loc, mean,
-                                                outputTensorType.getDtype()));
+    rewriter.replaceOpWithNewOp<AtenDivScalarOp>(op, outputTensorType, sum,
+                                                 numTensorElements);
     return success();
   }
 };
@@ -1458,10 +1451,7 @@ public:
     Value dimList = op.getDim();
     Value keepDim = op.getKeepdim();
     Value dtype = op.getDtype();
-    BaseTensorType outputTensorType =
-        op.getResult().getType().cast<BaseTensorType>();
-    Type outputTensorTypeAsF64 = outputTensorType.getWithSizesAndDtype(
-        outputTensorType.getSizes(), rewriter.getF64Type());
+    Type outputType = op.getType();
     MLIRContext *context = op.getContext();
 
     BaseTensorType inputType = input.getType().cast<BaseTensorType>();
@@ -1480,7 +1470,7 @@ public:
 
     // Compute sum along dimensions specified in `dimList`.
     Value sumAlongDims = rewriter.create<AtenSumDimIntListOp>(
-        loc, outputTensorTypeAsF64, input, dimList, keepDim, dtype);
+        loc, outputType, input, dimList, keepDim, dtype);
 
     // `productDimSize` is product of sizes of dimensions to be reduced.
     Value productDimSize;
@@ -1496,11 +1486,8 @@ public:
             rewriter.create<AtenMulIntOp>(loc, productDimSize, dimSize);
       }
     }
-    Value meanDim = rewriter.create<AtenDivScalarOp>(
-        loc, outputTensorTypeAsF64, sumAlongDims, productDimSize);
-    rewriter.replaceOp(op, convertTensorToDtype(rewriter, loc, meanDim,
-                                                outputTensorType.getDtype()));
-
+    rewriter.replaceOpWithNewOp<AtenDivScalarOp>(op, outputType, sumAlongDims,
+                                                 productDimSize);
     return success();
   }
 };
@@ -2826,7 +2813,7 @@ static LogicalResult calculateVariance(OpTy op, PatternRewriter &rewriter,
   BaseTensorType inputTensorTy = self.getType().cast<BaseTensorType>();
   Type outputType = op.getType();
   BaseTensorType outputTensorType = outputType.cast<BaseTensorType>();
-  Type outputTensorTypeAsF64 = outputTensorType.getWithSizesAndDtype(
+  Type newOutputType = outputTensorType.getWithSizesAndDtype(
       outputTensorType.getSizes(), rewriter.getF64Type());
   if (!inputTensorTy.hasDtype() ||
       !inputTensorTy.getDtype().isa<mlir::FloatType>()) {
@@ -2876,9 +2863,8 @@ static LogicalResult calculateVariance(OpTy op, PatternRewriter &rewriter,
   Value square = rewriter.create<AtenSquareOp>(loc, inputTensorTy, subMean);
 
   if (!unbiased) {
-    Value result = rewriter.create<AtenMeanDimOp>(loc, outputTensorTypeAsF64,
-                                                  square, dimList, keepDim,
-                                                  /*dtype=*/constantNone);
+    Value result = rewriter.create<AtenMeanDimOp>(
+        loc, newOutputType, square, dimList, keepDim, /*dtype=*/constantNone);
     result = convertTensorToDtype(rewriter, loc, result,
                                   outputTensorType.getDtype());
     rewriter.replaceOp(op, result);
@@ -2886,8 +2872,7 @@ static LogicalResult calculateVariance(OpTy op, PatternRewriter &rewriter,
   }
   // Divide the square sum by productDimSize - correction.
   Value squareSum = rewriter.create<AtenSumDimIntListOp>(
-      loc, outputTensorTypeAsF64, square, dimList, keepDim,
-      /*dtype=*/constantNone);
+      loc, newOutputType, square, dimList, keepDim, /*dtype=*/constantNone);
 
   // `productDimSize` is product of sizes of dimensions to be reduced.
   Value constantOne =
@@ -2911,8 +2896,8 @@ static LogicalResult calculateVariance(OpTy op, PatternRewriter &rewriter,
       "correction value should be less than or equal to productDimSize + 1");
   Value productDimSizeSubCorrection =
       rewriter.create<AtenSubIntOp>(loc, productDimSize, cstCorrection);
-  Value result = rewriter.create<AtenDivScalarOp>(
-      loc, outputTensorTypeAsF64, squareSum, productDimSizeSubCorrection);
+  Value result = rewriter.create<AtenDivScalarOp>(loc, newOutputType, squareSum,
+                                                  productDimSizeSubCorrection);
   result =
       convertTensorToDtype(rewriter, loc, result, outputTensorType.getDtype());
   rewriter.replaceOp(op, result);
