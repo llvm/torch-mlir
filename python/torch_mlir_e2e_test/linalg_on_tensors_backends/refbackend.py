@@ -116,6 +116,14 @@ class RefBackendInvoker:
 
 LOWERING_PIPELINE = "builtin.module(" + ",".join([
     "func.func(refback-generalize-tensor-pad)",
+    # Apply some optimizations. It would be great if MLIR had more useful
+    # optimizations that worked out of the box here.
+    # Note: When measured, this doesn't seem to actually help that much
+    # for the linalg-on-tensors backend.
+    # This is likely because if things are naturally fusable we usually already
+    # emit things in that form from the high level (e.g. single linalg-generic).
+    # Other backends are likely to benefit more.
+    "func.func(linalg-fuse-elementwise-ops)",
     # Bufferize.
     "func.func(scf-bufferize)",
     "func.func(tm-tensor-bufferize)",
@@ -126,6 +134,7 @@ LOWERING_PIPELINE = "builtin.module(" + ",".join([
     "refback-mlprogram-bufferize",
     "func.func(tensor-bufferize)",
     "func.func(finalizing-bufferize)",
+    "func.func(buffer-deallocation)",
     # Munge to make it ExecutionEngine compatible.
     # Specifically, we rewrite calling convention boundaries to be in terms
     # of unranked memref, and we rewrite the return to actually be a
