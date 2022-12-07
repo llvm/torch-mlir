@@ -259,8 +259,8 @@ function test_in_tree() {
   echo ":::: Check that update_torch_ods.sh has been run"
   _check_file_not_changed_by ./build_tools/update_torch_ods.sh include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
 
-  echo ":::: Run refbackend e2e integration tests"
-  python -m e2e_testing.main --config=refbackend -v
+  echo ":::: Run Linalg e2e integration tests"
+  python -m e2e_testing.main --config=linalg -v
 
   echo ":::: Run eager_mode e2e integration tests"
   python -m e2e_testing.main --config=eager_mode -v
