@@ -2084,6 +2084,36 @@ OpFoldResult AtenSubIntOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenCatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenCatOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+  auto list = getOperand(0).getDefiningOp<PrimListConstructOp>();
+  if (!list || !list->hasOneUse() || list.getElements().size() != 1)
+    return nullptr;
+  return list.getElements()[0];
+}
+
+//===----------------------------------------------------------------------===//
+// AtenSliceTensorOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenSliceTensorOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+  auto inType = getOperand(0).getType().dyn_cast<ValueTensorType>();
+  auto outType = getResult().getType().dyn_cast<ValueTensorType>();
+  if (!inType || !outType || !inType.hasSizes() || !outType.hasSizes())
+    return nullptr;
+  if (inType.getSizes().size() != outType.getSizes().size() ||
+      !inType.areAllSizesKnown() || !outType.areAllSizesKnown())
+    return nullptr;
+  for (size_t i = 0; i < inType.getSizes().size(); ++i) {
+    if (inType.getSizes()[i] != outType.getSizes()[i])
+      return nullptr;
+  }
+  return getOperand(0);
+}
+
+//===----------------------------------------------------------------------===//
 // AtenMulIntOp
 //===----------------------------------------------------------------------===//
 

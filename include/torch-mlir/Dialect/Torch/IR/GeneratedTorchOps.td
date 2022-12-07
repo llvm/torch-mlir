@@ -7169,6 +7169,7 @@ def Torch_AtenSliceTensorOp : Torch_Op<"aten.slice.Tensor", [
       printDefaultTorchOp(printer, *this, 5, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenLenTensorOp : Torch_Op<"aten.len.Tensor", [
@@ -8353,6 +8354,7 @@ def Torch_AtenCatOp : Torch_Op<"aten.cat", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenAppendTOp : Torch_Op<"aten.append.t", [

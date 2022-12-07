@@ -1770,3 +1770,24 @@ func.func @torch.aten.sort.int$reverse_true() -> !torch.list<int> {
   torch.aten.sort.int %0, %true : !torch.list<int>, !torch.bool
   return %0 : !torch.list<int>
 }
+
+//  CHECK-LABEL:    @torch.aten.cat$fold_single_operand
+//   CHECK-SAME:      %[[ARG0:.+]]: !torch.tensor
+//        CHECK:        return %[[ARG0]] : !torch.tensor
+func.func @torch.aten.cat$fold_single_operand(%arg0: !torch.tensor) -> !torch.tensor {
+  %int1 = torch.constant.int 1
+  %0 = torch.prim.ListConstruct %arg0 : (!torch.tensor) -> !torch.list<tensor>
+  %1 = torch.aten.cat %0, %int1 : !torch.list<tensor>, !torch.int -> !torch.tensor
+  return %1: !torch.tensor
+}
+
+//  CHECK-LABEL:    @torch.aten.slice.tensor$fold_full_domain_slice
+//   CHECK-SAME:      %[[ARG0:.+]]: !torch.vtensor<[4],f32>
+//        CHECK:        return %[[ARG0]] : !torch.vtensor<[4],f32>
+func.func @torch.aten.slice.tensor$fold_full_domain_slice(%arg0: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4],f32> {
+  %int1 = torch.constant.int 1
+  %int-1 = torch.constant.int -1
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.slice.Tensor %arg0, %int0, %int0, %int-1, %int1 : !torch.vtensor<[4], f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4], f32>
+  return %0 : !torch.vtensor<[4],f32>
+}

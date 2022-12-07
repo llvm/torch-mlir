@@ -493,7 +493,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::where.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::where.ScalarOther : (Tensor, Tensor, Scalar) -> (Tensor)")
     emit("aten::where.ScalarSelf : (Tensor, Scalar, Tensor) -> (Tensor)")
-    emit("aten::slice.Tensor : (Tensor, int, int?, int?, int) -> (Tensor)")
+    emit("aten::slice.Tensor : (Tensor, int, int?, int?, int) -> (Tensor)", has_folder=True)
     emit("aten::len.Tensor : (Tensor) -> (int)")
     emit("aten::cpu : (Tensor) -> (Tensor)")
     emit("aten::gather : (Tensor, int, Tensor, bool) -> (Tensor)")
@@ -546,7 +546,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::Delete.Dict_str : (Dict(str, t), str) -> ()")
 
     # List ops.
-    emit("aten::cat : (Tensor[], int) -> (Tensor)")
+    emit("aten::cat : (Tensor[], int) -> (Tensor)", has_folder=True)
     emit("aten::append.t : (t[], t) -> (t[])")
     emit("aten::add.t : (t[], t[]) -> (t[])", has_canonicalizer=True)
     emit("aten::eq.int_list : (int[], int[]) -> (bool)", has_folder=True)
