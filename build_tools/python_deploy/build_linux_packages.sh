@@ -151,7 +151,7 @@ function run_in_docker() {
         torch-mlir)
           clean_wheels torch_mlir "$python_version"
           build_torch_mlir
-          #run_audit_wheel torch_mlir "$python_version"
+          run_audit_wheel torch_mlir "$python_version"
           clean_build torch_mlir "$python_version"
           ;;
         out-of-tree)
@@ -365,7 +365,7 @@ function build_torch_mlir() {
 function run_audit_wheel() {
   local wheel_basename="$1"
   local python_version="$2"
-  generic_wheel="/wheelhouse/${wheel_basename}-*-${python_version}-linux_x86_64.whl"
+  generic_wheel="/wheelhouse/${wheel_basename}-${TORCH_MLIR_PYTHON_PACKAGE_VERSION}-${python_version}-linux_x86_64.whl"
   echo ":::: Auditwheel $generic_wheel"
   auditwheel repair -w /wheelhouse "$generic_wheel"
   rm "$generic_wheel"
