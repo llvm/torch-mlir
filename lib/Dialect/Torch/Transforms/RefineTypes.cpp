@@ -654,7 +654,7 @@ void TypeAnalysis::fillInDTypeGivenDTypeIntAndInputDType(
   else if (matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
     knowledge.dtype = getTypeForDTypeInteger(dtype.getContext(), dtypeInt);
   else if (auto primDtypeOp = dyn_cast<PrimDtypeOp>(dtype.getDefiningOp()))
-    knowledge.dtype = getLatticeElement(primDtypeOp.a())->getValue().dtype;
+    knowledge.dtype = getLatticeElement(primDtypeOp.getA())->getValue().dtype;
 }
 
 void TypeAnalysis::fillInDTypeGivenDTypeAndDataType(ValueKnowledge &knowledge,
@@ -938,7 +938,7 @@ void TypeAnalysis::visitOperation(Operation *op,
     if (defaultDtype.isInteger(1))
       defaultDtype =
           IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-    Type dtype = getDtypeOrDefault(sum.getContext(), sum.dtype(), defaultDtype);
+    Type dtype = getDtypeOrDefault(sum.getContext(), sum.getDtype(), defaultDtype);
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     knowledge.dtype = dtype;
@@ -958,35 +958,35 @@ void TypeAnalysis::visitOperation(Operation *op,
       defaultDtype =
           IntegerType::get(op->getContext(), 64, IntegerType::Signed);
     Type dtype = getDtypeOrDefault(sumDimIntList.getContext(),
-                                   sumDimIntList.dtype(), defaultDtype);
-    visitReductionAlongDimIntListOp(sumDimIntList, sumDimIntList.dim(),
-                                    sumDimIntList.keepdim(), dtype, operands);
+                                   sumDimIntList.getDtype(), defaultDtype);
+    visitReductionAlongDimIntListOp(sumDimIntList, sumDimIntList.getDim(),
+                                    sumDimIntList.getKeepdim(), dtype, operands);
     return;
   }
   if (auto meanDim = dyn_cast<AtenMeanDimOp>(op)) {
     Type defaultDtype = operands[0]->getValue().dtype;
     Type dtype =
-        getDtypeOrDefault(meanDim.getContext(), meanDim.dtype(), defaultDtype);
-    visitReductionAlongDimIntListOp(meanDim, meanDim.dim(), meanDim.keepdim(),
+        getDtypeOrDefault(meanDim.getContext(), meanDim.getDtype(), defaultDtype);
+    visitReductionAlongDimIntListOp(meanDim, meanDim.getDim(), meanDim.getKeepdim(),
                                     dtype, operands);
     return;
   }
   if (auto argmax = dyn_cast<AtenArgmaxOp>(op)) {
-    Value dim = argmax.dim();
+    Value dim = argmax.getDim();
     Type dtype = IntegerType::get(op->getContext(), 64, IntegerType::Signed);
     if (dim.getType().isa<Torch::NoneType>()) {
       visitReductionAlongAllDimsOp(op, dtype, operands);
       return;
     }
     if (dim.getType().isa<Torch::IntType>()) {
-      visitReductionAlongDimIntOp(argmax, argmax.dim(), argmax.keepdim(), dtype,
+      visitReductionAlongDimIntOp(argmax, argmax.getDim(), argmax.getKeepdim(), dtype,
                                   operands);
       return;
     }
   }
   if (auto anyDim = dyn_cast<AtenAnyDimOp>(op)) {
     Type dtype = operands[0]->getValue().dtype;
-    visitReductionAlongDimIntOp(anyDim, anyDim.dim(), anyDim.keepdim(), dtype,
+    visitReductionAlongDimIntOp(anyDim, anyDim.getDim(), anyDim.getKeepdim(), dtype,
                                 operands);
     return;
   }
@@ -994,16 +994,16 @@ void TypeAnalysis::visitOperation(Operation *op,
     Type firstResDtype = operands[0]->getValue().dtype;
     Type secondResDtype =
         IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-    visitReductionAlongDimIntOp(maxDim, maxDim.dim(), maxDim.keepdim(),
+    visitReductionAlongDimIntOp(maxDim, maxDim.getDim(), maxDim.getKeepdim(),
                                 firstResDtype, operands);
-    visitReductionAlongDimIntOp(maxDim, maxDim.dim(), maxDim.keepdim(),
+    visitReductionAlongDimIntOp(maxDim, maxDim.getDim(), maxDim.getKeepdim(),
                                 secondResDtype, operands, /*resNum=*/1);
     return;
   }
   if (auto mean = dyn_cast<AtenMeanOp>(op)) {
     Type defaultDtype = operands[0]->getValue().dtype;
     Type dtype =
-        getDtypeOrDefault(mean.getContext(), mean.dtype(), defaultDtype);
+        getDtypeOrDefault(mean.getContext(), mean.getDtype(), defaultDtype);
     visitReductionAlongAllDimsOp(mean, dtype, operands);
     return;
   } else if (isa<AtenMaxOp, AtenAmaxOp>(op)) {
@@ -1045,7 +1045,7 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   } else if (auto full = dyn_cast<AtenFullOp>(op)) {
     visitConstantTensorAllocOp<AtenFullOp>(
-        full, /*dataType=*/full.fill_value().getType());
+        full, /*dataType=*/full.getFillValue().getType());
     return;
   } else if (auto zerosLike = dyn_cast<AtenZerosLikeOp>(op)) {
     visitConstantTensorAllocLikeOp<AtenZerosLikeOp>(zerosLike, operands);
@@ -1164,10 +1164,10 @@ void TypeAnalysis::visitOperation(Operation *op,
 
   if (auto vectorNorm = dyn_cast<AtenLinalgVectorNormOp>(op)) {
     Type defaultDtype = operands[0]->getValue().dtype;
-    Type dtype = getDtypeOrDefault(vectorNorm.getContext(), vectorNorm.dtype(),
+    Type dtype = getDtypeOrDefault(vectorNorm.getContext(), vectorNorm.getDtype(),
                                    defaultDtype);
-    visitReductionAlongDimIntListOp(vectorNorm, vectorNorm.dim(),
-                                    vectorNorm.keepdim(), dtype, operands);
+    visitReductionAlongDimIntListOp(vectorNorm, vectorNorm.getDim(),
+                                    vectorNorm.getKeepdim(), dtype, operands);
     return;
   }
 
@@ -1177,7 +1177,7 @@ void TypeAnalysis::visitOperation(Operation *op,
     Type defaultDtype =
         IntegerType::get(op->getContext(), 64, IntegerType::Signed);
     knowledge.dtype =
-        getDtypeOrDefault(op->getContext(), randIntLow.dtype(), defaultDtype);
+        getDtypeOrDefault(op->getContext(), randIntLow.getDtype(), defaultDtype);
     incorporateKnowledge(randIntLow.getResult(), knowledge);
     return;
   }
@@ -1197,7 +1197,7 @@ void TypeAnalysis::visitOperation(Operation *op,
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     Type defaultDtype = Float32Type::get(op->getContext());
     knowledge.dtype =
-        getDtypeOrDefault(op->getContext(), randn.dtype(), defaultDtype);
+        getDtypeOrDefault(op->getContext(), randn.getDtype(), defaultDtype);
     incorporateKnowledge(randn.getResult(), knowledge);
     return;
   }
@@ -1207,7 +1207,7 @@ void TypeAnalysis::visitOperation(Operation *op,
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     Type defaultDtype = Float32Type::get(op->getContext());
     knowledge.dtype = getDtypeOrDefault(op->getContext(),
-                                        randnGenerator.dtype(), defaultDtype);
+                                        randnGenerator.getDtype(), defaultDtype);
     incorporateKnowledge(randnGenerator.getResult(), knowledge);
     return;
   }
@@ -1297,15 +1297,15 @@ void TypeAnalysis::visitAtenArangeLikeOpHelper(Operation *op,
 }
 
 void TypeAnalysis::visitAtenArangeStartStepOp(AtenArangeStartStepOp op) {
-  visitAtenArangeLikeOpHelper(op, op.start(), op.end(), op.step(), op.dtype());
+  visitAtenArangeLikeOpHelper(op, op.getStart(), op.getEnd(), op.getStep(), op.getDtype());
 }
 
 void TypeAnalysis::visitAtenArangeStartOp(AtenArangeStartOp op) {
-  visitAtenArangeLikeOpHelper(op, op.start(), op.end(), {}, op.dtype());
+  visitAtenArangeLikeOpHelper(op, op.getStart(), op.getEnd(), {}, op.getDtype());
 }
 
 void TypeAnalysis::visitAtenArangeOp(AtenArangeOp op) {
-  visitAtenArangeLikeOpHelper(op, {}, op.end(), {}, op.dtype());
+  visitAtenArangeLikeOpHelper(op, {}, op.getEnd(), {}, op.getDtype());
 }
 
 void TypeAnalysis::visitReductionAlongAllDimsOp(
@@ -1341,8 +1341,8 @@ template <typename OpTy>
 void TypeAnalysis::visitScalarToTensorConversionOp(OpTy op) {
   auto knowledge =
       ValueKnowledge::getTensorPessimisticValueState(op.getContext());
-  Value t = op.t();
-  Value dtype = op.dtype();
+  Value t = op.getT();
+  Value dtype = op.getDtype();
   fillInDTypeGivenDTypeAndDataType(knowledge, dtype, t.getType());
   incorporateKnowledge(op.getResult(), knowledge);
 }
@@ -1360,8 +1360,8 @@ void TypeAnalysis::visitBinaryScalarOp(Operation *op,
 void TypeAnalysis::visitAtenTensorOp(AtenTensorOp op) {
   auto knowledge =
       ValueKnowledge::getTensorPessimisticValueState(op.getContext());
-  Value data = op.data();
-  Value dtype = op.dtype();
+  Value data = op.getData();
+  Value dtype = op.getDtype();
   Type type = data.getType();
   while (auto listType = type.dyn_cast<ListType>()) {
     type = listType.getContainedType();
@@ -1383,7 +1383,7 @@ void TypeAnalysis::visitConstantTensorAllocOp(OpTy op,
       ValueKnowledge::getTensorPessimisticValueState(op->getContext());
   if (!dataType)
     dataType = Torch::FloatType::get(op->getContext());
-  fillInDTypeGivenDTypeAndDataType(knowledge, op.dtype(), dataType.value());
+  fillInDTypeGivenDTypeAndDataType(knowledge, op.getDtype(), dataType.value());
   incorporateKnowledge(op.getResult(), knowledge);
 }
 
@@ -1393,7 +1393,7 @@ void TypeAnalysis::visitConstantTensorAllocLikeOp(
   auto input = operands[0]->getValue();
   auto knowledge =
       ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-  fillInDTypeGivenDTypeIntAndInputDType(knowledge, op.dtype(), input.dtype);
+  fillInDTypeGivenDTypeIntAndInputDType(knowledge, op.getDtype(), input.dtype);
   incorporateKnowledge(op.getResult(), knowledge);
 }
 
@@ -1403,7 +1403,7 @@ void TypeAnalysis::visitConstantTensorNewLikeOp(
   auto input = operands[0]->getValue();
   auto knowledge =
       ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-  fillInDTypeGivenDTypeIntAndInputDType(knowledge, op.dtype(), input.dtype);
+  fillInDTypeGivenDTypeIntAndInputDType(knowledge, op.getDtype(), input.dtype);
   incorporateKnowledge(op.getResult(), knowledge);
 }
 
@@ -1413,7 +1413,7 @@ void TypeAnalysis::visitAtenToDtypeLikeOp(
     OpTy op, ArrayRef<const ValueState *> operands) {
   auto knowledge =
       ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-  Value dtype = op.dtype();
+  Value dtype = op.getDtype();
   int64_t dtypeInt;
   if (matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
     knowledge.dtype = getTypeForDTypeInteger(op->getContext(), dtypeInt);
@@ -1426,7 +1426,7 @@ void TypeAnalysis::visitTypeConversionOp(
     OpTy op, ArrayRef<const ValueState *> operands) {
   auto knowledge =
       ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-  Value other = op.other();
+  Value other = op.getOther();
   BaseTensorType type = other.getType().cast<BaseTensorType>();
   if (type.hasDtype())
     knowledge.dtype = type.getDtype();
@@ -1438,7 +1438,7 @@ void TypeAnalysis::visitTypeConversionOp(
 // except the given dimension.
 void TypeAnalysis::visitAtenCatOp(AtenCatOp op,
                                   ArrayRef<const ValueState *> operands) {
-  auto tensorList = op.tensors();
+  auto tensorList = op.getTensors();
   auto knowledge =
       ValueKnowledge::getTensorPessimisticValueState(op->getContext());
   auto listConstruct = tensorList.getDefiningOp<PrimListConstructOp>();
@@ -1448,7 +1448,7 @@ void TypeAnalysis::visitAtenCatOp(AtenCatOp op,
   }
 
   auto tensors = llvm::to_vector<4>(
-      llvm::map_range(listConstruct.elements(), [&](Value v) -> ValueKnowledge {
+      llvm::map_range(listConstruct.getElements(), [&](Value v) -> ValueKnowledge {
         return getLatticeElement(v)->getValue();
       }));
   for (auto tensor : tensors) {
@@ -1472,7 +1472,7 @@ void TypeAnalysis::visitNumToTensorOp(PrimNumToTensorScalarOp op) {
   // rules in
   // https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/ScalarOps.h.
   // `NumToTensor` falls in the latter case.
-  Type type = op.a().getType();
+  Type type = op.getA().getType();
   knowledge.dtype = getBuiltInTypeForTorchScalar(type);
   incorporateKnowledge(op.getResult(), knowledge);
 }
@@ -1482,7 +1482,7 @@ template <typename OpTy>
 void TypeAnalysis::visitAtenSoftmaxLikeOp(
     OpTy op, ArrayRef<const ValueState *> operands) {
   auto input = operands[0]->getValue();
-  auto dtype = op.dtype();
+  auto dtype = op.getDtype();
   ValueKnowledge knowledge =
       ValueKnowledge::getTensorPessimisticValueState(op->getContext());
   fillInDTypeGivenDTypeIntAndInputDType(knowledge, dtype, input.dtype);
@@ -1497,7 +1497,7 @@ void TypeAnalysis::visitAten_SoftmaxLikeOp(
   ValueKnowledge knowledge =
       ValueKnowledge::getTensorPessimisticValueState(op->getContext());
   bool halfToFloat;
-  if (matchPattern(op.half_to_float(), m_TorchConstantBool(&halfToFloat))) {
+  if (matchPattern(op.getHalfToFloat(), m_TorchConstantBool(&halfToFloat))) {
     knowledge.dtype =
         halfToFloat ? Float32Type::get(op->getContext()) : input.dtype;
   }
@@ -1651,7 +1651,7 @@ void optimize(func::FuncOp func, DataFlowSolver &solver) {
             v.setType(refinedType);
           } else {
             if (auto derefineOp = llvm::dyn_cast<DerefineOp>(op)) {
-              newTypedValue = derefineOp.operand();
+              newTypedValue = derefineOp.getOperand();
             } else {
               newTypedValue =
                   createStaticInfoDownCast(op->getLoc(), refinedType, v);
@@ -1683,7 +1683,7 @@ void optimize(func::FuncOp func, DataFlowSolver &solver) {
                 continue;
 
               Location loc = overwriteTensorContents.getLoc();
-              Value overwriterTensor = overwriteTensorContents.value();
+              Value overwriterTensor = overwriteTensorContents.getValue();
               Type overwriterTensorType = overwriterTensor.getType();
               Type overwrittenTensorType = newTypedValue.getType()
                                                .dyn_cast<NonValueTensorType>()
@@ -1706,7 +1706,7 @@ void optimize(func::FuncOp func, DataFlowSolver &solver) {
             // that cannot accept the new type.
             if (!oldTypedValue) {
               if (auto derefineOp = llvm::dyn_cast<DerefineOp>(op)) {
-                oldTypedValue = derefineOp.result();
+                oldTypedValue = derefineOp.getResult();
               } else {
                 oldTypedValue = createStaticInfoUpCast(
                     op->getLoc(), originalType, newTypedValue);

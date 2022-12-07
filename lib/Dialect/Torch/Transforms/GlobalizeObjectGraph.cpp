@@ -114,7 +114,7 @@ private:
       llvm::StringMap<SlotOp> nameToSlot;
       auto &slotNameToSlots = moduleClassNameToSlots[moduleOp.getClassName()];
       for (auto slotOp : moduleOp.getOps<SlotOp>())
-        slotNameToSlots[slotOp.name()].push_back(slotOp);
+        slotNameToSlots[slotOp.getName()].push_back(slotOp);
     });
 
     // Find all the module slots that are accessed through `PrimGetAttrOp` or
@@ -126,12 +126,12 @@ private:
       Value module;
       StringRef slotName;
       if (auto getAttrOp = llvm::dyn_cast<PrimGetAttrOp>(op)) {
-        module = getAttrOp.receiver();
-        slotName = getAttrOp.name();
+        module = getAttrOp.getReceiver();
+        slotName = getAttrOp.getName();
       } else {
         auto setAttrOp = cast<PrimSetAttrOp>(op);
-        module = setAttrOp.receiver();
-        slotName = setAttrOp.name();
+        module = setAttrOp.getReceiver();
+        slotName = setAttrOp.getName();
       }
 
       auto moduleType = module.getType().cast<NnModuleType>();
@@ -168,31 +168,31 @@ private:
          llvm::zip(nnModule.getOps<SlotOp>(), classType.getOps<AttrOp>())) {
       auto slot = std::get<0>(t);
       auto attr = std::get<1>(t);
-      nameStack.push_back(attr.name().str());
-      if (attr.type().isa<NnModuleType>()) {
+      nameStack.push_back(attr.getName().str());
+      if (attr.getType().isa<NnModuleType>()) {
         if (failed(
-                recursivelyTraverse(slot.value().getDefiningOp<NnModuleOp>())))
+                recursivelyTraverse(slot.getValue().getDefiningOp<NnModuleOp>())))
           return failure();
       } else if (usedSlots.find(slot) != usedSlots.end()) {
         // Only create the GlobalSlotOp if the slot is used at all.
         std::string linkageName = llvm::join(nameStack, ".");
         auto globalSlot = globalSlotBuilder.create<GlobalSlotOp>(
             slot.getLoc(), linkageName,
-            /*sym_visibility=*/nullptr, attr.type());
-        if (attr.isPrivate())
+            /*sym_visibility=*/nullptr, attr.getType());
+        if (attr.getIsPrivate())
           globalSlot.setVisibility(SymbolTable::Visibility::Private);
         assert(slotToGlobalSlot.find(slot) == slotToGlobalSlot.end());
         slotToGlobalSlot[slot] = globalSlot;
-        slotLinkageInfo[slot] = LinkageInfo{linkageName, attr.isPrivate()};
-        globalSlotInitialValues[globalSlot.sym_nameAttr()] = slot.value();
+        slotLinkageInfo[slot] = LinkageInfo{linkageName, attr.getIsPrivate()};
+        globalSlotInitialValues[globalSlot.getSymNameAttr()] = slot.getValue();
       }
       nameStack.pop_back();
     }
     for (auto method : classType.getOps<MethodOp>()) {
-      nameStack.push_back(method.name().str());
+      nameStack.push_back(method.getName().str());
       funcLinkageInfo[{nnModule,
-                       symbolTable.lookup<func::FuncOp>(method.function())}] =
-          LinkageInfo{llvm::join(nameStack, "."), method.isPrivate()};
+                       symbolTable.lookup<func::FuncOp>(method.getFunction())}] =
+          LinkageInfo{llvm::join(nameStack, "."), method.getIsPrivate()};
       nameStack.pop_back();
     }
     return success();
@@ -235,7 +235,7 @@ createGlobalSlotModuleInitializer(ModuleOp module, SymbolTable &symbolTable,
   auto builder = OpBuilder::atBlockBegin(module.getBody());
   auto moduleInitializer =
       builder.create<GlobalSlotModuleInitializerOp>(module.getLoc());
-  Block *body = builder.createBlock(&moduleInitializer.initializer());
+  Block *body = builder.createBlock(&moduleInitializer.getInitializer());
   builder.setInsertionPointToEnd(body);
   SmallVector<Operation *> opsToMove;
   for (Operation &op : *module.getBody()) {
@@ -335,11 +335,11 @@ static LogicalResult analyzeInstances(func::FuncOp func,
   auto walkResult = func.walk([&](PrimGetAttrOp op) {
     if (!op.getType().isa<NnModuleType>())
       return WalkResult::advance();
-    auto instance = mapping.lookupOrNull(op.receiver());
+    auto instance = mapping.lookupOrNull(op.getReceiver());
     assert(instance && "verifyFuncConformsToSubset should ensure this");
     for (auto slot : instance.getDefiningOp<NnModuleOp>().getOps<SlotOp>()) {
-      if (slot.name() == op.name()) {
-        mapping.map(op, slot.value());
+      if (slot.getName() == op.getName()) {
+        mapping.map(op, slot.getValue());
         break;
       }
     }
@@ -442,7 +442,7 @@ static LogicalResult verifyNnModuleValueUses(Value value) {
     if (isa<func::CallOp, PrimGetAttrOp>(op))
       continue;
     // Only allow `value` as the receiver.
-    if (isa<PrimSetAttrOp>(op) && cast<PrimSetAttrOp>(op).value() != value)
+    if (isa<PrimSetAttrOp>(op) && cast<PrimSetAttrOp>(op).getValue() != value)
       continue;
     // TODO: Improve this based on real user use cases.
     // This is a diagnostic that users will hit if they do not conform to
@@ -479,9 +479,9 @@ verifyPublicMonomorphizations(ModuleOp module, SymbolTable &symbolTable,
   bool sawError = false;
   for (auto classType : module.getOps<ClassTypeOp>()) {
     for (auto method : classType.getOps<MethodOp>()) {
-      if (!method.isPrivate()) {
+      if (!method.getIsPrivate()) {
         if (numMonomorphizations[symbolTable.lookup<func::FuncOp>(
-                method.function())] > 1) {
+                method.getFunction())] > 1) {
           method.emitError()
               << "public function with multiple monomorphizations";
           sawError = true;
@@ -501,29 +501,29 @@ static LogicalResult rewriteMonomorphizedFuncClone(
 
   SmallVector<Operation *> toErase;
   auto handlePrimSetAttr = [&](PrimSetAttrOp op) {
-    auto instance = mapping.lookup(op.receiver()).getDefiningOp<NnModuleOp>();
+    auto instance = mapping.lookup(op.getReceiver()).getDefiningOp<NnModuleOp>();
     SlotOp affectedSlot;
     for (auto slot : instance.getOps<SlotOp>()) {
-      if (slot.name() == op.name())
+      if (slot.getName() == op.getName())
         affectedSlot = slot;
     }
     OpBuilder(op).create<GlobalSlotSetOp>(
-        op.getLoc(), objectGraphInfo.getGlobalSlotFor(affectedSlot).sym_name(),
-        op.value());
+        op.getLoc(), objectGraphInfo.getGlobalSlotFor(affectedSlot).getSymName(),
+        op.getValue());
     toErase.push_back(op);
     return WalkResult::advance();
   };
   auto handlePrimGetAttr = [&](PrimGetAttrOp op) {
     if (!op.getType().isa<NnModuleType>()) {
-      auto instance = mapping.lookup(op.receiver()).getDefiningOp<NnModuleOp>();
+      auto instance = mapping.lookup(op.getReceiver()).getDefiningOp<NnModuleOp>();
       SlotOp affectedSlot;
       for (auto slot : instance.getOps<SlotOp>()) {
-        if (slot.name() == op.name())
+        if (slot.getName() == op.getName())
           affectedSlot = slot;
       }
       auto newOp = OpBuilder(op).create<GlobalSlotGetOp>(
           op.getLoc(), op.getType(),
-          objectGraphInfo.getGlobalSlotFor(affectedSlot).sym_name());
+          objectGraphInfo.getGlobalSlotFor(affectedSlot).getSymName());
       op.replaceAllUsesWith(&*newOp);
     }
     toErase.push_back(op);

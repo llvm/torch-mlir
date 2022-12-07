@@ -50,14 +50,14 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "could not convert PrimIfOp outputs");
     auto scfIf = rewriter.create<scf::IfOp>(op->getLoc(), newResultTypes,
-                                            adaptor.condition(),
+                                            adaptor.getCondition(),
                                             /*withElseRegion=*/true);
     auto inlineIfCase = [&](Region &srcRegion, Region &dstRegion) {
       rewriter.inlineRegionBefore(srcRegion, dstRegion, dstRegion.begin());
       rewriter.eraseBlock(&dstRegion.back());
     };
-    inlineIfCase(op.thenRegion(), scfIf.getThenRegion());
-    inlineIfCase(op.elseRegion(), scfIf.getElseRegion());
+    inlineIfCase(op.getThenRegion(), scfIf.getThenRegion());
+    inlineIfCase(op.getElseRegion(), scfIf.getElseRegion());
     rewriter.replaceOp(op, scfIf.getResults());
     return success();
   }
@@ -87,8 +87,8 @@ public:
     // Create scf.while operation using the operands of torch::primloop. The
     // first argument of the primloop correspond to `maxTripCount`  which
     // can be omitted in the `scf.while` operation.
-    Value condition = adaptor.initialCondition();
-    ValueRange iterArgsInit = adaptor.iterArgsInit();
+    Value condition = adaptor.getInitialCondition();
+    ValueRange iterArgsInit = adaptor.getIterArgsInit();
     SmallVector<Value> scfWhileOpOperands{condition};
     scfWhileOpOperands.append(iterArgsInit.begin(), iterArgsInit.end());
     auto scfWhileOp = rewriter.create<scf::WhileOp>(
@@ -133,7 +133,7 @@ public:
     // argument) because while like prim loops does not use the induction
     // variable.
     for (const auto &barg :
-         enumerate(op.region().front().getArguments().drop_front())) {
+         enumerate(op.getRegion().front().getArguments().drop_front())) {
       Value to = afterBlock->getArgument(barg.index());
       Type targetType = to.getType();
       Value torchArg = to;
@@ -161,11 +161,11 @@ public:
     // Inline torch loop body operations into 'after' region.
     PatternRewriter::InsertionGuard guard(rewriter);
     for (auto &operation :
-         llvm::make_early_inc_range(op.region().front().getOperations())) {
+         llvm::make_early_inc_range(op.getRegion().front().getOperations())) {
       if (auto primLoopConditionOp = dyn_cast<PrimLoopConditionOp>(operation)) {
         // Fix up the terminator.
         SmallVector<Value> loopConditionIterArgs;
-        Value torchShouldContinue = primLoopConditionOp.shouldContinue();
+        Value torchShouldContinue = primLoopConditionOp.getShouldContinue();
         Value shouldContinue = typeConverter->materializeTargetConversion(
             rewriter, scfWhileOp->getLoc(),
             typeConverter->convertType(torchShouldContinue.getType()),
@@ -174,7 +174,7 @@ public:
           return rewriter.notifyMatchFailure(op,
                                              "unsupported type of the operand");
         loopConditionIterArgs.push_back(shouldContinue);
-        for (auto torchArg : primLoopConditionOp.iterArgs()) {
+        for (auto torchArg : primLoopConditionOp.getIterArgs()) {
           Type torchType = torchArg.getType();
 
           // If the argument is a torch tensor, directly add it in the list of
@@ -230,10 +230,10 @@ public:
     Value lowerBoundIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value stepIndex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
     Value upperBoundIndex = rewriter.create<arith::IndexCastOp>(
-        loc, rewriter.getIndexType(), adaptor.maxTripCount());
+        loc, rewriter.getIndexType(), adaptor.getMaxTripCount());
     auto scfForOp =
         rewriter.create<scf::ForOp>(loc, lowerBoundIndex, upperBoundIndex,
-                                    stepIndex, adaptor.iterArgsInit());
+                                    stepIndex, adaptor.getIterArgsInit());
 
     SmallVector<Type> regionArgTypes;
     SmallVector<Location> regionArgLocs;
@@ -252,7 +252,7 @@ public:
 
     // Rewrite uses of the torch loop block arguments to the new for-loop
     // "block" arguments
-    for (const auto &barg : enumerate(op.region().front().getArguments())) {
+    for (const auto &barg : enumerate(op.getRegion().front().getArguments())) {
       Value to = block->getArgument(barg.index());
       if (to.getType().isa<mlir::IndexType>())
         to =
@@ -284,11 +284,11 @@ public:
     // Inline torch loop body operations into 'after' region.
     PatternRewriter::InsertionGuard guard(rewriter);
     for (auto &operation :
-         llvm::make_early_inc_range(op.region().front().getOperations())) {
+         llvm::make_early_inc_range(op.getRegion().front().getOperations())) {
       if (auto primLoopConditionOp = dyn_cast<PrimLoopConditionOp>(operation)) {
         // Fix up the terminator.
         SmallVector<Value> loopConditionIterArgs;
-        for (auto torchArg : primLoopConditionOp.iterArgs()) {
+        for (auto torchArg : primLoopConditionOp.getIterArgs()) {
           Type torchType = torchArg.getType();
 
           // If the argument is a torch tensor, directly add it in the list of

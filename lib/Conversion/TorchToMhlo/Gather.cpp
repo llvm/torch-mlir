@@ -111,18 +111,18 @@ template <>
 LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
     AtenEmbeddingOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  auto weight = adaptor.weight();
-  auto weightTy = weight.getType().template cast<RankedTensorType>();
+  auto weight = adaptor.getWeight();
+  auto weightTy = weight.getType().cast<RankedTensorType>();
   if (!weightTy)
     return op.emitError("only ranked tensor types are supported");
 
   int64_t padding_idx;
-  if (!matchPattern(op.padding_idx(), m_TorchConstantInt(&padding_idx)))
+  if (!matchPattern(op.getPaddingIdx(), m_TorchConstantInt(&padding_idx)))
     return rewriter.notifyMatchFailure(
         op, "only constant padding_idx is currently supported");
 
   bool scale_grad_by_freq;
-  if (!matchPattern(op.scale_grad_by_freq(),
+  if (!matchPattern(op.getScaleGradByFreq(),
                     m_TorchConstantBool(&scale_grad_by_freq)))
     return rewriter.notifyMatchFailure(
         op, "only constant scale_grad_by_freq is currently supported");
@@ -130,7 +130,7 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "scale gradients is currently not supported");
   bool sparse;
-  if (!matchPattern(op.sparse(), m_TorchConstantBool(&sparse)))
+  if (!matchPattern(op.getSparse(), m_TorchConstantBool(&sparse)))
     return rewriter.notifyMatchFailure(
         op, "only constant sparse is currently supported");
   if (sparse)
@@ -138,7 +138,7 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
         op, "sparse gradients is currently not supported");
 
   Value output = gatherTensorAlongSingleAxis(
-      rewriter, op, weight, adaptor.indices(), 0, options.dimSizeIndexBits);
+      rewriter, op, weight, adaptor.getIndices(), 0, options.dimSizeIndexBits);
   rewriter.replaceOpWithNewOp<mhlo::ConvertOp>(
       op, getTypeConverter()->convertType(op.getType()), output);
 
@@ -149,17 +149,17 @@ template <>
 LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
     AtenIndexSelectOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  auto self = adaptor.self();
-  auto selfTy = self.getType().template cast<RankedTensorType>();
+  auto self = adaptor.getSelf();
+  auto selfTy = self.getType().cast<RankedTensorType>();
   if (!selfTy)
     return op.emitError("only ranked tensor types are supported");
   int64_t dim;
-  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return rewriter.notifyMatchFailure(
         op, "only constant dim is currently supported");
 
   Value output = gatherTensorAlongSingleAxis(
-      rewriter, op, self, adaptor.index(), dim, options.dimSizeIndexBits);
+      rewriter, op, self, adaptor.getIndex(), dim, options.dimSizeIndexBits);
 
   rewriter.replaceOpWithNewOp<mhlo::ConvertOp>(
       op, getTypeConverter()->convertType(op.getType()), output);
@@ -173,8 +173,8 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
     AtenGatherOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Location loc = op->getLoc();
-  Value input = adaptor.self();
-  Value index = adaptor.index();
+  Value input = adaptor.getSelf();
+  Value index = adaptor.getIndex();
   auto inputType = input.getType().cast<RankedTensorType>();
   auto indexType = index.getType().cast<RankedTensorType>();
   auto indexElemType = indexType.getElementType();
@@ -183,7 +183,7 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
     return op.emitError("`index` and `input` param should have the same rank");
   }
   int64_t dim;
-  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim))) {
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim))) {
     return rewriter.notifyMatchFailure(
         op, "only constant int `dim` param supported");
   }
@@ -193,7 +193,7 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
   }
 
   bool sparseGrad = false;
-  if (!matchPattern(op.sparse_grad(), m_TorchConstantBool(&sparseGrad))) {
+  if (!matchPattern(op.getSparseGrad(), m_TorchConstantBool(&sparseGrad))) {
     return rewriter.notifyMatchFailure(
         op, "only constant boolean `sparse_grad` param supported");
   }

@@ -167,7 +167,7 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto rankType =
-        adaptor.self().getType().template dyn_cast<RankedTensorType>();
+        adaptor.getSelf().getType().template dyn_cast<RankedTensorType>();
     if (!rankType)
       return op.emitError("Only ranked tensor types are currently supported");
 
@@ -183,7 +183,7 @@ public:
           op,
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
               op.getType()),
-          adaptor.self());
+          adaptor.getSelf());
       return success();
     }
 
@@ -218,7 +218,7 @@ public:
         op,
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()),
-        adaptor.self());
+        adaptor.getSelf());
       return success();
     }
     Value mhloShape = rewriter.create<tensor::FromElementsOp>(loc, dimSizes);
@@ -228,7 +228,7 @@ public:
         op,
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()),
-        adaptor.self(), computedShape);
+        adaptor.getSelf(), computedShape);
     return success();
   }
 
@@ -241,14 +241,14 @@ template <>
 bool ConvertAtenViewOp<AtenViewOp>::getAtenViewOpSizes(
     AtenViewOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter,
     SmallVector<Value, 4> &dimSizes) const {
-  return getListConstructElements(adaptor.size(), dimSizes);
+  return getListConstructElements(adaptor.getSize(), dimSizes);
 }
 
 template <>
 bool ConvertAtenViewOp<AtenReshapeOp>::getAtenViewOpSizes(
     AtenReshapeOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter,
     SmallVector<Value, 4> &dimSizes) const {
-  return getListConstructElements(adaptor.shape(), dimSizes);
+  return getListConstructElements(adaptor.getShape(), dimSizes);
 }
 } // namespace
 
@@ -256,14 +256,14 @@ template <>
 LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
     AtenSliceTensorOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  auto self = adaptor.self();
-  auto selfTy = self.getType().template cast<RankedTensorType>();
+  auto self = adaptor.getSelf();
+  auto selfTy = self.getType().cast<RankedTensorType>();
   if (!selfTy)
     return op.emitError("only ranked tensor types are supported");
   auto outTy =
       getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
   int64_t dim;
-  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return rewriter.notifyMatchFailure(
         op, "only constant dim is currently supported");
 
@@ -275,9 +275,9 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
     }
   };
 
-  llvm::Optional<Value> start = getOptionalVal(adaptor.start());
-  llvm::Optional<Value> end = getOptionalVal(adaptor.end());
-  llvm::Optional<Value> step = getOptionalVal(adaptor.step());
+  llvm::Optional<Value> start = getOptionalVal(adaptor.getStart());
+  llvm::Optional<Value> end = getOptionalVal(adaptor.getEnd());
+  llvm::Optional<Value> step = getOptionalVal(adaptor.getStep());
 
   FailureOr<Value> sliceInfo =
       getDynamicSlice(rewriter, op, outTy, self, start, end, step, dim,
@@ -294,8 +294,8 @@ template <>
 LogicalResult ConvertAtenOp<AtenSqueezeOp>::matchAndRewrite(
     AtenSqueezeOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  auto self = adaptor.self();
-  auto selfTy = self.getType().template cast<RankedTensorType>();
+  auto self = adaptor.getSelf();
+  auto selfTy = self.getType().cast<RankedTensorType>();
   if (!selfTy)
     return op.emitError("only ranked tensor types are supported");
 
@@ -337,12 +337,12 @@ template <>
 LogicalResult ConvertAtenOp<AtenSqueezeDimOp>::matchAndRewrite(
     AtenSqueezeDimOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  auto self = adaptor.self();
-  auto selfTy = self.getType().template cast<RankedTensorType>();
+  auto self = adaptor.getSelf();
+  auto selfTy = self.getType().cast<RankedTensorType>();
   if (!selfTy)
     return op.emitError("only ranked tensor types are supported");
   int64_t dim;
-  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return rewriter.notifyMatchFailure(
         op, "only constant dim is currently supported");
 
@@ -357,7 +357,7 @@ LogicalResult ConvertAtenOp<AtenSqueezeDimOp>::matchAndRewrite(
       return rewriter.notifyMatchFailure(
           op, "the size of the dimension being squeezed is can't be unknown");
 
-    rewriter.replaceOp(op, adaptor.self());
+    rewriter.replaceOp(op, adaptor.getSelf());
     return success();
   }
 
@@ -386,16 +386,16 @@ template <>
 LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
     AtenUnsqueezeOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
   if (!selfType) {
     return op.emitError("only tensor types are currently supported");
   }
 
   int64_t dim;
-  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return op->emitError("dim must be a Scalar constant");
 
-  auto unsqzTensorInfo = mhlo::unsqueezeTensor(rewriter, op, adaptor.self(),
+  auto unsqzTensorInfo = mhlo::unsqueezeTensor(rewriter, op, adaptor.getSelf(),
                                                {dim}, options.dimSizeIndexBits);
   if (failed(unsqzTensorInfo))
     return rewriter.notifyMatchFailure(op,

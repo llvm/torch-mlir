@@ -39,7 +39,7 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op->getLoc();
-    Value self = adaptor.self();
+    Value self = adaptor.getSelf();
     auto type = self.getType().cast<RankedTensorType>();
     int64_t rank = type.getRank();
 
@@ -47,7 +47,7 @@ public:
     // will get the lowered version of the operands which is harder to pattern
     // match.
     SmallVector<int64_t> padInts;
-    if (!matchPattern(op.pad(), m_TorchListOfConstantInts(padInts)))
+    if (!matchPattern(op.getPad(), m_TorchListOfConstantInts(padInts)))
       return rewriter.notifyMatchFailure(
           op, "only support constant int pad ranges");
     uint64_t padRank = padInts.size() / 2;
@@ -69,7 +69,7 @@ public:
     Type newResultType = getTypeConverter()->convertType(op.getType());
     Type elementType = newResultType.cast<RankedTensorType>().getElementType();
     Value castedValue =
-        convertScalarToDtype(rewriter, loc, adaptor.value(), elementType);
+        convertScalarToDtype(rewriter, loc, adaptor.getValue(), elementType);
     Value paddedInput = torch_to_linalg::getPaddedTensor(
         op, rewriter, self, lowPadding, highPadding, castedValue);
 
@@ -98,8 +98,8 @@ public:
 
     // The pin_memory should be either `False` or `none`.
     bool pinMemory;
-    if (!op.pin_memory().getType().template isa<Torch::NoneType>() &&
-        (!matchPattern(op.pin_memory(), m_TorchConstantBool(&pinMemory)) ||
+    if (!op.getPinMemory().getType().template isa<Torch::NoneType>() &&
+        (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
          pinMemory)) {
       return rewriter.notifyMatchFailure(
           op, "unimplemented: pin_memory must be either None or false");
@@ -108,7 +108,7 @@ public:
     Location loc = op.getLoc();
     TypeConverter *typeConverter = this->getTypeConverter();
     SmallVector<Value> resultSizeTorchInt, resultSize, resultSizeIndex;
-    if (!getListConstructElements(op.size(), resultSizeTorchInt)) {
+    if (!getListConstructElements(op.getSize(), resultSizeTorchInt)) {
       return rewriter.notifyMatchFailure(
           op, "unimplemented: size must be constructed using ListConstruct");
     }
@@ -120,11 +120,11 @@ public:
     auto resultType = typeConverter->convertType(op.getType())
                           .template cast<RankedTensorType>();
     Type resultElementType;
-    if (op.dtype().getType().template isa<Torch::NoneType>()) {
+    if (op.getDtype().getType().template isa<Torch::NoneType>()) {
       resultElementType = resultType.getElementType();
     } else {
       int64_t dtypeInt;
-      if (!matchPattern(op.dtype(), m_TorchConstantInt(&dtypeInt)))
+      if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeInt)))
         return rewriter.notifyMatchFailure(
             op, "unimplemented: dtype must be a constant integer or none");
       resultElementType = getTypeForScalarType(
@@ -162,16 +162,16 @@ public:
 
     // The pin_memory should be either `False` or `none`.
     bool pinMemory;
-    if (!op.pin_memory().getType().template isa<Torch::NoneType>() &&
-        (!matchPattern(op.pin_memory(), m_TorchConstantBool(&pinMemory)) ||
+    if (!op.getPinMemory().getType().template isa<Torch::NoneType>() &&
+        (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
          pinMemory))
       return rewriter.notifyMatchFailure(
           op, "unimplemented: pin_memory must be either None or false");
 
     // Only `none`, `contiguous` and `preserve` memory_format is supported.
-    if (!op.memory_format().getType().isa<Torch::NoneType>()) {
+    if (!op.getMemoryFormat().getType().isa<Torch::NoneType>()) {
       int64_t memoryFormat;
-      if (!matchPattern(op.memory_format(), m_TorchConstantInt(&memoryFormat)))
+      if (!matchPattern(op.getMemoryFormat(), m_TorchConstantInt(&memoryFormat)))
         return rewriter.notifyMatchFailure(
             op, "unimplemented: the memory format should be specified in "
                 "an integer constant");
@@ -183,9 +183,9 @@ public:
     }
 
     // TODO: Add support for device arg other than cpu.
-    if (!op.device().getType().isa<Torch::NoneType>()) {
+    if (!op.getDevice().getType().isa<Torch::NoneType>()) {
       std::string device;
-      if (!matchPattern(op.device(), m_TorchConstantDevice(device)))
+      if (!matchPattern(op.getDevice(), m_TorchConstantDevice(device)))
         return rewriter.notifyMatchFailure(
             op, "unimplemented: device must be a constant str");
       else if (device != "cpu")
@@ -195,9 +195,9 @@ public:
 
     // TODO: Add support for non-strided layout.
     // torch.layout is by default strided i.e. 0.
-    if (!op.layout().getType().isa<Torch::NoneType>()) {
+    if (!op.getLayout().getType().isa<Torch::NoneType>()) {
       int64_t tensorLayout;
-      if (!matchPattern(op.layout(), m_TorchConstantInt(&tensorLayout)))
+      if (!matchPattern(op.getLayout(), m_TorchConstantInt(&tensorLayout)))
         return rewriter.notifyMatchFailure(
             op, "unimplemented: layout must be a constant");
       else if (tensorLayout != torch_upstream::Layout::Strided)
@@ -208,7 +208,7 @@ public:
     Location loc = op.getLoc();
     TypeConverter *typeConverter = this->getTypeConverter();
     SmallVector<Value> resultSizeTorchInt, resultSize, resultSizeIndex;
-    if (!getListConstructElements(op.size(), resultSizeTorchInt)) {
+    if (!getListConstructElements(op.getSize(), resultSizeTorchInt)) {
       return rewriter.notifyMatchFailure(
           op, "unimplemented: size must be constructed using ListConstruct");
     }
@@ -220,11 +220,11 @@ public:
     auto resultType =
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
     Type resultElementType;
-    if (op.dtype().getType().isa<Torch::NoneType>()) {
+    if (op.getDtype().getType().isa<Torch::NoneType>()) {
       resultElementType = resultType.getElementType();
     } else {
       int64_t dtypeInt;
-      if (!matchPattern(op.dtype(), m_TorchConstantInt(&dtypeInt)))
+      if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeInt)))
         return rewriter.notifyMatchFailure(
             op, "unimplemented: dtype must be a constant integer or none");
       resultElementType = getTypeForScalarType(
@@ -263,8 +263,8 @@ public:
 
     // The pin_memory should be either `False` or `none`.
     bool pinMemory;
-    if (!op.pin_memory().getType().isa<Torch::NoneType>() &&
-        (!matchPattern(op.pin_memory(), m_TorchConstantBool(&pinMemory)) ||
+    if (!op.getPinMemory().getType().isa<Torch::NoneType>() &&
+        (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
          pinMemory)) {
       return rewriter.notifyMatchFailure(
           op, "unimplemented: pin_memory must be either None or false");
@@ -276,9 +276,9 @@ public:
         typeConverter->convertType(op->getResult(0).getType())
             .cast<RankedTensorType>();
     Type dtype = resultType.getElementType();
-    Value start = convertScalarToDtype(rewriter, loc, adaptor.start(), dtype);
-    Value end = convertScalarToDtype(rewriter, loc, adaptor.end(), dtype);
-    Value step = convertScalarToDtype(rewriter, loc, adaptor.step(), dtype);
+    Value start = convertScalarToDtype(rewriter, loc, adaptor.getStart(), dtype);
+    Value end = convertScalarToDtype(rewriter, loc, adaptor.getEnd(), dtype);
+    Value step = convertScalarToDtype(rewriter, loc, adaptor.getStep(), dtype);
 
     // The result will always be a 1-d tensor.
     // The size of the result is calculated as follows:
