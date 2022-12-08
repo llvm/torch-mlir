@@ -11,6 +11,7 @@
 
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
@@ -18,6 +19,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringSet.h"
 #include <cstdint>
 
 using namespace mlir;
@@ -675,13 +677,15 @@ public:
     int lhsRank = getTensorRank(lhs);
     int rhsRank = getTensorRank(rhs);
 
-    // If both lhs and rhs ranks are 2 then map it to `aten.mm` op.
-    if (lhsRank == 2 && rhsRank == 2)
+    if (lhsRank == 2 && rhsRank == 2) {
+      // If both lhs and rhs ranks are 2 then map it to `aten.mm` op.
       rewriter.replaceOpWithNewOp<AtenMmOp>(op, op.getType(), lhs, rhs);
-
-    // If both lhs and rhs ranks are 3 then map it to `aten.bmm` op.
-    if (lhsRank == 3 && rhsRank == 3)
+    } else if (lhsRank == 3 && rhsRank == 3) {
+      // If both lhs and rhs ranks are 3 then map it to `aten.bmm` op.
       rewriter.replaceOpWithNewOp<AtenBmmOp>(op, op.getType(), lhs, rhs);
+    } else {
+      return failure();
+    }
 
     return success();
   }
@@ -3298,6 +3302,24 @@ public:
 namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
+private:
+  llvm::StringSet<> legalOpsSet;
+
+  template <typename DecomposePattern>
+  void addPatternIfTargetOpIsIllegal(RewritePatternSet &patterns) {
+    MLIRContext *context = &getContext();
+    Optional<OperationName> opName = DecomposePattern(context).getRootKind();
+    // Because the `DecomposeComplexOpsPass` uses a greedy algorithm
+    // to apply patterns, only patterns that we for sure know we want to run
+    // must be added. This restricts the set of patterns allowed in this file to
+    // patterns that apply to a single op. In other words, patterns that match
+    // on `Operation *` are not allowed, since there is no way of telling if
+    // that pattern will match on an op in the `legalOpsSet` or not.
+    assert(opName && "All decomposition patterns must target a single op");
+    if (!legalOpsSet.contains(opName->getStringRef()))
+      patterns.add<DecomposePattern>(context);
+  }
+
 public:
   DecomposeComplexOpsPass() = default;
   DecomposeComplexOpsPass(ArrayRef<std::string> legalOps) {
@@ -3306,215 +3328,128 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
-    ConversionTarget target(*context);
-    target.addLegalDialect<Torch::TorchDialect>();
+    // The strings in the `legalOps` ArrayRef don't exist during the call to the
+    // constructor `DecomposeComplexOpsPass`, so the creation of the
+    // `legalOpsSet` must be delayed to when `runOnOperation` gets called.
+    legalOpsSet.clear();
+    legalOpsSet.insert(legalOps.begin(), legalOps.end());
 
-    patterns.add<DecomposeAtenSoftmaxIntOp>(context);
-    target.addIllegalOp<AtenSoftmaxIntOp>();
-    patterns.add<DecomposeAten_SoftmaxOp>(context);
-    target.addIllegalOp<Aten_SoftmaxOp>();
-    patterns.add<DecomposeAten_LogSoftmaxOp>(context);
-    target.addIllegalOp<Aten_LogSoftmaxOp>();
-    patterns.add<DecomposeAtenLogSoftmaxIntOp>(context);
-    target.addIllegalOp<AtenLogSoftmaxIntOp>();
-    patterns.add<DecomposeAtenEmptyLikeOp>(context);
-    target.addIllegalOp<AtenEmptyLikeOp>();
-    patterns.add<DecomposeConstantTensorAllocLikeOp<AtenOnesLikeOp, 1>>(
-        context);
-    target.addIllegalOp<AtenOnesLikeOp>();
-    patterns.add<DecomposeConstantTensorAllocLikeOp<AtenZerosLikeOp, 0>>(
-        context);
-    target.addIllegalOp<AtenZerosLikeOp>();
-    patterns.add<DecomposeAtenRollOp>(context);
-    target.addIllegalOp<AtenRollOp>();
-    patterns.add<DecomposeAtenRepeatOp>(context);
-    target.addIllegalOp<AtenRepeatOp>();
-    patterns.add<DecomposeAtenExpandOp>(context);
-    target.addIllegalOp<AtenExpandOp>();
-    patterns.add<DecomposeAtenFlattenUsingIntsOp>(context);
-    target.addIllegalOp<AtenFlattenUsingIntsOp>();
-    patterns.add<DecomposeAtenWhereScalarOp>(context);
-    target.addIllegalOp<AtenWhereScalarOp>();
-    patterns.add<DecomposeAtenWhereScalarOtherOp>(context);
-    target.addIllegalOp<AtenWhereScalarOtherOp>();
-    patterns.add<DecomposeAtenWhereScalarSelfOp>(context);
-    target.addIllegalOp<AtenWhereScalarSelfOp>();
-    patterns.add<DecomposeAtenConvolutionBackwardOverrideableOp>(context);
-    target.addIllegalOp<AtenConvolutionBackwardOverrideableOp>();
-    patterns.add<DecomposeAtenSizeOp>(context);
-    target.addIllegalOp<AtenSizeOp>();
-    patterns.add<DecomposeAtenReshapeOp>(context);
-    target.addIllegalOp<AtenReshapeOp>();
-    patterns.add<DecomposeAten_SoftmaxBackwardDataOp>(context);
-    target.addIllegalOp<Aten_SoftmaxBackwardDataOp>();
-    patterns.add<DecomposeAtenTanhBackwardOp>(context);
-    target.addIllegalOp<AtenTanhBackwardOp>();
-    patterns.add<DecomposeAtenAddmmOp>(context);
-    target.addIllegalOp<AtenAddmmOp>();
-    patterns.add<DecomposeAtenMeanOp>(context);
-    target.addIllegalOp<AtenMeanOp>();
-    patterns.add<DecomposeAtenMeanDimOp>(context);
-    target.addIllegalOp<AtenMeanDimOp>();
-    patterns.add<DecomposeAtenSelectIntOp>(context);
-    target.addIllegalOp<AtenSelectIntOp>();
-    patterns.add<DecomposeAtenMatmulOp>(context);
-    target.addIllegalOp<AtenMvOp>();
-    patterns.add<DecomposeAtenMvOp>(context);
-    target.addIllegalOp<AtenTOp>();
-    patterns.add<DecomposeAtenTOp>(context);
-    patterns.add<DecomposeAten_LogSoftmaxBackwardDataOp>(context);
-    target.addIllegalOp<Aten_LogSoftmaxBackwardDataOp>();
-    target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
-      int lhsRank = getTensorRank(op.getSelf());
-      int rhsRank = getTensorRank(op.getOther());
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSoftmaxIntOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_SoftmaxOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_LogSoftmaxOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLogSoftmaxIntOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenEmptyLikeOp>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeConstantTensorAllocLikeOp<AtenOnesLikeOp, 1>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeConstantTensorAllocLikeOp<AtenZerosLikeOp, 0>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRollOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenExpandOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFlattenUsingIntsOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarOtherOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarSelfOp>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenConvolutionBackwardOverrideableOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSizeOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_SoftmaxBackwardDataOp>(
+        patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenTanhBackwardOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAddmmOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMeanOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMeanDimOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenTOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_LogSoftmaxBackwardDataOp>(
+        patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenAddCLikeOp<AtenAddcmulOp, AtenMulTensorOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenAddCLikeOp<AtenAddcdivOp, AtenDivTensorOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLayerNormOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenNativeLayerNormOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenNativeBatchNormOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenConvolutionOverrideableOp>(
+        patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAten_ConvolutionLikeOp<Aten_ConvolutionOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAten_ConvolutionLikeOp<Aten_ConvolutionDeprecatedOp>>(
+        patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenConvolutionBackwardOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenConv2dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenConvTranspose2dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenArangeOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenArangeStartOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenArgMaxOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSquareOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenVarOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenStdOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_UnsafeViewOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_ReshapeAliasOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenBernoulliOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeValsemVariantAtenBernoulliFloatOp>(
+        patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenBernoulliTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenZeroOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRandLikeOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSoftplusOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSiluOp>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeConstantTensorNewLikeOp<AtenNewZerosOp, AtenZerosOp>>(
+        patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeConstantTensorNewLikeOp<AtenNewOnesOp, AtenOnesOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenHardtanhOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFullOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLinearOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMishOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFullLikeOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenIndexPutOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenExpandAsOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_ToCopyOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenDropoutOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenIndexPutHackedTwinOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenPadOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenToDtypeLayoutOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenToDeviceOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool2dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenClampMaxOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenNumpyTOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSelectScatterOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenVarDimOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAmaxOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenVarCorrectionOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenStdDimOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenNarrowOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_EmbeddingBagOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLiftFreshCopyOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorHackedTwinOp>(
+        patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMseLossOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRandintLowOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanCorrectionOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposePrimsConvertElementTypeOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRandnOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRandnGeneratorOp>(patterns);
 
-      // Make aten.matmul legal if the following condition is satisfied.
-      return (lhsRank != 2 || rhsRank != 2) && (lhsRank != 3 || rhsRank != 3);
-    });
-    patterns.add<DecomposeAtenAddCLikeOp<AtenAddcmulOp, AtenMulTensorOp>>(
-        context);
-    target.addIllegalOp<AtenAddcmulOp>();
-    patterns.add<DecomposeAtenAddCLikeOp<AtenAddcdivOp, AtenDivTensorOp>>(
-        context);
-    target.addIllegalOp<AtenAddcdivOp>();
-    target.addIllegalOp<AtenLayerNormOp>();
-    patterns.add<DecomposeAtenLayerNormOp>(context);
-    target.addIllegalOp<AtenNativeLayerNormOp>();
-    patterns.add<DecomposeAtenNativeLayerNormOp>(context);
+    GreedyRewriteConfig config;
+    config.useTopDownTraversal = true;
+    config.maxIterations = GreedyRewriteConfig::kNoIterationLimit;
 
-    target.addIllegalOp<AtenNativeBatchNormOp>();
-    patterns.add<DecomposeAtenNativeBatchNormOp>(context);
-    target.addIllegalOp<AtenConvolutionOverrideableOp>();
-    patterns.add<DecomposeAtenConvolutionOverrideableOp>(context);
-    target.addIllegalOp<Aten_ConvolutionOp, Aten_ConvolutionDeprecatedOp>();
-    patterns.add<DecomposeAten_ConvolutionLikeOp<Aten_ConvolutionOp>,
-                 DecomposeAten_ConvolutionLikeOp<Aten_ConvolutionDeprecatedOp>>(
-        context);
-    target.addIllegalOp<AtenConvolutionBackwardOp>();
-    patterns.add<DecomposeAtenConvolutionBackwardOp>(context);
-    target.addIllegalOp<AtenConv2dOp>();
-    patterns.add<DecomposeAtenConv2dOp>(context);
-    target.addIllegalOp<AtenConvTranspose2dInputOp>();
-    patterns.add<DecomposeAtenConvTranspose2dOp>(context);
-    patterns.add<DecomposeAtenArangeOp>(context);
-    target.addIllegalOp<AtenArangeOp>();
-    patterns.add<DecomposeAtenArangeStartOp>(context);
-    target.addIllegalOp<AtenArangeStartOp>();
-    patterns.add<DecomposeAtenArgMaxOp>(context);
-    target.addIllegalOp<AtenArgmaxOp>();
-    patterns.add<DecomposeAtenSquareOp>(context);
-    target.addIllegalOp<AtenSquareOp>();
-    patterns.add<DecomposeAtenVarOp>(context);
-    target.addIllegalOp<AtenVarOp>();
-    patterns.add<DecomposeAtenStdOp>(context);
-    target.addIllegalOp<AtenStdOp>();
-    patterns.add<DecomposeAten_UnsafeViewOp>(context);
-    target.addIllegalOp<Aten_UnsafeViewOp>();
-    patterns.add<DecomposeAten_ReshapeAliasOp>(context);
-    target.addIllegalOp<Aten_ReshapeAliasOp>();
-    patterns.add<DecomposeAtenBernoulliOp>(context);
-    target.addIllegalOp<AtenBernoulliOp>();
-    patterns.add<DecomposeValsemVariantAtenBernoulliFloatOp>(context);
-    target.addIllegalOp<ValsemVariantAtenBernoulliFloatOp>();
-    patterns.add<DecomposeAtenBernoulliTensorOp>(context);
-    target.addIllegalOp<AtenBernoulliTensorOp>();
-    patterns.add<DecomposeAtenZeroOp>(context);
-    target.addIllegalOp<AtenZeroOp>();
-    patterns.add<DecomposeAtenRandLikeOp>(context);
-    target.addIllegalOp<AtenRandLikeOp>();
-    patterns.add<DecomposeAtenHardsigmoidOp>(context);
-    target.addIllegalOp<AtenHardsigmoidOp>();
-    patterns.add<DecomposeAtenRelu6Op>(context);
-    target.addIllegalOp<AtenRelu6Op>();
-    patterns.add<DecomposeAtenHardswishOp>(context);
-    target.addIllegalOp<AtenHardswishOp>();
-    patterns.add<DecomposeAtenSoftplusOp>(context);
-    target.addIllegalOp<AtenSoftplusOp>();
-    patterns.add<DecomposeAtenSiluOp>(context);
-    target.addIllegalOp<AtenSiluOp>();
-    patterns.add<DecomposeConstantTensorNewLikeOp<AtenNewZerosOp, AtenZerosOp>>(
-        context);
-    target.addIllegalOp<AtenNewZerosOp>();
-    patterns.add<DecomposeConstantTensorNewLikeOp<AtenNewOnesOp, AtenOnesOp>>(
-        context);
-    target.addIllegalOp<AtenNewOnesOp>();
-    patterns.add<DecomposeAtenHardtanhOp>(context);
-    target.addIllegalOp<AtenHardtanhOp>();
-    patterns.add<DecomposeAtenFullOp>(context);
-    target.addIllegalOp<AtenFullOp>();
-    patterns.add<DecomposeAtenLinearOp>(context);
-    target.addIllegalOp<AtenLinearOp>();
-    patterns.add<DecomposeAtenMishOp>(context);
-    target.addIllegalOp<AtenMishOp>();
-    patterns.add<DecomposeAtenFullLikeOp>(context);
-    target.addIllegalOp<AtenFullLikeOp>();
-    patterns.add<DecomposeAtenIndexPutOp>(context);
-    target.addIllegalOp<AtenIndexPutOp>();
-    patterns.add<DecomposeAtenExpandAsOp>(context);
-    target.addIllegalOp<AtenExpandAsOp>();
-    patterns.add<DecomposeAten_ToCopyOp>(context);
-    target.addIllegalOp<Aten_ToCopyOp>();
-    patterns.add<DecomposeAtenDropoutOp>(context);
-    target.addIllegalOp<AtenDropoutOp>();
-    target.addIllegalOp<AtenNewEmptyOp>();
-    patterns.add<DecomposeAtenNewEmptyOp>(context);
-    patterns.add<DecomposeAtenIndexPutHackedTwinOp>(context);
-    target.addIllegalOp<AtenIndexPutHackedTwinOp>();
-    target.addIllegalOp<AtenPadOp>();
-    patterns.add<DecomposeAtenPadOp>(context);
-    patterns.add<DecomposeAtenToDtypeLayoutOp>(context);
-    target.addIllegalOp<AtenToDtypeLayoutOp>();
-    patterns.add<DecomposeAtenToDeviceOp>(context);
-    target.addIllegalOp<AtenToDeviceOp>();
-    patterns.add<DecomposeAtenAdaptiveAvgPool2dOp>(context);
-    target.addIllegalOp<AtenAdaptiveAvgPool2dOp>();
-    patterns.add<DecomposeAtenClampMinOp>(context);
-    target.addIllegalOp<AtenClampMinOp>();
-    patterns.add<DecomposeAtenClampMaxOp>(context);
-    target.addIllegalOp<AtenClampMaxOp>();
-    patterns.add<DecomposeAtenBaddbmmOp>(context);
-    target.addIllegalOp<AtenBaddbmmOp>();
-    patterns.add<DecomposeAtenFloorDivideOp>(context);
-    target.addIllegalOp<AtenFloorDivideOp>();
-    patterns.add<DecomposeAtenNumpyTOp>(context);
-    target.addIllegalOp<AtenNumpyTOp>();
-    patterns.add<DecomposeAtenSelectScatterOp>(context);
-    target.addIllegalOp<AtenSelectScatterOp>();
-    patterns.add<DecomposeAtenVarDimOp>(context);
-    target.addIllegalOp<AtenVarDimOp>();
-    patterns.add<DecomposeAtenAmaxOp>(context);
-    target.addIllegalOp<AtenAmaxOp>();
-    patterns.add<DecomposeAtenVarCorrectionOp>(context);
-    target.addIllegalOp<AtenVarCorrectionOp>();
-    patterns.add<DecomposeAtenStdDimOp>(context);
-    target.addIllegalOp<AtenStdDimOp>();
-    patterns.add<DecomposeAtenNarrowOp>(context);
-    target.addIllegalOp<AtenNarrowOp>();
-    patterns.add<DecomposeAten_EmbeddingBagOp>(context);
-    target.addIllegalOp<Aten_EmbeddingBagOp>();
-    patterns.add<DecomposeAtenLiftFreshCopyOp>(context);
-    target.addIllegalOp<AtenLiftFreshCopyOp>();
-    patterns.add<DecomposeAtenIndexTensorHackedTwinOp>(context);
-    target.addIllegalOp<AtenIndexTensorHackedTwinOp>();
-    patterns.add<DecomposeAtenMseLossOp>(context);
-    target.addIllegalOp<AtenMseLossOp>();
-    patterns.add<DecomposeAtenRandintLowOp>(context);
-    target.addIllegalOp<AtenRandintLowOp>();
-    patterns.add<DecomposeAtenVarMeanCorrectionOp>(context);
-    target.addIllegalOp<AtenVarMeanCorrectionOp>();
-    patterns.add<DecomposePrimsConvertElementTypeOp>(context);
-    target.addIllegalOp<PrimsConvertElementTypeOp>();
-    patterns.add<DecomposeAtenRandnOp>(context);
-    target.addIllegalOp<AtenRandnOp>();
-    patterns.add<DecomposeAtenRandnGeneratorOp>(context);
-    target.addIllegalOp<AtenRandnGeneratorOp>();
-
-    for (std::string opName : legalOps) {
-      target.addLegalOp(OperationName(opName, context));
-    }
-
-    if (failed(applyPartialConversion(getOperation(), target,
-                                      std::move(patterns)))) {
+    if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
+                                            config))) {
       return signalPassFailure();
     }
   }
