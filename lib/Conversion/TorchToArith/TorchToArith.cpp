@@ -296,7 +296,7 @@ public:
 } // namespace
 
 namespace {
-template <typename OpTy>
+template <typename OpTy, typename BinOp>
 class ConvertAtenAnyOrAllBoolOp : public OpConversionPattern<OpTy> {
 public:
   using OpConversionPattern<OpTy>::OpConversionPattern;
@@ -305,38 +305,37 @@ public:
   LogicalResult
   matchAndRewrite(OpTy op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-
+    Location loc = op.getLoc();
+    Value result;
     SmallVector<Value> inputListTorchBool;
     if (!getListConstructElements(op.getSelf(), inputListTorchBool)) {
       return rewriter.notifyMatchFailure(
-          op, "Unimplemented input list not constructed from ListConstruct");
+          op, "unimplemented: input list not constructed from ListConstruct");
     }
-    SmallVector<bool> inputListBool;
-    for (Value v : inputListTorchBool) {
-      bool cst;
-      if (!matchPattern(v, m_TorchConstantBool(&cst)))
-        return rewriter.notifyMatchFailure(
-            op, "only support constant bool input list elements");
-      inputListBool.push_back(cst);
-    }
-    bool result = reductionFunction(inputListBool);
-
-    rewriter.replaceOpWithNewOp<arith::ConstantOp>(
-        op, rewriter.getBoolAttr(result));
+    SmallVector<Value> inputList = getTypeConvertedValues(
+        rewriter, loc, this->getTypeConverter(), inputListTorchBool);
+    result = inputList[0];
+    for (unsigned i = 1; i < inputList.size(); i++)
+      result = rewriter.create<BinOp>(loc, result, inputList[i]);
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
 
-class ConvertAtenAnyOp : public ConvertAtenAnyOrAllBoolOp<AtenAnyBoolOp> {
-  using ConvertAtenAnyOrAllBoolOp<AtenAnyBoolOp>::ConvertAtenAnyOrAllBoolOp;
+class ConvertAtenAnyOp
+    : public ConvertAtenAnyOrAllBoolOp<AtenAnyBoolOp, arith::OrIOp> {
+  using ConvertAtenAnyOrAllBoolOp<AtenAnyBoolOp,
+                                  arith::OrIOp>::ConvertAtenAnyOrAllBoolOp;
   bool reductionFunction(ArrayRef<bool> inputArray) const override {
     return llvm::any_of(inputArray,
                         [](bool inputListElem) { return inputListElem; });
   }
 };
 
-class ConvertAtenAllOp : public ConvertAtenAnyOrAllBoolOp<AtenAllBoolOp> {
-  using ConvertAtenAnyOrAllBoolOp<AtenAllBoolOp>::ConvertAtenAnyOrAllBoolOp;
+class ConvertAtenAllOp
+    : public ConvertAtenAnyOrAllBoolOp<AtenAllBoolOp, arith::AndIOp> {
+  using ConvertAtenAnyOrAllBoolOp<AtenAllBoolOp,
+                                  arith::AndIOp>::ConvertAtenAnyOrAllBoolOp;
   bool reductionFunction(ArrayRef<bool> inputArray) const override {
     return llvm::all_of(inputArray,
                         [](bool inputListElem) { return inputListElem; });
@@ -467,6 +466,9 @@ public:
         typeConverter, context);
     target.addIllegalOp<AtenFloordivIntOp>();
     patterns.add<ConvertAtenBinaryOp<AtenFloordivIntOp, arith::FloorDivSIOp>>(
+        typeConverter, context);
+    target.addIllegalOp<PrimMaxIntOp>();
+    patterns.add<ConvertAtenBinaryOp<PrimMaxIntOp, arith::MaxSIOp>>(
         typeConverter, context);
     target.addIllegalOp<AtenCeilFloatOp>();
     patterns

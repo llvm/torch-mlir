@@ -265,8 +265,12 @@ func.func @torch.aten.sqrt.int(%arg0: !torch.int) -> !torch.float {
 // CHECK:           %[[CST_TRUE:.*]] = arith.constant true
 // CHECK:           %[[TRUE:.*]] = torch_c.from_i1 %[[CST_TRUE]]
 // CHECK:           %[[INPUT:.*]] = torch.prim.ListConstruct %[[FALSE]], %[[TRUE]], %[[FALSE]] : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
-// CHECK:           %[[CST_RESULT:.*]] = arith.constant true
-// CHECK:           %[[RESULT:.*]] = torch_c.from_i1 %[[CST_RESULT]]
+// CHECK:           %[[TMP1:.*]] = torch_c.to_i1 %[[FALSE]]
+// CHECK:           %[[TMP2:.*]] = torch_c.to_i1 %[[TRUE]]
+// CHECK:           %[[TMP3:.*]] = torch_c.to_i1 %[[FALSE]]
+// CHECK:          %[[CMP:.*]] = arith.ori %[[TMP1]], %[[TMP2]] : i1
+// CHECK:          %[[CMP_RESULT:.*]] = arith.ori %[[CMP]], %[[TMP3]] : i1
+// CHECK:           %[[RESULT:.*]] = torch_c.from_i1 %[[CMP_RESULT]]
 // CHECK:           return %[[RESULT]] : !torch.bool
 func.func @torch.aten.any.bool() -> !torch.bool {
   %false = torch.constant.bool false

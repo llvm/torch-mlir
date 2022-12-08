@@ -291,3 +291,34 @@ FailureOr<Value> Torch::squeezeTensor(PatternRewriter &rewriter, Operation *op,
       rewriter.create<AtenSqueezeDimOp>(loc, squeezedType, input, cstDim);
   return result;
 }
+
+// Helper function to unsqueeze the input tensor at given dim.
+// Return the unsqueezed tensor or failure.
+FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
+                                        Operation *op, Value input, Value dim) {
+  BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+  if (!inputType.hasSizes()) {
+    return rewriter.notifyMatchFailure(op, "input tensor must have size");
+  }
+
+  SmallVector<int64_t> unsqueezedShape;
+  ArrayRef<int64_t> inputShape = inputType.getSizes();
+  // `input` has a reduced rank. Hence add 1.
+  int64_t unsqueezedRank = inputShape.size() + 1;
+  int64_t dimInt = 0;
+  if (matchPattern(dim, m_TorchConstantInt(&dimInt))) {
+    dimInt = toPositiveDim(dimInt, unsqueezedRank);
+    if (!isValidDim(dimInt, unsqueezedRank)) {
+      return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
+    }
+    unsqueezedShape.append(inputShape.begin(), inputShape.end());
+    unsqueezedShape.insert(unsqueezedShape.begin() + dimInt, 1);
+  } else {
+    unsqueezedShape.resize(unsqueezedRank, kUnknownSize);
+  }
+  Type unsqueezedType = inputType.getWithSizesAndDtype(
+      unsqueezedShape, inputType.getOptionalDtype());
+  Value unsqueezed = rewriter.create<AtenUnsqueezeOp>(
+      op->getLoc(), unsqueezedType, input, dim);
+  return unsqueezed;
+}

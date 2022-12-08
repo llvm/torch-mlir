@@ -120,6 +120,13 @@ public:
       return rewriter.notifyMatchFailure(op, "end_dim must be constant");
     auto type = adaptor.getSelf().getType().cast<RankedTensorType>();
     auto inputRank = type.getRank();
+    if (inputRank == 1) {
+      // If input rank is equal to 1, then there's no scope for flattening the
+      // input tensor.
+      rewriter.replaceOp(op, adaptor.getSelf());
+      return success();
+    }
+
     auto resultType =
         getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
     if (startDim < 0)
