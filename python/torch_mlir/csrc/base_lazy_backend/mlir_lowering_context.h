@@ -73,6 +73,8 @@ public:
   // embedded builder (returned by the builder() API).
   torch::lazy::ComputationPtr Build() override;
 
+  virtual torch::lazy::ComputationPtr CreateComputation(MlirOperation func_op);
+
   // Retrieves the lowered operation for an output. If the requested output is
   // not available yet, the graph behind the output's Node is lowered, and the
   // corresponding TS operation returned.
@@ -90,7 +92,7 @@ public:
 
   std::shared_ptr<torch::jit::Graph> graph() const;
 
-private:
+protected:
   struct Parameter {
     torch::jit::Value* param;
     size_t index = 0;
