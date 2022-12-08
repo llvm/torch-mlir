@@ -9,7 +9,7 @@
 
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "torch-mlir/Conversion/Utils/Utils.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "llvm/ADT/STLExtras.h"

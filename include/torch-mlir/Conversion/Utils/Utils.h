@@ -86,12 +86,6 @@ Value convertScalarToDtype(
     OpBuilder &b, Location loc, Value scalar, Type dtype,
     llvm::Optional<Type> srcOriginalDtype = llvm::None);
 
-// Return the number of elements of a tensor if the shape is static; otherwise,
-// return -1.
-int64_t getNumberOfElements(RankedTensorType inputType);
-
-SmallVector<int64_t> makeShapeLLVMCompatible(ArrayRef<int64_t> shape);
-SmallVector<int64_t> makeShapeTorchCompatible(ArrayRef<int64_t> shape);
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

@@ -178,3 +178,38 @@ Value Torch::getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter,
   llvm::report_fatal_error(
       "unhandled type for getConstantWithGivenDtypeAndValue");
 }
+
+// Return the number of elements of a tensor if the shape is static; otherwise,
+// return -1.
+int64_t Torch::getNumberOfElements(RankedTensorType inputType) {
+  if (!inputType.hasStaticShape())
+    return -1;
+  SmallVector<int64_t> inputShape =
+      makeShapeTorchCompatible(inputType.getShape());
+  int64_t numel = 1;
+  for (int64_t i = 0; i < inputType.getRank(); i++)
+    numel *= inputShape[i];
+  return numel;
+}
+
+SmallVector<int64_t> Torch::makeShapeLLVMCompatible(ArrayRef<int64_t> shape) {
+  SmallVector<int64_t> updatedShape(shape);
+  int64_t kDynamic = ShapedType::kDynamic;
+  for (unsigned i = 0; i < shape.size(); i++) {
+    assert(shape[i] >= 0 || shape[i] == kUnknownSize);
+    if (shape[i] == kUnknownSize)
+      updatedShape[i] = kDynamic;
+  }
+  return updatedShape;
+}
+
+SmallVector<int64_t> Torch::makeShapeTorchCompatible(ArrayRef<int64_t> shape) {
+  SmallVector<int64_t> updatedShape(shape);
+  int64_t kDynamic = ShapedType::kDynamic;
+  for (unsigned i = 0; i < shape.size(); i++) {
+    assert(shape[i] >= 0 || shape[i] == kDynamic);
+    if (shape[i] == kDynamic)
+      updatedShape[i] = kUnknownSize;
+  }
+  return updatedShape;
+}

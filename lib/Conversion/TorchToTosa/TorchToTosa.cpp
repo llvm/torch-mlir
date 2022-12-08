@@ -10,7 +10,6 @@
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
-#include "torch-mlir/Conversion/Utils/Utils.h"
 
 #include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
