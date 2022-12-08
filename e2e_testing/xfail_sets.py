@@ -14,13 +14,6 @@ from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 
 LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 
-EAGER_MODE_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
-    # RefBackend fails for some reason.
-    # These tests pass in the regular RefBackend flow, so it's unclear
-    # why they fail here.
-    "Matmul_vecmat",
-}
-
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
 
