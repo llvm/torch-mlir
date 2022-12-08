@@ -65,6 +65,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "IndexPutImpl1DIntNonAccumulateModule_basic",
     "IndexPutImpl2DFloatAccumulateModule_basic",
     "IndexPutImpl2DFloatNonAccumulateModule_basic",
+    "IndexPutImpl2DIndexModule_basic",
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
 
@@ -814,8 +815,10 @@ LTC_XFAIL_SET = {
     "IndexPutImpl1DIntNonAccumulateModule_basic",
     "IndexPutImpl2DFloatAccumulateModule_basic",
     "IndexPutImpl2DFloatNonAccumulateModule_basic",
+    "IndexPutImpl2DIndexModule_basic",
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
+    "IndexPutImplIndexWithNoneModule_basic",
     "IndexTensorModule3dInput_basic",
     "IndexTensorModule_basic",
     "IndexTensorStaticModule_basic",

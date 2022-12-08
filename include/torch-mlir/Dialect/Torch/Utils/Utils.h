@@ -81,6 +81,11 @@ SmallVector<int64_t> makeShapeTorchCompatible(ArrayRef<int64_t> shape);
 FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
                                Location loc, int64_t dim, Value input);
 
+// Helper function to unsqueeze the input tensor at given dim.
+// Return the unsqueezed tensor or failure.
+FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
+                                 Value input, Value dim);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

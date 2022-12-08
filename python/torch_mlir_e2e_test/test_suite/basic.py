@@ -1390,6 +1390,27 @@ def PrimMinIntModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class PrimMaxIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.prim.max(a.size(0), a.size(1))
+
+
+@register_test_case(module_factory=lambda: PrimMaxIntModule())
+def PrimMaxIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 5))
+
+
+# ==============================================================================
+
 class NumToTensorIntModule(torch.nn.Module):
 
     def __init__(self):
