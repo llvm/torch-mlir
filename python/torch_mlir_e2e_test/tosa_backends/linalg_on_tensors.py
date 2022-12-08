@@ -15,11 +15,32 @@ __all__ = [
     "LinalgOnTensorsTosaBackend",
 ]
 
+# The pipeline of func.func passes that lower the TOSA backend contract to the
+# Linalg-on-Tensors backend contract accepted by RefBackend.
+TOSA_TO_LINALG_FUNC_PIPELINE = ",".join([
+    # TOSA legalization may emit tosa.const() ops. These are legalized
+    # by tosa-to-arith to arith.constants. This mechanical transformation
+    # must be done prior to TOSA-to-LinAlg so that the latter does not fail.
+    # This is an artifact of legalizations spread across a collection of simple
+    # ones in TOSA-to-Standard and the main conversions TOSA-to-LinAlg,
+    # that depend on TOSA as well as TOSA-to-Standard.
+    "tosa-to-arith",
+    # Named ops must be legalized prior to general tosa-to-linalg
+    "tosa-to-linalg-named",
+    # TOSA-to-LinAlg may generate tosa.const() ops, so we want to lower them
+    # to arith.constants here before proceeding further.
+    "tosa-to-tensor",
+    "tosa-to-linalg",
+    "tosa-to-arith",
+])
+
+
 class LinalgOnTensorsTosaBackend(TosaBackend):
     """Main entry-point for the linalg-on-tensors based TOSA backend.
 
     This currently uses the linalg-on-tensors RefBackend for actual execution.
     """
+
     def __init__(self):
         super().__init__()
         self.refbackend = RefBackendLinalgOnTensorsBackend()
@@ -35,29 +56,10 @@ class LinalgOnTensorsTosaBackend(TosaBackend):
           passed to `load`.
         """
 
-        # TOSA legalization may emit tosa.const() ops. These are legalized
-        # by tosa-to-arith to arith.constants. This mechanical transformation 
-        # must be done prior to TOSA-to-LinAlg so that the latter does not fail. 
-        # This is an artifact of legalizations spread across a collection of simple
-        # ones in TOSA-to-Standard and the main conversions TOSA-to-LinAlg, 
-        # that depend on TOSA as well as TOSA-to-Standard.  
         run_pipeline_with_repro_report(
             imported_module,
-            "builtin.module(func.func(tosa-to-arith))",
-            "Lowering TOSA to Arith")
-
-        # Named ops must be legalized prior to general tosa-to-linalg
-        run_pipeline_with_repro_report(
-            imported_module,
-            "builtin.module(func.func(tosa-to-linalg-named))",
-            "Lowering TOSA to Linalg-on-Tensors for Named Ops")
-
-        # TOSA-to-LinAlg may generate tosa.const() ops, so we want to lower them
-        # to arith.constants here before proceeding further.
-        run_pipeline_with_repro_report(
-            imported_module,
-            "builtin.module(func.func(tosa-to-tensor),func.func(tosa-to-linalg),func.func(tosa-to-arith))",
-            "Lowering TOSA to Linalg-on-Tensors")
+            f"builtin.module(func.func({TOSA_TO_LINALG_FUNC_PIPELINE}))",
+            "Lowering TOSA backend contract to Linalg-on-Tensors backend contract")
 
         return self.refbackend.compile(imported_module)
 
