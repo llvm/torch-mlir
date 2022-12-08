@@ -512,6 +512,13 @@ public:
           op, "only support padding from a list construct");
     paddingIntValues = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
                                               paddingIntValues);
+    SmallVector<Value> outputPaddingIntValues;
+    if (!getListConstructElements(op.getOutputPadding(),
+                                  outputPaddingIntValues))
+      return rewriter.notifyMatchFailure(
+          op, "only support output_padding from a list construct");
+    outputPaddingIntValues = getTypeConvertedValues(
+        rewriter, loc, getTypeConverter(), outputPaddingIntValues);
     SmallVector<int64_t> strideInts;
     if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts)))
       return rewriter.notifyMatchFailure(op,
@@ -620,6 +627,9 @@ public:
 
         Value outerSize = rewriter.create<arith::MulIOp>(loc, offset, c2);
         outerSize = rewriter.create<arith::AddIOp>(loc, outerSize, innerSize);
+        outerSize = rewriter.create<arith::AddIOp>(
+            loc, outerSize,
+            castIntToIndex(rewriter, loc, outputPaddingIntValues[i]));
 
         outerSizes.push_back(outerSize);
         offsets.push_back(offset);
@@ -643,7 +653,8 @@ public:
       for (size_t i = 0; i < numSpacialDims; i++)
         outDims.push_back(torch_to_linalg::getOutputDimForConvTransposeOps(
             rewriter, loc, inDims[i], paddingIntValues[i], dilationIntValues[i],
-            castIndexToInt(weightDims[i]), strideIntValues[i]));
+            castIndexToInt(weightDims[i]), strideIntValues[i],
+            outputPaddingIntValues[i]));
 
       // Set stride to 1
       strideInts.clear();
