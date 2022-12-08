@@ -460,6 +460,9 @@ STABLEHLO_PASS_SET = {
     "_LogSoftmaxModuleStable_basic",
     "MoveDimIntModule_basic",
     "MoveDimIntNegativeIndexModule_basic",
+    "ConvolutionBackwardModule2DPadded_basic",
+    "ConvolutionBackwardModule2DStatic_basic",
+    "ConvolutionBackwardModule2D_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development

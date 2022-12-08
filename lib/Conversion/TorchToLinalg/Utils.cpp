@@ -134,7 +134,7 @@ Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
 
 Value torch_to_linalg::getOutputDimForConvTransposeOps(
     OpBuilder &b, Location loc, Value in, Value paddingInt, Value dilationInt,
-    Value kernelSizeInt, Value strideInt) {
+    Value kernelSizeInt, Value strideInt, Value outputPaddingInt) {
   Value c1 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(1));
   Value c2 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(2));
 
@@ -152,6 +152,7 @@ Value torch_to_linalg::getOutputDimForConvTransposeOps(
 
   Value out = b.create<arith::SubIOp>(loc, inStrided, doublePadding);
   out = b.create<arith::AddIOp>(loc, out, kernelDilated);
+  out = b.create<arith::AddIOp>(loc, out, outputPaddingInt);
   out = b.create<arith::AddIOp>(loc, out, c1);
 
   return castIntToIndex(b, loc, out);

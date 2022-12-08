@@ -49,10 +49,12 @@ Value getOutputDimForConvOps(OpBuilder &b, Location loc, Value in,
 // As above but for transposed convolution ops
 // Along each dim:
 // dim_out =
-//  (dim_in - 1) * stride - 2 * padding + dilation * (kernelSize - 1) + 1
+//  (dim_in - 1) * stride - 2 * padding + dilation * (kernelSize - 1) +
+//  output_padding + 1
 Value getOutputDimForConvTransposeOps(OpBuilder &b, Location loc, Value in,
                                       Value paddingInt, Value dilationInt,
-                                      Value kernelSizeInt, Value strideInt);
+                                      Value kernelSizeInt, Value strideInt,
+                                      Value outputPaddingInt);
 
 // Create a reduction of `opInfo.tensorOperand`, reducing along the dimensions
 // in `opInfo.dimSet`. If `opInfo.keepDim` is true, the output tensor is the
