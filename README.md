@@ -75,14 +75,6 @@ torch-mlir prediction
 
 View examples [here](docs/ltc_examples.md).
 
-### Eager Mode
-
-Eager mode with TorchMLIR is a very experimental eager mode backend for PyTorch through the torch-mlir framework. 
-Effectively, this mode works by compiling operator by operator as the NN is eagerly executed by PyTorch. 
-This mode includes a fallback to conventional PyTorch if anything in the torch-mlir compilation process fails (e.g., unsupported operator).
-A simple example can be found at [eager_mode.py](examples/eager_mode.py).
-A ResNet18 example can be found at [eager_mode_resnet18.py](examples/eager_mode_resnet18.py).
-
 ## Repository Layout
 
 The project follows the conventions of typical MLIR-based projects:
