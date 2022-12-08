@@ -27,6 +27,7 @@ torch::lazy::DeviceData* device_data_cast(const torch::lazy::Value& value) {
             break;
         }
     }
+    return nullptr;
 }
 
 torch::lazy::DeviceData* device_data_cast(

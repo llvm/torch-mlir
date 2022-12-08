@@ -142,7 +142,11 @@ ComputationPtr TorchMlirLoweringContext::Build() {
       /*getArgAttribute=*/[](int) -> MlirAttribute { return {nullptr}; },
       /*importOptions=*/{/*assumeTensorsHaveValueSemantics=*/true});
 
-  return std::make_shared<TorchMlirComputation>(
+  return CreateComputation(func_op);
+}
+
+ComputationPtr TorchMlirLoweringContext::CreateComputation(MlirOperation func_op) {
+    return std::make_shared<TorchMlirComputation>(
       func_op, mlir_context_, graph_, parameter_names_, input_output_aliases_);
 }
 
