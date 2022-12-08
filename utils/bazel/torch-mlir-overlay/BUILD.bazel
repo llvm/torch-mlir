@@ -398,6 +398,27 @@ cc_library(
 )
 
 cc_library(
+    name = "TorchMLIRTorchConversionToMLProgram",
+    srcs = glob([
+        "lib/Conversion/*.h",
+        "lib/Conversion/TorchConversionToMLProgram/*.cpp",
+    ]),
+    hdrs = glob([
+        "include/torch-mlir/Conversion/TorchConversionToMLProgram/*.h",
+    ]),
+    strip_include_prefix = "include",
+    deps = [
+        ":TorchMLIRConversionPassesIncGen",
+        ":TorchMLIRConversionUtils",
+        ":TorchMLIRTorchBackendTypeConversion",
+        ":TorchMLIRTorchConversionDialect",
+        "@llvm-project//mlir:Dialect",
+        "@llvm-project//mlir:LinalgDialect",
+        "@llvm-project//mlir:MLProgramDialect",
+    ],
+)
+
+cc_library(
     name = "TorchMLIRTorchToTMTensor",
     srcs = glob([
         "lib/Conversion/*.h",
@@ -450,6 +471,7 @@ cc_library(
         ":TorchMLIRTorchToSCF",
         ":TorchMLIRTorchToTMTensor",
         ":TorchMLIRTorchToTosa",
+        ":TorchMLIRTorchConversionToMLProgram",
     ],
 )
 
@@ -473,6 +495,7 @@ cc_library(
         ":TorchMLIRTorchToSCF",
         ":TorchMLIRTorchToTMTensor",
         ":TorchMLIRTorchToTosa",
+        ":TorchMLIRTorchConversionToMLProgram",
         "@llvm-project//mlir:ConversionPasses",
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:LinalgDialect",
@@ -758,6 +781,7 @@ cc_library(
         ":TorchMLIRTorchConversionDialect",
         "@llvm-project//mlir:ArithTransforms",
         "@llvm-project//mlir:LinalgDialect",
+        "@llvm-project//mlir:MLProgramDialect",
         "@llvm-project//mlir:LinalgTransforms",
         "@llvm-project//mlir:MathTransforms",
         "@llvm-project//mlir:MemRefDialect",
