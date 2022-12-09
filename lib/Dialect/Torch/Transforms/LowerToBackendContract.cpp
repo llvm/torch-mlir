@@ -225,6 +225,17 @@ static bool satisfiesBackendContract(ModuleOp module,
   return true;
 }
 
+// Explicitly set ops and dialects allowed and not allowed in backend contract.
+static ConversionTarget
+getBackendContractTarget(MLIRContext *context, bool decompose,
+                         ArrayRef<std::string> backendLegalOps) {
+  ConversionTarget target(*context);
+  target.addLegalDialect<func::FuncDialect, Torch::TorchDialect>();
+  if (decompose)
+    markDecomposedOpsAsIllegal(context, target, backendLegalOps);
+  return target;
+}
+
 namespace {
 class LowerToBackendContractPass
     : public LowerToBackendContractBase<LowerToBackendContractPass> {
@@ -239,10 +250,8 @@ public:
   void runOnOperation() override {
     ModuleOp module = getOperation();
     MLIRContext *context = &getContext();
-    ConversionTarget target(*context);
-    target.addLegalDialect<func::FuncDialect, Torch::TorchDialect>();
-    if (decompose)
-      markDecomposedOpsAsIllegal(context, target, backendLegalOps);
+    ConversionTarget target =
+        getBackendContractTarget(context, decompose, backendLegalOps);
 
     OpPassManager pm(module.getOperationName());
     TorchLoweringPipelineOptions options;
@@ -279,9 +288,17 @@ public:
 class VerifyBackendContractPass
     : public VerifyBackendContractBase<VerifyBackendContractPass> {
 public:
+  VerifyBackendContractPass() = default;
+  VerifyBackendContractPass(bool decompose,
+                            ArrayRef<std::string> backendLegalOps) {
+    this->decompose = decompose;
+    this->backendLegalOps = backendLegalOps;
+  }
   void runOnOperation() override {
     MLIRContext *context = &getContext();
-    ConversionTarget target(*context);
+    ConversionTarget target =
+        getBackendContractTarget(context, decompose, backendLegalOps);
+
     if (!satisfiesBackendContract(getOperation(), target,
                                   /*actuallyEmitDiagnostics=*/true)) {
       return signalPassFailure();
@@ -298,8 +315,10 @@ mlir::torch::Torch::createLowerToBackendContractPass(
 }
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::Torch::createVerifyBackendContractPass() {
-  return std::make_unique<VerifyBackendContractPass>();
+mlir::torch::Torch::createVerifyBackendContractPass(
+    bool decompose, ArrayRef<std::string> backendLegalOps) {
+  return std::make_unique<VerifyBackendContractPass>(decompose,
+                                                     backendLegalOps);
 }
 
 // The backend contract guarantees that ops with decompositions available will
