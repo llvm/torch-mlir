@@ -604,17 +604,6 @@ def aten〇arange〡shape(end: float, dtype: Optional[int] = None, layout: Optio
 def aten〇add〇Tensor〡shape(self: List[int], other: List[int], alpha: float = 1) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
-@check_dtype_function([
-    Invocation(TensorOfShape(1, dtype=torch.float32), TensorOfShape(1, dtype=torch.float32)),
-    Invocation(TensorOfShape(dtype=torch.float64), TensorOfShape(1, dtype=torch.float32)),
-    Invocation(TensorOfShape(dtype=torch.float32), TensorOfShape(1, dtype=torch.float64)),
-    Invocation(TensorOfShape(1, dtype=torch.float32), TensorOfShape(1, dtype=torch.int32)),
-])
-def aten〇add〇Tensor〡dtype(self_rank: int, self_dtype: int, other_rank: int, other_dtype: int, alpha: Union[int, float] = 1) -> int:
-    ranks: List[Optional[int]] = [self_rank, other_rank]
-    dtypes = [self_dtype, other_dtype]
-    return promote_dtypes(ranks, dtypes)
-
 def aten〇sub〇Tensor〡shape(self: List[int], other: List[int], alpha: float = 1) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
@@ -629,6 +618,17 @@ def aten〇div〇Tensor_mode〡shape(self: List[int], other: List[int], rounding
 
 def aten〇floor_divide〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
+
+@check_dtype_function([
+    Invocation(TensorOfShape(1, dtype=torch.float32), TensorOfShape(1, dtype=torch.float32)),
+    Invocation(TensorOfShape(dtype=torch.float64), TensorOfShape(1, dtype=torch.float32)),
+    Invocation(TensorOfShape(dtype=torch.float32), TensorOfShape(1, dtype=torch.float64)),
+    Invocation(TensorOfShape(1, dtype=torch.float32), TensorOfShape(1, dtype=torch.int32)),
+])
+def aten〇floor_divide〡dtype(self_rank: int, self_dtype: int, other_rank: int, other_dtype: int) -> int:
+    ranks: List[Optional[int]] = [self_rank, other_rank]
+    dtypes = [self_dtype, other_dtype]
+    return promote_dtypes(ranks, dtypes)
 
 def aten〇atan2〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
