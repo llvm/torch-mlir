@@ -61,10 +61,6 @@ TORCHDYNAMO_XFAIL_SET = {
     # RuntimeError: Failed running call_function aten.uniform(...
     # https://github.com/pytorch/torchdynamo/issues/1954
     "UniformNoCorrelationModule_basic",
-    # Decomposition assertion:
-    # assert device is not None or dtype is not None or memory_format is not None
-    # https://github.com/pytorch/pytorch/issues/89633
-    "ToCopyModule_basic",
     # TypeError: expected np.ndarray (got float)
     # TODO: This is due to returning a scalar float as output from the test.
     # We should probably just standardize all tests to return tensors.
@@ -106,6 +102,34 @@ TORCHDYNAMO_XFAIL_SET = {
     "UniformModule_basic",
     # error: failed to materialize conversion for result #0 of operation 'torch.aten.t' that remained live after conversion
     "TModuleRank1_basic",
+    # error:
+    "BatchMlpLayerModule_basic",
+    "BatchNorm1DModule_basic",
+    "BatchNorm1DWith2DInputModule_basic",
+    "BatchNorm2DModule_basic",
+    "BatchNorm3DModule_basic",
+    "Conv2dBiasNoPaddingModule_basic",
+    "Conv2dNoPaddingModule_basic",
+    "Conv2dWithPaddingDilationStrideModule_basic",
+    "Conv2dWithPaddingDilationStrideStaticModule_basic",
+    "Conv2dWithPaddingModule_basic",
+    "EmbeddingModule1DIndices_basic",
+    "EmbeddingModuleI32Static_basic",
+    "EmbeddingModuleI32_basic",
+    "EmbeddingModuleI64_basic",
+    "HBC_basic",
+    "LayerNormLastDimModule_basic",
+    "LayerNormModule_basic",
+    "LayerNormNormalizeOverAllDimsModule_basic",
+    "Mlp1LayerModule_basic",
+    "Mlp2LayerModuleNoBias_basic",
+    "Mlp2LayerModule_basic",
+    "MobilenetV3Module_basic",
+    "ResNet18Module_basic",
+    "ResNet18StaticModule_basic",
+    "SliceEndSleStartModule_basic",
+    "SliceOutOfUpperBoundIndexModule_basic",
+    "SliceStartEqEndModule_basic",
 }
 
 MHLO_PASS_SET = {
@@ -757,4 +781,34 @@ LTC_XFAIL_SET = {
     "CopyWithDifferentDTypesAndSizesModule_basic",
     "CopyWithDifferentDTypesModule_basic",
     "CopyWithDifferentSizesModule_basic",
+    "Conv2dNoPaddingModule_basic",
+    "Conv2dWithPaddingDilationStrideModule_basic",
+    "Conv2dWithPaddingDilationStrideStaticModule_basic",
+    "Conv2dWithPaddingModule_basic",
+    "Conv_Transpose2dModule_basic",
+    "Convolution2DModule_basic",
+    "Convolution2DStaticModule_basic",
+    "Convolution2DStridedModule_basic",
+    "ConvolutionModule2DGroups_basic",
+    "ConvolutionModule2DTransposeStridedStatic_basic",
+    "ConvolutionModule2DTransposeStrided_basic",
+    "ConvolutionModule2DTranspose_basic",
+    "ElementwiseClampModule_basic",
+    "IouOfModule_basic",
+    "MobilenetV3Module_basic",
+    "NativeBatchNormNoneWeightModule_basic",
+    "NllLossModuleBackward1DMean_basic",
+    "NllLossModuleBackward1DSum_basic",
+    "NllLossModuleBackward1D_basic",
+    "NllLossModuleBackwardMean_basic",
+    "NllLossModuleBackwardSum_basic",
+    "NllLossModuleBackward_basic",
+    "NllLossModuleBackward_ignore_index",
+    "NllLossModule_1D_basic",
+    "NllLossModule_basic",
+    "NllLossModule_ignore_index_out_of_bounds_basic",
+    "NllLossModule_mean_basic",
+    "NllLossModule_sum_basic",
+    "ResNet18Module_basic",
+    "ResNet18StaticModule_basic",
 }
