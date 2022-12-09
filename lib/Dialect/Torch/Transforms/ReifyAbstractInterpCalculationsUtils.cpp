@@ -203,13 +203,13 @@ FailureOr<Value> Torch::adjustFunctionArg(
       auto isNone = b.create<Aten__Is__Op>(loc, operand, none);
       auto primIf = b.create<PrimIfOp>(loc, desiredType, isNone);
       {
-        Region &thenRegion = primIf.thenRegion();
+        Region &thenRegion = primIf.getThenRegion();
         b.createBlock(&thenRegion, thenRegion.end());
         auto derefineNone = b.create<DerefineOp>(loc, desiredType, none);
         b.create<PrimIfYieldOp>(loc, ValueRange{derefineNone});
       }
       {
-        Region &elseRegion = primIf.elseRegion();
+        Region &elseRegion = primIf.getElseRegion();
         b.createBlock(&elseRegion, elseRegion.end());
         auto downcasted = b.create<PrimUncheckedCastOp>(
             loc, operandOptionalType.getContainedType(), operand);
@@ -258,7 +258,7 @@ FailureOr<Value> Torch::adjustFunctionArg(
     {
       OpBuilder::InsertionGuard guard(b);
       Block *body =
-          b.createBlock(&loop.region(), loop.region().begin(),
+          b.createBlock(&loop.getRegion(), loop.getRegion().begin(),
                         TypeRange({b.getType<Torch::IntType>()}), {loc});
       Value iterationNumber = body->getArgument(0);
       Value element = b.create<Aten__Getitem__TOp>(

@@ -22,7 +22,7 @@ using namespace mlir::torch::Torch;
 static LogicalResult refineDtypeCalculateResult(DtypeCalculateOp op,
                                                 int resultNum,
                                                 PatternRewriter &rewriter) {
-  auto yieldDtypes = op.calculation().front().getTerminator();
+  auto yieldDtypes = op.getCalculation().front().getTerminator();
   auto dtype = yieldDtypes->getOperand(resultNum);
   auto result = op->getResult(resultNum);
 
@@ -85,12 +85,12 @@ public:
                                 PatternRewriter &rewriter) const override {
     SmallVector<Optional<int64_t>> ranks;
     SmallVector<int64_t> dtypes;
-    if (!matchPattern(op.ranks(), m_TorchListOfOptionalConstantInts(ranks))) {
+    if (!matchPattern(op.getRanks(), m_TorchListOfOptionalConstantInts(ranks))) {
       return rewriter.notifyMatchFailure(
           op, "Expected `ranks` to be a list of optional constant ints");
     }
 
-    if (!matchPattern(op.dtypes(), m_TorchListOfConstantInts(dtypes))) {
+    if (!matchPattern(op.getDtypes(), m_TorchListOfConstantInts(dtypes))) {
       return rewriter.notifyMatchFailure(
           op, "Expected `dtypes` to be a list of constant ints");
     }
@@ -161,19 +161,19 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(PrimNumToTensorScalarOp op,
                                 PatternRewriter &rewriter) const override {
-    auto originalResultType = op.result().getType().cast<BaseTensorType>();
+    auto originalResultType = op.getResult().getType().cast<BaseTensorType>();
     if (originalResultType.hasDtype())
       return rewriter.notifyMatchFailure(
           op, "`PrimNumToTensorScalarOp` already has a dtype");
 
-    Type inputType = getBuiltInTypeForTorchScalar(op.a().getType());
+    Type inputType = getBuiltInTypeForTorchScalar(op.getA().getType());
     auto impliedTypeFromInputType =
         originalResultType.cast<BaseTensorType>()
             .getWithSizesAndDtype(originalResultType.getOptionalSizes(),
                                   inputType)
             .cast<BaseTensorType>();
 
-    op.result().setType(impliedTypeFromInputType);
+    op.getResult().setType(impliedTypeFromInputType);
     return success();
   }
 };

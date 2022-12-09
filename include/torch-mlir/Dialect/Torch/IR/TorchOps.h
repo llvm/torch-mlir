@@ -185,7 +185,7 @@ struct torch_list_of_optional_constant_ints_op_binder {
     auto listConstruct = dyn_cast<Torch::PrimListConstructOp>(op);
     if (!listConstruct)
       return false;
-    for (Value value : listConstruct.elements()) {
+    for (Value value : listConstruct.getElements()) {
       int64_t num;
       if (matchPattern(value, m_TorchConstantInt(&num)))
         bind_values.push_back(num);
