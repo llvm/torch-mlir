@@ -155,16 +155,16 @@ private:
 // RAII pattern to insert an operation before going out of scope.
 class InserterGuard {
 private:
-  MlirBlock _importBlock;
-  MlirOperation _nnModule;
+  MlirBlock importBlock;
+  MlirOperation nnModule;
 
 public:
   InserterGuard(MlirBlock importBlock, MlirOperation nnModule)
-      : _importBlock(importBlock), _nnModule(nnModule) {}
+      : importBlock(importBlock), nnModule(nnModule) {}
 
   ~InserterGuard() {
     mlirBlockInsertOwnedOperationBefore(
-        _importBlock, mlirBlockGetTerminator(_importBlock), _nnModule);
+        importBlock, mlirBlockGetTerminator(importBlock), nnModule);
   }
 };
 
