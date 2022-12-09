@@ -47,8 +47,8 @@ Value convertTensorToDtype(PatternRewriter &rewriter, Location loc, Value input,
 bool isBuiltInType(Type type);
 
 // Helper funtion to get rank of `Base tensor type`.
-// -1 is returned if the tensorRank can't be determined.
-int getTensorRank(Value tensor);
+// llvm::None is returned if the tensorRank can't be determined.
+Optional<unsigned> getTensorRank(Value tensor);
 
 bool isViewLikeOp(Operation *op);
 

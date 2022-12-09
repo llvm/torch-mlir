@@ -279,7 +279,7 @@ public:
     // to i32 as required for the scatter op.
     // 2.) `values` is mapped to `updates` in scatter op.
     // 3.) `input` is mapped to `original` in scatter op.
-    if (getTensorRank(indexTensor) != 1)
+    if (*getTensorRank(indexTensor) != 1)
       return rewriter.notifyMatchFailure(
           op, "unimplemented: index tensor with rank != 1 is not supported");
     auto indexTensorType = indexTensor.getType().cast<BaseTensorType>();

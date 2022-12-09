@@ -137,7 +137,7 @@ static Value getScalarValue(Value input, Location loc,
   Value scalar = nullptr;
   if (auto valueTensorLiteralOp = input.getDefiningOp<ValueTensorLiteralOp>()) {
     if (valueTensorLiteralOp &&
-        getTensorRank(valueTensorLiteralOp.getResult()) == 0) {
+        *getTensorRank(valueTensorLiteralOp.getResult()) == 0) {
       auto tensorType =
           valueTensorLiteralOp.getValue().getType().cast<RankedTensorType>();
       if (tensorType.getElementType().isa<mlir::IntegerType>()) {
