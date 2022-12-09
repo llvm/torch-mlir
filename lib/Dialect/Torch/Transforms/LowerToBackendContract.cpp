@@ -348,10 +348,12 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenTOp>();
   target.addIllegalOp<Aten_LogSoftmaxBackwardDataOp>();
   target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
-    int lhsRank = getTensorRank(op.getSelf());
-    int rhsRank = getTensorRank(op.getOther());
+    Optional<unsigned> lhsRank = getTensorRank(op.getSelf());
+    Optional<unsigned> rhsRank = getTensorRank(op.getOther());
+    if (!lhsRank || !rhsRank)
+      return false;
     // Make aten.matmul legal if the following condition is satisfied.
-    return (lhsRank != 2 || rhsRank != 2) && (lhsRank != 3 || rhsRank != 3);
+    return (*lhsRank != 2 || *rhsRank != 2) && (*lhsRank != 3 || *rhsRank != 3);
   });
   target.addIllegalOp<AtenAddcmulOp>();
   target.addIllegalOp<AtenAddcdivOp>();
