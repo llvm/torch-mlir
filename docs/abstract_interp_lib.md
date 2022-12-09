@@ -14,9 +14,10 @@ of shape functions.
 
 The two main use cases are:
 
-- Refinement / inference. The `torch-shape/dtype-refinement-pipeline` pass
-  pipeline orchestrates a series of passes that use the available information in
-  the program to further refine the types in the program.
+- Refinement / inference. The `torch-shape-refinement-pipeline` and
+  `torch-dtype-refinement-pipeline` pass pipelines orchestrate a series of
+  passes that use the available information in the program to further refine the
+  types in the program.
 
 - Error guard insertion for backends (Not Yet Implemented). The executable
   functions can include error guards / assertions that abort the program in case
@@ -52,12 +53,13 @@ functions to calculate shapes and dtypes that are as precise as possible.
 
 The pipeline works as follows:
 
-1. Calculations are reified. The `torch-reify-shape/dtype-calculations` reifies
-   (i.e., materializes into the IR) the functions for each op with a function in
-   the calculation library. To do this, it wraps those ops in a
-   `torch.shape/dtype.calculate` op, which has two regions: 1) a body with the
-   op itself, and 2) the shape or dtype calculation, which calculates the shapes
-   or dtypes of the tensors yielded by the body.
+1. Calculations are reified. The `torch-reify-shape-calculations` and
+   `torch-reify-dtype-calculations` passes reify (i.e., materializes into the
+   IR) the functions for each op with a function in the calculation library. To
+   do this, the passes wrap those ops in a `torch.shape.calculate` or
+   `torch.dtype.calculate` op, respectively, which has two regions: 1) a body
+   with the op itself, and 2) the shape or dtype calculation, which calculates
+   the shapes or dtypes of the tensors yielded by the body.
 
 2. Simplifying the functions and propagating the shapes and dtypes. After the
    functions are reified, we then attempt to "optimize hard enough" until the
@@ -68,20 +70,22 @@ The pipeline works as follows:
    a. After reification, the functions are just a loose collection of
    functions, which are difficult to analyze. The first step is to inline them.
 
-   b. After inlining, the `torch-simplify-shape/dtype-calculations` pass is used
-   to simplify the calculations. This pass brings in a number of targeted
-   canonicalization patterns and folds, along with a few specific patterns such
-   as unrolling fixed-trip-count loops and abstractly interpreting list
-   operations (an example is turning a series of "append" operations into a list
-   literal). This pass also looks at the values yielded by the calculation
+   b. After inlining, the `torch-simplify-shape-calculations` and
+   `torch-simplify-dtype-calculations` passes are used to simplify the
+   calculations. These passes bring in a number of targeted canonicalization
+   patterns and folds, along with a few specific patterns such as unrolling
+   fixed-trip-count loops and abstractly interpreting list operations (an
+   example is turning a series of "append" operations into a list
+   literal). These passes also look at the values yielded by the calculation
    regions, and if the resulting shape or dtype can be deduced by looking at the
    IR (for example, the shape is the list literal `[1, 2, 3]`), it will refine
-   the types of the `torch.shape/dtype.calculate` op. This usually yields more
-   opportunities for simplification. This process runs to a fixed-point.
+   the types of the `torch.shape.calculate` and `torch.dtype.calculate`
+   ops. This usually yields more opportunities for simplification. This process
+   runs to a fixed-point.
 
 3. Dropping the calculations. Once all the types in the program have been
    refined as much as possible, the ops that were originally wrapped in
-   `torch.shape/dtype.calculate` are unwrapped by the
+   `torch.shape.calculate` and `torch.dtype.calculate` are unwrapped by the
    `torch-drop-abstract-interp-calculations` pass which drops the reified
    calculations, leaving behind the shape and dtype refined program.
 

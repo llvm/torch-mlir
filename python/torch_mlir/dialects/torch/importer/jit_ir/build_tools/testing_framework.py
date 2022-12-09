@@ -17,7 +17,10 @@ from torch import Tensor
 # But for functions that are authored/maintained by the Torch-MLIR
 # project, we expect adequate testing.
 #
-# To do this, we provide decorators `@check_shape/dtype/decomposition_function`
+# To do this, we provide decorators
+# - `@check_shape_function`
+# - `@check_dtype_function`
+# - `@check_decomposition_function`
 # which can be used to specify a series of operator invocations (such as "call
 # this operator with two arguments -- a first tensor of size [2, 3] and a second
 # tensor of size [3, 4]"). These tests are then run as part of this script, and

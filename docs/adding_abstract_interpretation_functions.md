@@ -51,11 +51,12 @@ We will use the example of adding support for the `torch.aten.tanh` op.
 ## When things go wrong
 
 It is possible that the refinement pipeline (see [Shape and Dtype Refinement Pipeline Architecture](abstract_interp_lib.md#shape-and-dtype-refinement-pipeline-architecture))
-is not able to infer the shape/dtype of a tensor with a given
+is not able to infer the shape or dtype of a tensor with a given
 abstract interpretation function. This usually means that there is something
 about the function which the optimizations in
-`torch-simplify-shape/dtype-functions`
-(`lib/Dialect/Torch/Transforms/Simplify{Shape/Dtype}Calculations.cpp`)
+`torch-simplify-shape-functions` and `torch-simplify-dtype-functions`
+(`lib/Dialect/Torch/Transforms/SimplifyShapeCalculations.cpp`,
+`lib/Dialect/Torch/Transforms/SimplifyDtypeCalculations.cpp`)
 cannot handle.
 
 To debug this, the overall goal is to pinpoint the IR construct that is not
@@ -85,6 +86,6 @@ See [this video](https://www.youtube.com/watch?v=E5epCJOtrf8) for general
 guidance on debugging Torch-MLIR.
 
 As a last resort, you can rewrite the function using constructs that
-`torch-simplify-shape/dtype-functions` can handle (look at other
-functions for examples, sometimes it requires writing things a little
-awkwardly).
+`torch-simplify-shape-functions` and `torch-simplify-dtype-functions` can handle
+(look at other functions for examples, sometimes it requires writing things a
+little awkwardly).
