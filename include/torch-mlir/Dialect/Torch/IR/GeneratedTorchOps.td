@@ -5008,6 +5008,31 @@ def Torch_AtenVarMeanCorrectionOp : Torch_Op<"aten.var_mean.correction", [
   }];
 }
 
+def Torch_AtenVarMeanOp : Torch_Op<"aten.var_mean", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::var_mean : (Tensor, bool) -> (Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_BoolType:$unbiased
+  );
+  let results = (outs
+    AnyTorchTensorType:$result0,
+    AnyTorchTensorType:$result1
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenVarMeanOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 2);
+    }
+    void AtenVarMeanOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 2);
+    }
+  }];
+}
+
 def Torch_AtenNllLossForwardOp : Torch_Op<"aten.nll_loss_forward", [
     AllowsTypeRefinement,
     HasValueSemantics,

@@ -418,6 +418,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<PrimsConvertElementTypeOp>();
   target.addIllegalOp<AtenRandnOp>();
   target.addIllegalOp<AtenRandnGeneratorOp>();
+  target.addIllegalOp<AtenVarMeanOp>();
   for (std::string opName : backendLegalOps) {
     target.addLegalOp(OperationName(opName, context));
   }

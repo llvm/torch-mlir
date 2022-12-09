@@ -811,4 +811,6 @@ LTC_XFAIL_SET = {
     "NllLossModule_sum_basic",
     "ResNet18Module_basic",
     "ResNet18StaticModule_basic",
+    "VarMeanBiasedModule_basic",
+    "VarMeanUnbiasedModule_basic",
 }
