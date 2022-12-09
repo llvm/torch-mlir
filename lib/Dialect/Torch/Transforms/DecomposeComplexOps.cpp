@@ -3300,6 +3300,26 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenVarMeanOp : public OpRewritePattern<AtenVarMeanOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenVarMeanOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value falseVal = rewriter.create<ConstantBoolOp>(loc, false);
+    Value noneVal = rewriter.create<ConstantNoneOp>(loc);
+    Value var = rewriter.create<AtenVarDimOp>(loc, op.getType(0), op.getSelf(),
+                                              /*dim=*/noneVal, op.getUnbiased(),
+                                              /*keepdim=*/falseVal);
+    Value mean = rewriter.create<AtenMeanOp>(loc, op.getType(0), op.getSelf(),
+                                             /*dtype=*/noneVal);
+    rewriter.replaceOp(op, {var, mean});
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -3443,6 +3463,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposePrimsConvertElementTypeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnGeneratorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

@@ -838,3 +838,47 @@ class VarMeanCorrectionNoneModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: VarMeanCorrectionNoneModule())
 def VarMeanCorrectionNoneModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class VarMeanUnbiasedModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var_mean(x)
+
+
+@register_test_case(module_factory=lambda: VarMeanUnbiasedModule())
+def VarMeanUnbiasedModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class VarMeanBiasedModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var_mean(x, unbiased=False)
+
+
+@register_test_case(module_factory=lambda: VarMeanBiasedModule())
+def VarMeanBiasedModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))

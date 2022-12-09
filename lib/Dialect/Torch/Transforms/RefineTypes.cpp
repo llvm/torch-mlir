@@ -1182,7 +1182,7 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  if (isa<AtenVarMeanCorrectionOp>(op)) {
+  if (isa<AtenVarMeanCorrectionOp, AtenVarMeanOp>(op)) {
     auto input = operands[0]->getValue();
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
