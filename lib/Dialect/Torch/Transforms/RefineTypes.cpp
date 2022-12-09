@@ -779,8 +779,8 @@ void TypeAnalysis::visitOperation(Operation *op,
   }
 
   // Promote LHS with scalar RHS.
-  if (isa<AtenSubScalarOp, AtenMulScalarOp, AtenDivScalarOp, AtenFmodScalarOp,
-          AtenFloorDivideScalarOp, AtenPowTensorScalarOp, AtenRsubScalarOp,
+  if (isa<AtenAddScalarOp, AtenSubScalarOp, AtenMulScalarOp, AtenDivScalarOp,
+          AtenFmodScalarOp, AtenFloorDivideScalarOp, AtenPowTensorScalarOp,
           AtenLeakyReluOp, AtenRemainderScalarOp>(op)) {
     auto lhs = operands[0]->getValue();
     Value scalar = op->getOperand(1);

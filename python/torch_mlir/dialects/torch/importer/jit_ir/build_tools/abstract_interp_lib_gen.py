@@ -227,14 +227,6 @@ def aten〇lt〇Scalar〡shape(self: List[int], other: float) -> List[int]:
 def aten〇add〇Scalar〡shape(self: List[int], other: float, alpha: float = 1) -> List[int]:
     return upstream_shape_functions.unary(self)
 
-@check_dtype_function([
-    Invocation(TensorOfShape(1, 1, 1, dtype=torch.float32), other=0),
-    Invocation(TensorOfShape(1, 1, 1, dtype=torch.int64), other=0.0),
-    Invocation(TensorOfShape(1, 1, 1, dtype=torch.float16), other=0.0)
-])
-def aten〇add〇Scalar〡dtype(self_rank: int, self_dtype: int, other: Union[int, float], alpha: Union[int, float] = 1) -> int:
-    return promote_dtypes([self_rank, None], [self_dtype, get_dtype_of_scalar(other)])
-
 def aten〇sub〇Scalar〡shape(self: List[int], other: float, alpha: float = 1) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -258,6 +250,14 @@ def aten〇pow〇Tensor_Tensor〡shape(self: List[int], exponent: List[int]) -> 
 
 def aten〇rsub〇Scalar〡shape(self: List[int], other: float, alpha: float = 1) -> List[int]:
     return upstream_shape_functions.unary(self)
+
+@check_dtype_function([
+    Invocation(TensorOfShape(1, 1, 1, dtype=torch.float32), other=0),
+    Invocation(TensorOfShape(1, 1, 1, dtype=torch.int64), other=0.0),
+    Invocation(TensorOfShape(1, 1, 1, dtype=torch.float16), other=0.0)
+])
+def aten〇rsub〇Scalar〡dtype(self_rank: int, self_dtype: int, other: Union[int, float], alpha: Union[int, float] = 1) -> int:
+    return promote_dtypes([self_rank, None], [self_dtype, get_dtype_of_scalar(other)])
 
 def aten〇leaky_relu〡shape(self: List[int], negative_slope: float = 0.01) -> List[int]:
     return upstream_shape_functions.unary(self)
