@@ -513,6 +513,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     # Functionalization ops
     emit("aten::alias_copy : (Tensor) -> (Tensor)")
+    emit("aten::as_strided : (Tensor, int[], int[], int?) -> (Tensor)")
     emit("aten::as_strided_copy : (Tensor, int[], int[], int?) -> (Tensor)")
     emit("aten::diagonal_copy : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::expand_copy : (Tensor, int[], bool) -> (Tensor)")

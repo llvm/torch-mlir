@@ -47,6 +47,8 @@ class VerifyTosaBackendContractPass
     target.addDynamicallyLegalOp<tensor::CastOp>(opHasLegalTypes);
     target.addDynamicallyLegalOp<arith::ExtSIOp>(opHasLegalTypes);
     target.addDynamicallyLegalOp<arith::ConstantOp>(opHasLegalTypes);
+    // view like operations.
+    target.addDynamicallyLegalOp<tensor::ExtractSliceOp>(opHasLegalTypes);
 
     RewritePatternSet patterns(context);
     if (failed(applyFullConversion(module, target, std::move(patterns)))) {

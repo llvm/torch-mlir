@@ -10,6 +10,7 @@
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 
 #include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -2988,6 +2989,100 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenAsStridedOp>::matchAndRewrite(
+    AtenAsStridedOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  auto input = adaptor.getSelf();
+
+
+  auto selfType = adaptor.getSelf().getType().dyn_cast<RankedTensorType>();
+  
+  //if (!selfType || !selfType.hasStaticShape())
+  //  return rewriter.notifyMatchFailure(
+  //      op, "Only tensor types with static shape are supported");
+
+
+  int64_t storage_offset;
+  if (!matchPattern(op.getStorageOffset(), m_TorchConstantInt(&storage_offset)))
+    storage_offset = 0;
+
+
+  SmallVector<Value> offsets;
+  Value constantSize = rewriter.create<arith::ConstantOp>(
+      op->getLoc(), rewriter.getI64IntegerAttr(storage_offset));
+
+
+  Value zero = rewriter.create<arith::ConstantOp>(op->getLoc(),
+                                                 rewriter.getI64IntegerAttr(0));
+
+  offsets.push_back(constantSize);
+  offsets.push_back(zero);
+
+  
+  SmallVector<Value> resultShape;
+  if (!getListConstructElements(op.getSize(), resultShape)) {
+    return rewriter.notifyMatchFailure(op,
+                                       "unimplemented: the target size is "
+                                       "not constructed from ListConstruct");
+  }
+
+
+  SmallVector<Value> convertedSizeVector = getTypeConvertedValues(
+      rewriter, op->getLoc(), typeConverter, resultShape);
+
+
+  SmallVector<Value> strides;
+  if (!getListConstructElements(op.getStride(), strides)) {
+    return rewriter.notifyMatchFailure(op,
+                                       "unimplemented: the target size is "
+                                       "not constructed from ListConstruct");
+                                       
+  }
+
+
+  SmallVector<Value> convertedStridesVector =
+      getTypeConvertedValues(rewriter, op->getLoc(), typeConverter, strides);
+
+  auto index_storage_offset =
+      castIntVectorToIndexVector(rewriter, op->getLoc(), offsets);
+
+  auto index_size =
+      castIntVectorToIndexVector(rewriter, op->getLoc(), convertedSizeVector);
+
+  auto index_strides = castIntVectorToIndexVector(rewriter, op->getLoc(),
+                                                  convertedStridesVector);
+
+  SmallVector<int64_t> newShape({25, 1});
+  
+  auto newType = RankedTensorType::get(makeShapeLLVMCompatible(newShape),
+                                           selfType.getElementType());
+
+   Value input_flattened = rewriter.create<tosa::ReshapeOp>(
+          op->getLoc(),
+          newType,
+          input, rewriter.getI64ArrayAttr(newShape));
+
+  Value result = rewriter.create<tensor::ExtractSliceOp>(
+      op->getLoc(), selfType, input, index_storage_offset, index_size,
+      index_strides);
+
+  auto finalType = getTypeConverter()->convertType(op.getType());
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(op, finalType, result);
+
+  //op->getParentOfType<ModuleOp>().dump();
+
+
+
+
+  //rewriter.replaceOpWithNewOp<tensor::ExtractSliceOp>(op, selfType, input, index_storage_offset, index_size, index_strides);
+
+
+  return success();
+}
+
+
+template <>
 LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
     AtenBroadcastToOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -3925,6 +4020,7 @@ public:
     INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
     INSERT_ATENOP_PATTERN(AtenCopyOp);
     INSERT_ATENOP_PATTERN(AtenToDtypeOp);
+    INSERT_ATENOP_PATTERN(AtenAsStridedOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \

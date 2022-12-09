@@ -455,6 +455,7 @@ TOSA_PASS_SET = {
     "ElementwiseToDtypeIdentityModule_basic",
     "AtenToDeviceModule_basic",
     "View1DFoldModule_basic",
+    "AsStridedModule_basic",
     "UnsafeView1DFoldModule_basic",
     "SqueezeDimModule_static",
     "SqueezeDimModule_identity",
