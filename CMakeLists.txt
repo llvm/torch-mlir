@@ -41,6 +41,11 @@ if(TORCH_MLIR_ENABLE_MHLO)
   add_definitions(-DTORCH_MLIR_ENABLE_MHLO)
 endif()
 
+option(TORCH_MLIR_ENABLE_TCP "Add TCP dialect" OFF)
+if (TORCH_MLIR_ENABLE_TCP)
+  add_definitions(-DTORCH_MLIR_ENABLE_TCP)
+endif()
+
 option(TORCH_MLIR_ENABLE_LTC "Enables LTC backend" OFF)
 
 if(TORCH_MLIR_ENABLE_LTC)

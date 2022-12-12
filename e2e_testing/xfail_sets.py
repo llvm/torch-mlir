@@ -435,6 +435,29 @@ MHLO_PASS_SET = {
     "AtenRoundIntModule_basic",
 }
 
+TCP_PASS_SET = {
+    "AtenRoundIntModule_basic",
+    "AtenToDeviceModule_basic",
+    "BoolTensorReturnFalseModule_basic",
+    "BoolTensorReturnMixedModule_basic",
+    "BoolTensorReturnTrueModule_basic",
+    "BroadcastToModule_basic",
+    "DropoutEvalFloatModule_basic",
+    "DropoutEvalIntModule_basic",
+    "ElementwiseAddModule_basic",
+    "ElementwiseToDtypeIdentityModule_basic",
+    "ElementwiseUnaryModule_basic",
+    "ExpandModule_basic",
+    "ReturnThreeTensorFloat32_basic",
+    "ReturnTwoTensorF32I64_basic",
+    "TModuleRank0_basic",
+    "TModuleRank1_basic",
+    "TestMultipleTensorReturn_basic",
+    "TypeAsSameModule_basic",
+    "UnsafeView1DFoldModule_basic",
+    "View1DFoldModule_basic",
+}
+
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {

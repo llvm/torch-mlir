@@ -20,6 +20,10 @@
 #include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 #include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
+#ifdef TORCH_MLIR_ENABLE_TCP
+#include "torch-mlir-dialects/Conversion/TcpToLinalg/TcpToLinalg.h"
+#include "torch-mlir/Conversion/TorchToTcp/TorchToTcp.h"
+#endif // TORCH_MLIR_ENABLE_TCP
 
 //===----------------------------------------------------------------------===//
 // Pass registration
@@ -40,4 +44,9 @@ void mlir::torch::registerConversionPasses() {
     return mlir::createSymbolicShapeOptimizationPass();
   });
 #endif // TORCH_MLIR_ENABLE_MHLO
+#if TORCH_MLIR_ENABLE_TCP
+  ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
+    return mlir::tcp::createConvertTcpToLinalgPass();
+  });
+#endif // TORCH_MLIR_ENABLE_TCP
 }

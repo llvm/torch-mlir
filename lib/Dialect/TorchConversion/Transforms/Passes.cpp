@@ -25,6 +25,9 @@
 #include "mhlo/transforms/passes.h"
 #include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
 #endif
+#ifdef TORCH_MLIR_ENABLE_TCP
+#include "torch-mlir/Conversion/TorchToTcp/TorchToTcp.h"
+#endif // TORCH_MLIR_ENABLE_TCP
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
 using namespace mlir;
@@ -60,6 +63,12 @@ void mlir::torch::registerTorchConversionPasses() {
       "contract.",
       TorchConversion::createTorchBackendToMhloBackendPipeline);
 #endif
+#ifdef TORCH_MLIR_ENABLE_TCP
+  mlir::PassPipelineRegistration<>(
+      "torch-backend-to-tcp-backend-pipeline",
+      "Pipeline lowering torch backend contract to TCP backend contract.",
+      TorchConversion::createTorchBackendToTcpBackendPipeline);
+#endif // TORCH_MLIR_ENABLE_TCP
 }
 
 void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
@@ -151,3 +160,27 @@ void TorchConversion::createTorchBackendToMhloBackendPipeline(
   pm.addPass(TorchConversion::createVerifyMhloBackendContractPass());
 }
 #endif
+
+#ifdef TORCH_MLIR_ENABLE_TCP
+void TorchConversion::createTorchBackendToTcpBackendPipeline(
+    OpPassManager &pm) {
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToTcpPass());
+
+  // Clean up any non-canonical code introduced above.
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  // The resolution of `dim` ops tends to create identical ops. CSE them.
+  pm.addNestedPass<func::FuncOp>(createCSEPass());
+
+  // Finish the type conversion from `torch` types to the types of the
+  // TCP backend contract.
+  pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(
+      TorchConversion::createFinalizingBackendTypeConversionPass());
+
+  // Verify that we have lowered to the form that TCP backend expects.
+  // This fails compilation (signalPassFailure) if the IR is not in the
+  // correct form.
+  pm.addPass(TorchConversion::createVerifyTcpBackendContractPass());
+}
+#endif // TORCH_MLIR_ENABLE_TCP
