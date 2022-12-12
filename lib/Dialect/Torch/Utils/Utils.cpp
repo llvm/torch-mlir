@@ -139,15 +139,11 @@ bool Torch::isBuiltInType(Type type) {
   return isa<BuiltinDialect>(type.getDialect());
 }
 
-int Torch::getTensorRank(Value tensor) {
-  int tensorRank = -1;
+Optional<unsigned> Torch::getTensorRank(Value tensor) {
   BaseTensorType tensorType = tensor.getType().cast<BaseTensorType>();
-
-  if (tensorType.hasSizes()) {
-    ArrayRef<int64_t> tensorShape = tensorType.getSizes();
-    tensorRank = tensorShape.size();
-  }
-  return tensorRank;
+  if (!tensorType.hasSizes())
+    return llvm::None;
+  return tensorType.getSizes().size();
 }
 
 bool Torch::isViewLikeOp(Operation *op) {
