@@ -138,11 +138,13 @@ void mlir::torch::Torch::createTorchSimplificationPipeline(
   }
 }
 
-template <typename ReifyCalculations, typename SimplifyCalculations>
-static void
-createRefinementPipeline(mlir::OpPassManager &pm,
-                         ReifyCalculations reifyCalculationsPass,
-                         SimplifyCalculations simplifyCalculationsPass) {
+static void createRefinementPipeline(
+    mlir::OpPassManager &pm,
+    llvm::function_ref<std::unique_ptr<mlir::OperationPass<mlir::ModuleOp>>()>
+        reifyCalculationsPass,
+    llvm::function_ref<
+        std::unique_ptr<mlir::OperationPass<mlir::func::FuncOp>>()>
+        simplifyCalculationsPass) {
   // Reify the library functions for each op that is present in the library.
   pm.addPass(reifyCalculationsPass());
 
