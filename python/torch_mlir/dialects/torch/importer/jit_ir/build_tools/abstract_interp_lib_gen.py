@@ -11,7 +11,7 @@ import torch
 from torch import device
 import torch.jit._shape_functions as upstream_shape_functions
 
-from .testing_framework import Invocation, ErrorInvocation, TensorOfShape, LongTensorOfShape, check_shape_function, check_dtype_function
+from .testing_framework import Invocation, ErrorInvocation, TensorOfShape, LongTensorOfShape, NonZeroDTensorWithDtype, ZeroDTensorWithDtype, check_shape_function, check_dtype_function
 from .library_generator import generate_library, not_present_in_registry, promote_dtypes, get_dtype_of_scalar
 
 def _embedding_bag_helper(weight: List[int], indices: List[int], offsets: List[int], include_last_offset: bool, mode: int):
@@ -49,12 +49,18 @@ def aten〇tanh〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 @check_dtype_function([
-    Invocation(TensorOfShape(1, 1, 1, dtype=torch.float32)),
-    Invocation(TensorOfShape(1, 1, 1, dtype=torch.float64)),
-    Invocation(TensorOfShape(1, 1, 1, dtype=torch.bfloat16)),
-    Invocation(TensorOfShape(1, 1, 1, dtype=torch.int64)),
-    Invocation(TensorOfShape(1, 1, 1, dtype=torch.int32)),
-    Invocation(TensorOfShape(1, 1, 1, dtype=torch.bool)),
+    Invocation(NonZeroDTensorWithDtype(torch.float32)),
+    Invocation(NonZeroDTensorWithDtype(torch.float64)),
+    Invocation(NonZeroDTensorWithDtype(torch.bfloat16)),
+    Invocation(NonZeroDTensorWithDtype(torch.int64)),
+    Invocation(NonZeroDTensorWithDtype(torch.int32)),
+    Invocation(NonZeroDTensorWithDtype(torch.bool)),
+    Invocation(ZeroDTensorWithDtype(torch.float32)),
+    Invocation(ZeroDTensorWithDtype(torch.float64)),
+    Invocation(ZeroDTensorWithDtype(torch.bfloat16)),
+    Invocation(ZeroDTensorWithDtype(torch.int64)),
+    Invocation(ZeroDTensorWithDtype(torch.int32)),
+    Invocation(ZeroDTensorWithDtype(torch.bool)),
 ])
 def aten〇tanh〡dtype(self_rank: int, self_dtype: int) -> int:
     if self_dtype == torch.float64 or self_dtype == torch.bfloat16:
@@ -255,9 +261,12 @@ def aten〇rsub〇Scalar〡shape(self: List[int], other: float, alpha: float = 1
     return upstream_shape_functions.unary(self)
 
 @check_dtype_function([
-    Invocation(TensorOfShape(1, 1, 1, dtype=torch.float32), other=0),
-    Invocation(TensorOfShape(1, 1, 1, dtype=torch.int64), other=0.0),
-    Invocation(TensorOfShape(1, 1, 1, dtype=torch.float16), other=0.0)
+    Invocation(NonZeroDTensorWithDtype(torch.float32), other=0),
+    Invocation(NonZeroDTensorWithDtype(torch.int64), other=0.0),
+    Invocation(NonZeroDTensorWithDtype(torch.float16), other=0.0),
+    Invocation(ZeroDTensorWithDtype(torch.float32), other=0),
+    Invocation(ZeroDTensorWithDtype(torch.int64), other=0.0),
+    Invocation(ZeroDTensorWithDtype(torch.float16), other=0.0)
 ])
 def aten〇rsub〇Scalar〡dtype(self_rank: int, self_dtype: int, other: Union[int, float], alpha: Union[int, float] = 1) -> int:
     return promote_dtypes([self_rank, None], [self_dtype, get_dtype_of_scalar(other)])
@@ -635,10 +644,10 @@ def aten〇floor_divide〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
 @check_dtype_function([
-    Invocation(TensorOfShape(1, dtype=torch.float32), TensorOfShape(1, dtype=torch.float32)),
-    Invocation(TensorOfShape(dtype=torch.float64), TensorOfShape(1, dtype=torch.float32)),
-    Invocation(TensorOfShape(dtype=torch.float32), TensorOfShape(1, dtype=torch.float64)),
-    Invocation(TensorOfShape(1, dtype=torch.float32), TensorOfShape(1, dtype=torch.int32)),
+    Invocation(NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.float32)),
+    Invocation(ZeroDTensorWithDtype(torch.float64), NonZeroDTensorWithDtype(torch.float32)),
+    Invocation(ZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.float64)),
+    Invocation(NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32)),
 ])
 def aten〇floor_divide〡dtype(self_rank: int, self_dtype: int, other_rank: int, other_dtype: int) -> int:
     ranks: List[Optional[int]] = [self_rank, other_rank]

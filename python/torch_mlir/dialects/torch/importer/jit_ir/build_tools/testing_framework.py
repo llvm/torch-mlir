@@ -74,6 +74,14 @@ def LongTensorOfShape(*args, **kwargs):
     """Helper for indicating a TensorOfShape with integer type."""
     return TensorOfShape(*args, **kwargs, dtype=torch.long)
 
+def NonZeroDTensorWithDtype(dtype):
+    """Helper for indicating a non-zero dim tensor with custom type."""
+    return TensorOfShape(1, dtype=dtype)
+
+def ZeroDTensorWithDtype(dtype):
+    """Helper for indicating a zero dim tensor with custom type."""
+    return TensorOfShape(dtype=dtype)
+
 def _recursively_transform_tensor_args(
         o: Any,
         tensor_transformer: Callable[[TensorOfShape], Any]) -> Any:
