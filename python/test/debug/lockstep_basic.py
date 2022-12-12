@@ -30,7 +30,9 @@ def miscompile_div_as_mul_backend(gm: torch.fx.GraphModule,
 
 # TODO: As we get smarter about making this output more readable, we should
 # have more focused tests rather than this "check the exact output" test.
-# CHECK: User result tensor([ 4., 10., 18.]) is not close to golden result tensor([0.2500, 0.4000, 0.5000]) for node div at None
+# CHECK:      User result tensor([ 4., 10., 18.]) is not close to golden result tensor([0.2500, 0.4000, 0.5000]) for node div at Module stack: {}
+# CHECK-NEXT:   File "{{.*}}python/test/debug/lockstep_basic.py", line {{.*}}, in f
+# CHECK-NEXT:     c = x / y
 @dynamo.optimize(miscompile_div_as_mul_backend)
 def f(x, y):
     a = x * y
