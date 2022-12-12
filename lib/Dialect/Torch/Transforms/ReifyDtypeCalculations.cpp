@@ -20,6 +20,16 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 static bool isTensorTypeOrWrappedTensorType(Type type) {
+  // Allowing tuples as arguments to dtype calculation functions can cause
+  // issues. For example, if an argument is a tuple of tensors and ints, there
+  // would be no way of differentiating the original ints from the ints created
+  // to represent the dtype and rank of the tensors. Therefore, to avoid this
+  // and keep things simple, the tuple type is not allowed. This works well in
+  // practice, since PyTorch op signatures don't seem to take tuples as inputs.
+  assert(!type.isa<Torch::TupleType>() &&
+         "dtype calculation functions are expected to not have tuples of "
+         "tensors as arguments");
+
   if (type.isa<Torch::BaseTensorType>())
     return true;
 
