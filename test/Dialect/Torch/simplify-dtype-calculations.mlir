@@ -247,8 +247,9 @@ func.func @refine_dtype$no_simplification(%arg0: !torch.int, %arg1: !torch.int, 
 
 // -----
 
-// If result type is already refined (even if wrong, as is the case here), don't make any changes
-// to result type.
+// If result type is already refined (even if wrong, as is the case here),
+// don't make any changes to result type.
+// TODO: This case should result in an error
 // CHECK-LABEL:   func.func @refine_dtype$result_type_already_refined
 // CHECK:             {{.*}} = torch.aten.add {{.*}} -> !torch.int
 func.func @refine_dtype$result_type_already_refined(%arg0: !torch.float, %arg1: !torch.float) -> !torch.int {

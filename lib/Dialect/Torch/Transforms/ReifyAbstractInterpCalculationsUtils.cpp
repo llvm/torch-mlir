@@ -151,8 +151,8 @@ void Torch::importLibraryFunctions(ModuleOp module, ModuleOp library,
 
 FailureOr<Value> Torch::adjustFunctionArg(
     OpBuilder &b, Location loc, Value operand, Type desiredType,
-    function_ref<Value(OpBuilder &, Location, Value, Type)> preProcessOperand) {
-  operand = preProcessOperand(b, loc, operand, desiredType);
+    function_ref<Value(OpBuilder &, Location, Value, Type)> baseTransformation) {
+  operand = baseTransformation(b, loc, operand, desiredType);
 
   // No need for adjustment if they already match.
   auto operandType = operand.getType();
@@ -214,7 +214,7 @@ FailureOr<Value> Torch::adjustFunctionArg(
         auto downcasted = b.create<PrimUncheckedCastOp>(
             loc, operandOptionalType.getContainedType(), operand);
         FailureOr<Value> adjusted = adjustFunctionArg(
-            b, loc, downcasted, desiredType, preProcessOperand);
+            b, loc, downcasted, desiredType, baseTransformation);
         if (failed(adjusted))
           return failure();
         b.create<PrimIfYieldOp>(loc, *adjusted);
@@ -230,7 +230,7 @@ FailureOr<Value> Torch::adjustFunctionArg(
   if (auto desiredOptionalType = desiredType.dyn_cast<Torch::OptionalType>()) {
     FailureOr<Value> adjusted = adjustFunctionArg(
         b, loc, operand, desiredOptionalType.getContainedType(),
-        preProcessOperand);
+        baseTransformation);
     if (failed(adjusted))
       return failure();
     return b.create<DerefineOp>(loc, desiredType, *adjusted).getResult();
@@ -265,7 +265,7 @@ FailureOr<Value> Torch::adjustFunctionArg(
           loc, providedType.getContainedType(), operand, iterationNumber);
       FailureOr<Value> adjustedElement =
           adjustFunctionArg(b, loc, element, desiredListType.getContainedType(),
-                            preProcessOperand);
+                            baseTransformation);
       if (failed(adjustedElement))
         return failure();
       b.create<AtenAppendTOp>(loc, adjustedList.getType(), adjustedList,

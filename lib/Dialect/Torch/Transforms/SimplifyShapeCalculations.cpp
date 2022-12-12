@@ -173,7 +173,7 @@ public:
       if (auto setItem = dyn_cast<Aten_SetItemTOp>(user)) {
         if (!setItem.use_empty())
           return rewriter.notifyMatchFailure(
-              op, "Expected `Aten_SetItemTOp` to not have userse");
+              op, "Expected `Aten_SetItemTOp` to not have users");
         llvm::Optional<int64_t> indexOpt =
             matchLegalConstantIndexIntoListOfSize(setItem.getIdx(),
                                                   runningList.size());

@@ -34,7 +34,6 @@ func.func @basic$dtype_calculate(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor
     %2 = torch.aten.tanh %arg0 : !torch.vtensor<*,f32> -> !torch.vtensor<*,f32>
     torch.dtype.calculate.yield %2 : !torch.vtensor<*,f32>
   } dtypes {
-    %2 = torch.aten.dim %arg0 : !torch.vtensor<*,f32> -> !torch.int
     torch.dtype.calculate.yield.dtypes %int6 : !torch.int
   } : !torch.vtensor<*,f32>
   %1 = torch.tensor_static_info_cast %0 : !torch.vtensor<*,f32> to !torch.vtensor

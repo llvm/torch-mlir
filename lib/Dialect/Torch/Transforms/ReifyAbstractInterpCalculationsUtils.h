@@ -52,13 +52,13 @@ void importLibraryFunctions(ModuleOp module, ModuleOp library,
 // Recursively adjust `operand` to match `desiredType`.
 //
 // This function by default handles a few types such as `UnionType`,
-// `OptionalType`, and `ListType`, to name a few. However, the user
-// can intercept any type and adjust it in a custom way by defining
-// `preProcessOperand`, which gets called at the beginning of each
-// recursive call.
+// `OptionalType`, and `ListType`, to name a few. Handling of base element types
+// can be customized by defining `baseTransformation`, which gets called at the
+// beginning of each recursive call. This function can be thought of as mapping
+// `baseTransformation` across `UnionType/OptionalType/ListType`.
 FailureOr<Value> adjustFunctionArg(
     OpBuilder &b, Location loc, Value operand, Type desiredType,
-    function_ref<Value(OpBuilder &, Location, Value, Type)> preProcessOperand =
+    function_ref<Value(OpBuilder &, Location, Value, Type)> baseTransformation =
         [](OpBuilder &, Location, Value operand, Type) { return operand; });
 } // namespace Torch
 } // namespace torch

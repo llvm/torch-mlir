@@ -33,6 +33,11 @@ def get_dtype_of_scalar(scalar: Union[int, float]) -> int:
     # op.
     return torch.ops.prim.NumToTensor(scalar).dtype
 
+# When we import into torch-mlir, only the calls to
+# `__torch_mlir_internal_promote_dtypes` are used to generate the
+# `torch.promote_dtypes` ops. Therefore, to avoid generating extra
+# MLIR code in the library, all calls made inside
+# `__torch_mlir_internal_promote_dtypes` are `jit.ignore`d.
 @torch.jit.ignore
 def _get_scalar_with_dtype(dtype: torch.dtype) -> Union[int, float]:
     if dtype == torch.int64:
@@ -69,11 +74,21 @@ def _promote_scalar_scalar(lhs_dtype: torch.dtype,
 
 def promote_dtypes(ranks: List[Optional[int]],
                    dtypes: List[torch.dtype]) -> torch.dtype:
+    """Apply PyTorch dtype promotion rules and return the result type.
+    """
     return __torch_mlir_internal_promote_dtypes(ranks, dtypes)
 
 def __torch_mlir_internal_promote_dtypes(ranks: List[Optional[int]],
                                          dtypes: List[torch.dtype]
                                          ) -> torch.dtype:
+    """Apply PyTorch dtype promotion rules and return the result type.
+
+    This function serves two purposes:
+    1. It is handled in a special way during import into Torch-MLIR,
+       generating `torch.promote_dtypes` ops
+    2. Computes the actual promotion logic at the Python level in order
+       to be able to test dtype calculation functions against PyTorch
+    """
     lhs_optional_rank = ranks[0]
     lhs_dtype = dtypes[0]
     for rhs_optional_rank, rhs_dtype in zip(ranks, dtypes):
@@ -93,7 +108,7 @@ def __torch_mlir_internal_promote_dtypes(ranks: List[Optional[int]],
     return lhs_dtype
 
 def not_present_in_registry(f):
-    """Decorator for shape functions not present in the shape registry.
+    """Decorator for abstract interpretation functions not present in the registry.
 
     This can happen for "valsem" ops that we have in Torch-MLIR, such as
     torch.valsem.aten.fill.Scalar, which are consistent with PyTorch conventions
@@ -119,19 +134,19 @@ def _verify_signature_matches_registry(f, registry: Registry):
             break
     assert signature is not None, f"Could not find signature for {f.__name__}"
     assert "〡" in signature, f"Malformed signature {signature}. Signature missing the character `〡`"
-    f_name, overload = f.__name__.split("〡")
-    atoms = f_name.split("〇")
+    function_name, function_kind = f.__name__.split("〡")
+    atoms = function_name.split("〇")
     if len(atoms) == 2:
         atoms += [""]
     operator = registry.get_by_triple(tuple(atoms))
-    if overload == "shape":
+    if function_kind == "shape":
         expected_signature = operator.get_shape_function_signature()
-    elif overload == "dtype":
+    elif function_kind == "dtype":
         expected_signature = operator.get_dtype_function_signature()
-    elif overload == "decomposition":
+    elif function_kind == "decomposition":
         expected_signature = operator.get_decomposition_function_signature()
     else:
-        raise ValueError(f"Invalid Op signature overload: '{overload}'")
+        raise ValueError(f"Invalid Op signature function kind: '{function_kind}'")
     if signature != expected_signature:
         raise ValueError(f"Signature mismatch for {f.__name__!r}: expected {expected_signature!r}, got {signature!r}")
 

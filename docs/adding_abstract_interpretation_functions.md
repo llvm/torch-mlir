@@ -42,6 +42,14 @@ We will use the example of adding support for the `torch.aten.tanh` op.
    functions should be added upstream following the example of [this PR](https://github.com/pytorch/pytorch/pull/76889), 
    though it can be useful to iterate locally in `abstract_interp_lib_gen.py` 
    first.
+   
+   Similarly, dtype functions should ideally just be a call to the helper
+   `promote_dtypes` defined in `library_generator.py`. However, some ops will
+   require some extra logic to calculate the right result types. While dtypes
+   are expressed as `int`s in the arguments of the dtype function, using PyTorch
+   dtypes, such as `torch.int` and `torch.float32`, in the body of the dtype
+   function is fully supported. Dtype functions are also expected to be fully
+   tested.
 
 4. Re-run the `build_tools/update_abstract_interp_lib.sh` script to
    update the library. After this step happens, ideally everything

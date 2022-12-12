@@ -43,7 +43,7 @@ from torch import Tensor
 # We expect both the successful and error cases to be tested.
 #
 # The typical iteration flow is to add invocations to the list and then re-run
-# `build_tools/update_shape_lib.sh` to re-run the tests.
+# `build_tools/update_abstract_interp_lib.sh` to re-run the tests.
 
 class TensorOfShape:
     """Symbolic placeholder for a tensor argument to an operation.
@@ -134,8 +134,9 @@ class Invocation:
     the actual op, which have slightly different signatures.
 
     Specifically, this class has special knowledge of `TensorOfShape` and
-    translates it appropriately to either a tensor (for the real op) or a
-    `List[int]` (for the shape function).
+    translates it appropriately to either a tensor (for the real op), a
+    `List[int]` for the shape function, and two `int`s representing
+    the tensor rank and dtype in the case of a dtype function.
 
     This class also tracks whether the invocation is expected to raise an
     exception for greater precision when interpreting errors raised during

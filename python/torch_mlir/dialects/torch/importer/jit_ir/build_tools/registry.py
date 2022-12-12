@@ -182,14 +182,14 @@ class JitOperator:
         cpp_class_name = cpp_class_name.lstrip("_")
         return op_name, cpp_class_name
 
-    def _get_function_signature(self, function_overload: str,
+    def _get_function_signature(self, function_kind: str,
                                 parameter_decl_builder: Callable["SIG_ATTR_TYPE", str],
                                 ret_decl_builder: Callable["SIG_ATTR_TYPE", str]) -> str:
         mlir_op_name, _ = self.get_mlir_names()
         # Replace `.` with a valid Python identifier character.
         # `〇` vaguely looks like `.`.
         def_name = "〇".join(mlir_op_name.split("."))
-        def_name += f"〡{function_overload}"
+        def_name += f"〡{function_kind}"
         parameter_decls = list(map(parameter_decl_builder, self.arguments))
         ret_decls = list(map(ret_decl_builder, self.returns))
         parameters = ", ".join(parameter_decls)
