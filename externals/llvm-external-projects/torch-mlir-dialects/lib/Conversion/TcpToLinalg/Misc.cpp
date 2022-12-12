@@ -71,8 +71,8 @@ public:
     indexingMaps.push_back(inputIndexingMap);
     indexingMaps.push_back(outputIndexingMap);
 
-    SmallVector<StringRef> iteratorTypes(resultRank,
-                                         getParallelIteratorTypeName());
+    SmallVector<utils::IteratorType> iteratorTypes(
+        resultRank, utils::IteratorType::parallel);
 
     Value emptyTensor =
         b.create<tensor::EmptyOp>(loc, getAsOpFoldResult(resultDimSizes),

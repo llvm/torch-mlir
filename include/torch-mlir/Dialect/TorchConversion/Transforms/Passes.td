@@ -48,4 +48,12 @@ def VerifyMhloBackendContract : Pass<"torch-verify-mhlo-backend-contract", "Modu
   let constructor = "mlir::torch::TorchConversion::createVerifyMhloBackendContractPass()";
 }
 #endif // TORCH_MLIR_ENABLE_MHLO
+
+#ifdef TORCH_MLIR_ENABLE_TCP
+def VerifyTcpBackendContract : Pass<"torch-verify-tcp-backend-contract", "ModuleOp"> {
+  let summary = "Verifies conformity to the tcp backend contract";
+  let constructor = "mlir::torch::TorchConversion::createVerifyTcpBackendContractPass()";
+}
+#endif // TORCH_MLIR_ENABLE_TCP
+
 #endif // TORCHMLIR_TORCHCONVERSION_PASSES

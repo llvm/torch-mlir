@@ -42,8 +42,8 @@ Value createElementwiseLinalgGeneric(
   SmallVector<AffineMap> indexingMaps{tensorOperands.size() + 1,
                                       b.getMultiDimIdentityMap(resultRank)};
 
-  SmallVector<StringRef> iteratorTypes(resultRank,
-                                       getParallelIteratorTypeName());
+  SmallVector<utils::IteratorType> iteratorTypes(resultRank,
+                                                 utils::IteratorType::parallel);
 
   Value emptyTensor = b.create<tensor::EmptyOp>(
       loc, resultDimSizes, resultTensorType.getElementType());
