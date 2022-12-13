@@ -121,14 +121,14 @@ func.func @prim.loop$region_arg_to_internal(%none: !torch.none) -> !torch.option
 // -----
 
 // CHECK-LABEL:   func.func @f
-// CHECK: %[[ATEN:.*]] = torch.aten.tanh %{{.*}} : !torch.vtensor -> !torch.vtensor<*,f32>
+// CHECK: %[[ATEN:.*]] = torch.aten.cos %{{.*}} : !torch.vtensor -> !torch.vtensor<*,f32>
 // CHECK: %[[CAST:.*]] = torch.tensor_static_info_cast %[[ATEN]] : !torch.vtensor<*,f32> to !torch.vtensor
 // CHECK: return %[[CAST]] : !torch.vtensor
 func.func @f(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor {
   %cast = torch.tensor_static_info_cast %arg0 : !torch.vtensor<*,f32> to !torch.vtensor
   cf.br ^bb1(%cast: !torch.vtensor)
 ^bb1(%arg1: !torch.vtensor):
-  %1 = torch.aten.tanh %arg1 : !torch.vtensor -> !torch.vtensor
+  %1 = torch.aten.cos %arg1 : !torch.vtensor -> !torch.vtensor
   return %1 : !torch.vtensor
 }
 
@@ -136,11 +136,11 @@ func.func @f(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor {
 
 // CHECK-LABEL:   func.func @f
 // CHECK: func.func private @callee
-// CHECK-NEXT: torch.aten.tanh %{{.*}} : !torch.vtensor -> !torch.vtensor<*,f32>
+// CHECK-NEXT: torch.aten.cos %{{.*}} : !torch.vtensor -> !torch.vtensor<*,f32>
 func.func @f() {
   builtin.module {
     func.func private @callee(%arg0: !torch.vtensor) {
-      %1 = torch.aten.tanh %arg0 : !torch.vtensor -> !torch.vtensor
+      %1 = torch.aten.cos %arg0 : !torch.vtensor -> !torch.vtensor
       return
     }
     func.func @caller(%arg0: !torch.vtensor<*,f32>) {

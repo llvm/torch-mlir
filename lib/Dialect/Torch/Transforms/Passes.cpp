@@ -121,6 +121,7 @@ void mlir::torch::Torch::createTorchSimplificationPipeline(
   // inference), because Torch type promotion rules actually depend on the shape
   // of the operand.
   createTorchShapeRefinementPipeline(pm);
+  createTorchDtypeRefinementPipeline(pm);
   // Refine types in the program, which mainly means inferring dtypes of ops.
   pm.addNestedPass<func::FuncOp>(Torch::createRefineTypesPass());
   // Propagate to ABI return types the shape/dtype information discovered by
@@ -137,23 +138,41 @@ void mlir::torch::Torch::createTorchSimplificationPipeline(
   }
 }
 
-void mlir::torch::Torch::createTorchShapeRefinementPipeline(OpPassManager &pm) {
-  // Reify the shape functions for each op that is present in the shape library.
-  pm.addPass(Torch::createReifyShapeCalculationsPass());
+static void createRefinementPipeline(
+    mlir::OpPassManager &pm,
+    llvm::function_ref<std::unique_ptr<mlir::OperationPass<mlir::ModuleOp>>()>
+        reifyCalculationsPass,
+    llvm::function_ref<
+        std::unique_ptr<mlir::OperationPass<mlir::func::FuncOp>>()>
+        simplifyCalculationsPass) {
+  // Reify the library functions for each op that is present in the library.
+  pm.addPass(reifyCalculationsPass());
 
-  // Inline the shape functions to enable analysis and transformation.
-  // TODO: Only inline shape functions (this will currently inline everything).
-  pm.addPass(createInlinerPass());
+  // Inline the library functions to enable analysis and transformation.
+  // TODO: Only inline library functions (this will currently inline
+  // everything).
+  pm.addPass(mlir::createInlinerPass());
 
-  // Now, try to simplify shape calculations. This is unfortunately a "optimize
+  // Now, try to simplify calculations. This is unfortunately a "optimize
   // as hard as possible" kind of thing, so it's inherently somewhat brittle.
-  // The idea is to keep strengthening what we do here to support the shape
-  // library. We don't need to support arbitrary programs, thankfully.
-  pm.addNestedPass<func::FuncOp>(Torch::createSimplifyShapeCalculationsPass());
+  // The idea is to keep strengthening what we do here to support the
+  // library functions. We don't need to support arbitrary programs, thankfully.
+  pm.addNestedPass<mlir::func::FuncOp>(simplifyCalculationsPass());
   // Run CSE, then see if we can simplify further.
-  pm.addNestedPass<func::FuncOp>(createCSEPass());
-  pm.addNestedPass<func::FuncOp>(Torch::createSimplifyShapeCalculationsPass());
+  pm.addNestedPass<mlir::func::FuncOp>(mlir::createCSEPass());
+  pm.addNestedPass<mlir::func::FuncOp>(simplifyCalculationsPass());
 
-  // Drop shape calculations, leaving behind the shape-refined program.
-  pm.addNestedPass<func::FuncOp>(Torch::createDropShapeCalculationsPass());
+  // Drop calculations, leaving behind the-refined program.
+  pm.addNestedPass<mlir::func::FuncOp>(
+      mlir::torch::Torch::createDropAbstractInterpCalculationsPass());
+}
+
+void mlir::torch::Torch::createTorchShapeRefinementPipeline(OpPassManager &pm) {
+  createRefinementPipeline(pm, Torch::createReifyShapeCalculationsPass,
+                           Torch::createSimplifyShapeCalculationsPass);
+}
+
+void mlir::torch::Torch::createTorchDtypeRefinementPipeline(OpPassManager &pm) {
+  createRefinementPipeline(pm, Torch::createReifyDtypeCalculationsPass,
+                           Torch::createSimplifyDtypeCalculationsPass);
 }

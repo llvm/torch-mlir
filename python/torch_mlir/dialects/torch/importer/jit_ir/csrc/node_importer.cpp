@@ -327,13 +327,26 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock,
     auto expectedTypes = c10::fmap(calleeEntryBlock->inputs(), [&](Value *v) {
       return getMlirTypeFromTorchType(loc, v->type(), importOptions);
     });
-    MlirOperation operation = createMlirOperationAtEnd(
-        appendToBlock, "func.call_indirect", loc,
-        getMlirTypesFromValues(loc, node->outputs(), importOptions),
-        lookupMappedValue(node->input(0)),
-        adjustStaticInformationForValues(
-            appendToBlock, loc, lookupMappedValues(node->inputs().slice(1)),
-            expectedTypes, /*userAllowsRefinement=*/false));
+    std::string functionName = node->input(0)->node()->s(c10::attr::name);
+    std::vector<MlirType> resultTypes =
+        getMlirTypesFromValues(loc, node->outputs(), importOptions);
+    std::vector<MlirValue> adjustedFuncArgs = adjustStaticInformationForValues(
+        appendToBlock, loc, lookupMappedValues(node->inputs().slice(1)),
+        expectedTypes, /*userAllowsRefinement=*/false);
+    MlirOperation operation;
+    // `__torch_mlir_internal_promote_dtypes` is a special python function that
+    // users can use in dtype refinement function definitions to get the
+    // promoted result dtype for a PyTorch computation. Here we turn the call to
+    // this function to the torch dialect equivalent op `torch.promote_dtypes`.
+    if (functionName == "__torch_mlir_internal_promote_dtypes") {
+      operation =
+          createMlirOperationAtEnd(appendToBlock, "torch.promote_dtypes", loc,
+                                   resultTypes, adjustedFuncArgs);
+    } else {
+      operation = createMlirOperationAtEnd(
+          appendToBlock, "func.call_indirect", loc, resultTypes,
+          lookupMappedValue(node->input(0)), adjustedFuncArgs);
+    }
     mapResults(node, operation);
     return;
   }

@@ -172,6 +172,42 @@ m_TorchListOfConstantInts(SmallVectorImpl<int64_t> &bind_values) {
 }
 
 namespace detail {
+/// Matches the optional constant integers stored in a `torch.ListConstruct`.
+struct torch_list_of_optional_constant_ints_op_binder {
+  SmallVectorImpl<Optional<int64_t>> &bind_values;
+
+  /// Creates a matcher instance that binds the value to bvs if match succeeds.
+  torch_list_of_optional_constant_ints_op_binder(
+      SmallVectorImpl<Optional<int64_t>> &bvs)
+      : bind_values(bvs) {}
+
+  bool match(Operation *op) {
+    auto listConstruct = dyn_cast<Torch::PrimListConstructOp>(op);
+    if (!listConstruct)
+      return false;
+    for (Value value : listConstruct.getElements()) {
+      int64_t num;
+      if (matchPattern(value, m_TorchConstantInt(&num)))
+        bind_values.push_back(num);
+      else if (value.getType().isa<Torch::NoneType>())
+        bind_values.push_back(llvm::None);
+      else
+        return false;
+    }
+    return true;
+  }
+};
+} // namespace detail
+
+/// Matches the optional constant integers stored in a
+/// `torch.prim.ListConstruct`.
+inline detail::torch_list_of_optional_constant_ints_op_binder
+m_TorchListOfOptionalConstantInts(
+    SmallVectorImpl<Optional<int64_t>> &bind_values) {
+  return detail::torch_list_of_optional_constant_ints_op_binder(bind_values);
+}
+
+namespace detail {
 /// Matches the constant bools stored in a `torch.ListConstruct`.
 struct torch_list_of_constant_bools_op_binder {
   SmallVectorImpl<bool> &bind_values;

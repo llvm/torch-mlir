@@ -5,7 +5,7 @@
 
 """Access to the Torch JIT operator registry."""
 
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, Callable
 
 import io
 import itertools
@@ -14,6 +14,48 @@ from .utils import TextEmitter
 
 # Note that this utility exists only in the c-extension.
 from torch_mlir._mlir_libs._jit_ir_importer import get_registered_ops # pytype: disable=import-error
+
+def _rename_python_keyword_parameter_name(parameter_name: str) -> str:
+    if parameter_name == "from":
+        parameter_name = "from_" # Avoid using a Python keyword.
+    return parameter_name
+
+def _get_default_value(arg: "SIG_ATTR_TYPE") -> str:
+    default = ""
+    if "default_debug" in arg:
+        if "List" in arg["pytype"]:
+            # TorchScript doesn't allow lists as default parameters due
+            # to the weird Python semantics of mutable default
+            # arguments. So munge them into tuples, which work
+            # fine here. We only need these to simplify the invocation
+            # of the abstract interpretation functions as valid Python for
+            # testing against the real ops, and tuples work fine in all
+            # the places this kicks in (e.g. conv dilations -- we aren't
+            # mutating those lists).
+            default_debug = arg["default_debug"].replace(
+                '[', '(').replace(']', ')')
+        elif arg["pytype"] == "str":
+            default_debug = repr(arg["default_debug"]).replace("'", '"')
+        else:
+            default_debug = arg["default_debug"]
+        default = f" = {default_debug}"
+    return default
+
+def _pytype_to_fn_pytype_common(pytype: str) -> str:
+    if "number" in pytype:
+        return pytype.replace("number", "Union[int, float]")
+    # `torch.device` is lowercase.
+    if pytype == "Device":
+        return "device"
+    if pytype == "Optional[Device]":
+        return "Optional[device]"
+    # Generators don't contribute to shapes, and are not scriptable currently.
+    # So just hack them to be passed as "Any".
+    if pytype == "Generator":
+        return "Any"
+    if pytype == "Optional[Generator]":
+        return "Any"
+    return pytype
 
 def _pytype_to_shape_fn_pytype(pytype: str) -> str:
     """Convert a JitOperator pytype to the type relevant in shape functions.
@@ -28,31 +70,29 @@ def _pytype_to_shape_fn_pytype(pytype: str) -> str:
     # logically real-valued), so it doesn't really matter much, and
     # `float` helps make it clearer that it's not part of the shape
     # function.
-    if pytype == "number":
-        return "float"
-    if pytype == "Optional[number]":
-        return "Optional[float]"
-    # `torch.device` is lowercase.
-    if pytype == "Device":
-        return "device"
-    if pytype == "Optional[Device]":
-        return "Optional[device]"
-    # Shape functions only care about the shape of tensors.
-    if pytype == "Tensor":
-        return "List[int]"
-    if pytype == "Optional[Tensor]":
-        return "Optional[List[int]]"
-    if pytype == "List[Tensor]":
-        return "List[List[int]]"
-    if pytype == "List[Optional[Tensor]]":
-        return "List[Optional[List[int]]]"
-    # Generators don't contribute to shapes, and are not scriptable currently.
-    # So just hack them to be passed as "Any".
-    if pytype == "Generator":
-        return "Any"
-    if pytype == "Optional[Generator]":
-        return "Any"
-    return pytype
+    # TODO: This is no longer needed. Scalars can be represented by
+    # Union[int, float].
+    if "number" in pytype:
+        return pytype.replace("number", "float")
+    if "Tensor" in pytype:
+        return pytype.replace("Tensor", "List[int]")
+    return _pytype_to_fn_pytype_common(pytype)
+
+def _pytype_to_dtype_fn_pytype(pytype: str) -> str:
+    """Convert a JitOperator pytype to the type relevant in dtype functions.
+
+    In particular, this converts `Tensor` to `int`, along with a few
+    other special cases.
+    """
+    # Dtype functions only care about the rank and dtype of tensors.
+    if "Tensor" in pytype:
+        return pytype.replace("Tensor", "int")
+    return _pytype_to_fn_pytype_common(pytype)
+
+def _pytype_to_decomposition_fn_pytype(pytype: str) -> str:
+    """Convert a JitOperator pytype to the type relevant in decomposition functions.
+    """
+    return _pytype_to_fn_pytype_common(pytype)
 
 class JitOperator:
     """Information about a single registered `torch::jit::Operator`"""
@@ -142,6 +182,23 @@ class JitOperator:
         cpp_class_name = cpp_class_name.lstrip("_")
         return op_name, cpp_class_name
 
+    def _get_function_signature(self, function_kind: str,
+                                parameter_decl_builder: Callable["SIG_ATTR_TYPE", str],
+                                ret_decl_builder: Callable["SIG_ATTR_TYPE", str]) -> str:
+        mlir_op_name, _ = self.get_mlir_names()
+        # Replace `.` with a valid Python identifier character.
+        # `〇` vaguely looks like `.`.
+        def_name = "〇".join(mlir_op_name.split("."))
+        def_name += f"〡{function_kind}"
+        parameter_decls = list(map(parameter_decl_builder, self.arguments))
+        ret_decls = list(map(ret_decl_builder, self.returns))
+        parameters = ", ".join(parameter_decls)
+        result = ", ".join(ret_decls)
+        if len(ret_decls) >= 2:
+            result = f"Tuple[{result}]"
+
+        return f"def {def_name}({parameters}) -> {result}:"
+
     def get_shape_function_signature(self):
         """Gets the Python function signature for this op's shape function.
 
@@ -150,45 +207,66 @@ class JitOperator:
         ops have extra default arguments and stuff that are tedious to write out
         right.
         """
-        mlir_op_name, _ = self.get_mlir_names()
-        # Replace `.` with a valid Python identifier character.
-        # `〇` vaguely looks like `.`.
-        def_name = "〇".join(mlir_op_name.split("."))
-        parameter_decls = []
-        for arg in self.arguments:
+        def parameter_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
             pytype = _pytype_to_shape_fn_pytype(arg["pytype"])
-            default = ""
-            if "default_debug" in arg:
-                if "List" in arg["pytype"]:
-                    # TorchScript doesn't allow lists as default parameters due
-                    # to the weird Python semantics of mutable default
-                    # arguments. So munge them into tuples, which work
-                    # fine here. We only need these to simplify the invocation
-                    # of the shape functions as valid Python for testing against
-                    # the real ops, and tuples work fine in all the places this
-                    # kicks in (e.g. conv dilations -- we aren't mutating those
-                    # lists).
-                    default_debug = arg["default_debug"].replace(
-                        '[', '(').replace(']', ')')
-                elif arg["pytype"] == "str":
-                    default_debug = repr(arg["default_debug"]).replace("'", '"')
-                else:
-                    default_debug = arg["default_debug"]
-                default = f" = {default_debug}"
-            parameter_name = arg["name"]
-            if parameter_name == "from":
-                parameter_name = "from_" # Avoid using a Python keyword.
-            parameter_decls.append(f"{parameter_name}: {pytype}{default}")
-        ret_decls = []
-        for ret in self.returns:
-            pytype = _pytype_to_shape_fn_pytype(ret["pytype"])
-            ret_decls.append(f"{pytype}")
-        parameters = ", ".join(parameter_decls)
-        result = ", ".join(ret_decls)
-        if len(ret_decls) >= 2:
-            result = f"Tuple[{result}]"
+            default = _get_default_value(arg)
+            parameter_name = _rename_python_keyword_parameter_name(arg["name"])
+            return f"{parameter_name}: {pytype}{default}"
 
-        return f"def {def_name}({parameters}) -> {result}:"
+        def ret_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
+            return  _pytype_to_shape_fn_pytype(arg["pytype"])
+
+        return self._get_function_signature(
+            "shape", parameter_decl_builder, ret_decl_builder)
+
+    def get_dtype_function_signature(self):
+        """Gets the Python function signature for this op's dtype function.
+
+        While this is technically debug-only output, it is useful to copy-paste
+        it from the debug dump into the library definitions, as many
+        ops have extra default arguments and stuff that are tedious to write out
+        right.
+        """
+        def parameter_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
+            pytype = _pytype_to_dtype_fn_pytype(arg["pytype"])
+            default = _get_default_value(arg)
+            parameter_name = _rename_python_keyword_parameter_name(arg["name"])
+            if "Tensor" in arg["pytype"]:
+                return ", ".join([f"{parameter_name}_rank: {pytype}{default}",
+                                  f"{parameter_name}_dtype: {pytype}{default}"])
+            return f"{parameter_name}: {pytype}{default}"
+
+        def ret_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
+            # The dtype function is expected to return dtypes for scalar
+            # results of type `number`. Here we handle this case because
+            # `_pytype_to_dtype_fn_pytype` will replace `number` with
+            # `Union[int, float]`.
+            if arg["pytype"] == "number":
+                return "int"
+            return _pytype_to_dtype_fn_pytype(arg["pytype"])
+
+        return self._get_function_signature(
+            "dtype", parameter_decl_builder, ret_decl_builder)
+
+    def get_decomposition_function_signature(self):
+        """Gets the Python function signature for this op's decomposition function.
+
+        While this is technically debug-only output, it is useful to copy-paste
+        it from the debug dump into the shape library definitions, as many
+        ops have extra default arguments and stuff that are tedious to write out
+        right.
+        """
+        def parameter_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
+            pytype = _pytype_to_decomposition_fn_pytype(arg["pytype"])
+            default = _get_default_value(arg)
+            parameter_name = _rename_python_keyword_parameter_name(arg["name"])
+            return f"{parameter_name}: {pytype}{default}"
+
+        def ret_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
+            return _pytype_to_decomposition_fn_pytype(arg["pytype"])
+
+        return self._get_function_signature(
+            "decomposition", parameter_decl_builder, ret_decl_builder)
 
     def __repr__(self):
         f = io.StringIO()
@@ -212,6 +290,10 @@ class JitOperator:
             p(f"is_mutable = {self.is_mutable}")
             if any(ret["type"] == "Tensor" for ret in self.returns):
                 p(f"shape_function_signature = {self.get_shape_function_signature()}")
+                p(f"decomposition_function_signature = {self.get_decomposition_function_signature()}")
+            if any(ret["type"] in ["Tensor", "Scalar"] for ret in self.returns):
+                p(f"dtype_function_signature = {self.get_dtype_function_signature()}")
+
             if not self.arguments:
                 p("arguments = []")
             else:
@@ -300,12 +382,13 @@ class Registry:
         return self.by_triple[key]
 
 
-# A List[Dict[str, _]] mapping attribute names to:
+# A Dict[str, _] mapping attribute names to:
 #   - str (e.g. {'name': 'dim'} )
 #   - int (e.g. {'N': 1} )
 #   - Dict[str, List[str]]
 #       (e.g. {'alias_info': {'before': ['alias::a'], 'after': ['alias::a']}} )
-SIGLIST_TYPE = List[Dict[str, Union[str, int, Dict[str, List[str]]]]]
+SIG_ATTR_TYPE = Dict[str, Union[str, int, Dict[str, List[str]]]]
+SIGLIST_TYPE = List[SIG_ATTR_TYPE]
 # A Dict[str, _] describing a registered op. Each field is either
 #   - bool (e.g. {'is_mutable': False} )
 #   - Tuple[str] (e.g. {'name': ('aten::size', 'int')} )

@@ -239,7 +239,7 @@ def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "func::FuncOp"> {
 }
 
 def ReifyShapeCalculations : Pass<"torch-reify-shape-calculations", "ModuleOp"> {
-  let summary = "Decompose complicated torch operations";
+  let summary = "Reify shape calculations.";
   let constructor = "mlir::torch::Torch::createReifyShapeCalculationsPass()";
   let description = [{
   }];
@@ -253,9 +253,23 @@ def SimplifyShapeCalculations : Pass<"torch-simplify-shape-calculations", "func:
   }];
 }
 
-def DropShapeCalculations : Pass<"torch-drop-shape-calculations", "func::FuncOp"> {
-  let summary = "Drop reified shape calculations.";
-  let constructor = "mlir::torch::Torch::createDropShapeCalculationsPass()";
+def ReifyDtypeCalculations : Pass<"torch-reify-dtype-calculations", "ModuleOp"> {
+  let summary = "Reify dtype calculations.";
+  let constructor = "mlir::torch::Torch::createReifyDtypeCalculationsPass()";
+  let description = [{
+  }];
+}
+
+def SimplifyDtypeCalculations : Pass<"torch-simplify-dtype-calculations", "func::FuncOp"> {
+  let summary = "Simplify reified dtype calculations.";
+  let constructor = "mlir::torch::Torch::createSimplifyDtypeCalculationsPass()";
+  let description = [{
+  }];
+}
+
+def DropAbstractInterpCalculations : Pass<"torch-drop-abstract-interp-calculations", "func::FuncOp"> {
+  let summary = "Drop reified abstract interpretation calculations.";
+  let constructor = "mlir::torch::Torch::createDropAbstractInterpCalculationsPass()";
   let description = [{
   }];
 }

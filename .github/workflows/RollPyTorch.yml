@@ -61,14 +61,14 @@ jobs:
         echo "PT_RELEASE=${PT_RELEASE}" >> ${GITHUB_ENV}
         echo "PT_HASH_CHANGED=${PT_HASH_CHANGED}" >> ${GITHUB_ENV}
 
-    - name: Build and test (in-tree), also update ODS and shape library
+    - name: Build and test (in-tree), also update ODS and abstract interpretation library
       if: env.PT_HASH_CHANGED != '0'
       run: |
         cd ${GITHUB_WORKSPACE}
         TM_PACKAGES="in-tree" TM_USE_PYTORCH_BINARY="OFF" \
         TORCH_MLIR_SRC_PYTORCH_BRANCH="${{ env.PT_HASH }}" \
         TORCH_MLIR_SRC_PYTORCH_RELEASE="${{ env.PT_RELEASE }}" \
-        TM_UPDATE_ODS_AND_SHAPE_LIB="ON" \
+        TM_UPDATE_ODS_AND_ABSTRACT_INTERP_LIB="ON" \
         ./build_tools/python_deploy/build_linux_packages.sh
 
     - name: Push changes to main branch
@@ -79,7 +79,7 @@ jobs:
         git config user.name "Roll PyTorch Action"
         git fetch --recurse-submodules=no
         git checkout main
-        git add pytorch-hash.txt pytorch-requirements.txt lib/Dialect/Torch/Transforms/ShapeLibrary.cpp include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
+        git add pytorch-hash.txt pytorch-requirements.txt lib/Dialect/Torch/Transforms/AbstractInterpLibrary.cpp include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
         git diff --cached --exit-code || (git commit -m "update PyTorch version to ${{ env.PT_RELEASE }}" && git push --set-upstream origin main)
 
     - name: Update PyTorch Build Cache (if running on main branch)

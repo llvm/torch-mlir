@@ -491,44 +491,6 @@ private:
 };
 } // namespace
 
-// This is the type rule used for deciding dtype for:
-// 1. A new tensor created from given data.
-// 2. The scalar type for type promotion when a scalar is an operand of a tensor
-// operation (such as AtenMulScalarOp, AtenAddScalarOp etc)
-// If the data is floating-point, the `dtype` is inferred to be the
-// default dtype, see `torch.get_default_dtype`.
-static Type getDefaultDtypeForTorchScalar(Type type) {
-  MLIRContext *context = type.getContext();
-  if (type.isa<Torch::FloatType>()) {
-    // For now, use float32 which is the initial default dtype returned by
-    // `torch.get_default_dtype`.
-    return Float32Type::get(context);
-  }
-  if (type.isa<Torch::IntType>())
-    return IntegerType::get(context, 64, IntegerType::Signed);
-  if (type.isa<Torch::BoolType>())
-    return IntegerType::get(context, 1);
-  llvm_unreachable(
-      "getDefaultDtypeForTorchScalar called on an unsupported type");
-}
-
-// This is the type rule used for deciding builtin type for:
-// 1. The dtype of the result tensor when converting a Scalar into a Tensor like
-// PrimNumToTensorScalarOp.
-// 2. The scalar type for type promotion when a scalar is an operand of scalar
-// only operation like AtenAddOp.
-static Type getBuiltInTypeForTorchScalar(Type type) {
-  MLIRContext *context = type.getContext();
-  if (type.isa<Torch::FloatType>())
-    return Float64Type::get(context);
-  if (type.isa<Torch::IntType>())
-    return IntegerType::get(context, 64, IntegerType::Signed);
-  if (type.isa<Torch::BoolType>())
-    return IntegerType::get(context, 1);
-  llvm_unreachable(
-      "getBuiltInTypeForTorchScalar called on an unsupported type");
-}
-
 static torch_upstream::ResultTypeState
 updateResultTypeState(Type scalarType,
                       const torch_upstream::ResultTypeState &inState) {
@@ -583,8 +545,11 @@ static Type getPromotedResultScalarType(ArrayRef<Type> scalarTypes) {
     state =
         updateResultTypeState(getBuiltInTypeForTorchScalar(scalarType), state);
   }
-  return getTorchTypeForScalarType(scalarTypes[0].getContext(),
-                                   result_type(state));
+  FailureOr<Type> result = getTorchTypeForScalarType(
+      scalarTypes[0].getContext(), result_type(state));
+  if (failed(result))
+    return Type();
+  return *result;
 }
 
 // Returns most generic type Type() if the tensor dtype is unknown.
@@ -707,9 +672,9 @@ void TypeAnalysis::visitOperation(Operation *op,
   }
 
   // Dtype is always float32, except for bfloat16, float16, float64 and nullptr.
-  if (isa<AtenTanhOp, AtenExpOp, AtenExpm1Op, AtenSinOp, AtenCosOp,
-          AtenSigmoidOp, AtenReciprocalOp, AtenLogOp, AtenSqrtOp, AtenLog2Op,
-          AtenLog1pOp, AtenRsqrtOp, AtenErfOp, AtenSoftplusOp, AtenFrobeniusNormDimOp>(op)) {
+  if (isa<AtenExpOp, AtenExpm1Op, AtenSinOp, AtenCosOp, AtenSigmoidOp,
+          AtenReciprocalOp, AtenLogOp, AtenSqrtOp, AtenLog2Op, AtenLog1pOp,
+          AtenRsqrtOp, AtenErfOp, AtenSoftplusOp, AtenFrobeniusNormDimOp>(op)) {
     ValueKnowledge knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     Type dtype = operands[0]->getValue().dtype;
@@ -770,7 +735,7 @@ void TypeAnalysis::visitOperation(Operation *op,
   if (isa<AtenAddTensorOp, AtenSubTensorOp, AtenMulTensorOp, AtenDivTensorOp,
           AtenDivTensorModeOp, Aten__And__TensorOp, AtenMinimumOp,
           AtenMaximumOp, AtenBitwiseAndTensorOp, AtenBitwiseOrTensorOp,
-          AtenThresholdBackwardOp, AtenFloorDivideOp>(op)) {
+          AtenThresholdBackwardOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     knowledge.dtype = getPromotedResultType(
@@ -816,7 +781,7 @@ void TypeAnalysis::visitOperation(Operation *op,
   // Promote LHS with scalar RHS.
   if (isa<AtenAddScalarOp, AtenSubScalarOp, AtenMulScalarOp, AtenDivScalarOp,
           AtenFmodScalarOp, AtenFloorDivideScalarOp, AtenPowTensorScalarOp,
-          AtenRsubScalarOp, AtenLeakyReluOp, AtenRemainderScalarOp>(op)) {
+          AtenLeakyReluOp, AtenRemainderScalarOp>(op)) {
     auto lhs = operands[0]->getValue();
     Value scalar = op->getOperand(1);
     auto knowledge =
