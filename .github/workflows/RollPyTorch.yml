@@ -79,6 +79,7 @@ jobs:
         git config user.name "Roll PyTorch Action"
         git fetch --recurse-submodules=no
         git checkout main
+        git pull origin main
         git add pytorch-hash.txt pytorch-requirements.txt lib/Dialect/Torch/Transforms/AbstractInterpLibrary.cpp include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
         git diff --cached --exit-code || (git commit -m "update PyTorch version to ${{ env.PT_RELEASE }}" && git push --set-upstream origin main)
 
