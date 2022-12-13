@@ -203,13 +203,17 @@ jobs:
     # Wheels must be published from a linux environment.
     #
     # See https://github.com/pypa/gh-action-pypi-publish/discussions/15
-    - name: Download wheels for publishing to PyPI
-      uses: actions/download-artifact@v3
-      with:
-        name: wheels
-        path: dist
-    - name: Publish to PyPI
-      if: github.event.inputs.release_id != ''
-      uses: pypa/gh-action-pypi-publish@v1.5.1
-      with:
-        password: ${{ secrets.PYPI_API_TOKEN }}
+    #
+    # We're temporarily disabling pypi publishing until we can fix audit wheel
+    # ODR torch issues.  See https://github.com/llvm/torch-mlir/issues/1709
+    #
+    #- name: Download wheels for publishing to PyPI
+    #  uses: actions/download-artifact@v3
+    #  with:
+    #    name: wheels
+    #    path: dist
+    #- name: Publish to PyPI
+    #  if: github.event.inputs.release_id != ''
+    #  uses: pypa/gh-action-pypi-publish@v1.5.1
+    #  with:
+    #    password: ${{ secrets.PYPI_API_TOKEN }}
