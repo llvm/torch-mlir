@@ -43,7 +43,7 @@ jobs:
         include:
           # Specify OS versions
           - os-arch: ubuntu-x86_64
-            os: ubuntu-latest
+            os: a100
           - os-arch: macos-arm64
             os: macos-latest
           - os-arch: windows-x86_64
