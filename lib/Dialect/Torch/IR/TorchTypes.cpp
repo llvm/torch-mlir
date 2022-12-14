@@ -89,7 +89,7 @@ bool Torch::isValidSubtype(Type subtype, Type type) {
 static Optional<SmallVector<Type>>
 parseMultipleContainedTypes(AsmParser &parser) {
   if (parser.parseLess())
-    return None;
+    return std::nullopt;
 
   SmallVector<Type> containedTypes;
   if (!parser.parseOptionalGreater())
@@ -97,11 +97,11 @@ parseMultipleContainedTypes(AsmParser &parser) {
   do {
     Type containedType = parseTorchDialectType(parser);
     if (!containedType)
-      return None;
+      return std::nullopt;
     containedTypes.push_back(containedType);
   } while (!parser.parseOptionalComma());
   if (parser.parseGreater())
-    return None;
+    return std::nullopt;
   return containedTypes;
 }
 
@@ -222,7 +222,8 @@ Type parseTensorType(MLIRContext *context, AsmParser &parser,
   llvm::SMLoc startLoc = parser.getCurrentLocation();
   if (parser.parseOptionalLess())
     return getTensorType(context,
-                         /*optionalSizes=*/None, /*optionalDtype=*/Type());
+                         /*optionalSizes=*/std::nullopt,
+                         /*optionalDtype=*/Type());
   bool hasSizes;
   SmallVector<int64_t> sizes;
   if (succeeded(parser.parseOptionalStar())) {
@@ -320,7 +321,7 @@ ValueTensorType NonValueTensorType::getWithValueSemantics() const {
 NonValueTensorType
 NonValueTensorType::getWithLeastStaticInformation(MLIRContext *context) {
   return NonValueTensorType::get(context,
-                                 /*optionalSizes=*/None,
+                                 /*optionalSizes=*/std::nullopt,
                                  /*optionalDtype=*/Type());
 }
 
@@ -357,7 +358,7 @@ NonValueTensorType ValueTensorType::getWithoutValueSemantics() const {
 ValueTensorType
 ValueTensorType::getWithLeastStaticInformation(MLIRContext *context) {
   return ValueTensorType::get(context,
-                              /*optionalSizes=*/None,
+                              /*optionalSizes=*/std::nullopt,
                               /*optionalDtype=*/Type());
 }
 
@@ -428,8 +429,8 @@ Type Torch::meetTensorTypes(BaseTensorType lhs, BaseTensorType rhs) {
 
   // If neither has sizes, we have nothing left to do.
   if (!lhs.hasSizes() && !rhs.hasSizes()) {
-    return ValueTensorType::get(lhs.getContext(), /*optionalSizes=*/None,
-                                dtype);
+    return ValueTensorType::get(lhs.getContext(),
+                                /*optionalSizes=*/std::nullopt, dtype);
   }
 
   // If the number of sizes is different, the two types are contradictory.

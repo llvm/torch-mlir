@@ -84,7 +84,7 @@ SmallVector<Value> getTypeConvertedValues(OpBuilder &b, Location loc,
 // should be converted builtin types.
 Value convertScalarToDtype(
     OpBuilder &b, Location loc, Value scalar, Type dtype,
-    llvm::Optional<Type> srcOriginalDtype = llvm::None);
+    llvm::Optional<Type> srcOriginalDtype = std::nullopt);
 
 } // namespace Torch
 } // namespace torch

@@ -206,8 +206,8 @@ class MungeCallingConventions
     for (auto &p : invokedConsumeFuncReturnFuncs) {
       auto consumeFuncReturnFunc = b.create<func::FuncOp>(
           module.getLoc(), p.first,
-          FunctionType::get(module.getContext(), p.second, {}),
-          b.getStringAttr("private"));
+          FunctionType::get(module.getContext(), p.second, {}));
+      consumeFuncReturnFunc.setPrivate();
       addEmitCInterfaceAttr(consumeFuncReturnFunc);
     }
   }

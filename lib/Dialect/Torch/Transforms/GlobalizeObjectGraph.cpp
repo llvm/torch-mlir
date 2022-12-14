@@ -85,7 +85,7 @@ public:
                                            func::FuncOp methodFunc) {
     auto it = funcLinkageInfo.find({instance, methodFunc});
     if (it == funcLinkageInfo.end())
-      return None;
+      return std::nullopt;
     return it->second;
   }
 
@@ -638,7 +638,7 @@ static LogicalResult globalizeObjectGraph(ModuleOp module) {
   for (auto &monomorphization : tracker.getMonomorphizations()) {
     auto newFunc = cast<func::FuncOp>(monomorphization.func->clone());
     newFuncs[monomorphization] = newFunc;
-    Optional<LinkageInfo> linkageInfo = None;
+    Optional<LinkageInfo> linkageInfo = std::nullopt;
     // If it is potentially a method, check its linkage info.
     if (monomorphization.argInstances.size() != 0 &&
         monomorphization.argInstances[0].argIndex == 0) {

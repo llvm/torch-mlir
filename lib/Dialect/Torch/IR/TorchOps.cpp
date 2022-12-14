@@ -1028,7 +1028,7 @@ traceKnownSizeTensorType(Value value, llvm::Optional<int64_t> dim) {
     if (!tensorType.hasSizes())
       return false;
 
-    if (dim == llvm::None)
+    if (dim == std::nullopt)
       return tensorType.areAllSizesKnown();
 
     // If the dimension value is negative, then convert it to a positive value.
@@ -1062,7 +1062,7 @@ traceKnownSizeTensorType(Value value, llvm::Optional<int64_t> dim) {
 void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                              MLIRContext *context) {
   patterns.add(+[](AtenSizeOp op, PatternRewriter &rewriter) {
-    auto type = traceKnownSizeTensorType(op.getOperand(), llvm::None);
+    auto type = traceKnownSizeTensorType(op.getOperand(), std::nullopt);
     if (failed(type))
       return rewriter.notifyMatchFailure(op, "all sizes not known");
     SmallVector<Value> listElements;
