@@ -128,3 +128,7 @@ jobs:
       if: ${{ matrix.os-arch == 'windows-x86_64' }}
       shell: bash
       run: ./build_tools/python_deploy/build_windows_ci.sh
+
+    - name: Print ccache configuration and statistics
+      shell: bash
+      run: ccache --show-config --show-stats --print-stats
