@@ -77,16 +77,17 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
             size_t dimSizeIndexBits) {
   auto inputTy = input.getType().template cast<RankedTensorType>();
   if (!inputTy) {
-    return llvm::None;
+    return std::nullopt;
   }
   if (!inputTy.getElementType().isIntOrFloat()) {
-    return llvm::None;
+    return std::nullopt;
   }
   auto inputShape = inputTy.getShape();
   auto inputElemTy = inputTy.getElementType();
 
   Value initValue = createInitialValueForReduceOp(op, inputElemTy, rewriter);
-  if (!initValue) return llvm::None;
+  if (!initValue)
+    return std::nullopt;
   Value initIndex;
   if (dimSizeIndexBits == 32) {
     initIndex = mhlo::getConstTensor<int32_t>(rewriter, op, {0}, {}).value();

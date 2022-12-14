@@ -61,7 +61,7 @@ Value convertTensorToDtype(PatternRewriter &rewriter, Location loc, Value input,
 bool isBuiltInType(Type type);
 
 // Helper funtion to get rank of `Base tensor type`.
-// llvm::None is returned if the tensorRank can't be determined.
+// std::nullopt is returned if the tensorRank can't be determined.
 Optional<unsigned> getTensorRank(Value tensor);
 
 bool isViewLikeOp(Operation *op);

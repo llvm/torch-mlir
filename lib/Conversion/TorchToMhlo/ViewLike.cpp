@@ -269,7 +269,7 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
 
   auto getOptionalVal = [&](Value val) -> llvm::Optional<Value> {
     if (val.getType().isa<Torch::NoneType>()) {
-      return llvm::None;
+      return std::nullopt;
     } else {
       return val;
     }
