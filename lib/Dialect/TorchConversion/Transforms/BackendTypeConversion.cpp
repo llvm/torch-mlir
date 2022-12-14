@@ -61,7 +61,7 @@ static void setupTorchBoolToI1Conversion(ConversionTarget &target,
                                             Location loc) -> Optional<Value> {
     // Other builtin integer types could be handled by other materializers.
     if (!(type.getWidth() == 1 && type.isSignless()))
-      return None;
+      return std::nullopt;
     assert(inputs.size() == 1);
     assert(inputs[0].getType().isa<Torch::BoolType>());
     return builder.create<ToI1Op>(loc, inputs[0]).getResult();
@@ -87,11 +87,11 @@ static void setupTorchIntToI64Conversion(ConversionTarget &target,
                                             Location loc) -> Optional<Value> {
     // Other builtin integer types could be handled by other materializers.
     if (!(type.getWidth() == 64 && type.isSignless()))
-      return None;
+      return std::nullopt;
     // Other input type to be converted to i64 are handled by other
     // materializers.
     if (!inputs[0].getType().isa<Torch::IntType>())
-      return None;
+      return std::nullopt;
     assert(inputs.size() == 1);
     return builder.create<ToI64Op>(loc, inputs[0]).getResult();
   });
@@ -140,11 +140,11 @@ static void setupTorchGeneratorToI64Conversion(ConversionTarget &target,
                                             Location loc) -> Optional<Value> {
     // Other builtin integer types could be handled by other materializers.
     if (!(type.getWidth() == 64 && type.isSignless()))
-      return None;
+      return std::nullopt;
     // Other input type to be converted to i64 are handled by other
     // materializers.
     if (!inputs[0].getType().isa<Torch::GeneratorType>())
-      return None;
+      return std::nullopt;
     assert(inputs.size() == 1);
     return builder.create<GeneratorToI64Op>(loc, inputs[0]).getResult();
   });

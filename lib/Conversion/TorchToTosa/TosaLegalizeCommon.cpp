@@ -37,7 +37,7 @@ llvm::Optional<Value> convertReduceOpCommon(
   RankedTensorType input_type =
       input_value.getType().dyn_cast<RankedTensorType>();
   if (!input_type)
-    return llvm::None;
+    return std::nullopt;
 
   ArrayRef<int64_t> input_shape = input_type.getShape();
   ArrayRef<int64_t> output_shape = output_type.getShape();
@@ -101,7 +101,7 @@ convertReduceAllOp(PatternRewriter &rewriter, Operation *op,
   RankedTensorType input_type =
       input_value.getType().dyn_cast<RankedTensorType>();
   if (!input_type)
-    return llvm::None;
+    return std::nullopt;
 
   return convertReduceOpCommon<tosa::ReduceAllOp>(
       rewriter, op, output_type, input_value, axes_elems, keep_dims,
@@ -116,7 +116,7 @@ convertReduceAnyOp(PatternRewriter &rewriter, Operation *op,
   RankedTensorType input_type =
       input_value.getType().dyn_cast<RankedTensorType>();
   if (!input_type)
-    return llvm::None;
+    return std::nullopt;
 
   return convertReduceOpCommon<tosa::ReduceAnyOp>(
       rewriter, op, output_type, input_value, axes_elems, keep_dims,
@@ -131,7 +131,7 @@ convertReduceMinOp(PatternRewriter &rewriter, Operation *op,
   RankedTensorType input_type =
       input_value.getType().dyn_cast<RankedTensorType>();
   if (!input_type)
-    return llvm::None;
+    return std::nullopt;
 
   return convertReduceOpCommon<tosa::ReduceMinOp>(
       rewriter, op, output_type, input_value, axes_elems, keep_dims,
@@ -146,7 +146,7 @@ convertReduceMaxOp(PatternRewriter &rewriter, Operation *op,
   RankedTensorType input_type =
       input_value.getType().dyn_cast<RankedTensorType>();
   if (!input_type)
-    return llvm::None;
+    return std::nullopt;
 
   return convertReduceOpCommon<tosa::ReduceMaxOp>(
       rewriter, op, output_type, input_value, axes_elems, keep_dims,
@@ -161,7 +161,7 @@ convertReduceProdOp(PatternRewriter &rewriter, Operation *op,
   RankedTensorType input_type =
       input_value.getType().dyn_cast<RankedTensorType>();
   if (!input_type)
-    return llvm::None;
+    return std::nullopt;
 
   bool input_is_qtype =
       input_type.getElementType().isa<mlir::quant::UniformQuantizedType>();
@@ -171,7 +171,7 @@ convertReduceProdOp(PatternRewriter &rewriter, Operation *op,
   if (input_is_qtype || output_is_qtype) {
     op->emitOpError("ConvertReduceProdOp: input/output tensor should "
                     "be all floating-point.");
-    return llvm::None;
+    return std::nullopt;
   }
 
   return convertReduceOpCommon<tosa::ReduceProdOp>(
@@ -187,7 +187,7 @@ convertReduceSumOp(PatternRewriter &rewriter, Operation *op,
   RankedTensorType input_type =
       input_value.getType().dyn_cast<RankedTensorType>();
   if (!input_type)
-    return llvm::None;
+    return std::nullopt;
 
   bool input_is_qtype =
       input_type.getElementType().isa<mlir::quant::UniformQuantizedType>();
@@ -197,7 +197,7 @@ convertReduceSumOp(PatternRewriter &rewriter, Operation *op,
   if (input_is_qtype != output_is_qtype) {
     op->emitOpError("ConvertReduceSumOp: input/output tensor should "
                     "be all quantized or all floating-point.");
-    return llvm::None;
+    return std::nullopt;
   }
 
   double input_scale = 1.0f;
@@ -242,7 +242,7 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
   RankedTensorType input_type =
       input_value.getType().dyn_cast<RankedTensorType>();
   if (!input_type)
-    return llvm::None;
+    return std::nullopt;
 
   bool input_is_qtype =
       input_type.getElementType().isa<mlir::quant::UniformQuantizedType>();
@@ -252,7 +252,7 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
   if (input_is_qtype != output_is_qtype) {
     op->emitOpError("ConvertReduceSumOp: input/output tensor should "
                     "be all quantized or all floating-point.");
-    return llvm::None;
+    return std::nullopt;
   }
 
   // Only supports float type mean() if it's non-quantized
@@ -260,7 +260,7 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
     op->emitWarning(
         "Failed convertReduceMean: input unquantized type but output element "
         "not FloatType!");
-    return llvm::None;
+    return std::nullopt;
   }
 
   int64_t input_rank = input_type.getRank();
@@ -303,7 +303,7 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
       output_zp);
 
   if (!val.has_value())
-    return llvm::None;
+    return std::nullopt;
 
   if (!input_is_qtype) {
     Value div_const = getTosaConstTensorSingleF32(rewriter, op, div_scale);

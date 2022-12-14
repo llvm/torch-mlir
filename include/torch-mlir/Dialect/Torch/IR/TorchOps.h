@@ -190,7 +190,7 @@ struct torch_list_of_optional_constant_ints_op_binder {
       if (matchPattern(value, m_TorchConstantInt(&num)))
         bind_values.push_back(num);
       else if (value.getType().isa<Torch::NoneType>())
-        bind_values.push_back(llvm::None);
+        bind_values.push_back(std::nullopt);
       else
         return false;
     }

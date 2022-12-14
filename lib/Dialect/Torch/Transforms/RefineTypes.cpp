@@ -112,9 +112,9 @@ static torch_upstream::TypeKind getTypeKind(Type type) {
 }
 
 /// Returns the dtype that assumes information from both `lhs` and `rhs`.
-/// Returns `None` if the types are contradictory. Note this can only be used
-/// on the `dtype` from tensors and can't be used on other types like scalar
-/// types.
+/// Returns `std::nullopt` if the types are contradictory. Note this can only
+/// be used on the `dtype` from tensors and can't be used on other types like
+/// scalar types.
 static Optional<Type> meetElementTypes(Type lhs, Type rhs) {
   auto isNullOrBuiltIn = [](Type type) { return !type || isBuiltInType(type); };
   (void)isNullOrBuiltIn;
@@ -127,7 +127,7 @@ static Optional<Type> meetElementTypes(Type lhs, Type rhs) {
     return lhs;
   if (lhs == rhs)
     return lhs;
-  return None;
+  return std::nullopt;
 }
 
 enum class OptionalKnowledge {
@@ -137,7 +137,7 @@ enum class OptionalKnowledge {
 };
 
 /// Returns the OptionalKnowledge that assumes information from both `lhs` and
-/// `rhs`. Returns `None` if the knowledges are contradictory.
+/// `rhs`. Returns `std::nullopt` if the knowledges are contradictory.
 static Optional<OptionalKnowledge>
 meetOptionalKnowledge(OptionalKnowledge lhs, OptionalKnowledge rhs) {
   if (lhs == OptionalKnowledge::unKnown)
@@ -146,7 +146,7 @@ meetOptionalKnowledge(OptionalKnowledge lhs, OptionalKnowledge rhs) {
     return lhs;
   if (lhs == rhs)
     return lhs;
-  return None;
+  return std::nullopt;
 }
 
 static OptionalKnowledge joinOptionalKnowledge(OptionalKnowledge lhs,
@@ -327,7 +327,7 @@ struct ValueKnowledge {
 
   // Given two pieces of static knowledge, calculate new knowledge that assumes
   // the facts from both.
-  // If the two pieces of knowledge are contradictory, None is returned.
+  // If the two pieces of knowledge are contradictory, std::nullopt is returned.
   static Optional<ValueKnowledge> meet(const ValueKnowledge &lhs,
                                        const ValueKnowledge &rhs) {
     if (!lhs.isInitialized)
@@ -338,13 +338,13 @@ struct ValueKnowledge {
     Optional<ValueKnowledge> knowledge = meetTypes(lhs, rhs);
 
     if (!knowledge.has_value())
-      return None;
+      return std::nullopt;
     ValueKnowledge result = knowledge.value();
 
     Optional<OptionalKnowledge> optional =
         meetOptionalKnowledge(lhs.optional, rhs.optional);
     if (!optional.has_value())
-      return None;
+      return std::nullopt;
     result.optional = optional.value();
     return result;
   }
@@ -362,7 +362,7 @@ struct ValueKnowledge {
       return rhs;
     if (lhs == rhs)
       return lhs;
-    return None;
+    return std::nullopt;
   }
 
   // We start in the uninitialized state by default.
@@ -559,7 +559,7 @@ static Type getPromotedResultDType(ValueKnowledge *tensor, Type scalarType) {
   torch_upstream::ResultTypeState state = {};
   // No need to check if rank is zero for tensor because scalar uses
   // wrappedResult which is a lower priority than both dimResult and zeroResult.
-  state = updateResultTypeState(tensor, /*rankIsNonZero=*/None, state,
+  state = updateResultTypeState(tensor, /*rankIsNonZero=*/std::nullopt, state,
                                 /*skipRankCheck=*/true);
   state =
       updateResultTypeState(getDefaultDtypeForTorchScalar(scalarType), state);
@@ -573,7 +573,7 @@ static SmallVector<Optional<bool>> getRankIsNonZeroArray(ValueRange values) {
       if (tensorType.hasSizes()) {
         rankIsNonZero.push_back(tensorType.getSizes().size() != 0);
       } else {
-        rankIsNonZero.push_back(None);
+        rankIsNonZero.push_back(std::nullopt);
       }
     }
   }

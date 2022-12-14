@@ -162,7 +162,7 @@ llvm::Optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
 
   if (vec.size() != num_total_elements) {
     op->emitOpError("getConstTensor(): number of elements mismatch.");
-    return llvm::None;
+    return std::nullopt;
   }
 
   auto const_type =
@@ -186,7 +186,7 @@ llvm::Optional<Value> getConstTensor<APInt>(PatternRewriter &rewriter,
 
   if (vec.size() != num_total_elements) {
     op->emitOpError("getConstTensor(): number of elements mismatch.");
-    return llvm::None;
+    return std::nullopt;
   }
 
   auto const_type = RankedTensorType::get(
@@ -210,7 +210,7 @@ llvm::Optional<Value> getConstTensor<float>(PatternRewriter &rewriter,
 
   if (vec.size() != num_total_elements) {
     op->emitOpError("getConstTensor(): number of elements mismatch.");
-    return llvm::None;
+    return std::nullopt;
   }
 
   auto const_type = RankedTensorType::get(shape, rewriter.getF32Type());
