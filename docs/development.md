@@ -425,7 +425,8 @@ works with all of the above configurations) in Issue
 https://github.com/llvm/torch-mlir/issues/1178.  In addition to increasing our
 confidence that the resulting update will not break downstream projects, basing
 our submodule updates on these green commits also helps us stay in sync with
-LLVM updates in other projects like ONNX-MLIR and MLIR-HLO.
+LLVM updates in other projects like ONNX-MLIR and MLIR-HLO. The person
+responsible for the update each week is listed [here](https://github.com/llvm/torch-mlir/wiki/Weekly-LLVM-Update).
 
 ## What is the update process?
 
@@ -449,8 +450,8 @@ LLVM updates in other projects like ONNX-MLIR and MLIR-HLO.
 5. **Update Abstract Interpretation Library**: Run
    `build_tools/update_abstract_interp_lib.sh`.  This is sometimes needed
    because upstream changes can affect canonicalization and other minor details
-   of the IR in the shape library. See
-   [docs/abstract_interp_lib.md](docs/abstract_interp_lib.md) for more details
+   of the IR in the abstract interpretation library. See
+   [docs/abstract_interp_lib.md](abstract_interp_lib.md) for more details
    on the abstract interpretation library.
 
 
