@@ -61,6 +61,15 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
     return torch_upstream::ScalarType::Byte;
   if (type.isSignedInteger(8))
     return torch_upstream::ScalarType::Char;
+  if (type.isa<ComplexType>()) {
+    mlir::Type complexElemType = type.cast<ComplexType>().getElementType();
+    if (complexElemType.isF32())
+      return torch_upstream::ScalarType::ComplexHalf;
+    if (complexElemType.isF64())
+      return torch_upstream::ScalarType::ComplexFloat;
+    if (complexElemType.isF128())
+      return torch_upstream::ScalarType::ComplexDouble;
+  }
   llvm::report_fatal_error("unhandled type for getScalarTypeForType");
 }
 
@@ -95,6 +104,12 @@ Type Torch::getTypeForScalarType(
   case torch_upstream::ScalarType::Byte:
   case torch_upstream::ScalarType::Char:
     return mlir::IntegerType::get(context, 8, signedness);
+  case torch_upstream::ScalarType::ComplexHalf:
+    return mlir::ComplexType::get(Float32Type::get(context));
+  case torch_upstream::ScalarType::ComplexFloat:
+    return mlir::ComplexType::get(Float64Type::get(context));
+  case torch_upstream::ScalarType::ComplexDouble:
+    return mlir::ComplexType::get(Float128Type::get(context));
   default:
     llvm::report_fatal_error("unhandled type for getTypeForScalarType");
   }
