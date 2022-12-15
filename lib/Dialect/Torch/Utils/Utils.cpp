@@ -96,7 +96,7 @@ Type Torch::getTypeForScalarType(
   case torch_upstream::ScalarType::Char:
     return mlir::IntegerType::get(context, 8, signedness);
   default:
-    return Type();
+    llvm::report_fatal_error("unhandled type for getTypeForScalarType");
   }
 }
 
