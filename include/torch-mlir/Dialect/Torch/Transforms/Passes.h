@@ -120,7 +120,9 @@ std::unique_ptr<OperationPass<ModuleOp>>
 createLowerToBackendContractPass(int maxIterations, bool decompose,
                                  ArrayRef<std::string> backendLegalOps);
 
-std::unique_ptr<OperationPass<ModuleOp>> createVerifyBackendContractPass();
+std::unique_ptr<OperationPass<ModuleOp>>
+createVerifyBackendContractPass(bool decompose,
+                                ArrayRef<std::string> backendLegalOps);
 
 StringRef getAbstractInterpLibrary();
 
