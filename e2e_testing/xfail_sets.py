@@ -17,28 +17,6 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
 
-    # https://github.com/pytorch/torchdynamo/issues/1891
-    # AssertionError: torch.* op returned non-Tensor bool call_function aten.Bool
-    "AllBoolFalseModule_basic",
-    "AllBoolTrueModule_basic",
-    "AnyBoolFalseModule_basic",
-    "AnyBoolTrueModule_basic",
-    "BoolFloatFalseModule_basic",
-    "BoolFloatTrueModule_basic",
-    "BoolFloatConstantModule_basic",
-    "BoolIntFalseModule_basic",
-    "BoolIntTrueModule_basic",
-    "BoolIntConstantModule_basic",
-    "CeilFloatModule_basic",
-    "ContainsIntList_False",
-    "ContainsIntList_True",
-    "GeIntModule_basic",
-    "LenStrModule_basic",
-    "SqrtIntConstantModule_basic",
-    "SqrtIntModule_basic",
-    "NumelModule_basic",
-    "NumelZeroRankModule_basic",
-
     # RecursionError: maximum recursion depth exceeded
     # RuntimeError: Failed running call_function aten.lift_fresh_copy(...
     # https://github.com/pytorch/pytorch/issues/89627
