@@ -804,9 +804,11 @@ cc_library(
     strip_include_prefix = "include",
     deps = [
         ":TorchMLIRConversionPasses",
+        ":TorchMLIRDialectsConversionPasses",
         ":TorchMLIRRefBackendPass",
         ":TorchMLIRTMTensorDialect",
         ":TorchMLIRTMTensorPasses",
+        ":TorchMLIRTcpDialect",
         ":TorchMLIRTorchConversionDialect",
         ":TorchMLIRTorchConversionPasses",
         ":TorchMLIRTorchDialect",
@@ -923,7 +925,7 @@ td_library(
     srcs = [
         "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Conversion/Passes.td",
     ],
-    includes = ["include"],
+    includes = ["externals/llvm-external-projects/torch-mlir-dialects/include"],
 )
 
 gentbl_cc_library(
@@ -948,18 +950,60 @@ gentbl_cc_library(
 
 cc_library(
     name = "TorchMLIRTcpToLinalg",
-    srcs = glob([
-        "externals/llvm-external-projects/torch-mlir-dialects/lib/Conversion/*.h",
-        "externals/llvm-external-projects/torch-mlir-dialects/lib/Conversion/TcpToLinalg/*.h",
-        "externals/llvm-external-projects/torch-mlir-dialects/lib/Conversion/TcpToLinalg/*.cpp",
-    ]),
-    hdrs = glob([
-        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Conversion/TcpToLinalg/*.h",
-    ]),
-    strip_include_prefix = "include",
+    srcs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Conversion/PassDetail.h",
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Conversion/TcpToLinalg/Elementwise.cpp",
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Conversion/TcpToLinalg/Misc.cpp",
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Conversion/TcpToLinalg/PopulatePatterns.h",
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Conversion/TcpToLinalg/TcpToLinalg.cpp",
+    ],
+    hdrs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Conversion/TcpToLinalg/TcpToLinalg.h",
+    ],
+    strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
     deps = [
         ":TorchMLIRDialectsConversionPassesIncGen",
         ":TorchMLIRTcpDialect",
+        "@llvm-project//mlir:ArithDialect",
         "@llvm-project//mlir:Dialect",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:LinalgDialect",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:TensorUtils",
+        "@llvm-project//mlir:Transforms",
+    ],
+)
+
+cc_library(
+    name = "TorchMLIRDialectsConversionPasses",
+    srcs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Conversion/Passes.cpp",
+    ],
+    hdrs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Conversion/Passes.h",
+    ],
+    defines = ["TORCH_MLIR_DIALECTS_ENABLE_TCP"],
+    strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
+    deps = [":TorchMLIRTcpToLinalg"],
+)
+
+# torch-mlir-dialects tools
+cc_binary(
+    name = "torch-mlir-dialects-opt",
+    srcs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/tools/torch-mlir-dialects-opt/torch-mlir-dialects-opt.cpp",
+    ],
+    deps = [
+        ":TorchMLIRDialectsConversionPasses",
+        ":TorchMLIRDialectsConversionPassesIncGen",
+        ":TorchMLIRTMTensorDialect",
+        ":TorchMLIRTMTensorPasses",
+        ":TorchMLIRTcpDialect",
+        "@llvm-project//mlir:AllPassesAndDialects",
+        "@llvm-project//mlir:Dialect",
+        "@llvm-project//mlir:DialectUtils",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:MlirOptLib",
+        "@llvm-project//mlir:Pass",
     ],
 )

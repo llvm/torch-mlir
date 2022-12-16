@@ -427,6 +427,7 @@ TCP_PASS_SET = {
     "ReturnTwoTensorF32I64_basic",
     "TModuleRank0_basic",
     "TModuleRank1_basic",
+    "TestF16Return_basic",
     "TestMultipleTensorReturn_basic",
     "TypeAsSameModule_basic",
     "UnsafeView1DFoldModule_basic",

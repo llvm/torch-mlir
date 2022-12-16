@@ -4,4 +4,3 @@
 
 # Skip the following directories when overlaying 
 utils/bazel
-externals
