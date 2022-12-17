@@ -59,6 +59,7 @@ jobs:
         # retrieve them when creating a PR
         echo "PT_HASH=${PT_HASH}" >> ${GITHUB_ENV}
         echo "PT_RELEASE=${PT_RELEASE}" >> ${GITHUB_ENV}
+        echo "PTVISION_RELEASE=${VISION_RELEASE}" >> ${GITHUB_ENV}
         echo "PT_HASH_CHANGED=${PT_HASH_CHANGED}" >> ${GITHUB_ENV}
 
     - name: Build and test (in-tree), also update ODS and abstract interpretation library
@@ -70,6 +71,21 @@ jobs:
         TORCH_MLIR_SRC_PYTORCH_RELEASE="${{ env.PT_RELEASE }}" \
         TM_UPDATE_ODS_AND_ABSTRACT_INTERP_LIB="ON" \
         ./build_tools/python_deploy/build_linux_packages.sh
+
+    - name: Post issue comment on build failure
+      if: failure()
+      uses: peter-evans/create-or-update-comment@v2
+      with:
+        issue-number: 1690
+        body: |
+          The RollPyTorch action has failed.  See [CI log](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+
+          The following information may come handy when fixing the code.
+          ```
+          torch version: ${{ env.PT_RELEASE }}
+          torch commit hash: ${{ env.PT_HASH }}
+          torchvision version: ${{ env.PTVISION_RELEASE }}
+          ```
 
     - name: Push changes to main branch
       if: env.PT_HASH_CHANGED != '0'
