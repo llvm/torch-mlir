@@ -975,8 +975,8 @@ void TypeAnalysis::visitOperation(Operation *op,
     Type dtype = operands[0]->getValue().dtype;
     visitReductionAlongAllDimsOp(op, dtype, operands);
     return;
-  } else if (isa<AtenStdOp, AtenStdDimOp, AtenVarOp, AtenVarDimOp,
-                 AtenVarCorrectionOp>(op)) {
+  } else if (isa<AtenStdOp, AtenStdDimOp, AtenStdCorrectionOp, AtenVarOp,
+                 AtenVarDimOp, AtenVarCorrectionOp>(op)) {
     auto input = operands[0]->getValue();
     visitReductionAlongAllDimsOp(op, input.dtype, operands);
     return;

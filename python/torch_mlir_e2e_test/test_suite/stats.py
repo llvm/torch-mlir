@@ -405,6 +405,163 @@ def StdDimNoneDimModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class StdCorrectionModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.std(x, dim=None, correction=2)
+
+
+@register_test_case(module_factory=lambda: StdCorrectionModule())
+def StdCorrectionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class StdCorrectionSingleDimReduceModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.std(x, dim=[1], correction=1)
+
+
+@register_test_case(module_factory=lambda: StdCorrectionSingleDimReduceModule())
+def StdCorrectionSingleDimReduceModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class StdCorrectionAllDimReduceModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.std(x,
+                                  dim=[0, 1, 2],
+                                  correction=10,
+                                  keepdim=False)
+
+
+@register_test_case(module_factory=lambda: StdCorrectionAllDimReduceModule())
+def StdCorrectionAllDimReduceModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class StdCorrectionKeepDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.std(x, dim=[0, 1], correction=None, keepdim=True)
+
+
+@register_test_case(module_factory=lambda: StdCorrectionKeepDimModule())
+def StdCorrectionKeepDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class StdCorrectionNoneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.std(x, dim=None, correction=None)
+
+
+@register_test_case(module_factory=lambda: StdCorrectionNoneModule())
+def StdCorrectionNoneModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class StdCorrectionEmptyDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.std(x, dim=[], correction=2)
+
+
+@register_test_case(module_factory=lambda: StdCorrectionEmptyDimModule())
+def StdCorrectionEmptyDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class StdCorrectionLargeInputModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.std(x, dim=[2, 3], correction=2)
+
+
+@register_test_case(module_factory=lambda: StdCorrectionLargeInputModule())
+def StdCorrectionLargeInputModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 1024, 8192, low=100.0, high=101.0))
+
+
+# ==============================================================================
+
+
 class VarDimModule(torch.nn.Module):
 
     def __init__(self):
@@ -754,7 +911,7 @@ class VarCorrectionLargeInputModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: VarCorrectionLargeInputModule())
 def VarCorrectionLargeInputModule_basic(module, tu: TestUtils):
-    module.forward(100 + tu.rand(3, 4, 1024, 8192))
+    module.forward(tu.rand(3, 4, 1024, 8192, low=100.0, high=101.0))
 
 
 # ==============================================================================
