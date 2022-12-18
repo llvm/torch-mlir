@@ -215,6 +215,7 @@ function build_in_tree() {
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
       -DTM_PYTORCH_INSTALL_WITHOUT_REBUILD=${TM_PYTORCH_INSTALL_WITHOUT_REBUILD} \
       -DPython3_EXECUTABLE="$(which python3)" \
+      -DCUDA_TOOLKIT_ROOT_DIR="/usr/local/cuda" \
       /main_checkout/torch-mlir/externals/llvm-project/llvm
   cmake --build /main_checkout/torch-mlir/build
   ccache -s
@@ -336,6 +337,7 @@ function build_out_of_tree() {
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
       -DTM_PYTORCH_INSTALL_WITHOUT_REBUILD=${TM_PYTORCH_INSTALL_WITHOUT_REBUILD} \
       -DPython3_EXECUTABLE="$(which python3)" \
+      -DCUDA_TOOLKIT_ROOT_DIR="/usr/local/cuda" \
       /main_checkout/torch-mlir
   cmake --build /main_checkout/torch-mlir/build_oot
   ccache -s
