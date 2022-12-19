@@ -174,9 +174,8 @@ public:
         if (!setItem.use_empty())
           return rewriter.notifyMatchFailure(
               op, "Expected `Aten_SetItemTOp` to not have users");
-        llvm::Optional<int64_t> indexOpt =
-            matchLegalConstantIndexIntoListOfSize(setItem.getIdx(),
-                                                  runningList.size());
+        std::optional<int64_t> indexOpt = matchLegalConstantIndexIntoListOfSize(
+            setItem.getIdx(), runningList.size());
         // The index might be statically out of bounds.
         if (!indexOpt)
           return rewriter.notifyMatchFailure(
@@ -311,7 +310,7 @@ static LogicalResult refineShapeCalculateResult(ShapeCalculateOp op,
     if (auto setItem = dyn_cast<Aten_SetItemTOp>(user)) {
       // If the index is statically known, we can clobber only a single index.
       // Otherwise, we conservatively clobber all of them.
-      llvm::Optional<int64_t> indexOpt = matchLegalConstantIndexIntoListOfSize(
+      std::optional<int64_t> indexOpt = matchLegalConstantIndexIntoListOfSize(
           setItem.getIdx(), listConstruct->getNumOperands());
       if (indexOpt)
         clobberedElements.set(*indexOpt);

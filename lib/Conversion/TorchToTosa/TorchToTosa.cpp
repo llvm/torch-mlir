@@ -595,10 +595,10 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
   return success();
 }
 
-using ReductionConvFunc = llvm::Optional<Value> (*)(PatternRewriter &,
-                                                    Operation *,
-                                                    RankedTensorType, Value,
-                                                    ElementsAttr, bool);
+using ReductionConvFunc = std::optional<Value> (*)(PatternRewriter &,
+                                                   Operation *,
+                                                   RankedTensorType, Value,
+                                                   ElementsAttr, bool);
 
 // They all constitute a common form invoking the appropriate
 // converion function in TosaLegalizeCommon.cpp
@@ -642,7 +642,7 @@ public:
                                          keepDims)))
       return failure();
 
-    llvm::Optional<Value> result =
+    std::optional<Value> result =
         ConversionFuncT(rewriter, op, outputTy, self, reduceDimsAttr, keepDims);
 
     if (!result)
@@ -1274,7 +1274,7 @@ public:
         auto transposedLhsType = RankedTensorType::get(
             makeShapeLLVMCompatible(transposedLhsShape), rhsElemTy);
 
-        llvm::Optional<Value> transposedLhsDimsConst =
+        std::optional<Value> transposedLhsDimsConst =
             tosa::getConstTensor<int32_t>(
                 rewriter, op,
                 /*vec=*/transposedLhsDims,
@@ -1354,7 +1354,7 @@ public:
       auto transposedRhsValue = rankBroadcastedRhs;
 
       if (rhsNeedsTranspose) {
-        llvm::Optional<Value> transposedRhsDimsConst =
+        std::optional<Value> transposedRhsDimsConst =
             tosa::getConstTensor<int32_t>(
                 rewriter, op,
                 /*vec=*/transposedRhsDims,
@@ -1510,7 +1510,7 @@ public:
 
       if (opNeedsTranspose) {
 
-        llvm::Optional<Value> transposedOpShapeConst =
+        std::optional<Value> transposedOpShapeConst =
             tosa::getConstTensor<int32_t>(
                 rewriter, op,
                 /*vec=*/transposedOpDims,
@@ -1699,7 +1699,7 @@ public:
     std::swap(transposedRhsShape[rhsRank - 1], transposedRhsShape[rhsRank - 2]);
     std::swap(transposedRhsDims[rhsRank - 1], transposedRhsDims[rhsRank - 2]);
 
-    llvm::Optional<Value> transposedRhsShapeConst =
+    std::optional<Value> transposedRhsShapeConst =
         tosa::getConstTensor<int32_t>(
             rewriter, op,
             /*vec=*/transposedRhsDims,
@@ -1860,7 +1860,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
                                        "non-const dilation list unsupported");
 
   // TOSA works in NHWC and takes OHWI weights. Perform the necessary transpose.
-  llvm::Optional<Value> nchwToNhwcTransposeConst =
+  std::optional<Value> nchwToNhwcTransposeConst =
       tosa::getConstTensor<int32_t>(rewriter, op,
                                     /*vec=*/{0, 2, 3, 1},
                                     /*shape=*/{static_cast<int32_t>(4)});
@@ -1920,7 +1920,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
                                   rewriter.getI64ArrayAttr(dilation))
           .getResult();
 
-  llvm::Optional<Value> nhwcToNchwTransposeConst =
+  std::optional<Value> nhwcToNchwTransposeConst =
       tosa::getConstTensor<int32_t>(rewriter, op,
                                     /*vec=*/{0, 3, 1, 2},
                                     /*shape=*/{static_cast<int32_t>(4)});
@@ -3364,7 +3364,7 @@ public:
     auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
     auto inputRank = inputTy.getRank();
 
-    llvm::Optional<Value> transposeDimsConst = tosa::getConstTensor<int32_t>(
+    std::optional<Value> transposeDimsConst = tosa::getConstTensor<int32_t>(
         rewriter, op,
         /*vec=*/transposeDims,
         /*shape=*/{static_cast<int32_t>(inputRank)});

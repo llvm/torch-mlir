@@ -279,7 +279,7 @@ public:
     // to i32 as required for the scatter op.
     // 2.) `values` is mapped to `updates` in scatter op.
     // 3.) `input` is mapped to `original` in scatter op.
-    Optional<unsigned> indexTensorRank = getTensorRank(indexTensor);
+    std::optional<unsigned> indexTensorRank = getTensorRank(indexTensor);
     if (!indexTensorRank || *indexTensorRank != 1)
       return rewriter.notifyMatchFailure(
           op, "unimplemented: index tensor with rank != 1 is not supported");

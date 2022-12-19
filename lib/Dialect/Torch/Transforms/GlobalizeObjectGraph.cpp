@@ -81,8 +81,8 @@ public:
     assert(it != slotLinkageInfo.end());
     return it->second;
   }
-  Optional<LinkageInfo> getFuncLinkageInfo(NnModuleOp instance,
-                                           func::FuncOp methodFunc) {
+  std::optional<LinkageInfo> getFuncLinkageInfo(NnModuleOp instance,
+                                                func::FuncOp methodFunc) {
     auto it = funcLinkageInfo.find({instance, methodFunc});
     if (it == funcLinkageInfo.end())
       return std::nullopt;
@@ -638,7 +638,7 @@ static LogicalResult globalizeObjectGraph(ModuleOp module) {
   for (auto &monomorphization : tracker.getMonomorphizations()) {
     auto newFunc = cast<func::FuncOp>(monomorphization.func->clone());
     newFuncs[monomorphization] = newFunc;
-    Optional<LinkageInfo> linkageInfo = std::nullopt;
+    std::optional<LinkageInfo> linkageInfo = std::nullopt;
     // If it is potentially a method, check its linkage info.
     if (monomorphization.argInstances.size() != 0 &&
         monomorphization.argInstances[0].argIndex == 0) {

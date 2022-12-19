@@ -31,8 +31,8 @@ class ValueTensorType;
 
 /// Common getter function signature that covers all tensor types.
 /// Used for sharing code between NonValueTensorType and ValueTensorType.
-using GetTensorTypeFn =
-    llvm::function_ref<Type(MLIRContext *, Optional<ArrayRef<int64_t>>, Type)>;
+using GetTensorTypeFn = llvm::function_ref<Type(
+    MLIRContext *, std::optional<ArrayRef<int64_t>>, Type)>;
 
 /// The representation of an unknown dimension size in an ArrayRef<int64_t>.
 constexpr static int64_t kUnknownSize = -1;
@@ -45,7 +45,7 @@ public:
   ///
   /// It is expected that for many users, `hasSizes`/`getSizes` will be a more
   /// convenient API.
-  Optional<ArrayRef<int64_t>> getOptionalSizes() const;
+  std::optional<ArrayRef<int64_t>> getOptionalSizes() const;
 
   /// Get the raw nullable Type representing the dtype of this tensor type.
   ///
@@ -90,7 +90,7 @@ public:
 
   /// Return a type of the same kind as this one, but with given raw optional
   /// sizes and raw optional dtype.
-  Type getWithSizesAndDtype(Optional<ArrayRef<int64_t>> optionalSizes,
+  Type getWithSizesAndDtype(std::optional<ArrayRef<int64_t>> optionalSizes,
                             Type optionalDtype) const;
 
   /// Return a type with the same shape and dtype as this one, but with
@@ -127,7 +127,8 @@ namespace mlir {
 namespace torch {
 namespace Torch {
 
-inline Optional<ArrayRef<int64_t>> BaseTensorType::getOptionalSizes() const {
+inline std::optional<ArrayRef<int64_t>>
+BaseTensorType::getOptionalSizes() const {
   if (auto tensor = dyn_cast<NonValueTensorType>())
     return tensor.getOptionalSizes();
   if (auto tensor = dyn_cast<ValueTensorType>())

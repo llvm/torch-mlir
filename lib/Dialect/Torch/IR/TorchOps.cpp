@@ -136,7 +136,7 @@ static Value getScalarValue(Value input, Location loc,
   }
   Value scalar = nullptr;
   if (auto valueTensorLiteralOp = input.getDefiningOp<ValueTensorLiteralOp>()) {
-    Optional<unsigned> tensorRank =
+    std::optional<unsigned> tensorRank =
         getTensorRank(valueTensorLiteralOp.getResult());
     if (valueTensorLiteralOp && tensorRank && *tensorRank == 0) {
       auto tensorType =
@@ -296,13 +296,13 @@ LogicalResult ClassTypeOp::verify() {
 //===----------------------------------------------------------------------===//
 
 OperandRange
-PrimLoopOp::getSuccessorEntryOperands(Optional<unsigned int> index) {
+PrimLoopOp::getSuccessorEntryOperands(std::optional<unsigned int> index) {
   assert(index.has_value() && index.value() == 0);
   return getIterArgsInit();
 }
 
 void PrimLoopOp::getSuccessorRegions(
-    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    std::optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
   (void)operands;
 
@@ -324,8 +324,8 @@ bool PrimLoopOp::isForLike() {
 // PrimLoopConditionOp
 //===----------------------------------------------------------------------===//
 
-MutableOperandRange
-PrimLoopConditionOp::getMutableSuccessorOperands(Optional<unsigned> index) {
+MutableOperandRange PrimLoopConditionOp::getMutableSuccessorOperands(
+    std::optional<unsigned> index) {
   // Pass all operands except the condition to the successor which is the
   // parent loop op.
   return getIterArgsMutable();
@@ -374,7 +374,7 @@ void PrimIfOp::print(OpAsmPrinter &p) {
   p.printOptionalAttrDict((*this)->getAttrs());
 }
 
-void PrimIfOp::getSuccessorRegions(Optional<unsigned> index,
+void PrimIfOp::getSuccessorRegions(std::optional<unsigned> index,
                                    ArrayRef<Attribute> operands,
                                    SmallVectorImpl<RegionSuccessor> &regions) {
   // The `then` and the `else` region branch back to the parent operation.
@@ -1022,9 +1022,9 @@ void AtenDivTensorModeOp::getCanonicalizationPatterns(
 // dimension size or returns failure if such a type was not found.  If `dim` is
 // `None`, then all dimension's sizes must be known.
 static FailureOr<BaseTensorType>
-traceKnownSizeTensorType(Value value, llvm::Optional<int64_t> dim) {
+traceKnownSizeTensorType(Value value, std::optional<int64_t> dim) {
   // Function to check if we found a type that contains the queried information.
-  auto foundType = [](BaseTensorType tensorType, llvm::Optional<int64_t>(dim)) {
+  auto foundType = [](BaseTensorType tensorType, std::optional<int64_t>(dim)) {
     if (!tensorType.hasSizes())
       return false;
 
@@ -1386,7 +1386,7 @@ void AtenSortIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 //===----------------------------------------------------------------------===//
 
 LogicalResult NonValueTensorLiteralOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    MLIRContext *context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto attr = attributes.get("value").dyn_cast_or_null<ElementsAttr>();
@@ -1426,7 +1426,7 @@ bool NonValueTensorLiteralOp::isCompatibleReturnTypes(TypeRange inferred,
 //===----------------------------------------------------------------------===//
 
 LogicalResult ValueTensorLiteralOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    MLIRContext *context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto attr = attributes.get("value").dyn_cast_or_null<ElementsAttr>();
@@ -1500,7 +1500,7 @@ LogicalResult CopyToNonValueTensorOp::verify() {
 }
 
 LogicalResult CopyToNonValueTensorOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    MLIRContext *context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto resultType = operands[0].getType().cast<ValueTensorType>();
@@ -1527,7 +1527,7 @@ LogicalResult CopyToValueTensorOp::verify() {
 }
 
 LogicalResult CopyToValueTensorOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    MLIRContext *context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto resultType = operands[0].getType().cast<NonValueTensorType>();
@@ -1714,7 +1714,7 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
       return failure();
 
     // Get the index, but be careful because it might be statically invalid.
-    llvm::Optional<int64_t> indexOpt = matchLegalConstantIndexIntoListOfSize(
+    std::optional<int64_t> indexOpt = matchLegalConstantIndexIntoListOfSize(
         op.getOperand(1), listConstruct.getNumOperands());
     if (!indexOpt)
       return rewriter.notifyMatchFailure(op, "statically invalid index");
@@ -2326,7 +2326,7 @@ OpFoldResult PrimMinSelfIntOp::fold(ArrayRef<Attribute> operands) {
 
 template <typename CalculateOp>
 static void
-getSuccessorRegionsForCalculateOp(CalculateOp op, Optional<unsigned> index,
+getSuccessorRegionsForCalculateOp(CalculateOp op, std::optional<unsigned> index,
                                   ArrayRef<Attribute> operands,
                                   SmallVectorImpl<RegionSuccessor> &regions) {
   if (!index.has_value()) {
@@ -2345,7 +2345,7 @@ getSuccessorRegionsForCalculateOp(CalculateOp op, Optional<unsigned> index,
 }
 
 void ShapeCalculateOp::getSuccessorRegions(
-    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    std::optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
   getSuccessorRegionsForCalculateOp(*this, index, operands, regions);
 }
@@ -2355,7 +2355,7 @@ void ShapeCalculateOp::getSuccessorRegions(
 //===----------------------------------------------------------------------===//
 
 void DtypeCalculateOp::getSuccessorRegions(
-    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    std::optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
   getSuccessorRegionsForCalculateOp(*this, index, operands, regions);
 }
@@ -2365,7 +2365,7 @@ void DtypeCalculateOp::getSuccessorRegions(
 //===----------------------------------------------------------------------===//
 
 MutableOperandRange ShapeCalculateYieldShapesOp::getMutableSuccessorOperands(
-    Optional<unsigned> index) {
+    std::optional<unsigned> index) {
   // The shape operands don't get forwarded to the body.
   // MutableOperandRange always has an owning operation, even if empty, so
   // create a 0-length range.
@@ -2384,7 +2384,7 @@ LogicalResult ShapeCalculateYieldShapesOp::verify() {
 //===----------------------------------------------------------------------===//
 
 MutableOperandRange DtypeCalculateYieldDtypesOp::getMutableSuccessorOperands(
-    Optional<unsigned> index) {
+    std::optional<unsigned> index) {
   // The dtype operands don't get forwarded to the body.
   // MutableOperandRange always has an owning operation, even if empty, so
   // create a 0-length range.

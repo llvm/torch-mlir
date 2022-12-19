@@ -83,7 +83,7 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(PromoteDtypesOp op,
                                 PatternRewriter &rewriter) const override {
-    SmallVector<Optional<int64_t>> ranks;
+    SmallVector<std::optional<int64_t>> ranks;
     SmallVector<int64_t> dtypes;
     if (!matchPattern(op.getRanks(), m_TorchListOfOptionalConstantInts(ranks))) {
       return rewriter.notifyMatchFailure(
@@ -107,13 +107,13 @@ public:
 
     torch_upstream::ResultTypeState state{};
     for (auto ranksAndDtypes : llvm::zip(ranks, dtypes)) {
-      Optional<int64_t> rank;
+      std::optional<int64_t> rank;
       int64_t dtype;
       std::tie(rank, dtype) = ranksAndDtypes;
       auto scalarType = static_cast<torch_upstream::ScalarType>(dtype);
 
       bool isScalarOnlyOp = llvm::all_of(
-          ranks, [](Optional<int64_t> rank) { return !rank.has_value(); });
+          ranks, [](std::optional<int64_t> rank) { return !rank.has_value(); });
 
       if (!rank.has_value()) {
         // If `rank` does not have a value, then we are dealing with a scalar

@@ -17,43 +17,43 @@ namespace mlir {
 namespace tosa {
 
 // Lowers ReduceAll to a sequence of TOSA ops.
-llvm::Optional<Value>
+std::optional<Value>
 convertReduceAllOp(PatternRewriter &rewriter, Operation *op,
                    RankedTensorType output_type, Value input_value,
                    ElementsAttr axes_elems, bool keep_dims);
 
 // Lowers ReduceAny to a sequence of TOSA ops.
-llvm::Optional<Value>
+std::optional<Value>
 convertReduceAnyOp(PatternRewriter &rewriter, Operation *op,
                    RankedTensorType output_type, Value input_value,
                    ElementsAttr axes_elems, bool keep_dims);
 
 // Lowers ReduceMin to a sequence of TOSA ops.
-llvm::Optional<Value>
+std::optional<Value>
 convertReduceMinOp(PatternRewriter &rewriter, Operation *op,
                    RankedTensorType output_type, Value input_value,
                    ElementsAttr axes_elems, bool keep_dims);
 
 // Lowers ReduceMax to a sequence of TOSA ops.
-llvm::Optional<Value>
+std::optional<Value>
 convertReduceMaxOp(PatternRewriter &rewriter, Operation *op,
                    RankedTensorType output_type, Value input_value,
                    ElementsAttr axes_elems, bool keep_dims);
 
 // Lowers ReduceProd to a sequence of TOSA ops.
-llvm::Optional<Value>
+std::optional<Value>
 convertReduceProdOp(PatternRewriter &rewriter, Operation *op,
                     RankedTensorType output_type, Value input_value,
                     ElementsAttr axes_elems, bool keep_dims);
 
 // Lowers ReduceSum to a sequence of TOSA ops.
-llvm::Optional<Value>
+std::optional<Value>
 convertReduceSumOp(PatternRewriter &rewriter, Operation *op,
                    RankedTensorType output_type, Value input_value,
                    ElementsAttr axes_elems, bool keep_dims);
 
 // Lowers ReduceMean to a sequence of TOSA ops.
-llvm::Optional<Value>
+std::optional<Value>
 convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
                     RankedTensorType output_type, Value input_value,
                     ElementsAttr axes_elems, bool keep_dims);
