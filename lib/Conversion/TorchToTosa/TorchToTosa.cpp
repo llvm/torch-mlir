@@ -3747,6 +3747,67 @@ public:
   }
 };
 
+template <typename AtenOpT>
+class ConvertAtenMaskedFillOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
+                       ->convertType(op.getType())
+                       .template dyn_cast<TensorType>();
+
+    if (!outType || !outType.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "Only Tensor types with static shapes are currently supported");
+
+    Type outElemTy = outType.getElementType();
+    if (!outElemTy.isIntOrFloat()) {
+      return rewriter.notifyMatchFailure(
+          op, "Only floating-point or integer datatype legalization supported");
+    }
+
+    // Not a tensor type.
+    auto selfType = adaptor.getSelf().getType().template dyn_cast<TensorType>();
+    if (!selfType || !outType.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op,
+          "Only tensor types with static shapes input are currently supported");
+
+    auto maskType = adaptor.getMask().getType().template dyn_cast<TensorType>();
+    if (!maskType)
+      return rewriter.notifyMatchFailure(
+          op, "Only tensor types mask are currently supported");
+
+    Value rhs = adaptor.getValue();
+    auto rhsType = rhs.getType().template dyn_cast<TensorType>();
+    Value rhsAsTensor;
+    if (!rhsType) { // scalar
+      if (failed(torchScalarToTosaTensor(rewriter, op, op.getValue(),
+                                         rhsAsTensor, rhs.getType(), {})))
+        return rewriter.notifyMatchFailure(
+            op, "Currently only scalar constants are supported for "
+                "conversion in TOSA operation");
+    } else { // tensor
+      rhsType = rhs.getType().dyn_cast<TensorType>();
+    }
+
+    auto rhsTensor = rhsType ? rhs : rhsAsTensor;
+    auto rhsTensorType = rhsTensor.getType().template dyn_cast<TensorType>();
+    if (rhsTensorType.getElementType() != outElemTy)
+      rhsTensor = rewriter.create<tosa::CastOp>(
+          op.getLoc(),
+          RankedTensorType::get(rhsTensorType.getShape(), outElemTy),
+          rhsTensor);
+
+    rewriter.replaceOpWithNewOp<tosa::SelectOp>(op, outType, adaptor.getMask(),
+                                                rhsTensor, adaptor.getSelf());
+    return success();
+  }
+};
+
 // Legalizes the torch.clone op.
 template <typename AtenOpT>
 class ConvertAtenCloneOp : public OpConversionPattern<AtenOpT> {
@@ -3946,6 +4007,13 @@ public:
   patterns.add<ConvertAtenFillScalarOp<AtenOp>>(typeConverter, context);
     INSERT_FILL_SCALAR_PATTERN(AtenFill_ScalarOp);
 #undef INSERT_FILL_SCALAR_PATTERN
+
+#define INSERT_MASKED_FILL_PATTERN(AtenOp)                                     \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenMaskedFillOp<AtenOp>>(typeConverter, context);
+    INSERT_MASKED_FILL_PATTERN(AtenMaskedFillScalarOp);
+    INSERT_MASKED_FILL_PATTERN(AtenMaskedFillTensorOp);
+#undef INSERT_MASKED_FILL_PATTERN
 
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \
   target.addIllegalOp<AtenOp>();                                               \
