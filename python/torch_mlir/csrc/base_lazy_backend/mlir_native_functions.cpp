@@ -309,7 +309,7 @@ at::Tensor LazyNativeFunctions::empty_symint(
     c10::optional<bool> pin_memory,
     c10::optional<at::MemoryFormat> memory_format) {
   // TODO: support this directly
-  auto size = c10::asIntArrayRefSlow(sym_size);
+  auto size = C10_AS_INTARRAYREF_SLOW(sym_size);
   const auto device_type = torch::lazy::getBackend()->EagerFallbackDeviceType();
   at::TensorOptions options = at::TensorOptions()
                                   .device(c10::Device(device_type))
