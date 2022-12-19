@@ -413,6 +413,28 @@ def ElementwiseLeakyReluModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwisePreluModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3, 4], torch.float32, True),
+        ([2, 3, 4], torch.float32, True),
+    ])
+    def forward(self, x, weight = torch.tensor([0.25])):
+        return torch.ops.aten.prelu(x, weight)
+
+@register_test_case(module_factory=lambda: ElementwisePreluModule())
+def ElementwisePreluModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 2, low=-1))
+
+
+# ==============================================================================
+
+
 class ElementwiseGeluModule(torch.nn.Module):
 
     def __init__(self):

@@ -284,6 +284,28 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         b.create<arith::MulFOp>(loc, negativePart, scale);
     return b.create<arith::AddFOp>(loc, positivePart, scaledNegativePart);
   }
+  if (auto prelu = dyn_cast<AtenPreluOp>(op)) {
+    if (!prelu.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      prelu.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Type elementType = payloadArgs[0].getType();
+    Value constZero =
+        b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
+    Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
+                                         payloadArgs[0], constZero);
+    Value positivePart =
+        b.create<arith::SelectOp>(loc, pred, payloadArgs[0], constZero);
+    Value negativePart =
+        b.create<arith::SelectOp>(loc, pred, constZero, payloadArgs[0]);
+    Value scale = convertScalarToDtype(b, loc, payloadArgs[1], elementType);
+    Value scaledNegativePart =
+        b.create<arith::MulFOp>(loc, negativePart, scale);
+    return b.create<arith::AddFOp>(loc, positivePart, scaledNegativePart);
+  }
   if (auto gelu = dyn_cast<AtenGeluOp>(op)) {
     if (!gelu.getType()
              .cast<ValueTensorType>()
@@ -1037,7 +1059,7 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    if (!isa<AtenTanhOp, AtenReluOp, AtenLeakyReluOp, AtenGeluOp,
+    if (!isa<AtenTanhOp, AtenReluOp, AtenLeakyReluOp, AtenPreluOp, AtenGeluOp,
              AtenGeluBackwardOp, AtenAddTensorOp, AtenMulTensorOp,
              AtenDivTensorOp, AtenDivTensorModeOp, AtenSubTensorOp, AtenAtan2Op,
              AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenExpm1Op,
@@ -1522,7 +1544,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp,
       AtenSubTensorOp, AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp,
       AtenAtan2Op, AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenRsubScalarOp,
-      AtenLogOp, AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenCeilOp,
+      AtenLogOp, AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenCeilOp, AtenPreluOp,
       AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op, AtenLog1pOp,
       AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
       AtenBitwiseOrTensorOp, AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp,
