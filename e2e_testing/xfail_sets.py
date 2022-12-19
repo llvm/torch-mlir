@@ -13,6 +13,8 @@
 from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 
 LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
+# Torch to linalg support
+LINALG_XFAIL_SET.add("HardtanhBackward_basic")
 
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
@@ -48,12 +50,9 @@ TORCHDYNAMO_XFAIL_SET = {
     # TODO: This is due to returning a scalar float as output from the test.
     # We should probably just standardize all tests to return tensors.
     "DivIntModule_basic",
-
     #### Torch-MLIR internal compiler errors
-
     # These are probably due to slightly different ops being recorded by
     # torchdynamo vs. torchscript.
-
     # No upstream decompositions.
     # %6:4 = torch.operator "aten._embedding_bag_forward_only"(%1, %3, %5, %false, %int0, %false, %none, %false, %int-1) : (!torch.tensor<*,f32>, !torch.tensor<*,si64>, !torch.tensor<*,si64>, !torch.bool, !torch.int, !torch.bool, !torch.none, !torch.bool, !torch.int) -> (!torch.tensor, !torch.tensor, !torch.tensor, !torch.tensor)
     # See also: https://github.com/pytorch/torchdynamo/issues/327
@@ -480,6 +479,7 @@ TOSA_PASS_SET = {
     "ViewExpandOnesMiddleOppModule_basic",
     "ViewOffsetBackwardTestStaticModule_basic",
     "TanhBackward_basic",
+    "HardtanhBackward_basic",
     "ElementwiseAddModule_basic",
     "ReturnThreeTensorFloat32_basic",
     "AddCMulModule_basic",

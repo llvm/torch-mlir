@@ -2848,6 +2848,79 @@ LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenHardtanhBackwardOp>::matchAndRewrite(
+    AtenHardtanhBackwardOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  if (!selfType) {
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types are currently supported");
+  }
+
+  auto selfElemTy = selfType.getElementType();
+  if (!selfElemTy.isIntOrFloat()) {
+    return rewriter.notifyMatchFailure(
+        op, "Only floating-point or integer datatype legalization supported");
+  }
+
+  // Integer types with width > 32 are not supported
+  auto selfIntType = selfElemTy.dyn_cast<IntegerType>();
+  if (selfIntType && selfIntType.getWidth() > 32) {
+    return rewriter.notifyMatchFailure(
+        op, "Integer types with width greater than 32 are not supported");
+  }
+
+  Value gradOutput = adaptor.getGradOutput();
+  auto gradOutputType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+
+  Type gradOutputElemType = gradOutputType.getElementType();
+
+  if (selfElemTy != gradOutputElemType) {
+    return rewriter.notifyMatchFailure(
+        op,
+        "Input element type should be same as the grad_output element type.");
+  }
+
+  SmallVector<int64_t> constTypeShape(selfType.getRank(), 1);
+  Value maxVal, minVal;
+
+  if (failed(torchScalarToTosaTensor(rewriter, op, op.getMinVal(), minVal,
+                                     selfElemTy, constTypeShape))) {
+    return rewriter.notifyMatchFailure(op, "Only scalar constant is supported");
+  }
+
+  if (failed(torchScalarToTosaTensor(rewriter, op, op.getMaxVal(), maxVal,
+                                     selfElemTy, constTypeShape))) {
+    return rewriter.notifyMatchFailure(op, "Only scalar constant is supported");
+  }
+
+  Value replace = tosa::getConstTensor<float>(rewriter, op, 0, {}).value();
+  Type outType = getTypeConverter()->convertType(op.getType());
+
+  Value lesser = rewriter.create<tosa::GreaterOp>(
+      op.getLoc(),
+      RankedTensorType::get(selfType.getShape(), rewriter.getIntegerType(1)),
+      minVal, adaptor.getSelf());
+
+  Value greater = rewriter.create<tosa::GreaterOp>(
+      op.getLoc(),
+      RankedTensorType::get(selfType.getShape(), rewriter.getIntegerType(1)),
+      adaptor.getSelf(), maxVal);
+
+  Value cmp = rewriter.create<tosa::LogicalOrOp>(
+      op.getLoc(),
+      RankedTensorType::get(selfType.getShape(), rewriter.getIntegerType(1)),
+      lesser, greater);
+
+  rewriter.replaceOpWithNewOp<tosa::SelectOp>(op, outType, cmp, replace,
+                                              gradOutput);
+
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
     AtenEmbeddingOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -4406,6 +4479,7 @@ public:
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context);
     INSERT_ATENOP_PATTERN(AtenTanhOp);
+    INSERT_ATENOP_PATTERN(AtenHardtanhBackwardOp);
     INSERT_ATENOP_PATTERN(AtenSigmoidOp);
     INSERT_ATENOP_PATTERN(AtenReluOp);
     INSERT_ATENOP_PATTERN(AtenLeakyReluOp);

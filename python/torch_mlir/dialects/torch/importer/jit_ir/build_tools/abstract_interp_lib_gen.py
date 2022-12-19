@@ -143,6 +143,9 @@ def aten〇gelu_backward〡shape(grad_output: List[int], self: List[int], approx
 def aten〇leaky_relu_backward〡shape(grad_output: List[int], self: List[int], negative_slope: float, self_is_result: bool) -> List[int]:
     return upstream_shape_functions.unary(grad_output)
 
+def aten〇hardtanh_backward〡shape(grad_output: List[int], self: List[int], min_val: float, max_val: float) -> List[int]:
+    return upstream_shape_functions.unary(grad_output)
+
 def aten〇ceil〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
