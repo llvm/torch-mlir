@@ -71,7 +71,7 @@ static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
 }
 
 // Util for converting AtenArgmaxOp and AtenMaxDimOp
-static llvm::Optional<ValueRange>
+static std::optional<ValueRange>
 getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
             ArrayRef<Value> inputShapeVec, int64_t dim,
             size_t dimSizeIndexBits) {

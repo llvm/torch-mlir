@@ -367,8 +367,8 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenTOp>();
   target.addIllegalOp<Aten_LogSoftmaxBackwardDataOp>();
   target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
-    Optional<unsigned> lhsRank = getTensorRank(op.getSelf());
-    Optional<unsigned> rhsRank = getTensorRank(op.getOther());
+    std::optional<unsigned> lhsRank = getTensorRank(op.getSelf());
+    std::optional<unsigned> rhsRank = getTensorRank(op.getOther());
     if (!lhsRank || !rhsRank)
       return false;
     // Make aten.matmul legal if the following condition is satisfied.

@@ -35,8 +35,8 @@ Value getMhloConstTensorSingleF64(PatternRewriter &rewriter, Operation *op,
 // Default template creates a constant tensor in T.
 // To create INT48 MHLO constant, need to pass in llvm::APInt instead.
 template <typename T>
-llvm::Optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
-                                     ArrayRef<T> vec, ArrayRef<int64_t> shape);
+std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
+                                    ArrayRef<T> vec, ArrayRef<int64_t> shape);
 
 template <typename T>
 Value getSplatConstTensor(ConversionPatternRewriter &rewriter, Operation *op,

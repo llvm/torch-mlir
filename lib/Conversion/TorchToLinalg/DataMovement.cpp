@@ -393,7 +393,7 @@ public:
     // is violated for the cases of dynamic dimensions.
     SmallVector<int64_t> outputShape(resultRank, kUnknownSize);
     SmallVector<ReassociationIndices> unchangedDims;
-    llvm::Optional<int64_t> inferredDimension;
+    std::optional<int64_t> inferredDimension;
     for (auto en : llvm::enumerate(outputSizeTorchInt)) {
       int64_t inputDim;
       int64_t size;
@@ -644,8 +644,8 @@ public:
         makeShapeLLVMCompatible(inputShapeVec), resultType.getElementType());
     Value castedInput =
         rewriter.create<tensor::CastOp>(loc, adjustedInputType, input);
-    llvm::Optional<Value> expandedInput;
-    llvm::Optional<Value> collapsedInput;
+    std::optional<Value> expandedInput;
+    std::optional<Value> collapsedInput;
 
     if (llvm::any_of(inputAssociations, [](ReassociationIndices indices) {
           return indices.size() > 1;

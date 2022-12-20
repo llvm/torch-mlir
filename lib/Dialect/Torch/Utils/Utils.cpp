@@ -23,7 +23,7 @@ bool Torch::isValidDim(int64_t dim, int64_t inputRank) {
   return dim >= 0 && dim < inputRank;
 }
 
-llvm::Optional<int64_t>
+std::optional<int64_t>
 Torch::matchLegalConstantIndexIntoListOfSize(Value v, int64_t length) {
   int64_t dim;
   if (!matchPattern(v, m_TorchConstantInt(&dim)))
@@ -181,7 +181,7 @@ bool Torch::isBuiltInType(Type type) {
   return isa<BuiltinDialect>(type.getDialect());
 }
 
-Optional<unsigned> Torch::getTensorRank(Value tensor) {
+std::optional<unsigned> Torch::getTensorRank(Value tensor) {
   BaseTensorType tensorType = tensor.getType().cast<BaseTensorType>();
   if (!tensorType.hasSizes())
     return std::nullopt;

@@ -45,7 +45,7 @@ LogicalResult ToBuiltinTensorOp::verify() {
 }
 
 LogicalResult ToBuiltinTensorOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    MLIRContext *context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto resultType =

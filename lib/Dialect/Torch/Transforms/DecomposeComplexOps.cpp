@@ -69,7 +69,7 @@ static Type computeReductionType(PatternRewriter &rewriter, Operation *op,
   }
 
   Type resultType = tensorType.getWithSizesAndDtype(
-      sizes.size() == 0 ? Optional<ArrayRef<int64_t>>()
+      sizes.size() == 0 ? std::optional<ArrayRef<int64_t>>()
                         : llvm::makeArrayRef(sizes),
       tensorType.getDtype());
   return resultType;
@@ -105,7 +105,7 @@ static Value createMaxAlongDimension(PatternRewriter &rewriter, Location loc,
   BaseTensorType indexType =
       valueType
           .getWithSizesAndDtype(
-              !valueType.hasSizes() ? Optional<ArrayRef<int64_t>>()
+              !valueType.hasSizes() ? std::optional<ArrayRef<int64_t>>()
                                     : llvm::makeArrayRef(valueType.getSizes()),
               IntegerType::get(op->getContext(), 64, IntegerType::Signed))
           .cast<BaseTensorType>();
@@ -228,7 +228,7 @@ public:
     Location loc = op.getLoc();
     Value self = op.getSelf();
     MLIRContext *context = op.getContext();
-    Optional<unsigned> maybeRank = getTensorRank(self);
+    std::optional<unsigned> maybeRank = getTensorRank(self);
     if (!maybeRank)
       return rewriter.notifyMatchFailure(op, "Unimplemented: unranked tensor");
     unsigned rank = *maybeRank;
@@ -548,7 +548,7 @@ public:
 
     BaseTensorType inputType = input.getType().cast<BaseTensorType>();
     BaseTensorType indicesTensorType = result.getType().cast<BaseTensorType>();
-    Optional<unsigned> maybeInputRank = getTensorRank(input);
+    std::optional<unsigned> maybeInputRank = getTensorRank(input);
     if (!maybeInputRank) {
       return rewriter.notifyMatchFailure(
           op, "expected input tensor to have a rank");
@@ -681,8 +681,8 @@ public:
     Value lhs = op.getSelf();
     Value rhs = op.getOther();
 
-    Optional<unsigned> maybeLhsRank = getTensorRank(lhs);
-    Optional<unsigned> maybeRhsRank = getTensorRank(rhs);
+    std::optional<unsigned> maybeLhsRank = getTensorRank(lhs);
+    std::optional<unsigned> maybeRhsRank = getTensorRank(rhs);
     if (!maybeLhsRank || !maybeRhsRank) {
       return rewriter.notifyMatchFailure(
           op, "expected input tensors to have a rank");
@@ -786,7 +786,7 @@ public:
   LogicalResult matchAndRewrite(AtenTOp op,
                                 PatternRewriter &rewriter) const override {
     Value lhs = op.getSelf();
-    Optional<unsigned> lhsRank = getTensorRank(lhs);
+    std::optional<unsigned> lhsRank = getTensorRank(lhs);
     auto loc = op.getLoc();
 
     if (!lhsRank) {
@@ -861,7 +861,7 @@ public:
           loc, listType, llvm::ArrayRef<Value>{slice0, slice1});
       return rewriter.create<AtenCatOp>(loc, self.getType(), slices, dim);
     };
-    Optional<unsigned> maybeRank = getTensorRank(self);
+    std::optional<unsigned> maybeRank = getTensorRank(self);
     if (!maybeRank)
       return rewriter.notifyMatchFailure(op, "Unimplemented: unranked tensor");
     unsigned rank = *maybeRank;
@@ -917,7 +917,7 @@ public:
     Location loc = op.getLoc();
     Value self = op.getSelf();
     MLIRContext *context = op.getContext();
-    Optional<unsigned> maybeRank = getTensorRank(self);
+    std::optional<unsigned> maybeRank = getTensorRank(self);
     if (!maybeRank)
       return rewriter.notifyMatchFailure(op, "Unimplemented: unranked tensor");
     unsigned rank = *maybeRank;
@@ -1020,7 +1020,7 @@ public:
     Location loc = op.getLoc();
     Value self = op.getSelf();
     MLIRContext *context = op.getContext();
-    Optional<unsigned> maybeRank = getTensorRank(self);
+    std::optional<unsigned> maybeRank = getTensorRank(self);
     if (!maybeRank)
       return rewriter.notifyMatchFailure(op, "unimplemented: unranked tensor");
     unsigned rank = *maybeRank;
@@ -1258,7 +1258,7 @@ public:
     Location loc = op.getLoc();
     MLIRContext *context = op.getContext();
     Value gradOutput = op.getGradOutput();
-    Optional<unsigned> maybeGradRank = getTensorRank(gradOutput);
+    std::optional<unsigned> maybeGradRank = getTensorRank(gradOutput);
     if (!maybeGradRank) {
       return rewriter.notifyMatchFailure(op,
                                          "expected grad output to have a rank");
@@ -1410,8 +1410,8 @@ public:
     Value input = op.getSelf();
     Value mat1 = op.getMat1();
     Value mat2 = op.getMat2();
-    Optional<unsigned> mat1Rank = getTensorRank(mat1);
-    Optional<unsigned> mat2Rank = getTensorRank(mat2);
+    std::optional<unsigned> mat1Rank = getTensorRank(mat1);
+    std::optional<unsigned> mat2Rank = getTensorRank(mat2);
 
     // The operands `mat1`, `mat2` to aten.addmm must be of rank 2.
     if (!mat1Rank || !mat2Rank || *mat1Rank != 2 || *mat2Rank != 2) {
@@ -1472,7 +1472,7 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value input = op.getSelf();
-    Optional<unsigned> maybeInputRank = getTensorRank(input);
+    std::optional<unsigned> maybeInputRank = getTensorRank(input);
     if (!maybeInputRank) {
       return rewriter.notifyMatchFailure(op, "expected input to have a rank");
     }
@@ -1602,7 +1602,7 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value self = op.getSelf();
-    Optional<unsigned> maybeInputRank = getTensorRank(self);
+    std::optional<unsigned> maybeInputRank = getTensorRank(self);
     if (!maybeInputRank) {
       return rewriter.notifyMatchFailure(op, "expected input to have a rank");
     }
@@ -2163,7 +2163,7 @@ class DecomposeAtenNativeBatchNormOp
 
     // Rank of the input tensor must be greater than or equal to 2. The shape of
     // the `input` is supposed to be (N, C, D?, H?, W?).
-    Optional<unsigned> maybeInputRank = getTensorRank(input);
+    std::optional<unsigned> maybeInputRank = getTensorRank(input);
     if (!maybeInputRank || *maybeInputRank < 2)
       return rewriter.notifyMatchFailure(
           op, "input must have rank greater than or equal to 2");
@@ -2177,8 +2177,8 @@ class DecomposeAtenNativeBatchNormOp
           op, "running stats must not be None in inference mode");
 
     // Rank of `runningMean` and `runningVar` must be exactly 1.
-    Optional<unsigned> runningMeanRank = getTensorRank(runningMean);
-    Optional<unsigned> runningVarRank = getTensorRank(runningVar);
+    std::optional<unsigned> runningMeanRank = getTensorRank(runningMean);
+    std::optional<unsigned> runningVarRank = getTensorRank(runningVar);
     if (!runningMeanRank || !runningVarRank || *runningMeanRank != 1 ||
         *runningVarRank != 1)
       return rewriter.notifyMatchFailure(
@@ -2229,7 +2229,7 @@ class DecomposeAtenNativeBatchNormOp
     Value batchNormOutput = normalizedInput;
     if (!weight.getType().isa<Torch::NoneType>()) {
       // Rank of `weight` must be exactly 1.
-      Optional<unsigned> weightRank = getTensorRank(weight);
+      std::optional<unsigned> weightRank = getTensorRank(weight);
       if (!weightRank || *weightRank != 1)
         return rewriter.notifyMatchFailure(op, "expected weight to be rank 1");
       weight = rewriter.create<AtenViewOp>(loc, reshapeType, weight,
@@ -2239,7 +2239,7 @@ class DecomposeAtenNativeBatchNormOp
     }
     if (!bias.getType().isa<Torch::NoneType>()) {
       // Rank of `bias` must be exactly 1.
-      Optional<unsigned> biasRank = getTensorRank(bias);
+      std::optional<unsigned> biasRank = getTensorRank(bias);
       if (!biasRank || *biasRank != 1)
         return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
       bias = rewriter.create<AtenViewOp>(loc, reshapeType, bias,
@@ -2659,7 +2659,7 @@ class DecomposeAtenAdaptiveAvgPool2dOp
     MLIRContext *context = op.getContext();
 
     Value input = op.getSelf();
-    Optional<unsigned> maybeRank = getTensorRank(input);
+    std::optional<unsigned> maybeRank = getTensorRank(input);
     if (!maybeRank) {
       return rewriter.notifyMatchFailure(op, "expected input to have a rank");
     }
@@ -2832,7 +2832,7 @@ class DecomposeAtenNumpyTOp : public OpRewritePattern<AtenNumpyTOp> {
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value self = op.getSelf();
-    Optional<unsigned> maybeInputRank = getTensorRank(self);
+    std::optional<unsigned> maybeInputRank = getTensorRank(self);
     if (!maybeInputRank) {
       return rewriter.notifyMatchFailure(op, "expected input to have a rank");
     }
@@ -2879,7 +2879,7 @@ static LogicalResult calculateVariance(OpTy op, PatternRewriter &rewriter,
     inputTensorTy = self.getType().cast<BaseTensorType>();
   }
 
-  Optional<unsigned> maybeInputRank = getTensorRank(self);
+  std::optional<unsigned> maybeInputRank = getTensorRank(self);
   if (!maybeInputRank) {
     return rewriter.notifyMatchFailure(op, "expected input to have a rank");
   }
@@ -3368,7 +3368,8 @@ private:
   template <typename DecomposePattern>
   void addPatternIfTargetOpIsIllegal(RewritePatternSet &patterns) {
     MLIRContext *context = &getContext();
-    Optional<OperationName> opName = DecomposePattern(context).getRootKind();
+    std::optional<OperationName> opName =
+        DecomposePattern(context).getRootKind();
     // Because the `DecomposeComplexOpsPass` uses a greedy algorithm
     // to apply patterns, only patterns that we for sure know we want to run
     // must be added. This restricts the set of patterns allowed in this file to

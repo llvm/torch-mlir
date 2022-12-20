@@ -241,7 +241,7 @@ SmallVector<Value> getTypeConvertedValues(OpBuilder &b, Location loc,
 // from a tensor or a scalar in the pytorch dialect. Both the scalar and dtype
 // should be converted builtin types.
 Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
-                           llvm::Optional<Type> srcOriginalDtype) {
+                           std::optional<Type> srcOriginalDtype) {
   Type scalarType = scalar.getType();
   if (scalarType == dtype)
     return scalar;

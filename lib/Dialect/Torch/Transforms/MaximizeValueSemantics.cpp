@@ -40,7 +40,7 @@ public:
     SmallVector<Operation *> copyLikeOps;
     SmallVector<Operation *> viewLikeOps;
     SmallVector<OverwriteTensorContentsOp> overwriteTensorContentsOps;
-    Optional<mlir::func::ReturnOp> returnOp;
+    std::optional<mlir::func::ReturnOp> returnOp;
   };
 
   // Check that graph rewriting is possible by doing an abstract

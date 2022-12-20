@@ -174,11 +174,11 @@ m_TorchListOfConstantInts(SmallVectorImpl<int64_t> &bind_values) {
 namespace detail {
 /// Matches the optional constant integers stored in a `torch.ListConstruct`.
 struct torch_list_of_optional_constant_ints_op_binder {
-  SmallVectorImpl<Optional<int64_t>> &bind_values;
+  SmallVectorImpl<std::optional<int64_t>> &bind_values;
 
   /// Creates a matcher instance that binds the value to bvs if match succeeds.
   torch_list_of_optional_constant_ints_op_binder(
-      SmallVectorImpl<Optional<int64_t>> &bvs)
+      SmallVectorImpl<std::optional<int64_t>> &bvs)
       : bind_values(bvs) {}
 
   bool match(Operation *op) {
@@ -203,7 +203,7 @@ struct torch_list_of_optional_constant_ints_op_binder {
 /// `torch.prim.ListConstruct`.
 inline detail::torch_list_of_optional_constant_ints_op_binder
 m_TorchListOfOptionalConstantInts(
-    SmallVectorImpl<Optional<int64_t>> &bind_values) {
+    SmallVectorImpl<std::optional<int64_t>> &bind_values) {
   return detail::torch_list_of_optional_constant_ints_op_binder(bind_values);
 }
 
