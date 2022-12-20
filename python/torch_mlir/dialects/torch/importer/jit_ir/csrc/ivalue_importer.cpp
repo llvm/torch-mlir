@@ -372,30 +372,44 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
 
 MlirValue IValueImporter::importTensor(c10::IValue ivalue) {
   assert(ivalue.isTensor() && "expected a tensor!");
+  at::Tensor tensor = ivalue.toTensor();
 
   // TODO: Can we do better?
   MlirLocation loc = mlirLocationUnknownGet(context);
 
   // Import the bulk tensor representation.
-  at::Tensor tensor = ivalue.toTensor().contiguous();
   MlirAttribute denseElements = convertTensorToMlirElementsAttr(tensor, loc);
 
-  MlirOperation tensorOp;
-
-  if (importOptions.assumeTensorsHaveValueSemantics) {
-    tensorOp = createMlirOperationAtEnd(
-        importBlock, "torch.vtensor.literal", loc,
-        torchMlirTorchValueTensorTypeGetFromAttribute(denseElements),
+  MlirValue tensorReprValue;
+  if (importOptions.useExternalReferencesIfNumelExceeds.has_value() &&
+      tensor.numel() >
+          importOptions.useExternalReferencesIfNumelExceeds.value()) {
+    MlirType type = torchMlirTorchNonValueTensorTypeGet(
+        context, tensor.sizes().size(), tensor.sizes().data(),
+        getMlirTypeForTorchScalarType(loc, tensor.scalar_type()));
+    MlirAttribute symName = mlirFlatSymbolRefAttrGet(
+        context, toMlirStringRef(
+                      c10::QualifiedName(attributeNameStack).qualifiedName()));
+    MlirOperation tensorOp = createMlirOperationAtEnd(
+        importBlock, "torch.tensor.resource.literal", loc, type,
+        toMlirNamedAttribute("sym_name", symName),
         toMlirNamedAttribute("value", denseElements));
+    tensorReprValue = mlirOperationGetResult(tensorOp, 0);
   } else {
-    tensorOp = createMlirOperationAtEnd(
-        importBlock, "torch.tensor.literal", loc,
-        torchMlirTorchNonValueTensorTypeGetFromAttribute(denseElements),
-        toMlirNamedAttribute("value", denseElements));
+    MlirOperation tensorOp;
+    if (importOptions.assumeTensorsHaveValueSemantics) {
+      tensorOp = createMlirOperationAtEnd(
+          importBlock, "torch.vtensor.literal", loc,
+          torchMlirTorchValueTensorTypeGetFromAttribute(denseElements),
+          toMlirNamedAttribute("value", denseElements));
+    } else {
+      tensorOp = createMlirOperationAtEnd(
+          importBlock, "torch.tensor.literal", loc,
+          torchMlirTorchNonValueTensorTypeGetFromAttribute(denseElements),
+          toMlirNamedAttribute("value", denseElements));
+    }
+    tensorReprValue = mlirOperationGetResult(tensorOp, 0);
   }
-
-  MlirValue tensorReprValue = mlirOperationGetResult(tensorOp, 0);
-
   // Construct the complete tensor value. This is trivial for most tensors, but
   // for quantized tensors (and probably sparse too, TBD) there is more for us
   // to do.

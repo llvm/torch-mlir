@@ -252,6 +252,7 @@ def compile(model: torch.nn.Module,
             use_tracing: bool = False,
             ignore_traced_shapes=False,
             backend_legal_ops: Optional[Sequence[str]] = None,
+            use_external_references_if_numel_exceeds: Optional[int] = None,
             verbose: bool = False):
     """Convert a PyTorch model to MLIR.
 
@@ -349,6 +350,7 @@ def compile(model: torch.nn.Module,
     mb = ModuleBuilder()
     import_options = ImportOptions()
     import_options.ignoreExistingTensorShapesAndDtypes = ignore_traced_shapes
+    import_options.useExternalReferencesIfNumelExceeds = use_external_references_if_numel_exceeds
     try:
         original_stderr = sys.stderr
         sys.stderr = StringIO()

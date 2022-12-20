@@ -26,6 +26,7 @@
 #include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
 #endif
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
+#include "torch-mlir/Conversion/TorchToMLProgram/TorchToMLProgram.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -64,6 +65,7 @@ void mlir::torch::registerTorchConversionPasses() {
 
 void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
     OpPassManager &pm) {
+  pm.addPass(createConvertTorchToMLProgramPass());
   // Lower to linalg + guards which is the input to codegen backends.
   // We do this first as it tends to involve pattern-matching against constants,
   // (e.g. dimensions which must be constant in a ranked programming model)

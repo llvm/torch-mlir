@@ -302,6 +302,41 @@ def Torch_InitializeGlobalSlotsOp : Torch_Op<"initialize.global_slots", [
   let hasVerifier = 1;
 }
 
+def Torch_ResourceNonValueTensorLiteralOp : Torch_Op<"tensor.resource.literal", [
+    AllowsTypeRefinement,
+    AllowedInModuleInitializer
+  ]> {
+  let summary = "Create a value of !torch.tensor type from an external literal";
+  let description = [{
+  }];
+  let arguments = (ins
+    FlatSymbolRefAttr:$sym_name,
+    ElementsAttr:$value
+  );
+  let results = (outs Torch_NonValueTensorType:$result);
+
+  let assemblyFormat = [{
+    `(` $sym_name `=` $value `)` attr-dict `:` qualified(type($result))
+  }];
+}
+
+def Torch_ResourceValueTensorLiteralOp : Torch_Op<"vtensor.resource.literal", [
+    AllowsTypeRefinement,
+  ]> {
+  let summary = "Create a value of !torch.vtensor type from an external literal";
+  let description = [{
+  }];
+  let arguments = (ins
+    FlatSymbolRefAttr:$sym_name,
+    ElementsAttr:$value
+  );
+  let results = (outs Torch_ValueTensorType:$result);
+
+  let assemblyFormat = [{
+    `(` $sym_name `=` $value `)` attr-dict `:` qualified(type($result))
+  }];
+}
+
 def Torch_GlobalSlotInitOp : Torch_Op<"global_slot.init", [
     Terminator,
     HasParent<"::mlir::torch::Torch::GlobalSlotOp">]> {

@@ -26,6 +26,11 @@ def ConvertTorchToSCF: Pass<"convert-torch-to-scf", "func::FuncOp"> {
   let constructor = "mlir::torch::createConvertTorchToSCFPass()";
 }
 
+def ConvertTorchToMLProgram : Pass<"convert-torch-to-mlprogram", "ModuleOp"> {
+  let summary = "Convert Torch ops to MLProgram ops";
+  let constructor = "mlir::torch::createConvertTorchToMLProgramPass()";
+}
+
 def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "func::FuncOp"> {
   let summary = "Convert recognized Torch ops to Linalg ops";
   let description = [{

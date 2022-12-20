@@ -240,6 +240,19 @@ reduceNonValueTensorLiteralOpToValueTensorLiteralOp(NonValueTensorLiteralOp op,
   return success();
 }
 
+static LogicalResult
+reduceResourceNonValueTensorLiteralOpToResourceValueTensorLiteralOp(
+    ResourceNonValueTensorLiteralOp op, PatternRewriter &rewriter) {
+  Value valueTensor = rewriter.create<ResourceValueTensorLiteralOp>(
+      op->getLoc(),
+      op.getType().cast<NonValueTensorType>().getWithValueSemantics(),
+      op.getSymName(), op.getValue());
+  Value tensor =
+      copyTensorToType(rewriter, op->getLoc(), op.getType(), valueTensor);
+  rewriter.replaceOp(op, {tensor});
+  return success();
+}
+
 namespace {
 class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
   void runOnOperation() override {
@@ -248,10 +261,13 @@ class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
     patterns.add<ConvertHasValueSemanticsOpsToValueTensors>(context);
     patterns.add<ReduceTrailingUnderscoreInplaceVariant>(context);
     patterns.add(reduceNonValueTensorLiteralOpToValueTensorLiteralOp);
+    patterns.add(
+        reduceResourceNonValueTensorLiteralOpToResourceValueTensorLiteralOp);
     patterns.add<ReduceNonValueSemanticOps>(context);
 
     ConversionTarget target(*context);
     target.addIllegalOp<NonValueTensorLiteralOp>();
+    target.addIllegalOp<ResourceNonValueTensorLiteralOp>();
     target.addIllegalOp<AtenBernoulli_FloatOp>();
     target.markUnknownOpDynamicallyLegal([](Operation *op) {
       if (op->hasTrait<Torch::OpTrait::HasValueSemantics>()) {
