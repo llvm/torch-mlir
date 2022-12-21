@@ -2513,6 +2513,23 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.copy` op into `aten.to.dtype` and `aten.expand_as`.
+class DecomposeAtenCopyOp : public OpRewritePattern<AtenCopyOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenCopyOp op,
+                                PatternRewriter &rewriter) const override {
+    Type resultDtype = op.getType().cast<BaseTensorType>().getDtype();
+    Value srcToDtype =
+        convertTensorToDtype(rewriter, op.getLoc(), op.getSrc(), resultDtype);
+    rewriter.replaceOpWithNewOp<AtenExpandAsOp>(op, op.getType(), srcToDtype,
+                                                op.getSelf());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.newEmpty` op into `aten.empty.memoryFormat` op.
 class DecomposeAtenNewEmptyOp : public OpRewritePattern<AtenNewEmptyOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -3475,6 +3492,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexPutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenExpandAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_ToCopyOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenCopyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenDropoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexPutHackedTwinOp>(patterns);
