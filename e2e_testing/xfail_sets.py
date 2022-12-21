@@ -176,6 +176,7 @@ MHLO_PASS_SET = {
     "GatherModule_basic",
     "Gather2DInputModdule_basic",
     "GatherRandomIndexModule_basic",
+    "GeluBackwardModule_basic",
     "HardTanhIntModule_basic",
     "HardTanhModule_basic",
     "HardsigmoidModule_basic",
