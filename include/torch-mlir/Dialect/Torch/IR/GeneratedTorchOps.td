@@ -7954,6 +7954,31 @@ def Torch_AtenAliasCopyOp : Torch_Op<"aten.alias_copy", [
   }];
 }
 
+def Torch_AtenAsStridedOp : Torch_Op<"aten.as_strided", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::as_strided : (Tensor, int[], int[], int?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchListOfTorchIntType:$size,
+    AnyTorchListOfTorchIntType:$stride,
+    AnyTorchOptionalIntType:$storage_offset
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenAsStridedOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenAsStridedOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
 def Torch_AtenAsStridedCopyOp : Torch_Op<"aten.as_strided_copy", [
     AllowsTypeRefinement,
     HasValueSemantics,

@@ -8,6 +8,7 @@
 # to the backend contract.
 COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "QuantizedMLP_basic",
+    "AsStridedStaticModule_basic",
     "NormalizeModule_basic",
 }
 

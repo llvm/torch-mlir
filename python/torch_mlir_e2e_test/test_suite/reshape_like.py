@@ -657,6 +657,28 @@ def ViewNoChangeStaticModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+
+class AsStridedStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 3], torch.float32, True),
+    ])
+
+    def forward(self, x):
+        return torch.ops.aten.as_strided(x, (2, 2), (1, 2))
+
+@register_test_case(module_factory=lambda: AsStridedStaticModule())
+def AsStridedStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 3))
+
+
+# ==============================================================================
+
+
 class ReshapeAliasExpandModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

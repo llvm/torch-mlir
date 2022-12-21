@@ -78,6 +78,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseFlattenBroadcastModule_basic",
     "FlattenRank0Module_basic",
     "UniformModule_basic",
+    "AsStridedStaticModule_basic",
     # error: failed to materialize conversion for result #0 of operation 'torch.aten.t' that remained live after conversion
     "TModuleRank1_basic",
     # error: unsupported by backend contract: tensor with unknown rank
@@ -608,6 +609,7 @@ TOSA_PASS_SET = {
     "TypePromotionDifferentCategoryModule_basic",
     "TypePromotionSameCategoryDifferentWidthModule_basic",
     "TypePromotionZeroRankHigherCategoryModule_basic",
+    "AsStridedStaticModule_basic",
     "GatherStaticModule_basic",
     "LiftFreshCopyModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",

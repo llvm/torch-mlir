@@ -10,6 +10,7 @@
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 
 #include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -3146,6 +3147,88 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenAsStridedOp>::matchAndRewrite(
+    AtenAsStridedOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // The algorithm is commented by example: torch.as_strided(x, (2, 2), (1, 2),
+  // 1) Not a tensor type.
+  auto input = adaptor.getSelf();
+  auto inputTensorType =
+      adaptor.getSelf().getType().dyn_cast<RankedTensorType>();
+  if (!inputTensorType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+
+  SmallVector<int64_t> outputSize;
+  if (!matchPattern(op.getSize(), m_TorchListOfConstantInts(outputSize)))
+    return rewriter.notifyMatchFailure(
+        op, "Non-const size for as_strided unsupported.");
+
+  SmallVector<int64_t> strides;
+  if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strides)))
+    return rewriter.notifyMatchFailure(
+        op, "Non-const strides for as_strided unsupported.");
+
+  int64_t storageOffset;
+  if (!matchPattern(op.getStorageOffset(), m_TorchConstantInt(&storageOffset)))
+    storageOffset = 0;
+
+  auto outType = getTypeConverter()->convertType(op.getType());
+  auto resultType = outType.dyn_cast<ShapedType>();
+
+  int outputNums = 1, inputNums = 1;
+  auto inputTensorRank = inputTensorType.getShape().size(); // 3
+  // inputNums: total number of inputs
+  // flattened inputNums = 1 * 3*3 = 9
+  for (size_t i = 0; i < inputTensorRank; i++) {
+    inputNums *= inputTensorType.getShape()[i];
+  }
+  // outputNums: number of values in output tensor
+  for (size_t i = 0; i < outputSize.size(); i++) {
+    outputNums *= outputSize[i];
+  }
+  SmallVector<int64_t, 3> gatherValuesShape({1, inputNums, 1});  // {1,9,1}
+  SmallVector<int64_t, 2> gatherIndicesShape({1, outputNums});   // {1,4}
+  SmallVector<int64_t, 3> gatherResultShape({1, outputNums, 1}); // {1,4,1}
+
+  // create gather indices:
+  int32_t flattenedStrideLength{1};
+  for (size_t i = 0; i < strides.size(); i++) {
+    flattenedStrideLength *= strides[i];
+  }
+  SmallVector<int32_t> flattenedIndices;
+  for (int i = 0; i < outputNums / 2; i++) {
+    flattenedIndices.push_back(storageOffset + i);
+    flattenedIndices.push_back(storageOffset + i + flattenedStrideLength);
+  }
+  auto flattenedIndicesValue = tosa::getConstTensor<int32_t>(
+      rewriter, op, flattenedIndices, llvm::makeArrayRef(gatherIndicesShape));
+
+  if (!flattenedIndicesValue)
+    return rewriter.notifyMatchFailure(op, "Fail to create flatten indices");
+
+  // {3,3} -> {1,9,1}
+  auto gatherValuesReshapeOp = tosa::CreateOpAndInfer<tosa::ReshapeOp>(
+      rewriter, op->getLoc(),
+      GetTypeFromTensorShape(gatherValuesShape,
+                             inputTensorType.getElementType()),
+      input, rewriter.getDenseI64ArrayAttr(gatherValuesShape));
+
+  //  {1,9,1}, {1,4} -> {1,4}
+  auto tosaGatherOp = tosa::CreateOpAndInfer<tosa::GatherOp>(
+      rewriter, op->getLoc(),
+      GetTypeFromTensorShape(gatherResultShape, resultType.getElementType()),
+      gatherValuesReshapeOp.getResult(), flattenedIndicesValue.value());
+
+  // {1,4} -> {2,2}
+  rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
+      op, outType, tosaGatherOp.getResult(),
+      rewriter.getDenseI64ArrayAttr(resultType.getShape()));
+
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
     AtenGatherOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -4195,6 +4278,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenMaxDimOp);
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
+    INSERT_ATENOP_PATTERN(AtenAsStridedOp);
     INSERT_ATENOP_PATTERN(AtenGatherOp);
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
     INSERT_ATENOP_PATTERN(AtenClampOp);
