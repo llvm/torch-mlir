@@ -209,6 +209,7 @@ MHLO_PASS_SET = {
     "LayerNormModule_basic",
     "LayerNormNormalizeOverAllDimsModule_basic",
     "LeakyReluBackwardStaticModule_basic",
+    "Linear1DModule_basic",
     "MatmulBroadcastBatchDim_basic",
     "MatmulSingleDynamicBatchDim_basic",
     "Matmul_3d",

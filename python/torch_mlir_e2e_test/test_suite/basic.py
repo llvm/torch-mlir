@@ -3145,3 +3145,22 @@ class SortIntListReverse(torch.nn.Module):
 @register_test_case(module_factory=lambda: SortIntListReverse())
 def SortIntListReverse_basic(module, tu: TestUtils):
     module.forward()
+
+
+class Linear1DModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, x, weight):
+        return torch.ops.aten.linear(x, weight)
+
+@register_test_case(module_factory=lambda: Linear1DModule())
+def Linear1DModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1), tu.rand(1))
