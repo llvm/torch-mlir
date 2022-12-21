@@ -3093,6 +3093,92 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
       "unimplemented: broadcasts other than same rank or zero ranked tensor.");
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
+    AtenGatherOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // For easy understanding of this algorithm, I will comment the code with an
+  // exact example: torch.aten.gather (!torch.vtensor<[1,4,3],f32>,
+  // !torch.int-1, !torch.vtensor<[1,4,2],si64>)
+  // -> !torch.vtensor<[1,4,2],f32>
+  // https://gist.github.com/AmosLewis/2f18434397025211da4491735bcc6db6
+
+  // Not a tensor type.
+  auto input = adaptor.getSelf();
+  auto inputType = adaptor.getSelf().getType().dyn_cast<RankedTensorType>();
+  if (!inputType)
+    return rewriter.notifyMatchFailure(
+        op, "Only RankedTensorType input are currently supported");
+
+  auto index = adaptor.getIndex();
+  auto indexType = adaptor.getIndex().getType().dyn_cast<RankedTensorType>();
+  auto inputShape = inputType.getShape();
+  int paramsRank = inputShape.size();
+
+  if (!indexType)
+    return rewriter.notifyMatchFailure(
+        op, "Only RankedTensorType index are currently supported");
+
+  // Check `index` and `input` param should have the same rank
+  if (indexType.getRank() != inputType.getRank())
+    return rewriter.notifyMatchFailure(
+        op, "`index` and `input` param should have the same rank");
+
+  // Dynamic shape check
+  if (!inputType.hasStaticShape() || !indexType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "AtenGatherOp: support for dynamic input "
+            "shape not implemented");
+
+  // index i64 to i32 for tosa compatitable
+  if (indexType.getElementType() != rewriter.getIntegerType(32)) {
+    index = rewriter.create<tosa::CastOp>(
+        op->getLoc(),
+        RankedTensorType::get(indexType.getShape(),
+                              rewriter.getIntegerType(32)),
+        index);
+  }
+
+  // Get positive dim
+  int64_t dim{0};
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: value `dim` should be a torch constant int");
+  dim = toPositiveDim(dim, paramsRank);
+  if (!isValidDim(dim, paramsRank))
+    return rewriter.notifyMatchFailure(op, "Not dim are invalid");
+
+  // check sparseGrad is bool type
+  bool sparseGrad = false;
+  if (!matchPattern(op.getSparseGrad(), m_TorchConstantBool(&sparseGrad)))
+    return rewriter.notifyMatchFailure(
+        op, "only constant boolean `sparse_grad` param supported");
+  if (sparseGrad)
+    return rewriter.notifyMatchFailure(
+        op, "only constant boolean `sparse_grad` == false supported");
+
+  // Get the output type
+  auto outType = getTypeConverter()->convertType(op.getType());
+
+  // convert torch style index and dim into tf style indices
+  // tensor<[1,4,2],si64> -> tensor<[1,4,2,3],si64>
+  auto indicesTf =
+      tosa::convertTorchIndexToTfIndices(rewriter, op, input, index, dim);
+  if (!indicesTf) {
+    return rewriter.notifyMatchFailure(op,
+                                       "Convert TorchIndex To TfIndices fail.");
+  }
+
+  // do the tf gathernp algorithm with tf style indices as input.
+  auto result =
+      tosa::convertGatherNdOp(rewriter, op, outType, input, indicesTf.value());
+
+  if (!result) {
+    return rewriter.notifyMatchFailure(op, "Convert GatherNdOp fail.");
+  }
+  rewriter.replaceOp(op, {result.value()});
+  return success();
+}
 
 template <>
 LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
@@ -4044,6 +4130,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenMaxDimOp);
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
+    INSERT_ATENOP_PATTERN(AtenGatherOp);
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
     INSERT_ATENOP_PATTERN(AtenClampOp);
     INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);

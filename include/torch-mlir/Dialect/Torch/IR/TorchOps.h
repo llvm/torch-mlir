@@ -92,7 +92,7 @@ struct torch_constant_device_op_binder {
 };
 } // namespace detail
 
-/// Matches the integer stored in a `torch.constant.bool`.
+/// Matches the integer stored in a `torch.constant.int`.
 inline detail::torch_constant_int_op_binder
 m_TorchConstantInt(int64_t *bind_value) {
   return detail::torch_constant_int_op_binder(bind_value);

@@ -15,6 +15,7 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 namespace mlir {
 namespace torch {
@@ -235,6 +236,13 @@ SmallVector<Value> getTypeConvertedValues(OpBuilder &b, Location loc,
     return converter->materializeTargetConversion(
         b, loc, converter->convertType(v.getType()), v);
   }));
+}
+
+mlir::RankedTensorType GetTypeFromTensorShape(llvm::ArrayRef<int64_t> shape,
+                                              mlir::Type elementType,
+                                              mlir::Attribute encoding) {
+  return mlir::RankedTensorType::get(makeShapeLLVMCompatible(shape),
+                                     elementType, encoding);
 }
 
 // Convert a scalar value to the target type. The scalar value can be an element

@@ -16,6 +16,25 @@
 namespace mlir {
 namespace tosa {
 
+std::optional<Value>
+createOneDimTfIndices(PatternRewriter &rewriter, Operation *op,
+                      SmallVector<int64_t> indiceOneDimShape, int32_t dim,
+                      ArrayRef<int64_t> indexShape);
+
+std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
+                                                   Operation *op,
+                                                   Value params_value,
+                                                   Value index_value,
+                                                   int32_t axis);
+
+// Lowers torch.aten.Gather operators to a sequence of TOSA ops.
+// Revised from
+// https://github.com/tensorflow/tensorflow/blob/master/tensorflow/compiler/mlir/tosa/transforms/legalize_common.cc
+std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter,
+                                        Operation *op, Type out_type,
+                                        Value params_value,
+                                        Value indices_value);
+
 // Lowers ReduceAll to a sequence of TOSA ops.
 std::optional<Value>
 convertReduceAllOp(PatternRewriter &rewriter, Operation *op,

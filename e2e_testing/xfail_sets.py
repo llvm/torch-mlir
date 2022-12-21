@@ -572,6 +572,7 @@ TOSA_PASS_SET = {
     "TypePromotionDifferentCategoryModule_basic",
     "TypePromotionSameCategoryDifferentWidthModule_basic",
     "TypePromotionZeroRankHigherCategoryModule_basic",
+    "GatherStaticModule_basic",
     "LiftFreshCopyModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
     "ReduceSumDimIntListFloatModule_basic",

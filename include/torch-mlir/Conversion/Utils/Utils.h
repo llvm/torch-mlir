@@ -79,6 +79,10 @@ SmallVector<Value> getTypeConvertedValues(OpBuilder &b, Location loc,
                                           TypeConverter *converter,
                                           SmallVectorImpl<Value> &vs);
 
+mlir::RankedTensorType GetTypeFromTensorShape(llvm::ArrayRef<int64_t> shape,
+                                              mlir::Type elementType,
+                                              mlir::Attribute encoding = {});
+
 // Convert a scalar value to the target type. The scalar value can be an element
 // from a tensor or a scalar in the pytorch dialect. Both the scalar and dtype
 // should be converted builtin types.
