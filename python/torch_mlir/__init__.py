@@ -314,7 +314,7 @@ def compile(model: torch.nn.Module,
     # backend. This separation should be visible at the Python API level, and
     # we can implement a deliberately simplified API like `torch_mlir.compile`
     # on top of those building blocks.
-    if isinstance(model, torch.jit._script.RecursiveScriptModule):
+    if isinstance(model, torch.jit.ScriptModule):
         # If the user already converted the model to JIT IR themselves, just
         # do some basic error checking, but take the model as-is.
         for method_name in example_args._get_methods():
