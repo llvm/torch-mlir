@@ -70,7 +70,7 @@ class HardtanhBackwardModule(torch.nn.Module):
         ([-1, -1], torch.float32, True),
     ])
     def forward(self, grad_out, input):
-        return torch.ops.aten.hardtanh_backward(grad_out,input, min_val=0.2, max_val=0.5)
+        return torch.ops.aten.hardtanh_backward(grad_out, input, min_val=0.2, max_val=0.5)
 
 
 @register_test_case(module_factory=lambda: HardtanhBackwardModule())
