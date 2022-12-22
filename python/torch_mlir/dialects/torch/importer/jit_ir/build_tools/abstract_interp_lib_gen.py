@@ -63,7 +63,7 @@ def aten〇tanh〡shape(self: List[int]) -> List[int]:
     Invocation(ZeroDTensorWithDtype(torch.bool)),
 ])
 def aten〇tanh〡dtype(self_rank: int, self_dtype: int) -> int:
-    if self_dtype == torch.float64 or self_dtype == torch.bfloat16:
+    if self_dtype == torch.float64 or self_dtype == torch.bfloat16 or self_dtype == torch.float16:
         return self_dtype
     else:
         return torch.float32
