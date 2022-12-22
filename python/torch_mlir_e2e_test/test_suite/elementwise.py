@@ -421,7 +421,7 @@ class ElementwisePreluModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1, -1], torch.float32, True),
         ([-1], torch.float32, True),
     ])
     def forward(self, x, weight):
@@ -429,7 +429,7 @@ class ElementwisePreluModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwisePreluModule())
 def ElementwisePreluModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 1, 1), tu.rand(1) )
+    module.forward(tu.rand(5, 4, 3, 2, 1, low=-1.0, high=0), tu.rand(1) )
 
 
 # ==============================================================================
