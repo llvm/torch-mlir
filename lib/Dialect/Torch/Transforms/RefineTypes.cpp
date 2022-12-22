@@ -668,7 +668,7 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenTriuOp, AtenMaskedFillTensorOp, AtenRollOp, AtenPowTensorTensorOp,
           AtenLiftFreshCopyOp, AtenIndexTensorHackedTwinOp,
           AtenUpsampleNearest2dOp, AtenMishOp, AtenRoundOp, AtenFillTensorOp,
-          AtenUpsampleNearest2dBackwardOp>(op)) {
+          AtenUpsampleNearest2dBackwardOp, AtenTanhOp>(op)) {
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
@@ -782,7 +782,7 @@ void TypeAnalysis::visitOperation(Operation *op,
   // Promote LHS with scalar RHS.
   if (isa<AtenAddScalarOp, AtenSubScalarOp, AtenMulScalarOp, AtenDivScalarOp,
           AtenFmodScalarOp, AtenFloorDivideScalarOp, AtenPowTensorScalarOp,
-          AtenLeakyReluOp, AtenRemainderScalarOp>(op)) {
+          AtenLeakyReluOp, AtenRemainderScalarOp, AtenRsubScalarOp>(op)) {
     auto lhs = operands[0]->getValue();
     Value scalar = op->getOperand(1);
     auto knowledge =
