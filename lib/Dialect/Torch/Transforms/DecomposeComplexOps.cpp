@@ -811,6 +811,65 @@ public:
 };
 } // namespace
 
+// Decompose `aten.stack` into `aten.unsqueeze` and `aten.cat`.
+namespace {
+class DecomposeAtenStackOp : public OpRewritePattern<AtenStackOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenStackOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<Value> tensors;
+    if (!getListConstructElements(op.getTensors(), tensors)) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: the tensor list is not from list construct");
+    } else if (tensors.empty()) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: the tensor list is empty");
+    }
+
+    SmallVector<Value> unsqueezedTensors;
+    for (Value tensor : tensors) {
+      BaseTensorType tensorType = tensor.getType().cast<BaseTensorType>();
+
+      if (!tensorType.hasSizes()) {
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: one tensor does not have known sizes");
+      }
+
+      ArrayRef<int64_t> tensorShape = tensorType.getSizes();
+      int64_t dimInt = 0;
+      SmallVector<int64_t> unsqueezedShape;
+      if (matchPattern(op.getDim(), m_TorchConstantInt(&dimInt))) {
+        int64_t tensorRank = tensorShape.size() + 1; // the rank after unsqueeze
+        dimInt = toPositiveDim(dimInt, tensorRank);
+        if (!isValidDim(dimInt, tensorRank)) {
+          return rewriter.notifyMatchFailure(op, "dimension out of range");
+        }
+        unsqueezedShape.append(tensorShape.begin(), tensorShape.end());
+        unsqueezedShape.insert(unsqueezedShape.begin() + dimInt, 1);
+      } else {
+        unsqueezedShape.resize(tensorShape.size() + 1, kUnknownSize);
+      }
+
+      Type unsqueezedType = tensorType.getWithSizesAndDtype(
+          unsqueezedShape, tensorType.getDtype());
+      Value unsqueezed = rewriter.create<AtenUnsqueezeOp>(
+          op.getLoc(), unsqueezedType, tensor, op.getDim());
+      unsqueezedTensors.push_back(unsqueezed);
+    }
+
+    Type firstTensorType =
+        unsqueezedTensors[0].getType().cast<BaseTensorType>();
+    Type listType = Torch::ListType::get(firstTensorType);
+    Value unsqueezedTensorList = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), listType, unsqueezedTensors);
+    rewriter.replaceOpWithNewOp<AtenCatOp>(op, op.getType(),
+                                           unsqueezedTensorList, op.getDim());
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.roll into aten.slice and aten.cat ops.
 // https://pytorch.org/docs/stable/generated/torch.roll.html
 namespace {
@@ -3447,6 +3506,7 @@ public:
         DecomposeConstantTensorAllocLikeOp<AtenOnesLikeOp, 1>>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeConstantTensorAllocLikeOp<AtenZerosLikeOp, 0>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenStackOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRollOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenExpandOp>(patterns);

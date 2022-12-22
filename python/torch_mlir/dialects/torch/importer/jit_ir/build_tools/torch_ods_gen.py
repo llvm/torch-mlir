@@ -477,7 +477,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::resize_ : (Tensor, int[], int?) -> (Tensor)")
     emit("aten::select.int : (Tensor, int, int) -> (Tensor)")
     emit("aten::size.int : (Tensor, int) -> (int)", has_folder=True)
-    emit("aten::stack : (Tensor[], int) -> (Tensor)")
     emit("aten::sum : (Tensor, int?) -> (Tensor)")
     emit("aten::sum.dim_IntList : (Tensor, int[]?, bool, int?) -> (Tensor)")
     emit("aten::max : (Tensor) -> (Tensor)")
@@ -550,6 +549,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     # List ops.
     emit("aten::cat : (Tensor[], int) -> (Tensor)", has_folder=True)
+    emit("aten::stack : (Tensor[], int) -> (Tensor)", has_folder=True)
     emit("aten::append.t : (t[], t) -> (t[])")
     emit("aten::add.t : (t[], t[]) -> (t[])", has_canonicalizer=True)
     emit("aten::eq.int_list : (int[], int[]) -> (bool)", has_folder=True)

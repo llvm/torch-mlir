@@ -973,6 +973,17 @@ def aten〇index〇Tensor_hacked_twin〡shape(self: List[int], indices: List[Lis
 def aten〇cat〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
     return upstream_shape_functions.cat(tensors, dim)
 
+def aten〇stack〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
+    unsqueezed_tensors: List[List[int]] = []
+    for tensor in tensors:
+        tensor_rank = len(tensor) + 1
+        assert -tensor_rank <= dim < tensor_rank, "Dimension out of range"
+        insert_dim = dim if dim >= 0 else dim + tensor_rank
+        unsqueezed = upstream_shape_functions._copy(tensor)
+        unsqueezed.insert(insert_dim, 1)
+        unsqueezed_tensors.append(unsqueezed)
+    return upstream_shape_functions.cat(unsqueezed_tensors, dim)
+
 def aten〇fft_fft〡shape(self: List[int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> List[int]:
     return self
 

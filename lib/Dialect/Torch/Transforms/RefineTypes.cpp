@@ -475,7 +475,8 @@ private:
   void visitAtenToDtypeLikeOp(OpTy op, ArrayRef<const ValueState *> operands);
   template <typename OpTy>
   void visitTypeConversionOp(OpTy op, ArrayRef<const ValueState *> operands);
-  void visitAtenCatOp(AtenCatOp op, ArrayRef<const ValueState *> operands);
+  template <typename OpTy>
+  void visitAtenCatLikeOp(OpTy op, ArrayRef<const ValueState *> operands);
 
   template <typename OpTy>
   void visitAtenSoftmaxLikeOp(OpTy op, ArrayRef<const ValueState *> operands);
@@ -1072,7 +1073,10 @@ void TypeAnalysis::visitOperation(Operation *op,
   }
 
   if (auto cat = dyn_cast<AtenCatOp>(op)) {
-    visitAtenCatOp(cat, operands);
+    visitAtenCatLikeOp<AtenCatOp>(cat, operands);
+    return;
+  } else if (auto stack = dyn_cast<AtenStackOp>(op)) {
+    visitAtenCatLikeOp<AtenStackOp>(stack, operands);
     return;
   }
 
@@ -1402,12 +1406,13 @@ void TypeAnalysis::visitTypeConversionOp(
 // `torch.aten.cat` concatenates the given sequence of seq tensors in the given
 // dimension. The output has the same sizes as the input for all dimensions
 // except the given dimension.
-void TypeAnalysis::visitAtenCatOp(AtenCatOp op,
-                                  ArrayRef<const ValueState *> operands) {
+template <typename OpTy>
+void TypeAnalysis::visitAtenCatLikeOp(OpTy op,
+                                      ArrayRef<const ValueState *> operands) {
   auto tensorList = op.getTensors();
   auto knowledge =
       ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-  auto listConstruct = tensorList.getDefiningOp<PrimListConstructOp>();
+  auto listConstruct = tensorList.template getDefiningOp<PrimListConstructOp>();
   if (!listConstruct) {
     incorporateKnowledge(op.getResult(), knowledge);
     return;

@@ -2096,6 +2096,17 @@ OpFoldResult AtenCatOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenStackOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenStackOp::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+  auto list = getOperand(0).getDefiningOp<PrimListConstructOp>();
+  if (!list || !list->hasOneUse() || list.getElements().size() != 1)
+    return nullptr;
+  return list.getElements()[0];
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSliceTensorOp
 //===----------------------------------------------------------------------===//
 

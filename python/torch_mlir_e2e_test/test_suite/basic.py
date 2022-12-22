@@ -621,6 +621,54 @@ def TensorsConcatNegativeDimModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class TensorsStackModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y, z):
+        return torch.stack([x, y, z], 1)
+
+
+@register_test_case(module_factory=lambda: TensorsStackModule())
+def TensorsStackModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 1, 4), tu.rand(2, 1, 4), tu.rand(2, 1, 4))
+
+
+# ==============================================================================
+
+
+class TensorsStackNegativeDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y, z):
+        return torch.stack([x, y, z], dim=-2)
+
+
+@register_test_case(module_factory=lambda: TensorsStackNegativeDimModule())
+def TensorsStackNegativeDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 1, 4), tu.rand(2, 1, 4), tu.rand(2, 1, 4))
+
+
+# ==============================================================================
+
+
 class GatherModule(torch.nn.Module):
 
     def __init__(self):
