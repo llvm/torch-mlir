@@ -1297,6 +1297,29 @@ LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
   return success();
 }
 
+// RuntimeAssertOp
+namespace {
+class ConvertRuntimeAssertOp : public OpConversionPattern<RuntimeAssertOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(RuntimeAssertOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    bool condition;
+    if (!matchPattern(op.getCondition(), m_TorchConstantBool(&condition))) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: condition must be a constant");
+    }
+    if (!condition) {
+      return op->emitError("condition must be true");
+    }
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToMhloOptions &options) {
@@ -1304,6 +1327,8 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
 
   target.addIllegalOp<AtenTransposeIntOp>();
   patterns.add<ConvertAtenTransposeIntOp>(typeConverter, context);
+  target.addIllegalOp<RuntimeAssertOp>();
+  patterns.add<ConvertRuntimeAssertOp>(typeConverter, context);
 
 #define INSERT_UNARY_FPONLY_PATTERN(AtenOp, MhloOp)                            \
   target.addIllegalOp<AtenOp>();                                               \

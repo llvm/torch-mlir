@@ -296,3 +296,14 @@ func.func @torch.aten.cat(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtenso
   %1 = torch.aten.cat %0, %int0 : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[?,?],f32>
   return %1 : !torch.vtensor<[?,?],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.runtime.assert(
+// CHECK-SAME:                                    %[[ARG_0:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+// CHECK:           return %[[ARG_0]] : !torch.vtensor<[?,?],f32>
+func.func @torch.runtime.assert(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %true = torch.constant.bool true
+  torch.runtime.assert %true, "this should not fail"
+  return %arg0: !torch.vtensor<[?,?],f32>
+}
