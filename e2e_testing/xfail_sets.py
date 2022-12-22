@@ -83,6 +83,7 @@ TORCHDYNAMO_XFAIL_SET = {
 }
 
 MHLO_PASS_SET = {
+    "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "ArangeDtypeFloatModule_basic",
     "ArangeDtypeIntModule_basic",
     "ArangeFalsePinMemoryModule_basic",
