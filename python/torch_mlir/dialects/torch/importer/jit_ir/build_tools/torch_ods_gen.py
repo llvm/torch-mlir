@@ -405,6 +405,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::mean : (Tensor, int?) -> (Tensor)")
     emit("aten::std : (Tensor, bool) -> (Tensor)")
     emit("aten::std.dim : (Tensor, int[]?, bool, bool) -> (Tensor)")
+    emit("aten::std.correction : (Tensor, int[]?, int?, bool) -> (Tensor)")
     emit("aten::var : (Tensor, bool) -> (Tensor)")
     emit("aten::var.dim : (Tensor, int[]?, bool, bool) -> (Tensor)")
     emit("aten::var.correction : (Tensor, int[]?, int?, bool) -> (Tensor)")

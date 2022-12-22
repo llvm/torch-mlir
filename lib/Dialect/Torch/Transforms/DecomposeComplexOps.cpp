@@ -1710,6 +1710,32 @@ public:
 };
 } // namespace
 
+// Decompose aten.std.correction to sqrt(var.correction(x))
+namespace {
+class DecomposeAtenStdCorrectionOp
+    : public OpRewritePattern<AtenStdCorrectionOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenStdCorrectionOp op,
+                                PatternRewriter &rewriter) const override {
+    Value self = op.getSelf();
+    BaseTensorType inputTensorType = self.getType().cast<BaseTensorType>();
+    if (!inputTensorType.hasDtype() ||
+        !inputTensorType.getDtype().isa<mlir::FloatType>()) {
+      return rewriter.notifyMatchFailure(
+          op,
+          "aten.std.correction expects input tensor of floating-point type");
+    }
+
+    Value varCorrection = rewriter.create<AtenVarCorrectionOp>(
+        op->getLoc(), op.getType(), self, op.getDim(), op.getCorrection(),
+        op.getKeepdim());
+    rewriter.replaceOpWithNewOp<AtenSqrtOp>(op, op.getType(), varCorrection);
+    return success();
+  }
+};
+} // namespace
+
 // Hardsigmoid(x) = max(0, min(1, (x+3)/6))
 namespace {
 class DecomposeAtenHardsigmoidOp : public OpRewritePattern<AtenHardsigmoidOp> {
@@ -3511,6 +3537,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenAmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarCorrectionOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdDimOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenStdCorrectionOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNarrowOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_EmbeddingBagOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLiftFreshCopyOp>(patterns);

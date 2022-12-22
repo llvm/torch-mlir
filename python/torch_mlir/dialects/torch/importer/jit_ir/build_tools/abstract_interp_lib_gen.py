@@ -320,6 +320,9 @@ def aten〇std〡shape(self: List[int], unbiased: bool = True) -> List[int]:
 def aten〇std〇dim〡shape(self: List[int], dim: Optional[List[int]], unbiased: bool = True, keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
 
+def aten〇std〇correction〡shape(self: List[int], dim: Optional[List[int]] = None, correction: Optional[int] = None, keepdim: bool = False) -> List[int]:
+    return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
+
 def _reduce_along_dim(self: List[int], dim: int, keepdim: bool):
     dim = upstream_shape_functions.maybe_wrap_dim(dim, len(self))
     out: List[int] = []
