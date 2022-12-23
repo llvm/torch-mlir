@@ -238,6 +238,19 @@ def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "func::FuncOp"> {
   }];
 }
 
+def ObfuscateOps : Pass<"torch-obfuscate-ops", "func::FuncOp"> {
+  let summary = "obfuscate torch operations";
+  let constructor = [{
+    mlir::torch::Torch::createObfuscateOpsPass()
+  }];
+  let description = [{
+    Obfuscate torch operation
+
+    An example of the transformations done in this pass is:
+        - convert aten.mm to two aten.add.Tensor
+  }];
+}
+
 def ReifyShapeCalculations : Pass<"torch-reify-shape-calculations", "ModuleOp"> {
   let summary = "Reify shape calculations.";
   let constructor = "mlir::torch::Torch::createReifyShapeCalculationsPass()";

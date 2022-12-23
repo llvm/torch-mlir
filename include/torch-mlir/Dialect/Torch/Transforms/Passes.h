@@ -98,6 +98,8 @@ std::unique_ptr<OperationPass<ModuleOp>> createRefinePublicReturnPass();
 std::unique_ptr<OperationPass<func::FuncOp>>
 createDecomposeComplexOpsPass(ArrayRef<std::string> legalOps);
 
+std::unique_ptr<OperationPass<func::FuncOp>> createObfuscateOpsPass();
+
 std::unique_ptr<OperationPass<ModuleOp>> createPreprocessShapeLibraryPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createReifyShapeCalculationsPass();
