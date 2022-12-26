@@ -2192,6 +2192,130 @@ def ElementwiseAtenLogicalOrOpBrodcastModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAtenLogicalAndOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.bool, True),
+        ([-1, -1], torch.bool, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_and(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalAndOpModule())
+def ElementwiseAtenLogicalAndOpModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, 5, high=2).bool(), tu.randint(4, 5, high=2).bool())
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenLogicalAndOpPromoteBroadcastModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float64, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_and(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalAndOpPromoteBroadcastModule())
+def ElementwiseAtenLogicalAndOpPromoteBroadcastModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5), tu.randint(4, 5, low=-1, high=2))
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenLogicalXorOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.bool, True),
+        ([-1, -1], torch.bool, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_xor(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalXorOpModule())
+def ElementwiseAtenLogicalXorOpModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, 5, high=2).bool(), tu.randint(4, 5, high=2).bool())
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenLogicalXorOpPromoteBroadcastModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float64, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_xor(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalXorOpPromoteBroadcastModule())
+def ElementwiseAtenLogicalXorOpPromoteBroadcastModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5), tu.randint(4, 5, low=-1, high=2))
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenLogicalNotOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.bool, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.logical_not(x)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalNotOpModule())
+def ElementwiseAtenLogicalNotOpModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, 5, high=2).bool())
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenLogicalNotOpPromoteModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.logical_not(x)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalNotOpPromoteModule())
+def ElementwiseAtenLogicalNotOpPromoteModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, 5, low=-1, high=2))
+
+
+# ==============================================================================
+
+
 class ElementwiseAtenFloorDivideModule(torch.nn.Module):
 
     def __init__(self):
