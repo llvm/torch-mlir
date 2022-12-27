@@ -429,7 +429,7 @@ class ElementwisePreluModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwisePreluModule())
 def ElementwisePreluModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(5, 4, 3, 2, 1, low=-1.0, high=0), tu.rand(1) )
+    module.forward(tu.rand(5, 4, 3, 2, 1, low=-1, high=1), tu.rand(1) )
 
 
 # ==============================================================================
