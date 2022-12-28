@@ -763,6 +763,7 @@ LTC_XFAIL_SET = {
     "ConvolutionModule2DTransposeStrided_basic",
     "ConvolutionModule2DTranspose_basic",
     "ElementwiseClampModule_basic",
+    "ElementwisePreluModule_basic",
     "IouOfModule_basic",
     "MobilenetV3Module_basic",
     "NativeBatchNormNoneWeightModule_basic",

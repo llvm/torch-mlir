@@ -274,6 +274,9 @@ def aten〇rsub〇Scalar〡dtype(self_rank: int, self_dtype: int, other: Union[i
 def aten〇leaky_relu〡shape(self: List[int], negative_slope: float = 0.01) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇prelu〡shape(self: List[int], weight: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇gather〡shape(self: List[int], dim: int, index: List[int], sparse_grad: bool = False) -> List[int]:
     return upstream_shape_functions.unary(index)
 
