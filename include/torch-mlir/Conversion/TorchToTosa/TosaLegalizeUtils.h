@@ -56,6 +56,8 @@ std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
 LogicalResult tosaCastTensorToType(PatternRewriter &rewriter, Operation *op,
                                    Value src, Type destType, Value &result);
 
+Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType);
+
 // Creates a TOSA operation and performs shape inference on the individual
 // op. This allows shape inference during the framework to TOSA lowering.
 template <typename TosaOp, typename... Args>

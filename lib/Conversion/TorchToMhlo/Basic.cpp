@@ -124,6 +124,31 @@ static FailureOr<Value> getMinValueOfDtype(Operation *op, Type elementType,
   return failure();
 }
 
+// These legalizations are for unary ops.
+namespace {
+template <typename AtenOpT, typename MhloOpT>
+class ConvertAtenUnaryOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value self = adaptor.getSelf();
+    auto selfType = self.getType().cast<TensorType>();
+    if (!selfType) {
+      return op.emitError("only Tensor types supported in MHLO");
+    }
+    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
+                       ->convertType(op.getType())
+                       .template cast<TensorType>();
+    self = mhlo::promoteType(rewriter, self, outType);
+    rewriter.replaceOpWithNewOp<MhloOpT>(op, outType, self);
+    return success();
+  }
+};
+} // namespace
+
 // These legalizations are for unary ops with only for floating point datatypes.
 // There is no supported quantized integer mode for these.
 namespace {
@@ -218,18 +243,15 @@ public:
     if (!lhsTy || !rhsTy)
       return op.emitError("only Tensor types supported");
 
-    auto lhsElemTy = lhsTy.getElementType();
-    auto rhsElemTy = rhsTy.getElementType();
+    auto outTy = OpConversionPattern<AtenOpT>::getTypeConverter()
+                     ->convertType(op.getType())
+                     .template cast<TensorType>();
 
-    if (lhsElemTy != rhsElemTy)
-      return op.emitError("input data types mismatched");
+    lhs = mhlo::promoteType(rewriter, lhs, outTy);
+    rhs = mhlo::promoteType(rewriter, rhs, outTy);
 
-    rewriter.replaceOpWithNewOp<ChloOpT>(
-        op,
-        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-            op.getType()),
-        lhs, rhs,
-        /*broadcast_attr*/ nullptr);
+    rewriter.replaceOpWithNewOp<ChloOpT>(op, outTy, lhs, rhs,
+                                         /*broadcast_attr*/ nullptr);
     return success();
   }
 };
@@ -473,18 +495,6 @@ public:
   }
 };
 } // namespace
-
-// AtenLogicalNotOp
-template <>
-LogicalResult ConvertAtenOp<AtenLogicalNotOp>::matchAndRewrite(
-    AtenLogicalNotOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  TensorType outType =
-      getTypeConverter()->convertType(op.getType()).cast<TensorType>();
-  Value self = mhlo::promoteType(rewriter, adaptor.getSelf(), outType);
-  rewriter.replaceOpWithNewOp<mhlo::NotOp>(op, outType, self);
-  return success();
-}
 
 // AtenTransposeIntOp
 namespace {
@@ -1366,14 +1376,21 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   target.addIllegalOp<RuntimeAssertOp>();
   patterns.add<ConvertRuntimeAssertOp>(typeConverter, context);
 
+#define INSERT_UNARY_PATTERN(AtenOp, MhloOp)                                   \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenUnaryOp<AtenOp, MhloOp>>(typeConverter, context)
+  INSERT_UNARY_PATTERN(AtenCloneOp, mhlo::CopyOp);
+  INSERT_UNARY_PATTERN(AtenNegOp, mhlo::NegOp);
+  INSERT_UNARY_PATTERN(AtenLogicalNotOp, mhlo::NotOp);
+  INSERT_UNARY_PATTERN(AtenBitwiseNotOp, mhlo::NotOp);
+#undef INSERT_UNARY_PATTERN
+
 #define INSERT_UNARY_FPONLY_PATTERN(AtenOp, MhloOp)                            \
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenUnaryFPOnlyOp<AtenOp, MhloOp>>(typeConverter, context)
   INSERT_UNARY_FPONLY_PATTERN(AtenLogOp, mhlo::LogOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenExpOp, mhlo::ExpOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenCloneOp, mhlo::CopyOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenSqrtOp, mhlo::SqrtOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenNegOp, mhlo::NegOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenRsqrtOp, mhlo::RsqrtOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenSigmoidOp, mhlo::LogisticOp);
 #undef INSERT_UNARY_FPONLY_PATTERN
@@ -1447,7 +1464,6 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenReciprocalOp);
   INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
   INSERT_ATENOP_PATTERN(AtenContiguousOp);
-  INSERT_ATENOP_PATTERN(AtenLogicalNotOp);
 
   INSERT_ATENOP_PATTERN(AtenReluOp);
   INSERT_ATENOP_PATTERN(AtenGeluOp);
@@ -1474,5 +1490,7 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   INSERT_BINARY_BROADCAST_PATTERN(AtenMinimumOp, chlo::BroadcastMinOp);
   INSERT_BINARY_BROADCAST_PATTERN(Aten__And__TensorOp, chlo::BroadcastAndOp);
   INSERT_BINARY_BROADCAST_PATTERN(AtenBitwiseAndTensorOp, chlo::BroadcastAndOp);
+  INSERT_BINARY_BROADCAST_PATTERN(AtenBitwiseOrTensorOp, chlo::BroadcastOrOp);
+  INSERT_BINARY_BROADCAST_PATTERN(AtenBitwiseXorTensorOp, chlo::BroadcastXorOp);
 #undef INSERT_BINARY_BROADCAST_PATTERN
 }

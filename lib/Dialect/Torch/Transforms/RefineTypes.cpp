@@ -737,7 +737,7 @@ void TypeAnalysis::visitOperation(Operation *op,
   if (isa<AtenAddTensorOp, AtenSubTensorOp, AtenMulTensorOp, AtenDivTensorOp,
           AtenDivTensorModeOp, Aten__And__TensorOp, AtenMinimumOp,
           AtenMaximumOp, AtenBitwiseAndTensorOp, AtenBitwiseOrTensorOp,
-          AtenThresholdBackwardOp>(op)) {
+          AtenBitwiseXorTensorOp, AtenThresholdBackwardOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     knowledge.dtype = getPromotedResultType(
