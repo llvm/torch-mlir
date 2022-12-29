@@ -1445,3 +1445,27 @@ class MaskedFillTensorIntValueStaticModule(torch.nn.Module):
 def MaskedFillTensorIntValueStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(2, 3),
                    tu.randint(2, 3, high=2).to(dtype=torch.bool), tu.randint())
+
+
+# ==============================================================================
+
+
+class NewEmptyStridedModuleDefaultDtype(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3, 4], torch.float32, True),
+    ])
+    def forward(self, a):
+        x = torch.ops.aten.new_empty_strided(a, size=[2, 3, 4], stride=[12, 4, 1])
+        y = x.copy_(a)
+        return x + y
+
+
+@register_test_case(module_factory=lambda: NewEmptyStridedModuleDefaultDtype())
+def NewEmptyStridedModuleDefaultDtype_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4))
