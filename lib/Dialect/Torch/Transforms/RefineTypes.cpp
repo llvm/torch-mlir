@@ -1036,6 +1036,10 @@ void TypeAnalysis::visitOperation(Operation *op,
   } else if (auto newEmpty = dyn_cast<AtenNewEmptyOp>(op)) {
     visitConstantTensorNewLikeOp<AtenNewEmptyOp>(newEmpty, operands);
     return;
+  } else if (auto newEmptyStrided = dyn_cast<AtenNewEmptyStridedOp>(op)) {
+    visitConstantTensorNewLikeOp<AtenNewEmptyStridedOp>(newEmptyStrided,
+                                                        operands);
+    return;
   } else if (auto randLike = dyn_cast<AtenRandLikeOp>(op)) {
     visitConstantTensorAllocLikeOp<AtenRandLikeOp>(randLike, operands);
     return;
