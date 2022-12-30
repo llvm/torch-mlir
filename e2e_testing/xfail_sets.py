@@ -102,8 +102,6 @@ MHLO_PASS_SET = {
     "BroadcastToModule_basic",
     "BroadcastToSameRankStaticModule_basic",
     "BroadcastZeroRankInputStaticModule_basic",
-    "ElementwiseAtenLogicalNotOpModule_basic",
-    "ElementwiseAtenLogicalNotOpPromoteModule_basic",
     "ElementwiseAtenWhereSelfModule_basic",
     "ElementwiseClampModule_basic",
     "ElementwiseClampMinModule_basic",
