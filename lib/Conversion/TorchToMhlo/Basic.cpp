@@ -447,8 +447,44 @@ public:
     return success();
   }
 };
-
 } // namespace
+
+// Binary op legalizations for Logical And/Or/Xor.
+namespace {
+template <typename AtenOpT, typename ChloOpT>
+class ConvertAtenLogicalBinaryOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    TensorType outType = OpConversionPattern<AtenOpT>::getTypeConverter()
+                             ->convertType(op.getType())
+                             .template cast<TensorType>();
+    Value lhs = mhlo::promoteType(rewriter, adaptor.getSelf(), outType);
+    Value rhs = mhlo::promoteType(rewriter, adaptor.getOther(), outType);
+
+    DenseIntElementsAttr bcastDimensions;
+    rewriter.replaceOpWithNewOp<ChloOpT>(op, outType, lhs, rhs,
+                                         bcastDimensions);
+    return success();
+  }
+};
+} // namespace
+
+// AtenLogicalNotOp
+template <>
+LogicalResult ConvertAtenOp<AtenLogicalNotOp>::matchAndRewrite(
+    AtenLogicalNotOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  TensorType outType =
+      getTypeConverter()->convertType(op.getType()).cast<TensorType>();
+  Value self = mhlo::promoteType(rewriter, adaptor.getSelf(), outType);
+  rewriter.replaceOpWithNewOp<mhlo::NotOp>(op, outType, self);
+  return success();
+}
 
 // AtenTransposeIntOp
 namespace {
@@ -1389,6 +1425,16 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   INSERT_BINARY_COMPARE_PATTERN(AtenNeScalarOp);
 #undef INSERT_BINARY_COMPARE_PATTERN
 
+#define INSERT_BINARY_LOGICAL_PATTERN(AtenOp, ChloOp)                          \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenLogicalBinaryOp<AtenOp, ChloOp>>(typeConverter,      \
+                                                           context)
+
+  INSERT_BINARY_LOGICAL_PATTERN(AtenLogicalOrOp, chlo::BroadcastOrOp);
+  INSERT_BINARY_LOGICAL_PATTERN(AtenLogicalAndOp, chlo::BroadcastAndOp);
+  INSERT_BINARY_LOGICAL_PATTERN(AtenLogicalXorOp, chlo::BroadcastXorOp);
+#undef INSERT_BINARY_LOGICAL_PATTERN
+
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context, options)
@@ -1401,6 +1447,7 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenReciprocalOp);
   INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
   INSERT_ATENOP_PATTERN(AtenContiguousOp);
+  INSERT_ATENOP_PATTERN(AtenLogicalNotOp);
 
   INSERT_ATENOP_PATTERN(AtenReluOp);
   INSERT_ATENOP_PATTERN(AtenGeluOp);
