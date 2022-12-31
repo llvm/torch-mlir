@@ -80,6 +80,9 @@ TORCHDYNAMO_XFAIL_SET = {
     "UniformModule_basic",
     # error: failed to materialize conversion for result #0 of operation 'torch.aten.t' that remained live after conversion
     "TModuleRank1_basic",
+    # error: unsupported by backend contract: tensor with unknown rank
+    # note: see current operation: %1 = "torch.tensor_static_info_cast"(%arg0) : (!torch.vtensor<[5,4,3,2,1],f32>) -> !torch.vtensor<*,f32>
+    "ElementwisePreluModule_basic",
 }
 
 MHLO_PASS_SET = {
