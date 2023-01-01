@@ -194,7 +194,7 @@ class SimplifyDtypeCalculationsPass
     // A single linear scan should suffice.
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
-    config.maxIterations = GreedyRewriteConfig::kNoLimit;
+    config.maxIterations = GreedyRewriteConfig::kNoIterationLimit;
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
                                             config))) {
       return signalPassFailure();
