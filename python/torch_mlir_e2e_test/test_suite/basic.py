@@ -3470,3 +3470,41 @@ class AtenFloatScalarModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenFloatScalarModule())
 def AtenFloatScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(high=5))
+
+
+# ==============================================================================
+
+
+class MoveDimIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1, -1, -1], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.movedim(x, source=1, destination=2) #0, 2, 1
+
+
+@register_test_case(module_factory=lambda: MoveDimIntModule())
+def MoveDimIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 2, 1))
+
+
+# ==============================================================================
+
+
+class MoveDimIntNegativeIndexModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1, -1], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.movedim(x, source=-1, destination=1)
+
+
+@register_test_case(module_factory=lambda: MoveDimIntNegativeIndexModule())
+def MoveDimIntNegativeIndexModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 2))

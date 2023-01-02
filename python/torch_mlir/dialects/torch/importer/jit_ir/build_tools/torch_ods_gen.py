@@ -404,6 +404,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::topk : (Tensor, int, int, bool, bool) -> (Tensor, Tensor)")
     emit("aten::transpose.int : (Tensor, int, int) -> (Tensor)")
     emit("aten::permute : (Tensor, int[]) -> (Tensor)")
+    emit("aten::movedim.int : (Tensor, int, int) -> (Tensor)")
     emit("aten::bmm : (Tensor, Tensor) -> (Tensor)")
     emit("aten::cumsum : (Tensor, int, int?) -> (Tensor)")
     emit("aten::floor_divide.Scalar : (Tensor, Scalar) -> (Tensor)")

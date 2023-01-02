@@ -375,6 +375,13 @@ def aten〇sum〇dim_IntList〡shape(self: List[int], dim: Optional[List[int]], 
 def aten〇permute〡shape(self: List[int], dims: List[int]) -> List[int]:
     return upstream_shape_functions.permute(self, dims)
 
+def aten〇movedim〇int〡shape(self: List[int], source: int, destination: int) -> List[int]:
+    return upstream_shape_functions.movedim(self, [source], [destination])
+
+def aten〇movedim〇int〡dtype(self_rank_dtype: Tuple[int, int], source: int, destination: int) -> int:
+    _, self_dtype = self_rank_dtype
+    return self_dtype
+
 def aten〇transpose〇int〡shape(self: List[int], dim0: int, dim1: int) -> List[int]:
     return upstream_shape_functions.transpose(self, dim0, dim1)
 
