@@ -202,6 +202,16 @@ static FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter,
   return unsqueezed;
 }
 
+static SmallVector<int64_t> computeDimsOrderForMoveDim(int64_t srcDimInt,
+                                                       int64_t dstDimInt,
+                                                       unsigned inputRank) {
+  llvm::iota_range<int64_t> dimsOrderIR(0, inputRank, /*inclusive=*/false);
+  SmallVector<int64_t> dimsOrder(dimsOrderIR.begin(), dimsOrderIR.end());
+  dimsOrder.erase(dimsOrder.begin() + srcDimInt);
+  dimsOrder.insert(dimsOrder.begin() + dstDimInt, srcDimInt);
+  return dimsOrder;
+}
+
 namespace {
 /// We decompose aten.amax into a set of aten.max.dim op(s) depending on the
 /// number of dimensions across which the max needs to be computed.
@@ -3854,7 +3864,6 @@ public:
       rewriter.replaceOp(op, input);
       return success();
     }
-
     Value result = input;
     for (unsigned i = 0; i < dimensions.size(); i++) {
       auto squeezeTensorInfo =
@@ -3866,6 +3875,59 @@ public:
       result = *squeezeTensorInfo;
     }
     rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenMovedimIntOp : public OpRewritePattern<AtenMovedimIntOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMovedimIntOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    std::optional<unsigned> maybeInputRank = getTensorRank(input);
+    if (!maybeInputRank) {
+      return rewriter.notifyMatchFailure(
+          op, "expected input tensor to have a rank");
+    }
+    unsigned inputRank = *maybeInputRank;
+    if (inputRank <= 1) {
+      rewriter.replaceOp(op, input);
+      return success();
+    }
+
+    int64_t srcDimInt, dstDimInt;
+    if (matchPattern(op.getSource(), m_TorchConstantInt(&srcDimInt))) {
+      srcDimInt = toPositiveDim(srcDimInt, inputRank);
+      if (!isValidDim(srcDimInt, inputRank))
+        return rewriter.notifyMatchFailure(op, "source is not a valid dim");
+    } else {
+      return rewriter.notifyMatchFailure(op, "source is not a constant int");
+    }
+    if (matchPattern(op.getDestination(), m_TorchConstantInt(&dstDimInt))) {
+      dstDimInt = toPositiveDim(dstDimInt, inputRank);
+      if (!isValidDim(dstDimInt, inputRank))
+        return rewriter.notifyMatchFailure(op,
+                                           "destination is not a valid dim");
+    } else {
+      return rewriter.notifyMatchFailure(op,
+                                         "destination is not a constant int");
+    }
+
+    SmallVector<int64_t> dimsOrder =
+        computeDimsOrderForMoveDim(srcDimInt, dstDimInt, inputRank);
+    SmallVector<Value> cstDimsOrder;
+    for (int64_t dim : dimsOrder)
+      cstDimsOrder.push_back(rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(dim)));
+    Value permuteDimsOrder = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op->getContext())),
+        cstDimsOrder);
+    rewriter.replaceOpWithNewOp<AtenPermuteOp>(op, op.getType(), input,
+                                               permuteDimsOrder);
     return success();
   }
 };
@@ -4029,6 +4091,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyStridedOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBucketizeTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposePrimsSqueezeOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMovedimIntOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

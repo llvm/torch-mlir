@@ -4932,6 +4932,30 @@ def Torch_AtenPermuteOp : Torch_Op<"aten.permute", [
   }];
 }
 
+def Torch_AtenMovedimIntOp : Torch_Op<"aten.movedim.int", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::movedim.int : (Tensor, int, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$source,
+    Torch_IntType:$destination
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenMovedimIntOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void AtenMovedimIntOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
 def Torch_AtenBmmOp : Torch_Op<"aten.bmm", [
     AllowsTypeRefinement,
     HasValueSemantics,

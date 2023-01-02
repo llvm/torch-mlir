@@ -483,6 +483,8 @@ STABLEHLO_PASS_SET = {
     "_LogSoftmaxModuleStable_basic",
     "PrimsSqueezeModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
+    "MoveDimIntModule_basic",
+    "MoveDimIntNegativeIndexModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -741,6 +743,8 @@ TOSA_PASS_SET = {
     "ElementwiseRemainderScalarModule_Int_Float_basic",
     "ElementwiseRemainderScalarModule_Int_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
+    "MoveDimIntModule_basic",
+    "MoveDimIntNegativeIndexModule_basic",
 }
 
 LTC_XFAIL_SET = {
