@@ -77,6 +77,7 @@ class CMakeBuild(build_py):
             cmake_args = [
                 f"-DCMAKE_BUILD_TYPE=Release",
                 f"-DPython3_EXECUTABLE={sys.executable}",
+                f"-DPython3_FIND_VIRTUALENV=ONLY",
                 f"-DLLVM_TARGETS_TO_BUILD=host",
                 f"-DMLIR_ENABLE_BINDINGS_PYTHON=ON",
                 f"-DLLVM_ENABLE_PROJECTS=mlir",
