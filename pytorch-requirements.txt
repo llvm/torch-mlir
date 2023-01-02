@@ -1,4 +1,4 @@
 -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
 --pre
-torch==2.0.0.dev20230101
-torchvision==0.15.0.dev20230101
+torch==2.0.0.dev20230102
+torchvision==0.15.0.dev20230102
