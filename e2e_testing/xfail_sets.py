@@ -458,6 +458,8 @@ STABLEHLO_PASS_SET = {
     "AtenRoundIntModule_basic",
     "TestF16Return_basic",
     "_LogSoftmaxModuleStable_basic",
+    "MoveDimIntModule_basic",
+    "MoveDimIntNegativeIndexModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -704,6 +706,8 @@ TOSA_PASS_SET = {
     "FullModuleInt3D_basic",
     "FullModuleFloat2D_basic",
     "RepeatModule_basic"
+    "MoveDimIntModule_basic",
+    "MoveDimIntNegativeIndexModule_basic",
 }
 
 LTC_XFAIL_SET = {
