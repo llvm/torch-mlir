@@ -408,6 +408,8 @@ MHLO_PASS_SET = {
     "UnsafeViewDynamicExpandModule_basic",
     "AtenRoundIntModule_basic",
     "TestF16Return_basic",
+    "MoveDimIntModule_basic",
+    "MoveDimIntNegativeIndexModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -633,6 +635,8 @@ TOSA_PASS_SET = {
     "HardsigmoidRandomModule_basic",
     "HardswishModule_basic",
     "HardswishRandomModule_basic",
+    "MoveDimIntModule_basic",
+    "MoveDimIntNegativeIndexModule_basic",
 }
 
 LTC_XFAIL_SET = {

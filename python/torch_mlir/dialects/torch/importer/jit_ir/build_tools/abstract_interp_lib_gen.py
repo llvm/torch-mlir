@@ -373,6 +373,45 @@ def aten〇sum〇dim_IntList〡shape(self: List[int], dim: Optional[List[int]], 
 def aten〇permute〡shape(self: List[int], dims: List[int]) -> List[int]:
     return upstream_shape_functions.permute(self, dims)
 
+def _movedim(self: List[int], source: List[int], destination: List[int]) -> List[int]:
+    self_dim = len(self)
+    if self_dim == 0:
+        return self
+    nomralized_src : List[int] = []
+    nomralized_dst : List[int] = []
+    for i in range(len(source)):
+        nomralized_src.append(upstream_shape_functions.maybe_wrap_dim(source[i], self_dim))
+        nomralized_dst.append(upstream_shape_functions.maybe_wrap_dim(destination[i], self_dim))
+    order = [-1 for i in range(self_dim)]
+    src_dims = [i for i in range(self_dim)]
+    dst_dims = [i for i in range(self_dim)]
+
+    for i in range(len(source)):
+        order[nomralized_dst[i]] = nomralized_src[i]
+        src_dims[nomralized_src[i]] = -1
+        dst_dims[nomralized_dst[i]] = -1
+
+    source_dims : List[int] = []
+    destination_dims : List[int] = []
+    for ele in src_dims:
+        if ele != -1:
+            source_dims.append(ele)
+    for ele in dst_dims:
+        if ele != -1:
+            destination_dims.append(ele)
+
+    rest_dim = self_dim - len(source)
+    for i in range(rest_dim):
+        order[destination_dims[i]] = source_dims[i]
+    return order
+
+def aten〇movedim〇int〡shape(self: List[int], source: int, destination: int) -> List[int]:
+    dims_order = _movedim(self, [source], [destination])
+    return upstream_shape_functions.permute(self, dims_order)
+
+def aten〇movedim〇int〡dtype(self_rank: int, self_dtype: int, source: int, destination: int) -> int:
+    return self_dtype
+
 def aten〇transpose〇int〡shape(self: List[int], dim0: int, dim1: int) -> List[int]:
     return upstream_shape_functions.transpose(self, dim0, dim1)
 
