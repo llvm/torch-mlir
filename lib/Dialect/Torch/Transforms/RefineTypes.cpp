@@ -673,7 +673,7 @@ void TypeAnalysis::visitOperation(Operation *op,
   }
 
   // Dtype is always float32, except for bfloat16, float16, float64 and nullptr.
-  if (isa<AtenExpOp, AtenExpm1Op, AtenSinOp, AtenCosOp, AtenSigmoidOp,
+  if (isa<AtenTanhOp, AtenExpOp, AtenSinOp, AtenCosOp, AtenSigmoidOp,
           AtenReciprocalOp, AtenLogOp, AtenSqrtOp, AtenLog2Op, AtenLog1pOp,
           AtenRsqrtOp, AtenErfOp, AtenSoftplusOp, AtenFrobeniusNormDimOp>(op)) {
     ValueKnowledge knowledge =

@@ -48,26 +48,6 @@ def aten〇triu〡shape(self: List[int], diagonal: int = 0) -> List[int]:
 def aten〇tanh〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
-@check_dtype_function([
-    Invocation(NonZeroDTensorWithDtype(torch.float32)),
-    Invocation(NonZeroDTensorWithDtype(torch.float64)),
-    Invocation(NonZeroDTensorWithDtype(torch.bfloat16)),
-    Invocation(NonZeroDTensorWithDtype(torch.int64)),
-    Invocation(NonZeroDTensorWithDtype(torch.int32)),
-    Invocation(NonZeroDTensorWithDtype(torch.bool)),
-    Invocation(ZeroDTensorWithDtype(torch.float32)),
-    Invocation(ZeroDTensorWithDtype(torch.float64)),
-    Invocation(ZeroDTensorWithDtype(torch.bfloat16)),
-    Invocation(ZeroDTensorWithDtype(torch.int64)),
-    Invocation(ZeroDTensorWithDtype(torch.int32)),
-    Invocation(ZeroDTensorWithDtype(torch.bool)),
-])
-def aten〇tanh〡dtype(self_rank: int, self_dtype: int) -> int:
-    if self_dtype == torch.float64 or self_dtype == torch.bfloat16 or self_dtype == torch.float16:
-        return self_dtype
-    else:
-        return torch.float32
-
 def aten〇erf〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -94,6 +74,26 @@ def aten〇exp〡shape(self: List[int]) -> List[int]:
 
 def aten〇expm1〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
+
+@check_dtype_function([
+    Invocation(NonZeroDTensorWithDtype(torch.float32)),
+    Invocation(NonZeroDTensorWithDtype(torch.float64)),
+    Invocation(NonZeroDTensorWithDtype(torch.bfloat16)),
+    Invocation(NonZeroDTensorWithDtype(torch.int64)),
+    Invocation(NonZeroDTensorWithDtype(torch.int32)),
+    Invocation(NonZeroDTensorWithDtype(torch.bool)),
+    Invocation(ZeroDTensorWithDtype(torch.float32)),
+    Invocation(ZeroDTensorWithDtype(torch.float64)),
+    Invocation(ZeroDTensorWithDtype(torch.bfloat16)),
+    Invocation(ZeroDTensorWithDtype(torch.int64)),
+    Invocation(ZeroDTensorWithDtype(torch.int32)),
+    Invocation(ZeroDTensorWithDtype(torch.bool)),
+])
+def aten〇expm1〡dtype(self_rank: int, self_dtype: int) -> int:
+    if self_dtype == torch.float64 or self_dtype == torch.bfloat16 or self_dtype == torch.float16:
+        return self_dtype
+    else:
+        return torch.float32
 
 def aten〇sin〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)

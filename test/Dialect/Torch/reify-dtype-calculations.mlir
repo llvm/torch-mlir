@@ -1,23 +1,23 @@
 // RUN: torch-mlir-opt -torch-reify-dtype-calculations -split-input-file %s | FileCheck %s
 
 // CHECK: module {
-// CHECK: func.func private @__torch_mlir_dtype_fn.aten.tanh(
+// CHECK: func.func private @__torch_mlir_dtype_fn.aten.expm1(
 
 // CHECK-LABEL:   func.func @basic(
 // CHECK-SAME:                %[[ARG:.*]]: !torch.vtensor) -> !torch.vtensor {
 // CHECK:           %[[RESULT:.*]] = torch.dtype.calculate  {
-// CHECK:             %[[TANH:.*]] = torch.aten.tanh %[[ARG]] : !torch.vtensor -> !torch.vtensor
-// CHECK:             torch.dtype.calculate.yield %[[TANH]] : !torch.vtensor
+// CHECK:             %[[EXPM1:.*]] = torch.aten.expm1 %[[ARG]] : !torch.vtensor -> !torch.vtensor
+// CHECK:             torch.dtype.calculate.yield %[[EXPM1]] : !torch.vtensor
 // CHECK:           } dtypes  {
 // CHECK:             %[[SIZE:.*]] = torch.aten.size %[[ARG]] : !torch.vtensor -> !torch.list<int>
 // CHECK:             %[[RANK:.*]] = torch.aten.len.t %[[SIZE]] : !torch.list<int> -> !torch.int
 // CHECK:             %[[DTYPE:.*]] = torch.prim.dtype %[[ARG]] : !torch.vtensor -> !torch.int
-// CHECK:             %[[RESULT_DTYPE:.*]] = func.call @__torch_mlir_dtype_fn.aten.tanh(%[[RANK]], %[[DTYPE]]) : (!torch.int, !torch.int) -> !torch.int
+// CHECK:             %[[RESULT_DTYPE:.*]] = func.call @__torch_mlir_dtype_fn.aten.expm1(%[[RANK]], %[[DTYPE]]) : (!torch.int, !torch.int) -> !torch.int
 // CHECK:             torch.dtype.calculate.yield.dtypes %[[RESULT_DTYPE]] : !torch.int
 // CHECK:           } : !torch.vtensor
 // CHECK:           return %[[RESULT:.*]] : !torch.vtensor
 func.func @basic(%arg0: !torch.vtensor) -> !torch.vtensor {
-  %0 = torch.aten.tanh %arg0 : !torch.vtensor -> !torch.vtensor
+  %0 = torch.aten.expm1 %arg0 : !torch.vtensor -> !torch.vtensor
   return %0 : !torch.vtensor
 }
 
