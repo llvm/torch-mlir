@@ -170,3 +170,46 @@ class LogSoftmaxBackwardModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: LogSoftmaxBackwardModule())
 def LogSoftmaxBackwardModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4), tu.rand(3, 2, 4))
+
+
+# ==============================================================================
+
+
+class LeakyReluBackwardModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, grad, input):
+        return torch.ops.aten.leaky_relu_backward(grad, input, negative_slope=0.1, self_is_result=False)
+
+
+@register_test_case(module_factory=lambda: LeakyReluBackwardModule())
+def LeakyReluBackwardModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3), tu.rand(5, 3))
+
+
+class LeakyReluBackwardStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4, 5], torch.float32, True),
+        ([3, 4, 5], torch.float32, True),
+    ])
+    def forward(self, grad, input):
+        return torch.ops.aten.leaky_relu_backward(grad, input, negative_slope=0.1, self_is_result=False)
+
+
+@register_test_case(module_factory=lambda: LeakyReluBackwardStaticModule())
+def LeakyReluBackwardStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5), tu.rand(3, 4, 5))

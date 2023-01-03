@@ -779,6 +779,79 @@ public:
 };
 } // namespace
 
+// LeakyRelu = max(0,x) + negative_slope * min(0,x)
+namespace {
+class DecomposeAtenLeakyReluOp : public OpRewritePattern<AtenLeakyReluOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLeakyReluOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    Value negativeSlope = op.getNegativeSlope();
+    auto resType = op.getType().cast<BaseTensorType>();
+
+    Value constantZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value constantOne =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value zeroTensor = createRank0Tensor(rewriter, loc, resType, constantZero);
+    Value positiveOutput =
+        rewriter.create<AtenMaximumOp>(loc, resType, zeroTensor, input);
+    Value negativeOutput =
+        rewriter.create<AtenMinimumOp>(loc, resType, zeroTensor, input);
+    Value scaledNegativeOutput = rewriter.create<AtenMulScalarOp>(
+        loc, resType, negativeOutput, negativeSlope);
+    Value leakyReluOutput = rewriter.create<AtenAddTensorOp>(
+        loc, resType, positiveOutput, scaledNegativeOutput, constantOne);
+
+    rewriter.replaceOp(op, leakyReluOutput);
+    return success();
+  }
+};
+} // namespace
+
+// LeakyReluBackward = max(0,grad) + negative_slope * min(0,x)
+namespace {
+class DecomposeAtenLeakyReluBackwardOp
+    : public OpRewritePattern<AtenLeakyReluBackwardOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLeakyReluBackwardOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value gradOutput = op.getGradOutput();
+    Value input = op.getSelf();
+    Value negativeSlope = op.getNegativeSlope();
+    auto resType = op.getType().cast<BaseTensorType>();
+
+    bool selfIsResult = false;
+    if (!matchPattern(op.getSelfIsResult(),
+                      m_TorchConstantBool(&selfIsResult)) ||
+        selfIsResult)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: self_is_result should be false");
+
+    Value constantZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value constantOne =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value zeroTensor = createRank0Tensor(rewriter, loc, resType, constantZero);
+    Value positiveOutput =
+        rewriter.create<AtenMaximumOp>(loc, resType, zeroTensor, gradOutput);
+    Value negativeOutput =
+        rewriter.create<AtenMinimumOp>(loc, resType, zeroTensor, input);
+    Value scaledNegativeOutput = rewriter.create<AtenMulScalarOp>(
+        loc, resType, negativeOutput, negativeSlope);
+    Value leakyReluBackwardOutput = rewriter.create<AtenAddTensorOp>(
+        loc, resType, positiveOutput, scaledNegativeOutput, constantOne);
+
+    rewriter.replaceOp(op, leakyReluBackwardOutput);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeAtenTOp : public OpRewritePattern<AtenTOp> {
 public:
@@ -3550,6 +3623,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnGeneratorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluBackwardOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

@@ -135,6 +135,7 @@ MHLO_PASS_SET = {
     "ElementwiseGeFloatScalarModule_basic",
     "ElementwiseGeIntScalarModule_basic",
     "ElementwiseGeMixedIntScalarModule_basic",
+    "ElementwiseLeakyReluStaticModule_basic",
     "ElementwiseLeFloatIntScalarModule_basic",
     "ElementwiseLeFloatScalarModule_basic",
     "ElementwiseLeIntScalarModule_basic",
@@ -195,6 +196,7 @@ MHLO_PASS_SET = {
     "LayerNormLastDimModule_basic",
     "LayerNormModule_basic",
     "LayerNormNormalizeOverAllDimsModule_basic",
+    "LeakyReluBackwardStaticModule_basic",
     "MatmulBroadcastBatchDim_basic",
     "MatmulSingleDynamicBatchDim_basic",
     "Matmul_3d",
@@ -616,6 +618,16 @@ TOSA_PASS_SET = {
     "AddCMul_Module_basic",
     "AddCDiv_Module_basic",
     "TestF16Return_basic",
+    "ElementwiseLeakyReluModule_basic",
+    "ElementwiseLeakyReluStaticModule_basic",
+    "LeakyReluBackwardModule_basic",
+    "LeakyReluBackwardStaticModule_basic",
+    "ElementwiseRelu6Module_basic",
+    "HardTanhModule_basic",
+    "HardsigmoidModule_basic",
+    "HardsigmoidRandomModule_basic",
+    "HardswishModule_basic",
+    "HardswishRandomModule_basic",
 }
 
 LTC_XFAIL_SET = {

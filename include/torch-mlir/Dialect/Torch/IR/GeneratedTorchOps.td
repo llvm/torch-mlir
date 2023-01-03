@@ -10316,6 +10316,32 @@ def Torch_AtenNativeDropoutBackwardOp : Torch_Op<"aten.native_dropout_backward",
   }];
 }
 
+def Torch_AtenLeakyReluBackwardOp : Torch_Op<"aten.leaky_relu_backward", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::leaky_relu_backward : (Tensor, Tensor, Scalar, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$grad_output,
+    AnyTorchTensorType:$self,
+    AnyTorchScalarType:$negative_slope,
+    Torch_BoolType:$self_is_result
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenLeakyReluBackwardOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenLeakyReluBackwardOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
 def Torch_PrimLayoutOp : Torch_Op<"prim.layout", [
     AllowsTypeRefinement,
     HasValueSemantics,
