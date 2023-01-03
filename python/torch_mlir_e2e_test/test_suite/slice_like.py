@@ -48,6 +48,24 @@ class SliceStaticModule(torch.nn.Module):
 def SliceStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(6,4,7))
 
+# ==============================================================================
+
+class SliceNegativeIndexStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 128, 2], torch.float32, True),
+    ])
+    def forward(self, x):
+        return x[0:1:1, -1:0:1]
+
+
+@register_test_case(module_factory=lambda: SliceNegativeIndexStaticModule())
+def SliceNegativeIndexStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 128, 2))
 
 # ==============================================================================
 

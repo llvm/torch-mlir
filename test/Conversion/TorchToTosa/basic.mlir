@@ -1066,6 +1066,25 @@ func.func @torch.aten.masked_fill.Tensor(%arg0: !torch.vtensor<[1,12,128,128],f3
 }
 
 // -----
+// CHECK-LABEL:   func.func @torch.aten.slice(
+// CHECK-SAME:                                %[[VAL_0:.*]]: !torch.vtensor<[1,128,2],f32>) -> !torch.vtensor<[1,1,2],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,128,2],f32> -> tensor<1x128x2xf32>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int -1
+// CHECK:           %[[VAL_3:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_4:.*]] = torch.constant.int 0
+// CHECK:           %[[VAL_5:.*]] = "tosa.slice"(%[[VAL_1]]) {size = array<i64: 1, 1, 2>, start = array<i64: 0, 127, 0>} : (tensor<1x128x2xf32>) -> tensor<1x1x2xf32>
+// CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<1x1x2xf32> -> !torch.vtensor<[1,1,2],f32>
+// CHECK:           return %[[VAL_6]] : !torch.vtensor<[1,1,2],f32>
+// CHECK:         }
+func.func @torch.aten.slice(%arg0: !torch.vtensor<[1,128,2],f32>) -> !torch.vtensor<[1,1,2],f32> {
+  %int-1 = torch.constant.int -1
+  %int1 = torch.constant.int 1
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.slice.Tensor %arg0, %int1, %int-1, %int0, %int1 : !torch.vtensor<[1,128,2],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,1,2],f32>
+  return %0 : !torch.vtensor<[1,1,2],f32>
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten.where.self(
 // CHECK-SAME:                                     %[[VAL_0:.*]]: !torch.vtensor<[1,1,5,5],i1>,
 // CHECK-SAME:                                     %[[VAL_1:.*]]: !torch.vtensor<[1,12,5,5],f32>,

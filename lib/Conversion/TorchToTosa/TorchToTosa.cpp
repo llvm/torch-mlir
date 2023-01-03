@@ -2645,6 +2645,33 @@ LogicalResult ConvertAtenOp<AtenViewOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op,
                                        "size must consist of Scalar constants");
 
+  // # the size -1 is inferred from other dimensions
+  auto inputShape = selfType.getShape();
+  size_t totalSize = 1;
+  for (size_t i = 0; i < inputShape.size(); i++) {
+    totalSize *= inputShape[i];
+  }
+  size_t countNegativeShape{0};
+  size_t otherSize = 1;
+  for (size_t i = 0; i < outShape.size(); i++) {
+    if (outShape[i] > 0) {
+      otherSize *= outShape[i];
+    } else {
+      // Check at most one -1 shape
+      countNegativeShape++;
+      if(countNegativeShape > 1)
+        return rewriter.notifyMatchFailure(op,
+                                           "At most one -1 shape");
+    }
+  }
+
+  for (size_t i = 0; i < outShape.size(); i++) {
+    if (outShape[i] < 0) {
+      outShape[i] = totalSize / otherSize;
+      break;
+    }
+  }
+
   rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
       op, getTypeConverter()->convertType(op.getType()), adaptor.getSelf(),
       rewriter.getDenseI64ArrayAttr(outShape));
@@ -3061,12 +3088,21 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
   if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)))
     return rewriter.notifyMatchFailure(op, "start must be a Scalar constant");
 
-  if (start < 0)
-    return rewriter.notifyMatchFailure(op, "Currently unsupported: start < 0");
+  if (start < 0) {
+    start = start + selfType.getShape()[dim];
+    if (start < 0)
+      return rewriter.notifyMatchFailure(op, "start must be >=0 after conversion");
+  }
 
   int64_t end;
   if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end)))
     return rewriter.notifyMatchFailure(op, "end must be a Scalar constant");
+
+  if (end < 0) {
+    end = end + selfType.getShape()[dim];
+    if (end < 0)
+      return rewriter.notifyMatchFailure(op, "end must be >=0 after conversion");
+  }
 
   // FIXME: add support for start/end < 0 and end < start
   if (end < start)
