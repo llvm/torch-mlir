@@ -261,6 +261,25 @@ def NativeLayerNormDynamicModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class NormalizeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 3], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.nn.functional.normalize(x)
+
+
+@register_test_case(module_factory=lambda: NormalizeModule())
+def NormalizeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 3))
+
+# ==============================================================================
+
 class NativeLayerNormModule4D(torch.nn.Module):
     def __init__(self):
         super().__init__()
