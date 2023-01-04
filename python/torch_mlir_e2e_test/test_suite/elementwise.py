@@ -2233,6 +2233,193 @@ def ElementwiseAtenLogicalOrOpBrodcastModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAtenLogicalOrOpPromoteBroadcastStaticShapeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([256], torch.float32, True),
+        ([3, 256], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_or(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpPromoteBroadcastStaticShapeModule())
+def ElementwiseAtenLogicalOrOpPromoteBroadcastStaticShapeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(256), tu.randint(3, 256, low=-1, high=2))
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenLogicalAndOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.bool, True),
+        ([-1, -1], torch.bool, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_and(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalAndOpModule())
+def ElementwiseAtenLogicalAndOpModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, 5, high=2).bool(), tu.randint(4, 5, high=2).bool())
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenLogicalAndOpPromoteBroadcastModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_and(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalAndOpPromoteBroadcastModule())
+def ElementwiseAtenLogicalAndOpPromoteBroadcastModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(256), tu.randint(3, 256, low=-1, high=2))
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenLogicalAndOpPromoteBroadcastStaticShapeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([256], torch.float32, True),
+        ([3, 256], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_and(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalAndOpPromoteBroadcastStaticShapeModule())
+def ElementwiseAtenLogicalAndOpPromoteBroadcastStaticShapeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(256), tu.randint(3, 256, low=-1, high=2))
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenLogicalXorOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.bool, True),
+        ([-1, -1], torch.bool, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_xor(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalXorOpModule())
+def ElementwiseAtenLogicalXorOpModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, 5, high=2).bool(), tu.randint(4, 5, high=2).bool())
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenLogicalXorOpPromoteBroadcastModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_xor(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalXorOpPromoteBroadcastModule())
+def ElementwiseAtenLogicalXorOpPromoteBroadcastModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(256), tu.randint(3, 256, low=-1, high=2))
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenLogicalXorOpPromoteBroadcastStaticShapeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([256], torch.float32, True),
+        ([3, 256], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_xor(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalXorOpPromoteBroadcastStaticShapeModule())
+def ElementwiseAtenLogicalXorOpPromoteBroadcastStaticShapeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(256), tu.randint(3, 256, low=-1, high=2))
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenLogicalNotOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.bool, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.logical_not(x)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalNotOpModule())
+def ElementwiseAtenLogicalNotOpModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, 5, high=2).bool())
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenLogicalNotOpPromoteModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.logical_not(x)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalNotOpPromoteModule())
+def ElementwiseAtenLogicalNotOpPromoteModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, 5, low=-1, high=2))
+
+
+# ==============================================================================
+
+
 class ElementwiseAtenFloorDivideModule(torch.nn.Module):
 
     def __init__(self):

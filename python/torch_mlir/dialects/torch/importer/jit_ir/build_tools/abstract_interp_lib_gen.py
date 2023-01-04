@@ -687,6 +687,15 @@ def aten〇bitwise_not〡shape(self: List[int]) -> List[int]:
 def aten〇logical_or〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
+def aten〇logical_and〡shape(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, other)
+
+def aten〇logical_xor〡shape(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, other)
+
+def aten〇logical_not〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇threshold〡shape(self: List[int], threshold: float, value: float) -> List[int]:
     return upstream_shape_functions.unary(self)
 
