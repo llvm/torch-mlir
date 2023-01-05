@@ -12,7 +12,7 @@
 
 Write-Host "Installing Build Dependencies"
 python -m venv .\mlir_venv\
-.\mlir_venv\Scripts\activate
+.\mlir_venv\Scripts\Activate.PS1
 pip install -r .\requirements.txt
 Write-Host "Build Deps installation completed successfully"
 

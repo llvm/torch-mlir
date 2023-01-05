@@ -1,17 +1,4 @@
--r pytorch-requirements.txt
-
-numpy
-
-# Build requirements.
-pybind11
-wheel
-setuptools
-cmake
-ninja
-
-# Workaround for what should be a torch dep
-# See discussion in #1174
-pyyaml
+-r build-requirements.txt
 
 # Test Requirements
 pillow
