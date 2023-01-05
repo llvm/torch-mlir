@@ -2510,7 +2510,10 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return rewriter.notifyMatchFailure(op, "dim must be a Scalar constant");
 
-  dim = toPositiveDim(dim, selfRank);
+  // toPositiveDim converts negative dims to the range [0, inputRank). So, -1
+  // will be converted to inputRank-1. For `torch.unsqueeze` op, -1 has to be
+  // converted to inputRank, and the valid dim range is [0, inputRank + 1).
+  dim = toPositiveDim(dim, selfRank + 1);
   if (!isValidDim(dim, selfRank + 1))
     return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
@@ -2522,6 +2525,8 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
 
     outShape.push_back(en.value());
   }
+  if (dim == selfRank)
+    outShape.push_back(1);
 
   rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
       op, getTypeConverter()->convertType(op.getType()), adaptor.getSelf(),
