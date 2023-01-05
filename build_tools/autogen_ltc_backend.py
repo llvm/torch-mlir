@@ -38,7 +38,7 @@ def reindent(text, prefix=""):
 @dataclass(frozen=True)
 class GenMlirLazyIr(torchgen.dest.GenLazyIR):
     def isOptionalCType(self, arg):
-        return str(type(arg)) == "<class 'torchgen.api.types.OptionalCType'>"
+        return str(type(arg)) == "<class 'torchgen.api.types.types.OptionalCType'>"
 
     def lowering_function(self, schema: LazyIrSchema):
         signature = "TorchMlirOpVector Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const override"
