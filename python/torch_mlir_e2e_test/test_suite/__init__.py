@@ -20,6 +20,7 @@ def register_all_tests():
     from . import conv
     from . import norm_like
     from . import quantized_models
+    from . import quantize
     from . import elementwise
     from . import type_promotion
     from . import type_conversion

@@ -1090,6 +1090,13 @@ def aten〇add〡dtype(a: Union[int, float], b: Union[int, float]) -> int:
     dtypes = [get_dtype_of_scalar(a), get_dtype_of_scalar(b)]
     return promote_dtypes(ranks, dtypes)
 
+
+def aten〇quantize_per_tensor〡shape(self: List[int], scale: float, zero_point: int, dtype: int) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇int_repr〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def _maybe_import_op_extensions(args: argparse.Namespace):
     extension_string = str.strip(args.pytorch_op_extensions)
     if len(extension_string) > 0:

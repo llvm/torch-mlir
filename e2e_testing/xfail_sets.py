@@ -12,7 +12,10 @@
 
 from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 
-LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
+LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS.union({
+    # TODO ERROR: dtype (torch.int8) is not equal to golden dtype (torch.uint8)
+    "Quantize_uint8"
+})
 
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
@@ -43,6 +46,10 @@ TORCHDYNAMO_XFAIL_SET = {
     # TODO: This is due to returning a scalar float as output from the test.
     # We should probably just standardize all tests to return tensors.
     "DivIntModule_basic",
+
+    # NotImplementedError: could not find kernel for aten.quantize_per_tensor.default at dispatch key DispatchKey.Meta
+    "Quantize_int8",
+    "Quantize_uint8",
 
     #### Torch-MLIR internal compiler errors
 
@@ -735,6 +742,8 @@ LTC_XFAIL_SET = {
     "DivIntModule_basic",
     "NeFloatIntModule_basic",
     "NeIntModule_basic",
+    "Quantize_int8",
+    "Quantize_uint8",
     "QuantizedMLP_basic",
     "RandLikeDtypeModule_basic",
     "RandLikeModule_basic",

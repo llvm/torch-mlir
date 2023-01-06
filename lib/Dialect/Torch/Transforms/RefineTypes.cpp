@@ -1055,6 +1055,33 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
+  if (auto qpt = dyn_cast<AtenQuantizePerTensorOp>(op)) {
+    visitAtenToDtypeLikeOp(qpt, operands);
+    return;
+  }
+
+  if (auto qpt = dyn_cast<AtenIntReprOp>(op)) {
+    auto knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+
+    Type dtype = operands[0]->getValue().dtype;
+    if (!dtype)
+      return;
+
+    if (isa<Torch::QInt8Type>(dtype)) {
+      knowledge.dtype =
+          IntegerType::get(op->getContext(), 8, IntegerType::Signed);
+    } else if (isa<Torch::QUInt8Type>(dtype)) {
+      knowledge.dtype =
+          IntegerType::get(op->getContext(), 8, IntegerType::Unsigned);
+    } else {
+      return;
+    }
+
+    incorporateKnowledge(qpt.getResult(), knowledge);
+    return;
+  }
+
   if (auto toDtypeLayout = dyn_cast<AtenToDtypeLayoutOp>(op)) {
     visitAtenToDtypeLikeOp<AtenToDtypeLayoutOp>(toDtypeLayout, operands);
     return;

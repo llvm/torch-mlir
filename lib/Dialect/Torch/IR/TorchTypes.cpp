@@ -372,6 +372,10 @@ static Type convertDtypeToBuiltinElementType(MLIRContext *context, Type dtype) {
   } else if (auto integerType = dtype.dyn_cast<IntegerType>()) {
     return IntegerType::get(context, integerType.getWidth(),
                             IntegerType::Signless);
+  } else if (auto integerType = dtype.dyn_cast<QInt8Type>()) {
+    return IntegerType::get(context, 8, IntegerType::Signless);
+  } else if (auto integerType = dtype.dyn_cast<QUInt8Type>()) {
+    return IntegerType::get(context, 8, IntegerType::Signless);
   }
   emitError(UnknownLoc::get(context))
       << "unimplemented: conversion of dtype " << dtype

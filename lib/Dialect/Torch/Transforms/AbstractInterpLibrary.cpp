@@ -7486,6 +7486,14 @@ StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
 "    %4 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.library_generator.promote_dtypes(%0, %3) : (!torch.list<optional<int>>, !torch.list<int>) -> !torch.int\n"
 "    return %4 : !torch.int\n"
 "  }\n"
+"  func.func @\"__torch_mlir_shape_fn.aten.quantize_per_tensor\"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.int, %arg3: !torch.int) -> !torch.list<int> {\n"
+"    %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>\n"
+"    return %0 : !torch.list<int>\n"
+"  }\n"
+"  func.func @\"__torch_mlir_shape_fn.aten.int_repr\"(%arg0: !torch.list<int>) -> !torch.list<int> {\n"
+"    %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>\n"
+"    return %0 : !torch.list<int>\n"
+"  }\n"
 "}\n"
 "";
   // clang-format on

@@ -110,6 +110,10 @@ Type Torch::getTypeForScalarType(
     return mlir::ComplexType::get(Float64Type::get(context));
   case torch_upstream::ScalarType::ComplexDouble:
     return mlir::ComplexType::get(Float128Type::get(context));
+  case torch_upstream::ScalarType::QInt8:
+    return Torch::QInt8Type::get(context);
+  case torch_upstream::ScalarType::QUInt8:
+    return Torch::QUInt8Type::get(context);
   default:
     llvm::report_fatal_error("unhandled type for getTypeForScalarType");
   }
