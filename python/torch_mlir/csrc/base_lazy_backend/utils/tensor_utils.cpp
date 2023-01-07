@@ -1,6 +1,6 @@
 #include "tensor_utils.h"
 
-#include "../generated/LazyIr.h"
+#include "torch_mlir/csrc/base_lazy_backend/generated/LazyIr.h"
 #include "../mlir_node.h"
 
 

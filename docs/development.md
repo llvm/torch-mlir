@@ -187,7 +187,7 @@ The built binary should be at `bazel-bin/external/torch-mlir/torch-mlir-opt`.
 
 3. Test torch-mlir (lit test only):
 ```shell
-bazel test @torch-mlir//test/...
+bazel test @torch-mlir//...
 ```
 
 We welcome patches to torch-mlir's Bazel build. If you do contribute,

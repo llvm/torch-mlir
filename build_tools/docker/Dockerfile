@@ -35,7 +35,7 @@ RUN apt-get update && \
 
 ######## Bazel ########
 WORKDIR /install-bazel
-ARG BAZEL_VERSION=5.2.0
+ARG BAZEL_VERSION=6.0.0
 
 # https://bazel.build/install/ubuntu
 RUN curl -fsSL https://bazel.build/bazel-release.pub.gpg \

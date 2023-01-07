@@ -1,0 +1,325 @@
+# This file is licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+load("@llvm-project//mlir:tblgen.bzl", "gentbl_filegroup", "td_library")
+load("@torch-mlir//:build_defs.bzl", "PYBIND11_COPTS", "PYBIND11_FEATURES", "gen_python_package")
+
+package(default_visibility = ["//visibility:public"])
+
+# csrc target
+cc_library(
+    name = "TorchMLIRJITIRImporter",
+    srcs = [
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/class_annotator.cpp",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/function_importer.cpp",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/ivalue_importer.cpp",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/node_importer.cpp",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/torch_to_mlir_utils.cpp",
+    ],
+    hdrs = [
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/class_annotator.h",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/function_importer.h",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/import_options.h",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/ivalue_importer.h",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/mlir_utils.h",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/node_importer.h",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/torch_to_mlir_utils.h",
+    ],
+    deps = [
+        "@libtorch//:torch",
+        "@llvm-project//mlir:MLIRBindingsPythonCoreNoCAPI",
+        "@torch-mlir//:TORCHMLIRBindingsPythonHeaders",
+        "@torch-mlir//:libTorchMLIRAggregateCAPI",
+    ],
+)
+
+cc_library(
+    name = "TorchMLIRJITIRImporterPybind",
+    srcs = [
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/class_annotator_pybind.cpp",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/get_registered_ops.cpp",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/import_options_pybind.cpp",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/module_builder.cpp",
+    ],
+    hdrs = [
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/class_annotator_pybind.h",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/get_registered_ops.h",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/import_options_pybind.h",
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/module_builder.h",
+    ],
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    deps = [
+        ":TorchMLIRJITIRImporter",
+        "@pybind11",
+    ],
+)
+
+cc_binary(
+    name = "_jit_ir_importer.so",
+    srcs = [
+        "torch_mlir/dialects/torch/importer/jit_ir/csrc/init_python_bindings.cpp",
+    ],
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    linkshared = 1,
+    deps = [
+        ":TorchMLIRJITIRImporterPybind",
+    ],
+)
+
+cc_library(
+    name = "TorchMlirLtcBackend",
+    srcs = glob([
+        "torch_mlir/csrc/base_lazy_backend/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "torch_mlir/csrc/base_lazy_backend/**/*.h",
+    ]),
+    deps = [
+        "@torch-mlir//:generated",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "_generated_deps_header",
+    hdrs = glob([
+        "torch_mlir/csrc/base_lazy_backend/**/*.h",
+    ]),
+    deps = [
+        "@libtorch//:torch",
+        "@torch-mlir//python:TorchMLIRJITIRImporter",
+    ],
+)
+
+genrule(
+    name = "_autogen_generated",
+    outs = [
+        "torch_mlir/csrc/base_lazy_backend/generated/LazyIr.h",
+        "torch_mlir/csrc/base_lazy_backend/generated/LazyNativeFunctions.cpp",
+        "torch_mlir/csrc/base_lazy_backend/generated/LazyNativeFunctions.h",
+        "torch_mlir/csrc/base_lazy_backend/generated/LazyNonNativeIr.h",
+        "torch_mlir/csrc/base_lazy_backend/generated/RegisterLazy.cpp",
+        "torch_mlir/csrc/base_lazy_backend/generated/shape_inference.cpp",
+        "torch_mlir/csrc/base_lazy_backend/generated/shape_inference.h",
+    ],
+    cmd = "$(locations @torch-mlir//:autogen_ltc_backend) --binary_dir=. --build_platform=BAZEL && cp -r python/torch_mlir/csrc/base_lazy_backend/generated/* $(@D)/torch_mlir/csrc/base_lazy_backend/generated",
+    tags = ["no-sandbox"],
+    tools = ["@torch-mlir//:autogen_ltc_backend"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "ReferenceLazyBackend",
+    srcs = glob(
+        [
+            "torch_mlir/csrc/reference_lazy_backend/**/*.cpp",
+        ],
+        exclude = [
+            "torch_mlir/csrc/reference_lazy_backend/reference_lazy_backend_pybind.cpp",
+        ],
+    ),
+    hdrs = glob(["torch_mlir/csrc/reference_lazy_backend/**/*.h"]),
+    includes = [
+        "torch_mlir/csrc/reference_lazy_backend",
+    ],
+    tags = [
+        "manual",
+    ],
+    deps = [
+        ":TorchMLIRJITIRImporter",
+        ":TorchMlirLtcBackend",
+        "@libtorch//:torch",
+    ],
+)
+
+cc_binary(
+    name = "_REFERENCE_LAZY_BACKEND.so",
+    srcs = [
+        "torch_mlir/csrc/reference_lazy_backend/reference_lazy_backend_pybind.cpp",
+    ],
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    linkshared = 1,
+    deps = [
+        ":ReferenceLazyBackend",
+        "@pybind11",
+    ],
+)
+
+cc_binary(
+    name = "_torchMlir.so",
+    srcs = ["TorchMLIRModule.cpp"],
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    linkshared = 1,
+    deps = [
+        "@llvm-project//mlir:MLIRBindingsPythonCoreNoCAPI",
+        "@pybind11",
+        "@torch-mlir//:TorchMLIRCAPIHeaders",
+        "@torch-mlir//:libTorchMLIRAggregateCAPI",
+    ],
+)
+
+# python target
+
+## top level
+filegroup(
+    name = "TopLevelPyFiles",
+    srcs = [
+        "torch_mlir/__init__.py",
+        "torch_mlir/compiler_utils.py",
+        "torch_mlir/dynamo.py",
+    ],
+)
+
+## torch_mlir_e2e_test
+filegroup(
+    name = "End2EndTestPyFiles",
+    srcs = glob([
+        "torch_mlir_e2e_test/**/*.py",
+    ]),
+)
+
+## dialects
+td_library(
+    name = "TorchOpsPyTdFiles",
+    srcs = [
+        "torch_mlir/dialects/TorchBinding.td",
+        "@llvm-project//mlir:include/mlir/Bindings/Python/Attributes.td",
+    ],
+    includes = ["../include"],
+    deps = [
+        "@torch-mlir//:MLIRTorchOpsIncGenTdFiles",
+    ],
+)
+
+gentbl_filegroup(
+    name = "TorchOpsPyGen",
+    tbl_outs = [
+        (
+            [
+                "-gen-python-op-bindings",
+                "-bind-dialect=torch",
+            ],
+            "torch_mlir/dialects/_torch_ops_gen.py",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "torch_mlir/dialects/TorchBinding.td",
+    deps = [
+        ":TorchOpsPyTdFiles",
+    ],
+)
+
+filegroup(
+    name = "TorchOpsPyFiles",
+    srcs = [
+        "torch_mlir/dialects/_torch_ops_gen.py",
+        "torch_mlir/dialects/torch/__init__.py",
+        ":TorchOpsPyGen",
+    ],
+)
+
+filegroup(
+    name = "JITIRImporterPyFiles",
+    srcs = glob([
+        "torch_mlir/dialects/torch/importer/**/*.py",
+    ]),
+)
+
+## add mlir python files as you need
+filegroup(
+    name = "MLIRPythonSources",
+    srcs = [
+        "@llvm-project//mlir/python:ArithOpsPyFiles",
+        "@llvm-project//mlir/python:BufferizationOpsPyFiles",
+        "@llvm-project//mlir/python:BuiltinOpsPyFiles",
+        "@llvm-project//mlir/python:ComplexOpsPyFiles",
+        "@llvm-project//mlir/python:ControlFlowOpsPyFiles",
+        "@llvm-project//mlir/python:DialectCorePyFiles",
+        "@llvm-project//mlir/python:ExecutionEnginePyFiles",
+        "@llvm-project//mlir/python:ExecutionEnginePyIFiles",
+        "@llvm-project//mlir/python:FuncPyFiles",
+        "@llvm-project//mlir/python:IRPyFiles",
+        "@llvm-project//mlir/python:IRPyIFiles",
+        "@llvm-project//mlir/python:LinalgOpsPackageOpDSLLangPyFiles",
+        "@llvm-project//mlir/python:LinalgOpsPackageOpDSLOpsPyFiles",
+        "@llvm-project//mlir/python:LinalgOpsPackageOpDSLPyFiles",
+        "@llvm-project//mlir/python:LinalgOpsPackagePassesPyFiles",
+        "@llvm-project//mlir/python:LinalgOpsPackagePyFiles",
+        "@llvm-project//mlir/python:LinalgOpsPyFiles",
+        "@llvm-project//mlir/python:MLProgramOpsPyFiles",
+        "@llvm-project//mlir/python:MathOpsPyFiles",
+        "@llvm-project//mlir/python:MemRefOpsPyFiles",
+        "@llvm-project//mlir/python:MlirLibsPyFiles",
+        "@llvm-project//mlir/python:PDLPyFiles",
+        "@llvm-project//mlir/python:PDLPyIFiles",
+        "@llvm-project//mlir/python:PassManagerPyFiles",
+        "@llvm-project//mlir/python:PassManagerPyIFiles",
+        "@llvm-project//mlir/python:QuantPyFiles",
+        "@llvm-project//mlir/python:QuantPyIFiles",
+        "@llvm-project//mlir/python:RuntimePyFiles",
+        "@llvm-project//mlir/python:SCFPyFiles",
+        "@llvm-project//mlir/python:ShapeOpsPyFiles",
+        "@llvm-project//mlir/python:SparseTensorOpsPyFiles",
+        "@llvm-project//mlir/python:TensorOpsPyFiles",
+        "@llvm-project//mlir/python:TosaOpsPyFiles",
+        "@llvm-project//mlir/python:TransformOpsPackagePyFiles",
+        "@llvm-project//mlir/python:TransformOpsPyFiles",
+        "@llvm-project//mlir/python:VectorOpsPyFiles",
+    ],
+)
+
+cc_library(
+    name = "TorchMLIRBindingsPythonSo",
+    srcs = [
+        ":_REFERENCE_LAZY_BACKEND.so",
+        ":_jit_ir_importer.so",
+        ":_torchMlir.so",
+        "@torch-mlir//:_mlir.so",
+        "@torch-mlir//:_mlirAsyncPasses.so",
+        "@torch-mlir//:_mlirDialectsLinalg.so",
+        "@torch-mlir//:_mlirDialectsPDL.so",
+        "@torch-mlir//:_mlirDialectsQuant.so",
+        "@torch-mlir//:_mlirDialectsSparseTensor.so",
+        "@torch-mlir//:_mlirDialectsTransform.so",
+        "@torch-mlir//:_mlirExecutionEngine.so",
+        "@torch-mlir//:_mlirGPUPasses.so",
+        "@torch-mlir//:_mlirLinalgPasses.so",
+        "@torch-mlir//:_mlirRegisterEverything.so",
+        "@torch-mlir//:_mlirSparseTensorPasses.so",
+    ],
+    deps = [
+        "@libtorch//:torch",
+        "@torch-mlir//:libTorchMLIRAggregateCAPI",
+    ],
+)
+
+filegroup(
+    name = "TorchMLIRPythonSources",
+    srcs = [
+        ":End2EndTestPyFiles",
+        ":JITIRImporterPyFiles",
+        ":TopLevelPyFiles",
+        ":TorchOpsPyFiles",
+    ],
+)
+
+gen_python_package(
+    name = "python_packages",
+    py_srcs = [
+        ":MLIRPythonSources",
+        ":TorchMLIRPythonSources",
+    ],
+    so_srcs = ":TorchMLIRBindingsPythonSo",
+)
+
+# can be used for single py_* target debug(just deps this target)
+py_library(
+    name = "python_packages_lib",
+    data = [":python_packages"],
+    imports = ["python_packages/torch_mlir"],
+)

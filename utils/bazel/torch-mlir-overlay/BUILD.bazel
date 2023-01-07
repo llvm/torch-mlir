@@ -4,6 +4,8 @@
 
 load("@llvm-project//mlir:tblgen.bzl", "gentbl_cc_library", "td_library")
 load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier")
+load("@llvm-project//mlir:build_defs.bzl", "mlir_c_api_cc_library")
+load("@torch-mlir//:build_defs.bzl", "PYBIND11_COPTS", "PYBIND11_FEATURES")
 
 package(
     default_visibility = [
@@ -158,6 +160,14 @@ gentbl_cc_library(
         (
             ["-gen-pass-decls"],
             "include/torch-mlir/Dialect/Torch/Transforms/Passes.h.inc",
+        ),
+        (
+            ["-gen-pass-capi-header"],
+            "include/torch-mlir/Dialect/Torch/Transforms/Transforms.capi.h.inc",
+        ),
+        (
+            ["-gen-pass-capi-impl"],
+            "include/torch-mlir/Dialect/Torch/Transforms/Transforms.capi.cpp.inc",
         ),
     ],
     tblgen = "@llvm-project//mlir:mlir-tblgen",
@@ -826,5 +836,374 @@ cc_binary(
         ":TorchMLIRTorchPasses",
         "@llvm-project//mlir:AllPassesAndDialects",
         "@llvm-project//mlir:MlirOptLib",
+    ],
+)
+
+## for CAPI
+mlir_c_api_cc_library(
+    name = "TorchMLIRCAPI",
+    srcs = [
+        "lib/CAPI/Dialects.cpp",
+        "lib/CAPI/Registration.cpp",
+        "lib/CAPI/TorchOps.cpp",
+        "lib/CAPI/TorchTypes.cpp",
+        "lib/CAPI/Transforms.cpp",
+    ],
+    hdrs = [
+        "include/torch-mlir-c/Dialects.h",
+        "include/torch-mlir-c/Registration.h",
+        "include/torch-mlir-c/TorchOps.h",
+        "include/torch-mlir-c/TorchTypes.h",
+        "include/torch-mlir-c/Transforms.h",
+    ],
+    capi_deps = [
+        "@llvm-project//mlir:CAPIIR",
+    ],
+    includes = [
+        "include",
+    ],
+    deps = [
+        ":TorchMLIRInitAll",
+        ":TorchMLIRTorchDialect",
+        ":TorchMLIRTorchPasses",
+    ],
+)
+
+TORCH_MLIR_BINDINGS_PYTHON_HEADERS = [
+    "python/torch_mlir/**/*.h",
+    "include/torch-mlir-c/*.h",
+    "include/torch-mlir/**/*.h",
+]
+
+cc_library(
+    name = "TORCHMLIRBindingsPythonHeaders",
+    includes = [
+        "include",
+        "python",
+    ],
+    tags = [
+        "manual",  # External dependency
+    ],
+    textual_hdrs = glob(TORCH_MLIR_BINDINGS_PYTHON_HEADERS),
+    deps = [
+        ":TorchMLIRCAPIHeaders",
+        "@pybind11",
+    ],
+)
+
+cc_library(
+    name = "TORCHMLIRBindingsPythonHeadersAndDeps",
+    includes = [
+        "include",
+        "python",
+    ],
+    tags = [
+        "manual",  # External dependency
+    ],
+    textual_hdrs = glob(TORCH_MLIR_BINDINGS_PYTHON_HEADERS),
+    deps = [
+        ":TorchMLIRCAPI",
+        "@pybind11",
+    ],
+)
+
+# Target that bundles together the CAPI objects needed for
+# MLIRBindingsPythonCoreNoCAPI.
+cc_library(
+    name = "MLIRBindingsPythonCAPIObjects",
+    tags = [
+        "manual",  # External dependency
+        "nobuildkite",
+    ],
+    deps = [
+        "@llvm-project//mlir:CAPIAsyncObjects",
+        "@llvm-project//mlir:CAPIConversionObjects",
+        "@llvm-project//mlir:CAPIDebugObjects",
+        "@llvm-project//mlir:CAPIExecutionEngineObjects",
+        "@llvm-project//mlir:CAPIGPUObjects",
+        "@llvm-project//mlir:CAPIIRObjects",
+        "@llvm-project//mlir:CAPIInterfacesObjects",
+        "@llvm-project//mlir:CAPILinalgObjects",
+        "@llvm-project//mlir:CAPIPDLObjects",
+        "@llvm-project//mlir:CAPIQuantObjects",
+        "@llvm-project//mlir:CAPIRegisterEverythingObjects",
+        "@llvm-project//mlir:CAPISparseTensorObjects",
+        "@llvm-project//mlir:CAPITransformDialectObjects",
+        "@llvm-project//mlir:CAPITransformsObjects",
+    ],
+)
+
+cc_library(
+    name = "TorchMLIRAggregateCAPI",
+    tags = [
+        "manual",  # External dependency
+        "nobuildkite",
+    ],
+    deps = [
+        ":MLIRBindingsPythonCAPIObjects",
+        ":TorchMLIRCAPIObjects",
+    ],
+)
+
+cc_binary(
+    name = "libTorchMLIRAggregateCAPI.so",
+    linkshared = True,
+    deps = [":TorchMLIRAggregateCAPI"],
+)
+
+cc_import(
+    name = "libTorchMLIRAggregateCAPI",
+    shared_library = ":libTorchMLIRAggregateCAPI.so",
+)
+
+py_binary(
+    name = "autogen_ltc_backend",
+    srcs = ["build_tools/autogen_ltc_backend.py"],
+    tags = ["no-sandbox"],
+)
+
+# let "generated" in current pkg to avoid warnings of ".." includes
+cc_library(
+    name = "generated",
+    srcs = [
+        "@torch-mlir//python:torch_mlir/csrc/base_lazy_backend/generated/LazyIr.h",
+        "@torch-mlir//python:torch_mlir/csrc/base_lazy_backend/generated/LazyNativeFunctions.cpp",
+        "@torch-mlir//python:torch_mlir/csrc/base_lazy_backend/generated/LazyNativeFunctions.h",
+        "@torch-mlir//python:torch_mlir/csrc/base_lazy_backend/generated/LazyNonNativeIr.h",
+        "@torch-mlir//python:torch_mlir/csrc/base_lazy_backend/generated/RegisterLazy.cpp",
+        "@torch-mlir//python:torch_mlir/csrc/base_lazy_backend/generated/shape_inference.cpp",
+        "@torch-mlir//python:torch_mlir/csrc/base_lazy_backend/generated/shape_inference.h",
+    ],
+    includes = [
+        ".",
+        "python",
+        "python/torch_mlir/csrc/base_lazy_backend",
+    ],
+    deps = [
+        "@torch-mlir//python:_generated_deps_header",
+    ],
+)
+
+# custom mlir target
+cc_binary(
+    name = "_mlir.so",
+    srcs = ["externals/llvm-project/mlir/lib/Bindings/Python/MainModule.cpp"],
+    # These flags are needed for pybind11 to work.
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    includes = ["externals/llvm-project/mlir/lib/Bindings/Python"],
+    linkshared = 1,
+    tags = [
+        "manual",  # External dependency
+        "nobuildkite",
+    ],
+    deps = [
+        ":libTorchMLIRAggregateCAPI",
+        "@llvm-project//mlir:MLIRBindingsPythonCoreNoCAPI",
+    ],
+)
+
+cc_binary(
+    name = "_mlirRegisterEverything.so",
+    srcs = ["externals/llvm-project/mlir/lib/Bindings/Python/RegisterEverything.cpp"],
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    includes = ["externals/llvm-project/mlir/lib/Bindings/Python"],
+    linkshared = 1,
+    tags = [
+        "manual",  # External dependency
+        "nobuildkite",
+    ],
+    deps = [
+        ":libTorchMLIRAggregateCAPI",
+        "@llvm-project//mlir:CAPIConversionHeaders",
+        "@llvm-project//mlir:CAPIRegisterEverythingHeaders",
+        "@llvm-project//mlir:CAPITransformsHeaders",
+        "@llvm-project//mlir:MLIRBindingsPythonCoreNoCAPI",
+        "@pybind11",
+    ],
+)
+
+cc_binary(
+    name = "_mlirDialectsLinalg.so",
+    srcs = ["externals/llvm-project/mlir/lib/Bindings/Python/DialectLinalg.cpp"],
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    includes = ["externals/llvm-project/mlir/lib/Bindings/Python"],
+    linkshared = 1,
+    tags = [
+        "manual",  # External dependency
+        "nobuildkite",
+    ],
+    deps = [
+        ":libTorchMLIRAggregateCAPI",
+        "@llvm-project//mlir:CAPILinalgHeaders",
+        "@llvm-project//mlir:MLIRBindingsPythonCoreNoCAPI",
+    ],
+)
+
+cc_binary(
+    name = "_mlirDialectsQuant.so",
+    srcs = ["externals/llvm-project/mlir/lib/Bindings/Python/DialectQuant.cpp"],
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    includes = ["externals/llvm-project/mlir/lib/Bindings/Python"],
+    linkshared = 1,
+    tags = [
+        "manual",  # External dependency
+        "nobuildkite",
+    ],
+    deps = [
+        ":libTorchMLIRAggregateCAPI",
+        "@llvm-project//mlir:CAPIQuantHeaders",
+        "@llvm-project//mlir:MLIRBindingsPythonCoreNoCAPI",
+    ],
+)
+
+cc_binary(
+    name = "_mlirDialectsSparseTensor.so",
+    srcs = ["externals/llvm-project/mlir/lib/Bindings/Python/DialectSparseTensor.cpp"],
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    includes = ["externals/llvm-project/mlir/lib/Bindings/Python"],
+    linkshared = 1,
+    tags = [
+        "manual",  # External dependency
+        "nobuildkite",
+    ],
+    deps = [
+        ":libTorchMLIRAggregateCAPI",
+        "@llvm-project//mlir:CAPISparseTensorHeaders",
+        "@llvm-project//mlir:MLIRBindingsPythonCoreNoCAPI",
+    ],
+)
+
+cc_binary(
+    name = "_mlirExecutionEngine.so",
+    srcs = ["externals/llvm-project/mlir/lib/Bindings/Python/ExecutionEngineModule.cpp"],
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    includes = ["externals/llvm-project/mlir/lib/Bindings/Python"],
+    linkshared = 1,
+    tags = [
+        "manual",  # External dependency
+        "nobuildkite",
+    ],
+    deps = [
+        ":libTorchMLIRAggregateCAPI",
+        "@llvm-project//mlir:CAPIExecutionEngineHeaders",
+        "@llvm-project//mlir:MLIRBindingsPythonCoreNoCAPI",
+        "@pybind11",
+    ],
+)
+
+# Dynamic library with the MLIR Linalg dialect+passes Python extension.
+cc_binary(
+    name = "_mlirLinalgPasses.so",
+    srcs = ["externals/llvm-project/mlir/lib/Bindings/Python/LinalgPasses.cpp"],
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    includes = ["externals/llvm-project/mlir/lib/Bindings/Python"],
+    linkshared = 1,
+    tags = [
+        "manual",  # External dependency
+        "nobuildkite",
+    ],
+    deps = [
+        ":libTorchMLIRAggregateCAPI",
+        "@llvm-project//mlir:CAPILinalgHeaders",
+        "@pybind11",
+    ],
+)
+
+cc_binary(
+    name = "_mlirAsyncPasses.so",
+    srcs = ["externals/llvm-project/mlir/lib/Bindings/Python/AsyncPasses.cpp"],
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    includes = ["externals/llvm-project/mlir/lib/Bindings/Python"],
+    linkshared = 1,
+    tags = [
+        "manual",  # External dependency
+        "nobuildkite",
+    ],
+    deps = [
+        ":libTorchMLIRAggregateCAPI",
+        "@llvm-project//mlir:CAPIAsyncHeaders",
+        "@pybind11",
+    ],
+)
+
+cc_binary(
+    name = "_mlirSparseTensorPasses.so",
+    srcs = ["externals/llvm-project/mlir/lib/Bindings/Python/SparseTensorPasses.cpp"],
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    includes = ["externals/llvm-project/mlir/lib/Bindings/Python"],
+    linkshared = 1,
+    tags = [
+        "manual",  # External dependency
+        "nobuildkite",
+    ],
+    deps = [
+        ":libTorchMLIRAggregateCAPI",
+        "@llvm-project//mlir:CAPISparseTensorHeaders",
+        "@pybind11",
+    ],
+)
+
+cc_binary(
+    name = "_mlirGPUPasses.so",
+    srcs = ["externals/llvm-project/mlir/lib/Bindings/Python/GPUPasses.cpp"],
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    includes = ["externals/llvm-project/mlir/lib/Bindings/Python"],
+    linkshared = 1,
+    tags = [
+        "manual",  # External dependency
+        "nobuildkite",
+    ],
+    deps = [
+        ":libTorchMLIRAggregateCAPI",
+        "@llvm-project//mlir:CAPIGPUHeaders",
+        "@pybind11",
+    ],
+)
+
+cc_binary(
+    name = "_mlirDialectsTransform.so",
+    srcs = ["externals/llvm-project/mlir/lib/Bindings/Python/DialectTransform.cpp"],
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    includes = ["externals/llvm-project/mlir/lib/Bindings/Python"],
+    linkshared = 1,
+    tags = [
+        "manual",  # External dependency
+        "nobuildkite",
+    ],
+    deps = [
+        ":libTorchMLIRAggregateCAPI",
+        "@llvm-project//mlir:CAPITransformDialectHeaders",
+        "@llvm-project//mlir:MLIRBindingsPythonCoreNoCAPI",
+        "@pybind11",
+    ],
+)
+
+cc_binary(
+    name = "_mlirDialectsPDL.so",
+    srcs = ["externals/llvm-project/mlir/lib/Bindings/Python/DialectPDL.cpp"],
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    includes = ["externals/llvm-project/mlir/lib/Bindings/Python"],
+    linkshared = 1,
+    tags = [
+        "manual",  # External dependency
+        "nobuildkite",
+    ],
+    deps = [
+        ":libTorchMLIRAggregateCAPI",
+        "@llvm-project//mlir:CAPIPDLHeaders",
+        "@llvm-project//mlir:MLIRBindingsPythonCoreNoCAPI",
+        "@pybind11",
     ],
 )

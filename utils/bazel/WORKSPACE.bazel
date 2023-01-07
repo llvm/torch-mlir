@@ -17,6 +17,34 @@ load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 
 bazel_skylib_workspace()
 
+http_archive(
+    name = "pybind11_bazel",
+    patch_args = ["-p1"],
+    patches = ["//:pybind11_bazel.patch"],
+    sha256 = "a185aa68c93b9f62c80fcb3aadc3c83c763854750dc3f38be1dadcb7be223837",
+    strip_prefix = "pybind11_bazel-faf56fb3df11287f26dbc66fdedf60a2fc2c6631",
+    urls = ["https://github.com/pybind/pybind11_bazel/archive/faf56fb3df11287f26dbc66fdedf60a2fc2c6631.zip"],
+)
+
+http_archive(
+    name = "pybind11",
+    build_file = "@pybind11_bazel//:pybind11.BUILD",
+    sha256 = "5d8c4c5dda428d3a944ba3d2a5212cb988c2fae4670d58075a5a49075a6ca315",
+    strip_prefix = "pybind11-2.10.3",
+    urls = ["https://github.com/pybind/pybind11/archive/v2.10.3.tar.gz"],
+)
+
+load("@pybind11_bazel//:python_configure.bzl", "python_configure")
+
+python_configure(
+    name = "local_config_python",
+    python_version = "3",
+)
+
+load("//torch:torch_configure.bzl", "torch_configure")
+
+torch_configure(name = "libtorch")
+
 new_local_repository(
     name = "llvm-raw",
     build_file_content = "# empty",
