@@ -80,6 +80,9 @@ void createTorchSimplificationPipeline(
 /// Creates a pipeline that refines shapes of tensor operations in the program.
 void createTorchShapeRefinementPipeline(OpPassManager &pm);
 
+/// Creates a pipeline that obfuscate ops in the program.
+void createTorchObfuscateOpsPipeline(OpPassManager &pm);
+
 /// Creates a pipeline that refines dtype of tensor operations in the program.
 void createTorchDtypeRefinementPipeline(OpPassManager &pm);
 
