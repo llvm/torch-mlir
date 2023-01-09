@@ -20,12 +20,9 @@ buildifier(
 # Torch Dialect/IR
 td_library(
     name = "MLIRTorchOpsIncGenTdFiles",
-    srcs = [
-        "include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td",
-        "include/torch-mlir/Dialect/Torch/IR/TorchBase.td",
-        "include/torch-mlir/Dialect/Torch/IR/TorchOps.td",
-        "include/torch-mlir/Dialect/Torch/IR/TorchTypes.td",
-    ],
+    srcs = glob([
+        "include/torch-mlir/Dialect/Torch/IR/*.td",
+    ]),
     includes = ["include"],
     deps = [
         "@llvm-project//mlir:CastInterfacesTdFiles",
