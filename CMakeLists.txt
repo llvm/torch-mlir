@@ -190,6 +190,7 @@ add_custom_target(check-torch-mlir-all)
 add_dependencies(check-torch-mlir-all
   check-torch-mlir
   check-torch-mlir-dialects
+  check-torch-mlir-capi
   )
 
 if(MLIR_ENABLE_BINDINGS_PYTHON)
