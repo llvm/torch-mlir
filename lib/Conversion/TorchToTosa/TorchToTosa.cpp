@@ -881,7 +881,7 @@ public:
         op->getLoc(),
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             newOutputTy),
-        self, rewriter.getI64ArrayAttr(newOutputShape));
+        self, rewriter.getDenseI64ArrayAttr(newOutputShape));
     rewriter.replaceOpWithNewOp<tensor::CastOp>(
         op,
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -1076,7 +1076,7 @@ public:
                   op->getLoc(),
                   OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
                       lhsBroadcastedTy),
-                  lhs, rewriter.getI64ArrayAttr(lhsBroadcastedShape));
+                  lhs, rewriter.getDenseI64ArrayAttr(lhsBroadcastedShape));
 
     auto rankBroadcastedRhs =
         rhsRank == maxInputRank
@@ -1085,7 +1085,7 @@ public:
                   op->getLoc(),
                   OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
                       rhsBroadcastedTy),
-                  rhs, rewriter.getI64ArrayAttr(rhsBroadcastedShape));
+                  rhs, rewriter.getDenseI64ArrayAttr(rhsBroadcastedShape));
 
     // TOSA matmul is performed on two 3D inputs and generates a 3D output.
     // Lower ranked tensors are dim-1 reshaped up to 3D
@@ -1113,7 +1113,7 @@ public:
           op->getLoc(),
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
               newType),
-          tensor, rewriter.getI64ArrayAttr(newShape));
+          tensor, rewriter.getDenseI64ArrayAttr(newShape));
     };
 
     // Where broadcasting is required in one or more batch dims, the following
@@ -1303,7 +1303,7 @@ public:
           op->getLoc(),
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
               newLhsType),
-          lhsReshapeInput, rewriter.getI64ArrayAttr(newLhsShape));
+          lhsReshapeInput, rewriter.getDenseI64ArrayAttr(newLhsShape));
 
       SmallVector<int64_t> transposedRhsShape;
       SmallVector<int32_t> transposedRhsDims;
@@ -1375,7 +1375,7 @@ public:
           op->getLoc(),
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
               newRhsType),
-          transposedRhsValue, rewriter.getI64ArrayAttr(newRhsShape));
+          transposedRhsValue, rewriter.getDenseI64ArrayAttr(newRhsShape));
     }
 
     auto matmulLhsShape = makeShapeTorchCompatible(
@@ -1506,7 +1506,7 @@ public:
           op->getLoc(),
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
               reshapedOpType),
-          mmOpResult, rewriter.getI64ArrayAttr(reshapedOpShape));
+          mmOpResult, rewriter.getDenseI64ArrayAttr(reshapedOpShape));
 
       if (opNeedsTranspose) {
 
@@ -1915,9 +1915,9 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
           .create<tosa::Conv2DOp>(op->getLoc(),
                                   getTypeConverter()->convertType(convOpTy),
                                   transposedInput, transposedWeight, bias,
-                                  rewriter.getI64ArrayAttr(padding),
-                                  rewriter.getI64ArrayAttr(stride),
-                                  rewriter.getI64ArrayAttr(dilation))
+                                  rewriter.getDenseI64ArrayAttr(padding),
+                                  rewriter.getDenseI64ArrayAttr(stride),
+                                  rewriter.getDenseI64ArrayAttr(dilation))
           .getResult();
 
   std::optional<Value> nhwcToNchwTransposeConst =
@@ -1979,7 +1979,7 @@ LogicalResult ConvertAtenOp<AtenReshapeOp>::matchAndRewrite(
 
   rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
       op, getTypeConverter()->convertType(newType), self,
-      rewriter.getI64ArrayAttr(newShape));
+      rewriter.getDenseI64ArrayAttr(newShape));
 
   return success();
 }
@@ -2078,7 +2078,8 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
                                          outTensorType.getElementType());
 
     result = rewriter.create<tosa::ReshapeOp>(
-        op->getLoc(), newType, toBcast, rewriter.getI64ArrayAttr(newShape));
+        op->getLoc(), newType, toBcast,
+        rewriter.getDenseI64ArrayAttr(newShape));
 
     return success();
   };
@@ -2203,8 +2204,8 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
           sumDiv, rewriter.getI64IntegerAttr(i));
     }
 
-    return rewriter.create<tosa::ReshapeOp>(op.getLoc(), outType, sumDiv,
-                                            rewriter.getI64ArrayAttr(outShape));
+    return rewriter.create<tosa::ReshapeOp>(
+        op.getLoc(), outType, sumDiv, rewriter.getDenseI64ArrayAttr(outShape));
   };
 
   // TOSA has integer Div so, compute reciprocal of element count to be used in
@@ -2260,11 +2261,11 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
 
   Value weightVal = rewriter.create<tosa::ReshapeOp>(
       op.getLoc(), weightAndMeanBcastType, adaptor.getWeight(),
-      rewriter.getI64ArrayAttr(weightAndBiasBcastShape));
+      rewriter.getDenseI64ArrayAttr(weightAndBiasBcastShape));
 
   Value biasVal = rewriter.create<tosa::ReshapeOp>(
       op.getLoc(), weightAndMeanBcastType, adaptor.getBias(),
-      rewriter.getI64ArrayAttr(weightAndBiasBcastShape));
+      rewriter.getDenseI64ArrayAttr(weightAndBiasBcastShape));
 
   double eps;
   if (!matchPattern(op.getEps(), m_TorchConstantFloat(&eps)))
@@ -2365,8 +2366,9 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
 
   auto newType = RankedTensorType::get(makeShapeLLVMCompatible(newShape),
                                        selfType.getElementType());
-  auto reshapeOp = rewriter.create<tosa::ReshapeOp>(
-      op.getLoc(), newType, adaptor.getSelf(), rewriter.getI64ArrayAttr(newShape));
+  auto reshapeOp =
+      rewriter.create<tosa::ReshapeOp>(op.getLoc(), newType, adaptor.getSelf(),
+                                       rewriter.getDenseI64ArrayAttr(newShape));
 
   rewriter.replaceOpWithNewOp<tensor::CastOp>(
       op, getTypeConverter()->convertType(op.getType()), reshapeOp);
@@ -2525,7 +2527,7 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
 
   rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
       op, getTypeConverter()->convertType(op.getType()), adaptor.getSelf(),
-      rewriter.getI64ArrayAttr(outShape));
+      rewriter.getDenseI64ArrayAttr(outShape));
 
   return success();
 }
@@ -2598,7 +2600,7 @@ LogicalResult ConvertAtenOp<AtenViewOp>::matchAndRewrite(
 
   rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
       op, getTypeConverter()->convertType(op.getType()), adaptor.getSelf(),
-      rewriter.getI64ArrayAttr(outShape));
+      rewriter.getDenseI64ArrayAttr(outShape));
 
   return success();
 }
@@ -2833,7 +2835,7 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
       op->getLoc(),
       RankedTensorType::get(makeShapeLLVMCompatible(newWeightShape),
                             weightType.getElementType()),
-      weight, rewriter.getI64ArrayAttr(newWeightShape));
+      weight, rewriter.getDenseI64ArrayAttr(newWeightShape));
 
   int64_t numIndices = 1;
   if (indicesType.hasStaticShape()) {
@@ -2848,7 +2850,7 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
       op->getLoc(),
       RankedTensorType::get(makeShapeLLVMCompatible(newIndicesShape),
                             indicesType.getElementType()),
-      indices, rewriter.getI64ArrayAttr(newIndicesShape));
+      indices, rewriter.getDenseI64ArrayAttr(newIndicesShape));
 
   auto castIndices = rewriter.create<tosa::CastOp>(
       op->getLoc(),
@@ -2865,7 +2867,8 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
 
   rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
       op, outType, gatherOp,
-      rewriter.getI64ArrayAttr(makeShapeTorchCompatible(outType.getShape())));
+      rewriter.getDenseI64ArrayAttr(
+          makeShapeTorchCompatible(outType.getShape())));
 
   return success();
 }
@@ -2955,7 +2958,7 @@ LogicalResult ConvertAtenOp<AtenMaxDimOp>::matchAndRewrite(
   }
 
   auto dimAttr = rewriter.getIntegerAttr(rewriter.getI64Type(), dim);
-  auto prunedShapeAttr = rewriter.getI64ArrayAttr(prunedShape);
+  auto prunedShapeAttr = rewriter.getDenseI64ArrayAttr(prunedShape);
 
   Value reduceMax = rewriter.create<tosa::ReduceMaxOp>(
       op->getLoc(),
@@ -2970,7 +2973,7 @@ LogicalResult ConvertAtenOp<AtenMaxDimOp>::matchAndRewrite(
   if (argMax.getType() != indicesType) {
     argMax = rewriter.create<tosa::ReshapeOp>(
         op->getLoc(), indicesType, argMax,
-        rewriter.getI64ArrayAttr(reducedShape));
+        rewriter.getDenseI64ArrayAttr(reducedShape));
   }
 
   if (!keepDim) {
@@ -3038,8 +3041,8 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
 
   rewriter.replaceOpWithNewOp<tosa::SliceOp>(
       op, getTypeConverter()->convertType(op.getType()), adaptor.getSelf(),
-      rewriter.getI64ArrayAttr(startSlice),
-      rewriter.getI64ArrayAttr(sizeSlice));
+      rewriter.getDenseI64ArrayAttr(startSlice),
+      rewriter.getDenseI64ArrayAttr(sizeSlice));
 
   return success();
 }
@@ -3422,8 +3425,9 @@ public:
   // function also transposes inputs.
   virtual LogicalResult processInputs(AtenOpT op, OpAdaptor adaptor,
                                       ConversionPatternRewriter &rewriter,
-                                      Value &input, ArrayAttr &kernel,
-                                      ArrayAttr &stride, ArrayAttr &pad,
+                                      Value &input, DenseI64ArrayAttr &kernel,
+                                      DenseI64ArrayAttr &stride,
+                                      DenseI64ArrayAttr &pad,
                                       Type &outputTy) const {
     return rewriter.notifyMatchFailure(
         op, "Unimplemented pooling input parsing function");
@@ -3498,7 +3502,7 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value input;
-    ArrayAttr kernel, stride, pad;
+    DenseI64ArrayAttr kernel, stride, pad;
     Type outputTy;
 
     // Attempts to read input and kernel parameters, or synthesize them in the
@@ -3535,8 +3539,9 @@ public:
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult processInputs(AtenOpT op, OpAdaptor adaptor,
                               ConversionPatternRewriter &rewriter, Value &input,
-                              ArrayAttr &kernel, ArrayAttr &stride,
-                              ArrayAttr &pad, Type &outputTy) const override {
+                              DenseI64ArrayAttr &kernel,
+                              DenseI64ArrayAttr &stride, DenseI64ArrayAttr &pad,
+                              Type &outputTy) const override {
     auto inputXchw = adaptor.getSelf();
     auto inputTy = inputXchw.getType().template cast<RankedTensorType>();
     if (!inputTy)
@@ -3598,12 +3603,12 @@ public:
     input =
         ConvertAtenPoolingBaseOp<AtenOpT, TosaOpT>::transposePoolingInputToHwc(
             op, rewriter, inputXchw);
-    kernel = rewriter.getI64ArrayAttr(kernelDims);
-    stride = rewriter.getI64ArrayAttr({strideH, strideW});
+    kernel = rewriter.getDenseI64ArrayAttr(kernelDims);
+    stride = rewriter.getDenseI64ArrayAttr({strideH, strideW});
     // Adaptive pooling does unit dilation and zero pad.
-    pad = rewriter.getI64ArrayAttr({0, 0, 0, 0});
-    outputTy =
-        RankedTensorType::get(makeShapeLLVMCompatible(outputShape), inputElemTy);
+    pad = rewriter.getDenseI64ArrayAttr({0, 0, 0, 0});
+    outputTy = RankedTensorType::get(makeShapeLLVMCompatible(outputShape),
+                                     inputElemTy);
 
     return success();
   }
@@ -3638,8 +3643,9 @@ static Type getOutputTypeForNonAdaptivePoolingOp(
 template <typename AtenOpT, typename tosaOp>
 static LogicalResult getOutputTypeAndPoolingParameters(
     AtenOpT op, ConversionPatternRewriter &rewriter, Value inputXchw,
-    SmallVectorImpl<int64_t> &dilationArray, Type &outputTy, ArrayAttr &kernel,
-    ArrayAttr &stride, ArrayAttr &pad) {
+    SmallVectorImpl<int64_t> &dilationArray, Type &outputTy,
+    DenseI64ArrayAttr &kernel, DenseI64ArrayAttr &stride,
+    DenseI64ArrayAttr &pad) {
 
   RankedTensorType inputTy = inputXchw.getType().cast<RankedTensorType>();
   if (!inputTy)
@@ -3664,9 +3670,9 @@ static LogicalResult getOutputTypeAndPoolingParameters(
     return rewriter.notifyMatchFailure(
         op, "Non-const padding factor for pooling op unsupported");
 
-  kernel = rewriter.getI64ArrayAttr(kernelSizeInts);
-  stride = rewriter.getI64ArrayAttr(strideInts);
-  pad = rewriter.getI64ArrayAttr(
+  kernel = rewriter.getDenseI64ArrayAttr(kernelSizeInts);
+  stride = rewriter.getDenseI64ArrayAttr(strideInts);
+  pad = rewriter.getDenseI64ArrayAttr(
       {paddingInts[0], paddingInts[0], paddingInts[1], paddingInts[1]});
 
   // FIXME: add ceil_mode support.
@@ -3691,10 +3697,12 @@ public:
                                  tosa::MaxPool2dOp>::ConvertAtenPoolingBaseOp;
   LogicalResult processInputs(AtenMaxPool2dOp op, OpAdaptor adaptor,
                               ConversionPatternRewriter &rewriter, Value &input,
-                              ArrayAttr &kernel, ArrayAttr &stride,
-                              ArrayAttr &pad, Type &outputTy) const override {
+                              DenseI64ArrayAttr &kernel,
+                              DenseI64ArrayAttr &stride, DenseI64ArrayAttr &pad,
+                              Type &outputTy) const override {
     SmallVector<int64_t, 2> dilationArray;
-    if (!matchPattern(op.getDilation(), m_TorchListOfConstantInts(dilationArray)))
+    if (!matchPattern(op.getDilation(),
+                      m_TorchListOfConstantInts(dilationArray)))
       return rewriter.notifyMatchFailure(
           op, "Non-const dilation for pooling op unsupported.");
     // TOSA pooling only supports unit dilation.
@@ -3724,8 +3732,9 @@ public:
                                  tosa::AvgPool2dOp>::ConvertAtenPoolingBaseOp;
   LogicalResult processInputs(AtenAvgPool2dOp op, OpAdaptor adaptor,
                               ConversionPatternRewriter &rewriter, Value &input,
-                              ArrayAttr &kernel, ArrayAttr &stride,
-                              ArrayAttr &pad, Type &outputTy) const override {
+                              DenseI64ArrayAttr &kernel,
+                              DenseI64ArrayAttr &stride, DenseI64ArrayAttr &pad,
+                              Type &outputTy) const override {
     SmallVector<int64_t, 2> dilationArray{1, 1};
     if (failed(getOutputTypeAndPoolingParameters<AtenAvgPool2dOp,
                                                  tosa::AvgPool2dOp>(

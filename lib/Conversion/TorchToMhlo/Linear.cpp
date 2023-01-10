@@ -216,7 +216,7 @@ public:
     }
 
     if (lhsRank <= 2 && rhsRank <= 2) {
-      output = rewriter.create<mhlo::DotOp>(op->getLoc(), lhs, rhs, nullptr);
+      output = rewriter.create<mhlo::DotOp>(op->getLoc(), op.getType(), lhs, rhs, nullptr);
       return success();
     }
 

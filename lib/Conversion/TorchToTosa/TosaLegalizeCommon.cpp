@@ -151,7 +151,7 @@ std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
   auto indicesChosenAxis = tosa::CreateOpAndInfer<tosa::ReshapeOp>(
       rewriter, op->getLoc(),
       GetTypeFromTensorShape(indicesOneDimShape, indexType.getElementType()),
-      indexValue, rewriter.getI64ArrayAttr(indicesOneDimShape));
+      indexValue, rewriter.getDenseI64ArrayAttr(indicesOneDimShape));
 
   SmallVector<Value> concatInputs;
   for (auto dim = 0; dim < paramsRank; dim++) {
@@ -312,14 +312,14 @@ std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter,
   auto tosaValuesReshapeOp = tosa::CreateOpAndInfer<tosa::ReshapeOp>(
       rewriter, op->getLoc(),
       GetTypeFromTensorShape(tosaValuesShape, paramsType.getElementType()),
-      paramsValue, rewriter.getI64ArrayAttr(tosaValuesShape));
+      paramsValue, rewriter.getDenseI64ArrayAttr(tosaValuesShape));
 
   // %3 = "tosa.reshape"(%1) {new_shape = [8, 3]} : (tensor<1x4x2x3xi32>) ->
   // tensor<8x3xi32> Flatten the input indices tensor to an [W, ND] matrix.
   auto indicesMatrixReshapeOp = tosa::CreateOpAndInfer<tosa::ReshapeOp>(
       rewriter, op->getLoc(),
       GetTypeFromTensorShape(indicesMatrixShape, indicesType.getElementType()),
-      indicesValue, rewriter.getI64ArrayAttr(indicesMatrixShape));
+      indicesValue, rewriter.getDenseI64ArrayAttr(indicesMatrixShape));
 
   SmallVector<int32_t> flattenedCoeffVec; //  [12,3,1]
   // flattenedCoeffVec = [4,3,1]
@@ -367,7 +367,7 @@ std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter,
       rewriter, op->getLoc(),
       GetTypeFromTensorShape(tosaIndicesShape, indicesType.getElementType()),
       flattenedIndicesReduceOp.getResult(),
-      rewriter.getI64ArrayAttr(tosaIndicesShape));
+      rewriter.getDenseI64ArrayAttr(tosaIndicesShape));
 
   // Now the gather op itself
   // %9 = "tosa.gather"(%2, %7) : (tensor<1x12x1xf32>, tensor<1x8xi32>) ->
@@ -384,7 +384,7 @@ std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter,
   // %10 : tensor<1x4x2xf32> -> !torch.vtensor<[1,4,2],f32>
   return tosa::CreateOpAndInfer<tosa::ReshapeOp>(
              rewriter, op->getLoc(), resultType, tosaGatherOp.getResult(),
-             rewriter.getI64ArrayAttr(resultType.getShape()))
+             rewriter.getDenseI64ArrayAttr(resultType.getShape()))
       .getResult();
 }
 
@@ -446,7 +446,7 @@ std::optional<Value> convertReduceOpCommon(
     if (!keep_dims) {
       auto reshape_op = CreateOpAndInfer<tosa::ReshapeOp>(
           rewriter, op->getLoc(), output_type, val,
-          rewriter.getI64ArrayAttr(output_shape));
+          rewriter.getDenseI64ArrayAttr(output_shape));
       val = reshape_op.getResult();
     }
   }

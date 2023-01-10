@@ -3667,7 +3667,7 @@ public:
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
-    config.maxIterations = GreedyRewriteConfig::kNoIterationLimit;
+    config.maxIterations = GreedyRewriteConfig::kNoLimit;
 
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
                                             config))) {
