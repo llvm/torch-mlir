@@ -2750,7 +2750,29 @@ class DecomposeConstantTensorNewLikeOp : public OpRewritePattern<OpTy> {
 } // namespace
 
 namespace {
+<<<<<<< HEAD
 // Decompose `aten.full` op into `aten.broadcastTo`
+=======
+// Decompose constant tensor like ops.
+template <typename OpTy, typename NewOpTy, int val>
+class DecomposeConstantTensorOp : public OpRewritePattern<OpTy> {
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    Type resultDtype = op.getType().template cast<BaseTensorType>().getDtype();
+    Value fillVal = getConstantWithGivenDtypeAndValue(rewriter, op.getLoc(),
+                                                      val, resultDtype);
+    rewriter.replaceOpWithNewOp<NewOpTy>(op, op.getType(), op.size(), fillVal,
+                                         op.dtype(), op.layout(), op.device(),
+                                         op.pin_memory());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Decompose `aten.full` op into `aten.broadcast_to`
+>>>>>>> Decompose torch.ones/zeros (#28)
 class DecomposeAtenFullOp : public OpRewritePattern<AtenFullOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -4212,6 +4234,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeDropoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeDropoutBackwardOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSliceScatterOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenGroupNormOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
