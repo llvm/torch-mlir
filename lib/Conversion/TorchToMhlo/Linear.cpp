@@ -216,7 +216,10 @@ public:
     }
 
     if (lhsRank <= 2 && rhsRank <= 2) {
-      output = rewriter.create<mhlo::DotOp>(op->getLoc(), lhs, rhs, nullptr);
+      auto tensorType =
+          ConvertAtenOp<AtenOpT>::getTypeConverter()->convertType(op.getType());
+      output = rewriter.create<mhlo::DotOp>(op->getLoc(), tensorType, lhs, rhs,
+                                            nullptr);
       return success();
     }
 
