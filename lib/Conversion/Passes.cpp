@@ -11,7 +11,7 @@
 
 #ifdef TORCH_MLIR_ENABLE_MHLO
 #include "mhlo/transforms/passes.h"
-#include "mlir-hlo/Transforms/passes.h"
+#include "transforms/passes.h"
 #endif // TORCH_MLIR_ENABLE_MHLO
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
@@ -37,7 +37,7 @@ void mlir::torch::registerConversionPasses() {
     return mlir::mhlo::createLegalizeHloToLinalgPass();
   });
   ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
-    return mlir::createSymbolicShapeOptimizationPass();
+    return mlir::mhlo::createSymbolicShapeOptimizationPass();
   });
 #endif // TORCH_MLIR_ENABLE_MHLO
 }
