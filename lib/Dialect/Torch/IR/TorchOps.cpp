@@ -1348,6 +1348,18 @@ OpFoldResult AtenIntScalarOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenIntBoolOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenIntBoolOp::fold(ArrayRef<Attribute> operands) {
+  bool b;
+  if (matchPattern(getOperand(), m_TorchConstantBool(&b))) {
+    return getI64IntegerAttr(getContext(), static_cast<long>(b));
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSortIntOp
 //===----------------------------------------------------------------------===//
 

@@ -9038,6 +9038,30 @@ def Torch_AtenIntScalarOp : Torch_Op<"aten.Int.Scalar", [
   let hasFolder = 1;
 }
 
+def Torch_AtenIntBoolOp : Torch_Op<"aten.Int.bool", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::Int.bool : (bool) -> (int)`";
+  let arguments = (ins
+    Torch_BoolType:$a
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenIntBoolOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenIntBoolOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_Aten__RangeLengthOp : Torch_Op<"aten.__range_length", [
     AllowsTypeRefinement,
     HasValueSemantics,
