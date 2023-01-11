@@ -83,6 +83,8 @@ TORCHDYNAMO_XFAIL_SET = {
     # error: unsupported by backend contract: tensor with unknown rank
     # note: see current operation: %1 = "torch.tensor_static_info_cast"(%arg0) : (!torch.vtensor<[5,4,3,2,1],f32>) -> !torch.vtensor<*,f32>
     "ElementwisePreluModule_basic",
+    # error: op lowering missing. Issue: https://github.com/llvm/torch-mlir/issues/1792
+    "StdCorrectionKeepDimModule_basic",
 }
 
 MHLO_PASS_SET = {
