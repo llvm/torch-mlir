@@ -283,6 +283,18 @@ LogicalResult tosaCastTensorToType(PatternRewriter &rewriter, Operation *op,
   return success();
 }
 
+Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType) {
+  Operation *op = input.getDefiningOp();
+  TensorType inType = input.getType().cast<TensorType>();
+
+  if (inType.getElementType() != outType.getElementType()) {
+    TensorType promotedType =
+        inType.cloneWith(inType.getShape(), outType.getElementType());
+    return rewriter.create<tosa::CastOp>(op->getLoc(), promotedType, input);
+  }
+  return input;
+}
+
 // Template instantiation
 template std::optional<Value> getConstTensor<int32_t>(PatternRewriter &,
                                                       Operation *,

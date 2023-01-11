@@ -363,8 +363,11 @@ public:
           op, "Only floating-point or integer datatype legalization supported");
 
     // For bitwise operators, only integer datatype legalization is supported
-    if (lhsElemTy.isa<mlir::FloatType>() &&
-        std::is_same<AtenOpT, AtenBitwiseAndTensorOp>()) {
+    constexpr bool isBitwiseOp =
+        std::is_same<AtenOpT, AtenBitwiseAndTensorOp>() ||
+        std::is_same<AtenOpT, AtenBitwiseOrTensorOp>() ||
+        std::is_same<AtenOpT, AtenBitwiseXorTensorOp>();
+    if (lhsElemTy.isa<mlir::FloatType>() && isBitwiseOp) {
       return rewriter.notifyMatchFailure(op,
                                          "For bitwise operators, only integer "
                                          "datatype legalization is supported");
@@ -383,20 +386,24 @@ public:
     auto swapLhsRhs = (std::is_same<AtenOpT, AtenLtTensorOp>() ||
                        std::is_same<AtenOpT, AtenLtScalarOp>());
 
-    auto resultOp = rewriter.create<TosaOpT>(
-        op.getLoc(),
-        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-            op.getType()),
-        (swapLhsRhs ? rhsTensor : lhs), (swapLhsRhs ? lhs : rhsTensor));
+    // Promote lhs and rhs dtypes for bitwise operators.
+    TensorType resultTy = OpConversionPattern<AtenOpT>::getTypeConverter()
+                              ->convertType(op.getType())
+                              .template cast<TensorType>();
+    if (isBitwiseOp) {
+      lhs = tosa::promoteType(rewriter, lhs, resultTy);
+      rhsTensor = tosa::promoteType(rewriter, rhsTensor, resultTy);
+    }
+
+    auto resultOp = rewriter.create<TosaOpT>(op.getLoc(), resultTy,
+                                             (swapLhsRhs ? rhsTensor : lhs),
+                                             (swapLhsRhs ? lhs : rhsTensor));
 
     // There is no NE operator in TOSA.
     if (std::is_same<AtenOpT, AtenNeTensorOp>() ||
         std::is_same<AtenOpT, AtenNeScalarOp>())
-      rewriter.replaceOpWithNewOp<tosa::LogicalNotOp>(
-          op,
-          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-              op.getType()),
-          resultOp.getResult());
+      rewriter.replaceOpWithNewOp<tosa::LogicalNotOp>(op, resultTy,
+                                                      resultOp.getResult());
     else
       rewriter.replaceOp(op, resultOp.getResult());
 
@@ -4049,6 +4056,8 @@ public:
     INSERT_BINARY_COMPARE_PATTERN(AtenNeTensorOp, tosa::EqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenNeScalarOp, tosa::EqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenBitwiseAndTensorOp, tosa::BitwiseAndOp)
+    INSERT_BINARY_COMPARE_PATTERN(AtenBitwiseOrTensorOp, tosa::BitwiseOrOp)
+    INSERT_BINARY_COMPARE_PATTERN(AtenBitwiseXorTensorOp, tosa::BitwiseXorOp)
 #undef INSERT_BINARY_COMPARE_PATTERN
 
 #define INSERT_BINARY_MUL_PATTERN(AtenOp)                                      \
