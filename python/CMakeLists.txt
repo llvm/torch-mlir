@@ -50,6 +50,7 @@ declare_mlir_python_sources(TorchMLIRPythonSources.TopLevel
   ADD_TO_PARENT TorchMLIRPythonSources
   SOURCES
     __init__.py
+    _dynamo_fx_importer.py
     compiler_utils.py
     dynamo.py
 )
