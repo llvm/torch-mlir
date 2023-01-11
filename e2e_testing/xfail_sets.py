@@ -56,20 +56,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseWhereScalarSelfModule_basic",
     "ElementwiseWhereScalarOtherStaticModule_basic",
     "ElementwiseWhereScalarSelfStaticModule_basic",
-    # %7 = torch.operator "aten._index_put_impl_.hacked_twin"(%1, %6, %5, %true, %false) : (!torch.tensor<*,f32>, !torch.list<tensor>, !torch.tensor<*,f32>, !torch.bool, !torch.bool) -> !torch.tensor
-    "IndexPutImpl1DFloatAccumulateModule_basic",
-    "IndexPutImpl1DFloatNonAccumulateModule_basic",
-    "IndexPutImpl1DIntAccumulateModule_basic",
-    "IndexPutImpl1DIntNonAccumulateModule_basic",
-    "IndexPutImpl2DFloatAccumulateModule_basic",
-    "IndexPutImpl2DFloatNonAccumulateModule_basic",
-    "IndexPutImpl2DIndexModule_basic",
-    "IndexPutImpl3DFloatAccumulateModule_basic",
-    "IndexPutImpl3DFloatNonAccumulateModule_basic",
 
-    # https://github.com/llvm/torch-mlir/issues/1611
-    # error: 'tensor.cast' op operand type 'tensor<0xi64>' and result type 'tensor<18xi64>' are cast incompatible
-    "Aten_EmbeddingBagExample_basic",
     # error: failed to legalize operation 'torch.valsem.aten.bernoulli.float' that was explicitly marked illegal
     "BernoulliFloatModule_basic",
     "BernoulliPModule_basic",
@@ -77,8 +64,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseFlattenBroadcastModule_basic",
     "FlattenRank0Module_basic",
     "UniformModule_basic",
-    # error: failed to materialize conversion for result #0 of operation 'torch.aten.t' that remained live after conversion
-    "TModuleRank1_basic",
     # error: unsupported by backend contract: tensor with unknown rank
     # note: see current operation: %1 = "torch.tensor_static_info_cast"(%arg0) : (!torch.vtensor<[5,4,3,2,1],f32>) -> !torch.vtensor<*,f32>
     "ElementwisePreluModule_basic",
@@ -201,10 +186,87 @@ TORCHDYNAMO_XFAIL_SET = {
     'IsFloatingPointInt_False',
     'TorchPrimLoopForLikeModule_basic',
     'TorchPrimLoopWhileLikeModule_basic',
+
+    # backend never runs because of empty frame
+    'ConstantBoolParameterModule_basic',
+
+    # 'torch.aten.mul.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
+    "AddCDivModule_basic",
+    "ElementwiseMulScalarModule_basic",
+    "ElementwiseMulScalarModule_float",
+    "UpSampleNearest2dDynamicSize_basic",
+    "UpSampleNearest2dStaticFactor_basic",
+    "UpSampleNearest2dStaticSize_basic",
+    "UpSampleNearest2d_basic",
+
+    # 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
+    "BatchNorm1DModule_basic",
+    "BatchNorm1DWith2DInputModule_basic",
+    "BatchNorm2DModule_basic",
+    "BatchNorm3DModule_basic",
+    "ElementwiseAddScalarFloatModule_basic",
+    "ElementwiseAddScalarInt64Module_basic",
+    "ElementwiseAddScalarIntModule_basic",
+    "MobilenetV3Module_basic",
+    "NativeBatchNorm1DModule_basic",
+    "NativeBatchNorm2DModule_basic",
+    "NativeBatchNorm3DModule_basic",
+    "NativeBatchNormNoneWeightModule_basic",
+    "ResNet18Module_basic",
+    "ResNet18StaticModule_basic",
+
+    # 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.int'
+    "ElementwiseAddScalar_TensorLiteralInt32_Module_basic",
+    "HBC_basic",
+
+    # 'torch.aten.div.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
+    "ElementwiseDivScalarModule_basic",
+
+    # 'torch.aten.mul.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.int'
+    "ElementwiseMulScalarModule_int",
+
+    # 'torch.aten.sub.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
+    "ElementwiseSubScalarFloatModule_basic",
+    "ElementwiseSubScalarIntModule_basic",
+
+    # Exception: Unsupported: missing default value for argument 0 in schema for aten.div.Tensor_mode
+    "ElementwiseDivRoundingModeFloorModule_basic",
+    "ElementwiseDivRoundingModeTruncModule_basic",
+
+    # Exception: Unsupported op: get_attr
+    "NumToTensorFloatModule_basic",
+    "NumToTensorIntModule_basic",
+    "TensorFloatModule_basic",
+    "TensorIntModule_basic",
+
+    # Exception: Unsupported: missing default value for argument 0 in schema for aten.randn.generator
+    "RandnGeneratorF64Module_basic",
+    "RandnGeneratorModule_basic",
+
+    # AssertionError: None (python constant/literal being passed to get_op_results_or_values through ods_gen)
+    "SliceEndSleStartModule_basic",
+    "SliceOutOfUpperBoundIndexModule_basic",
+    "SliceStartEqEndModule_basic",
+    "TensorsConcatModule_basic",
+    "TensorsConcatNegativeDimModule_basic",
+    "TensorsConcatPromoteDTypeModule_basic",
+    "TensorsStackModule_basic",
+    "TensorsStackNegativeDimModule_basic",
+    "TensorsStackPromoteDTypeModule_basic",
 }
 
-# See https://github.com/llvm/torch-mlir/issues/2050
 TORCHDYNAMO_CRASHING_SET = {
+    # No upstream decompositions.
+    # %6:4 = torch.operator "aten._embedding_bag_forward_only"(%1, %3, %5, %false, %int0, %false, %none, %false, %int-1) : (!torch.tensor<*,f32>, !torch.tensor<*,si64>, !torch.tensor<*,si64>, !torch.bool, !torch.int, !torch.bool, !torch.none, !torch.bool, !torch.int) -> (!torch.tensor, !torch.tensor, !torch.tensor, !torch.tensor)
+    # See also: https://github.com/pytorch/torchdynamo/issues/327
+    "Aten_EmbeddingBagExample_basic",
+    # https://github.com/pytorch/pytorch/issues/100838
+    "BaddbmmDifferentDtypesModule_basic",
+    "FullModuleInt3D_basic",
+    "ThresholdBackward1dIntModule_basic",
+    "ThresholdBackward2dIntModule_basic",
+    "ThresholdBackward3dIntModule_basic",
+    # See https://github.com/llvm/torch-mlir/issues/2050
     "ElementwiseCloneChannelsLastMemoryFormatModule_basic",
     "ElementwiseCloneContiguousModule_basic",
     "ElementwiseCloneModule_basic",
@@ -226,6 +288,7 @@ TORCHDYNAMO_CRASHING_SET = {
     "SliceOutOfLowerBoundStartIndexModule_basic",
     "SliceSizeTwoStepModule_basic",
     "SliceStaticModule_basic",
+    "TestMultipleTensorAndPrimitiveTypesReturn_basic",
     "TModuleRank2_basic",
     "ToCopyModule_basic",
     "TransposeIntModule_basic",

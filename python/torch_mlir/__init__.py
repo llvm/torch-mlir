@@ -12,8 +12,8 @@ import tempfile
 
 from torch._functorch.compile_utils import strip_overloads
 import torch
+import torch.fx
 
-from torch_mlir.passmanager import PassManager
 from .compiler_utils import run_pipeline_with_repro_report
 from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ImportOptions, ModuleBuilder
 from torch_mlir.dialects.torch.importer.jit_ir.build_tools.library_generator import generate_library
@@ -248,6 +248,64 @@ BACKEND_LEGAL_OPS = {
 }
 
 
+def canon_extra_library(extra_library):
+    extra_library_file_name = ""
+    if len(extra_library) != 0:
+        extra_library_dict = {}
+        for library_func in extra_library:
+            extra_library_dict[library_func.__name__] = library_func
+        mlir_library = generate_library(extra_library_dict)
+
+        extra_library_file_name = \
+            tempfile.gettempdir() + "/custom_op_extra_library.mlir"
+        with open(extra_library_file_name, "w") as f:
+            f.write(mlir_library)
+    return extra_library_file_name
+
+
+def lower_mlir_module(verbose, output_type, module):
+    if verbose:
+        print("\n====================")
+        print("Torch Backend IR")
+        print(module)
+
+    if output_type == OutputType.TORCH:
+        return module
+
+    if output_type == OutputType.TOSA:
+        run_pipeline_with_repro_report(
+            module, "builtin.module(torch-backend-to-tosa-backend-pipeline)",
+            "Lowering Torch Backend IR -> TOSA Backend IR")
+        if verbose:
+            print("\n====================")
+            print("TOSA Backend IR")
+            print(module)
+        return module
+
+    if output_type == OutputType.LINALG_ON_TENSORS:
+        run_pipeline_with_repro_report(
+            module,
+            "builtin.module(torch-backend-to-linalg-on-tensors-backend-pipeline)",
+            "Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR")
+        if verbose:
+            print("\n====================")
+            print("LINALG Backend IR")
+            print(module)
+        return module
+
+    elif output_type == OutputType.STABLEHLO:
+        run_pipeline_with_repro_report(
+            module,
+            "builtin.module(torch-backend-to-stablehlo-backend-pipeline)",
+            "Lowering Torch Backend IR -> StableHLO Backend IR")
+        if verbose:
+            print("\n====================")
+            print("StableHLO Backend IR")
+            print(module)
+        return module
+    raise Exception(f"Unknown OutputType: {output_type}")
+
+
 def compile(model: torch.nn.Module,
             example_args: _example_args,
             output_type: Union[str, "OutputType"] = OutputType.TORCH,
@@ -290,18 +348,7 @@ def compile(model: torch.nn.Module,
         An MLIR module that contains the converted model in the specified
         output type.
     """
-    extra_library_file_name = ""
-    if len(extra_library) != 0:
-        extra_library_dict = {}
-        for library_func in extra_library:
-            extra_library_dict[library_func.__name__] = library_func
-        mlir_library = generate_library(extra_library_dict)
-
-        extra_library_file_name = \
-            tempfile.gettempdir() + "/custom_op_extra_library.mlir"
-        with open(extra_library_file_name, "w") as f:
-            f.write(mlir_library)
-
+    extra_library_file_name = canon_extra_library(extra_library)
     output_type = OutputType.get(output_type)
     example_args = ExampleArgs.get(example_args)
     if ignore_traced_shapes and not use_tracing:
@@ -394,44 +441,4 @@ PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
         "Lowering TorchScript IR -> Torch Backend IR",
     )
 
-    if verbose:
-        print("\n====================")
-        print("Torch Backend IR")
-        print(mb.module)
-
-    if output_type == OutputType.TORCH:
-        return mb.module
-
-    if output_type == OutputType.TOSA:
-        run_pipeline_with_repro_report(
-            mb.module,
-            "builtin.module(torch-backend-to-tosa-backend-pipeline)",
-            "Lowering Torch Backend IR -> TOSA Backend IR")
-        if verbose:
-            print("\n====================")
-            print("TOSA Backend IR")
-            print(mb.module)
-        return mb.module
-
-    if output_type == OutputType.LINALG_ON_TENSORS:
-        run_pipeline_with_repro_report(
-            mb.module,
-            "builtin.module(torch-backend-to-linalg-on-tensors-backend-pipeline)",
-            "Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR")
-        if verbose:
-            print("\n====================")
-            print("LINALG Backend IR")
-            print(mb.module)
-        return mb.module
-
-    elif output_type == OutputType.STABLEHLO:
-        run_pipeline_with_repro_report(
-            mb.module,
-            "builtin.module(torch-backend-to-stablehlo-backend-pipeline)",
-            "Lowering Torch Backend IR -> StableHLO Backend IR")
-        if verbose:
-            print("\n====================")
-            print("StableHLO Backend IR")
-            print(mb.module)
-        return mb.module
-    raise Exception(f"Unknown OutputType: {output_type}")
+    return lower_mlir_module(verbose, output_type, mb.module)
