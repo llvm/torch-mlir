@@ -671,6 +671,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     # ==========================================================================
 
     emit("prims::convert_element_type : (Tensor, int) -> (Tensor)")
+    emit("prims::var : (Tensor, int[]?, int, int?) -> (Tensor)")
+    emit("prims::sqrt : (Tensor) -> (Tensor)")
 
     # ==========================================================================
     # `quantized::` namespace.

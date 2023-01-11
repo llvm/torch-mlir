@@ -107,6 +107,9 @@ def aten〇hardtanh〡shape(self: List[int], min_val: float = -1, max_val: float
 def aten〇sqrt〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def prims〇sqrt〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇neg〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -306,6 +309,9 @@ def aten〇mean〡shape(self: List[int], dtype: Optional[int] = None) -> List[in
 
 def aten〇var〡shape(self: List[int], unbiased: bool = True) -> List[int]:
     return []
+
+def prims〇var〡shape(inp: List[int], dims: Optional[List[int]], correction: int, output_dtype: Optional[int] = None) -> List[int]:
+    return upstream_shape_functions.sum_mean_dim(inp, dims, False, None)
 
 def aten〇var〇dim〡shape(self: List[int], dim: Optional[List[int]], unbiased: bool = True, keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)

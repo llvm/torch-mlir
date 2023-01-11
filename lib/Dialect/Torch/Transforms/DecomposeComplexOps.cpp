@@ -3426,6 +3426,38 @@ public:
 } // namespace
 
 namespace {
+// Decompose `prims.var` op into `aten.var.correction` op.
+class DecomposePrimsVarOp : public OpRewritePattern<PrimsVarOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimsVarOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!op.getOutputDtype().getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented non-None dtype for prims::var op");
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    rewriter.replaceOpWithNewOp<AtenVarCorrectionOp>(
+        op, op.getType(), op.getInp(), op.getDims(), op.getCorrection(),
+        /*keepdim=*/cstFalse);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Decompose `prims.sqrt` op into `aten.sqrt` op.
+class DecomposePrimsSqrtOp : public OpRewritePattern<PrimsSqrtOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimsSqrtOp op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<AtenSqrtOp>(op, op.getType(), op.getSelf());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // The op is decomposed using the Box-Muller transform.
 // Refer: https://en.wikipedia.org/wiki/Box-Muller_transform
 class DecomposeAtenRandnGeneratorOp
@@ -3659,6 +3691,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintLowOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanCorrectionOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposePrimsConvertElementTypeOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposePrimsVarOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposePrimsSqrtOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnGeneratorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanOp>(patterns);
