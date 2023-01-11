@@ -1531,7 +1531,6 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenSizeIntOp);
   INSERT_ATENOP_PATTERN(AtenToDtypeOp);
   INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
-  INSERT_ATENOP_PATTERN(AtenSigmoidOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, MhloOp)                        \
