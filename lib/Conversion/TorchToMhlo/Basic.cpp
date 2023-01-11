@@ -1366,12 +1366,12 @@ LogicalResult ConvertAtenOp<AtenStackOp>::matchAndRewrite(
       getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
   auto outElemType = outType.getElementType();
   int64_t dim;
-  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim))) {
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim))) {
     return rewriter.notifyMatchFailure(op,
                                        "only constant dim param is supported");
   }
   SmallVector<Value> torchTensors;
-  if (!getListConstructElements(op.tensors(), torchTensors)) {
+  if (!getListConstructElements(op.getTensors(), torchTensors)) {
     return rewriter.notifyMatchFailure(
         op, "input should comes from a PrimListConstructOp");
   }
