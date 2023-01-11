@@ -1410,7 +1410,7 @@ LogicalResult ConvertAtenOp<AtenStackOp>::matchAndRewrite(
   SmallVector<int64_t> catOutShape(inputTensorShape.begin(), inputTensorShape.end());
   if (posDim == inputRank) 
     posDim--;
-  if (catOutShape[posDim] != ShapedType::kDynamicSize) {
+  if (catOutShape[posDim] != ShapedType::kDynamic) {
     catOutShape[posDim] *= builtinTensors.size();
   }
   cat = rewriter.create<mhlo::ConcatenateOp>(op->getLoc(), RankedTensorType::get(catOutShape, outElemType), ValueRange(builtinTensors), posDim);
