@@ -14,6 +14,10 @@ import torch.jit._shape_functions as upstream_shape_functions
 from .testing_framework import Invocation, ErrorInvocation, TensorOfShape, LongTensorOfShape, NonZeroDTensorWithDtype, ZeroDTensorWithDtype, check_shape_function, check_dtype_function
 from .library_generator import generate_library, not_present_in_registry, promote_dtypes, get_dtype_of_scalar
 
+# ==============================================================================
+# Shape Functions
+# ==============================================================================
+
 def _embedding_bag_helper(weight: List[int], indices: List[int], offsets: List[int], include_last_offset: bool, mode: int):
     assert len(weight) == 2
     assert len(indices) == 1
@@ -74,26 +78,6 @@ def aten〇exp〡shape(self: List[int]) -> List[int]:
 
 def aten〇expm1〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
-
-@check_dtype_function([
-    Invocation(NonZeroDTensorWithDtype(torch.float32)),
-    Invocation(NonZeroDTensorWithDtype(torch.float64)),
-    Invocation(NonZeroDTensorWithDtype(torch.bfloat16)),
-    Invocation(NonZeroDTensorWithDtype(torch.int64)),
-    Invocation(NonZeroDTensorWithDtype(torch.int32)),
-    Invocation(NonZeroDTensorWithDtype(torch.bool)),
-    Invocation(ZeroDTensorWithDtype(torch.float32)),
-    Invocation(ZeroDTensorWithDtype(torch.float64)),
-    Invocation(ZeroDTensorWithDtype(torch.bfloat16)),
-    Invocation(ZeroDTensorWithDtype(torch.int64)),
-    Invocation(ZeroDTensorWithDtype(torch.int32)),
-    Invocation(ZeroDTensorWithDtype(torch.bool)),
-])
-def aten〇expm1〡dtype(self_rank: int, self_dtype: int) -> int:
-    if self_dtype == torch.float64 or self_dtype == torch.bfloat16 or self_dtype == torch.float16:
-        return self_dtype
-    else:
-        return torch.float32
 
 def aten〇sin〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
@@ -265,17 +249,6 @@ def aten〇pow〇Tensor_Tensor〡shape(self: List[int], exponent: List[int]) -> 
 
 def aten〇rsub〇Scalar〡shape(self: List[int], other: float, alpha: float = 1) -> List[int]:
     return upstream_shape_functions.unary(self)
-
-@check_dtype_function([
-    Invocation(NonZeroDTensorWithDtype(torch.float32), other=0),
-    Invocation(NonZeroDTensorWithDtype(torch.int64), other=0.0),
-    Invocation(NonZeroDTensorWithDtype(torch.float16), other=0.0),
-    Invocation(ZeroDTensorWithDtype(torch.float32), other=0),
-    Invocation(ZeroDTensorWithDtype(torch.int64), other=0.0),
-    Invocation(ZeroDTensorWithDtype(torch.float16), other=0.0)
-])
-def aten〇rsub〇Scalar〡dtype(self_rank: int, self_dtype: int, other: Union[int, float], alpha: Union[int, float] = 1) -> int:
-    return promote_dtypes([self_rank, None], [self_dtype, get_dtype_of_scalar(other)])
 
 def aten〇leaky_relu〡shape(self: List[int], negative_slope: float = 0.01) -> List[int]:
     return upstream_shape_functions.unary(self)
@@ -658,17 +631,6 @@ def aten〇div〇Tensor_mode〡shape(self: List[int], other: List[int], rounding
 def aten〇floor_divide〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
-@check_dtype_function([
-    Invocation(NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.float32)),
-    Invocation(ZeroDTensorWithDtype(torch.float64), NonZeroDTensorWithDtype(torch.float32)),
-    Invocation(ZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.float64)),
-    Invocation(NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32)),
-])
-def aten〇floor_divide〡dtype(self_rank: int, self_dtype: int, other_rank: int, other_dtype: int) -> int:
-    ranks: List[Optional[int]] = [self_rank, other_rank]
-    dtypes = [self_dtype, other_dtype]
-    return promote_dtypes(ranks, dtypes)
-
 def aten〇atan2〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
@@ -1000,34 +962,6 @@ def aten〇cat〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
 def aten〇fft_fft〡shape(self: List[int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> List[int]:
     return self
 
-@check_dtype_function([
-    Invocation(NonZeroDTensorWithDtype(torch.complex64)),
-    Invocation(NonZeroDTensorWithDtype(torch.complex128)),
-    Invocation(NonZeroDTensorWithDtype(torch.float)),
-    Invocation(NonZeroDTensorWithDtype(torch.double)),
-    Invocation(NonZeroDTensorWithDtype(torch.bool)),
-    Invocation(NonZeroDTensorWithDtype(torch.uint8)),
-    Invocation(NonZeroDTensorWithDtype(torch.int8)),
-    Invocation(NonZeroDTensorWithDtype(torch.int16)),
-    Invocation(NonZeroDTensorWithDtype(torch.int32)),
-    Invocation(NonZeroDTensorWithDtype(torch.int64)),
-    ErrorInvocation(NonZeroDTensorWithDtype(torch.float16)),
-    ErrorInvocation(NonZeroDTensorWithDtype(torch.bfloat16)),
-])
-def aten〇fft_fft〡dtype(self_rank: int, self_dtype: int, n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> int:
-    if self_dtype == torch.complex64 or self_dtype == torch.complex128:
-        return self_dtype
-    elif self_dtype == torch.float:
-        return torch.complex64
-    elif self_dtype == torch.double:
-        return torch.complex128
-    elif self_dtype == torch.bool or self_dtype == torch.uint8 or \
-         self_dtype == torch.int8 or self_dtype == torch.int16 or \
-         self_dtype == torch.int32 or self_dtype == torch.int64:
-        return torch.complex64
-    else:
-        assert False, "Unsupported dtype"
-
 class DummyClassType:
     def __init__(self):
         pass
@@ -1079,6 +1013,10 @@ def aten〇frobenius_norm〇dim〡shape(self: List[int], dim: List[int], keepdim
 def aten〇upsample_nearest2d〡shape(self: List[int], output_size: List[int], scales_h: Optional[float] = None, scales_w: Optional[float] = None) -> List[int]:
     return [self[0], self[1], output_size[0], output_size[1]]
 
+# ==============================================================================
+# Dtype Functions
+# ==============================================================================
+
 @check_dtype_function([
     Invocation(0.0, 0.0), # float, float
     Invocation(0.0, 0), # float, int
@@ -1089,6 +1027,80 @@ def aten〇add〡dtype(a: Union[int, float], b: Union[int, float]) -> int:
     ranks: List[Optional[int]] = [None, None]
     dtypes = [get_dtype_of_scalar(a), get_dtype_of_scalar(b)]
     return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function([
+    Invocation(NonZeroDTensorWithDtype(torch.complex64)),
+    Invocation(NonZeroDTensorWithDtype(torch.complex128)),
+    Invocation(NonZeroDTensorWithDtype(torch.float)),
+    Invocation(NonZeroDTensorWithDtype(torch.double)),
+    Invocation(NonZeroDTensorWithDtype(torch.bool)),
+    Invocation(NonZeroDTensorWithDtype(torch.uint8)),
+    Invocation(NonZeroDTensorWithDtype(torch.int8)),
+    Invocation(NonZeroDTensorWithDtype(torch.int16)),
+    Invocation(NonZeroDTensorWithDtype(torch.int32)),
+    Invocation(NonZeroDTensorWithDtype(torch.int64)),
+    ErrorInvocation(NonZeroDTensorWithDtype(torch.float16)),
+    ErrorInvocation(NonZeroDTensorWithDtype(torch.bfloat16)),
+])
+def aten〇fft_fft〡dtype(self_rank: int, self_dtype: int, n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> int:
+    if self_dtype == torch.complex64 or self_dtype == torch.complex128:
+        return self_dtype
+    elif self_dtype == torch.float:
+        return torch.complex64
+    elif self_dtype == torch.double:
+        return torch.complex128
+    elif self_dtype == torch.bool or self_dtype == torch.uint8 or \
+         self_dtype == torch.int8 or self_dtype == torch.int16 or \
+         self_dtype == torch.int32 or self_dtype == torch.int64:
+        return torch.complex64
+    else:
+        assert False, "Unsupported dtype"
+
+@check_dtype_function([
+    Invocation(NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.float32)),
+    Invocation(ZeroDTensorWithDtype(torch.float64), NonZeroDTensorWithDtype(torch.float32)),
+    Invocation(ZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.float64)),
+    Invocation(NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32)),
+])
+def aten〇floor_divide〡dtype(self_rank: int, self_dtype: int, other_rank: int, other_dtype: int) -> int:
+    ranks: List[Optional[int]] = [self_rank, other_rank]
+    dtypes = [self_dtype, other_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function([
+    Invocation(NonZeroDTensorWithDtype(torch.float32), other=0),
+    Invocation(NonZeroDTensorWithDtype(torch.int64), other=0.0),
+    Invocation(NonZeroDTensorWithDtype(torch.float16), other=0.0),
+    Invocation(ZeroDTensorWithDtype(torch.float32), other=0),
+    Invocation(ZeroDTensorWithDtype(torch.int64), other=0.0),
+    Invocation(ZeroDTensorWithDtype(torch.float16), other=0.0)
+])
+def aten〇rsub〇Scalar〡dtype(self_rank: int, self_dtype: int, other: Union[int, float], alpha: Union[int, float] = 1) -> int:
+    return promote_dtypes([self_rank, None], [self_dtype, get_dtype_of_scalar(other)])
+
+@check_dtype_function([
+    Invocation(NonZeroDTensorWithDtype(torch.float32)),
+    Invocation(NonZeroDTensorWithDtype(torch.float64)),
+    Invocation(NonZeroDTensorWithDtype(torch.bfloat16)),
+    Invocation(NonZeroDTensorWithDtype(torch.int64)),
+    Invocation(NonZeroDTensorWithDtype(torch.int32)),
+    Invocation(NonZeroDTensorWithDtype(torch.bool)),
+    Invocation(ZeroDTensorWithDtype(torch.float32)),
+    Invocation(ZeroDTensorWithDtype(torch.float64)),
+    Invocation(ZeroDTensorWithDtype(torch.bfloat16)),
+    Invocation(ZeroDTensorWithDtype(torch.int64)),
+    Invocation(ZeroDTensorWithDtype(torch.int32)),
+    Invocation(ZeroDTensorWithDtype(torch.bool)),
+])
+def aten〇expm1〡dtype(self_rank: int, self_dtype: int) -> int:
+    if self_dtype == torch.float64 or self_dtype == torch.bfloat16 or self_dtype == torch.float16:
+        return self_dtype
+    else:
+        return torch.float32
+
+# ==============================================================================
+# Main
+# ==============================================================================
 
 def _maybe_import_op_extensions(args: argparse.Namespace):
     extension_string = str.strip(args.pytorch_op_extensions)
