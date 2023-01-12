@@ -348,7 +348,7 @@ def VerifyBackendContract
   let summary = "Check that program satisfies backend contract.";
   let constructor = [{
     mlir::torch::Torch::createVerifyBackendContractPass(
-      /*decompose=*/true, /*backendLegalOps=*/{})
+      /*decompose=*/false, /*backendLegalOps=*/{})
   }];
   let description = [{
     This pass performs a set of inspections to check that program satisfies backend
@@ -356,7 +356,7 @@ def VerifyBackendContract
     `signalPassFailure()` status.
   }];
   let options = [
-    Option<"decompose", "decompose", "bool", /*default=*/"true",
+    Option<"decompose", "decompose", "bool", /*default=*/"false",
            "Decompose ops.">,
     ListOption<"backendLegalOps", "backend-legal-ops", "std::string",
                "List of ops to be considered legal for the backend.">

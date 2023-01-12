@@ -14,8 +14,12 @@
 
 #include <torch/csrc/jit/api/compilation_unit.h>
 #include <torch/csrc/jit/passes/refine_tuple_types.h>
+#include <torch/csrc/jit/passes/convert_scalar_implicit.h>
 #include <torch/csrc/lazy/core/lazy_graph_executor.h>
 #include "torch-mlir-c/Registration.h"
+#include "torch-mlir-c/Transforms.h"
+#include "mlir-c/IR.h"
+#include "mlir-c/Pass.h"
 
 #include "../../dialects/torch/importer/jit_ir/csrc/function_importer.h"
 #include "backend_impl.h"
@@ -135,6 +139,11 @@ ComputationPtr TorchMlirLoweringContext::Build() {
     graph_->block()->registerOutput(output);
   }
 
+  // During operations lowering JIT may insert ScalarImplicit ops which output
+  // type !torch.number doesn't represent any existing MLIR type and should be
+  // refined either to Torch::IntType or Torch::FloatType.
+  torch::jit::ConvertScalarImplicit(graph_);
+
   // Generate MLIR.
   MlirOperation func_op = torch_mlir::importJitFunctionAsFuncOp(
       /*context=*/mlir_context_,
@@ -142,12 +151,35 @@ ComputationPtr TorchMlirLoweringContext::Build() {
       /*getArgAttribute=*/[](int) -> MlirAttribute { return {nullptr}; },
       /*importOptions=*/{/*assumeTensorsHaveValueSemantics=*/true});
 
-  return CreateComputation(func_op);
+
+  // Convert MlirOperation to MlirModule.
+  MlirLocation loc = mlirLocationUnknownGet(mlir_context_);
+  MlirModule module_op = mlirModuleCreateEmpty(loc);
+  MlirBlock block = mlirModuleGetBody(module_op);
+  mlirBlockAppendOwnedOperation(block, func_op);
+
+  // Apply passes to verify generated MLIR.
+  auto pass_manager = mlirPassManagerCreate(mlir_context_);
+  mlirPassManagerAddOwnedPass(
+    pass_manager,
+    mlirCreateVerifyBackendContract()
+  );
+
+  MlirLogicalResult result = mlirPassManagerRun(
+    pass_manager,
+    module_op
+  );
+
+  if (mlirLogicalResultIsFailure(result)) {
+    throw std::runtime_error("MLIR verification has failed.");
+  }
+
+  return CreateComputation(module_op);
 }
 
-ComputationPtr TorchMlirLoweringContext::CreateComputation(MlirOperation func_op) {
+ComputationPtr TorchMlirLoweringContext::CreateComputation(MlirModule module_op) {
     return std::make_shared<TorchMlirComputation>(
-      func_op, mlir_context_, graph_, parameter_names_, input_output_aliases_);
+      module_op, mlir_context_, graph_, parameter_names_, input_output_aliases_);
 }
 
 torch::jit::Value* TorchMlirLoweringContext::GetOutputOp(const Output& output) {
@@ -295,11 +327,11 @@ void TorchMlirLoweringContext::RegisterMlirDialects() {
 ///////////////////////////////////////////////////////////////////////////////
 
 TorchMlirComputation::TorchMlirComputation(
-    MlirOperation func_op, MlirContext mlir_context,
+    MlirModule module_op, MlirContext mlir_context,
     const std::shared_ptr<torch::jit::Graph>& graph,
     std::unordered_map<int, std::string> parameters_map,
     InputOutputAliases input_output_aliases)
-    : func_op_(std::move(func_op)), mlir_context_(std::move(mlir_context)),
+    : module_op_(std::move(module_op)), mlir_context_(std::move(mlir_context)),
       graph_(graph), input_output_aliases_(input_output_aliases),
       parameters_map_(parameters_map) {
 
@@ -340,7 +372,14 @@ std::shared_ptr<torch::jit::Graph> TorchMlirComputation::graph() const {
   return graph_;
 }
 
-MlirOperation TorchMlirComputation::func_op() const { return func_op_; }
+MlirOperation TorchMlirComputation::func_op() const {
+  MlirBlock block = mlirModuleGetBody(module_op_);
+  return mlirBlockGetFirstOperation(block);
+}
+
+MlirModule TorchMlirComputation::module_op() const {
+  return module_op_;
+}
 
 MlirContext TorchMlirComputation::mlir_context() const {
   return mlir_context_;
@@ -385,7 +424,7 @@ const std::string TorchMlirComputation::to_string() const {
     *ss_ptr << std::string(part.data, part.length);
   };
   std::stringstream ss;
-  mlirOperationPrint(func_op_, print_callback, &ss);
+  mlirOperationPrint(mlirModuleGetOperation(module_op_), print_callback, &ss);
   return ss.str();
 }
 
