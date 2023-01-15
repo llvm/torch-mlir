@@ -3145,3 +3145,22 @@ class SortIntListReverse(torch.nn.Module):
 @register_test_case(module_factory=lambda: SortIntListReverse())
 def SortIntListReverse_basic(module, tu: TestUtils):
     module.forward()
+
+# ==============================================================================
+
+class TopkModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, val):
+        return torch.topk(val, 3, dim=1)
+
+@register_test_case(module_factory=lambda: TopkModule())
+def TopkModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7))

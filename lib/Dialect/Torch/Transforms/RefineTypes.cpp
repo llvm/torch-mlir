@@ -891,6 +891,16 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
+  if (isa<AtenTopkOp>(op)) {
+    incorporateKnowledge(op->getResult(0), operands[0]->getValue());
+    auto knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    knowledge.dtype =
+        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+    incorporateKnowledge(op->getResult(1), knowledge);
+    return;
+  }
+
   if (auto arange = dyn_cast<AtenArangeOp>(op)) {
     visitAtenArangeOp(arange);
     return;

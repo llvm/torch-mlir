@@ -6,10 +6,6 @@
 # Lists of tests that fail to even reach the backends.
 # These represent further work needed in torch-mlir to lower them properly
 # to the backend contract.
-COMMON_TORCH_MLIR_LOWERING_XFAILS = {
-    "QuantizedMLP_basic",
-    "NormalizeModule_basic",
-}
 
 def register_all_tests():
     """Registers all the built-in E2E tests that Torch-MLIR provides."""
