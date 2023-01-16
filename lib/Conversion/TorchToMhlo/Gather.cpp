@@ -200,12 +200,13 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
 
   auto options = getOptions();
   auto indexShapeInfo =
-      mhlo::getDimSizesOfTensor(rewriter, op, index, options.dimSizeIndexBits);
+      // mhlo::getDimSizesOfTensor(rewriter, op, index, options.dimSizeIndexBits);
+      mhlo::getDimSizesOfTensor(rewriter, op, index, 64);
   if (failed(indexShapeInfo)) {
     return rewriter.notifyMatchFailure(
         op, "failed to get dim sizes of `index` param");
   }
-  auto intType = rewriter.getIntegerType(options.dimSizeIndexBits);
+  auto intType = rewriter.getIntegerType(64);
   auto one = rewriter.create<arith::ConstantOp>(
       loc, rewriter.getIntegerAttr(intType, 1));
   auto toConcatIndexShapeValueVec = *indexShapeInfo;
