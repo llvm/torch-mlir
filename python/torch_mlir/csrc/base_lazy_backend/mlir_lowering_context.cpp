@@ -14,7 +14,6 @@
 
 #include <torch/csrc/jit/api/compilation_unit.h>
 #include <torch/csrc/jit/passes/refine_tuple_types.h>
-#include <torch/csrc/jit/passes/convert_scalar_implicit.h>
 #include <torch/csrc/lazy/core/lazy_graph_executor.h>
 #include "torch-mlir-c/Registration.h"
 #include "torch-mlir-c/Transforms.h"
@@ -27,6 +26,7 @@
 #include "mlir_node.h"
 #include "utils/debug.h"
 #include "utils/exception.h"
+#include "utils/jit_utils.h"
 #include "utils/string_utils.h"
 #include "utils/sys_utils.h"
 
