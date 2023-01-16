@@ -787,4 +787,6 @@ LTC_XFAIL_SET = {
     "ElementwisePreluModule_basic",
     "VarMeanBiasedModule_basic",
     "VarMeanUnbiasedModule_basic",
+    "RandnLikeModule_basic",
+    "RandnLikeDtypeModule_basic",
 }
