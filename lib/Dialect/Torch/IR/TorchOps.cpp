@@ -29,6 +29,17 @@ using namespace mlir::torch::Torch;
 // Utilities
 //===----------------------------------------------------------------------===//
 
+static inline torch_upstream::ScalarType
+materializeQType(torch_upstream::ScalarType t) {
+  if (t == torch_upstream::ScalarType::QInt8)
+    return torch_upstream::ScalarType::Char;
+  if (t == torch_upstream::ScalarType::QUInt8)
+    return torch_upstream::ScalarType::Char;
+  if (t == torch_upstream::ScalarType::QInt32)
+    return torch_upstream::ScalarType::Char;
+  return t;
+}
+
 Value mlir::torch::Torch::adjustStaticInformation(OpBuilder &builder,
                                                   Location loc, Value value,
                                                   Type desiredType,
@@ -1390,6 +1401,167 @@ void AtenSortIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     op.getSelf().replaceAllUsesWith(result);
     rewriter.eraseOp(op);
     return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenQuantizePerTensorOp
+//===----------------------------------------------------------------------===//
+
+static void transposeOutputChannels(PatternRewriter &rewriter, Location loc,
+                                    Operation *target, Value other) {
+  Value zero =
+      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+  Value one =
+      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+  AtenTransposeIntOp transposed = rewriter.create<AtenTransposeIntOp>(
+      loc,
+      Torch::NonValueTensorType::getWithLeastStaticInformation(
+          target->getContext()),
+      other, zero, one);
+  transposed->moveBefore(target);
+  target->replaceUsesOfWith(other, transposed.getResult());
+}
+
+template <typename QuantizationOp>
+static LogicalResult commuteQuantizedConvolution(QuantizationOp op,
+                                                 PatternRewriter &rewriter) {
+  auto result = op.getResult();
+  if (!result.hasOneUse())
+    return rewriter.notifyMatchFailure(op, "quantize op has multiple uses");
+
+  if (auto clampOp = dyn_cast<AtenClampOp>(*result.getUsers().begin())) {
+    result = clampOp.getResult();
+  }
+
+  AtenSubTensorOp subZeroPoint;
+  if (!(subZeroPoint = dyn_cast<AtenSubTensorOp>(*result.getUsers().begin()))) {
+    return rewriter.notifyMatchFailure(
+        op, "quantize op does not have sub tensor as user");
+  }
+  auto subResult = subZeroPoint.getResult();
+
+  AtenMulTensorOp mulScale;
+  if (!(mulScale = dyn_cast<AtenMulTensorOp>(*subResult.getUsers().begin()))) {
+    return rewriter.notifyMatchFailure(
+        op, "quantize op does not have mul tensor in chain");
+  }
+  auto mulResult = mulScale.getResult();
+
+  Aten_ConvolutionOp conv;
+  if (!(conv = dyn_cast<Aten_ConvolutionOp>(*mulResult.getUsers().begin()))) {
+    return rewriter.notifyMatchFailure(
+        op, "quantize op does not have convolution in chain");
+  }
+
+  auto convResult = conv.getResult();
+  conv->replaceUsesOfWith(mulResult, result);
+  convResult.replaceAllUsesWith(mulResult);
+  subZeroPoint->replaceUsesOfWith(result, convResult);
+  subZeroPoint->moveAfter(conv);
+  mulScale->moveAfter(subZeroPoint);
+
+  if (isa<AtenQuantizePerChannelOp>(op)) {
+    Value other;
+    if (subZeroPoint.getSelf() == convResult) {
+      other = subZeroPoint.getOther();
+    } else {
+      other = subZeroPoint.getSelf();
+    }
+    Location otherLoc = conv->getLoc();
+    transposeOutputChannels(rewriter, otherLoc, subZeroPoint, other);
+
+    if (mulScale.getSelf() == subResult) {
+      other = mulScale.getOther();
+    } else {
+      other = mulScale.getSelf();
+    }
+    transposeOutputChannels(rewriter, otherLoc, mulScale, other);
+  }
+  return success();
+}
+
+void AtenQuantizePerTensorOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenQuantizePerTensorOp op, PatternRewriter &rewriter) {
+    auto loc = op.getLoc();
+    auto result = op.getResult();
+    if (!result.hasOneUse())
+      return rewriter.notifyMatchFailure(
+          op, "quantize per tensor op has multiple uses");
+
+    AtenIntReprOp reprOp;
+    if (!(reprOp = dyn_cast<AtenIntReprOp>(*result.getUsers().begin())))
+      return rewriter.notifyMatchFailure(
+          op, "quantize per tensor op use must be aten.int_repr");
+
+    int64_t dtypeInt;
+    if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeInt))) {
+      return failure();
+    }
+
+    auto scalarDtype = materializeQType((torch_upstream::ScalarType)dtypeInt);
+    auto dtypeValue = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr((int64_t)scalarDtype));
+
+    auto resultType = result.getType();
+    auto quantized = rewriter
+                         .create<AtenQuantizePerTensorOp>(
+                             loc, resultType, op.getSelf(), op.getScale(),
+                             op.getZeroPoint(), dtypeValue)
+                         .getResult();
+
+    reprOp.getResult().replaceAllUsesWith(quantized);
+    rewriter.eraseOp(reprOp);
+    rewriter.replaceOp(op, quantized);
+    return success();
+  });
+  patterns.add(+[](AtenQuantizePerTensorOp op, PatternRewriter &rewriter) {
+    return commuteQuantizedConvolution<AtenQuantizePerTensorOp>(op, rewriter);
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenQuantizePerChannelOp
+//===----------------------------------------------------------------------===//
+
+void AtenQuantizePerChannelOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenQuantizePerChannelOp op, PatternRewriter &rewriter) {
+    auto loc = op.getLoc();
+    auto result = op.getResult();
+    if (!result.hasOneUse())
+      return rewriter.notifyMatchFailure(
+          op, "quantize per channel op has multiple uses");
+
+    AtenIntReprOp reprOp;
+    if (!(reprOp = dyn_cast<AtenIntReprOp>(*result.getUsers().begin())))
+      return rewriter.notifyMatchFailure(
+          op, "quantize per channel op use must be aten.int_repr");
+
+    int64_t dtypeInt;
+    if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeInt))) {
+      return failure();
+    }
+
+    auto scalarDtype = materializeQType((torch_upstream::ScalarType)dtypeInt);
+    auto dtypeValue = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr((int64_t)scalarDtype));
+
+    auto resultType = result.getType();
+    auto quantized = rewriter
+                         .create<AtenQuantizePerChannelOp>(
+                             loc, resultType, op.getSelf(), op.getScales(),
+                             op.getZeroPoints(), op.getAxis(), dtypeValue)
+                         .getResult();
+
+    reprOp.getResult().replaceAllUsesWith(quantized);
+    rewriter.eraseOp(reprOp);
+    rewriter.replaceOp(op, quantized);
+    return success();
+  });
+  patterns.add(+[](AtenQuantizePerChannelOp op, PatternRewriter &rewriter) {
+    return commuteQuantizedConvolution<AtenQuantizePerChannelOp>(op, rewriter);
   });
 }
 

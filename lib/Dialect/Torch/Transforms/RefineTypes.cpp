@@ -615,6 +615,17 @@ static Type getPromotedResultTypeAssumingNonZeroRank(
                                /*skipRankCheck=*/true);
 }
 
+static Type getPromotedResultTypeAssumingNonZeroRankWithQuantizedPromotion(
+    MLIRContext *context, ArrayRef<const ValueKnowledge *> tensors) {
+  auto promotedType =
+      getPromotedResultTypeAssumingNonZeroRank(context, tensors);
+  if (promotedType.isSignedInteger(8))
+    return mlir::IntegerType::get(context, 32, IntegerType::Signed);
+  if (promotedType.isUnsignedInteger(8))
+    return mlir::IntegerType::get(context, 32, IntegerType::Unsigned);
+  return promotedType;
+}
+
 void TypeAnalysis::fillInDTypeGivenDTypeIntAndInputDType(
     ValueKnowledge &knowledge, Value dtype, Type inputDType) {
   assert(!inputDType ||
@@ -733,8 +744,10 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenMseLossOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
-        op->getContext(), {&operands[0]->getValue(), &operands[1]->getValue()});
+    knowledge.dtype =
+        getPromotedResultTypeAssumingNonZeroRankWithQuantizedPromotion(
+            op->getContext(),
+            {&operands[0]->getValue(), &operands[1]->getValue()});
     incorporateKnowledge(op->getResult(0), knowledge);
     return;
   }

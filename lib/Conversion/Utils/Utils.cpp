@@ -263,7 +263,7 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
 
   // We only support conversion from Byte or Char scalarType not to Byte or Char
   // dtype.
-  if (isByteOrChar(dtype)) {
+  if (isByteOrChar(dtype) && !scalarType.isa<mlir::IntegerType>()) {
     mlir::emitError(loc) << "unsupported: conversion to byte or char type for "
                             "convertScalarToDtype "
                          << scalarType << "(scalar type) -> " << dtype

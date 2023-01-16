@@ -45,8 +45,7 @@ static Value createComparisonTemplate(OpBuilder &b, Location loc, Type type,
   if (IntegerType intType = type.dyn_cast<mlir::IntegerType>()) {
     if (intType.isUnsigned())
       return b.create<arith::CmpIOp>(loc, iupred, lhs, rhs);
-    if (intType.isSigned())
-      return b.create<arith::CmpIOp>(loc, ispred, lhs, rhs);
+    return b.create<arith::CmpIOp>(loc, ispred, lhs, rhs);
   }
   llvm_unreachable("Unhandled element type for comparison");
 }
@@ -798,10 +797,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(clamp.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    if (!dtype.isa<mlir::FloatType>()) {
-      clamp.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
     AtenClampOp::Adaptor adaptor(operands);
     auto min = adaptor.getMin();
     auto max = adaptor.getMax();
@@ -813,14 +808,18 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     auto result = payloadArgs[0];
     if (!min.getType().isa<Torch::NoneType>()) {
       auto minPromoted = convertScalarToDtype(b, loc, min, dtype);
-      auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
-                                          result, minPromoted);
+      auto pred = createComparisonTemplate<arith::CmpFPredicate::ULT,
+                                           arith::CmpIPredicate::ult,
+                                           arith::CmpIPredicate::slt>(
+          b, loc, dtype, result, minPromoted);
       result = b.create<arith::SelectOp>(loc, pred, minPromoted, result);
     }
     if (!max.getType().isa<Torch::NoneType>()) {
       auto maxPromoted = convertScalarToDtype(b, loc, max, dtype);
-      auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
-                                          result, maxPromoted);
+      auto pred = createComparisonTemplate<arith::CmpFPredicate::UGT,
+                                           arith::CmpIPredicate::ugt,
+                                           arith::CmpIPredicate::sgt>(
+          b, loc, dtype, result, maxPromoted);
       result = b.create<arith::SelectOp>(loc, pred, maxPromoted, result);
     }
     return result;
@@ -995,6 +994,65 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return convertScalarToDtype(b, loc, payloadArgs[1], dtype);
   }
 
+  if (auto quantizePerTensor = dyn_cast<AtenQuantizePerTensorOp>(op)) {
+    Type inputDtype =
+        converter->convertType(quantizePerTensor.getSelf().getType())
+            .cast<RankedTensorType>()
+            .getElementType();
+    if (!inputDtype.isa<mlir::FloatType>()) {
+      quantizePerTensor.emitError(
+          "input tensor must be floating point dtype for quantization");
+      return nullptr;
+    }
+
+    Type outputDtype =
+        converter->convertType(quantizePerTensor.getResult().getType())
+            .cast<RankedTensorType>()
+            .getElementType();
+    if (!outputDtype.isa<mlir::IntegerType>()) {
+      quantizePerTensor.emitError(
+          "target quantization type must be an integer type");
+      return nullptr;
+    }
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], inputDtype);
+    Value scale = convertScalarToDtype(b, loc, operands[1], inputDtype);
+    Value scaled = b.create<arith::DivFOp>(loc, lhs, scale);
+    Value rounded = b.create<math::RoundOp>(loc, scaled);
+    Type intermediateDtype =
+        b.getIntegerType(cast<mlir::FloatType>(inputDtype).getWidth());
+    Value fpToI = convertScalarToDtype(b, loc, rounded, intermediateDtype);
+
+    Value zeroPoint =
+        convertScalarToDtype(b, loc, operands[2], intermediateDtype);
+    Value shifted = b.create<arith::AddIOp>(loc, fpToI, zeroPoint);
+
+    Value quantMin = b.create<arith::ConstantOp>(
+        loc,
+        b.getIntegerAttr(
+            intermediateDtype,
+            llvm::minIntN(cast<mlir::IntegerType>(outputDtype).getWidth())));
+    Value quantMax = b.create<arith::ConstantOp>(
+        loc,
+        b.getIntegerAttr(
+            intermediateDtype,
+            llvm::maxIntN(cast<mlir::IntegerType>(outputDtype).getWidth())));
+    Value minCompare = createComparisonTemplate<arith::CmpFPredicate::ULT,
+                                                arith::CmpIPredicate::ult,
+                                                arith::CmpIPredicate::slt>(
+        b, loc, intermediateDtype, shifted, quantMin);
+    Value minClamp =
+        b.create<arith::SelectOp>(loc, minCompare, quantMin, shifted);
+
+    Value maxCompare = createComparisonTemplate<arith::CmpFPredicate::UGT,
+                                                arith::CmpIPredicate::ugt,
+                                                arith::CmpIPredicate::sgt>(
+        b, loc, intermediateDtype, minClamp, quantMax);
+    Value maxClamp =
+        b.create<arith::SelectOp>(loc, maxCompare, quantMax, minClamp);
+
+    return convertScalarToDtype(b, loc, maxClamp, outputDtype);
+  }
+
   if (auto triu = dyn_cast<AtenTriuOp>(op)) {
     // Check if the rank of the input tensor is valid.
     AtenTriuOp::Adaptor adaptor(operands);
@@ -1088,7 +1146,8 @@ public:
              AtenNeScalarOp, AtenNegOp, AtenMaskedFillScalarOp,
              AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
              AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenBitwiseNotOp,
-             AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp>(op))
+             AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
+             AtenQuantizePerTensorOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1578,4 +1637,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenNllLossBackwardOp>(typeConverter, context);
   patterns.add<ConvertTensorStaticInfoCastOp>(typeConverter, context);
   target.addIllegalOp<TensorStaticInfoCastOp>();
+
+  // Quantization
+  target.addIllegalOp<AtenQuantizePerTensorOp>();
 }

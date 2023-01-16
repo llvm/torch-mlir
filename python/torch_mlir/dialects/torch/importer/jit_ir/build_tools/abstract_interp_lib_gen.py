@@ -1034,6 +1034,18 @@ def aten〇fft_fft〡dtype(self_rank: int, self_dtype: int, n: Optional[int] = N
     else:
         assert False, "Unsupported dtype"
 
+def aten〇quantize_per_tensor〡shape(self: List[int], scale: float, zero_point: int, dtype: int) -> List[int]:
+    return self
+
+def aten〇quantize_per_tensor〡dtype(self_rank: int, self_dtype: int, scale: float, zero_point: int, dtype: int) -> int:
+    return dtype
+
+def aten〇quantize_per_channel〡shape(self: List[int], scales: List[int], zero_points: List[int], axis: int, dtype: int) -> List[int]:
+    return self
+
+def aten〇quantize_per_channel〡dtype(self_rank: int, self_dtype: int, scales_rank: int, scales_dtype: int, zero_points_rank: int, zero_points_dtype: int, axis: int, dtype: int) -> int:
+    return dtype
+
 class DummyClassType:
     def __init__(self):
         pass

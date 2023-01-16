@@ -94,8 +94,7 @@ Value torch_to_linalg::getDynamicZeroPaddedTensor(
                                 SmallVector<int64_t>(inRank, kUnknownSize))),
                             elementType);
 
-  Value cf0 =
-      b.create<arith::ConstantOp>(loc, b.getFloatAttr(elementType, 0.0));
+  Value cf0 = b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
   SmallVector<OpFoldResult> paddingValues =
       getAsOpFoldResult(paddingIncludingUnchanged);
   return b.create<tensor::PadOp>(loc, inputType, input, /*low=*/paddingValues,

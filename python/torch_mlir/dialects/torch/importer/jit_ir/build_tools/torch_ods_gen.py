@@ -650,6 +650,11 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::native_dropout_backward : (Tensor, Tensor, float) -> (Tensor)")
     emit("aten::leaky_relu_backward : (Tensor, Tensor, Scalar, bool) -> (Tensor)")
 
+    # quantization ops
+    emit("aten::quantize_per_tensor : (Tensor, float, int, int) -> (Tensor)", has_canonicalizer=True)
+    emit("aten::quantize_per_channel : (Tensor, Tensor, Tensor, int, int) -> (Tensor)", has_canonicalizer=True)
+    emit("aten::int_repr : (Tensor) -> (Tensor)")
+
     # ==========================================================================
     # `prim::` namespace.
     # ==========================================================================
