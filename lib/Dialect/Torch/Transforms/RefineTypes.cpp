@@ -699,18 +699,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  // Dtype is always i1.
-  if (isa<AtenEqScalarOp, AtenGeScalarOp, AtenGtScalarOp, AtenLtScalarOp,
-          AtenLeScalarOp, AtenNeScalarOp, AtenAnyOp, AtenAllOp, AtenEqTensorOp,
-          AtenGtTensorOp, AtenLtTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
-          AtenLogicalXorOp, AtenLogicalNotOp>(op)) {
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = IntegerType::get(op->getContext(), 1);
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
   // Dtype is always si64.
   if (isa<AtenBincountOp>(op)) {
     auto knowledge =

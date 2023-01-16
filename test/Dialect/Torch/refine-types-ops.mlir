@@ -93,32 +93,6 @@ func.func @aten.sum.dim_IntList(%t: !torch.vtensor<*,si64>) -> !torch.vtensor {
 }
 
 // -----
-// CHECK-LABEL:   func.func @aten.any.dim(
-// CHECK-SAME:                               %[[T:.*]]: !torch.vtensor<*,i1>) -> !torch.vtensor {
-// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:           %[[INT_NEG1:.*]] = torch.constant.int -1
-// CHECK:           %[[RET:.*]] = torch.aten.any.dim %[[T]], %[[INT_NEG1]], %[[FALSE]] : !torch.vtensor<*,i1>, !torch.int, !torch.bool -> !torch.vtensor<*,i1>
-// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.vtensor<*,i1> to !torch.vtensor
-// CHECK:           return %[[CAST]] : !torch.vtensor
-func.func @aten.any.dim(%t: !torch.vtensor<*,i1>) -> !torch.vtensor {
-  %false = torch.constant.bool false
-  %int-1 = torch.constant.int -1
-  %ret = torch.aten.any.dim %t, %int-1, %false : !torch.vtensor<*,i1>, !torch.int, !torch.bool -> !torch.vtensor
-  return %ret : !torch.vtensor
-}
-
-// -----
-// CHECK-LABEL:   func.func @aten.any(
-// CHECK-SAME:                           %[[T:.*]]: !torch.vtensor<*,i1>) -> !torch.vtensor {
-// CHECK:           %[[RET:.*]] = torch.aten.any %[[T]] : !torch.vtensor<*,i1> -> !torch.vtensor<*,i1>
-// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.vtensor<*,i1> to !torch.vtensor
-// CHECK:           return %[[CAST]] : !torch.vtensor
-func.func @aten.any(%t: !torch.vtensor<*,i1>) -> !torch.vtensor {
-  %ret = torch.aten.any %t: !torch.vtensor<*,i1> -> !torch.vtensor
-  return %ret : !torch.vtensor
-}
-
-// -----
 // CHECK-LABEL:   func.func @torch.aten.zeros(
 // CHECK-SAME:        %[[DIM0:.*]]: !torch.int) -> !torch.tensor {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
