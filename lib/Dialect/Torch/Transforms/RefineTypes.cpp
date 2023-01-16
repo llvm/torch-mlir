@@ -1039,6 +1039,9 @@ void TypeAnalysis::visitOperation(Operation *op,
   } else if (auto randLike = dyn_cast<AtenRandLikeOp>(op)) {
     visitConstantTensorAllocLikeOp<AtenRandLikeOp>(randLike, operands);
     return;
+  } else if (auto randLike = dyn_cast<AtenRandnLikeOp>(op)) {
+    visitConstantTensorAllocLikeOp<AtenRandnLikeOp>(randLike, operands);
+    return;
   } else if (auto toCopy = dyn_cast<Aten_ToCopyOp>(op)) {
     visitConstantTensorAllocLikeOp<Aten_ToCopyOp>(toCopy, operands);
     return;

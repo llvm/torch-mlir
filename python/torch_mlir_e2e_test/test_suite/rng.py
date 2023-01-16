@@ -364,3 +364,46 @@ class RandnGeneratorModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: RandnGeneratorModule())
 def RandnGeneratorModule_basic(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+class RandnLikeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, x):
+        a = torch.ops.aten.randn_like(x)
+        std = torch.std(a)
+        return std
+
+
+@register_test_case(module_factory=lambda: RandnLikeModule())
+def RandnLikeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 512, 1024).double())
+
+# ==============================================================================
+
+class RandnLikeDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float64, True),
+    ])
+    def forward(self, x):
+        a = torch.ops.aten.randn_like(x, dtype=torch.float32)
+        std = torch.std(a)
+        return std
+
+
+@register_test_case(module_factory=lambda: RandnLikeDtypeModule())
+def RandnLikeDtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(256, 1024).double())
