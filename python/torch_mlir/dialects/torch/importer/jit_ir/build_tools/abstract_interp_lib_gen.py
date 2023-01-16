@@ -1017,6 +1017,95 @@ def aten〇upsample_nearest2d〡shape(self: List[int], output_size: List[int], s
 # Dtype Functions
 # ==============================================================================
 
+def _get_invocations_for_op_with_tensor_arg_followed_by(*args):
+    """Generate invocations that thoroughly test the first tensor arg of the op.
+
+    This is meant to be used by ops where the entire dtype computation involves
+    at most the first tensor argument of the op. If an dtype function uses other
+    arguments, custom invocations should be created to test the logic of the
+    dtype function instead of using this helper function.
+    """
+    return [
+    Invocation(NonZeroDTensorWithDtype(torch.float32), *args),
+    Invocation(NonZeroDTensorWithDtype(torch.float64), *args),
+    Invocation(NonZeroDTensorWithDtype(torch.bfloat16), *args),
+    Invocation(NonZeroDTensorWithDtype(torch.int64), *args),
+    Invocation(NonZeroDTensorWithDtype(torch.int32), *args),
+    Invocation(NonZeroDTensorWithDtype(torch.bool), *args),
+    Invocation(ZeroDTensorWithDtype(torch.float32), *args),
+    Invocation(ZeroDTensorWithDtype(torch.float64), *args),
+    Invocation(ZeroDTensorWithDtype(torch.bfloat16), *args),
+    Invocation(ZeroDTensorWithDtype(torch.int64), *args),
+    Invocation(ZeroDTensorWithDtype(torch.int32), *args),
+    Invocation(ZeroDTensorWithDtype(torch.bool), *args),
+]
+
+@check_dtype_function(_get_invocations_for_op_with_tensor_arg_followed_by())
+def aten〇all〡dtype(self_rank: int, self_dtype: int) -> int:
+    return torch.bool
+
+@check_dtype_function(_get_invocations_for_op_with_tensor_arg_followed_by())
+def aten〇any〡dtype(self_rank: int, self_dtype: int) -> int:
+    return torch.bool
+
+@check_dtype_function(_get_invocations_for_op_with_tensor_arg_followed_by(0.0))
+def aten〇eq〇Scalar〡dtype(self_rank: int, self_dtype: int, other: Union[int, float]) -> int:
+    return torch.bool
+
+@check_dtype_function(
+    _get_invocations_for_op_with_tensor_arg_followed_by(NonZeroDTensorWithDtype(torch.float)))
+def aten〇eq〇Tensor〡dtype(self_rank: int, self_dtype: int, other_rank: int, other_dtype: int) -> int:
+    return torch.bool
+
+@check_dtype_function(_get_invocations_for_op_with_tensor_arg_followed_by(0.0))
+def aten〇ge〇Scalar〡dtype(self_rank: int, self_dtype: int, other: Union[int, float]) -> int:
+    return torch.bool
+
+@check_dtype_function(_get_invocations_for_op_with_tensor_arg_followed_by(0.0))
+def aten〇gt〇Scalar〡dtype(self_rank: int, self_dtype: int, other: Union[int, float]) -> int:
+    return torch.bool
+
+@check_dtype_function(
+    _get_invocations_for_op_with_tensor_arg_followed_by(NonZeroDTensorWithDtype(torch.float)))
+def aten〇gt〇Tensor〡dtype(self_rank: int, self_dtype: int, other_rank: int, other_dtype: int) -> int:
+    return torch.bool
+
+@check_dtype_function(_get_invocations_for_op_with_tensor_arg_followed_by(0.0))
+def aten〇le〇Scalar〡dtype(self_rank: int, self_dtype: int, other: Union[int, float]) -> int:
+    return torch.bool
+
+@check_dtype_function(
+    _get_invocations_for_op_with_tensor_arg_followed_by(NonZeroDTensorWithDtype(torch.float)))
+def aten〇logical_and〡dtype(self_rank: int, self_dtype: int, other_rank: int, other_dtype: int) -> int:
+    return torch.bool
+
+@check_dtype_function(_get_invocations_for_op_with_tensor_arg_followed_by())
+def aten〇logical_not〡dtype(self_rank: int, self_dtype: int) -> int:
+    return torch.bool
+
+@check_dtype_function(
+    _get_invocations_for_op_with_tensor_arg_followed_by(NonZeroDTensorWithDtype(torch.float)))
+def aten〇logical_or〡dtype(self_rank: int, self_dtype: int, other_rank: int, other_dtype: int) -> int:
+    return torch.bool
+
+@check_dtype_function(
+    _get_invocations_for_op_with_tensor_arg_followed_by(NonZeroDTensorWithDtype(torch.float)))
+def aten〇logical_xor〡dtype(self_rank: int, self_dtype: int, other_rank: int, other_dtype: int) -> int:
+    return torch.bool
+
+@check_dtype_function(_get_invocations_for_op_with_tensor_arg_followed_by(0.0))
+def aten〇lt〇Scalar〡dtype(self_rank: int, self_dtype: int, other: Union[int, float]) -> int:
+    return torch.bool
+
+@check_dtype_function(
+    _get_invocations_for_op_with_tensor_arg_followed_by(NonZeroDTensorWithDtype(torch.float)))
+def aten〇lt〇Tensor〡dtype(self_rank: int, self_dtype: int, other_rank: int, other_dtype: int) -> int:
+    return torch.bool
+
+@check_dtype_function(_get_invocations_for_op_with_tensor_arg_followed_by(0.0))
+def aten〇ne〇Scalar〡dtype(self_rank: int, self_dtype: int, other: Union[int, float]) -> int:
+    return torch.bool
+
 @check_dtype_function([
     Invocation(0.0, 0.0), # float, float
     Invocation(0.0, 0), # float, int
@@ -1078,20 +1167,7 @@ def aten〇floor_divide〡dtype(self_rank: int, self_dtype: int, other_rank: int
 def aten〇rsub〇Scalar〡dtype(self_rank: int, self_dtype: int, other: Union[int, float], alpha: Union[int, float] = 1) -> int:
     return promote_dtypes([self_rank, None], [self_dtype, get_dtype_of_scalar(other)])
 
-@check_dtype_function([
-    Invocation(NonZeroDTensorWithDtype(torch.float32)),
-    Invocation(NonZeroDTensorWithDtype(torch.float64)),
-    Invocation(NonZeroDTensorWithDtype(torch.bfloat16)),
-    Invocation(NonZeroDTensorWithDtype(torch.int64)),
-    Invocation(NonZeroDTensorWithDtype(torch.int32)),
-    Invocation(NonZeroDTensorWithDtype(torch.bool)),
-    Invocation(ZeroDTensorWithDtype(torch.float32)),
-    Invocation(ZeroDTensorWithDtype(torch.float64)),
-    Invocation(ZeroDTensorWithDtype(torch.bfloat16)),
-    Invocation(ZeroDTensorWithDtype(torch.int64)),
-    Invocation(ZeroDTensorWithDtype(torch.int32)),
-    Invocation(ZeroDTensorWithDtype(torch.bool)),
-])
+@check_dtype_function(_get_invocations_for_op_with_tensor_arg_followed_by())
 def aten〇expm1〡dtype(self_rank: int, self_dtype: int) -> int:
     if self_dtype == torch.float64 or self_dtype == torch.bfloat16 or self_dtype == torch.float16:
         return self_dtype
