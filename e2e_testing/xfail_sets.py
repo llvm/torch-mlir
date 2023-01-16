@@ -767,7 +767,6 @@ LTC_XFAIL_SET = {
     "ElementwiseRemainderScalarModule_Bool_basic",
     "AtenIntTensorByteDtypeModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
-    "MaskedFillTensorIntValueStaticModule_basic",
     "Fill_TensorFloat32WithFloat32_basic",
     "Fill_TensorFloat32WithFloat64_basic",
     "Fill_TensorFloat32WithInt64_basic",
