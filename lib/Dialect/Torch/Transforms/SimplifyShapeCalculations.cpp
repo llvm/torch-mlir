@@ -10,7 +10,7 @@
 #include "PassDetail.h"
 
 #include "SimplifyAbstractInterpCalculationsUtils.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -47,7 +47,7 @@ public:
     Block *afterBlock = rewriter.splitBlock(op->getBlock(), op->getIterator());
 
     SmallVector<Block *> blocksToMerge;
-    BlockAndValueMapping bvm;
+    IRMapping bvm;
     // TODO: Helper for region().front()
     auto condition =
         cast<PrimLoopConditionOp>(op.getRegion().front().getTerminator());
