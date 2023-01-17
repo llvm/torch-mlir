@@ -258,6 +258,15 @@ public:
     Value dim = op.getDim();
     Value self = op.getSelf();
 
+    // convert `start` to non-negative: start += int(start < 0) * dimSize
+    Value zero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value isNegative = rewriter.create<AtenLtIntOp>(loc, start, zero);
+    isNegative = rewriter.create<AtenIntBoolOp>(loc, isNegative);
+    Value dimSize = rewriter.create<AtenSizeIntOp>(loc, self, dim);
+    Value indexOffset = rewriter.create<AtenMulIntOp>(loc, isNegative, dimSize);
+    start = rewriter.create<AtenAddIntOp>(loc, start, indexOffset);
+
     Value one =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
     Value startPlusOne =

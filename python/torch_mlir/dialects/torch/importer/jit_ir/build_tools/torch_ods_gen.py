@@ -581,6 +581,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::Float.str : (str) -> (float)")
     emit("aten::Int.float : (float) -> (int)")
     emit("aten::Int.Scalar : (Scalar) -> (int)", has_folder=True)
+    emit("aten::Int.bool : (bool) -> (int)", has_folder=True)
 
     # Primitive ops
     emit("aten::__range_length : (int, int, int) -> (int)", has_folder=True)
