@@ -81,7 +81,9 @@ using namespace mlir::torch::Torch;
 // -----------------------------------------------------------------------------
 
 static Type getTypeForDTypeInteger(MLIRContext *context, int64_t dtypeInt) {
-  return getTypeForScalarType(context, (torch_upstream::ScalarType)dtypeInt);
+  FailureOr<Type> result =
+      getTypeForScalarType(context, (torch_upstream::ScalarType)dtypeInt);
+  return failed(result) ? Type() : *result;
 }
 
 static Type getDtypeOrDefault(MLIRContext *context, Value optionalDtype,
@@ -563,7 +565,9 @@ static Type getPromotedResultDType(ValueKnowledge *tensor, Type scalarType) {
                                 /*skipRankCheck=*/true);
   state =
       updateResultTypeState(getDefaultDtypeForTorchScalar(scalarType), state);
-  return getTypeForScalarType(scalarType.getContext(), result_type(state));
+  FailureOr<Type> result =
+      getTypeForScalarType(scalarType.getContext(), result_type(state));
+  return failed(result) ? Type() : *result;
 }
 
 static SmallVector<std::optional<bool>>
@@ -600,7 +604,8 @@ static Type getPromotedResultType(MLIRContext *context,
       return Type();
     state = updateResultTypeState(tensor, rankIsNonZero, state, skipRankCheck);
   }
-  return getTypeForScalarType(context, result_type(state));
+  FailureOr<Type> result = getTypeForScalarType(context, result_type(state));
+  return failed(result) ? Type() : *result;
 }
 
 static Type getPromotedResultTypeAssumingNonZeroRank(
