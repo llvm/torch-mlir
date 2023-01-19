@@ -672,23 +672,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
-  // Dtype is always float32, except for bfloat16, float16, float64 and nullptr.
-  if (isa<AtenTanhOp, AtenExpOp, AtenSinOp, AtenCosOp, AtenSigmoidOp,
-          AtenReciprocalOp, AtenLogOp, AtenSqrtOp, AtenLog2Op, AtenLog1pOp,
-          AtenRsqrtOp, AtenErfOp, AtenSoftplusOp, AtenFrobeniusNormDimOp,
-          PrimsSqrtOp>(op)) {
-    ValueKnowledge knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    Type dtype = operands[0]->getValue().dtype;
-    if (dtype) {
-      knowledge.dtype = Float32Type::get(op->getContext());
-      if (dtype.isa<BFloat16Type, Float16Type, Float64Type>())
-        knowledge.dtype = dtype;
-    }
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
   // Take dtype from second operand.
   if (isa<AtenNllLossBackwardOp, AtenMaxPool2dWithIndicesBackwardOp>(op)) {
     auto self = operands[1]->getValue();
