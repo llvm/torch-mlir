@@ -10,6 +10,7 @@
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 
 #include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -3233,6 +3234,84 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
+    AtenIndexTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // t        = tf.constant([[1, 2, 3, 4, 5],[6,7,8,9,10],
+  //                         [11,12,13,14,15],[16,17,18,19,20]]) # 4*5
+  // i        = tf.constant([[1,2,3], [3,2,1]]) # 2*3
+  // i_expand = tf.expand_dims(i,axis=2) # 2*3*1
+  // IndexTensorOutput = tf.gather_nd(t,tf.i_expand)
+  //                   = torch.ops.aten.index(t, (i, )) = t[i] # 2*3*5
+  // [[[ 6,  7,  8,  9, 10], [11, 12, 13, 14, 15], [16, 17, 18, 19, 20]],
+  //  [[16, 17, 18, 19, 20], [11, 12, 13, 14, 15], [ 6,  7,  8,  9, 10]]]
+  auto input = adaptor.getSelf();
+  auto inputTensorType =
+      adaptor.getSelf().getType().dyn_cast<RankedTensorType>();
+  // Check input is a tensor type.
+  if (!inputTensorType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+
+  // Deal with torch.prim.ListConstruct of non const value to get the index
+  auto tensorList = op.getIndices();
+  SmallVector<Value> tensorsTorchType;
+  if (!getListConstructElements(tensorList, tensorsTorchType))
+    return op.emitError(
+        "unimplemented: the tensor list is not from list construct");
+  auto tensors = getTypeConvertedValues(rewriter, op->getLoc(),
+                                        getTypeConverter(), tensorsTorchType);
+
+  // TODO add support for multiple index
+  if ( tensors.size() > 1){
+    return op.emitError(
+        "unimplemented: the index tensor list from list construct > 1");
+  }
+  auto index = tensors[0];
+  // TODO add support for none index input like torch.ops.aten.index(x, (None, index1, index2, None))
+  if (!index.getImpl())
+    return rewriter.notifyMatchFailure(
+        op, "Only list ranked tensor types index are supported");
+  auto indexType = index.getType().dyn_cast<RankedTensorType>();
+  auto indexShape = indexType.getShape();
+  // index i64 to i32 for tosa compatible
+  if (indexType.getElementType() != rewriter.getIntegerType(32)) {
+    index = rewriter.create<tosa::CastOp>(
+        op->getLoc(),
+        RankedTensorType::get(indexShape, rewriter.getIntegerType(32)), index);
+  }
+
+  auto outType = getTypeConverter()->convertType(op.getType());
+
+  // Expand last dim of index to tf indices [2,3] -> [2,3,1]
+  SmallVector<int64_t> indicesShape;
+  for (auto shape : indexShape) {
+    indicesShape.push_back(shape);
+  }
+  indicesShape.push_back(1);
+  auto indicesTf = tosa::CreateOpAndInfer<tosa::ReshapeOp>(
+      rewriter, op->getLoc(),
+      RankedTensorType::get(indicesShape, rewriter.getIntegerType(32)), index,
+      rewriter.getDenseI64ArrayAttr(indicesShape));
+
+  if (!indicesTf) {
+    return rewriter.notifyMatchFailure(op,
+                                       "Convert TorchIndex To TfIndices fail.");
+  }
+  // do the tf gathernp algorithm with tf style indices as input.
+  auto result = tosa::convertGatherNdOp(rewriter, op, outType, input,
+                                        indicesTf.getResult());
+
+  if (!result) {
+    return rewriter.notifyMatchFailure(
+        op, "Convert GatherNdOp fail for index tensor.");
+  }
+  rewriter.replaceOp(op, {result.value()});
+
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
     AtenWhereSelfOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -4196,6 +4275,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
     INSERT_ATENOP_PATTERN(AtenGatherOp);
+    INSERT_ATENOP_PATTERN(AtenIndexTensorOp);
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
     INSERT_ATENOP_PATTERN(AtenClampOp);
     INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
