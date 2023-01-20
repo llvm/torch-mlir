@@ -83,6 +83,22 @@ static Value createNotEqual(OpBuilder &b, Location loc, Type elementalType,
       b, loc, elementalType, lhs, rhs);
 }
 
+static int64_t getMinimumForInteger(bool isSigned, unsigned integralWidth) {
+  if (isSigned) {
+    return llvm::minIntN(integralWidth);
+  }
+  return 0;
+}
+
+/// Gets the maximum possible stored by a storageType. storageTypeMax must
+/// be less than or equal to this value.
+static int64_t getMaximumForInteger(bool isSigned, unsigned integralWidth) {
+  if (isSigned) {
+    return llvm::maxIntN(integralWidth);
+  }
+  return llvm::maxUIntN(integralWidth);
+}
+
 static Value buildNormalCdf(OpBuilder &b, Location &loc, Value x, Value mean,
                             Value sigma) {
   Type elementType = x.getType();
@@ -1038,6 +1054,52 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::XOrIOp>(loc, payloadArgs[0], allOnesVal);
   }
 
+  if (auto qpt = dyn_cast<AtenQuantizePerTensorOp>(op)) {
+    auto stype = converter->convertType(qpt->getOperand(0).getType())
+                     .cast<RankedTensorType>()
+                     .getElementType()
+                     .cast<mlir::FloatType>();
+    auto dtype = converter->convertType(qpt.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType()
+                     .cast<IntegerType>();
+
+    auto qtype = qpt.getType().cast<ValueTensorType>().getDtype();
+
+    if (!qtype.isa<QInt8Type>() && !qtype.isa<QUInt8Type>()) {
+      qpt.emitError("Only supporting qint8 and quint8");
+      return nullptr;
+    }
+
+    bool isSigned = qtype.isa<QInt8Type>();
+
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], stype);
+    Value scale = convertScalarToDtype(b, loc, operands[1], stype);
+    Value zeroPoint = convertScalarToDtype(b, loc, operands[2], stype);
+
+    auto mult = b.create<arith::DivFOp>(loc, self, scale);
+    auto add = b.create<arith::AddFOp>(loc, mult, zeroPoint);
+    auto round = b.create<math::RoundEvenOp>(loc, add);
+
+    auto lowerBound = b.create<arith::ConstantFloatOp>(
+        loc, APFloat((float)getMinimumForInteger(isSigned, dtype.getWidth())),
+        stype);
+    auto upperBound = b.create<arith::ConstantFloatOp>(
+        loc, APFloat((float)getMaximumForInteger(isSigned, dtype.getWidth())),
+        stype);
+
+    Value clamp = b.create<arith::MaxFOp>(loc, round, lowerBound);
+    clamp = b.create<arith::MinFOp>(loc, clamp, upperBound);
+
+    Value cast;
+    if (isSigned)
+      cast = b.create<arith::FPToSIOp>(loc, dtype, clamp);
+    else
+      cast = b.create<arith::FPToUIOp>(loc, dtype, clamp);
+
+    return cast;
+  }
+
   op->emitError("unimplemented lowering in "
                 "createLinalgPayloadCalculationForElementwiseOp");
   return nullptr;
@@ -1088,7 +1150,8 @@ public:
              AtenNeScalarOp, AtenNegOp, AtenMaskedFillScalarOp,
              AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
              AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenBitwiseNotOp,
-             AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp>(op))
+             AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
+             AtenQuantizePerTensorOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1547,6 +1610,19 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenIntReprOp : public OpConversionPattern<AtenIntReprOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenIntReprOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOp(op, adaptor.getSelf());
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -1566,7 +1642,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenCosOp, AtenNeScalarOp, AtenMaskedFillScalarOp, AtenMaskedFillTensorOp,
       AtenLogicalOrOp, AtenLogicalAndOp, AtenLogicalXorOp, AtenLogicalNotOp,
       AtenTriuOp, AtenRemainderScalarOp, AtenBitwiseNotOp, AtenRoundOp,
-      AtenFillScalarOp, AtenFillTensorOp>();
+      AtenFillScalarOp, AtenFillTensorOp, AtenQuantizePerTensorOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);
@@ -1578,4 +1654,6 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenNllLossBackwardOp>(typeConverter, context);
   patterns.add<ConvertTensorStaticInfoCastOp>(typeConverter, context);
   target.addIllegalOp<TensorStaticInfoCastOp>();
+  patterns.add<ConvertAtenIntReprOp>(typeConverter, context);
+  target.addIllegalOp<AtenIntReprOp>();
 }

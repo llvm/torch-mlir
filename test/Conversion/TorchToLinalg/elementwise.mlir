@@ -94,3 +94,89 @@ func.func @insufficient_dims_for_triu(%arg0: !torch.vtensor<[?],f32>) -> !torch.
   %0 = torch.aten.triu %arg0, %int0 : !torch.vtensor<[?],f32>, !torch.int -> !torch.vtensor<[?],f32>
   return %0 : !torch.vtensor<[?],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.quantize_per_tensor(
+// CHECK-SAME:                                %[[ARG:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],!torch.qint8> {
+// CHECK:           %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[],f32> -> tensor<f32>
+// CHECK:           %[[F3:.*]] = torch.constant.float 3.000000e+00
+// CHECK:           %[[C3:.*]] = torch_c.to_f64 %[[F3]]
+// CHECK:           %[[I7:.*]] = torch.constant.int 7
+// CHECK:           %[[C7:.*]] = torch_c.to_i64 %[[I7]]
+// CHECK:           %[[C4:.*]] = torch.constant.int 12
+// CHECK:           %[[C1:.*]] = arith.constant 1 : index
+// CHECK:           %[[INIT_TENSOR:.*]] = tensor.empty() : tensor<i8>
+// CHECK:           %[[GENERIC:.*]] = linalg.generic {indexing_maps = [affine_map<() -> ()>, affine_map<() -> ()>], iterator_types = []} ins(%[[BUILTIN_TENSOR]] : tensor<f32>) outs(%[[INIT_TENSOR]] : tensor<i8>) {
+// CHECK:           ^bb0(%[[BBARG0:.*]]: f32, %{{.*}}: i8):
+// CHECK:             %[[TRUNCF:.*]] = arith.truncf %[[C3]] : f64 to f32
+// CHECK:             %[[ZEROPOINT:.*]] = arith.sitofp %[[C7]] : i64 to f32
+// CHECK:             %[[DIV:.*]] = arith.divf %[[BBARG0]], %[[TRUNCF]] : f32
+// CHECK:             %[[ADD:.*]] = arith.addf %[[DIV]], %[[ZEROPOINT]] : f32
+// CHECK:             %[[ROUND:.*]] = math.roundeven %[[ADD]] : f32
+// CHECK:             %[[MINC:.*]] = arith.constant -1.280000e+02 : f32
+// CHECK:             %[[MAXC:.*]] = arith.constant 1.270000e+02 : f32
+// CHECK:             %[[MAX:.*]] = arith.maxf %[[ROUND]], %[[MINC]] : f32
+// CHECK:             %[[MIN:.*]] = arith.minf %[[MAX]], %[[MAXC]] : f32
+// CHECK:             %[[FPTOSI:.*]] = arith.fptosi %[[MIN]] : f32 to i8
+// CHECK:             linalg.yield %[[FPTOSI]] : i8
+// CHECK:           } -> tensor<i8>
+// CHECK:           %[[CASTED:.*]] = tensor.cast %[[GENERIC:.*]] : tensor<i8> to tensor<i8>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CASTED]] : tensor<i8> -> !torch.vtensor<[],!torch.qint8>
+// CHECK:           return %[[RESULT]] : !torch.vtensor<[],!torch.qint8>
+func.func @torch.aten.quantize_per_tensor(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],!torch.qint8> {
+  %float1.000000e00 = torch.constant.float 3.000000e+00
+  %int0 = torch.constant.int 7
+  %int12 = torch.constant.int 12
+  %0 = torch.aten.quantize_per_tensor %arg0, %float1.000000e00, %int0, %int12 : !torch.vtensor<[],f32>, !torch.float, !torch.int, !torch.int -> !torch.vtensor<[],!torch.qint8>
+  return %0 : !torch.vtensor<[],!torch.qint8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.quantize_per_tensor.uint8(
+// CHECK-SAME:                                %[[ARG:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],!torch.quint8> {
+// CHECK:           %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[],f32> -> tensor<f32>
+// CHECK:           %[[F3:.*]] = torch.constant.float 3.000000e+00
+// CHECK:           %[[C3:.*]] = torch_c.to_f64 %[[F3]]
+// CHECK:           %[[I7:.*]] = torch.constant.int 7
+// CHECK:           %[[C7:.*]] = torch_c.to_i64 %[[I7]]
+// CHECK:           %[[C4:.*]] = torch.constant.int 13
+// CHECK:           %[[C1:.*]] = arith.constant 1 : index
+// CHECK:           %[[INIT_TENSOR:.*]] = tensor.empty() : tensor<i8>
+// CHECK:           %[[GENERIC:.*]] = linalg.generic {indexing_maps = [affine_map<() -> ()>, affine_map<() -> ()>], iterator_types = []} ins(%[[BUILTIN_TENSOR]] : tensor<f32>) outs(%[[INIT_TENSOR]] : tensor<i8>) {
+// CHECK:           ^bb0(%[[BBARG0:.*]]: f32, %{{.*}}: i8):
+// CHECK:             %[[TRUNCF:.*]] = arith.truncf %[[C3]] : f64 to f32
+// CHECK:             %[[ZEROPOINT:.*]] = arith.sitofp %[[C7]] : i64 to f32
+// CHECK:             %[[DIV:.*]] = arith.divf %[[BBARG0]], %[[TRUNCF]] : f32
+// CHECK:             %[[ADD:.*]] = arith.addf %[[DIV]], %[[ZEROPOINT]] : f32
+// CHECK:             %[[ROUND:.*]] = math.roundeven %[[ADD]] : f32
+// CHECK:             %[[MINC:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:             %[[MAXC:.*]] = arith.constant 2.550000e+02 : f32
+// CHECK:             %[[MAX:.*]] = arith.maxf %[[ROUND]], %[[MINC]] : f32
+// CHECK:             %[[MIN:.*]] = arith.minf %[[MAX]], %[[MAXC]] : f32
+// CHECK:             %[[FPTOSI:.*]] = arith.fptoui %[[MIN]] : f32 to i8
+// CHECK:             linalg.yield %[[FPTOSI]] : i8
+// CHECK:           } -> tensor<i8>
+// CHECK:           %[[CASTED:.*]] = tensor.cast %[[GENERIC:.*]] : tensor<i8> to tensor<i8>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CASTED]] : tensor<i8> -> !torch.vtensor<[],!torch.quint8>
+// CHECK:           return %[[RESULT]] : !torch.vtensor<[],!torch.quint8>
+func.func @torch.aten.quantize_per_tensor.uint8(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],!torch.quint8> {
+  %float1.000000e00 = torch.constant.float 3.000000e+00
+  %int0 = torch.constant.int 7
+  %int12 = torch.constant.int 13
+  %0 = torch.aten.quantize_per_tensor %arg0, %float1.000000e00, %int0, %int12 : !torch.vtensor<[],f32>, !torch.float, !torch.int, !torch.int -> !torch.vtensor<[],!torch.quint8>
+  return %0 : !torch.vtensor<[],!torch.quint8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.int_repr(
+// CHECK-SAME:                                %[[ARG:.*]]: !torch.vtensor<[],!torch.qint8>) -> !torch.vtensor<[],si8> {
+// CHECK:           %[[ARGT:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[],!torch.qint8> -> tensor<i8>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[ARGT]] : tensor<i8> -> !torch.vtensor<[],si8>
+// CHECK:           return %[[RESULT]] : !torch.vtensor<[],si8>
+func.func @torch.aten.int_repr(%0: !torch.vtensor<[],!torch.qint8>) -> !torch.vtensor<[],si8> {
+  %1 = torch.aten.int_repr %0 : !torch.vtensor<[],!torch.qint8> -> !torch.vtensor<[],si8>
+  return %1 : !torch.vtensor<[],si8>
+}
