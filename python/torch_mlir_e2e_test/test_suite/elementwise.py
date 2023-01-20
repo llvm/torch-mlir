@@ -2646,6 +2646,8 @@ class AtenRoundFloatModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenRoundFloatModule())
 def AtenRoundFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 5, low = -3.0, high = 3.0))
+    # Test 'half to even' rounding behavior
+    module.forward(torch.FloatTensor([[0.5, 1.5], [-0.5, -1.5]]))
 
 class AtenRoundIntModule(torch.nn.Module):
 
