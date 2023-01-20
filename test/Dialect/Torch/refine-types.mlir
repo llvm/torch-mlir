@@ -7,57 +7,6 @@
 // should go in refine-types-ops.mlir.
 
 // -----
-// CHECK-LABEL:   func.func @basic(
-// CHECK-SAME:                      %[[ARG0:.*]]: !torch.vtensor<*,f32>) -> !torch.vtensor {
-// CHECK:           %[[COS:.*]] = torch.aten.cos %[[ARG0]] : !torch.vtensor<*,f32> -> !torch.vtensor<*,f32>
-// CHECK:           %[[RESULT:.*]] = torch.tensor_static_info_cast %[[COS]] : !torch.vtensor<*,f32> to !torch.vtensor
-// CHECK:           return %[[RESULT]] : !torch.vtensor
-func.func @basic(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor {
-  %1 = torch.aten.cos %arg0 : !torch.vtensor<*,f32> -> !torch.vtensor
-  return %1 : !torch.vtensor
-}
-
-// -----
-// CHECK-LABEL:   func.func @keep_existing_shape_information(
-// CHECK-SAME:                                          %[[ARG0:.*]]: !torch.vtensor<*,f32>) -> !torch.vtensor<[2],f32> {
-// CHECK:           %[[COS:.*]] = torch.aten.cos %[[ARG0]] : !torch.vtensor<*,f32> -> !torch.vtensor<[2],f32>
-// CHECK:           return %[[COS]] : !torch.vtensor<[2],f32>
-func.func @keep_existing_shape_information(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor<[2],f32> {
-  %1 = torch.aten.cos %arg0 : !torch.vtensor<*,f32> -> !torch.vtensor<[2], f32>
-  return %1 : !torch.vtensor<[2],f32>
-}
-
-// -----
-// CHECK-LABEL:   func.func @propagate_through_multiple_ops(
-// CHECK-SAME:                                         %[[ARG0:.*]]: !torch.vtensor<*,f32>) -> !torch.vtensor {
-// CHECK:           %[[COS0:.*]] = torch.aten.cos %[[ARG0]] : !torch.vtensor<*,f32> -> !torch.vtensor<*,f32>
-// CHECK:           %[[COS1:.*]] = torch.aten.cos %[[COS0]] : !torch.vtensor<*,f32> -> !torch.vtensor<*,f32>
-// CHECK:           %[[COS2:.*]] = torch.aten.cos %[[COS1]] : !torch.vtensor<*,f32> -> !torch.vtensor<*,f32>
-// CHECK:           %[[COS3:.*]] = torch.tensor_static_info_cast %[[COS2]] : !torch.vtensor<*,f32> to !torch.vtensor
-// CHECK:           return %[[COS3]] : !torch.vtensor
-func.func @propagate_through_multiple_ops(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor {
-  %1 = torch.aten.cos %arg0 : !torch.vtensor<*,f32> -> !torch.vtensor
-  %2 = torch.aten.cos %1 : !torch.vtensor -> !torch.vtensor
-  %3 = torch.aten.cos %2 : !torch.vtensor -> !torch.vtensor
-  return %3 : !torch.vtensor
-}
-
-// -----
-// Check rewriting logic in case of mixes of users that do/don't allow type
-// refinement.
-// CHECK-LABEL:   func.func @mixed_allowing_not_allowing_type_refinement(
-// CHECK-SAME:                                                      %[[ARG0:.*]]: !torch.vtensor<*,f32>) -> (!torch.vtensor, !torch.vtensor) {
-// CHECK:           %[[COS0:.*]] = torch.aten.cos %[[ARG0]] : !torch.vtensor<*,f32> -> !torch.vtensor<*,f32>
-// CHECK:           %[[ERASED:.*]] = torch.tensor_static_info_cast %[[COS0]] : !torch.vtensor<*,f32> to !torch.vtensor
-// CHECK:           %[[COS1:.*]] = torch.aten.cos %[[COS0]] : !torch.vtensor<*,f32> -> !torch.vtensor<*,f32>
-// CHECK:           return %[[ERASED]], %[[ERASED]] : !torch.vtensor, !torch.vtensor
-func.func @mixed_allowing_not_allowing_type_refinement(%arg0: !torch.vtensor<*,f32>) -> (!torch.vtensor, !torch.vtensor) {
-  %1 = torch.aten.cos %arg0 : !torch.vtensor<*,f32> -> !torch.vtensor
-  %3 = torch.aten.cos %1 : !torch.vtensor -> !torch.vtensor
-  return %1, %1 : !torch.vtensor, !torch.vtensor
-}
-
-// -----
 
 // CHECK-LABEL:   func.func @torch.overwrite.tensor.contents$dynamic_overwrites_static(
 // CHECK-SAME:                                                           %[[STATIC:.*]]: !torch.vtensor<[2],f32>,
