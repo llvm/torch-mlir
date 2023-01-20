@@ -2646,6 +2646,36 @@ LogicalResult ConvertAtenOp<AtenViewOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op,
                                        "size must consist of Scalar constants");
 
+  // the shape -1 is inferred from other dimensions
+  size_t countNegativeShape{0};
+  // Check at most one -1 shape
+  for (size_t i = 0; i < outShape.size(); i++) {
+    if (outShape[i] < 0) {
+      countNegativeShape++;
+      if (countNegativeShape > 1)
+        return rewriter.notifyMatchFailure(op, "At most one -1 shape");
+    }
+  }
+
+  auto inputShape = selfType.getShape();
+  size_t totalSize = 1;
+  for (size_t i = 0; i < inputShape.size(); i++) {
+    totalSize *= inputShape[i];
+  }
+
+  size_t otherSize = 1;
+  for (size_t i = 0; i < outShape.size(); i++) {
+    if (outShape[i] > 0) {
+      otherSize *= outShape[i];
+    }
+  }
+  for (size_t i = 0; i < outShape.size(); i++) {
+    if (outShape[i] < 0) {
+      outShape[i] = totalSize / otherSize;
+      break;
+    }
+  }
+
   rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
       op, getTypeConverter()->convertType(op.getType()), adaptor.getSelf(),
       rewriter.getDenseI64ArrayAttr(outShape));
