@@ -33,9 +33,11 @@ static bool isNoneOrFloatDtype(MLIRContext *context, Value dtype) {
   int64_t dtypeInt;
   if (!matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
     return false;
-  Type resDtype =
+  FailureOr<Type> resDtype =
       getTypeForScalarType(context, (torch_upstream::ScalarType)dtypeInt);
-  return resDtype.isa<mlir::FloatType>();
+  if (failed(resDtype))
+    return false;
+  return resDtype->isa<mlir::FloatType>();
 }
 
 // Helper function to compute the return type of the reduction function.
