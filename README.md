@@ -52,7 +52,7 @@ conda activate torch-mlir
 python -m pip install --upgrade pip
 ```
 
-Then, we can install torch-mldir with the corresponding torch and torchvision nightlies.
+Then, we can install torch-mlir with the corresponding torch and torchvision nightlies.
 ```
 pip install --pre torch-mlir torchvision \
   -f https://llvm.github.io/torch-mlir/package-index/
