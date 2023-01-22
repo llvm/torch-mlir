@@ -43,15 +43,20 @@ We have few paths to lower down to the Torch MLIR Dialect.
 
 ## Install torch-mlir snapshot
 
-This installs a pre-built snapshot of torch-mlir for Python 3.7/3.8/3.9/3.10 on Linux and macOS.
+At the time of writing, we release pre-built snapshot of torch-mlir for Python 3.10 on Linux and macOS.
+Therefore, it is recommended to have Python 3.10 with conda.
 
 ```shell
-python -m venv mlir_venv
-source mlir_venv/bin/activate
-# Some older pip installs may not be able to handle the recent PyTorch deps
+conda create -n torch-mlir python=3.10
+conda activate torch-mlir
 python -m pip install --upgrade pip
-pip install --pre torch-mlir torchvision -f https://llvm.github.io/torch-mlir/package-index/ --extra-index-url https://download.pytorch.org/whl/nightly/cpu
-# This will install the corresponding torch and torchvision nightlies
+```
+
+Then, we can install torch-mldir with the corresponding torch and torchvision nightlies.
+```
+pip install --pre torch-mlir torchvision \
+  -f https://llvm.github.io/torch-mlir/package-index/
+  --extra-index-url https://download.pytorch.org/whl/nightly/cpu
 ```
 
 ## Demos
