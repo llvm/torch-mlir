@@ -36,6 +36,17 @@ TorchMlirOpVector LowerTorchMlirBuiltin(
     const std::vector<c10::TypePtr> tensor_types,
     const std::vector<torch::jit::NamedValue>& arguments,
     const std::vector<torch::jit::NamedValue>& kwarguments) {
+  // Workaround for ListType::isSubtypeOfExt behavoir which leads to
+  // the problems with JIT schema matching, so we need to keep
+  // c10::ListType empty before magic_method->call function call.
+  auto dummy_graph = torch::jit::Graph();
+  for (auto arg : arguments) {
+    torch::jit::Value* value = arg.value(dummy_graph);
+    if (value->type()->kind() == c10::TypeKind::ListType) {
+      value->setType(c10::ListType::create(c10::TensorType::get()));
+    }
+  }
+
   auto builtin =
       std::make_shared<torch::jit::BuiltinFunction>(sym, at::nullopt);
   auto magic_method = std::make_shared<torch::jit::MagicMethod>("", builtin);
