@@ -51,7 +51,7 @@ python3.10 -m venv mlir_venv
 source mlir_venv/bin/activate
 ```
 
-Or, if you want to switch over multiple versions of Python using conda, you can create one with Python 3.10 for torch-mlir.
+Or, if you want to switch over multiple versions of Python using conda, you can create a conda environment with Python 3.10.
 ```shell
 conda create -n torch-mlir python=3.10
 conda activate torch-mlir
