@@ -285,10 +285,10 @@ public:
   }
 };
 
-class VerifyBackendContractPass
-    : public VerifyBackendContractBase<VerifyBackendContractPass> {
+class VerifyBackendContractNoDecompositionsPass
+    : public VerifyBackendContractNoDecompositionsBase<VerifyBackendContractNoDecompositionsPass> {
 public:
-  VerifyBackendContractPass() = default;
+  VerifyBackendContractNoDecompositionsPass() = default;
 
   void runOnOperation() override {
     MLIRContext *context = &getContext();
@@ -312,8 +312,8 @@ mlir::torch::Torch::createLowerToBackendContractPass(
 }
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::Torch::createVerifyBackendContractPass() {
-  return std::make_unique<VerifyBackendContractPass>();
+mlir::torch::Torch::createVerifyBackendContractNoDecompositionsPass() {
+  return std::make_unique<VerifyBackendContractNoDecompositionsPass>();
 }
 
 // The backend contract guarantees that ops with decompositions available will

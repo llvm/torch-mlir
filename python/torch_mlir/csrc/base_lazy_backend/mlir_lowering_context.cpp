@@ -162,7 +162,7 @@ ComputationPtr TorchMlirLoweringContext::Build() {
   auto pass_manager = mlirPassManagerCreate(mlir_context_);
   mlirPassManagerAddOwnedPass(
     pass_manager,
-    mlirCreateVerifyBackendContract()
+    mlirCreateVerifyBackendContractNoDecompositions()
   );
 
   MlirLogicalResult result = mlirPassManagerRun(
