@@ -19,5 +19,8 @@ Value broadcastShapeInLeadingDims(ConversionPatternRewriter &rewriter,
                                   Value input, Value target,
                                   int64_t numLeadingAxes);
 
+Value broadcastInLeadingDimsToMatchShape(ConversionPatternRewriter &rewriter,
+                                         Value input, Value target);
+
 } // namespace torch_to_tcp
 } // namespace mlir

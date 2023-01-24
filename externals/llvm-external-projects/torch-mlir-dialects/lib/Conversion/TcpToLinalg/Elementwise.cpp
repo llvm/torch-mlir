@@ -59,14 +59,72 @@ createLinalgPayloadForElementwiseOp(Operation *op,
                                     RankedTensorType resultTensorType,
                                     OpBuilder &b, ValueRange payloadArgs) {
   Location loc = op->getLoc();
+  auto elemType = resultTensorType.getElementType();
+
   if (isa<TanhOp>(op))
     return {b.create<math::TanhOp>(loc, payloadArgs[0])};
 
+  if (auto clampOp = dyn_cast<ClampOp>(op)) {
+    // This implementation always performs the max followed by min.
+    // TODO: Is this going to work for degenerative floating point numbers?
+    Value result = payloadArgs[0];
+    if (elemType.isa<mlir::FloatType>()) {
+      auto minFloat = clampOp.getMinFloat();
+      auto maxFloat = clampOp.getMaxFloat();
+      if (minFloat)
+        result = b.create<arith::MaxFOp>(
+            loc, result,
+            b.create<arith::ConstantFloatOp>(loc, *minFloat, b.getF32Type()));
+      if (maxFloat)
+        result = b.create<arith::MinFOp>(
+            loc, result,
+            b.create<arith::ConstantFloatOp>(loc, *maxFloat, b.getF32Type()));
+    } else if (elemType.isa<mlir::IntegerType>()) {
+      auto minInt = clampOp.getMinInt();
+      auto maxInt = clampOp.getMaxInt();
+      if (minInt)
+        result = b.create<arith::MaxSIOp>(
+            loc, result,
+            b.create<arith::ConstantIntOp>(loc, *minInt, b.getIntegerType(64)));
+      if (maxInt)
+        result = b.create<arith::MinSIOp>(
+            loc, result,
+            b.create<arith::ConstantIntOp>(loc, *maxInt, b.getIntegerType(64)));
+    } else {
+      llvm_unreachable(
+          "unsupported element type in createLinalgPayloadForElementwiseOp");
+    }
+    return result;
+  }
+
   if (isa<AddOp>(op)) {
-    auto elemType = resultTensorType.getElementType();
     if (elemType.isa<mlir::FloatType>())
       return {b.create<arith::AddFOp>(loc, payloadArgs[0], payloadArgs[1])};
-    return {b.create<arith::AddIOp>(loc, payloadArgs[0], payloadArgs[1])};
+    else if (elemType.isa<mlir::IntegerType>())
+      return {b.create<arith::AddIOp>(loc, payloadArgs[0], payloadArgs[1])};
+    else
+      llvm_unreachable(
+          "unsupported element type in createLinalgPayloadForElementwiseOp");
+  }
+
+  if (isa<SubOp>(op)) {
+    if (elemType.isa<mlir::FloatType>())
+      return {b.create<arith::SubFOp>(loc, payloadArgs[0], payloadArgs[1])};
+    else if (elemType.isa<mlir::IntegerType>())
+      return {b.create<arith::SubIOp>(loc, payloadArgs[0], payloadArgs[1])};
+    else
+      llvm_unreachable(
+          "unsupported element type in createLinalgPayloadForElementwiseOp");
+  }
+
+  if (isa<MulOp>(op)) {
+    if (elemType.isa<mlir::FloatType>())
+      return {b.create<arith::MulFOp>(loc, payloadArgs[0], payloadArgs[1])};
+    else if (elemType.isa<mlir::IntegerType>())
+      return {b.create<arith::MulIOp>(loc, payloadArgs[0], payloadArgs[1])};
+    else
+      llvm_unreachable(
+          "unsupported element type in createLinalgPayloadForElementwiseOp");
   }
   return op->emitError(
       "unimplemented lowering in createLinalgPayloadForElementwiseOp");
@@ -114,6 +172,9 @@ void mlir::TcpToLinalg::populateElementwisePatternsAndLegality(
   MLIRContext *context = patterns.getContext();
 
   target.addIllegalDialect<TcpDialect>();
-  patterns.add<ConvertElementwiseOp<TanhOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<AddOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<ClampOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<MulOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<SubOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<TanhOp>>(typeConverter, context);
 }

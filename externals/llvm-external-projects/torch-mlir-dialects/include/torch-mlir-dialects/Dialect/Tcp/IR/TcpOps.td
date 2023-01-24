@@ -32,21 +32,81 @@ def Tcp_TanhOp : Tcp_UnaryElementwiseOp<"tanh"> {
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
 }
 
+def Tcp_ClampOp : Tcp_UnaryElementwiseOp<"clamp"> {
+  let summary = "Clamps input tensor to the given min and/or max";
+
+  let description = [{
+    Clamps the input tensor, elementwise, to the given min and/or max values.
+
+    The min and max values specified as attributes should correspond to the
+    element type of the input tensor.
+     * If the input is a float tensor, only `min_float` and/or `max_float` must
+       be specified.
+     * If the input is an int tensor, only `min_int` and/or `max_int` must be
+       specified.
+  }];
+
+  // TODO: Does clamp need to support complex tensors?
+  let arguments = (ins
+    Tcp_FloatOrIntTensor:$in,
+    OptionalAttr<F32Attr>:$min_float,
+    OptionalAttr<F32Attr>:$max_float,
+    OptionalAttr<I64Attr>:$min_int,
+    OptionalAttr<I64Attr>:$max_int
+  );
+
+  let results = (outs
+    Tcp_FloatOrIntTensor:$out
+  );
+
+  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
+
+  let hasVerifier = 1;
+}
+
 def Tcp_AddOp : Tcp_BinaryElementwiseOp<"add", [SameOperandsAndResultElementType]> {
   let summary = "Computes elementwise addition";
 
   let description = [{
     Computes the elementwise addition of `in1` and `in2`.
+  }];
 
-    `in1` and `in2` must have the same shape and data type.
+  let arguments = (ins
+    Tcp_Tensor:$in1,
+    Tcp_Tensor:$in2
+  );
 
-    A tcp.add operation will pass verification `in1`, `in2` and the result have
-    compatible shapes.  Since TCP tensors have static ranks and element types,
-    this means:
+  let results = (outs
+    Tcp_Tensor:$out
+  );
 
-     * `in1`, `in2` and `out` must have the same rank.
-     * `in1`, `in2` and `out` must have the same element type.
-     * `in1`, `in2` and `out` must have the same size or a `?` on each dim.
+  let assemblyFormat = "$in1 `,` $in2 attr-dict `:` type($in1) `,` type($in2) `->` type($out)";
+}
+
+def Tcp_SubOp : Tcp_BinaryElementwiseOp<"sub", [SameOperandsAndResultElementType]> {
+  let summary = "Computes elementwise addition";
+
+  let description = [{
+    Computes the elementwise subtraction of `in2` from `in1`.
+  }];
+
+  let arguments = (ins
+    Tcp_Tensor:$in1,
+    Tcp_Tensor:$in2
+  );
+
+  let results = (outs
+    Tcp_Tensor:$out
+  );
+
+  let assemblyFormat = "$in1 `,` $in2 attr-dict `:` type($in1) `,` type($in2) `->` type($out)";
+}
+
+def Tcp_MulOp : Tcp_BinaryElementwiseOp<"mul", [SameOperandsAndResultElementType]> {
+  let summary = "Computes elementwise multiplication";
+
+  let description = [{
+    Computes the elementwise multiplication of `in1` and `in2`.
   }];
 
   let arguments = (ins

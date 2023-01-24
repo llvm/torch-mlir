@@ -45,3 +45,27 @@ func.func @test_add_diff_shape(%arg0 : tensor<5xi32>, %arg1 : tensor<6xi32>) -> 
   %0 = tcp.add %arg0, %arg1 : tensor<5xi32>, tensor<6xi32> -> tensor<6xi32>
   return %0 : tensor<6xi32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @test_sub(
+// CHECK-SAME:          %[[ARG0:.*]]: tensor<?x?xf32>,
+// CHECK-SAME:          %[[ARG1:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:         %[[SUB:.*]] = tcp.sub %[[ARG0]], %[[ARG1]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         return %[[SUB]] : tensor<?x?xf32>
+func.func @test_sub(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.sub %arg0, %arg1 : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_mul(
+// CHECK-SAME:          %[[ARG0:.*]]: tensor<?x?xf32>,
+// CHECK-SAME:          %[[ARG1:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:         %[[MUL:.*]] = tcp.mul %[[ARG0]], %[[ARG1]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         return %[[MUL]] : tensor<?x?xf32>
+func.func @test_mul(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.mul %arg0, %arg1 : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
