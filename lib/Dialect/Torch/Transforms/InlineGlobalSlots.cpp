@@ -27,8 +27,8 @@
 
 #include "mlir/Analysis/DataFlowFramework.h"
 #include "mlir/Analysis/SliceAnalysis.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/IRMapping.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -373,7 +373,7 @@ class InlineGlobalSlotsPass
       // big deal.
       SmallVector<Operation *> slice =
           getBackwardSliceIncludingRoot(initialValue);
-      BlockAndValueMapping mapping;
+      IRMapping mapping;
       OpBuilder builder(op);
       for (Operation *opInSlice : slice)
         builder.clone(*opInSlice, mapping);

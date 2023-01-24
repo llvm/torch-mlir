@@ -1862,6 +1862,20 @@ OpFoldResult AtenEqIntListOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// PrimTupleConstructOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult PrimTupleConstructOp::verify() {
+  if (!(isValidSubtype(
+          Torch::TupleType::get(getContext(),
+                                llvm::to_vector<6>(getElements().getType())),
+          getResult().getType())))
+    return emitOpError(
+        "failed to verify that contained types correspond to operand types");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // PrimTupleIndexOp
 //===----------------------------------------------------------------------===//
 

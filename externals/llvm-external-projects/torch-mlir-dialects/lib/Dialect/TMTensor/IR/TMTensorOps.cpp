@@ -232,7 +232,7 @@ LogicalResult ScanOp::generateScalarImplementation(OpBuilder &b, Location loc,
 
   auto &srcBlock = getRegion().front();
   Region &thisRegion = scfIf.getElseRegion();
-  BlockAndValueMapping bvm;
+  IRMapping bvm;
   {
     OpBuilder::InsertionGuard guard(b);
     auto &block = thisRegion.front();
@@ -461,7 +461,7 @@ LogicalResult ScatterOp::generateScalarImplementation(OpBuilder &b,
 
   Value init = b.create<memref::LoadOp>(loc, original(), starts);
 
-  BlockAndValueMapping bvm;
+  IRMapping bvm;
   Block &block = getRegion().front();
   bvm.map(block.getArgument(0), update);
   bvm.map(block.getArgument(1), init);
