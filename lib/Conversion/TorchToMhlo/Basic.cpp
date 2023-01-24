@@ -1086,7 +1086,7 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
   // Reshape input
   auto mhloInput = rewriter.create<mhlo::DynamicReshapeOp>(
       op->getLoc(), mhloBatchNormOutTy, input,
-      mhlo::getConstTensor(rewriter, op, llvm::makeArrayRef(inputFlattenShape),
+      mhlo::getConstTensor(rewriter, op, llvm::ArrayRef(inputFlattenShape),
                            {static_cast<int64_t>(inputFlattenShape.size())})
           .value());
 

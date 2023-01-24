@@ -463,8 +463,8 @@ public:
     }
 
     SmallVector<Value> inputSize = getTensorSizes(rewriter, loc, input);
-    ArrayRef<Value> outputShapeInt = llvm::makeArrayRef(outputSizeInt);
-    ArrayRef<Value> inputShapeInt = llvm::makeArrayRef(inputSize);
+    ArrayRef<Value> outputShapeInt = llvm::ArrayRef(outputSizeInt);
+    ArrayRef<Value> inputShapeInt = llvm::ArrayRef(inputSize);
 
     // Association indices for expand/collapse ops. These two vectors
     // are populated such that two entries at the same index corresponds
@@ -1136,7 +1136,7 @@ public:
 
     Value dimIndex = rewriter.createOrFold<arith::ConstantOp>(
         loc, rewriter.getIndexAttr(dim));
-    for (auto tensor : makeArrayRef(tensors).drop_front()) {
+    for (auto tensor : ArrayRef(tensors).drop_front()) {
       auto size = rewriter.createOrFold<tensor::DimOp>(loc, tensor, dimIndex);
       resultDimSize =
           rewriter.createOrFold<arith::AddIOp>(loc, resultDimSize, size);
@@ -1270,7 +1270,7 @@ public:
                            /*resultType=*/selfType,
                            /*inputs=*/broadcastedSrc,
                            /*outputs=*/self,
-                           /*indexingMaps=*/llvm::makeArrayRef({id, id}),
+                           /*indexingMaps=*/llvm::ArrayRef({id, id}),
                            /*iteratorTypes=*/iteratorTypes,
                            [](OpBuilder &b, Location loc, ValueRange args) {
                              Value result = args[0];

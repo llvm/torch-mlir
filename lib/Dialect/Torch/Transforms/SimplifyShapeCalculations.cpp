@@ -129,8 +129,7 @@ public:
     // Truncate the list of users to the number of users we're going to
     // interpret.
     allUsers.resize(numUsersToInterpret);
-    auto usersToInterpret =
-        makeArrayRef(allUsers).take_front(numUsersToInterpret);
+    auto usersToInterpret = ArrayRef(allUsers).take_front(numUsersToInterpret);
 
     // For each mutating op (which must be in the same block), we save the
     // current state of the list as a vector of Value's. These will then
@@ -336,7 +335,7 @@ static LogicalResult refineShapeCalculateResult(ShapeCalculateOp op,
   auto originalResultType = result.getType().cast<BaseTensorType>();
   auto impliedTypesFromShape =
       originalResultType.cast<BaseTensorType>()
-          .getWithSizesAndDtype(makeArrayRef(sizes),
+          .getWithSizesAndDtype(ArrayRef(sizes),
                                 originalResultType.getOptionalDtype())
           .cast<BaseTensorType>();
 

@@ -142,7 +142,7 @@ public:
     // Finding the maximum value in the input tensor.
     SmallVector<int64_t> maxTensorSizes;
     ValueTensorType maxTensorType = ValueTensorType::get(
-        context, llvm::makeArrayRef(maxTensorSizes),
+        context, llvm::ArrayRef(maxTensorSizes),
         torchTypeInput.getType().cast<ValueTensorType>().getDtype());
     Value maxTensor =
         rewriter.create<AtenMaxOp>(loc, maxTensorType, torchTypeInput);
@@ -165,7 +165,7 @@ public:
     SmallVector<int64_t> expandedInputSizes{
         makeShapeTorchCompatible(inputType.getShape())[0], 1};
     ValueTensorType expandInputType = ValueTensorType::get(
-        context, llvm::makeArrayRef(expandedInputSizes),
+        context, llvm::ArrayRef(expandedInputSizes),
         torchTypeInput.getType().cast<ValueTensorType>().getDtype());
     Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(1));
@@ -286,9 +286,9 @@ public:
     auto indexTensorType = indexTensor.getType().cast<BaseTensorType>();
     int64_t indexTensorSize = indexTensorType.getSizes()[0];
     SmallVector<int64_t> expandedIndexTensorSizes{indexTensorSize, 1};
-    ValueTensorType expandedIndexTensorType = ValueTensorType::get(
-        context, llvm::makeArrayRef(expandedIndexTensorSizes),
-        indexTensorType.getDtype());
+    ValueTensorType expandedIndexTensorType =
+        ValueTensorType::get(context, llvm::ArrayRef(expandedIndexTensorSizes),
+                             indexTensorType.getDtype());
     Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(1));
     Value expandedIndexTensor = rewriter.create<AtenUnsqueezeOp>(
