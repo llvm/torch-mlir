@@ -2490,14 +2490,14 @@ public:
     Value bias = op.getBias();
 
     BaseTensorType inputType = input.getType().cast<BaseTensorType>();
-    if (!inputType.hasSizes() || inputType.getSizes().size() < 2)
+    if (!inputType.hasSizes() || inputType.getSizes().size() < 1)
       return rewriter.notifyMatchFailure(
-          op, "expected input to be rank 2 or greater");
+          op, "expected input to be rank 1 or greater");
 
     BaseTensorType weightType = weight.getType().cast<BaseTensorType>();
-    // `weight` must be a rank 2 matrix.
-    if (!weightType.hasSizes() || weightType.getSizes().size() != 2)
-      return rewriter.notifyMatchFailure(op, "expected weight to be a rank 2");
+    // `weight` must be either a rank 1 or 2 matrix.
+    if (!weightType.hasSizes() || weightType.getSizes().size() >= 2)
+      return rewriter.notifyMatchFailure(op, "expected weight to be either a rank 1 or 2");
 
     SmallVector<int64_t> transposeShape =
         llvm::to_vector(llvm::reverse(weightType.getSizes()));
