@@ -718,8 +718,8 @@ class ConvertAtenMultipleDimsReductionOp
                                          "non-const dim parameter unsupported");
     int64_t N = reduceDims.size();
     auto reduceDimsType = RankedTensorType::get({N}, rewriter.getI64Type());
-    reduceDimsAttr = DenseIntElementsAttr::get(reduceDimsType,
-                                               llvm::makeArrayRef(reduceDims));
+    reduceDimsAttr =
+        DenseIntElementsAttr::get(reduceDimsType, llvm::ArrayRef(reduceDims));
 
     keepDims = false;
     if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDims)))
@@ -748,8 +748,8 @@ class ConvertAtenOneDimReductionOp
       return rewriter.notifyMatchFailure(op,
                                          "non-const dim parameter unsupported");
     auto reduceDimsType = RankedTensorType::get({1}, rewriter.getI64Type());
-    reduceDimsAttr = DenseIntElementsAttr::get(reduceDimsType,
-                                               llvm::makeArrayRef({reduceDim}));
+    reduceDimsAttr =
+        DenseIntElementsAttr::get(reduceDimsType, llvm::ArrayRef({reduceDim}));
 
     keepDims = false;
     if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDims)))
@@ -782,8 +782,8 @@ public:
       reduceDims.push_back(i);
     int64_t N = selfTy.getRank();
     auto reduceDimsType = RankedTensorType::get({N}, rewriter.getI64Type());
-    reduceDimsAttr = DenseIntElementsAttr::get(reduceDimsType,
-                                               llvm::makeArrayRef(reduceDims));
+    reduceDimsAttr =
+        DenseIntElementsAttr::get(reduceDimsType, llvm::ArrayRef(reduceDims));
     keepDims = false;
 
     return success();

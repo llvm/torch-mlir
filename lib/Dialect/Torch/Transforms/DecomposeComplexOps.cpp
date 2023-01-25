@@ -72,7 +72,7 @@ static Type computeReductionType(PatternRewriter &rewriter, Operation *op,
 
   Type resultType = tensorType.getWithSizesAndDtype(
       sizes.size() == 0 ? std::optional<ArrayRef<int64_t>>()
-                        : llvm::makeArrayRef(sizes),
+                        : llvm::ArrayRef(sizes),
       tensorType.getOptionalDtype());
   return resultType;
 }
@@ -108,7 +108,7 @@ static Value createMaxAlongDimension(PatternRewriter &rewriter, Location loc,
       valueType
           .getWithSizesAndDtype(
               !valueType.hasSizes() ? std::optional<ArrayRef<int64_t>>()
-                                    : llvm::makeArrayRef(valueType.getSizes()),
+                                    : llvm::ArrayRef(valueType.getSizes()),
               IntegerType::get(op->getContext(), 64, IntegerType::Signed))
           .cast<BaseTensorType>();
   return rewriter
@@ -142,7 +142,7 @@ static Value createRank0Tensor(PatternRewriter &rewriter, Location loc,
                                BaseTensorType inputType, Value scalar) {
   SmallVector<int64_t> sizes;
   Type rank0TensorTy = inputType.getWithSizesAndDtype(
-      makeArrayRef(sizes), inputType.getOptionalDtype());
+      ArrayRef(sizes), inputType.getOptionalDtype());
   Value dimList = rewriter.create<PrimListConstructOp>(
       loc, Torch::ListType::get(Torch::IntType::get(inputType.getContext())),
       ValueRange{});
@@ -940,7 +940,7 @@ public:
       SmallVector<int64_t> sizes;
       sizes.append(inputShape.begin(), inputShape.end());
       sizes[cstDim] = kUnknownSize;
-      Type sliceTy = selfTy.getWithSizesAndDtype(llvm::makeArrayRef(sizes),
+      Type sliceTy = selfTy.getWithSizesAndDtype(llvm::ArrayRef(sizes),
                                                  selfTy.getOptionalDtype());
       Value slice0 = rewriter.create<AtenSliceTensorOp>(
           loc, sliceTy, input, dim, negShift, constNone, constOne);
@@ -1077,9 +1077,9 @@ public:
 
     Type dtype = self.getType().cast<ValueTensorType>().getOptionalDtype();
     Type unsqueezedType = ValueTensorType::get(
-        context, llvm::makeArrayRef(unsqueezedIntSizes), dtype);
-    Type expandedType = ValueTensorType::get(
-        context, llvm::makeArrayRef(expandedIntSizes), dtype);
+        context, llvm::ArrayRef(unsqueezedIntSizes), dtype);
+    Type expandedType =
+        ValueTensorType::get(context, llvm::ArrayRef(expandedIntSizes), dtype);
 
     auto listType = Torch::ListType::get(Torch::IntType::get(op.getContext()));
     Value unsqueezedDims =
@@ -2004,7 +2004,7 @@ public:
 
     auto inputType = input.getType().cast<BaseTensorType>();
     SmallVector<int64_t> empty;
-    Type tensorType = inputType.getWithSizesAndDtype(llvm::makeArrayRef(empty),
+    Type tensorType = inputType.getWithSizesAndDtype(llvm::ArrayRef(empty),
                                                      rewriter.getF64Type());
     Value prob = rewriter.create<PrimNumToTensorScalarOp>(loc, tensorType, p);
     Value output;
@@ -2082,8 +2082,8 @@ class DecomposeAtenLayerNormOp : public OpRewritePattern<AtenLayerNormOp> {
     std::vector<int64_t> meanVarSizes(inputRank, 1);
     for (int i = 0; i < axis; i++)
       meanVarSizes[i] = input.getSizes()[i];
-    auto meanVarType = input.getWithSizesAndDtype(
-        llvm::makeArrayRef(meanVarSizes), input.getOptionalDtype());
+    auto meanVarType = input.getWithSizesAndDtype(llvm::ArrayRef(meanVarSizes),
+                                                  input.getOptionalDtype());
     auto nativeLayerNorm = rewriter.create<AtenNativeLayerNormOp>(
         loc, op.getType(), meanVarType, meanVarType, op.getInput(),
         op.getNormalizedShape(), op.getWeight(), op.getBias(), op.getEps());
@@ -2320,7 +2320,7 @@ class DecomposeAtenNativeBatchNormOp
     runningStatsShapeInt[1] = kUnknownSize;
     Type dtype = input.getType().cast<ValueTensorType>().getOptionalDtype();
     Type reshapeType = ValueTensorType::get(
-        context, llvm::makeArrayRef(runningStatsShapeInt), dtype);
+        context, llvm::ArrayRef(runningStatsShapeInt), dtype);
 
     runningMean = rewriter.create<AtenViewOp>(loc, reshapeType, runningMean,
                                               runningStatsSizeList);
@@ -2466,8 +2466,7 @@ public:
     SmallVector<int64_t> empty;
     auto dtype =
         getTypeForTorchType(op.getContext(), op.getFillValue().getType());
-    Type tensorType =
-        outTy.getWithSizesAndDtype(llvm::makeArrayRef(empty), dtype);
+    Type tensorType = outTy.getWithSizesAndDtype(llvm::ArrayRef(empty), dtype);
     Value fillVal = rewriter.create<PrimNumToTensorScalarOp>(loc, tensorType,
                                                              op.getFillValue());
     fillVal = convertTensorToDtype(rewriter, loc, fillVal, outTy.getDtype());
@@ -2503,7 +2502,7 @@ public:
     SmallVector<int64_t> transposeShape =
         llvm::to_vector(llvm::reverse(weightType.getSizes()));
     Type transposeType = weightType.getWithSizesAndDtype(
-        llvm::makeArrayRef(transposeShape), weightType.getOptionalDtype());
+        llvm::ArrayRef(transposeShape), weightType.getOptionalDtype());
     Value transposeWeight =
         rewriter.create<AtenTOp>(loc, transposeType, weight);
 
@@ -2573,8 +2572,7 @@ public:
     SmallVector<int64_t> empty;
     auto dtype =
         getTypeForTorchType(op.getContext(), op.getFillValue().getType());
-    Type tensorType =
-        outTy.getWithSizesAndDtype(llvm::makeArrayRef(empty), dtype);
+    Type tensorType = outTy.getWithSizesAndDtype(llvm::ArrayRef(empty), dtype);
     Value fillVal = rewriter.create<PrimNumToTensorScalarOp>(
         op.getLoc(), tensorType, op.getFillValue());
     fillVal =
@@ -3216,7 +3214,7 @@ public:
       sizes.resize(srcShape.size() + 1, kUnknownSize);
     }
     Type srcType = srcTensorType.getWithSizesAndDtype(
-        llvm::makeArrayRef(sizes), srcTensorType.getOptionalDtype());
+        llvm::ArrayRef(sizes), srcTensorType.getOptionalDtype());
     src = rewriter.create<AtenUnsqueezeOp>(loc, srcType, src, dim);
     rewriter.replaceOpWithNewOp<AtenSliceScatterOp>(
         op, op.getSelf().getType(), self, src, dim, start, startPlusOne,
@@ -3314,7 +3312,7 @@ public:
           op, "Expected the input tensor to have sizes");
     BaseTensorType subType =
         inputType
-            .getWithSizesAndDtype(llvm::makeArrayRef(inputType.getSizes()),
+            .getWithSizesAndDtype(llvm::ArrayRef(inputType.getSizes()),
                                   resultType.getOptionalDtype())
             .cast<BaseTensorType>();
 

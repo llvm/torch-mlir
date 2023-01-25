@@ -101,17 +101,17 @@ torch.class_type @c {
 // -----
 
 // expected-error @+1 {{'torch.type_bound' must be attached to an argument of !torch.tensor/!torch.vtensor type}}
-func.func @f(%arg0: i32 {torch.type_bound = !torch.tensor<*,f32>})
+func.func private @f(%arg0: i32 {torch.type_bound = !torch.tensor<*,f32>})
 
 // -----
 
 // expected-error @+1 {{'torch.type_bound' must be TypeAttr}}
-func.func @f(%arg0: i32 {torch.type_bound = 1})
+func.func private @f(%arg0: i32 {torch.type_bound = 1})
 
 // -----
 
 // expected-error @+1 {{'torch.type_bound' must be of !torch.tensor/!torch.vtensor type}}
-func.func @f(%arg0: i32 {torch.type_bound = i32})
+func.func private @f(%arg0: i32 {torch.type_bound = i32})
 
 // -----
 

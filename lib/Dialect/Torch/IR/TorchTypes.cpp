@@ -463,7 +463,7 @@ Type Torch::meetTensorTypes(BaseTensorType lhs, BaseTensorType rhs) {
     }
   }
 
-  return lhs.getWithSizesAndDtype(makeArrayRef(newSizes), dtype);
+  return lhs.getWithSizesAndDtype(ArrayRef(newSizes), dtype);
 }
 
 ////===----------------------------------------------------------------------===//
