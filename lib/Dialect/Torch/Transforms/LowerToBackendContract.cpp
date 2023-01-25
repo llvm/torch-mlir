@@ -285,19 +285,16 @@ public:
   }
 };
 
-class VerifyBackendContractPass
-    : public VerifyBackendContractBase<VerifyBackendContractPass> {
+class VerifyBackendContractNoDecompositionsPass
+    : public VerifyBackendContractNoDecompositionsBase<VerifyBackendContractNoDecompositionsPass> {
 public:
-  VerifyBackendContractPass() = default;
-  VerifyBackendContractPass(bool decompose,
-                            ArrayRef<std::string> backendLegalOps) {
-    this->decompose = decompose;
-    this->backendLegalOps = backendLegalOps;
-  }
+  VerifyBackendContractNoDecompositionsPass() = default;
+
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target =
-        getBackendContractTarget(context, decompose, backendLegalOps);
+        getBackendContractTarget(context, /*decompose*/false,
+                                 /*backendLegalOps*/{});
 
     if (!satisfiesBackendContract(getOperation(), target,
                                   /*actuallyEmitDiagnostics=*/true)) {
@@ -315,10 +312,8 @@ mlir::torch::Torch::createLowerToBackendContractPass(
 }
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::Torch::createVerifyBackendContractPass(
-    bool decompose, ArrayRef<std::string> backendLegalOps) {
-  return std::make_unique<VerifyBackendContractPass>(decompose,
-                                                     backendLegalOps);
+mlir::torch::Torch::createVerifyBackendContractNoDecompositionsPass() {
+  return std::make_unique<VerifyBackendContractNoDecompositionsPass>();
 }
 
 // The backend contract guarantees that ops with decompositions available will

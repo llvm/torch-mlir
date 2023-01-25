@@ -1,7 +1,7 @@
-// RUN: torch-mlir-opt -torch-verify-backend-contract -split-input-file -verify-diagnostics %s
-func.func @f(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
-  // expected-error @+2 {{found an op that was marked as backend illegal}}
-  // expected-note @+1 {{this is likely due to}}
-  %t = torch.aten.t %arg0 : !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
-  return %t : !torch.vtensor<[?,?],f32>
+// RUN: torch-mlir-opt -torch-verify-backend-contract-no-decompositions -split-input-file -verify-diagnostics %s
+func.func @f(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor {
+  // expected-error @below {{unsupported by backend contract: tensor with unknown rank}}
+  // expected-note @below {{this is likely due to a missing transfer function}}
+  %t = torch.aten.t %arg0 : !torch.vtensor<[?,?],f32> -> !torch.vtensor
+  return %t : !torch.vtensor
 }
