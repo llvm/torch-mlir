@@ -2647,6 +2647,26 @@ class AtenRoundFloatModule(torch.nn.Module):
 def AtenRoundFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 5, low = -3.0, high = 3.0))
 
+
+class AtenRoundFloatHalfToEvenModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.round(x)
+
+
+@register_test_case(module_factory=lambda: AtenRoundFloatHalfToEvenModule())
+def AtenRoundFloatHalfToEvenModule_basic(module, tu: TestUtils):
+    module.forward(torch.FloatTensor([[0.5, 1.5], [-0.5, -1.5]]))
+
+
 class AtenRoundIntModule(torch.nn.Module):
 
     def __init__(self):

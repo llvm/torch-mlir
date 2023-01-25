@@ -293,7 +293,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       round.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    return b.create<math::RoundOp>(loc, payloadArgs[0]);
+    return b.create<math::RoundEvenOp>(loc, payloadArgs[0]);
   }
   if (auto prelu = dyn_cast<AtenPreluOp>(op)) {
     if (!prelu.getType()
