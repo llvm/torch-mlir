@@ -905,6 +905,55 @@ cc_library(
     ],
 )
 
+td_library(
+    name = "TorchMLIRTcpTransformsPassesTdFiles",
+    srcs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/Tcp/Transforms/Passes.td",
+    ],
+    deps = [
+        "@llvm-project//mlir:OpBaseTdFiles",
+        "@llvm-project//mlir:PassBaseTdFiles",
+    ],
+)
+
+gentbl_cc_library(
+    name = "TorchMLIRTcpTransformsPassesIncGen",
+    strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
+    tbl_outs = [
+        (
+            ["-gen-pass-decls"],
+            "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/Tcp/Transforms/Passes.h.inc",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/Tcp/Transforms/Passes.td",
+    deps = [
+        ":TorchMLIRTcpTransformsPassesTdFiles",
+    ],
+)
+
+cc_library(
+    name = "TorchMLIRTcpPasses",
+    srcs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/Tcp/Transforms/FuseTcpOpsPass.cpp",
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/Tcp/Transforms/IsolateGroupOpsPass.cpp",
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/Tcp/Transforms/PassDetail.h",
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/Tcp/Transforms/Passes.cpp",
+    ],
+    hdrs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/Tcp/Transforms/FuseTcpOpsPass.h",
+        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/Tcp/Transforms/IsolateGroupOpsPass.h",
+        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/Tcp/Transforms/Passes.h",
+    ],
+    strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
+    deps = [
+        ":TorchMLIRTcpDialect",
+        ":TorchMLIRTcpTransformsPassesIncGen",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Transforms",
+    ],
+)
+
 cc_library(
     name = "TorchMLIRTorchToTcp",
     srcs = glob([
@@ -1055,6 +1104,7 @@ cc_binary(
         ":TorchMLIRTMTensorDialect",
         ":TorchMLIRTMTensorPasses",
         ":TorchMLIRTcpDialect",
+        ":TorchMLIRTcpPasses",
         "@llvm-project//mlir:AllPassesAndDialects",
         "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:DialectUtils",

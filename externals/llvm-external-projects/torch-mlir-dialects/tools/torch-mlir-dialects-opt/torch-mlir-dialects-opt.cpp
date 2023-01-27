@@ -22,6 +22,7 @@
 #include "torch-mlir-dialects/Conversion/Passes.h"
 #ifdef TORCH_MLIR_DIALECTS_ENABLE_TCP
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpDialect.h"
+#include "torch-mlir-dialects/Dialect/Tcp/Transforms/Passes.h"
 #endif // TORCH_MLIR_DIALECTS_ENABLE_TCP
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 #include "stablehlo/dialect/StablehloOps.h"
@@ -57,6 +58,10 @@ int main(int argc, char **argv) {
       mlir::arith::ArithDialect, mlir::linalg::LinalgDialect,
       mlir::func::FuncDialect, mlir::memref::MemRefDialect,
       mlir::scf::SCFDialect, mlir::tensor::TensorDialect>();
+
+#ifdef TORCH_MLIR_DIALECTS_ENABLE_TCP
+  mlir::tcp::registerTcpPasses();
+#endif // TORCH_MLIR_DIALECTS_ENABLE_TCP
 
   mlir::torch_mlir_dialects::registerConversionPasses();
 

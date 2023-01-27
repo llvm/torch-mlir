@@ -16,6 +16,7 @@ set(LIBS
 
 if(TORCH_MLIR_DIALECTS_ENABLE_TCP)
   list(APPEND LIBS TorchMLIRTcpDialect)
+  list(APPEND LIBS TorchMLIRTcpPasses)
 endif()
 
 if(TORCH_MLIR_ENABLE_STABLEHLO)
