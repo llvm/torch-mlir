@@ -3491,6 +3491,68 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenCumsumOp>::matchAndRewrite(
+    AtenCumsumOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto inputShape = selfType.getShape();
+  if (!selfType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+  int64_t dim;
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(op,
+                                       "non-const dim parameter unsupported");
+
+  dim = toPositiveDim(dim, selfType.getRank());
+
+  if (!isValidDim(dim, selfType.getRank()))
+    return rewriter.notifyMatchFailure(op, "dim must be less than tensor rank");
+
+  if (!op.getDtype().getType().template isa<Torch::NoneType>())
+    return rewriter.notifyMatchFailure(op,
+                                       "Only default dtype none is supported");
+
+  auto outType = getTypeConverter()->convertType(op.getType());
+
+  // cumsum = concat(reduceSum(slice(0:1)) , ... , reduceSum(slice(0:n))))
+  size_t cumsumDimShape = inputShape[dim];
+  SmallVector<Value> sliceReduceSumValues; // used as concat inputs
+  SmallVector<int64_t> startSlice(selfType.getRank(), 0);
+  SmallVector<int64_t> sizeSlice =
+      llvm::to_vector(makeShapeTorchCompatible(inputShape));
+  SmallVector<int64_t> reduceSumShape =
+      llvm::to_vector(makeShapeTorchCompatible(inputShape));
+  reduceSumShape[dim] = 1;
+  startSlice[dim] = 0;
+
+  for (size_t step = 1; step <= cumsumDimShape; step++) {
+    sizeSlice[dim] = step; // 1:cumsumDimShape
+    Value sliceValue = rewriter.create<tosa::SliceOp>(
+        op->getLoc(),
+        RankedTensorType::get(makeShapeLLVMCompatible(sizeSlice),
+                              selfType.getElementType()),
+        adaptor.getSelf(), rewriter.getDenseI64ArrayAttr(startSlice),
+        rewriter.getDenseI64ArrayAttr(sizeSlice));
+    Value reduceSumValue = rewriter.create<tosa::ReduceSumOp>(
+        op->getLoc(),
+        RankedTensorType::get(makeShapeLLVMCompatible(reduceSumShape),
+                              selfType.getElementType()),
+        sliceValue, rewriter.getI64IntegerAttr(dim));
+
+    sliceReduceSumValues.push_back(reduceSumValue);
+  }
+
+  // tosa::concat sliceValues, outputshape
+  rewriter.replaceOpWithNewOp<tosa::ConcatOp>(op, outType, sliceReduceSumValues,
+                                              rewriter.getI64IntegerAttr(dim));
+
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
     AtenClampOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -4435,6 +4497,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenGatherOp);
     INSERT_ATENOP_PATTERN(AtenIndexTensorOp);
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
+    INSERT_ATENOP_PATTERN(AtenCumsumOp);
     INSERT_ATENOP_PATTERN(AtenClampOp);
     INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
     INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
