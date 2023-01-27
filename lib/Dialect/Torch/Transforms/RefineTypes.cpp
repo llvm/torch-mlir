@@ -693,28 +693,13 @@ void TypeAnalysis::visitOperation(Operation *op,
   }
 
   // Promote the two dtypes assuming non-zero rank.
-  if (isa<AtenMmOp, AtenBmmOp, AtenMatmulOp, AtenConv2dOp, AtenConvolutionOp,
-          Aten_ConvolutionOp, Aten_ConvolutionDeprecatedOp, AtenMvOp,
-          AtenConvolutionOverrideableOp, AtenConvTranspose2dInputOp,
-          AtenMseLossOp>(op)) {
+  if (isa<AtenConv2dOp, AtenConvolutionOp,
+          Aten_ConvolutionOp, Aten_ConvolutionDeprecatedOp,
+          AtenConvolutionOverrideableOp, AtenConvTranspose2dInputOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
         op->getContext(), {&operands[0]->getValue(), &operands[1]->getValue()});
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
-  // Promote the two dtypes assuming possibly-zero rank.
-  if (isa<AtenAddTensorOp, AtenSubTensorOp, AtenMulTensorOp, AtenDivTensorOp,
-          AtenDivTensorModeOp, Aten__And__TensorOp, AtenMinimumOp,
-          AtenMaximumOp, AtenBitwiseAndTensorOp, AtenBitwiseOrTensorOp,
-          AtenBitwiseXorTensorOp, AtenThresholdBackwardOp>(op)) {
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultType(
-        op->getContext(), {&operands[0]->getValue(), &operands[1]->getValue()},
-        getRankIsNonZeroArray(op->getOperands()));
     incorporateKnowledge(op->getResult(0), knowledge);
     return;
   }

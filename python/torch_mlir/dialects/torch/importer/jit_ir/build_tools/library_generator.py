@@ -14,6 +14,16 @@ from torch_mlir.passmanager import PassManager
 
 from .registry import Registry
 
+def is_integer_dtype(dtype: int) -> bool:
+    return dtype in [torch.bool, torch.uint8, torch.int8,
+                     torch.int16, torch.int32, torch.int64]
+
+def is_complex_dtype(dtype: int) -> bool:
+    return dtype in [torch.complex64, torch.complex128]
+
+def is_float_dtype(dtype: int) -> bool:
+    return dtype in [torch.float16, torch.bfloat16, torch.float32, torch.float64]
+
 def get_dtype_of_scalar(scalar: Union[int, float]) -> int:
     # This is hacky. `NumToTensor` is the only PyTorch op for scalars
     # that when `jit.script`ed converts a float scalar to a tensor

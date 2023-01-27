@@ -236,30 +236,6 @@ func.func @torch.aten.softmax.int$specified_dtype(%t: !torch.tensor<[2,3],f32>, 
 }
 
 // -----
-// CHECK-LABEL:  func.func @torch.aten.Matmul.Broadcast.Matrix(
-// CHECK-SAME:                                            %[[LHS:.*]]: !torch.vtensor<*,f32>,
-// CHECK-SAME:                                            %[[RHS:.*]]: !torch.vtensor<[?,?,?],f32>) -> !torch.tensor {
-// CHECK:           %[[MUL:.*]] = torch.aten.matmul %[[LHS]], %[[RHS]] : !torch.vtensor<*,f32>, !torch.vtensor<[?,?,?],f32> -> !torch.tensor<*,f32>
-// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[MUL]] : !torch.tensor<*,f32> to !torch.tensor
-// CHECK:           return %[[CAST]] : !torch.tensor
-func.func @torch.aten.Matmul.Broadcast.Matrix(%arg0: !torch.vtensor<*,f32>, %arg1: !torch.vtensor<[?,?,?],f32>) -> !torch.tensor {
-  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<*,f32>, !torch.vtensor<[?,?,?],f32> -> !torch.tensor
-  return %0 : !torch.tensor
-}
-
-// -----
-// CHECK-LABEL:  func.func @torch.aten.Matmul.Broadcast.Vector(
-// CHECK-SAME:                                            %[[LHS:.*]]: !torch.vtensor<*,f32>,
-// CHECK-SAME:                                            %[[RHS:.*]]: !torch.vtensor<*,f32>) -> !torch.tensor {
-// CHECK:           %[[MUL:.*]] = torch.aten.matmul %[[LHS]], %[[RHS]] : !torch.vtensor<*,f32>, !torch.vtensor<*,f32> -> !torch.tensor<*,f32>
-// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[MUL]] : !torch.tensor<*,f32> to !torch.tensor
-// CHECK:           return %[[CAST]] : !torch.tensor
-func.func @torch.aten.Matmul.Broadcast.Vector(%arg0: !torch.vtensor<*,f32>, %arg1: !torch.vtensor<*,f32>) -> !torch.tensor {
-  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<*,f32>, !torch.vtensor<*,f32> -> !torch.tensor
-  return %0 : !torch.tensor
-}
-
-// -----
 // CHECK-LABEL: func.func @torch.aten.to.dtype(
 // CHECK-SAME:                            %[[ARG:.*]]: !torch.tensor<[?,?],f32>) -> !torch.tensor
 // CHECK:           %[[TODTYPE:.*]] = torch.aten.to.dtype

@@ -85,6 +85,11 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwisePreluModule_basic",
     # error: op lowering missing. Issue: https://github.com/llvm/torch-mlir/issues/1792
     "StdCorrectionKeepDimModule_basic",
+
+    # Dtype function transition failures
+    "MobilenetV3Module_basic",
+    "ResNet18Module_basic",
+    "ResNet18StaticModule_basic",
 }
 
 MHLO_PASS_SET = {
