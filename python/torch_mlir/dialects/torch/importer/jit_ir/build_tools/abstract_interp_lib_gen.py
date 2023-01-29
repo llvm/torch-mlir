@@ -209,6 +209,9 @@ def aten〇dropout〡shape(input: List[int], p: float, train: bool) -> List[int]
 def aten〇gelu〡shape(self: List[int], approximate: str = "none") -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇bucketize〇Tensor〡shape(self: List[int], boundaries: List[int], out_int32: bool = False, right: bool = False) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇contiguous〡shape(self: List[int], memory_format: int = 0) -> List[int]:
     return upstream_shape_functions.unary(self)
 

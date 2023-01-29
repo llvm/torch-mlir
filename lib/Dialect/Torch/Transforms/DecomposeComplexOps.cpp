@@ -171,6 +171,37 @@ static Value createSoftmaxBackwardCommonKernel(PatternRewriter &rewriter,
   return sub;
 }
 
+// Helper function to unsqueeze the input tensor at given dim.
+// Return the unsqueezed tensor or failure.
+static FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter,
+                                        Operation *op, Value input, Value dim) {
+  BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+  if (!inputType.hasSizes()) {
+    return rewriter.notifyMatchFailure(op, "input tensor must have size");
+  }
+
+  SmallVector<int64_t> unsqueezedShape;
+  ArrayRef<int64_t> inputShape = inputType.getSizes();
+  // `input` has a reduced rank. Hence add 1.
+  int64_t unsqueezedRank = inputShape.size() + 1;
+  int64_t dimInt = 0;
+  if (matchPattern(dim, m_TorchConstantInt(&dimInt))) {
+    dimInt = toPositiveDim(dimInt, unsqueezedRank);
+    if (!isValidDim(dimInt, unsqueezedRank)) {
+      return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
+    }
+    unsqueezedShape.append(inputShape.begin(), inputShape.end());
+    unsqueezedShape.insert(unsqueezedShape.begin() + dimInt, 1);
+  } else {
+    unsqueezedShape.resize(unsqueezedRank, kUnknownSize);
+  }
+  Type unsqueezedType =
+      inputType.getWithSizesAndDtype(unsqueezedShape, inputType.getDtype());
+  Value unsqueezed = rewriter.create<AtenUnsqueezeOp>(
+      op->getLoc(), unsqueezedType, input, dim);
+  return unsqueezed;
+}
+
 namespace {
 /// We decompose aten.amax into a set of aten.max.dim op(s) depending on the
 /// number of dimensions across which the max needs to be computed.
@@ -601,6 +632,128 @@ public:
             .getIndices();
 
     rewriter.replaceOp(op, maxResult);
+    return success();
+  }
+};
+} // namespace
+
+// Decompose `aten.bucketize` into the following op sequence:
+//
+// def aten_bucketize(input, boundaries, out_int32, right):
+//     unsqz_input = input.unsqueeze(-1)
+//     if not right:
+//         comparison = unsqz_input <= boundaries
+//     else:
+//         comparison = unsqz_input < boundaries
+//     indices = torch.argmax(comparison.float(), dim=-1)
+//     within_bound = comparison[..., -1]
+//     result = torch.where(within_bound, indices, boundaries.shape[0])
+//     if out_int32:
+//         result = result.int()
+//     return result
+//
+namespace {
+class DecomposeAtenBucketizeTensorOp
+    : public OpRewritePattern<AtenBucketizeTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenBucketizeTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+
+    Value input = op.getSelf();
+    auto inputType = input.getType().cast<BaseTensorType>();
+    if (!inputType.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: input must have known sizes");
+    }
+    ArrayRef<int64_t> inputShape = inputType.getSizes();
+
+    Value boundaries = op.getBoundaries();
+    auto boundariesType = boundaries.getType().cast<BaseTensorType>();
+    if (!boundariesType.hasSizes() || boundariesType.getSizes().size() != 1) {
+      return rewriter.notifyMatchFailure(op,
+                                         "unimplemented: boundaries must have "
+                                         "known sizes and must be a 1D array");
+    }
+    int64_t boundariesSize = boundariesType.getSizes()[0];
+
+    bool outInt32;
+    if (!matchPattern(op.getOutInt32(), m_TorchConstantBool(&outInt32))) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: out_int32 must be a constant bool");
+    }
+
+    bool right;
+    if (!matchPattern(op.getRight(), m_TorchConstantBool(&right))) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: right must be a constant bool");
+    }
+
+    // unsqueeze input at the last dim to make it broadcastable with boundaries
+    Value constMinusOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(-1));
+    auto unsqzTensorInfo =
+        unsqueezeTensor(rewriter, op, input, /*dim=*/constMinusOne);
+    if (failed(unsqzTensorInfo)) {
+      return rewriter.notifyMatchFailure(op,
+                                         "cannot generate unsqueeze tensor");
+    }
+    Value unsqzInput = *unsqzTensorInfo;
+
+    // compare unsqueezed input with boundaries
+    SmallVector<int64_t> compareShape(inputShape);
+    compareShape.push_back(boundariesSize);
+    Type compareType =
+        inputType.getWithSizesAndDtype(compareShape, rewriter.getI1Type());
+    Value compare;
+    if (!right) {
+      compare = rewriter.create<AtenLeTensorOp>(loc, compareType, unsqzInput,
+                                                boundaries);
+    } else {
+      compare = rewriter.create<AtenLtTensorOp>(loc, compareType, unsqzInput,
+                                                boundaries);
+    }
+
+    // convert the comparison results to float32 as the argmax op input,
+    // which does not support integer dtype in LINALG backend
+    Value compareF32 =
+        convertTensorToDtype(rewriter, loc, compare, rewriter.getF32Type());
+
+    // get the first boundary index where the input element is less than (or
+    // equal to) the boundary value
+    Type indicesType = inputType.getWithSizesAndDtype(
+        inputShape, rewriter.getIntegerType(64, IntegerType::Signed));
+    Value constFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value indices = rewriter.create<AtenArgmaxOp>(loc, indicesType, compareF32,
+                                                  /*dim=*/constMinusOne,
+                                                  /*keepdim=*/constFalse);
+
+    // get the comparison results between each input element and the rightmost
+    // boundary value
+    Type withinUpperBoundType =
+        inputType.getWithSizesAndDtype(inputShape, rewriter.getI1Type());
+    Value withinUpperBound = rewriter.create<AtenSelectIntOp>(
+        loc, withinUpperBoundType, compare, /*dim=*/constMinusOne,
+        /*index=*/constMinusOne);
+
+    // If the input element is less than (or equal to) the rightmost boundary,
+    // take the max index as result. Otherwise, the element is beyond the
+    // rightmost boundary, so take the boundary size.
+    Value constZero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value upperBound =
+        rewriter.create<AtenSizeIntOp>(loc, boundaries, /*dim=*/constZero);
+    Value result = rewriter.create<AtenWhereScalarOtherOp>(
+        loc, indicesType, withinUpperBound, indices, upperBound);
+
+    if (outInt32) {
+      result = convertTensorToDtype(
+          rewriter, loc, result,
+          rewriter.getIntegerType(32, IntegerType::Signed));
+    }
+
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
@@ -3193,29 +3346,13 @@ public:
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
     Value startPlusOne =
         rewriter.create<AtenAddIntOp>(loc, one.getType(), start, one);
-    BaseTensorType srcTensorType = src.getType().cast<BaseTensorType>();
-    SmallVector<int64_t> sizes;
-    if (!srcTensorType.hasSizes())
-      return rewriter.notifyMatchFailure(op, "src tensor must have size");
 
-    ArrayRef<int64_t> srcShape = srcTensorType.getSizes();
-    // `src` has a reduced rank. Hence add 1.
-    int64_t srcRank = srcShape.size() + 1;
-    int64_t dimInt = 0;
-    if (matchPattern(dim, m_TorchConstantInt(&dimInt))) {
-      dimInt = toPositiveDim(dimInt, srcRank);
-      if (!isValidDim(dimInt, srcRank))
-        return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
-
-      sizes.append(srcShape.begin(), srcShape.end());
-      sizes.insert(sizes.begin() + dimInt, 1);
-
-    } else {
-      sizes.resize(srcShape.size() + 1, kUnknownSize);
+    auto unsqueezedInfo = unsqueezeTensor(rewriter, op, src, dim);
+    if (failed(unsqueezedInfo)) {
+      return rewriter.notifyMatchFailure(op,
+                                         "cannot generate unsqueeze tensor op");
     }
-    Type srcType = srcTensorType.getWithSizesAndDtype(
-        llvm::ArrayRef(sizes), srcTensorType.getOptionalDtype());
-    src = rewriter.create<AtenUnsqueezeOp>(loc, srcType, src, dim);
+    src = *unsqueezedInfo;
     rewriter.replaceOpWithNewOp<AtenSliceScatterOp>(
         op, op.getSelf().getType(), self, src, dim, start, startPlusOne,
         /*step=*/one);
@@ -3786,6 +3923,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluBackwardOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyStridedOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenBucketizeTensorOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

@@ -107,6 +107,8 @@ MHLO_PASS_SET = {
     "BroadcastToModule_basic",
     "BroadcastToSameRankStaticModule_basic",
     "BroadcastZeroRankInputStaticModule_basic",
+    "BucketizeTensorStaticFloatModule_basic",
+    "BucketizeTensorStaticModule_basic",
     "CumsumStaticModule_basic",
     "CumsumStaticNegativeDimModule_basic",
     "ElementwiseAtenLogicalAndOpPromoteBroadcastStaticShapeModule_basic",

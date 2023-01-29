@@ -3162,3 +3162,90 @@ class SortIntListReverse(torch.nn.Module):
 @register_test_case(module_factory=lambda: SortIntListReverse())
 def SortIntListReverse_basic(module, tu: TestUtils):
     module.forward()
+
+# ==============================================================================
+
+class BucketizeTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, input, boundaries):
+        return torch.bucketize(input, boundaries)
+
+@register_test_case(module_factory=lambda: BucketizeTensorModule())
+def BucketizeTensorModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[0, 2, 5, 7], [1, 3, 4, 6]]), torch.tensor([1, 4, 6]))
+
+class BucketizeTensorOutInt32RightModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, input, boundaries):
+        return torch.bucketize(input, boundaries, out_int32=True, right=True)
+
+@register_test_case(module_factory=lambda: BucketizeTensorOutInt32RightModule())
+def BucketizeTensorOutInt32RightModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[0, 2, 5, 7], [1, 3, 4, 6]]), torch.tensor([1, 4, 6]))
+
+class BucketizeTensorFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, input, boundaries):
+        return torch.bucketize(input, boundaries)
+
+@register_test_case(module_factory=lambda: BucketizeTensorFloatModule())
+def BucketizeTensorFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(15, 17), torch.sort(tu.rand(16)).values)
+
+class BucketizeTensorStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 4], torch.int64, True),
+        ([3], torch.int64, True),
+    ])
+    def forward(self, input, boundaries):
+        return torch.bucketize(input, boundaries)
+
+@register_test_case(module_factory=lambda: BucketizeTensorStaticModule())
+def BucketizeTensorStaticModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[0, 2, 5, 7], [1, 3, 4, 6]]), torch.tensor([1, 4, 6]))
+
+class BucketizeTensorStaticFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([15, 17], torch.float32, True),
+        ([16], torch.float32, True),
+    ])
+    def forward(self, input, boundaries):
+        return torch.bucketize(input, boundaries)
+
+@register_test_case(module_factory=lambda: BucketizeTensorStaticFloatModule())
+def BucketizeTensorStaticFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(15, 17), torch.sort(tu.rand(16)).values)
