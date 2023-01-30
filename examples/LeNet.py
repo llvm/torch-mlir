@@ -18,9 +18,9 @@ class LeNet5(nn.Module):
         self.fc3 = nn.Linear(84, 10)
 
     def forward(self, x):
-        # Max pooling over a (2, 2) window
+        # input shape is 1x1x28x28
+        # Max pooling over a (2, 2) window, if use default stride, error will happen
         x = F.max_pool2d(F.relu(self.conv1(x)), (2, 2), stride=(2, 2))
-        # If the size is a square, you can specify with a single number
         x = F.max_pool2d(F.relu(self.conv2(x)), (2, 2), stride=(2, 2))
         x = torch.flatten(x, 1)  # flatten all dimensions except the batch dimension
         x = F.relu(self.fc1(x))
@@ -30,19 +30,16 @@ class LeNet5(nn.Module):
 
 
 net = LeNet5()
+net.eval()
 print(net)
 
 # NCHW layout in pytorch
-module = torch_mlir.compile(net, torch.ones(1, 1, 32, 32), output_type="torch")
+module = torch_mlir.compile(net, torch.ones(1, 1, 28, 28), output_type="torch")
 print(module.operation.get_asm(large_elements_limit=10))
-# module_linalg = torch_mlir.compile(
-#     net, torch.ones(1, 1, 32, 32), output_type="linalg-on-tensors"
-# )
-# print(module_linalg.operation.get_asm(large_elements_limit=10))
-
 torch_mlir.compiler_utils.run_pipeline_with_repro_report(
     module, "builtin.module(torch-obfuscate-ops-pipeline)", "obfuscate torch IR"
 )
+print(module.operation.get_asm(large_elements_limit=10))
 torch_mlir.compiler_utils.run_pipeline_with_repro_report(
     module,
     "builtin.module(torch-backend-to-linalg-on-tensors-backend-pipeline)",
@@ -50,10 +47,24 @@ torch_mlir.compiler_utils.run_pipeline_with_repro_report(
 )
 print(module.operation.get_asm(large_elements_limit=10))
 
-
 backend = refbackend.RefBackendLinalgOnTensorsBackend()
 compiled = backend.compile(module)
 jit_module = backend.load(compiled)
 jit_func = jit_module.forward
-print(jit_func(torch.ones(1, 1, 32, 32).numpy()))
-print(jit_func(torch.zeros(1, 1, 32, 32).numpy()))
+out1 = jit_func(torch.ones(1, 1, 28, 28).numpy())
+out2 = jit_func(torch.zeros(1, 1, 28, 28).numpy())
+print("output:")
+print(out1)
+print(out2)
+
+module_origin = torch_mlir.compile(net, torch.ones(1, 1, 28, 28), output_type="linalg-on-tensors")
+jit_func_origin = backend.load(backend.compile(module_origin)).forward
+out1_origin = jit_func_origin(torch.ones(1, 1, 28, 28).numpy())
+out2_origin = jit_func_origin(torch.zeros(1, 1, 28, 28).numpy())
+print("origin output:")
+print(out1_origin)
+print(out2_origin)
+
+print("diffs:")
+print(out1 - out1_origin)
+print(out2 - out2_origin)

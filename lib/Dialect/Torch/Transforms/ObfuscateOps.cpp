@@ -10,7 +10,6 @@
 #include "PassDetail.h"
 
 #include "mlir/IR/BuiltinDialect.h"
-#include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -20,110 +19,10 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
-#include <cstdint>
 
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
-
-namespace {
-class ObfuscateMM : public OpRewritePattern<AtenMmOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenMmOp op,
-                                PatternRewriter &rewriter) const override {
-    // just for test
-    Location loc = op.getLoc();
-    Value input0 = op.getOperand(0);
-    Value input1 = op.getOperand(1);
-    auto resultTensorType = op.getType().cast<BaseTensorType>();
-    Value add =
-        rewriter.create<AtenDivTensorOp>(loc, resultTensorType, input0, input0);
-    Value add1 =
-        rewriter.create<AtenDivTensorOp>(loc, resultTensorType, input1, input1);
-    Value result =
-        rewriter.create<AtenDivTensorOp>(loc, resultTensorType, add, add1);
-    rewriter.replaceOpWithNewOp<TensorStaticInfoCastOp>(op, resultTensorType,
-                                                        result);
-    return success();
-  }
-};
-} // namespace
-
-static void
-widenConvLayer(MLIRContext *context,
-               llvm::SmallPtrSet<mlir::Operation *, 16> &opWorklist) {
-  // widen conv layer by add instruction to change weight matrix of convolution
-  // layer, maybe the better way is changing the weight matrix at definition
-  // place
-  auto it = opWorklist.begin();
-  AtenConvolutionOp conv = llvm::dyn_cast<AtenConvolutionOp>(*it);
-  mlir::OpBuilder builder(conv);
-  Location loc = conv.getLoc();
-
-  // widen first convolution
-  Value oldKernel = conv.getOperand(1);
-  Value oldBias = conv.getOperand(2);
-  auto tensorTy = oldKernel.getType().cast<ValueTensorType>();
-  auto shapeNewKernel = tensorTy.getSizes().vec();
-  // kernel layout is CCHW: new channels, old channels, height, width
-  shapeNewKernel[0] = shapeNewKernel[0] + 2;
-  auto resultTensorType = ValueTensorType::get(
-      context, llvm::makeArrayRef(shapeNewKernel), tensorTy.getDtype());
-  auto dense = mlir::DenseElementsAttr::get(
-      mlir::RankedTensorType::get(llvm::makeArrayRef(shapeNewKernel),
-                                  builder.getF32Type()),
-      llvm::makeArrayRef(static_cast<float>(0.0)));
-  Value newKernel =
-      builder.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
-  Value intn0 = builder.create<ConstantIntOp>(
-      loc, builder.getI64IntegerAttr(shapeNewKernel[0] - 2));
-  Value intn1 = builder.create<ConstantIntOp>(
-      loc, builder.getI64IntegerAttr(shapeNewKernel[0] - 1));
-  Value int0 = builder.create<ConstantIntOp>(loc, builder.getI64IntegerAttr(0));
-  Value int1 = builder.create<ConstantIntOp>(loc, builder.getI64IntegerAttr(1));
-  Value constFalse = builder.create<ConstantBoolOp>(loc, false);
-  std::vector<long> shapeCHW = {shapeNewKernel[1], shapeNewKernel[2],
-                                shapeNewKernel[3]};
-  resultTensorType = ValueTensorType::get(context, llvm::makeArrayRef(shapeCHW),
-                                          tensorTy.getDtype());
-  Value oldSelect = builder.create<AtenSelectIntOp>(loc, resultTensorType,
-                                                    oldKernel, int0, int0);
-  Value newSelect = builder.create<AtenSelectIntOp>(loc, resultTensorType,
-                                                    newKernel, int0, intn0);
-  builder.create<AtenCopy_Op>(loc, resultTensorType, newSelect, oldSelect,
-                              constFalse);
-  oldSelect = builder.create<AtenSelectIntOp>(loc, resultTensorType, oldKernel,
-                                              int0, int1);
-  newSelect = builder.create<AtenSelectIntOp>(loc, resultTensorType, newKernel,
-                                              int0, intn1);
-  builder.create<AtenCopy_Op>(loc, resultTensorType, newSelect, oldSelect,
-                              constFalse);
-  // bias
-  std::vector<long> shapeNewBias = {shapeNewKernel[0]};
-  resultTensorType = ValueTensorType::get(
-      context, llvm::makeArrayRef(shapeNewBias), tensorTy.getDtype());
-  dense = mlir::DenseElementsAttr::get(
-      mlir::RankedTensorType::get(llvm::makeArrayRef(shapeNewBias),
-                                  builder.getF32Type()),
-      llvm::makeArrayRef(static_cast<float>(0.0)));
-  Value newBias =
-      builder.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
-  builder.create<AtenCopy_Op>(loc, resultTensorType, newBias, oldBias,
-                              constFalse);
-  auto shapeNewConv = conv.getType().cast<ValueTensorType>().getSizes().vec();
-  shapeNewConv[1] = shapeNewKernel[0];
-  resultTensorType = ValueTensorType::get(
-      context, llvm::makeArrayRef(shapeNewConv), tensorTy.getDtype());
-  Value newConv = builder.create<AtenConvolutionOp>(
-      loc, resultTensorType, conv.getOperand(0), newKernel, newBias,
-      conv.getOperand(3), conv.getOperand(4), conv.getOperand(5),
-      conv.getOperand(6), conv.getOperand(7), conv.getOperand(8));
-  mlir::IRRewriter rewriter(builder);
-  rewriter.replaceOp(conv, newConv);
-  // infer shape for relu and max_pool
-  // todo
-}
 
 namespace {
 class ObfuscateOpsPass : public ObfuscateOpsBase<ObfuscateOpsPass> {
@@ -131,15 +30,6 @@ public:
   ObfuscateOpsPass() = default;
   void runOnOperation() override {
     MLIRContext *context = &getContext();
-    RewritePatternSet patterns(context);
-    //    patterns.add<ObfuscateMM>(context);
-    GreedyRewriteConfig config;
-    config.useTopDownTraversal = true;
-    config.maxIterations = GreedyRewriteConfig::kNoIterationLimit;
-    if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
-                                            config))) {
-      return signalPassFailure();
-    }
 
     // widen convolution layer
     // this demo only widen first two convolution by adding two channels
@@ -148,40 +38,134 @@ public:
     auto f = getOperation();
     llvm::SmallPtrSet<mlir::Operation *, 16> opWorklist;
     bool flag = false;
+    // make sure the first and last op in opWorklist is conv, and ops in the
+    // middle result shape is NCHW
     f.walk([&](mlir::Operation *op) {
+      //      if
+      //      (op->getResult(0).getType().dyn_cast_or_null<ValueTensorType>())
+      // above cause coredump, maybe mlir bug
+      // so delay this judgement logic
       if (llvm::dyn_cast<AtenConvolutionOp>(op)) {
         flag = !flag;
         opWorklist.insert(op);
+        //        llvm::outs() << op->getName() << "====\n";
       } else if (flag) {
         opWorklist.insert(op);
+        //        llvm::outs() << op->getName() << "====\n";
       }
     });
 
-//    widenConvLayer(context, opWorklist);
     auto it = opWorklist.begin();
     AtenConvolutionOp conv = llvm::dyn_cast<AtenConvolutionOp>(*it);
     mlir::OpBuilder builder(conv);
-    Location loc = conv.getLoc();
+    mlir::IRRewriter rewriter(builder);
 
+    // add three channels by copy existing channels, two channel 0 and one
+    // channel 1
     Value oldKernel = conv.getOperand(1);
     Value oldBias = conv.getOperand(2);
     auto oldKernelOp = oldKernel.getDefiningOp<ValueTensorLiteralOp>();
     auto oldBiasOp = oldBias.getDefiningOp<ValueTensorLiteralOp>();
-    llvm::outs() << oldKernelOp.getValueAttrName() <<"\n";
-    llvm::outs() << oldKernelOp.getValue().getElementType() << "\n";
-    llvm::outs() << oldKernelOp.getValue().getType() << "\n";
-    llvm::outs() << oldKernelOp.getValue().getNumElements() << "\n";
-    for (auto i=oldBiasOp.getValue().value_begin<float>();i!=oldBiasOp.getValue().value_end<float>();++i) {
-      llvm::outs() << *i << "=\n";
+
+    // widen conv bias
+    // is there better way to get the tensor data?
+    std::vector<float> biasVec;
+    for (auto i : oldBiasOp.getValue().getValues<float>()) {
+      biasVec.push_back(i);
     }
-    for (auto i : oldBiasOp.getValue().getValues<float>() ) {
-      llvm::outs() << i << "=\n";
-      i = 1;
+    auto tensorTy = oldBias.getType().cast<ValueTensorType>();
+    auto shape = tensorTy.getSizes().vec();
+    shape[0] = shape[0] + 3;
+    biasVec.push_back(biasVec[0]);
+    biasVec.push_back(biasVec[0]);
+    biasVec.push_back(biasVec[1]);
+    auto resultTensorType = ValueTensorType::get(
+        context, llvm::makeArrayRef(shape), tensorTy.getDtype());
+    auto dense = mlir::DenseElementsAttr::get(
+        mlir::RankedTensorType::get(llvm::makeArrayRef(shape),
+                                    builder.getF32Type()),
+        llvm::makeArrayRef(biasVec));
+    rewriter.replaceOpWithNewOp<ValueTensorLiteralOp>(oldBiasOp,
+                                                      resultTensorType, dense);
+
+    std::vector<float> kernelVec;
+    for (auto i : oldKernelOp.getValue().getValues<float>()) {
+      kernelVec.push_back(i);
     }
-    // because of __elided, no data can be read
-    for (auto i : oldKernelOp.getValue().getValues<float>() ) {
-      llvm::outs() << i << "=\n";
+    tensorTy = oldKernel.getType().cast<ValueTensorType>();
+    shape = tensorTy.getSizes().vec();
+    // kernel layout is CCHW: new channels, old channels, height, width
+    shape[0] = shape[0] + 3;
+    int channelSize = shape[1] * shape[2] * shape[3];
+    kernelVec.insert(kernelVec.end(), kernelVec.begin(),
+                     kernelVec.begin() + channelSize);
+    kernelVec.insert(kernelVec.end(), kernelVec.begin(),
+                     kernelVec.begin() + channelSize);
+    kernelVec.insert(kernelVec.end(), kernelVec.begin() + channelSize,
+                     kernelVec.begin() + 2 * channelSize);
+    resultTensorType = ValueTensorType::get(context, llvm::makeArrayRef(shape),
+                                            tensorTy.getDtype());
+    dense = mlir::DenseElementsAttr::get(
+        mlir::RankedTensorType::get(llvm::makeArrayRef(shape),
+                                    builder.getF32Type()),
+        llvm::makeArrayRef(kernelVec));
+    rewriter.replaceOpWithNewOp<ValueTensorLiteralOp>(oldKernelOp,
+                                                      resultTensorType, dense);
+
+    // change shape according to new channel number
+    for (; it != opWorklist.end(); it = std::next(it)) {
+      // the last op is the second conv, which don't need change result shape
+      if (std::next(it) == opWorklist.end())
+        break;
+      auto op = *it;
+      tensorTy = op->getResult(0).getType().dyn_cast_or_null<ValueTensorType>();
+      if (tensorTy) {
+        shape = tensorTy.getSizes().vec();
+        shape[1] += 3;
+        resultTensorType = ValueTensorType::get(
+            context, llvm::makeArrayRef(shape), tensorTy.getDtype());
+        op->getResult(0).setType(resultTensorType);
+      }
     }
+
+    // second conv kernel change according to first kernel
+    conv = llvm::dyn_cast<AtenConvolutionOp>(*it);
+    oldKernel = conv.getOperand(1);
+    oldKernelOp = oldKernel.getDefiningOp<ValueTensorLiteralOp>();
+    kernelVec.clear();
+    for (auto i : oldKernelOp.getValue().getValues<float>()) {
+      kernelVec.push_back(i);
+    }
+    tensorTy = oldKernel.getType().cast<ValueTensorType>();
+    shape = tensorTy.getSizes().vec();
+    // kernel layout is CCHW: new channels, old channels, height, width
+    int hwSize = shape[2] * shape[3];
+    channelSize = hwSize * shape[1];
+    shape[1] = shape[1] + 3;
+    std::vector<float> newKernelVec;
+    for (int i = 0; i < shape[0]; i++) {
+      int base = i * channelSize;
+      for (int j = 0; j < hwSize; j++) {
+        kernelVec[base + j] /= 3;
+        kernelVec[base + hwSize + j] /= 2;
+      }
+      newKernelVec.insert(newKernelVec.end(), kernelVec.begin() + base,
+                          kernelVec.begin() + base + channelSize);
+      newKernelVec.insert(newKernelVec.end(), kernelVec.begin() + base,
+                          kernelVec.begin() + base + hwSize);
+      newKernelVec.insert(newKernelVec.end(), kernelVec.begin() + base,
+                          kernelVec.begin() + base + hwSize);
+      newKernelVec.insert(newKernelVec.end(), kernelVec.begin() + base + hwSize,
+                          kernelVec.begin() + base + 2 * hwSize);
+    }
+    resultTensorType = ValueTensorType::get(context, llvm::makeArrayRef(shape),
+                                            tensorTy.getDtype());
+    dense = mlir::DenseElementsAttr::get(
+        mlir::RankedTensorType::get(llvm::makeArrayRef(shape),
+                                    builder.getF32Type()),
+        llvm::makeArrayRef(newKernelVec));
+    rewriter.replaceOpWithNewOp<ValueTensorLiteralOp>(oldKernelOp,
+                                                      resultTensorType, dense);
   }
 };
 } // namespace
