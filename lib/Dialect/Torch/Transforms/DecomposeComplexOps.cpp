@@ -1390,6 +1390,25 @@ public:
 };
 } // namespace
 
+// Decompose aten.where.ScalarSelf into aten.where.self op.
+namespace {
+class DecomposeAtenMaskedFillScalarOp
+    : public OpRewritePattern<AtenMaskedFillScalarOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMaskedFillScalarOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto resType = op.getType().cast<BaseTensorType>();
+    Value mask = op.getMask();
+    Value value = createRank0Tensor(rewriter, loc, resType, op.getValue());
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resType, mask,
+                                                 value, op.getSelf());
+    return success();
+  }
+};
+
+} // namespace
 // Decompose aten.convolution_overrideable to aten.convolution op.
 namespace {
 class DecomposeAtenConvolutionOverrideableOp
@@ -3821,6 +3840,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarOtherOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarSelfOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMaskedFillScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenConvolutionBackwardOverrideableOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSizeOp>(patterns);

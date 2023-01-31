@@ -86,6 +86,8 @@ TORCHDYNAMO_XFAIL_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "MaskedFillScalarIntValueStaticModule_basic",
+    "MaskedFillScalarFloatValueStaticModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AddSizeIntModule_basic",
     "AddSizeIntNegDimModule_basic",
