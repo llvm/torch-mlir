@@ -49,6 +49,8 @@ struct MhloBackendPipelineOptions
 void createTorchBackendToMhloBackendPipeline(
     OpPassManager &pm, const MhloBackendPipelineOptions &options);
 std::unique_ptr<OperationPass<ModuleOp>> createVerifyMhloBackendContractPass();
+std::unique_ptr<OperationPass<ModuleOp>>
+createVerifyStablehloBackendContractPass();
 #endif
 
 std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();

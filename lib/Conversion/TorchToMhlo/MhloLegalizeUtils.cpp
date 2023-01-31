@@ -8,9 +8,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "./MhloLegalizeUtils.h"
-#include "mhlo/IR/hlo_ops.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -21,7 +21,7 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 namespace mlir {
-namespace mhlo {
+namespace hlo {
 
 // Create a 32-bit float constant operator from a float
 Value getMhloConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
@@ -29,8 +29,8 @@ Value getMhloConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
   auto const_type = RankedTensorType::get({}, rewriter.getF32Type());
   auto const_attr = DenseElementsAttr::get(const_type, val);
 
-  auto const_op =
-      rewriter.create<mhlo::ConstantOp>(op->getLoc(), const_type, const_attr);
+  auto const_op = rewriter.create<stablehlo::ConstantOp>(
+      op->getLoc(), const_type, const_attr);
   return const_op.getResult();
 }
 
@@ -40,8 +40,8 @@ Value getMhloConstTensorSingleF64(PatternRewriter &rewriter, Operation *op,
   auto const_type = RankedTensorType::get({}, rewriter.getF64Type());
   auto const_attr = DenseElementsAttr::get(const_type, val);
 
-  auto const_op =
-      rewriter.create<mhlo::ConstantOp>(op->getLoc(), const_type, const_attr);
+  auto const_op = rewriter.create<stablehlo::ConstantOp>(
+      op->getLoc(), const_type, const_attr);
   return const_op.getResult();
 }
 
@@ -65,8 +65,8 @@ std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
       RankedTensorType::get(shape, rewriter.getIntegerType(sizeof(T) * 8));
   auto const_attr = DenseElementsAttr::get(const_type, vec);
 
-  auto const_op =
-      rewriter.create<mhlo::ConstantOp>(op->getLoc(), const_type, const_attr);
+  auto const_op = rewriter.create<stablehlo::ConstantOp>(
+      op->getLoc(), const_type, const_attr);
   return const_op.getResult();
 }
 
@@ -88,8 +88,8 @@ std::optional<Value> getConstTensor<APInt>(PatternRewriter &rewriter,
       shape, rewriter.getIntegerType(vec[0].getBitWidth()));
   auto const_attr = DenseElementsAttr::get(const_type, vec);
 
-  auto const_op =
-      rewriter.create<mhlo::ConstantOp>(op->getLoc(), const_type, const_attr);
+  auto const_op = rewriter.create<stablehlo::ConstantOp>(
+      op->getLoc(), const_type, const_attr);
   return const_op.getResult();
 }
 
@@ -111,8 +111,8 @@ std::optional<Value> getConstTensor<float>(PatternRewriter &rewriter,
   auto const_type = RankedTensorType::get(shape, rewriter.getF32Type());
   auto const_attr = DenseElementsAttr::get(const_type, vec);
 
-  auto const_op =
-      rewriter.create<mhlo::ConstantOp>(op->getLoc(), const_type, const_attr);
+  auto const_op = rewriter.create<stablehlo::ConstantOp>(
+      op->getLoc(), const_type, const_attr);
   return const_op.getResult();
 }
 
@@ -133,8 +133,8 @@ std::optional<Value> getConstTensor<double>(PatternRewriter &rewriter,
   auto const_type = RankedTensorType::get(shape, rewriter.getF64Type());
   auto const_attr = DenseElementsAttr::get(const_type, vec);
 
-  auto const_op =
-      rewriter.create<mhlo::ConstantOp>(op->getLoc(), const_type, const_attr);
+  auto const_op = rewriter.create<stablehlo::ConstantOp>(
+      op->getLoc(), const_type, const_attr);
   return const_op.getResult();
 }
 
@@ -169,8 +169,8 @@ Value getSplatConstTensor(ConversionPatternRewriter &rewriter, Operation *op,
                           T val, Type dtype, llvm::ArrayRef<int64_t> dshape) {
   auto const_type = RankedTensorType::get(dshape, dtype);
   auto const_attr = SplatElementsAttr::get(const_type, val);
-  auto const_op =
-      rewriter.create<mhlo::ConstantOp>(op->getLoc(), const_type, const_attr);
+  auto const_op = rewriter.create<stablehlo::ConstantOp>(
+      op->getLoc(), const_type, const_attr);
   return const_op.getResult();
 }
 
@@ -179,8 +179,8 @@ Value scalarToMhloTensor(ConversionPatternRewriter &rewriter, Operation *op,
   auto tensor = rewriter.create<tensor::FromElementsOp>(
       op->getLoc(), ArrayRef<Value>{scalarValue});
   auto dtype_tensor =
-      rewriter.create<mhlo::ConvertOp>(op->getLoc(), tensor, dtype);
-  return rewriter.create<mhlo::ReshapeOp>(
+      rewriter.create<stablehlo::ConvertOp>(op->getLoc(), tensor, dtype);
+  return rewriter.create<stablehlo::ReshapeOp>(
       op->getLoc(), RankedTensorType::get(mlir::ArrayRef<int64_t>{}, dtype),
       dtype_tensor);
 }
@@ -192,7 +192,8 @@ Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType) {
   if (in_type.getElementType() != outType.getElementType()) {
     TensorType promotedType =
         in_type.cloneWith(in_type.getShape(), outType.getElementType());
-    return rewriter.create<mhlo::ConvertOp>(op->getLoc(), promotedType, input);
+    return rewriter.create<stablehlo::ConvertOp>(op->getLoc(), promotedType,
+                                                 input);
   }
   return input;
 }
@@ -210,8 +211,8 @@ Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
   if (in_type.getElementType() != outType.getElementType()) {
     TensorType promoted_type =
         in_type.cloneWith(in_type.getShape(), outType.getElementType());
-    input =
-        rewriter.create<mhlo::ConvertOp>(op->getLoc(), promoted_type, input);
+    input = rewriter.create<stablehlo::ConvertOp>(op->getLoc(), promoted_type,
+                                                  input);
   }
 
   ArrayRef<int64_t> inShape = in_type.getShape();
@@ -245,8 +246,8 @@ Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
       RankedTensorType::get({static_cast<long int>(bcastDims.size())},
                             rewriter.getI64Type()),
       bcastDims);
-  auto bcast_op = rewriter.create<mhlo::BroadcastInDimOp>(op->getLoc(), outType,
-                                                          input, bcast_attr);
+  auto bcast_op = rewriter.create<stablehlo::BroadcastInDimOp>(
+      op->getLoc(), outType, input, bcast_attr);
   return bcast_op.getResult();
 }
 
@@ -348,8 +349,8 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
   }
 
   auto outTy = RankedTensorType::get(newShape, rankTy.getElementType());
-  auto mhloShape = rewriter.create<tensor::FromElementsOp>(loc, newDimSizes);
-  return rewriter.create<mhlo::DynamicReshapeOp>(loc, outTy, tensor, mhloShape)
+  auto shape = rewriter.create<tensor::FromElementsOp>(loc, newDimSizes);
+  return rewriter.create<stablehlo::DynamicReshapeOp>(loc, outTy, tensor, shape)
       .getResult();
 }
 
@@ -357,11 +358,11 @@ Value getConstantOfShape(PatternRewriter &rewriter, Location loc,
                          const APFloat &constant, Value shape,
                          TensorType outType) {
   auto constAttr = rewriter.getFloatAttr(outType.getElementType(), constant);
-  auto constTensor = rewriter.create<mhlo::ConstantOp>(loc, constAttr);
+  auto constTensor = rewriter.create<stablehlo::ConstantOp>(loc, constAttr);
   return rewriter
-      .create<mhlo::DynamicBroadcastInDimOp>(loc, outType, constTensor, shape,
-                                             rewriter.getI64TensorAttr({}))
+      .create<stablehlo::DynamicBroadcastInDimOp>(
+          loc, outType, constTensor, shape, rewriter.getI64TensorAttr({}))
       .getResult();
 }
-} // namespace mhlo
+} // namespace hlo
 } // namespace mlir

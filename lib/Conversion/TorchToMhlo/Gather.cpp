@@ -12,9 +12,9 @@
 #include "../PassDetail.h"
 #include "./MhloLegalizeUtils.h"
 #include "./PopulatePatterns.h"
-#include "mhlo/IR/hlo_ops.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -69,7 +69,7 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
   SmallVector<int64_t, 4> startIndexMap(1, axis);
   // indexVecDim
   int64_t indexVecDim = indicesRank;
-  auto dimsAttr = mhlo::GatherDimensionNumbersAttr::get(
+  auto dimsAttr = stablehlo::GatherDimensionNumbersAttr::get(
       rewriter.getContext(),
       /*offsetDims=*/offsetDims,
       /*collapsedSliceDims=*/collapsedSliceDims,
@@ -91,8 +91,8 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
   auto outputTy =
       RankedTensorType::get(outputShape, inputRankTy.getElementType());
   return rewriter
-      .create<mhlo::DynamicGatherOp>(loc, outputTy, input, indices,
-                                     sliceSizesTensor, dimsAttr)
+      .create<stablehlo::DynamicGatherOp>(loc, outputTy, input, indices,
+                                          sliceSizesTensor, dimsAttr)
       .getResult();
 }
 } // namespace
@@ -139,7 +139,7 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
 
   Value output = gatherTensorAlongSingleAxis(
       rewriter, op, weight, adaptor.getIndices(), 0, options.dimSizeIndexBits);
-  rewriter.replaceOpWithNewOp<mhlo::ConvertOp>(
+  rewriter.replaceOpWithNewOp<stablehlo::ConvertOp>(
       op, getTypeConverter()->convertType(op.getType()), output);
 
   return success();
@@ -161,7 +161,7 @@ LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
   Value output = gatherTensorAlongSingleAxis(
       rewriter, op, self, adaptor.getIndex(), dim, options.dimSizeIndexBits);
 
-  rewriter.replaceOpWithNewOp<mhlo::ConvertOp>(
+  rewriter.replaceOpWithNewOp<stablehlo::ConvertOp>(
       op, getTypeConverter()->convertType(op.getType()), output);
 
   return success();
@@ -200,7 +200,7 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
 
   auto options = getOptions();
   auto indexShapeInfo =
-      mhlo::getDimSizesOfTensor(rewriter, op, index, options.dimSizeIndexBits);
+      hlo::getDimSizesOfTensor(rewriter, op, index, options.dimSizeIndexBits);
   if (failed(indexShapeInfo)) {
     return rewriter.notifyMatchFailure(
         op, "failed to get dim sizes of `index` param");
@@ -223,15 +223,15 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
   SmallVector<Value> toConcat;
   for (int64_t i = 0; i < inputType.getRank(); ++i) {
     if (i == dim) {
-      toConcat.push_back(rewriter.create<mhlo::DynamicReshapeOp>(
+      toConcat.push_back(rewriter.create<stablehlo::DynamicReshapeOp>(
           loc, toConcatIndexType, index, toConcatIndexShape));
     } else {
-      toConcat.push_back(rewriter.create<mhlo::DynamicIotaOp>(
+      toConcat.push_back(rewriter.create<stablehlo::DynamicIotaOp>(
           loc, toConcatIndexType, toConcatIndexShape,
           rewriter.getI64IntegerAttr(i)));
     }
   }
-  auto gatherIndicies = rewriter.create<mhlo::ConcatenateOp>(
+  auto gatherIndicies = rewriter.create<stablehlo::ConcatenateOp>(
       loc, toConcat, static_cast<uint64_t>(inputType.getRank()));
   SmallVector<int64_t> sliceSizes(inputType.getRank(), 1);
 
@@ -243,14 +243,14 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
     startIndexMap.push_back(i);
   }
 
-  auto dimsAttr = mhlo::GatherDimensionNumbersAttr::get(
+  auto dimsAttr = stablehlo::GatherDimensionNumbersAttr::get(
       rewriter.getContext(),
       /*offsetDims=*/{},
       /*collapsedSliceDims=*/collapsedDims,
       /*startIndexMap=*/startIndexMap,
       /*indexVecDim=*/indexVecDim);
 
-  rewriter.replaceOpWithNewOp<mhlo::GatherOp>(
+  rewriter.replaceOpWithNewOp<stablehlo::GatherOp>(
       op, input, gatherIndicies, dimsAttr,
       rewriter.getI64TensorAttr(sliceSizes));
   return success();

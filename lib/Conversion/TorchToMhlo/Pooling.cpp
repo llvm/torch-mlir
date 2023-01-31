@@ -12,10 +12,10 @@
 #include "../PassDetail.h"
 #include "./MhloLegalizeUtils.h"
 #include "./PopulatePatterns.h"
-#include "mhlo/IR/hlo_ops.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/ChloOps.h"
+#include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -40,14 +40,14 @@ static Value createInitialValueForAtenPoolingOp(Operation *op, Type elementTy,
           constType, {APFloat::getZero(
                          elementTy.cast<mlir::FloatType>().getFloatSemantics(),
                          /*negative=*/false)});
-      return rewriter.create<mhlo::ConstantOp>(op->getLoc(), constType,
-                                               constAttr);
+      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
+                                                    constAttr);
     } else if (elementTy.isa<mlir::IntegerType>() &&
                elementTy.getIntOrFloatBitWidth() != 8) {
       auto constAttr = DenseElementsAttr::get(
           constType, {APInt::getZero(elementTy.getIntOrFloatBitWidth())});
-      return rewriter.create<mhlo::ConstantOp>(op->getLoc(), constType,
-                                               constAttr);
+      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
+                                                    constAttr);
     }
   }
 
@@ -58,15 +58,15 @@ static Value createInitialValueForAtenPoolingOp(Operation *op, Type elementTy,
           constType, {APFloat::getLargest(
                          elementTy.cast<mlir::FloatType>().getFloatSemantics(),
                          /*negative=*/true)});
-      return rewriter.create<mhlo::ConstantOp>(op->getLoc(), constType,
-                                               constAttr);
+      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
+                                                    constAttr);
     } else if (elementTy.isa<mlir::IntegerType>() &&
                elementTy.getIntOrFloatBitWidth() != 8) {
       auto constAttr = DenseElementsAttr::get(
           constType,
           {APInt::getSignedMinValue(elementTy.getIntOrFloatBitWidth())});
-      return rewriter.create<mhlo::ConstantOp>(op->getLoc(), constType,
-                                               constAttr);
+      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
+                                                    constAttr);
     }
   }
   op->emitError("unimplemented lowering in AtenPoolingOp");
@@ -151,7 +151,7 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dOp>::matchAndRewrite(
           {static_cast<int64_t>(inputRank), static_cast<int64_t>(2)},
           rewriter.getI64Type()),
       mhloPadding);
-  auto reduceWindowOp = rewriter.create<mhlo::ReduceWindowOp>(
+  auto reduceWindowOp = rewriter.create<stablehlo::ReduceWindowOp>(
       op->getLoc(), outTy, input, initVal, windowDimensions, windowStrides,
       baseDilations, windowDilations, pad);
 
@@ -168,8 +168,8 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dOp>::matchAndRewrite(
     OpBuilder::InsertionGuard guard(rewriter);
     rewriter.setInsertionPointToStart(&block);
     Value result =
-        rewriter.create<mhlo::MaxOp>(op->getLoc(), *firstArg, *secondArg);
-    rewriter.create<mhlo::ReturnOp>(op->getLoc(), result);
+        rewriter.create<stablehlo::MaxOp>(op->getLoc(), *firstArg, *secondArg);
+    rewriter.create<stablehlo::ReturnOp>(op->getLoc(), result);
   }
 
   rewriter.replaceOp(op, reduceWindowOp.getResults());
@@ -259,7 +259,7 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
 
   const auto &options = getOptions();
   auto inputShapeInfo =
-      mhlo::getDimSizesOfTensor(rewriter, op, input, options.dimSizeIndexBits);
+      hlo::getDimSizesOfTensor(rewriter, op, input, options.dimSizeIndexBits);
   if (failed(inputShapeInfo)) {
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
@@ -289,7 +289,7 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
 
   auto initIndexTensor =
       rewriter
-          .create<mhlo::DynamicIotaOp>(
+          .create<stablehlo::DynamicIotaOp>(
               op->getLoc(),
               RankedTensorType::get(initIndexShapeForType,
                                     rewriter.getI64Type()),
@@ -298,15 +298,15 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
 
   auto indexTensor =
       rewriter
-          .create<mhlo::DynamicReshapeOp>(
+          .create<stablehlo::DynamicReshapeOp>(
               op->getLoc(),
               RankedTensorType::get(inputShape, rewriter.getI64Type()),
               initIndexTensor, inputShapeTensor)
           .getResult();
 
-  Value initIdx = mhlo::getConstTensor<int64_t>(rewriter, op, {0}, {}).value();
+  Value initIdx = hlo::getConstTensor<int64_t>(rewriter, op, {0}, {}).value();
 
-  auto reduceWindowOp = rewriter.create<mhlo::ReduceWindowOp>(
+  auto reduceWindowOp = rewriter.create<stablehlo::ReduceWindowOp>(
       op->getLoc(), mlir::TypeRange{outValTy, outIdxTy},
       mlir::ValueRange{input, indexTensor}, mlir::ValueRange{initVal, initIdx},
       windowDimensions, windowStrides, baseDilations, windowDilations, pad);
@@ -326,43 +326,43 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
   auto *secondValArg = std::next(firstIdxArg);
   auto *secondIdxArg = std::next(secondValArg);
 
-  mhlo::ComparisonTypeAttr compareTypeAttr;
+  stablehlo::ComparisonTypeAttr compareTypeAttr;
   if (inputTy.getElementType().isa<mlir::FloatType>()) {
-    compareTypeAttr = mhlo::ComparisonTypeAttr::get(
-        rewriter.getContext(), mhlo::ComparisonType::FLOAT);
+    compareTypeAttr = stablehlo::ComparisonTypeAttr::get(
+        rewriter.getContext(), stablehlo::ComparisonType::FLOAT);
   } else if (inputTy.getElementType().isa<mlir::IntegerType>()) {
-    compareTypeAttr = mhlo::ComparisonTypeAttr::get(
-        rewriter.getContext(), mhlo::ComparisonType::SIGNED);
+    compareTypeAttr = stablehlo::ComparisonTypeAttr::get(
+        rewriter.getContext(), stablehlo::ComparisonType::SIGNED);
   }
-  mhlo::ComparisonDirectionAttr compareGeDirectionAttr =
-      mhlo::ComparisonDirectionAttr::get(rewriter.getContext(),
-                                         mhlo::ComparisonDirection::GE);
-  mhlo::ComparisonDirectionAttr compareEqDirectionAttr =
-      mhlo::ComparisonDirectionAttr::get(rewriter.getContext(),
-                                         mhlo::ComparisonDirection::EQ);
+  stablehlo::ComparisonDirectionAttr compareGeDirectionAttr =
+      stablehlo::ComparisonDirectionAttr::get(
+          rewriter.getContext(), stablehlo::ComparisonDirection::GE);
+  stablehlo::ComparisonDirectionAttr compareEqDirectionAttr =
+      stablehlo::ComparisonDirectionAttr::get(
+          rewriter.getContext(), stablehlo::ComparisonDirection::EQ);
 
   {
     OpBuilder::InsertionGuard guard(rewriter);
     rewriter.setInsertionPointToStart(&block);
 
-    Value compareGeResult = rewriter.create<mhlo::CompareOp>(
+    Value compareGeResult = rewriter.create<stablehlo::CompareOp>(
         op->getLoc(), compareResultType, *firstValArg, *secondValArg,
         compareGeDirectionAttr, compareTypeAttr);
-    Value retValResult = rewriter.create<mhlo::SelectOp>(
+    Value retValResult = rewriter.create<stablehlo::SelectOp>(
         op->getLoc(), compareGeResult, *firstValArg, *secondValArg);
 
     // Get smaller index if compared values are equal.
-    Value compareEqResult = rewriter.create<mhlo::CompareOp>(
+    Value compareEqResult = rewriter.create<stablehlo::CompareOp>(
         op->getLoc(), compareResultType, *firstValArg, *secondValArg,
         compareEqDirectionAttr, compareTypeAttr);
-    Value minIdx =
-        rewriter.create<mhlo::MinOp>(op->getLoc(), *firstIdxArg, *secondIdxArg);
-    Value idxWithGeVal = rewriter.create<mhlo::SelectOp>(
+    Value minIdx = rewriter.create<stablehlo::MinOp>(op->getLoc(), *firstIdxArg,
+                                                     *secondIdxArg);
+    Value idxWithGeVal = rewriter.create<stablehlo::SelectOp>(
         op->getLoc(), compareGeResult, *firstIdxArg, *secondIdxArg);
-    Value retIdxResult = rewriter.create<mhlo::SelectOp>(
+    Value retIdxResult = rewriter.create<stablehlo::SelectOp>(
         op->getLoc(), compareEqResult, minIdx, idxWithGeVal);
 
-    rewriter.create<mhlo::ReturnOp>(
+    rewriter.create<stablehlo::ReturnOp>(
         op->getLoc(), mlir::ValueRange{retValResult, retIdxResult});
   }
 
@@ -453,7 +453,7 @@ LogicalResult ConvertAtenOp<AtenAvgPool2dOp>::matchAndRewrite(
           rewriter.getI64Type()),
       mhloPadding);
 
-  auto reduceWindowSum = rewriter.create<mhlo::ReduceWindowOp>(
+  auto reduceWindowSum = rewriter.create<stablehlo::ReduceWindowOp>(
       op->getLoc(), outTy, input, initVal, windowDimensions, windowStrides,
       baseDilations, windowDilations, pad);
 
@@ -471,16 +471,16 @@ LogicalResult ConvertAtenOp<AtenAvgPool2dOp>::matchAndRewrite(
     rewriter.setInsertionPointToStart(&sumBlock);
 
     Value sumResult =
-        rewriter.create<mhlo::AddOp>(op->getLoc(), *firstArg, *secondArg);
-    rewriter.create<mhlo::ReturnOp>(op->getLoc(), sumResult);
+        rewriter.create<stablehlo::AddOp>(op->getLoc(), *firstArg, *secondArg);
+    rewriter.create<stablehlo::ReturnOp>(op->getLoc(), sumResult);
   }
 
   // Use kernel size as the divisor
   if (countIncludePad) {
-    Value divisor = mhlo::getConstTensor<int64_t>(
+    Value divisor = hlo::getConstTensor<int64_t>(
                         rewriter, op, {kernelSize[0] * kernelSize[1]}, {})
                         .value();
-    divisor = mhlo::promoteType(rewriter, divisor, outTy);
+    divisor = hlo::promoteType(rewriter, divisor, outTy);
     DenseIntElementsAttr bcastDimensions;
     rewriter.replaceOpWithNewOp<mlir::chlo::BroadcastDivOp>(
         op, outTy, reduceWindowSum.getResult(0), divisor, bcastDimensions);
@@ -489,21 +489,21 @@ LogicalResult ConvertAtenOp<AtenAvgPool2dOp>::matchAndRewrite(
 
   // Use another mhlo.ReduceWindowOp to get the divisor
   Value windowSizeConst =
-      mhlo::getConstTensor<float>(rewriter, op, {1.0}, {}).value();
-  windowSizeConst = mhlo::promoteType(rewriter, windowSizeConst, outTy);
+      hlo::getConstTensor<float>(rewriter, op, {1.0}, {}).value();
+  windowSizeConst = hlo::promoteType(rewriter, windowSizeConst, outTy);
   const auto &options = getOptions();
   auto inputShapeVec =
-      *mhlo::getDimSizesOfTensor(rewriter, op, input, options.dimSizeIndexBits);
+      *hlo::getDimSizesOfTensor(rewriter, op, input, options.dimSizeIndexBits);
   auto inputShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
       op->getLoc(), inputShapeVec);
 
-  windowSizeConst = rewriter.create<mhlo::DynamicBroadcastInDimOp>(
+  windowSizeConst = rewriter.create<stablehlo::DynamicBroadcastInDimOp>(
       op->getLoc(),
       RankedTensorType::get(inputTy.getShape(), outTy.getElementType()),
       windowSizeConst, inputShapeTensor, rewriter.getI64TensorAttr({}));
 
   Value zero = createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter);
-  auto reduceWindowSize = rewriter.create<mhlo::ReduceWindowOp>(
+  auto reduceWindowSize = rewriter.create<stablehlo::ReduceWindowOp>(
       op->getLoc(), RankedTensorType::get(outShape, inputElemTy),
       windowSizeConst, zero, windowDimensions, windowStrides, baseDilations,
       windowDilations, pad);
@@ -522,11 +522,11 @@ LogicalResult ConvertAtenOp<AtenAvgPool2dOp>::matchAndRewrite(
     rewriter.setInsertionPointToStart(&sizeBlock);
 
     Value sumResult =
-        rewriter.create<mhlo::AddOp>(op->getLoc(), *firstArg, *secondArg);
-    rewriter.create<mhlo::ReturnOp>(op->getLoc(), sumResult);
+        rewriter.create<stablehlo::AddOp>(op->getLoc(), *firstArg, *secondArg);
+    rewriter.create<stablehlo::ReturnOp>(op->getLoc(), sumResult);
   }
 
-  rewriter.replaceOpWithNewOp<mhlo::DivOp>(
+  rewriter.replaceOpWithNewOp<stablehlo::DivOp>(
       op, outTy, reduceWindowSum.getResult(0), reduceWindowSize.getResult(0));
   return success();
 }
@@ -586,7 +586,7 @@ LogicalResult ConvertAtenOp<AtenCumsumOp>::matchAndRewrite(
           rewriter.getI64Type()),
       mhloPadding);
 
-  auto reduceWindowSum = rewriter.create<mhlo::ReduceWindowOp>(
+  auto reduceWindowSum = rewriter.create<stablehlo::ReduceWindowOp>(
       op->getLoc(), outTy, input, initVal, windowDimensions, windowStrides,
       baseDilations, windowDilations, pad);
 
@@ -604,8 +604,8 @@ LogicalResult ConvertAtenOp<AtenCumsumOp>::matchAndRewrite(
     rewriter.setInsertionPointToStart(&sumBlock);
 
     Value sumResult =
-        rewriter.create<mhlo::AddOp>(op->getLoc(), *firstArg, *secondArg);
-    rewriter.create<mhlo::ReturnOp>(op->getLoc(), sumResult);
+        rewriter.create<stablehlo::AddOp>(op->getLoc(), *firstArg, *secondArg);
+    rewriter.create<stablehlo::ReturnOp>(op->getLoc(), sumResult);
   }
 
   rewriter.replaceOp(op, reduceWindowSum.getResults());

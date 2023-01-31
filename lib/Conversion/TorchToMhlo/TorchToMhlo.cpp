@@ -11,13 +11,13 @@
 
 #include "../PassDetail.h"
 #include "./PopulatePatterns.h"
-#include "mhlo/IR/hlo_ops.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "stablehlo/dialect/ChloOps.h"
+#include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -40,7 +40,7 @@ public:
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<chlo::ChloDialect>();
-    registry.insert<mhlo::MhloDialect>();
+    registry.insert<stablehlo::StablehloDialect>();
     registry.insert<tensor::TensorDialect>();
     registry.insert<arith::ArithDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
@@ -48,7 +48,7 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
-    target.addLegalDialect<chlo::ChloDialect, mhlo::MhloDialect,
+    target.addLegalDialect<chlo::ChloDialect, stablehlo::StablehloDialect,
                            tensor::TensorDialect, arith::ArithDialect>();
 
     TypeConverter typeConverter;

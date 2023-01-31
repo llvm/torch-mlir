@@ -133,6 +133,11 @@ void TorchConversion::createTorchBackendToMhloBackendPipeline(
   // The resolution of `dim` ops tends to create identical ops. CSE them.
   pm.addNestedPass<func::FuncOp>(createCSEPass());
 
+  // Verify that we have lowered to Stablehlo and Chlo ops.
+  pm.addPass(TorchConversion::createVerifyStablehloBackendContractPass());
+
+  // Convert StableHlo to MHLO ops
+  pm.addPass(mhlo::createStablehloLegalizeToHloPass());
   // Convert CHLO ops to MHLO ops
   pm.addNestedPass<func::FuncOp>(mhlo::createChloLegalizeToHloPass());
   // Clean up any non-canonical code introduced above..

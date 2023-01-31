@@ -12,8 +12,6 @@ add_mlir_conversion_library(TorchMLIRTorchToMhlo
   ${PROJECT_SOURCE_DIR}/include/torch-mlir/Conversion/TorchToMhlo
 
   DEPENDS
-  MhloDialect
-  MhloToLinalg
   MLIRMhloPassIncGen
   LMHLOTransformsPassIncGen
   TorchMLIRConversionPassIncGen
@@ -24,7 +22,6 @@ add_mlir_conversion_library(TorchMLIRTorchToMhlo
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
-  MhloDialect
   MhloToLinalg
   MLIRBufferTransforms
   StablehloOps

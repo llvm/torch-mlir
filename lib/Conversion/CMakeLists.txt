@@ -20,6 +20,7 @@ set(linked_libs TorchMLIRTorchToLinalg
 if(TORCH_MLIR_ENABLE_MHLO)
   list(APPEND linked_libs
     MhloPasses
+    StablehloToMhlo
     TorchMLIRTorchToMhlo)
 endif()
 

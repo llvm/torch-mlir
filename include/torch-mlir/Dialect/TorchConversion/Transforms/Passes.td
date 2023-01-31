@@ -47,5 +47,10 @@ def VerifyMhloBackendContract : Pass<"torch-verify-mhlo-backend-contract", "Modu
   let summary = "Verifies conformity to the mhlo backend contract";
   let constructor = "mlir::torch::TorchConversion::createVerifyMhloBackendContractPass()";
 }
+
+def VerifyStablehloBackendContract : Pass<"torch-verify-stablehlo-backend-contract", "ModuleOp"> {
+  let summary = "Verifies conformity to the stablehlo backend contract";
+  let constructor = "mlir::torch::TorchConversion::createVerifyStablehloBackendContractPass()";
+}
 #endif // TORCH_MLIR_ENABLE_MHLO
 #endif // TORCHMLIR_TORCHCONVERSION_PASSES

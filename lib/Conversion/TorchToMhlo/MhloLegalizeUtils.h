@@ -18,7 +18,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 
 namespace mlir {
-namespace mhlo {
+namespace hlo {
 
 using mlir::ConversionPatternRewriter;
 
@@ -71,7 +71,7 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
 Value getConstantOfShape(PatternRewriter &rewriter, Location loc,
                          const APFloat &constant, Value shape,
                          TensorType outType);
-} // namespace mhlo
+} // namespace hlo
 } // namespace mlir
 
 #endif // TORCHMLIR_CONVERSION_TORCHTOMHLO_MHLOLEGALIZEUTILS_H

@@ -17,7 +17,6 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "stablehlo/dialect/ChloOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 
 using namespace mlir;
@@ -51,7 +50,6 @@ class VerifyMhloBackendContractPass
     target.addDynamicallyLegalOp<shape::ShapeOfOp>(opHasLegalTypes);
 
     target.addLegalDialect<mhlo::MhloDialect>();
-    target.addLegalDialect<chlo::ChloDialect>();
     target.addLegalDialect<tensor::TensorDialect>();
     target.addLegalDialect<arith::ArithDialect>();
 

@@ -34,6 +34,9 @@ void mlir::torch::registerConversionPasses() {
   ::registerPasses();
 #ifdef TORCH_MLIR_ENABLE_MHLO
   ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
+    return mlir::mhlo::createStablehloLegalizeToHloPass();
+  });
+  ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
     return mlir::mhlo::createLegalizeHloToLinalgPass();
   });
   ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
