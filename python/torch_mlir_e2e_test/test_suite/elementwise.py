@@ -1963,6 +1963,30 @@ def ElementwiseCloneContiguousModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseCloneChannelsLastMemoryFormatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.clone(x, memory_format=torch.channels_last)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseCloneChannelsLastMemoryFormatModule())
+def ElementwiseCloneChannelsLastMemoryFormatModule_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4, 5))
+
+
+# ==============================================================================
+
+
 class LiftFreshCopyModule(torch.nn.Module):
 
     def __init__(self):
