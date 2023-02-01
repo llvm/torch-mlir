@@ -1,6 +1,6 @@
-add_mlir_conversion_library(TorchMLIRTorchToMhlo
-  TorchToMhlo.cpp
-  MhloLegalizeUtils.cpp
+add_mlir_conversion_library(TorchMLIRTorchToStablehlo
+  TorchToStablehlo.cpp
+  StablehloLegalizeUtils.cpp
   Basic.cpp
   Gather.cpp
   Linear.cpp
@@ -29,4 +29,4 @@ add_mlir_conversion_library(TorchMLIRTorchToMhlo
   TorchMLIRConversionUtils
 )
 
-torch_mlir_target_includes(TorchMLIRTorchToMhlo)
+torch_mlir_target_includes(TorchMLIRTorchToStablehlo)

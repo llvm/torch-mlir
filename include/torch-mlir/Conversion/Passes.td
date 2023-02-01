@@ -134,12 +134,12 @@ def ConvertTorchConversionToMLProgram : Pass<"convert-torch-conversion-to-mlprog
 }
 
 #ifdef TORCH_MLIR_ENABLE_MHLO
-def ConvertTorchToMhlo : Pass<"convert-torch-to-mhlo", "func::FuncOp"> {
-  let summary = "Convert Torch ops to MHLO ops";
+def ConvertTorchToStablehlo : Pass<"convert-torch-to-stablehlo", "func::FuncOp"> {
+  let summary = "Convert Torch ops to Stablehlo ops";
   let description = [{
-    Convert Torch ops to mhlo ops.
+    Convert Torch ops to Stablehlo ops.
   }];
-  let constructor = "mlir::torch::createConvertTorchToMhloPass()";
+  let constructor = "mlir::torch::createConvertTorchToStablehloPass()";
 
   // Specify any options.
   let options = [

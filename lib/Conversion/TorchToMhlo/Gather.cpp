@@ -7,11 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
+#include "torch-mlir/Conversion/TorchToMhlo/TorchToStablehlo.h"
 
 #include "../PassDetail.h"
-#include "./MhloLegalizeUtils.h"
-#include "./PopulatePatterns.h"
+#include "PopulatePatterns.h"
+#include "StablehloLegalizeUtils.h"
+
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/StablehloOps.h"
@@ -24,7 +25,7 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
-using namespace mlir::torch::torch_to_mhlo;
+using namespace mlir::torch::torch_to_stablehlo;
 
 namespace {
 Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
@@ -256,9 +257,9 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
   return success();
 }
 
-void mlir::torch::torch_to_mhlo::populateGatherOpPatternsAndLegality(
+void mlir::torch::torch_to_stablehlo::populateGatherOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
-    ConversionTarget &target, const TorchToMhloOptions &options) {
+    ConversionTarget &target, const TorchToStablehloOptions &options) {
   MLIRContext *context = patterns.getContext();
 
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \

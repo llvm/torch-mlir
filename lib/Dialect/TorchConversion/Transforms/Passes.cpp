@@ -23,7 +23,7 @@
 #include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
 #ifdef TORCH_MLIR_ENABLE_MHLO
 #include "mhlo/transforms/passes.h"
-#include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
+#include "torch-mlir/Conversion/TorchToMhlo/TorchToStablehlo.h"
 #endif
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
@@ -54,7 +54,8 @@ void mlir::torch::registerTorchConversionPasses() {
       "contract.",
       TorchConversion::createTorchBackendToTosaBackendPipeline);
 #ifdef TORCH_MLIR_ENABLE_MHLO
-  mlir::PassPipelineRegistration<TorchConversion::MhloBackendPipelineOptions>(
+  mlir::PassPipelineRegistration<
+      TorchConversion::StablehloBackendPipelineOptions>(
       "torch-backend-to-mhlo-backend-pipeline",
       "Pipeline lowering torch backend contract to MHLO backend "
       "contract.",
@@ -124,8 +125,9 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
 #ifdef TORCH_MLIR_ENABLE_MHLO
 void TorchConversion::createTorchBackendToMhloBackendPipeline(
     OpPassManager &pm,
-    const TorchConversion::MhloBackendPipelineOptions &options) {
-  pm.addNestedPass<func::FuncOp>(createConvertTorchToMhloPass(
+    const TorchConversion::StablehloBackendPipelineOptions &options) {
+  // Generate Stablehlo ops.
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToStablehloPass(
       options.enableStaticShape, options.enableI32Index));
 
   // Clean up any non-canonical code introduced above..
@@ -136,7 +138,7 @@ void TorchConversion::createTorchBackendToMhloBackendPipeline(
   // Verify that we have lowered to Stablehlo and Chlo ops.
   pm.addPass(TorchConversion::createVerifyStablehloBackendContractPass());
 
-  // Convert StableHlo to MHLO ops
+  // Convert StableHLO to MHLO ops
   pm.addPass(mhlo::createStablehloLegalizeToHloPass());
   // Convert CHLO ops to MHLO ops
   pm.addNestedPass<func::FuncOp>(mhlo::createChloLegalizeToHloPass());

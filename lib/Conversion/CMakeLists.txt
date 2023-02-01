@@ -21,7 +21,7 @@ if(TORCH_MLIR_ENABLE_MHLO)
   list(APPEND linked_libs
     MhloPasses
     StablehloToMhlo
-    TorchMLIRTorchToMhlo)
+    TorchMLIRTorchToStablehlo)
 endif()
 
 add_mlir_library(TorchMLIRConversionPasses

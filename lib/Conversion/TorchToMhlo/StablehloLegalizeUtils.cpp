@@ -7,11 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "./MhloLegalizeUtils.h"
+#include "StablehloLegalizeUtils.h"
+
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/StablehloOps.h"
-#include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
+#include "torch-mlir/Conversion/TorchToMhlo/TorchToStablehlo.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include <numeric>
@@ -24,8 +25,8 @@ namespace mlir {
 namespace hlo {
 
 // Create a 32-bit float constant operator from a float
-Value getMhloConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
-                                  float val) {
+Value getStablehloConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
+                                       float val) {
   auto const_type = RankedTensorType::get({}, rewriter.getF32Type());
   auto const_attr = DenseElementsAttr::get(const_type, val);
 
@@ -35,8 +36,8 @@ Value getMhloConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
 }
 
 // Create a 64-bit float constant operator from a double
-Value getMhloConstTensorSingleF64(PatternRewriter &rewriter, Operation *op,
-                                  double val) {
+Value getStablehloConstTensorSingleF64(PatternRewriter &rewriter, Operation *op,
+                                       double val) {
   auto const_type = RankedTensorType::get({}, rewriter.getF64Type());
   auto const_attr = DenseElementsAttr::get(const_type, val);
 
@@ -174,8 +175,8 @@ Value getSplatConstTensor(ConversionPatternRewriter &rewriter, Operation *op,
   return const_op.getResult();
 }
 
-Value scalarToMhloTensor(ConversionPatternRewriter &rewriter, Operation *op,
-                         Value scalarValue, Type dtype) {
+Value scalarToStablehloTensor(ConversionPatternRewriter &rewriter,
+                              Operation *op, Value scalarValue, Type dtype) {
   auto tensor = rewriter.create<tensor::FromElementsOp>(
       op->getLoc(), ArrayRef<Value>{scalarValue});
   auto dtype_tensor =

@@ -11,13 +11,14 @@
 
 #ifdef TORCH_MLIR_ENABLE_MHLO
 #include "mhlo/transforms/passes.h"
+#include "torch-mlir/Conversion/TorchToMhlo/TorchToStablehlo.h"
 #include "transforms/passes.h"
 #endif // TORCH_MLIR_ENABLE_MHLO
+
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 #include "torch-mlir/Conversion/TorchToArith/TorchToArith.h"
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
-#include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 #include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
 

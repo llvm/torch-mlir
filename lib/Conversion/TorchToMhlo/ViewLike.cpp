@@ -7,11 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
+#include "torch-mlir/Conversion/TorchToMhlo/TorchToStablehlo.h"
 
 #include "../PassDetail.h"
-#include "./MhloLegalizeUtils.h"
-#include "./PopulatePatterns.h"
+#include "PopulatePatterns.h"
+#include "StablehloLegalizeUtils.h"
+
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/StablehloOps.h"
@@ -28,7 +29,7 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 using namespace mlir::torch::TorchConversion;
-using namespace mlir::torch::torch_to_mhlo;
+using namespace mlir::torch::torch_to_stablehlo;
 
 namespace {
 // A dimension index from torch.dialect might outside the range [0, dimSize].
@@ -221,9 +222,10 @@ public:
           adaptor.getSelf());
       return success();
     }
-    Value mhloShape = rewriter.create<tensor::FromElementsOp>(loc, dimSizes);
+    Value stablehloShape =
+        rewriter.create<tensor::FromElementsOp>(loc, dimSizes);
     Value computedShape = rewriter.create<stablehlo::ComputeReshapeShapeOp>(
-        loc, mhloShape.getType(), numel, mhloShape);
+        loc, stablehloShape.getType(), numel, stablehloShape);
     rewriter.replaceOpWithNewOp<stablehlo::DynamicReshapeOp>(
         op,
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -326,10 +328,10 @@ LogicalResult ConvertAtenOp<AtenSqueezeOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
   auto newDimSizes = *newDimSizesInfo;
-  auto mhloShape =
+  auto stablehloShape =
       rewriter.create<tensor::FromElementsOp>(op.getLoc(), newDimSizes);
   rewriter.replaceOpWithNewOp<stablehlo::DynamicReshapeOp>(
-      op, getTypeConverter()->convertType(op.getType()), self, mhloShape);
+      op, getTypeConverter()->convertType(op.getType()), self, stablehloShape);
   return success();
 }
 
@@ -375,10 +377,10 @@ LogicalResult ConvertAtenOp<AtenSqueezeDimOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
   auto newDimSizes = *newDimSizesInfo;
-  auto mhloShape =
+  auto stablehloShape =
       rewriter.create<tensor::FromElementsOp>(op.getLoc(), newDimSizes);
   rewriter.replaceOpWithNewOp<stablehlo::DynamicReshapeOp>(
-      op, getTypeConverter()->convertType(op.getType()), self, mhloShape);
+      op, getTypeConverter()->convertType(op.getType()), self, stablehloShape);
   return success();
 }
 
@@ -405,9 +407,9 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
   return success();
 }
 
-void mlir::torch::torch_to_mhlo::populateViewLikeOpPatternsAndLegality(
+void mlir::torch::torch_to_stablehlo::populateViewLikeOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
-    ConversionTarget &target, const TorchToMhloOptions &options) {
+    ConversionTarget &target, const TorchToStablehloOptions &options) {
   MLIRContext *context = patterns.getContext();
 
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \

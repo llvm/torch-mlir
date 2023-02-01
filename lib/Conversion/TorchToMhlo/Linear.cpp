@@ -7,11 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
+#include "torch-mlir/Conversion/TorchToMhlo/TorchToStablehlo.h"
 
 #include "../PassDetail.h"
-#include "./MhloLegalizeUtils.h"
-#include "./PopulatePatterns.h"
+#include "PopulatePatterns.h"
+#include "StablehloLegalizeUtils.h"
+
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/ChloOps.h"
@@ -25,7 +26,7 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
-using namespace mlir::torch::torch_to_mhlo;
+using namespace mlir::torch::torch_to_stablehlo;
 
 namespace {
 Value getBroadcastTensor(PatternRewriter &rewriter, Operation *op, Value tensor,
@@ -33,7 +34,7 @@ Value getBroadcastTensor(PatternRewriter &rewriter, Operation *op, Value tensor,
                          ArrayRef<int64_t> broadcastDims) {
   auto tensorTy = tensor.getType().dyn_cast<RankedTensorType>();
   auto loc = op->getLoc();
-  Value mhloShape = rewriter.create<tensor::FromElementsOp>(loc, dimSizes);
+  Value stablehloShape = rewriter.create<tensor::FromElementsOp>(loc, dimSizes);
 
   RankedTensorType outTy =
       RankedTensorType::get(shape, tensorTy.getElementType());
@@ -44,7 +45,7 @@ Value getBroadcastTensor(PatternRewriter &rewriter, Operation *op, Value tensor,
   auto broadcastAttr = DenseIntElementsAttr::get(attrTy, broadcastDims);
 
   auto broadcast = rewriter.create<stablehlo::DynamicBroadcastInDimOp>(
-      loc, outTy, tensor, mhloShape, broadcastAttr);
+      loc, outTy, tensor, stablehloShape, broadcastAttr);
   return broadcast;
 }
 
@@ -312,7 +313,7 @@ public:
 
     if (!lhsTy || !rhsTy)
       return op.emitError(
-          "only ranked tensor types are supported in MHLO matmul");
+          "only ranked tensor types are supported in StableHLO matmul");
 
     return success();
   }
@@ -335,7 +336,7 @@ public:
 
     if (!lhsTy || !rhsTy)
       return op.emitError(
-          "only ranked tensor types are supported in MHLO matmul");
+          "only ranked tensor types are supported in StableHLO matmul");
 
     auto lhsRank = lhsTy.getRank();
     auto rhsRank = rhsTy.getRank();
@@ -371,7 +372,7 @@ public:
 
     if (!lhsTy || !rhsTy)
       return op.emitError(
-          "only ranked tensor types are supported in MHLO matmul");
+          "only ranked tensor types are supported in StableHLO matmul");
 
     auto lhsRank = lhsTy.getRank();
     auto rhsRank = rhsTy.getRank();
@@ -398,10 +399,10 @@ public:
     auto bias = adaptor.getBias();
     auto biasTy = bias.getType();
 
-    // MHLO does not mandate that elementwise op tensors need to be ranked.
+    // StableHLO does not mandate that elementwise op tensors need to be ranked.
     if (!biasTy.template isa<Torch::NoneType>() &&
         !biasTy.template isa<RankedTensorType>())
-      return op.emitError("only ranked tensor types are supported in MHLO "
+      return op.emitError("only ranked tensor types are supported in StableHLO "
                           "matmul for bias tensor");
 
     // weight.T
@@ -544,25 +545,27 @@ public:
     }
 
     // Prepare for transposed convolution
-    SmallVector<int64_t> mhloStrideVec(nSpatialDims, 1);
-    DenseIntElementsAttr mhloStride = rewriter.getI64TensorAttr(mhloStrideVec);
-    SmallVector<int64_t> mhloPaddingVec(nSpatialDims * 2, 0);
+    SmallVector<int64_t> stablehloStrideVec(nSpatialDims, 1);
+    DenseIntElementsAttr stablehloStride =
+        rewriter.getI64TensorAttr(stablehloStrideVec);
+    SmallVector<int64_t> stablehloPaddingVec(nSpatialDims * 2, 0);
     for (int i = 0; i < nSpatialDims; ++i) {
       int64_t padInt = dilation[i] * (weightShape[i + 2] - 1) - padding[i];
-      mhloPaddingVec[i * 2] = padInt;
-      mhloPaddingVec[i * 2 + 1] = padInt;
+      stablehloPaddingVec[i * 2] = padInt;
+      stablehloPaddingVec[i * 2 + 1] = padInt;
     }
-    DenseIntElementsAttr mhloPadding = DenseIntElementsAttr::get(
+    DenseIntElementsAttr stablehloPadding = DenseIntElementsAttr::get(
         RankedTensorType::get({nSpatialDims, 2}, rewriter.getI64Type()),
-        mhloPaddingVec);
-    SmallVector<int64_t> mhloLhsDilationVec(nSpatialDims);
-    std::copy(stride.begin(), stride.end(), mhloLhsDilationVec.begin());
-    DenseIntElementsAttr mhloLhsDilation =
-        rewriter.getI64TensorAttr(mhloLhsDilationVec);
-    SmallVector<int64_t> mhloRhsDilationVec(nSpatialDims);
-    std::copy(dilation.begin(), dilation.end(), mhloRhsDilationVec.begin());
-    DenseIntElementsAttr mhloRhsDilation =
-        rewriter.getI64TensorAttr(mhloRhsDilationVec);
+        stablehloPaddingVec);
+    SmallVector<int64_t> stablehloLhsDilationVec(nSpatialDims);
+    std::copy(stride.begin(), stride.end(), stablehloLhsDilationVec.begin());
+    DenseIntElementsAttr stablehloLhsDilation =
+        rewriter.getI64TensorAttr(stablehloLhsDilationVec);
+    SmallVector<int64_t> stablehloRhsDilationVec(nSpatialDims);
+    std::copy(dilation.begin(), dilation.end(),
+              stablehloRhsDilationVec.begin());
+    DenseIntElementsAttr stablehloRhsDilation =
+        rewriter.getI64TensorAttr(stablehloRhsDilationVec);
 
     DenseElementsAttr windowReversal;
     ArrayAttr precisionConfig;
@@ -591,9 +594,10 @@ public:
 
     // Create transposed convolution
     auto transposedConvOp = rewriter.create<stablehlo::ConvolutionOp>(
-        op->getLoc(), convOutTy, input, weight, mhloStride, mhloPadding,
-        mhloLhsDilation, mhloRhsDilation, windowReversal, dimensionNumbers,
-        static_cast<uint64_t>(groups), 1, precisionConfig);
+        op->getLoc(), convOutTy, input, weight, stablehloStride,
+        stablehloPadding, stablehloLhsDilation, stablehloRhsDilation,
+        windowReversal, dimensionNumbers, static_cast<uint64_t>(groups), 1,
+        precisionConfig);
 
     // Handle output padding
     if (!needHandleOutputPadding) {
@@ -629,21 +633,21 @@ public:
     int64_t nDims = outType.getRank();
 
     // Get stablehlo::ConvolutionOp attributes
-    DenseIntElementsAttr mhloWindowStride = DenseIntElementsAttr::get(
+    DenseIntElementsAttr stablehloWindowStride = DenseIntElementsAttr::get(
         RankedTensorType::get({static_cast<long int>(stride.size())},
                               rewriter.getI64Type()),
         stride);
-    std::vector<int64_t> mhloPaddingVec;
+    std::vector<int64_t> stablehloPaddingVec;
     for (size_t i = 0; i < padding.size(); i++) {
-      mhloPaddingVec.emplace_back(padding[i]);
-      mhloPaddingVec.emplace_back(padding[i]);
+      stablehloPaddingVec.emplace_back(padding[i]);
+      stablehloPaddingVec.emplace_back(padding[i]);
     }
-    DenseIntElementsAttr mhloPadding = DenseIntElementsAttr::get(
+    DenseIntElementsAttr stablehloPadding = DenseIntElementsAttr::get(
         RankedTensorType::get(
             {static_cast<long int>(padding.size()), static_cast<long int>(2)},
             rewriter.getI64Type()),
-        mhloPaddingVec);
-    DenseIntElementsAttr mhloRhsDilation = DenseIntElementsAttr::get(
+        stablehloPaddingVec);
+    DenseIntElementsAttr stablehloRhsDilation = DenseIntElementsAttr::get(
         RankedTensorType::get({static_cast<long int>(dilation.size())},
                               rewriter.getI64Type()),
         dilation);
@@ -663,16 +667,17 @@ public:
             /*outputSpatialDimensions=*/spatialDimensions);
 
     // stablehlo::ConvolutionOp's optional attributes, leave them as default
-    DenseIntElementsAttr mhloLhsDilation;
+    DenseIntElementsAttr stablehloLhsDilation;
     DenseElementsAttr windowReversal;
     ArrayAttr precisionConfig;
 
-    auto mhloConvOp = rewriter.create<stablehlo::ConvolutionOp>(
-        op->getLoc(), outType, input, weight, mhloWindowStride, mhloPadding,
-        mhloLhsDilation, mhloRhsDilation, windowReversal, dimensionNumbers,
-        static_cast<uint64_t>(groups), 1, precisionConfig);
+    auto stablehloConvOp = rewriter.create<stablehlo::ConvolutionOp>(
+        op->getLoc(), outType, input, weight, stablehloWindowStride,
+        stablehloPadding, stablehloLhsDilation, stablehloRhsDilation,
+        windowReversal, dimensionNumbers, static_cast<uint64_t>(groups), 1,
+        precisionConfig);
 
-    return mhloConvOp.getResult();
+    return stablehloConvOp.getResult();
   }
 
   LogicalResult
@@ -754,21 +759,22 @@ public:
       }
     }
 
-    Value mhloConvResult;
+    Value stablehloConvResult;
     if (transposed) {
-      mhloConvResult = convertTransposedConv(
+      stablehloConvResult = convertTransposedConv(
           op, rewriter, outTy, input, weight, stride, padding, dilation,
           outputPadding, groups, needHandleOutputPadding);
     } else {
-      mhloConvResult = convertNormalConv(op, rewriter, outTy, input, weight,
-                                         stride, padding, dilation, groups);
+      stablehloConvResult =
+          convertNormalConv(op, rewriter, outTy, input, weight, stride, padding,
+                            dilation, groups);
     }
 
     auto bias = adaptor.getBias();
 
     // No bias provided
     if (failed(checkNotNone(rewriter, op, op.getBias()))) {
-      rewriter.replaceOp(op, mhloConvResult);
+      rewriter.replaceOp(op, stablehloConvResult);
       return success();
     }
 
@@ -795,16 +801,16 @@ public:
     bias = hlo::promoteType(rewriter, bias, outTy);
 
     DenseIntElementsAttr bcastDimensions;
-    rewriter.replaceOpWithNewOp<chlo::BroadcastAddOp>(op, outTy, mhloConvResult,
-                                                      bias, bcastDimensions);
+    rewriter.replaceOpWithNewOp<chlo::BroadcastAddOp>(
+        op, outTy, stablehloConvResult, bias, bcastDimensions);
     return success();
   }
 };
 } // namespace
 
-void mlir::torch::torch_to_mhlo::populateLinearOpPatternsAndLegality(
+void mlir::torch::torch_to_stablehlo::populateLinearOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
-    ConversionTarget &target, const TorchToMhloOptions &options) {
+    ConversionTarget &target, const TorchToStablehloOptions &options) {
   MLIRContext *context = patterns.getContext();
 
 #define INSERT_MATMUL_ATENOP_PATTERN(AtenOp)                                   \

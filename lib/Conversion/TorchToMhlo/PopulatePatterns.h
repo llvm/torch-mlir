@@ -14,9 +14,9 @@
 
 namespace mlir {
 namespace torch {
-namespace torch_to_mhlo {
+namespace torch_to_stablehlo {
 
-struct TorchToMhloOptions {
+struct TorchToStablehloOptions {
   bool enableStaticShape = false;
   size_t dimSizeIndexBits = 64;
 };
@@ -26,7 +26,7 @@ class ConvertAtenOp : public OpConversionPattern<AtenOpT> {
 public:
   using OpAdaptor = typename AtenOpT::Adaptor;
   ConvertAtenOp(TypeConverter &typeConverter, MLIRContext *context,
-                const TorchToMhloOptions &options)
+                const TorchToStablehloOptions &options)
       : OpConversionPattern<AtenOpT>(typeConverter, context) {
     this->options = options;
   }
@@ -35,39 +35,34 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     return rewriter.notifyMatchFailure(op, "haven't been implemented");
   }
-  const TorchToMhloOptions &getOptions() const { return options; }
+  const TorchToStablehloOptions &getOptions() const { return options; }
 
 private:
-  TorchToMhloOptions options;
+  TorchToStablehloOptions options;
 };
 
 void populateBasicOpPatternsAndLegality(TypeConverter &typeConverter,
                                         RewritePatternSet &patterns,
                                         ConversionTarget &target,
-                                        const TorchToMhloOptions &options);
-void populateViewLikeOpPatternsAndLegality(TypeConverter &typeConverter,
-                                           RewritePatternSet &patterns,
-                                           ConversionTarget &target,
-                                           const TorchToMhloOptions &options);
-void populateGatherOpPatternsAndLegality(TypeConverter &typeConverter,
-                                         RewritePatternSet &patterns,
-                                         ConversionTarget &target,
-                                         const TorchToMhloOptions &options);
-void populateReductionOpPatternsAndLegality(TypeConverter &typeConverter,
-                                            RewritePatternSet &patterns,
-                                            ConversionTarget &target,
-                                            const TorchToMhloOptions &options);
-void populateLinearOpPatternsAndLegality(TypeConverter &typeConverter,
-                                         RewritePatternSet &patterns,
-                                         ConversionTarget &target,
-                                         const TorchToMhloOptions &options);
+                                        const TorchToStablehloOptions &options);
+void populateViewLikeOpPatternsAndLegality(
+    TypeConverter &typeConverter, RewritePatternSet &patterns,
+    ConversionTarget &target, const TorchToStablehloOptions &options);
+void populateGatherOpPatternsAndLegality(
+    TypeConverter &typeConverter, RewritePatternSet &patterns,
+    ConversionTarget &target, const TorchToStablehloOptions &options);
+void populateReductionOpPatternsAndLegality(
+    TypeConverter &typeConverter, RewritePatternSet &patterns,
+    ConversionTarget &target, const TorchToStablehloOptions &options);
+void populateLinearOpPatternsAndLegality(
+    TypeConverter &typeConverter, RewritePatternSet &patterns,
+    ConversionTarget &target, const TorchToStablehloOptions &options);
 
-void populatePoolingOpPatternsAndLegality(TypeConverter &typeConverter,
-                                          RewritePatternSet &patterns,
-                                          ConversionTarget &target,
-                                          const TorchToMhloOptions &options);
+void populatePoolingOpPatternsAndLegality(
+    TypeConverter &typeConverter, RewritePatternSet &patterns,
+    ConversionTarget &target, const TorchToStablehloOptions &options);
 
-} // namespace torch_to_mhlo
+} // namespace torch_to_stablehlo
 } // namespace torch
 } // namespace mlir
 
