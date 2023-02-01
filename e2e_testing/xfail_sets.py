@@ -268,6 +268,7 @@ MHLO_PASS_SET = {
     "Convolution2DStaticModule_basic",
     "ConvolutionModule2DTransposeStridedStatic_basic",
     "ElementwiseCloneContiguousModule_basic",
+    "ElementwiseCloneChannelsLastMemoryFormatModule_basic",
     "ElementwiseCloneModule_basic",
     "ElementwiseBinaryStaticShapeModule_basic",
     "ReturnThreeTensorFloat32_basic",
@@ -423,6 +424,7 @@ MHLO_PASS_SET = {
 # and very few tests work yet.
 TOSA_PASS_SET = {
     "ElementwiseCloneContiguousModule_basic",
+    "ElementwiseCloneChannelsLastMemoryFormatModule_basic",
     "ElementwiseCloneModule_basic",
     "ElementwiseUnaryModule_basic",
     "ElementwiseBinaryModule_basic",

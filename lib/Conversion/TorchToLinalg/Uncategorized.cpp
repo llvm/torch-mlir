@@ -177,8 +177,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     if (!clone.getMemoryFormat().getType().isa<Torch::NoneType>() &&
         (!matchPattern(clone.getMemoryFormat(),
                        m_TorchConstantInt(&memoryFormat)) ||
-         memoryFormat != torch_upstream::MemoryFormat::Contiguous)) {
-      clone.emitError("unimplemented: only default memory format is supported");
+         (memoryFormat != torch_upstream::MemoryFormat::Contiguous &&
+          memoryFormat != torch_upstream::MemoryFormat::ChannelsLast))) {
+      clone.emitError("unimplemented: only contiguous and channels last memory "
+                      "format is supported");
       return nullptr;
     }
     return payloadArgs[0];
