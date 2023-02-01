@@ -3,14 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
-load("@llvm-project//llvm:lit_test.bzl", "package_path")
+load("@llvm-project//llvm:lit_test.bzl", "lit_test", "package_path")
 load("@torch-mlir//:build_defs.bzl", "target_path")
 
-package(
-    default_visibility = [
-        "//visibility:public",
-    ],
-)
+package(default_visibility = ["//visibility:public"])
 
 expand_template(
     name = "lit_site_cfg_py",
@@ -26,6 +22,8 @@ expand_template(
         "@MLIR_ENABLE_BINDINGS_PYTHON@": "1",
         "@TORCH_MLIR_ENABLE_JIT_IR_IMPORTER@": "1",
         "@TORCH_MLIR_ENABLE_MHLO@": "0",
+        "@ENABLE_SHARED@": "1",
+        "@ENABLE_ASSERTIONS@": "1",
     },
     template = "lit.site.cfg.py.in",
 )
@@ -43,3 +41,18 @@ filegroup(
         "@torch-mlir//python:python_packages",
     ],
 )
+
+[
+    lit_test(
+        name = "%s.test" % src,
+        srcs = [src],
+        data = [
+            "@torch-mlir//:torch-mlir-opt",
+            "@torch-mlir//python/test:lit_data",
+        ],
+    )
+    for src in glob(
+        ["**/*.py"],
+        exclude = ["lit.cfg.py"],
+    )
+]

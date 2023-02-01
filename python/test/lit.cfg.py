@@ -23,10 +23,11 @@ config.name = 'TORCH_MLIR_PYTHON'
 
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 if 'TEST_SRC_PATH' in os.environ:
-   config.environment['TEST_SRC_PATH'] = os.environ['TEST_SRC_PATH']
+    config.environment['TEST_SRC_PATH'] = os.environ['TEST_SRC_PATH']
 
 # path to our python operation library
-config.environment['TEST_BUILD_PATH'] = os.path.join(config.torch_mlir_obj_root)
+config.environment['TEST_BUILD_PATH'] = os.path.join(
+    config.torch_mlir_obj_root)
 
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = ['.py']
@@ -41,7 +42,7 @@ config.test_exec_root = os.path.join(config.torch_mlir_obj_root, 'test')
 # be provided in quotes.  This is the equivalent of how %python is setup in
 # llvm/utils/lit/lit/llvm/config.py.
 if "Windows" in config.host_os:
-  config.python_executable = '"%s"' % (config.python_executable)
+    config.python_executable = '"%s"' % (config.python_executable)
 
 config.substitutions.append(('%PATH%', config.environment['PATH']))
 config.substitutions.append(('%shlibext', config.llvm_shlib_ext))
@@ -55,10 +56,11 @@ llvm_config.use_default_substitutions()
 # excludes: A list of directories to exclude from the testsuite. The 'Inputs'
 # subdirectories contain auxiliary inputs for various tests in their parent
 # directories.
-config.excludes = ['lit.cfg.py', 'Inputs', 'Examples', 'CMakeLists.txt', 'README.txt', 'LICENSE.txt']
+config.excludes = ['lit.cfg.py', 'lit.site.cfg.py', 'Inputs', 'Examples',
+                   'CMakeLists.txt', 'README.txt', 'LICENSE.txt']
 
 if not bool(int(os.environ.get("TORCH_MLIR_ENABLE_LTC", 0))):
-   config.excludes.append("lazy_backend")
+    config.excludes.append("lazy_backend")
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
@@ -69,9 +71,11 @@ config.torch_mlir_tools_dir = os.path.join(config.torch_mlir_obj_root, 'bin')
 
 # Tweak the PATH to include the tools dir.
 llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
+
 llvm_config.with_environment('PYTHONPATH', [
-        os.path.join(config.torch_mlir_python_packages_dir, 'torch_mlir'),
-    ],
+    os.path.join(os.path.realpath(
+        config.torch_mlir_python_packages_dir), 'torch_mlir'),
+],
     append_path=True)
 
 

@@ -66,7 +66,7 @@ jobs:
                    -v "$(pwd)":"/opt/src/torch-mlir" \
                    -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
                    torch-mlir:ci \
-                   bazel test @torch-mlir//test/...
+                   bazel test --test_output=errors @torch-mlir//...
 
     - name: Verify buildifier was run (bazel lint)
       run: |

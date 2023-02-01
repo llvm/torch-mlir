@@ -456,7 +456,9 @@ class GenTorchMlirLTC:
             return ""
 
         torchgen.dest.lazy_ir.gen_fallback_code = gen_fallback_code
-
+        node_base_hdr_base = self.backend_path
+        if args.build_platform=="BAZEL":
+            node_base_hdr_base = self.generated_path.parents[0] 
         torchgen.gen_lazy_tensor.run_gen_lazy_tensor(
             backend_name="TorchMlir",
             aten_path=str(TORCHGEN_DIR.joinpath("packaged", "ATen")),
@@ -465,7 +467,7 @@ class GenTorchMlirLTC:
             dry_run=False,
             impl_path=str(self.backend_path.joinpath("mlir_native_functions.cpp")),
             node_base="torch::lazy::TorchMlirNode",
-            node_base_hdr=str(self.backend_path.joinpath("mlir_node.h")),
+            node_base_hdr=str(node_base_hdr_base.joinpath("mlir_node.h")),
             tensor_class=self.tensor_class,
             tensor_class_hdr="torch/csrc/lazy/core/tensor.h",
             shape_inference_hdr=str(self.generated_path.joinpath("shape_inference.h")),
@@ -526,6 +528,12 @@ if __name__ == "__main__":
         action="store_const",
         dest="loglevel",
         const=logging.INFO,
+    )
+    parser.add_argument(
+        "-p",
+        "--build_platform",
+        type=str,
+        default="CMAKE",
     )
     args = parser.parse_args()
     logging.basicConfig(level=args.loglevel)

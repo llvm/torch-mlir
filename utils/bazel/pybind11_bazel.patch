@@ -1,0 +1,16 @@
+diff --git a/py/BUILD.tpl b/py/BUILD.tpl
+index 44fbfcd..59cea81 100644
+--- a/py/BUILD.tpl
++++ b/py/BUILD.tpl
+@@ -52,6 +52,11 @@ cc_library(
+     includes = ["python_include"],
+ )
+ 
++alias(
++    name = "headers",
++    actual = ":python_headers",
++)
++
+ cc_library(
+     name = "python_embed",
+     hdrs = [":python_include"],

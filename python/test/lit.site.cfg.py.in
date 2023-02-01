@@ -13,8 +13,8 @@ config.target_triple = "@TARGET_TRIPLE@"
 config.llvm_src_root = "@LLVM_SOURCE_DIR@"
 config.llvm_obj_root = "@LLVM_BINARY_DIR@"
 # TODO: Fix tools dir to find FileCheck.
-#config.llvm_tools_dir = "@LLVM_TOOLS_DIR@"
-config.llvm_tools_dir = "@LLVM_BINARY_DIR@/bin"
+config.llvm_tools_dir = "@LLVM_TOOLS_DIR@"
+#config.llvm_tools_dir = "@LLVM_BINARY_DIR@/bin"
 config.llvm_lib_dir = "@LLVM_LIBRARY_DIR@"
 config.llvm_shlib_dir = "@SHLIBDIR@"
 config.llvm_shlib_ext = "@SHLIBEXT@"
@@ -56,4 +56,4 @@ import lit.llvm
 lit.llvm.initialize(lit_config, config)
 
 # Let the main config do the real work.
-lit_config.load_config(config, "@CMAKE_CURRENT_SOURCE_DIR@/lit.cfg.py")
+lit_config.load_config(config, "@TORCH_MLIR_SOURCE_DIR@/python/test/lit.cfg.py")

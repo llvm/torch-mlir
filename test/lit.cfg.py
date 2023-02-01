@@ -37,7 +37,7 @@ config.substitutions.append(('%shlibext', config.llvm_shlib_ext))
 
 llvm_config.with_system_environment(['HOME', 'INCLUDE', 'LIB', 'TMP', 'TEMP'])
 
-#llvm_config.use_default_substitutions()
+# llvm_config.use_default_substitutions()
 
 # excludes: A list of directories to exclude from the testsuite. The 'Inputs'
 # subdirectories contain auxiliary inputs for various tests in their parent
@@ -63,9 +63,10 @@ llvm_config.with_environment('PATH', os.path.join(config.llvm_build_dir, 'bin'),
 # be provided in quotes.  This is the equivalent of how %python is setup in
 # llvm/utils/lit/lit/llvm/config.py.
 if "Windows" in config.host_os:
-  config.python_executable = '"%s"' % (config.python_executable)
+    config.python_executable = '"%s"' % (config.python_executable)
 
-tool_dirs = [config.standalone_tools_dir, config.llvm_tools_dir, config.torch_mlir_obj_root]
+tool_dirs = [config.standalone_tools_dir,
+             config.llvm_tools_dir, config.torch_mlir_obj_root]
 tools = [
     'torch-mlir-opt',
     ToolSubst('%PYTHON', config.python_executable, unresolved='ignore'),
@@ -74,7 +75,8 @@ tools = [
 llvm_config.add_tool_substitutions(tools, tool_dirs)
 
 if config.enable_bindings_python:
-  llvm_config.with_environment('PYTHONPATH', [
-      os.path.join(config.torch_mlir_python_packages_dir, 'torch_mlir'),
-  ],
-                               append_path=True)
+    llvm_config.with_environment('PYTHONPATH', [
+        os.path.join(os.path.realpath(
+            config.torch_mlir_python_packages_dir), 'torch_mlir'),
+    ],
+        append_path=True)
