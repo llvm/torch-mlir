@@ -874,7 +874,8 @@ def Torch_PerTensorAffineCreateOp : Torch_Op<"per_tensor_affine.create", [
     Create a quantized tensor.
 
     Quantization formula is:
-    ```
+
+    ```mlir
     Q(x, scale, zero_point) = round(x/scale + zero_point)
     ```
 
@@ -903,7 +904,8 @@ def Torch_NonValueTensorLiteralOp : Torch_Op<"tensor.literal", [
   let summary = "Create a value of !torch.tensor type from a literal";
   let description = [{
     Example:
-    ```
+
+    ```mlir
     %0 = torch.tensor.literal(dense<0.0> : tensor<3x5xf32>) : !torch.tensor
     %1 = torch.tensor.literal(dense<0.0> : tensor<3xf32>) : !torch.tensor<[3],f32>
     ```
@@ -936,7 +938,8 @@ def Torch_ValueTensorLiteralOp : Torch_Op<"vtensor.literal", [
   let summary = "Create a value of !torch.vtensor type from a literal";
   let description = [{
     Example:
-    ```
+
+    ```mlir
     %0 = torch.vtensor.literal(dense<0.0> : tensor<3x5xf32>) : !torch.vtensor<[3,5],f32>
     %1 = torch.vtensor.literal(dense<0.0> : tensor<3xf32>) : !torch.vtensor<[3],f32>
     ```
@@ -955,6 +958,103 @@ def Torch_ValueTensorLiteralOp : Torch_Op<"vtensor.literal", [
   }];
 
   let hasFolder = 1;
+}
+
+def Torch_ExternalNonValueTensorLiteralOp : Torch_Op<"tensor.external.literal", [
+    AllowsTypeRefinement,
+    AllowedInModuleInitializer
+  ]> {
+  let summary = "Create a value of !torch.tensor type from an external literal";
+  let description = [{
+    Example:
+
+    ```mlir
+    %0 = torch.tensor.external.literal(@fc.weight) : !torch.tensor<[2,3],f32>
+    ```
+
+    This is the non-value-semantic version of `torch.vtensor.external.literal`.
+    See the documentation there for more context.
+  }];
+  let arguments = (ins FlatSymbolRefAttr:$sym_name);
+  let results = (outs Torch_NonValueTensorType:$result);
+
+  let assemblyFormat = [{
+    `(` $sym_name `)` attr-dict `:` qualified(type($result))
+  }];
+}
+
+def Torch_ExternalValueTensorLiteralOp : Torch_Op<"vtensor.external.literal", [
+    AllowsTypeRefinement,
+  ]> {
+  let summary = "Create a value of !torch.vtensor type from an external literal";
+  let description = [{
+    Example:
+
+    ```mlir
+    %0 = torch.vtensor.external.literal(@fc.weight) : !torch.vtensor<[2,3],f32>
+    ```
+
+    The use of the term "literal" for an external reference is a bit strange,
+    but is a natural byproduct of Torch-MLIR's evolution. Currently, Torch-MLIR
+    is in the process of aligning itself with PyTorch's vision of a trace-based
+    future, where backend compilers (here meaning Torch-MLIR's main lowering
+    pipeline to the backend contract) only handle traces, rather than
+    full stateful programs. For in-process on-demand compilation, such as a
+    TorchDynamo backend compiler, the traces never see any program state.
+    For Ahead-of-Time compilation, this gets trickier. To handle
+    programs for Ahead-of-Time, the idea (already proved out in the JAX space,
+    and in progress in PyTorch) is to capture traces and then use an outer layer
+    with a more general programming model (e.g. stateful,
+    more "Python-like"/dynamic) to orchestrate calls into the
+    traces and manage parameters and buffers. This outer layer would be manually
+    programmed by users, which avoids ~intractable problems related to lowering
+    fully general TorchScript modules which simultaneously have the bulk tensor
+    compute and orchestrate logic all in one program. Although this seems like
+    a usability reduction, it actually results in a much less brittle compiler,
+    which ultimately results in a usability improvement.
+
+    Torch-MLIR is currently in a hybrid state from that transition -- users
+    currently use Torch-MLIR's TorchScript frontend to compile Ahead-of-Time,
+    which embeds the constant parameters as literals into the program. Our
+    backend contract is effectively trace-like, but allows literals
+    (often quite large) for constant parameters. This is a somewhat
+    contradictory state. The natural state is for parameters to be handled as
+    first-class "module state" by the outer programming layer (for AoT) or
+    TorchDynamo/LTC (for in-process) independently from the trace.
+
+    Due to this hybrid state, it make sense to have a "literal" that is an
+    external reference, since that fits in with the existing flow that we
+    have for parameters.
+
+    Conceptually this op gets access to a single value-semantic value just like
+    a literal. The `sym_name` is really just replacing the dense attribute of
+    `torch.vtensor.literal` with a symbol reference.
+
+    The `sym_name` is a symbol reference conceptually into the original
+    `torch.nn.Module` that was imported via TorchScript / JIT IR. That is,
+    if a module `MyModule` with an attribute `fc` which has a `weight`
+    attribute is imported, then the external literal for `my_module.fc.weight`
+    will have a symbol name of `@fc.weight`, exactly analogous to the way that
+    the Python object access to the `weight` attribute would work. These names
+    are load-bearing for linkage throughout the stack.
+
+    Note that the sym_name is not namespaced separately from the function names
+    of the module either. That is because the functions names of the module
+    are also "dotted object-oriented paths into the Python object" (e.g.
+    `my_module.fc.forward` references a `forward` method of the `fc` submodule
+    in Python, and `@fc.forward` is the corresponding `sym_name` of the func at
+    the Torch-MLIR backend contract). Since the Python attribute that the
+    external literal refers to and the function names in the module are both in
+    the same namespace at the Python level, they are in the same namespace
+    at the Torch-MLIR backend contract level, and lowerings should preserve
+    this.
+  }];
+  let arguments = (ins FlatSymbolRefAttr:$sym_name);
+  let results = (outs Torch_ValueTensorType:$result);
+
+  let assemblyFormat = [{
+    `(` $sym_name `)` attr-dict `:` qualified(type($result))
+  }];
 }
 
 def Torch_TensorStaticInfoCastOp : Torch_Op<"tensor_static_info_cast", [

@@ -20,5 +20,7 @@ void torch_mlir::initImportOptionsBindings(py::module &m) {
       .def_readwrite("assumeTensorsHaveValueSemantics",
                      &ImportOptions::assumeTensorsHaveValueSemantics)
       .def_readwrite("ignoreExistingTensorShapesAndDtypes",
-                     &ImportOptions::ignoreExistingTensorShapesAndDtypes);
+                     &ImportOptions::ignoreExistingTensorShapesAndDtypes)
+      .def_readwrite("useExternalReferencesIfNumelExceeds",
+                     &ImportOptions::useExternalReferencesIfNumelExceeds);
 }

@@ -61,6 +61,12 @@ func.func @torch.vtensor.literal() {
   return
 }
 
+func.func @external_literals() -> (!torch.tensor<[2,3],f32>, !torch.vtensor<[3,4],si64>) {
+  %0 = torch.tensor.external.literal(@external_tensor) : !torch.tensor<[2,3],f32>
+  %1 = torch.vtensor.external.literal(@external_vtensor) : !torch.vtensor<[3,4],si64>
+  return %0, %1 : !torch.tensor<[2,3],f32>, !torch.vtensor<[3,4],si64>
+}
+
 func.func @derefine(%arg0: !torch.tensor) -> !torch.optional<tensor> {
   %0 = torch.derefine %arg0 : !torch.tensor to !torch.optional<tensor>
   return %0 : !torch.optional<tensor>
