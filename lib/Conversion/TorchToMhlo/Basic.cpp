@@ -1307,7 +1307,7 @@ LogicalResult ConvertAtenOp<Aten_IndexPutImplOp>::matchAndRewrite(
   }
   auto valuesType = values.getType().cast<RankedTensorType>();
   SmallVector<int64_t> valuesShape(valuesType.getShape());
-  if (valueShape.size() != 3) {
+  if (valuesShape.size() != 3) {
     return op->emitError("only support 3D values in index_put");
   }
 
