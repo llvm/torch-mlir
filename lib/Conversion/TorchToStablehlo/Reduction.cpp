@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "torch-mlir/Conversion/TorchToMhlo/TorchToStablehlo.h"
+#include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
@@ -390,7 +390,8 @@ LogicalResult ConvertAtenReductionOp<AtenSumOp>::matchAndRewrite(
   }
   Value initValue =
       createInitialValueForReduceOp(op, inputTy.getElementType(), rewriter);
-  if (!initValue) return failure();
+  if (!initValue)
+    return failure();
 
   llvm::sort(dims.begin(), dims.end());
   auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
@@ -451,7 +452,8 @@ LogicalResult ConvertAtenReductionOp<AtenMaxOp>::matchAndRewrite(
 
   Value initValue =
       createInitialValueForReduceOp(op, inputTy.getElementType(), rewriter);
-  if (!initValue) return failure();
+  if (!initValue)
+    return failure();
   llvm::sort(dims.begin(), dims.end());
   auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
       op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
@@ -539,7 +541,8 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
   }
   Value initValue =
       createInitialValueForReduceOp(op, inputTy.getElementType(), rewriter);
-  if (!initValue) return failure();
+  if (!initValue)
+    return failure();
 
   llvm::sort(dims.begin(), dims.end());
   auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
@@ -629,7 +632,7 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
     }
   }
 
-  // Sort the dims in ascending order, making the conversion 
+  // Sort the dims in ascending order, making the conversion
   // stable with unordered dims.
   std::sort(dims.begin(), dims.end());
 
@@ -681,8 +684,9 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
     }
     auto outShapeVec = *outShapeInfo;
     auto one = rewriter.create<mlir::arith::ConstantOp>(
-        op->getLoc(), rewriter.getIntegerAttr(
-                          rewriter.getIntegerType(options.dimSizeIndexBits), 1));
+        op->getLoc(),
+        rewriter.getIntegerAttr(
+            rewriter.getIntegerType(options.dimSizeIndexBits), 1));
     for (int64_t i : dims) {
       outShapeVec[i] = one;
     }

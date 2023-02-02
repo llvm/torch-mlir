@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "torch-mlir/Conversion/TorchToMhlo/TorchToStablehlo.h"
+#include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
@@ -120,10 +120,12 @@ RankedTensorType castContractingDim(PatternRewriter &rewriter, Operation *op,
   }
 
   // set result dimensions
-  if (lhsResultDim < static_cast<int64_t>(lhsShape.size()) && lhsResultDim >= 0) {
+  if (lhsResultDim < static_cast<int64_t>(lhsShape.size()) &&
+      lhsResultDim >= 0) {
     outShape.push_back(lhsShape[lhsResultDim]);
   }
-  if (rhsResultDim < static_cast<int64_t>(rhsShape.size()) && rhsResultDim >= 0) {
+  if (rhsResultDim < static_cast<int64_t>(rhsShape.size()) &&
+      rhsResultDim >= 0) {
     outShape.push_back(rhsShape[rhsResultDim]);
   }
   return RankedTensorType::get(outShape, lhsTy.getElementType());

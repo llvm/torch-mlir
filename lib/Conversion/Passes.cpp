@@ -9,11 +9,10 @@
 
 #include "torch-mlir/Conversion/Passes.h"
 
-#ifdef TORCH_MLIR_ENABLE_MHLO
-#include "mhlo/transforms/passes.h"
-#include "torch-mlir/Conversion/TorchToMhlo/TorchToStablehlo.h"
+#ifdef TORCH_MLIR_ENABLE_STABLEHLO
+#include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 #include "transforms/passes.h"
-#endif // TORCH_MLIR_ENABLE_MHLO
+#endif // TORCH_MLIR_ENABLE_STABLEHLO
 
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
@@ -33,15 +32,4 @@ namespace {
 
 void mlir::torch::registerConversionPasses() {
   ::registerPasses();
-#ifdef TORCH_MLIR_ENABLE_MHLO
-  ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
-    return mlir::mhlo::createStablehloLegalizeToHloPass();
-  });
-  ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
-    return mlir::mhlo::createLegalizeHloToLinalgPass();
-  });
-  ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
-    return mlir::mhlo::createSymbolicShapeOptimizationPass();
-  });
-#endif // TORCH_MLIR_ENABLE_MHLO
 }

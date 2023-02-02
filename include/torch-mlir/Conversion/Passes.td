@@ -133,7 +133,7 @@ def ConvertTorchConversionToMLProgram : Pass<"convert-torch-conversion-to-mlprog
   let constructor = "mlir::torch::createConvertTorchConversionToMLProgramPass()";
 }
 
-#ifdef TORCH_MLIR_ENABLE_MHLO
+#ifdef TORCH_MLIR_ENABLE_STABLEHLO
 def ConvertTorchToStablehlo : Pass<"convert-torch-to-stablehlo", "func::FuncOp"> {
   let summary = "Convert Torch ops to Stablehlo ops";
   let description = [{

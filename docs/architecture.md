@@ -30,14 +30,14 @@ it to various target dialects of interest to the MLIR ecosystem (various
 
 - Linalg-on-Tensors (+ `arith`, `tensor`, etc.)
 - [TOSA](https://mlir.llvm.org/docs/Dialects/TOSA/)
-- [MHLO](https://github.com/tensorflow/mlir-hlo)
+- [StableHLO](https://github.com/openxla/stablehlo)
 
 The terms "frontend" and "backend" are highly overloaded in any compiler
 project, but frequently in Torch-MLIR this is the meaning that they have.
 Sometimes "frontend" can mean something even further up the stack, such as
 something in PyTorch itself. When there is ambiguity we will refer to this as
 "at the PyTorch level". Similarly, "backend" can sometimes refer to something
-sitting below Linalg-on-Tensors, TOSA, or MHLO.
+sitting below Linalg-on-Tensors, TOSA, or StableHLO.
 
 ## The `torch` dialect
 
@@ -118,8 +118,8 @@ See [satisfiesBackendContract](https://github.com/llvm/torch-mlir/blob/114f48e96
 
 The backend contract is a normalized form of the `torch` dialect with a set of
 properties that make it easy to lower into various forms such as
-Linalg-on-Tensors, TOSA, MHLO, or other forms that we don't provide out of the
-box. The primary guarantees that we provide Torch-MLIR's backends are:
+Linalg-on-Tensors, TOSA, StableHLO, or other forms that we don't provide out of
+the box. The primary guarantees that we provide Torch-MLIR's backends are:
 
 - All tensors have been converted to value semantics.
 - All tensors have at least a known number of dimensions (i.e. rank), and
@@ -270,7 +270,7 @@ lower it to the requirements of each backend. The 3 backends are:
 - [`linalg`](https://mlir.llvm.org/docs/Dialects/Linalg/) on tensors (+ `arith`,
   `tensor`, etc.)
 - [TOSA](https://mlir.llvm.org/docs/Dialects/TOSA/)
-- [MHLO](https://github.com/tensorflow/mlir-hlo)
+- [StableHLO](https://github.com/openxla/stablehlo)
 
 ### The Linalg Backend (Linalg-on-Tensors)
 
@@ -297,15 +297,15 @@ many users (especially "hardware" or "hardware-adjacent" folks). Some of its cha
 - It is extremely solid with static shapes (and many of its users only care
   about static shapes, so that's fine).
 
-### The MHLO Backend
+### The StableHLO Backend
 
-Code: https://github.com/llvm/torch-mlir/tree/main/lib/Conversion/TorchToMhlo
+Code: https://github.com/llvm/torch-mlir/tree/main/lib/Conversion/TorchToStablehlo
 
-The MHLO backend was the third backend that we added, and it offers a reasonable
-blend of the benefits of the other two.
+The StableHLO backend was the third backend that we added, and it offers a
+reasonable blend of the benefits of the other two.
 - It is a coarse-grained named-op approach.
 - It has a pretty clear spec for most of the ops (with a bit of mental
-  translation and hoping that MHLO is the same as HLO):
+  translation and hoping that StableHLO is the same as HLO):
   https://www.tensorflow.org/xla/operation_semantics
 - It functionally supports dynamic shapes (though not as coherent and consistent
   as Linalg-on-Tensors, and the dynamic shape support falls outside the
@@ -317,7 +317,7 @@ blend of the benefits of the other two.
   example, TOSA limits (for highly considered reasons) the number of dimensions
   that certain operators can handle to 1D-4D, when from a purely algebraic
   perspective there isn't a good reason to not be more general. Similarly, more
-  general forms of reduction and scatter also fall into MHLO nicely while
+  general forms of reduction and scatter also fall into StableHLO nicely while
   TOSA's principles tend to bias it away from that.
 
 ### Backend Implementation
@@ -433,8 +433,9 @@ filling in some corners missing upstream and
 to pull together upstream functionality into a working system.
 
 The RefBackend accepts Linalg-on-Tensors as input. It mainly just bufferizes the
-ops and lowers them to loops. Note that TOSA and MHLO support lowering to
-Linalg-on-Tensors, so all our end-to-end testing bottoms out on RefBackend.
+ops and lowers them to loops. Note that TOSA and StableHLO (via MHLO) support
+lowering to Linalg-on-Tensors, so all our end-to-end testing bottoms out on
+RefBackend.
 
 The RefBackend is absolutely not suitable for any production use case. It leaks
 memory, doesn't support any error handling, performs no optimizations, and

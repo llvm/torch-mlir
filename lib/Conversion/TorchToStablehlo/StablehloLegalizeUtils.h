@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TORCHMLIR_CONVERSION_TORCHTOMHLO_STABLEHLOLEGALIZEUTILS_H
-#define TORCHMLIR_CONVERSION_TORCHTOMHLO_STABLEHLOLEGALIZEUTILS_H
+#ifndef TORCHMLIR_CONVERSION_TORCHTOSTABLEHLO_STABLEHLOLEGALIZEUTILS_H
+#define TORCHMLIR_CONVERSION_TORCHTOSTABLEHLO_STABLEHLOLEGALIZEUTILS_H
 
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -74,4 +74,4 @@ Value getConstantOfShape(PatternRewriter &rewriter, Location loc,
 } // namespace hlo
 } // namespace mlir
 
-#endif // TORCHMLIR_CONVERSION_TORCHTOMHLO_STABLEHLOLEGALIZEUTILS_H
+#endif // TORCHMLIR_CONVERSION_TORCHTOSTABLEHLO_STABLEHLOLEGALIZEUTILS_H

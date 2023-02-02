@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "torch-mlir/Conversion/TorchToMhlo/TorchToStablehlo.h"
+#include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
@@ -581,7 +581,8 @@ LogicalResult ConvertAtenOp<AtenSizeIntOp>::matchAndRewrite(
   } else {
     Value inputRank = rewriter.create<arith::ConstantOp>(
         op.getLoc(), rewriter.getI64IntegerAttr(selfType.getRank()));
-    dim = toPositiveDimDynamic(rewriter, op.getLoc(), adaptor.getDim(), inputRank);
+    dim = toPositiveDimDynamic(rewriter, op.getLoc(), adaptor.getDim(),
+                               inputRank);
     dim = rewriter.create<arith::IndexCastOp>(op.getLoc(),
                                               rewriter.getIndexType(), dim);
   }
@@ -597,9 +598,8 @@ LogicalResult ConvertAtenOp<AtenSizeIntOp>::matchAndRewrite(
 
 template <>
 LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
-    AtenWhereSelfOp op,
-    OpAdaptor adaptor,
-    ConversionPatternRewriter& rewriter) const {
+    AtenWhereSelfOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
   Value self = adaptor.getSelf();
   Value cond = adaptor.getCondition();
   Value other = adaptor.getOther();
@@ -613,8 +613,7 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
     return op.emitError("failed broadcast other and condition ranks");
 
   rewriter.replaceOpWithNewOp<chlo::BroadcastSelectOp>(
-      op,
-      getTypeConverter()->convertType(op.getType()),
+      op, getTypeConverter()->convertType(op.getType()),
       ArrayRef<Value>{cond, self, other});
   return success();
 }
@@ -769,7 +768,6 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
   return success();
 }
 
-
 // AtenReciprocalOp
 // Reciprocal(x) = Div(1, x)
 template <>
@@ -824,7 +822,6 @@ LogicalResult ConvertAtenOp<AtenContiguousOp>::matchAndRewrite(
   return success();
 }
 
-
 // AtenReluOp
 // Relu(x) = Max(0, x)
 template <>
@@ -848,7 +845,6 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
   rewriter.replaceOpWithNewOp<stablehlo::MaxOp>(op, lhs, zeroTensor);
   return success();
 }
-
 
 // Convert a Aten::GELU to HLO
 // Gelu(x) = x * 1/2 * [1 + erf(x/(sqrt(2)))]
@@ -889,7 +885,6 @@ LogicalResult ConvertAtenOp<AtenErfOp>::matchAndRewrite(
       op, getTypeConverter()->convertType(op.getType()), input);
   return success();
 }
-
 
 // AtenBatchNormOp
 template <>
@@ -1018,7 +1013,6 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
     return success();
   }
 }
-
 
 // AtenNativeLayerNormOp
 template <>
@@ -1161,7 +1155,6 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
   rewriter.replaceOp(op, {finalOuput, mean, var});
   return success();
 }
-
 
 // AtenCatOp
 template <>
@@ -1319,9 +1312,8 @@ LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   Location loc = op.getLoc();
   Value input = adaptor.getSelf();
-  auto outType = this->getTypeConverter()
-                     ->convertType(op.getType())
-                     .cast<TensorType>();
+  auto outType =
+      this->getTypeConverter()->convertType(op.getType()).cast<TensorType>();
   if (!outType) {
     return op.emitError("only tensor type is supported");
   }

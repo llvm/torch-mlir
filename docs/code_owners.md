@@ -34,7 +34,7 @@ and Clang's
 - Eric Kunze (@eric-k256)
 - Suraj Sudhir (@sjarus)
 
-### TorchToMHLO
+### TorchToStablehlo
 
 - Tianyo Kwok (@tanyokwok)
 - Ziheng Jiang (@ZihengJiang)

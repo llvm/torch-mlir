@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "torch-mlir/Conversion/TorchToMhlo/TorchToStablehlo.h"
+#include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
@@ -98,11 +98,12 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
 }
 } // namespace
 
-// Ref: https://pytorch.org/docs/stable/generated/torch.nn.functional.embedding.html
+// Ref:
+// https://pytorch.org/docs/stable/generated/torch.nn.functional.embedding.html
 // padding_idx (int, optional)
-//  – If specified, the entries at padding_idx do not contribute to the gradient;
-//  therefore, the embedding vector at padding_idx is not updated during training,
-//  i.e. it remains as a fixed “pad”.
+//  – If specified, the entries at padding_idx do not contribute to the
+//  gradient; therefore, the embedding vector at padding_idx is not updated
+//  during training, i.e. it remains as a fixed “pad”.
 // scale_grad_by_freq (boolean, optional)
 //  – If given, this will scale gradients by the inverse of frequency of the
 //  words in the mini-batch. Default False.

@@ -9,11 +9,9 @@ add_mlir_conversion_library(TorchMLIRTorchToStablehlo
   Pooling.cpp
 
   ADDITIONAL_HEADER_DIRS
-  ${PROJECT_SOURCE_DIR}/include/torch-mlir/Conversion/TorchToMhlo
+  ${PROJECT_SOURCE_DIR}/include/torch-mlir/Conversion/TorchToStablehlo
 
   DEPENDS
-  MLIRMhloPassIncGen
-  LMHLOTransformsPassIncGen
   TorchMLIRConversionPassIncGen
 
   LINK_COMPONENTS
@@ -22,7 +20,6 @@ add_mlir_conversion_library(TorchMLIRTorchToStablehlo
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
-  MhloToLinalg
   MLIRBufferTransforms
   StablehloOps
   TorchMLIRTorchDialect
