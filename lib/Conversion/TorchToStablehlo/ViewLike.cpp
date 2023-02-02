@@ -7,14 +7,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
+#include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 
 #include "../PassDetail.h"
-#include "./MhloLegalizeUtils.h"
-#include "./PopulatePatterns.h"
-#include "mhlo/IR/hlo_ops.h"
+#include "PopulatePatterns.h"
+#include "StablehloLegalizeUtils.h"
+
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -28,7 +29,7 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 using namespace mlir::torch::TorchConversion;
-using namespace mlir::torch::torch_to_mhlo;
+using namespace mlir::torch::torch_to_stablehlo;
 
 namespace {
 // A dimension index from torch.dialect might outside the range [0, dimSize].
@@ -100,7 +101,7 @@ Value getDynamicSliceInternal(PatternRewriter &rewriter, Operation *op,
   auto stridesTensor =
       rewriter.create<tensor::FromElementsOp>(loc, strides).getResult();
 
-  return rewriter.create<mhlo::RealDynamicSliceOp>(
+  return rewriter.create<stablehlo::RealDynamicSliceOp>(
       loc, outTy, input, startTensor, endTensor, stridesTensor);
 }
 
@@ -144,7 +145,7 @@ FailureOr<Value> getDynamicSlice(PatternRewriter &rewriter, Operation *op,
     step = rewriter.create<arith::TruncIOp>(loc, intType, step);
   }
   FailureOr<SmallVector<Value, 4>> dimSizesInfo =
-      mhlo::getDimSizesOfTensor(rewriter, op, input, dimSizeIndexBits);
+      hlo::getDimSizesOfTensor(rewriter, op, input, dimSizeIndexBits);
   if (failed(dimSizesInfo))
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
@@ -179,7 +180,7 @@ public:
     auto loc = op.getLoc();
     auto newRank = dimSizes.size();
     if (newRank == 0 || rankType.getRank() == 0) {
-      rewriter.replaceOpWithNewOp<mhlo::ReshapeOp>(
+      rewriter.replaceOpWithNewOp<stablehlo::ReshapeOp>(
           op,
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
               op.getType()),
@@ -214,17 +215,18 @@ public:
                                                 numel);
 
     if (dimSizes.size() == 0) {
-      rewriter.replaceOpWithNewOp<mhlo::ReshapeOp>(
-        op,
-        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-            op.getType()),
-        adaptor.getSelf());
+      rewriter.replaceOpWithNewOp<stablehlo::ReshapeOp>(
+          op,
+          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+              op.getType()),
+          adaptor.getSelf());
       return success();
     }
-    Value mhloShape = rewriter.create<tensor::FromElementsOp>(loc, dimSizes);
-    Value computedShape = rewriter.create<mhlo::ComputeReshapeShapeOp>(
-        loc, mhloShape.getType(), numel, mhloShape);
-    rewriter.replaceOpWithNewOp<mhlo::DynamicReshapeOp>(
+    Value stablehloShape =
+        rewriter.create<tensor::FromElementsOp>(loc, dimSizes);
+    Value computedShape = rewriter.create<stablehlo::ComputeReshapeShapeOp>(
+        loc, stablehloShape.getType(), numel, stablehloShape);
+    rewriter.replaceOpWithNewOp<stablehlo::DynamicReshapeOp>(
         op,
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()),
@@ -315,21 +317,21 @@ LogicalResult ConvertAtenOp<AtenSqueezeOp>::matchAndRewrite(
       dims.push_back(r);
   }
   if (dims.size() == 0) {
-    rewriter.replaceOpWithNewOp<mhlo::ReshapeOp>(
+    rewriter.replaceOpWithNewOp<stablehlo::ReshapeOp>(
         op, getTypeConverter()->convertType(op.getType()), self);
     return success();
   }
 
-  auto newDimSizesInfo = mhlo::getDimSizesOfTensor(rewriter, op, self, dims,
-                                                   options.dimSizeIndexBits);
+  auto newDimSizesInfo = hlo::getDimSizesOfTensor(rewriter, op, self, dims,
+                                                  options.dimSizeIndexBits);
   if (failed(newDimSizesInfo))
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
   auto newDimSizes = *newDimSizesInfo;
-  auto mhloShape =
+  auto stablehloShape =
       rewriter.create<tensor::FromElementsOp>(op.getLoc(), newDimSizes);
-  rewriter.replaceOpWithNewOp<mhlo::DynamicReshapeOp>(
-      op, getTypeConverter()->convertType(op.getType()), self, mhloShape);
+  rewriter.replaceOpWithNewOp<stablehlo::DynamicReshapeOp>(
+      op, getTypeConverter()->convertType(op.getType()), self, stablehloShape);
   return success();
 }
 
@@ -365,20 +367,20 @@ LogicalResult ConvertAtenOp<AtenSqueezeDimOp>::matchAndRewrite(
   std::iota(dims.begin(), dims.end(), 0);
   dims.erase(dims.begin() + dim);
   if (dims.size() == 0) {
-    rewriter.replaceOpWithNewOp<mhlo::ReshapeOp>(
+    rewriter.replaceOpWithNewOp<stablehlo::ReshapeOp>(
         op, getTypeConverter()->convertType(op.getType()), self);
     return success();
   }
-  auto newDimSizesInfo = mhlo::getDimSizesOfTensor(rewriter, op, self, dims,
-                                                   options.dimSizeIndexBits);
+  auto newDimSizesInfo = hlo::getDimSizesOfTensor(rewriter, op, self, dims,
+                                                  options.dimSizeIndexBits);
   if (failed(newDimSizesInfo))
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
   auto newDimSizes = *newDimSizesInfo;
-  auto mhloShape =
+  auto stablehloShape =
       rewriter.create<tensor::FromElementsOp>(op.getLoc(), newDimSizes);
-  rewriter.replaceOpWithNewOp<mhlo::DynamicReshapeOp>(
-      op, getTypeConverter()->convertType(op.getType()), self, mhloShape);
+  rewriter.replaceOpWithNewOp<stablehlo::DynamicReshapeOp>(
+      op, getTypeConverter()->convertType(op.getType()), self, stablehloShape);
   return success();
 }
 
@@ -395,8 +397,8 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return op->emitError("dim must be a Scalar constant");
 
-  auto unsqzTensorInfo = mhlo::unsqueezeTensor(rewriter, op, adaptor.getSelf(),
-                                               {dim}, options.dimSizeIndexBits);
+  auto unsqzTensorInfo = hlo::unsqueezeTensor(rewriter, op, adaptor.getSelf(),
+                                              {dim}, options.dimSizeIndexBits);
   if (failed(unsqzTensorInfo))
     return rewriter.notifyMatchFailure(op,
                                        "failed to create unsqueezed tensor");
@@ -405,9 +407,9 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
   return success();
 }
 
-void mlir::torch::torch_to_mhlo::populateViewLikeOpPatternsAndLegality(
+void mlir::torch::torch_to_stablehlo::populateViewLikeOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
-    ConversionTarget &target, const TorchToMhloOptions &options) {
+    ConversionTarget &target, const TorchToStablehloOptions &options) {
   MLIRContext *context = patterns.getContext();
 
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \

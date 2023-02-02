@@ -87,8 +87,10 @@ TORCHDYNAMO_XFAIL_SET = {
     "StdCorrectionKeepDimModule_basic",
 }
 
-MHLO_PASS_SET = {
+STABLEHLO_PASS_SET = {
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
+    "AddSizeIntModule_basic",
+    "AddSizeIntNegDimModule_basic",
     "ArangeDtypeFloatModule_basic",
     "ArangeDtypeIntModule_basic",
     "ArangeFalsePinMemoryModule_basic",
@@ -103,6 +105,7 @@ MHLO_PASS_SET = {
     "ArangeStartStepFloatModule_basic",
     "ArangeStartStepIntModule_basic",
     "ArangeZeroElementOutputModule_basic",
+    "BatchMlpLayerModule_basic",
     "BmmModule_basic",
     "BroadcastToModule_basic",
     "BroadcastToSameRankStaticModule_basic",
@@ -124,12 +127,15 @@ MHLO_PASS_SET = {
     "ElementwiseClampMinModule_basic",
     "ElementwiseClampMaxModule_basic",
     "ElementwiseExpModule_basic",
+    "ElementwiseFlattenBroadcastModule_basic",
+    "ElementwiseLeakyReluModule_basic",
     "ElementwiseLogModule_basic",
     "ElementwiseNegModule_basic",
     "ElementwiseRsqrtModule_basic",
     "ElementwiseSigmoidModule_basic",
     "ElementwiseSqrtModule_basic",
     "ElementwiseUnaryModule_basic",
+    "ElementwiseUnsqueezeBroadcastModule_basic",
     "ElementwiseUnsqueezeNegDimsModule_basic",
     "ElementwiseToDtypeF32ToI64Module_basic",
     "ElementwiseAddModule_basic",
@@ -198,6 +204,8 @@ MHLO_PASS_SET = {
     "Gather2DInputModdule_basic",
     "GatherRandomIndexModule_basic",
     "GeluBackwardModule_basic",
+    "HardswishModule_basic",
+    "HardswishRandomModule_basic",
     "HardTanhIntModule_basic",
     "HardTanhModule_basic",
     "HardsigmoidModule_basic",
@@ -220,6 +228,8 @@ MHLO_PASS_SET = {
     "MeanDynamicSizesModule_basic",
     "MeanLargeInputModule_basic",
     "MeanModule_basic",
+    "Mlp1LayerModule_basic",
+    "Mlp2LayerModule_basic",
     "MmTanhModule_basic",
     "Mv_basic",
     "NativeLayerNormModule4D_basic",
@@ -251,6 +261,8 @@ MHLO_PASS_SET = {
     "LiftFreshCopyModule_basic",
     "Mlp2LayerModuleNoBias_basic",
     "NumelModule_basic",
+    "SiluModule_basic",
+    "SquareModule_basic",
     "SqueezeModule_allUnitDim",
     "SqueezeDimModule_unitDim",
     "ViewCollapseOnesMiddleModule_basic",
@@ -420,6 +432,7 @@ MHLO_PASS_SET = {
     "UnsafeViewDynamicExpandModule_basic",
     "AtenRoundIntModule_basic",
     "TestF16Return_basic",
+    "_LogSoftmaxModuleStable_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development

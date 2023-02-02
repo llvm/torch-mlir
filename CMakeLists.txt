@@ -36,9 +36,9 @@ macro(torch_mlir_add_llvm_external_project name identifier location)
   set(LLVM_EXTERNAL_PROJECTS ${LLVM_EXTERNAL_PROJECTS} CACHE STRING "" FORCE)
 endmacro()
 
-option(TORCH_MLIR_ENABLE_MHLO "Add mhlo dialect" ON)
-if(TORCH_MLIR_ENABLE_MHLO)
-  add_definitions(-DTORCH_MLIR_ENABLE_MHLO)
+option(TORCH_MLIR_ENABLE_STABLEHLO "Add stablehlo dialect" ON)
+if(TORCH_MLIR_ENABLE_STABLEHLO)
+  add_definitions(-DTORCH_MLIR_ENABLE_STABLEHLO)
 endif()
 
 option(TORCH_MLIR_ENABLE_LTC "Enables LTC backend" OFF)
@@ -128,8 +128,8 @@ else()
   set(MLIR_INCLUDE_DIRS "${MLIR_INCLUDE_DIR};${MLIR_GENERATED_INCLUDE_DIR}")
 endif()
 
-if (TORCH_MLIR_ENABLE_MHLO)
-  set(MHLO_BUILD_EMBEDDED ON)
+if (TORCH_MLIR_ENABLE_STABLEHLO)
+  set(STABLEHLO_BUILD_EMBEDDED ON)
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/externals/mlir-hlo
     ${CMAKE_CURRENT_BINARY_DIR}/mlir-hlo
     EXCLUDE_FROM_ALL)

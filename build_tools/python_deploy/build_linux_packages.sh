@@ -267,8 +267,8 @@ function test_in_tree() {
   echo ":::: Run Linalg e2e integration tests"
   python -m e2e_testing.main --config=linalg -v
 
-  echo ":::: Run MHLO e2e integration tests"
-  python -m e2e_testing.main --config=mhlo -v
+  echo ":::: Run StableHLO e2e integration tests"
+  python -m e2e_testing.main --config=stablehlo -v
 
   echo ":::: Run TOSA e2e integration tests"
   python -m e2e_testing.main --config=tosa -v

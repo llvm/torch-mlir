@@ -268,7 +268,7 @@ gentbl_cc_library(
         (
             [
                 "-gen-pass-decls",
-                "-DTORCH_MLIR_ENABLE_MHLO",
+                "-DTORCH_MLIR_ENABLE_STABLEHLO",
             ],
             "include/torch-mlir/Conversion/Passes.h.inc",
         ),
@@ -434,13 +434,13 @@ cc_library(
 )
 
 cc_library(
-    name = "TorchMLIRTorchToMhlo",
+    name = "TorchMLIRTorchToStablehlo",
     srcs = glob([
         "lib/Conversion/*.h",
-        "lib/Conversion/TorchToMhlo/*.h",
-        "lib/Conversion/TorchToMhlo/*.cpp",
+        "lib/Conversion/TorchToStablehlo/*.h",
+        "lib/Conversion/TorchToStablehlo/*.cpp",
     ]),
-    hdrs = glob(["include/torch-mlir/Conversion/TorchToMhlo/*.h"]),
+    hdrs = glob(["include/torch-mlir/Conversion/TorchToStablehlo/*.h"]),
     strip_include_prefix = "include",
     deps = [
         ":TorchMLIRConversionPassesIncGen",
@@ -465,8 +465,8 @@ cc_library(
         ":TorchMLIRTorchConversionToMLProgram",
         ":TorchMLIRTorchToArith",
         ":TorchMLIRTorchToLinalg",
-        ":TorchMLIRTorchToMhlo",
         ":TorchMLIRTorchToSCF",
+        ":TorchMLIRTorchToStablehlo",
         ":TorchMLIRTorchToTMTensor",
         ":TorchMLIRTorchToTosa",
     ],
@@ -489,8 +489,8 @@ cc_library(
         ":TorchMLIRTorchPasses",
         ":TorchMLIRTorchToArith",
         ":TorchMLIRTorchToLinalg",
-        ":TorchMLIRTorchToMhlo",
         ":TorchMLIRTorchToSCF",
+        ":TorchMLIRTorchToStablehlo",
         ":TorchMLIRTorchToTMTensor",
         ":TorchMLIRTorchToTosa",
         "@llvm-project//mlir:ConversionPasses",
