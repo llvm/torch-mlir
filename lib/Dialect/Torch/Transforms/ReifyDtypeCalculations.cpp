@@ -19,55 +19,25 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
-static bool isTensorTypeOrWrappedTensorType(Type type) {
-  // Allowing tuples as arguments to dtype calculation functions can cause
-  // issues. For example, if an argument is a tuple of tensors and ints, there
-  // would be no way of differentiating the original ints from the ints created
-  // to represent the dtype and rank of the tensors. Therefore, to avoid this
-  // and keep things simple, the tuple type is not allowed. This works well in
-  // practice, since PyTorch op signatures don't seem to take tuples as inputs.
-  assert(!type.isa<Torch::TupleType>() &&
-         "dtype calculation functions are expected to not have tuples of "
-         "tensors as arguments");
-
-  if (type.isa<Torch::BaseTensorType>())
-    return true;
-
-  if (auto optionalType = type.dyn_cast<Torch::OptionalType>()) {
-    return isTensorTypeOrWrappedTensorType(optionalType.getContainedType());
-  } else if (auto listType = type.dyn_cast<Torch::ListType>()) {
-    return isTensorTypeOrWrappedTensorType(listType.getContainedType());
-  } else {
-    return false;
-  }
-}
-
 // Massage the op operands to match the dtype function signature.
 // The dtype function generally takes the same operands as the op, with a few
-// systematic modifications, such as replacing tensors with a rank and dtype
-// argument.
+// systematic modifications, such as replacing each tensor with a tuple of
+// its rank and dtype.
 static FailureOr<SmallVector<Value>>
 dtypeFunctionArgsBuilder(OpBuilder &b, Location loc,
                          ValueRange originalOperands, func::FuncOp dtypeFunc) {
-  // Turns a tensor operand into an operand representing the rank of the tensor
-  auto rankArgAdjuster = [](OpBuilder &b, Location loc, Value operand,
-                            Type desiredType) -> Value {
-    if (desiredType.isa<Torch::IntType>() &&
-        operand.getType().isa<Torch::BaseTensorType>()) {
-      auto sizeListType =
-          Torch::ListType::get(Torch::IntType::get(b.getContext()));
-      Value size = b.create<AtenSizeOp>(loc, sizeListType, operand);
-      return b.create<AtenLenTOp>(loc, desiredType, size);
-    }
-    return operand;
-  };
-
-  // Turns a tensor operand into an operand representing the dtype of the tensor
+  // Turn every tensor into a tuple of (tensor_rank, tensor_dtype)
   auto dtypeArgAdjuster = [](OpBuilder &b, Location loc, Value operand,
                              Type desiredType) -> Value {
-    if (desiredType.isa<Torch::IntType>() &&
+    if (desiredType.isa<Torch::TupleType>() &&
         operand.getType().isa<Torch::BaseTensorType>()) {
-      return b.create<PrimDtypeOp>(loc, desiredType, operand);
+      Type intType = Torch::IntType::get(b.getContext());
+      Type sizeListType = Torch::ListType::get(intType);
+      Value size = b.create<AtenSizeOp>(loc, sizeListType, operand);
+      Value rank = b.create<AtenLenTOp>(loc, intType, size);
+      Value dtype = b.create<PrimDtypeOp>(loc, intType, operand);
+      return b.create<PrimTupleConstructOp>(loc, desiredType,
+                                            ArrayRef{rank, dtype});
     }
     return operand;
   };
@@ -79,26 +49,11 @@ dtypeFunctionArgsBuilder(OpBuilder &b, Location loc,
            "`dtypeFunc` should have at least one argument for each argument in "
            "`originalOperands`");
     Type desiredType = desiredTypes.front();
-    if (isTensorTypeOrWrappedTensorType(operand.getType())) {
-      assert(desiredTypes.size() >= 2 &&
-             "`dtypeFunc` should have two arguments for each tensor argument "
-             "in `originalOperands`");
-      FailureOr<Value> rankArg, dtypeArg;
-      if (failed(rankArg = adjustFunctionArg(b, loc, operand, desiredType,
-                                             rankArgAdjuster)))
-        return failure();
-      desiredTypes = desiredTypes.drop_front();
-      desiredType = desiredTypes.front();
-      if (failed(dtypeArg = adjustFunctionArg(b, loc, operand, desiredType,
-                                              dtypeArgAdjuster)))
-        return failure();
-      dtypeFuncArgs.append({*rankArg, *dtypeArg});
-    } else {
-      FailureOr<Value> otherArg;
-      if (failed(otherArg = adjustFunctionArg(b, loc, operand, desiredType)))
-        return failure();
-      dtypeFuncArgs.push_back(*otherArg);
-    }
+    FailureOr<Value> otherArg;
+    if (failed(otherArg = adjustFunctionArg(b, loc, operand, desiredType,
+                                            dtypeArgAdjuster)))
+      return failure();
+    dtypeFuncArgs.push_back(*otherArg);
     desiredTypes = desiredTypes.drop_front();
   }
 

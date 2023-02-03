@@ -21,7 +21,7 @@ We will use the example of adding support for the `torch.aten.tanh` op.
    function signatures are:
    
    - `def aten〇tanh〡shape(self: List[int]) -> List[int]:`
-   - `def aten〇tanh〡dtype(self_rank: int, self_dtype: int) -> int:`
+   - `def aten〇tanh〡dtype(self_rank_dtype: Tuple[int, int]) -> int:`
 
    Note the use of `〇` as a separator since `.` or `::` aren't legal
    in a Python identifier.
