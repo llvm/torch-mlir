@@ -186,6 +186,22 @@ public:
         listLiterals.push_back(runningList);
         continue;
       }
+      // if (auto remove = dyn_cast<AtenRemoveIntOp>(user)) {
+      //   if (!remove.use_empty())
+      //     return rewriter.notifyMatchFailure(
+      //         op, "Expected `AtenInsertTOp` to not have users");
+      //   int64_t element;
+      //   if (!matchPattern(remove.getEl(), m_TorchConstantInt(&element)))
+      //     return rewriter.notifyMatchFailure(
+      //         op, "Expected `element` to be removed a constant int");
+      //   if (remove.getSelf() == op) {
+      //     llvm::erase_value(runningList, remove.getEl());
+      //     generatedNewLiteral = true;
+      //   llvm::outs()<<"*****************************\n";
+      //   }
+      //   listLiterals.push_back(runningList);
+      //   continue;
+      // }
       // If this user potentially mutates the list and isn't handled above, then
       // we can't abstractly interpret any further.
       if (potentiallyMutatesListOperands(user))
@@ -224,6 +240,14 @@ public:
           rewriter.eraseOp(setItem);
         continue;
       }
+      // if (auto removeInt = dyn_cast<AtenRemoveIntOp>(user)) {
+      //   rewriter.setInsertionPoint(removeInt);
+      //   latestLiteral = rewriter.create<PrimListConstructOp>(
+      //       removeInt->getLoc(), op.getType(), listLiterals[nextLiteral++]);
+      //   if (removeInt.getSelf() == op)
+      //     rewriter.eraseOp(removeInt);
+      //   continue;
+      // }
       for (OpOperand &opOperand : user->getOpOperands()) {
         if (opOperand.get() == op.getResult()) {
           opOperand.set(latestLiteral);

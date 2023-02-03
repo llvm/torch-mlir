@@ -4160,6 +4160,32 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenSqueezeDimsOp : public OpRewritePattern<AtenSqueezeDimsOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSqueezeDimsOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    SmallVector<int64_t> dimListInts;
+    if (!matchPattern(op.getDim(), m_TorchListOfConstantInts(dimListInts)))
+      return rewriter.notifyMatchFailure(
+          op, "all dim list elements must be constant ints");
+    for (unsigned i = dimListInts.size(); i > 0; i--) {
+      Value cstDim = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(dimListInts[i - 1]));
+      BaseTensorType selfType = self.getType().cast<BaseTensorType>();
+      Type squeezedType = computeReductionType(rewriter, op, selfType, cstDim,
+                                               /*keepDim=*/false);
+      self = rewriter.create<AtenSqueezeDimOp>(loc, squeezedType, self, cstDim);
+    }
+    rewriter.replaceOp(op, self);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -4321,6 +4347,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyStridedOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBucketizeTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMovedimIntOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSqueezeDimsOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

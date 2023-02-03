@@ -5706,6 +5706,30 @@ def Torch_AtenSqueezeOp : Torch_Op<"aten.squeeze", [
   let hasFolder = 1;
 }
 
+def Torch_AtenSqueezeDimsOp : Torch_Op<"aten.squeeze.dims", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::squeeze.dims : (Tensor, int[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchListOfTorchIntType:$dim
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenSqueezeDimsOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenSqueezeDimsOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_AtenFlattenUsingIntsOp : Torch_Op<"aten.flatten.using_ints", [
     AllowsTypeRefinement,
     ReadOnly

@@ -680,6 +680,18 @@ OpFoldResult AtenSqueezeDimOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenSqueezeDimsOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenSqueezeDimsOp::fold(FoldAdaptor adaptor) {
+  if (auto tensorType = getOperand(0).getType().dyn_cast<BaseTensorType>()) {
+    if (tensorType.hasSizes() && tensorType.getSizes().size() == 0)
+      return getOperand(0);
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenRoundOp
 //===----------------------------------------------------------------------===//
 
@@ -1442,6 +1454,41 @@ void AtenSortIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     return success();
   });
 }
+
+//===----------------------------------------------------------------------===//
+// AtenRemoveIntOp
+//===----------------------------------------------------------------------===//
+
+// void AtenRemoveIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+//                                                   MLIRContext *context) {
+//   patterns.add(+[](AtenRemoveIntOp op, PatternRewriter &rewriter) {
+//     SmallVector<int64_t> listElements;
+//     if (!matchPattern(op.getSelf(), m_TorchListOfConstantInts(listElements)))
+//       return rewriter.notifyMatchFailure(
+//           op, "all input list elements must be constant ints");
+//     int64_t elementToBeRemoved;
+//     if (!matchPattern(op.getEl(), m_TorchConstantInt(&elementToBeRemoved)))
+//       return rewriter.notifyMatchFailure(
+//           op, "Expected element to be removed a constant int.");
+
+//     listElements.erase(listElements.begin(),
+//                        std::find(listElements.begin(), listElements.end(),
+//                                  elementToBeRemoved));
+
+//     SmallVector<Value> updatedListElements;
+//     for (int64_t elem : listElements)
+//       updatedListElements.push_back(rewriter.create<Torch::ConstantIntOp>(
+//           op->getLoc(), rewriter.getI64IntegerAttr(elem)));
+//     Value result = rewriter.create<Torch::PrimListConstructOp>(
+//         op->getLoc(), Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+//         updatedListElements);
+
+//         llvm::outs()<<"*****************************\n";
+//     op.getSelf().replaceAllUsesWith(result);
+//     rewriter.eraseOp(op);
+//     return success();
+//   });
+// }
 
 //===----------------------------------------------------------------------===//
 // NonValueTensorLiteralOp
@@ -2406,6 +2453,29 @@ OpFoldResult PrimMaxIntOp::fold(FoldAdaptor adaptor) {
       lhs.getType(),
       std::max(lhs.getValue().getSExtValue(), rhs.getValue().getSExtValue()));
 }
+
+//===----------------------------------------------------------------------===//
+// PrimMaxSelfIntOp
+//===----------------------------------------------------------------------===//
+
+// OpFoldResult PrimMaxSelfIntOp::fold(FoldAdaptor adaptor) {
+//   auto list = getOperand().getDefiningOp<PrimListConstructOp>();
+//   if (!list)
+//     return nullptr;
+//   // TODO: What does it return for an empty list?
+//   if (list->getNumOperands() == 0)
+//     return nullptr;
+
+//   SmallVector<int64_t> values;
+//   for (auto operand : list->getOperands()) {
+//     int64_t value;
+//     if (!matchPattern(operand, m_TorchConstantInt(&value)))
+//       return nullptr;
+//     values.push_back(value);
+//   }
+//   return getI64IntegerAttr(getContext(),
+//                            *std::max_element(values.begin(), values.end()));
+// }
 
 //===----------------------------------------------------------------------===//
 // PrimMinSelfIntOp

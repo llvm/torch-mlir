@@ -756,6 +756,29 @@ def aten〇squeeze〡shape(self: List[int]) -> List[int]:
 def aten〇squeeze〇dim〡shape(self: List[int], dim: int) -> List[int]:
     return upstream_shape_functions.squeeze(self, dim)
 
+def aten〇squeeze〇dims〡shape(self: List[int], dim: List[int]) -> List[int]:
+    # wrapped_dims : List[int] = []
+    # wrapped_dims = upstream_shape_functions._copy(dim)
+    # out: List[int] = self
+    for i in range(len(dim)):
+        self = upstream_shape_functions.squeeze(self, dim[len(dim) - i - 1])
+    # sorted_dims = upstream_shape_functions._copy(dim)
+    # sorted_dims.sort(reverse=True)
+    
+    # result_shape = upstream_shape_functions._copy(self)
+    # for i in range(len(wrapped_dims)):
+    #     curr_dim = max(wrapped_dims)
+    #     wrapped_dims.remove(curr_dim)
+    #     # for ele in wrapped_dims:
+            
+    #     # wrapped_dims = [ele for ele in wrapped_dims if ele != curr_dim]
+    #     # wrapped_dims.remove(curr_dim)
+    #     result_shape = upstream_shape_functions.squeeze(result_shape, curr_dim)
+    return self
+
+def aten〇squeeze〇dims〡dtype(self_rank: int, self_dtype: int, dim: List[int]) -> int:
+    return self_dtype
+
 def prim〇NumToTensor〇Scalar〡shape(a: float) -> List[int]:
     return []
 

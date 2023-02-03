@@ -200,8 +200,8 @@ bool Torch::isViewLikeOp(Operation *op) {
   return isa<AtenBroadcastToOp, AtenContiguousOp, AtenDetachOp, AtenExpandAsOp,
              AtenExpandOp, AtenFlattenUsingIntsOp, AtenPermuteOp, AtenReshapeOp,
              Aten_ReshapeAliasOp, AtenSelectIntOp, AtenSliceTensorOp,
-             AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp, AtenToDtypeOp,
-             AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
+             AtenSqueezeDimOp, AtenSqueezeOp, AtenSqueezeDimsOp, AtenTOp,
+             AtenToDtypeOp, AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
              TensorStaticInfoCastOp, AtenToDtypeLayoutOp, AtenNumpyTOp,
              AtenNarrowOp, AtenToDeviceOp, AtenMovedimIntOp>(op);
 }
