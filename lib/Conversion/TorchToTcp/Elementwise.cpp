@@ -15,6 +15,7 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpDialect.h"
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpOps.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -36,13 +37,14 @@ bool skipMultiplyAlpha(Value alphaValue) {
   return ((isFloat && doubleValue == 1.0) || (isInt && intValue == 1.0));
 }
 
-class ConvertAtenAddOp : public OpConversionPattern<AtenAddTensorOp> {
+template <typename AtenOpT, typename TcpOpT>
+class ConvertAtenAddSubOp : public OpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenAddTensorOp>::OpConversionPattern;
-  using OpAdaptor = typename AtenAddTensorOp::Adaptor;
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
 
   LogicalResult
-  matchAndRewrite(AtenAddTensorOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
     RankedTensorType lhsType = lhs.getType().dyn_cast<RankedTensorType>();
@@ -50,37 +52,55 @@ public:
     Value rhs = adaptor.getOther();
     RankedTensorType rhsType = rhs.getType().dyn_cast<RankedTensorType>();
 
-    if (!lhsType || !rhsType)
+    RankedTensorType resultType =
+        OpConversionPattern<AtenOpT>::getTypeConverter()
+            ->convertType(op.getType())
+            .template cast<RankedTensorType>();
+
+    if (!lhsType || !rhsType || !resultType)
       return rewriter.notifyMatchFailure(
           op, "Only Ranked Tensor types are supported in TCP");
 
-    auto lhsRank = lhsType.getRank();
-    auto rhsRank = rhsType.getRank();
-    if (lhsRank < rhsRank) {
-      int64_t rankIncrease = rhsRank - lhsRank;
-      lhs =
-          torch_to_tcp::broadcastRankInLeadingDims(rewriter, lhs, rankIncrease);
-      lhs = torch_to_tcp::broadcastShapeInLeadingDims(rewriter, lhs, rhs,
-                                                      rankIncrease);
-    }
-    if (lhsRank > rhsRank) {
-      int64_t rankIncrease = lhsRank - rhsRank;
-      rhs =
-          torch_to_tcp::broadcastRankInLeadingDims(rewriter, rhs, rankIncrease);
-      rhs = torch_to_tcp::broadcastShapeInLeadingDims(rewriter, rhs, lhs,
-                                                      rankIncrease);
-    }
+    lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, lhs, rhs);
+    rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, rhs, lhs);
 
     if (!skipMultiplyAlpha(op.getAlpha()))
       return rewriter.notifyMatchFailure(
-          op, "torch.add with alpha != 1 is not yet supported in "
+          op, "torch ops with alpha != 1 is not yet supported in "
               "Torch to TCP conversion");
 
+    rewriter.replaceOpWithNewOp<TcpOpT>(op, resultType, lhs, rhs);
+    return success();
+  }
+};
+
+class ConvertAtenMulOp : public OpConversionPattern<AtenMulTensorOp> {
+public:
+  using OpConversionPattern<AtenMulTensorOp>::OpConversionPattern;
+  using OpAdaptor = typename AtenMulTensorOp::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(AtenMulTensorOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value lhs = adaptor.getSelf();
+    RankedTensorType lhsType = lhs.getType().dyn_cast<RankedTensorType>();
+
+    Value rhs = adaptor.getOther();
+    RankedTensorType rhsType = rhs.getType().dyn_cast<RankedTensorType>();
+
     RankedTensorType resultType =
-        OpConversionPattern<AtenAddTensorOp>::getTypeConverter()
+        OpConversionPattern<AtenMulTensorOp>::getTypeConverter()
             ->convertType(op.getType())
             .template cast<RankedTensorType>();
-    rewriter.replaceOpWithNewOp<tcp::AddOp>(op, resultType, lhs, rhs);
+
+    if (!lhsType || !rhsType || !resultType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+
+    lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, lhs, rhs);
+    rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, rhs, lhs);
+
+    rewriter.replaceOpWithNewOp<tcp::MulOp>(op, resultType, lhs, rhs);
     return success();
   }
 };
@@ -107,6 +127,102 @@ public:
   }
 };
 
+class ConvertAtenClampOp : public OpConversionPattern<AtenClampOp> {
+public:
+  using OpConversionPattern<AtenClampOp>::OpConversionPattern;
+  using OpAdaptor = typename AtenClampOp::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(AtenClampOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = adaptor.getSelf();
+    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
+    if (!inputType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+    auto elementType = inputType.getElementType();
+    if (!elementType.isIntOrFloat())
+      return rewriter.notifyMatchFailure(
+          op,
+          "Clamp input tensor must have integer or floating-point datatype");
+
+    Value minValue = op.getMin();
+    Value maxValue = op.getMax();
+    if (checkNotNone(rewriter, op, minValue).failed() &&
+        checkNotNone(rewriter, op, maxValue).failed()) {
+      return rewriter.notifyMatchFailure(
+          op, "clamp op requires at least one of min or max");
+    }
+
+    auto setMinMaxAttrs = [&](Value value, FloatAttr &floatAttr,
+                              IntegerAttr &intAttr) {
+      double floatValue;
+      int64_t intValue;
+      if (matchPattern(value, m_TorchConstantFloat(&floatValue))) {
+        if (elementType.isa<mlir::FloatType>())
+          floatAttr = rewriter.getF32FloatAttr(floatValue);
+        else if (elementType.isa<mlir::IntegerType>())
+          intAttr =
+              rewriter.getI64IntegerAttr(static_cast<int64_t>(floatValue));
+      } else if (matchPattern(value, m_TorchConstantInt(&intValue))) {
+        if (elementType.isa<mlir::FloatType>())
+          floatAttr = rewriter.getF32FloatAttr(static_cast<float>(intValue));
+        else if (elementType.isa<mlir::IntegerType>())
+          intAttr = rewriter.getI64IntegerAttr(intValue);
+      } else {
+        llvm_unreachable("only float or integer constants are supported as min "
+                         "/ max values");
+      }
+    };
+
+    FloatAttr minFloatAttr, maxFloatAttr;
+    IntegerAttr minIntAttr, maxIntAttr;
+    if (checkNotNone(rewriter, op, minValue).succeeded()) {
+      setMinMaxAttrs(minValue, minFloatAttr, minIntAttr);
+    }
+    if (checkNotNone(rewriter, op, maxValue).succeeded()) {
+      setMinMaxAttrs(maxValue, maxFloatAttr, maxIntAttr);
+    }
+
+    rewriter.replaceOpWithNewOp<tcp::ClampOp>(op, inputType, input,
+                                              minFloatAttr, maxFloatAttr,
+                                              minIntAttr, maxIntAttr);
+    return success();
+  }
+};
+
+class ConvertAtenReluOp : public OpConversionPattern<AtenReluOp> {
+public:
+  using OpConversionPattern<AtenReluOp>::OpConversionPattern;
+  using OpAdaptor = typename AtenReluOp::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(AtenReluOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = adaptor.getSelf();
+    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
+    if (!inputType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+    auto elementType = inputType.getElementType();
+    if (!elementType.isIntOrFloat())
+      return rewriter.notifyMatchFailure(
+          op, "Relu input tensor must have integer or floating-point datatype");
+
+    FloatAttr minFloatAttr, maxFloatAttr;
+    IntegerAttr minIntAttr, maxIntAttr;
+    if (elementType.isa<mlir::FloatType>())
+      minFloatAttr = rewriter.getF32FloatAttr(0.0f);
+    else
+      minIntAttr = rewriter.getI64IntegerAttr(0);
+
+    rewriter.replaceOpWithNewOp<tcp::ClampOp>(op, inputType, input,
+                                              minFloatAttr, maxFloatAttr,
+                                              minIntAttr, maxIntAttr);
+    return success();
+  }
+};
+
 } // namespace
 
 void torch_to_tcp::populateElementwisePatternsAndLegality(
@@ -116,7 +232,18 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
 
   target.addIllegalOp<AtenTanhOp>();
   patterns.add<ConvertAtenTanhOp>(typeConverter, context);
+  target.addIllegalOp<AtenClampOp>();
+  patterns.add<ConvertAtenClampOp>(typeConverter, context);
+  target.addIllegalOp<AtenReluOp>();
+  patterns.add<ConvertAtenReluOp>(typeConverter, context);
 
   target.addIllegalOp<AtenAddTensorOp>();
-  patterns.add<ConvertAtenAddOp>(typeConverter, context);
+  target.addIllegalOp<AtenSubTensorOp>();
+  patterns.add<ConvertAtenAddSubOp<AtenAddTensorOp, tcp::AddOp>>(typeConverter,
+                                                                 context);
+  patterns.add<ConvertAtenAddSubOp<AtenSubTensorOp, tcp::SubOp>>(typeConverter,
+                                                                 context);
+
+  target.addIllegalOp<AtenMulTensorOp>();
+  patterns.add<ConvertAtenMulOp>(typeConverter, context);
 }

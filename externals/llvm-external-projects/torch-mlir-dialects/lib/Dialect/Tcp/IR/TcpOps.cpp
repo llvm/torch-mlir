@@ -19,6 +19,31 @@
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpOps.cpp.inc"
 
 namespace mlir::tcp {
+
+LogicalResult ClampOp::verify() {
+  auto inputType = getIn().getType().cast<RankedTensorType>();
+
+  if (inputType.getElementType().isa<FloatType>()) {
+    if (getMinInt() || getMaxInt())
+      return emitOpError("failed to verify that int min / max attributes "
+                         "must not be set when input is a float tensor");
+    if (!getMinFloat() && !getMaxFloat())
+      return emitOpError("failed to verify that at least one of min / max "
+                         "attributes must be set");
+  }
+
+  if (inputType.getElementType().isa<IntegerType>()) {
+    if (getMinFloat() || getMaxFloat())
+      return emitOpError("failed to verify that float min / max attributes "
+                         "must not be set when input is an int tensor");
+    if (!getMinInt() && !getMaxInt())
+      return emitOpError("failed to verify that at least one of min / max "
+                         "attributes must be set");
+  }
+
+  return success();
+}
+
 LogicalResult BroadcastOp::verify() {
   auto compareIntAttr = [](Attribute v1, Attribute v2) {
     return v1.cast<IntegerAttr>().getInt() < v2.cast<IntegerAttr>().getInt();
@@ -39,4 +64,5 @@ LogicalResult BroadcastOp::verify() {
 
   return success();
 }
+
 } // namespace mlir::tcp

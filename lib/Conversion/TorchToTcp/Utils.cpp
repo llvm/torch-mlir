@@ -17,9 +17,10 @@
 using namespace mlir;
 using namespace mlir::tcp;
 
+// The parameter input is expected to be of RankedTensorType.
 Value torch_to_tcp::broadcastRankInLeadingDims(
     ConversionPatternRewriter &rewriter, Value input, int64_t rankIncrease) {
-  RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
+  RankedTensorType inputType = input.getType().cast<RankedTensorType>();
 
   SmallVector<ReassociationExprs> reassociationMap(inputType.getRank());
   if (inputType.getRank() > 0) {
@@ -40,6 +41,7 @@ Value torch_to_tcp::broadcastRankInLeadingDims(
       input.getDefiningOp()->getLoc(), resultType, input, reassociationMap);
 }
 
+// The parameters input and target are expected to be of RankedTensorType.
 Value torch_to_tcp::broadcastShapeInLeadingDims(
     ConversionPatternRewriter &rewriter, Value input, Value target,
     int64_t numLeadingAxes) {
@@ -55,4 +57,22 @@ Value torch_to_tcp::broadcastShapeInLeadingDims(
   auto axesAttr = rewriter.getI64ArrayAttr(axes);
   return rewriter.create<tcp::BroadcastOp>(op->getLoc(), target.getType(),
                                            input, dimSizes, axesAttr);
+}
+
+// The parameters input and target are expected to be of RankedTensorType.
+Value torch_to_tcp::broadcastInLeadingDimsToMatchShape(
+    ConversionPatternRewriter &rewriter, Value input, Value target) {
+  RankedTensorType targetType = target.getType().cast<RankedTensorType>();
+  RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+
+  Value result = input;
+  if (inputType.getRank() < targetType.getRank()) {
+    int64_t rankIncrease = targetType.getRank() - inputType.getRank();
+    result = torch_to_tcp::broadcastRankInLeadingDims(rewriter, result,
+                                                      rankIncrease);
+    result = torch_to_tcp::broadcastShapeInLeadingDims(rewriter, result, target,
+                                                       rankIncrease);
+  }
+
+  return result;
 }
