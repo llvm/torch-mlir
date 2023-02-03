@@ -509,7 +509,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::len.Tensor : (Tensor) -> (int)")
     emit("aten::cpu : (Tensor) -> (Tensor)")
     emit("aten::gather : (Tensor, int, Tensor, bool) -> (Tensor)")
-    emit("aten::scatter_add : (Tensor, int, Tensor, Tensor) -> (Tensor)")
+    emit_with_mutating_variants("aten::scatter_add : (Tensor, int, Tensor, Tensor) -> (Tensor)")
     emit("aten::IntImplicit : (Tensor) -> (int)")
     emit("aten::FloatImplicit : (Tensor) -> (float)")
     emit("aten::tensor.float : (float, int?, Device?, bool) -> (Tensor)")
