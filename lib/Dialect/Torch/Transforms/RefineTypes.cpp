@@ -706,8 +706,9 @@ void TypeAnalysis::visitOperation(Operation *op,
   // Dtype is always i1.
   if (isa<AtenEqScalarOp, AtenGeScalarOp, AtenGtScalarOp, AtenLtScalarOp,
           AtenLeScalarOp, AtenNeScalarOp, AtenAnyOp, AtenAllOp, AtenEqTensorOp,
-          AtenGtTensorOp, AtenLtTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
-          AtenLogicalXorOp, AtenLogicalNotOp>(op)) {
+          AtenGtTensorOp, AtenGeTensorOp, AtenLtTensorOp, AtenLeTensorOp,
+          AtenLogicalOrOp, AtenLogicalAndOp, AtenLogicalXorOp,
+          AtenLogicalNotOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     knowledge.dtype = IntegerType::get(op->getContext(), 1);
@@ -1188,6 +1189,22 @@ void TypeAnalysis::visitOperation(Operation *op,
     knowledge.dtype = getDtypeOrDefault(op->getContext(),
                                         randnGenerator.getDtype(), defaultDtype);
     incorporateKnowledge(randnGenerator.getResult(), knowledge);
+    return;
+  }
+
+  if (auto bucketize = dyn_cast<AtenBucketizeTensorOp>(op)) {
+    auto knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    bool outInt32;
+    if (matchPattern(bucketize.getOutInt32(), m_TorchConstantBool(&outInt32)) &&
+        outInt32) {
+      knowledge.dtype =
+          IntegerType::get(op->getContext(), 32, IntegerType::Signed);
+    } else {
+      knowledge.dtype =
+          IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+    }
+    incorporateKnowledge(bucketize.getResult(), knowledge);
     return;
   }
 
