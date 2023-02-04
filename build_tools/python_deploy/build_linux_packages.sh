@@ -39,12 +39,12 @@ set -eu -o errtrace
 this_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$this_dir"/../../ && pwd)"
 # This needs to be a manylinux image so we can ship pip packages
-TM_RELEASE_DOCKER_IMAGE="${TM_RELEASE_DOCKER_IMAGE:-stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest}"
+TM_RELEASE_DOCKER_IMAGE="${TM_RELEASE_DOCKER_IMAGE:-gcr.io/iree-oss/manylinux2014_x86_64-release@sha256:d8994b87b45b7b2e6055fccc32db018ec73aeb05a4e43a9daa61b77cc34f846e}"
 # This assumes an Ubuntu LTS like image. You can build your own with
 # ./build_tools/docker/Dockerfile
 TM_CI_DOCKER_IMAGE="${TM_CI_DOCKER_IMAGE:-powderluv/torch-mlir-ci:latest}"
 # Version of Python to use in Release builds. Ignored in CIs.
-TM_PYTHON_VERSIONS="${TM_PYTHON_VERSIONS:-cp38-cp38 cp310-cp310}"
+TM_PYTHON_VERSIONS="${TM_PYTHON_VERSIONS:-cp38-cp38 cp310-cp310 cp311-cp311}"
 # Location to store Release wheels
 TM_OUTPUT_DIR="${TM_OUTPUT_DIR:-${this_dir}/wheelhouse}"
 # What "packages to build"
