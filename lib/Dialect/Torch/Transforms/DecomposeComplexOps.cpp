@@ -3496,6 +3496,29 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.norm.ScalarOpt_dim` op to `aten.linalg_vector_norm` op
+class DecomposeAtenNormScalarOptDimOp
+    : public OpRewritePattern<AtenNormScalarOptDimOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNormScalarOptDimOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+    Value ord = op.getP();
+    if (ord.getType().isa<Torch::NoneType>()) {
+      ord = rewriter.create<Torch::ConstantFloatOp>(
+          loc, rewriter.getF64FloatAttr(2.0));
+    }
+    rewriter.replaceOpWithNewOp<AtenLinalgVectorNormOp>(
+        op, op.getType(), op.getSelf(), ord, op.getDim(), op.getKeepdim(),
+        /*dtype=*/none);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenRandintLowOp : public OpRewritePattern<AtenRandintLowOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -3934,6 +3957,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorHackedTwinOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMseLossOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenNormScalarOptDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintLowOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanCorrectionOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposePrimsConvertElementTypeOp>(patterns);
