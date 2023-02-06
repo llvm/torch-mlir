@@ -66,8 +66,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "IndexPutImpl2DFloatNonAccumulateModule_basic",
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
-    # %4 = torch.operator "aten.squeeze_.dim"(%3, %int0) : (!torch.tensor<*,f32>, !torch.int) -> !torch.tensor
-    "Matmul_vecmat",
 
     # https://github.com/llvm/torch-mlir/issues/1611
     # error: 'tensor.cast' op operand type 'tensor<0xi64>' and result type 'tensor<18xi64>' are cast incompatible
