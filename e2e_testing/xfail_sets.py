@@ -264,6 +264,7 @@ STABLEHLO_PASS_SET = {
     "Mv_basic",
     "NativeLayerNormModule4D_basic",
     "NativeLayerNormModule_basic",
+    "OneHotModule_basic",
     "PrimsConvertElementTypeModule_basic",
     "ReduceFrobeniusNormKeepDimModule_basic",
     "ReduceSumDimIntListElementTypeBoolModule_basic",
@@ -935,4 +936,5 @@ LTC_XFAIL_SET = {
     "PrimsSqueezeEmptyDimensionsModule_basic",
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
+    "OneHotModule_basic",
 }

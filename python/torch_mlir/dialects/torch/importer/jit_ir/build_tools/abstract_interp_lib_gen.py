@@ -356,6 +356,12 @@ def aten〇std〇correction〡shape(self: List[int], dim: Optional[List[int]] = 
 def aten〇argmax〡shape(self: List[int], dim: Optional[int] = None, keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.argmax(self, dim, keepdim)
 
+# TODO: The result shape when num_classes=-1 depends on the runtime values of the input tensor,
+# making it impossible to add support for it using the current design of the shape library.
+def aten〇one_hot〡shape(self: List[int], num_classes: int = -1) -> List[int]:
+    assert num_classes != -1, "getting num_classes from tensor contents is not supported"
+    return self + [num_classes]
+
 def aten〇any〇dim〡shape(self: List[int], dim: int, keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.argmax(self, dim, keepdim)
 
