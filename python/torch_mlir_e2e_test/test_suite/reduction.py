@@ -315,6 +315,44 @@ def ReduceMaxAlongDim_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ReduceMaxAlongDimSignedInt(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.max(a, 1)
+
+
+@register_test_case(module_factory=lambda: ReduceMaxAlongDimSignedInt())
+def ReduceMaxAlongDimSignedInt_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, low=-100, high=100))
+
+# ==============================================================================
+
+class ReduceMaxAlongDimUnsignedInt(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.uint8, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.max(a, 1)
+
+
+@register_test_case(module_factory=lambda: ReduceMaxAlongDimUnsignedInt())
+def ReduceMaxAlongDimUnsignedInt_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, low=-100, high=100).to(torch.uint8))
+
+# ==============================================================================
+
 class ReduceMaxAlongDimNegative(torch.nn.Module):
     def __init__(self):
         super().__init__()

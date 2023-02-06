@@ -89,6 +89,7 @@ TORCHDYNAMO_XFAIL_SET = {
 
     #ERROR: value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=-1.336e-32, max=+0.9152, mean=+0.4837) is not close to golden value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=+0.02233, max=+0.9152, mean=+0.4777)
     "UpSampleNearest2dDynamicFactor_basic",
+    "ReduceMaxAlongDimUnsignedInt_basic",
 }
 
 STABLEHLO_PASS_SET = {
