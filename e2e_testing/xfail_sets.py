@@ -679,6 +679,10 @@ TOSA_PASS_SET = {
     "HardsigmoidRandomModule_basic",
     "HardswishModule_basic",
     "HardswishRandomModule_basic",
+    "FullLikeModuleInt2DStatic_basic",
+    "FullModuleInt3D_basic",
+    "FullModuleFloat2D_basic",
+    "RepeatModule_basic"
 }
 
 LTC_XFAIL_SET = {
