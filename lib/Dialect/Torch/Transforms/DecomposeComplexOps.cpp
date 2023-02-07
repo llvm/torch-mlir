@@ -1390,7 +1390,7 @@ public:
 };
 } // namespace
 
-// Decompose aten.where.ScalarSelf into aten.where.self op.
+// Decompose aten.masked_fill.Scalar into aten.where.self op.
 namespace {
 class DecomposeAtenMaskedFillScalarOp
     : public OpRewritePattern<AtenMaskedFillScalarOp> {
