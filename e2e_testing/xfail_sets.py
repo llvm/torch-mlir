@@ -86,8 +86,6 @@ TORCHDYNAMO_XFAIL_SET = {
     # error: unsupported by backend contract: tensor with unknown rank
     # note: see current operation: %1 = "torch.tensor_static_info_cast"(%arg0) : (!torch.vtensor<[5,4,3,2,1],f32>) -> !torch.vtensor<*,f32>
     "ElementwisePreluModule_basic",
-    # error: op lowering missing. Issue: https://github.com/llvm/torch-mlir/issues/1792
-    "StdCorrectionKeepDimModule_basic",
 
     #ERROR: value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=-1.336e-32, max=+0.9152, mean=+0.4837) is not close to golden value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=+0.02233, max=+0.9152, mean=+0.4777)
     "UpSampleNearest2dDynamicFactor_basic",
