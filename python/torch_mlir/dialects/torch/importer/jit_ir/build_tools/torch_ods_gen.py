@@ -582,7 +582,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     # Type conversion ops.
     emit("aten::Float.Scalar : (Scalar) -> (float)", has_folder=True)
     emit("aten::Float.str : (str) -> (float)")
-    emit("aten::Int.float : (float) -> (int)")
+    emit("aten::Int.float : (float) -> (int)", has_folder=True)
     emit("aten::Int.Scalar : (Scalar) -> (int)", has_folder=True)
     emit("aten::Int.bool : (bool) -> (int)", has_folder=True)
 

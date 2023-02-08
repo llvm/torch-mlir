@@ -2647,6 +2647,25 @@ def LenStrModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class IntFloatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.value = 1.0
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.Int(self.value)
+
+@register_test_case(module_factory=lambda: IntFloatModule())
+def IntFloatModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
 
 class ScalarImplicitFloatModule(torch.nn.Module):
 
