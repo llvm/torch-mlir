@@ -3770,6 +3770,58 @@ public:
 } // namespace
 
 namespace {
+/// GLU(x, dim):
+/// nIn = x.size(dim)
+/// assert nIn % 2 == 0
+/// selfSize = nIn / 2
+/// a = x.narrow(dim, 0, selfSize)
+/// b = x.narrow(dim, selfSize, selfSize)
+/// return a * torch.sigmoid(b)
+///
+/// Refer to
+/// https://github.com/pytorch/pytorch/blob/73bf32cb5709b85ab7df4f986d259612073eb0fc/aten/src/ATen/native/GatedLinearUnit.cpp#L23
+class DecomposeAtenGluOp : public OpRewritePattern<AtenGluOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenGluOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value dim = op.getDim();
+    Value x = op.getSelf();
+    // nIn = x.dim(dim).
+    Value nIn = rewriter.create<AtenSizeIntOp>(loc, x, dim);
+    // assert nIn % 2 == 0.
+    Value two =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2));
+    Value modVal = rewriter.create<AtenRemainderIntOp>(loc, nIn, two);
+    Value zero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value cond = rewriter.create<AtenEqIntOp>(loc, modVal, zero);
+    rewriter.create<Torch::RuntimeAssertOp>(loc, cond,
+                                            "dim size must be divisible by 2");
+    // selfSize = nIn / 2.
+    Value selfSize = rewriter.create<AtenFloordivIntOp>(loc, nIn, two);
+    Value zeroVal =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    // a = x.narrow(dim, 0, selfSize)
+    Value a = rewriter.create<AtenNarrowOp>(loc, op.getResult().getType(), x,
+                                            dim, zeroVal, selfSize);
+    // b = x.narrow(dim, selfSize, selfSize)
+    Value b = rewriter.create<AtenNarrowOp>(loc, op.getResult().getType(), x,
+                                            dim, selfSize, selfSize);
+    // sigmoid = sigmoid(b).
+    Value sigmoid = rewriter.create<AtenSigmoidOp>(loc, b.getType(), b);
+    // return a * sigmoid.
+    Value aMulSigmoid =
+        rewriter.create<AtenMulTensorOp>(loc, sigmoid.getType(), a, sigmoid);
+    rewriter.replaceOp(op, aMulSigmoid);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -3924,6 +3976,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluBackwardOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyStridedOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBucketizeTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenGluOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

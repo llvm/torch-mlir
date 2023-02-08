@@ -141,6 +141,25 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenRemainderIntOp : public OpConversionPattern<AtenRemainderIntOp> {
+public:
+  using OpConversionPattern<AtenRemainderIntOp>::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      AtenRemainderIntOp op,
+      typename OpConversionPattern<AtenRemainderIntOp>::OpAdaptor adaptor,
+      ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value a = convertScalarToDtype(rewriter, loc, adaptor.getA(),
+                                   rewriter.getI64Type());
+    Value b = convertScalarToDtype(rewriter, loc, adaptor.getB(),
+                                   rewriter.getI64Type());
+    rewriter.replaceOpWithNewOp<arith::RemSIOp>(op, a, b);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Lowers aten integer comparison ops.
 template <typename AtenOp, arith::CmpIPredicate Pred>
 class ConvertAtenIntComparisonOp : public OpConversionPattern<AtenOp> {
@@ -395,6 +414,8 @@ public:
         typeConverter, context);
     target.addIllegalOp<AtenDivIntOp>();
     patterns.add<ConvertAtenDivIntOp>(typeConverter, context);
+    target.addIllegalOp<AtenRemainderIntOp>();
+    patterns.add<ConvertAtenRemainderIntOp>(typeConverter, context);
     target.addIllegalOp<AtenDivFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenDivFloatOp, arith::DivFOp>>(
         typeConverter, context);
