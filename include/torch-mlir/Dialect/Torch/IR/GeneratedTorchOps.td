@@ -10894,6 +10894,7 @@ def Torch_PrimMinIntOp : Torch_Op<"prim.min.int", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_PrimMaxSelfIntOp : Torch_Op<"prim.max.self_int", [

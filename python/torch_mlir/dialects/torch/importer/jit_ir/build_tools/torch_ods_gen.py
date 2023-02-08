@@ -662,7 +662,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("prim::TupleUnpack : (Any) -> (...)", has_canonicalizer=True)
     emit("prim::NumToTensor.Scalar : (Scalar) -> (Tensor)")
     emit("prim::min.self_int : (int[]) -> (int)", has_folder=True)
-    emit("prim::min.int : (int, int) -> (int)")
+    emit("prim::min.int : (int, int) -> (int)", has_folder=True)
     emit("prim::max.self_int : (int[]) -> (int)")
     emit("prim::max.int : (int, int) -> (int)", has_folder=True)
     emit("prim::RaiseException : (str, str?) -> ()")

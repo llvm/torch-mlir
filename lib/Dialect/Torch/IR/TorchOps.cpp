@@ -2349,6 +2349,25 @@ OpFoldResult PrimMinSelfIntOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// PrimMinIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult PrimMinIntOp::fold(FoldAdaptor adaptor) {
+  // If both operands are the same, then the operation is an identity.
+  if (getA() == getB())
+    return getA();
+
+  auto lhs = adaptor.getA().dyn_cast_or_null<IntegerAttr>();
+  auto rhs = adaptor.getB().dyn_cast_or_null<IntegerAttr>();
+  if (!lhs || !rhs)
+    return nullptr;
+  // Torch semantics are that !torch.int is 64-bit signed.
+  return IntegerAttr::get(
+      lhs.getType(),
+      std::min(lhs.getValue().getSExtValue(), rhs.getValue().getSExtValue()));
+}
+
+//===----------------------------------------------------------------------===//
 // ShapeCalculateOp
 //===----------------------------------------------------------------------===//
 
