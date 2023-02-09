@@ -3256,7 +3256,7 @@ def BucketizeTensorStaticFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class GLUModule(torch.nn.Module):
+class AtenGluModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -3266,7 +3266,24 @@ class GLUModule(torch.nn.Module):
         ([-1, -1], torch.float32, True)
     ])
     def forward(self, x):
-        return torch.ops.aten.glu(x, dim=-1)
+        return torch.ops.aten.glu(x)
+
+@register_test_case(module_factory=lambda: AtenGluModule())
+def AtenGluModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 2))
+
+class GLUModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.glu = torch.nn.GLU()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True)
+    ])
+    def forward(self, x):
+        return self.glu(x)
 
 @register_test_case(module_factory=lambda: GLUModule())
 def GLUModule_basic(module, tu: TestUtils):
