@@ -76,3 +76,106 @@ Value torch_to_tcp::broadcastInLeadingDimsToMatchShape(
 
   return result;
 }
+
+template <typename T>
+std::optional<Value>
+torch_to_tcp::getConstTensor(PatternRewriter &rewriter, Operation *op,
+                             ArrayRef<T> vec, ArrayRef<int64_t> shape) {
+  uint64_t num_total_elements = 1;
+  for (int64_t a : shape) {
+    num_total_elements *= a;
+  }
+
+  if (vec.size() != num_total_elements) {
+    op->emitOpError("getConstTensor(): number of elements mismatch.");
+    return std::nullopt;
+  }
+
+  auto const_type =
+      RankedTensorType::get(shape, rewriter.getIntegerType(sizeof(T) * 8));
+  auto const_attr = DenseElementsAttr::get(const_type, vec);
+
+  auto const_op =
+      rewriter.create<tcp::ConstOp>(op->getLoc(), const_type, const_attr);
+  return const_op.getResult();
+}
+
+template std::optional<Value>
+torch_to_tcp::getConstTensor<int32_t>(PatternRewriter &, Operation *,
+                                      ArrayRef<int32_t> vec,
+                                      ArrayRef<int64_t> shape);
+
+template std::optional<Value>
+torch_to_tcp::getConstTensor<int64_t>(PatternRewriter &, Operation *,
+                                      ArrayRef<int64_t> vec,
+                                      ArrayRef<int64_t> shape);
+
+template <>
+std::optional<Value>
+torch_to_tcp::getConstTensor<float>(PatternRewriter &rewriter, Operation *op,
+                                    ArrayRef<float> vec,
+                                    ArrayRef<int64_t> shape) {
+  uint64_t num_total_elements = 1;
+  for (int64_t a : shape) {
+    num_total_elements *= a;
+  }
+
+  if (vec.size() != num_total_elements) {
+    op->emitOpError("getConstTensor(): number of elements mismatch.");
+    return std::nullopt;
+  }
+
+  auto const_type = RankedTensorType::get(shape, rewriter.getF32Type());
+  auto const_attr = DenseElementsAttr::get(const_type, vec);
+
+  auto const_op =
+      rewriter.create<tcp::ConstOp>(op->getLoc(), const_type, const_attr);
+  return const_op.getResult();
+}
+
+template <>
+std::optional<Value>
+torch_to_tcp::getConstTensor<double>(PatternRewriter &rewriter, Operation *op,
+                                     ArrayRef<double> vec,
+                                     ArrayRef<int64_t> shape) {
+  uint64_t num_total_elements = 1;
+  for (int64_t a : shape) {
+    num_total_elements *= a;
+  }
+
+  if (vec.size() != num_total_elements) {
+    op->emitOpError("getConstTensor(): number of elements mismatch.");
+    return std::nullopt;
+  }
+
+  auto const_type = RankedTensorType::get(shape, rewriter.getF64Type());
+  auto const_attr = DenseElementsAttr::get(const_type, vec);
+
+  auto const_op =
+      rewriter.create<tcp::ConstOp>(op->getLoc(), const_type, const_attr);
+  return const_op.getResult();
+}
+
+template <>
+std::optional<Value>
+torch_to_tcp::getConstTensor<APInt>(PatternRewriter &rewriter, Operation *op,
+                                    ArrayRef<APInt> vec,
+                                    ArrayRef<int64_t> shape) {
+  uint64_t num_total_elements = 1;
+  for (int64_t a : shape) {
+    num_total_elements *= a;
+  }
+
+  if (vec.size() != num_total_elements) {
+    op->emitOpError("getConstTensor(): number of elements mismatch.");
+    return std::nullopt;
+  }
+
+  auto const_type = RankedTensorType::get(
+      shape, rewriter.getIntegerType(vec[0].getBitWidth()));
+  auto const_attr = DenseElementsAttr::get(const_type, vec);
+
+  auto const_op =
+      rewriter.create<tcp::ConstOp>(op->getLoc(), const_type, const_attr);
+  return const_op.getResult();
+}

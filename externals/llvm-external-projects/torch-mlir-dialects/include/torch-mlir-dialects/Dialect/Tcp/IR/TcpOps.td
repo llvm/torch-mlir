@@ -158,6 +158,26 @@ def Tcp_DivFOp : Tcp_BinaryElementwiseOp<"divf", [SameOperandsAndResultElementTy
   let assemblyFormat = "$in1 `,` $in2 attr-dict `:` type($in1) `,` type($in2) `->` type($out)";
 }
 
+def Tcp_ConstOp : Tcp_Op<"const", [ConstantLike, Pure]> {
+  let summary = "Constant op";
+
+  let description = [{
+    An op that produces constant data that are used in other ops.
+  }];
+
+  let arguments = (ins
+    ElementsAttr:$value
+  );
+
+  let results = (outs
+    Tcp_Tensor:$out
+  );
+
+  let assemblyFormat = "attr-dict `:` type($out)";
+
+  let hasFolder = 1;
+}
+
 def Tcp_BroadcastOp : Tcp_Op<"broadcast", [
           AllRanksMatch<["in", "out"]>,
           AllElementTypesMatch<["in", "out"]>]> {

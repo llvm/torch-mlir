@@ -29,6 +29,24 @@ def ConvertTcpToLinalg
     "mlir::linalg::LinalgDialect",
   ];
 }
+
+//===----------------------------------------------------------------------===//
+// TcpToArith
+//===----------------------------------------------------------------------===//
+
+def ConvertTcpToArith
+      : Pass<"convert-tcp-to-arith", "func::FuncOp"> {
+  let summary = "Lower TCP to Arith";
+  let description = [{
+    Pass that converts TCP operations to equivalent operations in Arith.
+  }];
+
+  let constructor = "mlir::tcp::createConvertTcpToArithPass()";
+  let dependentDialects = [
+    "mlir::arith::ArithDialect",
+  ];
+}
+
 #endif // TORCH_MLIR_DIALECTS_ENABLE_TCP
 
 #endif // TORCH_MLIR_DIALECTS_CONVERSION_PASSES
