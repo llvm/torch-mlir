@@ -105,6 +105,37 @@ public:
   }
 };
 
+class ConvertAtenDivOp : public OpConversionPattern<AtenDivTensorOp> {
+public:
+  using OpConversionPattern<AtenDivTensorOp>::OpConversionPattern;
+  using OpAdaptor = typename AtenDivTensorOp::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(AtenDivTensorOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value lhs = adaptor.getSelf();
+    RankedTensorType lhsType = lhs.getType().dyn_cast<RankedTensorType>();
+
+    Value rhs = adaptor.getOther();
+    RankedTensorType rhsType = rhs.getType().dyn_cast<RankedTensorType>();
+
+    RankedTensorType resultType =
+        OpConversionPattern<AtenDivTensorOp>::getTypeConverter()
+            ->convertType(op.getType())
+            .template cast<RankedTensorType>();
+
+    if (!lhsType || !rhsType || !resultType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+
+    lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, lhs, rhs);
+    rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, rhs, lhs);
+
+    rewriter.replaceOpWithNewOp<tcp::DivOp>(op, resultType, lhs, rhs);
+    return success();
+  }
+};
+
 class ConvertAtenTanhOp : public OpConversionPattern<AtenTanhOp> {
 public:
   using OpConversionPattern<AtenTanhOp>::OpConversionPattern;
@@ -271,4 +302,7 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
 
   target.addIllegalOp<AtenMulTensorOp>();
   patterns.add<ConvertAtenMulOp>(typeConverter, context);
+
+  target.addIllegalOp<AtenDivTensorOp>();
+  patterns.add<ConvertAtenDivOp>(typeConverter, context);
 }

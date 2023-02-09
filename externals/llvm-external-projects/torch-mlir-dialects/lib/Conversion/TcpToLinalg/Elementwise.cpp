@@ -135,6 +135,17 @@ createLinalgPayloadForElementwiseOp(Operation *op,
       llvm_unreachable(
           "unsupported element type in createLinalgPayloadForElementwiseOp");
   }
+
+  if (isa<DivOp>(op)) {
+    if (elemType.isa<mlir::FloatType>())
+      return {b.create<arith::DivFOp>(loc, payloadArgs[0], payloadArgs[1])};
+    else if (elemType.isa<mlir::IntegerType>())
+      return {b.create<arith::DivSIOp>(loc, payloadArgs[0], payloadArgs[1])};
+    else
+      llvm_unreachable(
+          "unsupported element type in createLinalgPayloadForElementwiseOp");
+  }
+
   return op->emitError(
       "unimplemented lowering in createLinalgPayloadForElementwiseOp");
 }
@@ -184,6 +195,7 @@ void mlir::TcpToLinalg::populateElementwisePatternsAndLegality(
   patterns.add<ConvertElementwiseOp<AddOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<ClampOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<MulOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<DivOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<SubOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<TanhOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<SigmoidOp>>(typeConverter, context);
