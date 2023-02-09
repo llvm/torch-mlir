@@ -91,11 +91,11 @@ RankedTensorType castContractingDim(PatternRewriter &rewriter, Operation *op,
   rhsShape.append(oldRhsShape.begin(), oldRhsShape.end());
   // set batch dims
   for (auto k = 0; k < nBatchDims; ++k) {
-    if (lhsShape[k] == ShapedType::kDynamicSize && rhsShape[k] >= 0) {
+    if (lhsShape[k] == ShapedType::kDynamic && rhsShape[k] >= 0) {
       lhsShape[k] = rhsShape[k];
       shouldCastLhs = true;
     }
-    if (rhsShape[k] == ShapedType::kDynamicSize && lhsShape[k] >= 0) {
+    if (rhsShape[k] == ShapedType::kDynamic && lhsShape[k] >= 0) {
       rhsShape[k] = lhsShape[k];
       shouldCastRhs = true;
     }
@@ -226,7 +226,14 @@ public:
     auto loc = op->getLoc();
 
     if (lhsRank <= 2 && rhsRank <= 2) {
-      output = rewriter.create<mhlo::DotOp>(loc, lhs, rhs, nullptr);
+      SmallVector<int64_t> outShape;
+      if (lhsRank == 2)
+	  outShape.push_back(lhsTy.getShape()[0]);
+      if (rhsRank == 2)
+	  outShape.push_back(rhsTy.getShape()[1]);
+
+      auto dotOutTy = RankedTensorType::get(outShape, lhsTy.getElementType());
+      output = rewriter.create<mhlo::DotOp>(loc, dotOutTy, lhs, rhs, nullptr);
       return success();
     }
 
@@ -239,7 +246,7 @@ public:
     if (rhsRank == 2) {
       SmallVector<Value> resultDims;
       auto dotLhsTy = RankedTensorType::get(
-          {ShapedType::kDynamicSize, lhsTy.getShape()[lhsRank - 1]}, lhsElemTy);
+          {ShapedType::kDynamic, lhsTy.getShape()[lhsRank - 1]}, lhsElemTy);
       Type intType = rewriter.getIntegerType(options.dimSizeIndexBits);
       Value numel = rewriter.create<arith::ConstantOp>(
           loc, rewriter.getIntegerAttr(intType, 1));
@@ -263,7 +270,12 @@ public:
               .getResult();
       lhs = rewriter.create<mhlo::DynamicReshapeOp>(loc, dotLhsTy, lhs,
                                                     reshapeDim);
-      Value matmulOutput = rewriter.create<mhlo::DotOp>(loc, lhs, rhs, nullptr);
+      SmallVector<int64_t> outShape;
+      outShape.push_back(dotLhsTy.getShape()[0]);
+      outShape.push_back(rhsTy.getShape()[1]);
+      auto dotOutTy = RankedTensorType::get(outShape, dotLhsTy.getElementType());
+
+      Value matmulOutput = rewriter.create<mhlo::DotOp>(loc, dotOutTy, lhs, rhs, nullptr);
       auto outTy =
           ConvertAtenOp<AtenOpT>::getTypeConverter()->convertType(op.getType());
       // reshape result to output shape
@@ -459,6 +471,7 @@ public:
     auto lhsTy = lhs.getType().cast<RankedTensorType>();
     auto rhsTy = rhs.getType().cast<RankedTensorType>();
     auto lhsRank = lhsTy.getRank();
+    auto rhsRank = rhsTy.getRank();
 
     auto loc = op->getLoc();
     Value dotLhs;
@@ -476,7 +489,7 @@ public:
       // [x_1, x_2, ..., x_n, in_features] * [in_features, out_features]
       // -> [x_1 * x_2 * ... * x_n , in_features] * [in_features, out_features]
       auto dotLhsTy = RankedTensorType::get(
-          {ShapedType::kDynamicSize, lhsTy.getShape()[lhsRank - 1]},
+          {ShapedType::kDynamic, lhsTy.getShape()[lhsRank - 1]},
           lhsTy.getElementType());
       const auto &options = ConvertAtenOp<AtenOpT>::getOptions();
       Type intType = rewriter.getIntegerType(options.dimSizeIndexBits);
@@ -501,8 +514,15 @@ public:
       dotLhs = rewriter.create<mhlo::DynamicReshapeOp>(loc, dotLhsTy, lhs,
                                                        reshapeDim);
     }
+    SmallVector<int64_t> outShape;
+    if (lhsRank == 2)
+        outShape.push_back(lhsTy.getShape()[0]);
+    if (rhsRank == 2)
+        outShape.push_back(rhsTy.getShape()[1]);
+
+    auto dotOutTy = RankedTensorType::get(outShape, lhsTy.getElementType());
     Value matmulOutput =
-        rewriter.create<mhlo::DotOp>(loc, dotLhs, rhs, nullptr);
+        rewriter.create<mhlo::DotOp>(loc, dotOutTy, dotLhs, rhs, nullptr);
     auto outTy =
         ConvertAtenOp<AtenOpT>::getTypeConverter()->convertType(op.getType());
     // reshape to [x_1, x_2, ..., x_n, out_features]

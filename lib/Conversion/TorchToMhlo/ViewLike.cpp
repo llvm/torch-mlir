@@ -216,7 +216,7 @@ public:
     auto rank = rankType.getRank();
     for (size_t d = 0; d < rank; ++d) {
       Value dimSize = rewriter.create<arith::IndexCastOp>(
-          loc, intType, rewriter.create<tensor::DimOp>(loc, adaptor.self(), d));
+          loc, intType, rewriter.create<tensor::DimOp>(loc, adaptor.getSelf(), d));
       numel = rewriter.create<arith::MulIOp>(loc, numel, dimSize);
     }
     numel = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(),
@@ -233,7 +233,7 @@ public:
     Value computedShape = rewriter.create<mhlo::ComputeReshapeShapeOp>(
         loc, mhloShape.getType(), numel, mhloShape);
     rewriter.replaceOpWithNewOp<mhlo::DynamicReshapeOp>(
-        op, outTy,
+        op, 
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()),
         adaptor.getSelf(), computedShape);

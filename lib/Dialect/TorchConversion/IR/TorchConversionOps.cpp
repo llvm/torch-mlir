@@ -124,8 +124,8 @@ OpFoldResult ToI64Op::fold(FoldAdaptor adaptor) {
 // FromI1Op
 //===----------------------------------------------------------------------===//
 
-OpFoldResult FromI1Op::fold(llvm::ArrayRef<mlir::Attribute> operands) {
-  auto attr = operands[0].dyn_cast_or_null<mlir::IntegerAttr>();
+OpFoldResult FromI1Op::fold(FoldAdaptor adaptor) {
+  auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::IntegerAttr>();
   if (attr) {
     return attr;
   } else {
@@ -137,8 +137,8 @@ OpFoldResult FromI1Op::fold(llvm::ArrayRef<mlir::Attribute> operands) {
 // ToI1Op
 //===----------------------------------------------------------------------===//
 
-OpFoldResult ToI1Op::fold(llvm::ArrayRef<mlir::Attribute> operands) {
-  auto attr = operands[0].dyn_cast_or_null<mlir::IntegerAttr>();
+OpFoldResult ToI1Op::fold(FoldAdaptor adaptor) {
+  auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::IntegerAttr>();
   if (attr) {
     return attr;
   } else {
