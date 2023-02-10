@@ -8,7 +8,7 @@ from typing import List
 import torch
 from torch._functorch.compile_utils import strip_overloads
 from torch._decomp import get_decompositions
-from torch._dynamo.optimizations.training import aot_autograd
+from torch._dynamo.backends.common import aot_autograd
 import functorch
 
 import warnings
@@ -61,6 +61,7 @@ def _get_decomposition_table():
         aten.mse_loss_backward,
         aten.native_group_norm_backward,
         aten.sigmoid_backward,
+        aten._native_batch_norm_legit,
     ])
 
 

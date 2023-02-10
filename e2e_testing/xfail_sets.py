@@ -26,6 +26,11 @@ TORCHDYNAMO_XFAIL_SET = {
     # https://github.com/pytorch/pytorch/issues/89629
     "ConvolutionBackwardModule2DPadded_basic",
     "ConvolutionBackwardModule2D_basic",
+
+    # error: 'tensor.expand_shape' op expected dimension 0 of collapsed type to be dynamic since one or more of the corresponding dimensions in the expanded type is dynamic
+    # https://github.com/llvm/torch-mlir/issues/1859
+    "ConvolutionModule2DGroups_basic",
+
     # RuntimeError: Index tensor must have the same number of dimensions as self tensor
     # RuntimeError: Failed running call_function aten.nll_loss_backward(...
     # https://github.com/pytorch/pytorch/issues/89630
@@ -66,8 +71,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "IndexPutImpl2DFloatNonAccumulateModule_basic",
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
-    # %4 = torch.operator "aten.squeeze_.dim"(%3, %int0) : (!torch.tensor<*,f32>, !torch.int) -> !torch.tensor
-    "Matmul_vecmat",
 
     # https://github.com/llvm/torch-mlir/issues/1611
     # error: 'tensor.cast' op operand type 'tensor<0xi64>' and result type 'tensor<18xi64>' are cast incompatible
@@ -83,8 +86,9 @@ TORCHDYNAMO_XFAIL_SET = {
     # error: unsupported by backend contract: tensor with unknown rank
     # note: see current operation: %1 = "torch.tensor_static_info_cast"(%arg0) : (!torch.vtensor<[5,4,3,2,1],f32>) -> !torch.vtensor<*,f32>
     "ElementwisePreluModule_basic",
-    # error: op lowering missing. Issue: https://github.com/llvm/torch-mlir/issues/1792
-    "StdCorrectionKeepDimModule_basic",
+
+    #ERROR: value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=-1.336e-32, max=+0.9152, mean=+0.4837) is not close to golden value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=+0.02233, max=+0.9152, mean=+0.4777)
+    "UpSampleNearest2dDynamicFactor_basic",
 }
 
 STABLEHLO_PASS_SET = {
@@ -136,6 +140,10 @@ STABLEHLO_PASS_SET = {
     "ElementwiseRsqrtModule_basic",
     "ElementwiseSigmoidModule_basic",
     "ElementwiseSqrtModule_basic",
+    "ElementwiseSinModule_basic",
+    "ElementwiseCosModule_basic",
+    "ElementwiseCeilModule_basic",
+    "ElementwiseFloorModule_basic",
     "ElementwiseUnaryModule_basic",
     "ElementwiseUnsqueezeBroadcastModule_basic",
     "ElementwiseUnsqueezeNegDimsModule_basic",
@@ -671,6 +679,10 @@ TOSA_PASS_SET = {
     "HardsigmoidRandomModule_basic",
     "HardswishModule_basic",
     "HardswishRandomModule_basic",
+    "FullLikeModuleInt2DStatic_basic",
+    "FullModuleInt3D_basic",
+    "FullModuleFloat2D_basic",
+    "RepeatModule_basic"
 }
 
 LTC_XFAIL_SET = {
