@@ -1826,6 +1826,27 @@ class IndexTensorStaticModule(torch.nn.Module):
 def IndexTensorStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 5), tu.randint(2, 3, high=4))
 
+# ==============================================================================
+class IndexTensorMultiIndexStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4, 5], torch.float32, True),
+        ([2, 3], torch.int64, True),
+        ([2, 3], torch.int64, True),
+    ])
+    def forward(self, x, index1, index2):
+        return torch.ops.aten.index(x, (index1, index2))
+
+
+@register_test_case(module_factory=lambda: IndexTensorMultiIndexStaticModule())
+def IndexTensorMultiIndexStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5), tu.randint(2, 3, high=4), tu.randint(2, 3, high=4))
+
 
 # ==============================================================================
 
