@@ -1331,6 +1331,20 @@ OpFoldResult AtenFloatScalarOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenIntFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenIntFloatOp::fold(FoldAdaptor adaptor) {
+  // Constant fold float -> int conversion.
+  if (auto floatAttr = adaptor.getA().dyn_cast_or_null<FloatAttr>()) {
+    return IntegerAttr::get(
+        mlir::IntegerType::get(getContext(), 64, IntegerType::Signed),
+        static_cast<int64_t>(floatAttr.getValue().convertToDouble()));
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenIntScalarOp
 //===----------------------------------------------------------------------===//
 

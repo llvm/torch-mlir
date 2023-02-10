@@ -9222,6 +9222,7 @@ def Torch_AtenIntFloatOp : Torch_Op<"aten.Int.float", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenIntScalarOp : Torch_Op<"aten.Int.Scalar", [

@@ -232,6 +232,23 @@ public:
     return success();
   }
 };
+
+class ConvertTorchConstantIntOp
+    : public OpConversionPattern<Torch::ConstantIntOp> {
+public:
+  using OpConversionPattern<Torch::ConstantIntOp>::OpConversionPattern;
+  using OpAdaptor = Torch::ConstantIntOp::Adaptor;
+  LogicalResult
+  matchAndRewrite(Torch::ConstantIntOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    // note: arith.constant only accept singless integer, so convert singed to
+    // singless
+    rewriter.replaceOpWithNewOp<arith::ConstantOp>(
+        op, rewriter.getIntegerAttr(rewriter.getI64Type(),
+                                    op.getValueAttr().getValue()));
+    return success();
+  }
+};
 } // namespace
 
 namespace {
@@ -381,8 +398,8 @@ public:
     patterns.add<ConvertTorchConstantOp<Torch::ConstantFloatOp>>(typeConverter,
                                                                  context);
     target.addIllegalOp<Torch::ConstantIntOp>();
-    patterns.add<ConvertTorchConstantOp<Torch::ConstantIntOp>>(typeConverter,
-                                                               context);
+    patterns.add<ConvertTorchConstantIntOp>(typeConverter, context);
+
     target.addIllegalOp<AtenAddIntOp, AtenSubIntOp, AtenMulIntOp>();
     patterns.add<ConvertAtenBinaryOp<AtenAddIntOp, arith::AddIOp>>(
         typeConverter, context);
