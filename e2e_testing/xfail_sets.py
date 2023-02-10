@@ -628,6 +628,7 @@ TOSA_PASS_SET = {
     "ElementwiseAtenWhereSelfModule_basic",
     "ElementwiseUnsqueezeBroadcastModule_basic",
     "MaskedFillScalarIntValueStaticModule_basic",
+    "MaskedFillScalarFloatValueStaticModule_basic",
     "MaskedFillTensorIntValueStaticModule_basic",
     "ElementwiseAddScalarInt64Module_basic",
     "TensorLiteralModule_basic",
