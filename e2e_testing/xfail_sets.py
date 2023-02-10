@@ -92,6 +92,8 @@ TORCHDYNAMO_XFAIL_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "MaskedFillScalarIntValueStaticModule_basic",
+    "MaskedFillScalarFloatValueStaticModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AddSizeIntModule_basic",
     "AddSizeIntNegDimModule_basic",
@@ -631,6 +633,7 @@ TOSA_PASS_SET = {
     "_LogSoftmaxModuleStable_basic",
     "ElementwiseAtenWhereSelfModule_basic",
     "ElementwiseUnsqueezeBroadcastModule_basic",
+    "MaskedFillScalarIntValueModule_basic",
     "MaskedFillScalarIntValueStaticModule_basic",
     "MaskedFillTensorIntValueStaticModule_basic",
     "ElementwiseAddScalarInt64Module_basic",

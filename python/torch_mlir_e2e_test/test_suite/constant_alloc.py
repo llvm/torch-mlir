@@ -1382,6 +1382,27 @@ def MaskedFillScalarFloatValueModule_basic(module, tu: TestUtils):
                    tu.randint(2, 3, high=2).to(dtype=torch.bool))
 
 
+class MaskedFillScalarFloatValueStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3], torch.int64, True),
+        ([2, 3], torch.bool, True),
+    ])
+    def forward(self, x, mask):
+        return torch.ops.aten.masked_fill(x, mask, value=-0.01)
+
+
+@register_test_case(module_factory=lambda: MaskedFillScalarFloatValueStaticModule())
+def MaskedFillScalarFloatValueStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 3, low=-10, high=10),
+                   tu.randint(2, 3, high=2).to(dtype=torch.bool))
+
+
 class MaskedFillTensorFloatValueModule(torch.nn.Module):
 
     def __init__(self):

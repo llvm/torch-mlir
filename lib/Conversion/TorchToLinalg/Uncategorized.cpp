@@ -984,18 +984,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
     return convertScalarToDtype(b, loc, adaptor.getValue(), dtype);
   }
-  if (auto maskedFillScalar = dyn_cast<AtenMaskedFillScalarOp>(op)) {
-    AtenMaskedFillScalarOp::Adaptor adaptor(operands);
-    Type dtype = converter->convertType(maskedFillScalar.getType())
-                     .cast<RankedTensorType>()
-                     .getElementType();
-
-    Value input = payloadArgs[0];
-    Value mask = payloadArgs[1];
-    Value fillValue = convertScalarToDtype(b, loc, adaptor.getValue(), dtype);
-
-    return b.create<arith::SelectOp>(loc, mask, fillValue, input);
-  }
   if (auto maskedFillTensor = dyn_cast<AtenMaskedFillTensorOp>(op)) {
     AtenMaskedFillScalarOp::Adaptor adaptor(operands);
     Type dtype = converter->convertType(maskedFillTensor.getType())
@@ -1105,7 +1093,7 @@ public:
              AtenCeilOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
              AtenLtTensorOp, AtenLeTensorOp, AtenSubScalarOp, AtenAddScalarOp,
              AtenThresholdOp, AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp,
-             AtenCosOp, AtenNeScalarOp, AtenNegOp, AtenMaskedFillScalarOp,
+             AtenCosOp, AtenNeScalarOp, AtenNegOp,
              AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
              AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenBitwiseNotOp,
              AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp>(op))
@@ -1583,7 +1571,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp,
       AtenWhereSelfOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
       AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
-      AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillScalarOp,
+      AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
       AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
       AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenRemainderScalarOp,
       AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp>();
