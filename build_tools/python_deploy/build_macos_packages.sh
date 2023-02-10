@@ -20,7 +20,7 @@ set -eu -o errtrace
 
 this_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$this_dir"/../../ && pwd)"
-python_versions="${TORCH_MLIR_PYTHON_VERSIONS:-3.9 3.10}"
+python_versions="${TORCH_MLIR_PYTHON_VERSIONS:-3.9 3.10 3.11}"
 output_dir="${output_dir:-${this_dir}/wheelhouse}"
 packages="${packages:-torch-mlir}"
 
