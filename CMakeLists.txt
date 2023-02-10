@@ -41,7 +41,13 @@ if(TORCH_MLIR_ENABLE_STABLEHLO)
   add_definitions(-DTORCH_MLIR_ENABLE_STABLEHLO)
 endif()
 
+option(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER "Enables JIT IR Importer" ON)
 option(TORCH_MLIR_ENABLE_LTC "Enables LTC backend" OFF)
+option(TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS "Build Torch dialect MLIR Python bindings but neither JIT IR Importer nor LTC backend" OFF)
+if(TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS)
+  set(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER OFF)
+  set(TORCH_MLIR_ENABLE_LTC OFF)
+endif()
 
 if(TORCH_MLIR_ENABLE_LTC)
     set(ENV{TORCH_MLIR_ENABLE_LTC} 1)
@@ -109,7 +115,6 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR TORCH_MLIR_OUT_OF_TREE_
   # Don't try to compile the python extensions at the moment. We need
   # to import lots of dependencies from AddMLIRPython to make this work.
   set(MLIR_ENABLE_BINDINGS_PYTHON 1)
-  option(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER "Enables JIT IR Importer" ON)
 
   set(TORCH-MLIR_BUILT_STANDALONE 1)
   set(BACKEND_PACKAGE_STRING "LLVM ${LLVM_PACKAGE_VERSION}")
@@ -119,7 +124,6 @@ else()
   # In-tree build with LLVM_EXTERNAL_PROJECTS=torch-mlir
 
   option(MLIR_ENABLE_BINDINGS_PYTHON "Enables MLIR Python Bindings" OFF)
-  option(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER "Enables JIT IR Importer" ON)
 
   # TODO: Fix this upstream so that global include directories are not needed.
   set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir)

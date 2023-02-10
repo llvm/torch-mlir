@@ -1,4 +1,5 @@
 -r build-requirements.txt
+-r pytorch-requirements.txt
 
 # Test Requirements
 pillow
