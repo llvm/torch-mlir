@@ -2214,8 +2214,7 @@ class DecomposeAtenGroupNormOp : public OpRewritePattern<AtenGroupNormOp> {
     Value one =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
     Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
-    SmallVector<int64_t, 5> inputForNormTySize(inputRank + 1,
-                                               ShapedType::kDynamic);
+    SmallVector<int64_t, 5> inputForNormTySize(inputRank + 1, kUnknownSize);
     inputForNormTySize[1] = num_groups_int;
     Type inputForNormTy = inputTy.getWithSizesAndDtype(
         llvm::makeArrayRef(inputForNormTySize), inputTy.getDtype());
@@ -2265,9 +2264,8 @@ class DecomposeAtenGroupNormOp : public OpRewritePattern<AtenGroupNormOp> {
       SmallVector<Value> weightsAndBiasSize(inputRank - 1, one);
       weightsAndBiasSize[0] = orginInputSize[1];
 
-      SmallVector<int64_t> weightsAndBiasTySize(inputRank - 1,
-                                                ShapedType::kDynamic);
-      // weightsAndBiasTySize[1] = ShapedType::kDynamic;
+      SmallVector<int64_t> weightsAndBiasTySize(inputRank - 1, kUnknownSize);
+      // weightsAndBiasTySize[1] = kUnknownSize;
 
       Value weightsAndBiasSizeList = rewriter.create<PrimListConstructOp>(
           loc, ListType::get(IntType::get(context)), weightsAndBiasSize);
@@ -2472,7 +2470,6 @@ class DecomposeAtenNativeLayerNormOp
           rewriter.create<AtenAddTensorOp>(loc, out.getType(), out, bias, one);
     }
     rewriter.replaceOp(op, {out, inputMean, inputRsqrtVar});
-
     return success();
   }
 };
@@ -2552,6 +2549,24 @@ class DecomposeConstantTensorAllocLikeOp : public OpRewritePattern<OpTy> {
     rewriter.replaceOpWithNewOp<AtenFullLikeOp>(
         op, op.getType(), op.getSelf(), constVal, op.getDtype(), op.getLayout(),
         op.getDevice(), op.getPinMemory(), op.getMemoryFormat());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Decompose constant tensor full like ops.
+template <typename OpTy, int fillVal>
+class DecomposeConstantTensorAllocOp : public OpRewritePattern<OpTy> {
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    Type resultDtype = op.getType().template cast<BaseTensorType>().getDtype();
+    Value constVal = getConstantWithGivenDtypeAndValue(rewriter, op.getLoc(),
+                                                       fillVal, resultDtype);
+    rewriter.replaceOpWithNewOp<AtenFullOp>(
+        op, op.getType(), op.getSize(), constVal, op.getDtype(), op.getLayout(),
+        op.getDevice(), op.getPinMemory());
     return success();
   }
 };
@@ -3616,7 +3631,7 @@ public:
     Value step = getOptionalVal(op.getStep(), one);
     // Step 0. create indices
     Type indicesType = ValueTensorType::get(
-        op.getContext(), ArrayRef<int64_t>{ShapedType::kDynamic},
+        op.getContext(), ArrayRef<int64_t>{kUnknownSize},
         IntegerType::get(op.getContext(), 64, IntegerType::Signed));
     Value indices = rewriter.create<AtenArangeOp>(
         op.getLoc(), indicesType, dimSize, none, none, none, none);
@@ -3625,7 +3640,7 @@ public:
     SmallVector<int64_t> newIndicesShapeInt(inputRank, 1);
     SmallVector<Value> newIndicesShape(inputRank, one);
     newIndicesShape[dimInt] = dimSize;
-    newIndicesShapeInt[dimInt] = ShapedType::kDynamic;
+    newIndicesShapeInt[dimInt] = kUnknownSize;
     Value newIndicesSizeList = rewriter.create<PrimListConstructOp>(
         op.getLoc(), ListType::get(IntType::get(op.getContext())),
         newIndicesShape);
@@ -4138,6 +4153,10 @@ public:
         DecomposeConstantTensorAllocLikeOp<AtenOnesLikeOp, 1>>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeConstantTensorAllocLikeOp<AtenZerosLikeOp, 0>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeConstantTensorAllocOp<AtenOnesOp, 1>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeConstantTensorAllocOp<AtenZerosOp, 0>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRollOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenExpandOp>(patterns);
