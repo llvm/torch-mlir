@@ -502,6 +502,24 @@ func.func @torch.prim.max.int$constant() -> !torch.int {
   return %0 : !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.prim.min.int$identity(
+// CHECK-SAME:                                      %[[ARG:.*]]: !torch.int) -> !torch.int {
+// CHECK:           return %[[ARG]] : !torch.int
+func.func @torch.prim.min.int$identity(%arg0: !torch.int) -> !torch.int {
+  %0 = torch.prim.min.int %arg0, %arg0 : !torch.int, !torch.int -> !torch.int
+  return %0 : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.prim.min.int$constant() -> !torch.int {
+// CHECK:           %[[INT1:.*]] = torch.constant.int -1
+// CHECK:           return %[[INT1]] : !torch.int
+func.func @torch.prim.min.int$constant() -> !torch.int {
+  %int-1 = torch.constant.int -1
+  %int3 = torch.constant.int 3
+  %0 = torch.prim.min.int %int-1, %int3 : !torch.int, !torch.int -> !torch.int
+  return %0 : !torch.int
+}
+
 // CHECK-LABEL:   func.func @torch.prim.min.self_int$basic() -> !torch.int {
 // CHECK:           %[[M1:.*]] = torch.constant.int -1
 // CHECK:           return %[[M1]] : !torch.int

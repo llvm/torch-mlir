@@ -1270,6 +1270,25 @@ def LogSoftmaxIntModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class PrimMinIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.prim.min(1, -1)
+
+
+@register_test_case(module_factory=lambda: PrimMinIntModule())
+def PrimMinIntModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
 
 class NumToTensorIntModule(torch.nn.Module):
 
