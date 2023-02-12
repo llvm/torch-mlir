@@ -2707,6 +2707,27 @@ def IntFloatModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class AtenSubFloatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.value1 = 1.0
+        self.value2 = 2.0
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return float(torch.ops.aten.sub(self.value1, self.value2))
+
+@register_test_case(module_factory=lambda: AtenSubFloatModule())
+def AtenSubFloatModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
 class ScalarImplicitFloatModule(torch.nn.Module):
 
     def __init__(self):

@@ -1686,6 +1686,16 @@ func.func @torch.aten.sub.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],
     return %2 : !torch.vtensor<[],si64>
 }
 
+// CHECK-LABEL:   func.func @torch.aten.sub.float$fold() -> !torch.float {
+// CHECK:             %[[FLOAT_1:.*]] = torch.constant.float -1.000000e+00
+// CHECK:             return %[[FLOAT_1]] : !torch.float
+func.func @torch.aten.sub.float$fold() -> !torch.float {
+    %float1 = torch.constant.float 1.0
+    %float2 = torch.constant.float 2.0
+    %0 = torch.aten.sub.float %float1, %float2 : !torch.float, !torch.float -> !torch.float
+    return %0 : !torch.float
+}
+
 // CHECK-LABEL:   func.func @torch.aten.mul.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
 // CHECK:             %[[INT6]] = torch.constant.int 6
 // CHECK:             %[[PR0:.*]] = torch.prim.NumToTensor.Scalar %[[INT6]] : !torch.int -> !torch.vtensor<[],si64>

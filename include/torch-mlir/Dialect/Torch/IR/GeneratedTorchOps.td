@@ -9816,6 +9816,7 @@ def Torch_AtenSubFloatOp : Torch_Op<"aten.sub.float", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenMulFloatOp : Torch_Op<"aten.mul.float", [
