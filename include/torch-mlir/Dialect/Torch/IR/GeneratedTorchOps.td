@@ -10086,6 +10086,31 @@ def Torch_AtenGtFloatIntOp : Torch_Op<"aten.gt.float_int", [
   }];
 }
 
+def Torch_AtenPowIntFloatOp : Torch_Op<"aten.pow.int_float", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::pow.int_float : (int, float) -> (float)`";
+  let arguments = (ins
+    Torch_IntType:$a,
+    Torch_FloatType:$b
+  );
+  let results = (outs
+    Torch_FloatType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenPowIntFloatOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenPowIntFloatOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_Aten__And__BoolOp : Torch_Op<"aten.__and__.bool", [
     AllowsTypeRefinement,
     HasValueSemantics,

@@ -1062,6 +1062,16 @@ func.func @torch.aten.remainder.int() -> !torch.int {
     return %ret : !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.aten.pow.int_float() -> !torch.float {
+// CHECK:           %[[FLOAT_8:.*]] = torch.constant.float 8.000000e+00
+// CHECK:           return %[[FLOAT_8]] : !torch.float
+func.func @torch.aten.pow.int_float() -> !torch.float {
+    %cst2 = torch.constant.int 2
+    %float3.0 = torch.constant.float 3.0
+    %ret = torch.aten.pow.int_float %cst2, %float3.0: !torch.int, !torch.float -> !torch.float
+    return %ret : !torch.float
+}
+
 // CHECK-LABEL:   func.func @torch.prim.dtype$bfloat16(
 // CHECK-SAME:             %[[T:.*]]: !torch.tensor<*,bf16>) -> !torch.int {
 // CHECK:           %[[CST:.*]] = torch.constant.int 15
