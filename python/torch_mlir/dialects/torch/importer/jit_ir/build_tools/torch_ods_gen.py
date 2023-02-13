@@ -524,6 +524,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::full_like : (Tensor, Scalar, int?, int?, Device?, bool?, int?) -> (Tensor)")
     emit_with_mutating_variants("aten::baddbmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::fft_fft : (Tensor, int?, int, str?) -> (Tensor)")
+    emit("aten::alias : (Tensor) -> (Tensor)", has_folder=True)
 
     # Functionalization ops
     emit("aten::alias_copy : (Tensor) -> (Tensor)")

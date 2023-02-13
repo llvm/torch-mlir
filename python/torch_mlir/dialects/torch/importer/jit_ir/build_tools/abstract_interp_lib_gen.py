@@ -1009,6 +1009,9 @@ def aten〇cat〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
 def aten〇fft_fft〡shape(self: List[int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> List[int]:
     return self
 
+def aten〇alias〡shape(self: List[int]) -> List[int]:
+    return self
+
 @check_dtype_function([
     Invocation(NonZeroDTensorWithDtype(torch.complex64)),
     Invocation(NonZeroDTensorWithDtype(torch.complex128)),

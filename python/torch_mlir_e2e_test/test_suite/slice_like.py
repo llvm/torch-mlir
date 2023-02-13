@@ -481,3 +481,23 @@ class NarrowVerticalTest2(torch.nn.Module):
 @register_test_case(module_factory=lambda: NarrowVerticalTest2())
 def NarrowVerticalTest2_basic(module, tu: TestUtils):
     module.forward(tu.rand(6,4))
+
+# ==============================================================================
+
+
+class AliasModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.alias(x)
+
+
+@register_test_case(module_factory=lambda: AliasModule())
+def AliasModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6,4))

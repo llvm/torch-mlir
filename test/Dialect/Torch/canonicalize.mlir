@@ -1818,3 +1818,10 @@ func.func @torch.aten.slice.tensor$fold_full_domain_slice(%arg0: !torch.vtensor<
   %0 = torch.aten.slice.Tensor %arg0, %int0, %int0, %int-1, %int1 : !torch.vtensor<[4], f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4], f32>
   return %0 : !torch.vtensor<[4],f32>
 }
+
+//  CHECK-LABEL:    @torch.aten.alias$fold
+//  CHECK:     return %[[ARG0:.+]] : !torch.tensor<[4],f32>
+func.func @torch.aten.alias$fold(%arg0: !torch.tensor<[4],f32>) -> !torch.tensor<[4],f32> {
+  %0 = torch.aten.alias %arg0 : !torch.tensor<[4],f32> -> !torch.tensor<[4],f32>
+  return %0 : !torch.tensor<[4],f32>
+}
