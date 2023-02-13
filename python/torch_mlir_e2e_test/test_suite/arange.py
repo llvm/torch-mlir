@@ -261,7 +261,7 @@ class LinspaceModuleFloat32(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return torch.linspace(3, 10, 5, dtype=torch.float32)
+        return torch.ops.aten.linspace(3, 10, 5, dtype=torch.float32)
 
 @register_test_case(module_factory=lambda: LinspaceModuleFloat32())
 def LinspaceModuleFloat32_basic(module, tu: TestUtils):
@@ -276,7 +276,7 @@ class LinspaceModuleInt64(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return torch.linspace(3, 10, 5, dtype=torch.int64)
+        return torch.ops.aten.linspace(3, 10, 5, dtype=torch.int64)
 
 @register_test_case(module_factory=lambda: LinspaceModuleInt64())
 def LinspaceModuleInt64_basic(module, tu: TestUtils):
@@ -291,7 +291,7 @@ class LinspaceModuleNegativeFloat32(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return torch.linspace(-100, 100, 8, dtype=torch.float32)
+        return torch.ops.aten.linspace(-100, 100, 8, dtype=torch.float32)
 
 @register_test_case(module_factory=lambda: LinspaceModuleNegativeFloat32())
 def LinspaceModuleNegativeFloat32_basic(module, tu: TestUtils):
@@ -306,7 +306,7 @@ class LinspaceModuleNegativeInt64(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return torch.linspace(-100, 100, 8, dtype=torch.int64)
+        return torch.ops.aten.linspace(-100, 100, 8, dtype=torch.int64)
 
 @register_test_case(module_factory=lambda: LinspaceModuleNegativeInt64())
 def LinspaceModuleNegativeInt64_basic(module, tu: TestUtils):
