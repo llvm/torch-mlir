@@ -453,6 +453,7 @@ private:
   void visitAtenArangeLikeOpHelper(Operation *op, std::optional<Value> start,
                                    Value end, std::optional<Value> step,
                                    Value dtype);
+  void visitAtenLinspaceOp(AtenLinspaceOp op);
   void visitReductionAlongAllDimsOp(Operation *op, Type dtype,
                                     ArrayRef<const ValueState *> operands);
   void visitReductionAlongDimIntListOp(Operation *op, Value dim, Value keepdim,
@@ -905,6 +906,11 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
+  if (auto linspaceOp = dyn_cast<AtenLinspaceOp>(op)) {
+    visitAtenLinspaceOp(linspaceOp);
+    return;
+  }
+
   if (auto sum = dyn_cast<AtenSumOp>(op)) {
     Type defaultDtype = operands[0]->getValue().dtype;
     // If the input dtype is bool, the result type should be i64.
@@ -1302,6 +1308,16 @@ void TypeAnalysis::visitAtenArangeStartOp(AtenArangeStartOp op) {
 
 void TypeAnalysis::visitAtenArangeOp(AtenArangeOp op) {
   visitAtenArangeLikeOpHelper(op, {}, op.getEnd(), {}, op.getDtype());
+}
+
+void TypeAnalysis::visitAtenLinspaceOp(AtenLinspaceOp op) {
+  auto knowledge =
+      ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+  // TODO: Should get the dtype from torch.get_default_dtype().
+  // For now, use float32 which is the initial default dtype.
+  knowledge.dtype = getDtypeOrDefault(op->getContext(), op.getDtype(),
+                                      Float32Type::get(op->getContext()));
+  incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 void TypeAnalysis::visitReductionAlongAllDimsOp(
