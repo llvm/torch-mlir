@@ -139,20 +139,20 @@ def Tcp_MulOp : Tcp_BinaryElementwiseOp<"mul", [SameOperandsAndResultElementType
   let assemblyFormat = "$in1 `,` $in2 attr-dict `:` type($in1) `,` type($in2) `->` type($out)";
 }
 
-def Tcp_DivOp : Tcp_BinaryElementwiseOp<"div", [SameOperandsAndResultElementType]> {
-  let summary = "Computes elementwise division";
+def Tcp_DivFOp : Tcp_BinaryElementwiseOp<"divf", [SameOperandsAndResultElementType]> {
+  let summary = "Computes elementwise floating point division";
 
   let description = [{
-    Computes the elementwise division of `in1` and `in2`.
+    Computes the elementwise floating point division of `in1` and `in2`.
   }];
 
   let arguments = (ins
-    Tcp_Tensor:$in1,
-    Tcp_Tensor:$in2
+    Tcp_FloatTensor:$in1,
+    Tcp_FloatTensor:$in2
   );
 
   let results = (outs
-    Tcp_Tensor:$out
+    Tcp_FloatTensor:$out
   );
 
   let assemblyFormat = "$in1 `,` $in2 attr-dict `:` type($in1) `,` type($in2) `->` type($out)";

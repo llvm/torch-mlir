@@ -72,12 +72,12 @@ func.func @test_mul(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>) -> tensor<
 
 // -----
 
-// CHECK-LABEL: func.func @test_div(
+// CHECK-LABEL: func.func @test_divf(
 // CHECK-SAME:          %[[ARG0:.*]]: tensor<?x?xf32>,
 // CHECK-SAME:          %[[ARG1:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
-// CHECK:         %[[DIV:.*]] = tcp.div %[[ARG0]], %[[ARG1]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         %[[DIV:.*]] = tcp.divf %[[ARG0]], %[[ARG1]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
 // CHECK:         return %[[DIV]] : tensor<?x?xf32>
-func.func @test_div(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>) -> tensor<?x?xf32> {
-  %0 = tcp.div %arg0, %arg1 : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
+func.func @test_divf(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.divf %arg0, %arg1 : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }

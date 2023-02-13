@@ -105,7 +105,7 @@ public:
   }
 };
 
-class ConvertAtenDivOp : public OpConversionPattern<AtenDivTensorOp> {
+class ConvertAtenDivFOp : public OpConversionPattern<AtenDivTensorOp> {
 public:
   using OpConversionPattern<AtenDivTensorOp>::OpConversionPattern;
   using OpAdaptor = typename AtenDivTensorOp::Adaptor;
@@ -131,7 +131,7 @@ public:
     lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, lhs, rhs);
     rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, rhs, lhs);
 
-    rewriter.replaceOpWithNewOp<tcp::DivOp>(op, resultType, lhs, rhs);
+    rewriter.replaceOpWithNewOp<tcp::DivFOp>(op, resultType, lhs, rhs);
     return success();
   }
 };
@@ -304,5 +304,5 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
   patterns.add<ConvertAtenMulOp>(typeConverter, context);
 
   target.addIllegalOp<AtenDivTensorOp>();
-  patterns.add<ConvertAtenDivOp>(typeConverter, context);
+  patterns.add<ConvertAtenDivFOp>(typeConverter, context);
 }

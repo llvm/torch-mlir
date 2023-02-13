@@ -121,7 +121,7 @@ func.func @torch.aten.multensor(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.
 // CHECK:         %[[CONST0:.*]] = arith.constant 0 : index
 // CHECK:         %[[DIM0:.*]] = tensor.dim %[[TO_BUILTIN0]], %[[CONST0]] : tensor<?x?xf32>
 // CHECK:         %[[BROADCAST:.*]] = tcp.broadcast %[[EXPAND_SHAPE]], %[[DIM0]] {axes = [0]} : tensor<1x?xf32>, index -> tensor<?x?xf32>
-// CHECK:         %[[DIV:.*]] = tcp.div %[[TO_BUILTIN0]], %[[BROADCAST]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         %[[DIV:.*]] = tcp.divf %[[TO_BUILTIN0]], %[[BROADCAST]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
 // CHECK:         %[[FROM_BUILTIN:.*]] = torch_c.from_builtin_tensor %[[DIV]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
 // CHECK:         return %[[FROM_BUILTIN]] : !torch.vtensor<[?,?],f32>
 func.func @torch.aten.divtensor(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32> {
