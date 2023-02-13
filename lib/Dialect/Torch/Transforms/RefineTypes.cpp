@@ -672,7 +672,8 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenTriuOp, AtenMaskedFillTensorOp, AtenRollOp, AtenPowTensorTensorOp,
           AtenLiftFreshCopyOp, AtenIndexTensorHackedTwinOp,
           AtenUpsampleNearest2dOp, AtenMishOp, AtenRoundOp, AtenFillTensorOp,
-          AtenUpsampleNearest2dBackwardOp, AtenLeakyReluBackwardOp>(op)) {
+          AtenUpsampleNearest2dBackwardOp, AtenLeakyReluBackwardOp,
+          AtenAliasOp>(op)) {
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
