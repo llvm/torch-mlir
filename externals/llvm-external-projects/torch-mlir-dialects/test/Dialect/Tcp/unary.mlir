@@ -62,3 +62,14 @@ func.func @test_clamp_min_invalid(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
   %0 = tcp.clamp %arg0 { max_int = 6 : i64 } : tensor<?x?xf32> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @test_sigmoid_f32(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:         %[[TANH:.*]] = tcp.sigmoid %[[ARG]] : tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         return %[[TANH]] : tensor<?x?xf32>
+func.func @test_sigmoid_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.sigmoid %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}

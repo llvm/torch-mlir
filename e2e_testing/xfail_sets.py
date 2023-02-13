@@ -412,6 +412,7 @@ MHLO_PASS_SET = {
 
 TCP_PASS_SET = {
     "AddCMulModule_basic",
+    "AddCDivModule_basic",
     "AtenRoundIntModule_basic",
     "AtenToDeviceModule_basic",
     "BoolTensorHandleSignless_basic",
@@ -430,10 +431,12 @@ TCP_PASS_SET = {
     "ElementwiseReluModule_basic",
     "ElementwiseToDtypeIdentityModule_basic",
     "ElementwiseUnaryModule_basic",
+    "ElementwiseSigmoidModule_basic",
     "ExpandModule_basic",
     "MseLossNoReductionModule_basic",
     "ReturnThreeTensorFloat32_basic",
     "ReturnTwoTensorF32I64_basic",
+    "SiluModule_basic",
     "SquareModule_basic",
     "SqueezeModule_broadcast",
     "TModuleRank0_basic",

@@ -64,6 +64,24 @@ def Tcp_ClampOp : Tcp_UnaryElementwiseOp<"clamp"> {
   let hasVerifier = 1;
 }
 
+def Tcp_SigmoidOp : Tcp_UnaryElementwiseOp<"sigmoid"> {
+  let summary = "Computes sigmoid of input, elementwise";
+
+  let description = [{
+    Computes elementwise sigmoid of the input tensor.
+  }];
+
+  let arguments = (ins
+    Tcp_FloatOrComplexTensor:$in
+  );
+
+  let results = (outs
+    Tcp_FloatOrComplexTensor:$out
+  );
+
+  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
+}
+
 def Tcp_AddOp : Tcp_BinaryElementwiseOp<"add", [SameOperandsAndResultElementType]> {
   let summary = "Computes elementwise addition";
 
@@ -116,6 +134,25 @@ def Tcp_MulOp : Tcp_BinaryElementwiseOp<"mul", [SameOperandsAndResultElementType
 
   let results = (outs
     Tcp_Tensor:$out
+  );
+
+  let assemblyFormat = "$in1 `,` $in2 attr-dict `:` type($in1) `,` type($in2) `->` type($out)";
+}
+
+def Tcp_DivFOp : Tcp_BinaryElementwiseOp<"divf", [SameOperandsAndResultElementType]> {
+  let summary = "Computes elementwise floating point division";
+
+  let description = [{
+    Computes the elementwise floating point division of `in1` and `in2`.
+  }];
+
+  let arguments = (ins
+    Tcp_FloatTensor:$in1,
+    Tcp_FloatTensor:$in2
+  );
+
+  let results = (outs
+    Tcp_FloatTensor:$out
   );
 
   let assemblyFormat = "$in1 `,` $in2 attr-dict `:` type($in1) `,` type($in2) `->` type($out)";

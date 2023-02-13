@@ -69,3 +69,15 @@ func.func @test_mul(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>) -> tensor<
   %0 = tcp.mul %arg0, %arg1 : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @test_divf(
+// CHECK-SAME:          %[[ARG0:.*]]: tensor<?x?xf32>,
+// CHECK-SAME:          %[[ARG1:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:         %[[DIV:.*]] = tcp.divf %[[ARG0]], %[[ARG1]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         return %[[DIV]] : tensor<?x?xf32>
+func.func @test_divf(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.divf %arg0, %arg1 : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
