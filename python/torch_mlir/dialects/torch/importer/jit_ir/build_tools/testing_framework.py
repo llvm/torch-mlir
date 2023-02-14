@@ -146,7 +146,7 @@ class Invocation:
 
     def to_real_op_args(self):
         """Gets positional arguments appropriate for the real op."""
-        tensor_transformer = lambda o: torch.ones(o.shape, dtype=o.dtype)
+        tensor_transformer = lambda o: torch.ones(o.shape, dtype=o.dtype).to("meta")
         return _recursively_transform_tensor_args(self.args, tensor_transformer)
 
     def __repr__(self) -> str:

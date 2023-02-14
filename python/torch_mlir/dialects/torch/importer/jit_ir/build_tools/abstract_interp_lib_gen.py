@@ -12,7 +12,7 @@ from torch import device
 import torch.jit._shape_functions as upstream_shape_functions
 
 from .testing_framework import Invocation, ErrorInvocation, TensorOfShape, LongTensorOfShape, NonZeroDTensorWithDtype, ZeroDTensorWithDtype, check_shape_function, check_dtype_function
-from .library_generator import generate_library, not_present_in_registry, promote_dtypes, get_dtype_of_scalar, is_integer_dtype, is_float_dtype, is_complex_dtype
+from .library_generator import generate_library, not_present_in_registry, promote_dtypes, get_dtype_of_scalar, is_integer_dtype, is_float_dtype, is_complex_dtype, get_priority_of_dtype
 
 # ==============================================================================
 # Shape Functions
@@ -883,12 +883,17 @@ def aten〇native_layer_norm〡shape(input: List[int], normalized_shape: List[in
     Invocation(TensorOfShape(2, 3), None, None, TensorOfShape(3), TensorOfShape(3), False, 1e-4, 1e-6), # Inference basic case.
     Invocation(TensorOfShape(2, 3, 4, 5, 6), None, None, None, None, True, 1e-4, 1e-6), # Training high-D case.
     Invocation(TensorOfShape(2, 3, 4, 5, 6), None, None, TensorOfShape(3), TensorOfShape(3), False, 1e-4, 1e-6), # Inference high-D case.
-    ErrorInvocation(TensorOfShape(2), None, None, None, None, True, 1e-4, 1e-6) # Dimensionality too low.
+    Invocation(TensorOfShape(2), None, None, None, None, True, 1e-4, 1e-6) # 1D input.
 ])
 def aten〇native_batch_norm〡shape(input: List[int], weight: Optional[List[int]], bias: Optional[List[int]], running_mean: Optional[List[int]], running_var: Optional[List[int]], training: bool, momentum: float, eps: float) -> Tuple[List[int], List[int], List[int]]:
     if training:
-        return input, [input[1]], [input[1]]
-    return input, [0], [0]
+        if len(input) >= 2:
+            return input, [input[1]], [input[1]]
+        else:
+            return input, [], []
+    running_mean_list: List[int] = [0] if running_mean is None else running_mean
+    running_var_list: List[int] = [0] if running_var is None else running_var
+    return input, running_mean_list, running_var_list
 
 # TODO: This should be upstreamed.
 # See https://github.com/pytorch/pytorch/pull/76889 for an example.
@@ -1156,42 +1161,34 @@ def _get_dtype_of_floating_point_op(input_dtype: int) -> int:
         return input_dtype
     return torch.float32
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.float16}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇tanh〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype != torch.float16
     return _get_dtype_of_floating_point_op(self_dtype)
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.float16}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇exp〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype != torch.float16
     return _get_dtype_of_floating_point_op(self_dtype)
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(
-    num_of_tensors=1, error_types={torch.float16, torch.complex64, torch.complex128}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇expm1〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype), "`self` cannot be complex"
-    assert self_dtype != torch.float16, "`self` cannot have float16 dtype"
     return _get_dtype_of_floating_point_op(self_dtype)
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.float16}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇sin〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype != torch.float16
     return _get_dtype_of_floating_point_op(self_dtype)
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.float16}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇cos〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype != torch.float16
     return _get_dtype_of_floating_point_op(self_dtype)
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.float16}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇sigmoid〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype != torch.float16
     return _get_dtype_of_floating_point_op(self_dtype)
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
@@ -1199,49 +1196,41 @@ def aten〇reciprocal〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.float16}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇sqrt〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype != torch.float16
     return _get_dtype_of_floating_point_op(self_dtype)
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.float16}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇log〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype != torch.float16
     return _get_dtype_of_floating_point_op(self_dtype)
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.float16}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇log2〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype != torch.float16
     return _get_dtype_of_floating_point_op(self_dtype)
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.float16}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇log1p〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype != torch.float16
     return _get_dtype_of_floating_point_op(self_dtype)
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.float16}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇rsqrt〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype != torch.float16
     return _get_dtype_of_floating_point_op(self_dtype)
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.float16, torch.complex64, torch.complex128}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇erf〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype) and self_dtype != torch.float16
     return _get_dtype_of_floating_point_op(self_dtype)
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(
-    num_of_tensors=1,
-    error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32,
-                 torch.int64, torch.float16, torch.complex64, torch.complex128}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇softplus〡dtype(self_rank_dtype: Tuple[int, int], beta: Union[int, float] = 1, threshold: Union[int, float] = 20) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype) and not is_integer_dtype(self_dtype) and self_dtype != torch.float16
+    if is_integer_dtype(self_dtype):
+        return self_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(
@@ -1256,40 +1245,37 @@ def aten〇frobenius_norm〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: L
         return torch.float32
     return _get_dtype_of_floating_point_op(self_dtype)
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.float16}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def prims〇sqrt〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype != torch.float16
+    if is_integer_dtype(self_dtype):
+        return self_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(
-    None, [(3,), (3, 4)],
-    {torch.complex128, torch.complex64, torch.float16, torch.int64, torch.int32, torch.int16, torch.int8, torch.uint8, torch.bool},
+    None, [(3,), (3, 4)], None,
     TensorOfShape(3, dtype=torch.int64), None, 0, 10, TensorOfShape(1, dtype=torch.float32)) +
-    [ErrorInvocation(TensorOfShape(3, dtype=torch.float32), TensorOfShape(3, 4, dtype=torch.float64), TensorOfShape(3, dtype=torch.int64), None, 0, 10, TensorOfShape(1, dtype=torch.float32)),
-     ErrorInvocation(TensorOfShape(3, dtype=torch.float64), TensorOfShape(3, 4, dtype=torch.float32), TensorOfShape(3, dtype=torch.int64), None, 0, 10, TensorOfShape(1, dtype=torch.float32))])
+    [Invocation(TensorOfShape(3, dtype=torch.float32), TensorOfShape(3, 4, dtype=torch.float64), TensorOfShape(3, dtype=torch.int64), None, 0, 10, TensorOfShape(1, dtype=torch.float32)),
+     Invocation(TensorOfShape(3, dtype=torch.float64), TensorOfShape(3, 4, dtype=torch.float32), TensorOfShape(3, dtype=torch.int64), None, 0, 10, TensorOfShape(1, dtype=torch.float32))])
 def aten〇nll_loss_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], weight_rank_dtype: Optional[Tuple[int, int]], reduction: int, ignore_index: int, total_weight_rank_dtype: Tuple[int, int]) -> int:
     grad_output_rank, grad_output_dtype = grad_output_rank_dtype
     self_rank, self_dtype = self_rank_dtype
-    assert grad_output_dtype == self_dtype, "`grad_output` and `self` must have the same dtype"
-    assert not is_complex_dtype(self_dtype), "`self` cannot have complex dtype"
-    assert not is_integer_dtype(self_dtype), "`self` cannot have integer dtype"
-    assert self_dtype != torch.float16, "`self` cannot have float16 dtype"
-    return self_dtype
+    ranks: List[Optional[int]] = [self_rank, grad_output_rank]
+    dtypes = [self_dtype, grad_output_dtype]
+    result = promote_dtypes(ranks, dtypes)
+    if result == torch.bool:
+        return torch.int64
+    return result
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(
-    None, [(2, 4, 7, 6), (2, 4, 6, 5)], 
-    {torch.complex128, torch.complex64, torch.float16, torch.int64, torch.int32, torch.int16, torch.int8, torch.uint8, torch.bool},
+    None, [(2, 4, 7, 6), (2, 4, 6, 5)], None,
     [2, 2], [1, 1], [1, 1], [1, 1], False, TensorOfShape(2, 4, 7, 6, dtype=torch.int64)) +
     [ErrorInvocation(TensorOfShape(2, 4, 7, 6, dtype=torch.float32), TensorOfShape(2, 4, 6, 5, dtype=torch.float64), [2, 2], [1, 1], [1, 1], [1, 1], False, TensorOfShape(2, 4, 7, 6, dtype=torch.int64)),
      ErrorInvocation(TensorOfShape(2, 4, 7, 6, dtype=torch.float64), TensorOfShape(2, 4, 6, 5, dtype=torch.float32), [2, 2], [1, 1], [1, 1], [1, 1], False, TensorOfShape(2, 4, 7, 6, dtype=torch.int64))])
 def aten〇max_pool2d_with_indices_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], kernel_size: List[int], stride: List[int], padding: List[int], dilation: List[int], ceil_mode: bool, indices_rank_dtype: Tuple[int, int]) -> int:
     grad_output_rank, grad_output_dtype = grad_output_rank_dtype
     self_rank, self_dtype = self_rank_dtype
-    assert grad_output_dtype == self_dtype, "`grad_output` and `self` must have the same dtype"
-    assert not is_complex_dtype(self_dtype), "`self` cannot have complex dtype"
-    assert not is_integer_dtype(self_dtype), "`self` cannot have integer dtype"
-    assert self_dtype != torch.float16, "`self` cannot have float16 dtype"
+    assert grad_output_dtype == self_dtype
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
@@ -1312,51 +1298,29 @@ def aten〇eq〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtyp
     return torch.bool
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(
-        num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=0.0) +
-    _check_tensors_with_the_same_dtype(
-        num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=0))
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0.0) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0))
 def aten〇ge〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float]) -> int:
-    self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype), "`self` cannot be complex"
     return torch.bool
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(
-        num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=0.0) +
-    _check_tensors_with_the_same_dtype(
-        num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=0))
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0.0) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0))
 def aten〇gt〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float]) -> int:
-    self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype), "`self` cannot be complex"
     return torch.bool
 
-@check_dtype_function(
-    _check_two_tensor_op(input_error_types={torch.complex64, torch.complex128}))
+@check_dtype_function(_check_two_tensor_op())
 def aten〇gt〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
-    other_rank, other_dtype = other_rank_dtype
-    self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype), "`self` cannot be complex"
-    assert not is_complex_dtype(other_dtype), "`self` cannot be complex"
     return torch.bool
 
-@check_dtype_function(
-    _check_two_tensor_op(input_error_types={torch.complex64, torch.complex128}))
+@check_dtype_function(_check_two_tensor_op())
 def aten〇ge〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
-    other_rank, other_dtype = other_rank_dtype
-    self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype), "`self` cannot be complex"
-    assert not is_complex_dtype(other_dtype), "`self` cannot be complex"
     return torch.bool
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(
-        num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=0.0) +
-    _check_tensors_with_the_same_dtype(
-        num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=0))
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0.0) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0))
 def aten〇le〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float]) -> int:
-    self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype), "`self` cannot be complex"
     return torch.bool
 
 @check_dtype_function(_check_two_tensor_op())
@@ -1376,31 +1340,17 @@ def aten〇logical_xor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtyp
     return torch.bool
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(
-        num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=0.0) +
-    _check_tensors_with_the_same_dtype(
-        num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=0))
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0.0) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0))
 def aten〇lt〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float]) -> int:
-    self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype), "`self` cannot be complex"
     return torch.bool
 
-@check_dtype_function(
-    _check_two_tensor_op(input_error_types={torch.complex64, torch.complex128}))
+@check_dtype_function(_check_two_tensor_op())
 def aten〇lt〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
-    other_rank, other_dtype = other_rank_dtype
-    self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype), "`self` cannot be complex"
-    assert not is_complex_dtype(other_dtype), "`self` cannot be complex"
     return torch.bool
 
-@check_dtype_function(
-    _check_two_tensor_op(input_error_types={torch.complex64, torch.complex128}))
+@check_dtype_function(_check_two_tensor_op())
 def aten〇le〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
-    other_rank, other_dtype = other_rank_dtype
-    self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype), "`self` cannot be complex"
-    assert not is_complex_dtype(other_dtype), "`self` cannot be complex"
     return torch.bool
 
 @check_dtype_function(
@@ -1421,15 +1371,16 @@ def aten〇add〡dtype(a: Union[int, float], b: Union[int, float]) -> int:
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(
-        num_of_tensors=1, error_types={torch.float16, torch.bfloat16}))
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bfloat16}))
 def aten〇fft_fft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     if is_complex_dtype(self_dtype):
         return self_dtype
-    elif self_dtype == torch.float:
+    elif self_dtype == torch.float16:
+        return torch.complex32
+    elif self_dtype == torch.float32:
         return torch.complex64
-    elif self_dtype == torch.double:
+    elif self_dtype == torch.float64:
         return torch.complex128
     elif is_integer_dtype(self_dtype):
         return torch.complex64
@@ -1437,23 +1388,16 @@ def aten〇fft_fft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = 
         assert False, "Unsupported dtype"
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(
-        num_of_tensors=1, error_types={torch.bool}, other=0.0) +
-    _check_tensors_with_the_same_dtype(
-        num_of_tensors=1, error_types={torch.bool}, other=0))
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0.0) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0))
 def aten〇rsub〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float], alpha: Union[int, float] = 1) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype != torch.bool, "`self` cannot have bool dtype"
     return promote_dtypes([self_rank, None], [self_dtype, get_dtype_of_scalar(other)])
 
-@check_dtype_function(_check_two_tensor_op(
-    input_error_types={torch.float16, torch.bfloat16, torch.float32,
-                       torch.float64, torch.complex64, torch.complex128}))
+@check_dtype_function(_check_two_tensor_op())
 def aten〇__and__〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
     other_rank, other_dtype = other_rank_dtype
     self_rank, self_dtype = self_rank_dtype
-    assert is_integer_dtype(self_dtype), "Expected `self` to have integer dtype"
-    assert is_integer_dtype(other_dtype), "Expected `other` to have integer dtype"
     ranks: List[Optional[int]] = [self_rank, other_rank]
     dtypes = [self_dtype, other_dtype]
     return promote_dtypes(ranks, dtypes)
@@ -1466,60 +1410,47 @@ def aten〇add〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dty
     dtypes = [self_dtype, other_dtype]
     return promote_dtypes(ranks, dtypes)
 
-@check_dtype_function(_check_two_tensor_op(
-    input_error_types={torch.float16, torch.bfloat16, torch.float32,
-                       torch.float64, torch.complex64, torch.complex128}))
+@check_dtype_function(_check_two_tensor_op())
 def aten〇bitwise_and〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
     other_rank, other_dtype = other_rank_dtype
     self_rank, self_dtype = self_rank_dtype
-    assert is_integer_dtype(self_dtype), "Expected `self` to have integer dtype"
-    assert is_integer_dtype(other_dtype), "Expected `other` to have integer dtype"
     ranks: List[Optional[int]] = [self_rank, other_rank]
     dtypes = [self_dtype, other_dtype]
     return promote_dtypes(ranks, dtypes)
 
-@check_dtype_function(_check_two_tensor_op(
-    input_error_types={torch.float16, torch.bfloat16, torch.float32,
-                       torch.float64, torch.complex64, torch.complex128}))
+@check_dtype_function(_check_two_tensor_op())
 def aten〇bitwise_or〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
     other_rank, other_dtype = other_rank_dtype
     self_rank, self_dtype = self_rank_dtype
-    assert is_integer_dtype(self_dtype), "Expected `self` to have integer dtype"
-    assert is_integer_dtype(other_dtype), "Expected `other` to have integer dtype"
     ranks: List[Optional[int]] = [self_rank, other_rank]
     dtypes = [self_dtype, other_dtype]
     return promote_dtypes(ranks, dtypes)
 
-@check_dtype_function(_check_two_tensor_op(
-    input_error_types={torch.float16, torch.bfloat16, torch.float32,
-                       torch.float64, torch.complex64, torch.complex128}))
+@check_dtype_function(_check_two_tensor_op())
 def aten〇bitwise_xor〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
     other_rank, other_dtype = other_rank_dtype
     self_rank, self_dtype = self_rank_dtype
-    assert is_integer_dtype(self_dtype), "Expected `self` to have integer dtype"
-    assert is_integer_dtype(other_dtype), "Expected `other` to have integer dtype"
     ranks: List[Optional[int]] = [self_rank, other_rank]
     dtypes = [self_dtype, other_dtype]
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(
-        tensor_shapes=[(2, 3, 4), (2, 4, 3)], error_types={torch.float16, torch.bool}) +
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 4), (2, 4, 3)]) +
     # Different width
-    [ErrorInvocation(TensorOfShape(2, 3, 4, dtype=torch.float64),
-                     TensorOfShape(2, 4, 3, dtype=torch.float32)),
+    [Invocation(TensorOfShape(2, 3, 4, dtype=torch.float64),
+                TensorOfShape(2, 4, 3, dtype=torch.float32)),
+     # Two f16 types
+     Invocation(TensorOfShape(2, 3, 4, dtype=torch.float16),
+                TensorOfShape(2, 4, 3, dtype=torch.bfloat16)),
      # Different type
-     ErrorInvocation(TensorOfShape(2, 3, 4, dtype=torch.float32),
-                     TensorOfShape(2, 4, 3, dtype=torch.int32))])
+     Invocation(TensorOfShape(2, 3, 4, dtype=torch.float32),
+                TensorOfShape(2, 4, 3, dtype=torch.int32))])
 def aten〇bmm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[int, int]) -> int:
     mat2_rank, mat2_dtype = mat2_rank_dtype
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype not in [torch.float16, torch.bool], \
-        "Expected dtype of `self` to not be float16 or bool"
-    assert mat2_dtype not in [torch.float16, torch.bool], \
-        "Expected dtype of `mat2` to not be float16 or bool"
-    assert self_dtype == mat2_dtype, "`self` and `mat2` must have the same dtype"
-    return self_dtype
+    mat2_priority = get_priority_of_dtype(mat2_dtype)
+    self_priority = get_priority_of_dtype(self_dtype)
+    return mat2_dtype if mat2_priority < self_priority else self_dtype
 
 @check_dtype_function(_check_two_tensor_op())
 def aten〇div〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
@@ -1560,77 +1491,71 @@ def aten〇floor_divide〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dty
     return promoted_dtype
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(
-        tensor_shapes=[(2, 3, 4), (2, 4, 3)], error_types={torch.float16, torch.bool}) +
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 4), (2, 4, 3)]) +
     # Different width
-    [ErrorInvocation(TensorOfShape(2, 3, 4, dtype=torch.float64),
-                     TensorOfShape(2, 4, 3, dtype=torch.float32)),
+    [Invocation(TensorOfShape(2, 3, 4, dtype=torch.float64),
+                TensorOfShape(2, 4, 3, dtype=torch.float32)),
+     # Two f16 types
+     Invocation(TensorOfShape(2, 3, 4, dtype=torch.float16),
+                TensorOfShape(2, 4, 3, dtype=torch.bfloat16)),
      # Different type
-     ErrorInvocation(TensorOfShape(2, 3, 4, dtype=torch.float32),
-                     TensorOfShape(2, 4, 3, dtype=torch.int32))])
+     Invocation(TensorOfShape(2, 3, 4, dtype=torch.float32),
+                TensorOfShape(2, 4, 3, dtype=torch.int32))])
 def aten〇matmul〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
     other_rank, other_dtype = other_rank_dtype
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype not in [torch.float16, torch.bool], \
-        "Expected dtype of `self` to not be float16 or bool"
-    assert other_dtype not in [torch.float16, torch.bool], \
-        "Expected dtype of `other` to not be float16 or bool"
-    assert self_dtype == other_dtype, "`self` and `other` must have the same dtype"
-    return self_dtype
+    other_priority = get_priority_of_dtype(other_dtype)
+    self_priority = get_priority_of_dtype(self_dtype)
+    return other_dtype if other_priority < self_priority else self_dtype
 
-@check_dtype_function(_check_two_tensor_op(input_error_types={torch.complex64, torch.complex128}))
+@check_dtype_function(_check_two_tensor_op())
 def aten〇maximum〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
     other_rank, other_dtype = other_rank_dtype
     self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype), "`self` cannot be complex"
-    assert not is_complex_dtype(other_dtype), "`other` cannot be complex"
     ranks: List[Optional[int]] = [self_rank, other_rank]
     dtypes = [self_dtype, other_dtype]
     return promote_dtypes(ranks, dtypes)
 
-@check_dtype_function(_check_two_tensor_op(input_error_types={torch.complex64, torch.complex128}))
+@check_dtype_function(_check_two_tensor_op())
 def aten〇minimum〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
     other_rank, other_dtype = other_rank_dtype
     self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype), "`self` cannot be complex"
-    assert not is_complex_dtype(other_dtype), "`other` cannot be complex"
     ranks: List[Optional[int]] = [self_rank, other_rank]
     dtypes = [self_dtype, other_dtype]
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(
-        tensor_shapes=[(3, 4), (4, 3)], error_types={torch.float16, torch.bool}) +
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(3, 4), (4, 3)]) +
     # Different width
-    [ErrorInvocation(TensorOfShape(3, 4, dtype=torch.float64),
-                     TensorOfShape(4, 3, dtype=torch.float32)),
+    [Invocation(TensorOfShape(3, 4, dtype=torch.float64),
+                TensorOfShape(4, 3, dtype=torch.float32)),
+     # Two f16 types
+     Invocation(TensorOfShape(3, 4, dtype=torch.float16),
+                TensorOfShape(4, 3, dtype=torch.bfloat16)),
      # Different type
-     ErrorInvocation(TensorOfShape(3, 4, dtype=torch.float32),
-                     TensorOfShape(4, 3, dtype=torch.int32))])
+     Invocation(TensorOfShape(3, 4, dtype=torch.float32),
+                TensorOfShape(4, 3, dtype=torch.int32))])
 def aten〇mm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[int, int]) -> int:
     mat2_rank, mat2_dtype = mat2_rank_dtype
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype not in [torch.float16, torch.bool], \
-        "Expected dtype of `self` to not be float16 or bool"
-    assert mat2_dtype not in [torch.float16, torch.bool], \
-        "Expected dtype of `mat2` to not be float16 or bool"
-    assert self_dtype == mat2_dtype, "`self` and `mat2` must have the same dtype"
-    return self_dtype
+
+    float16_types = [torch.bfloat16, torch.float16]
+    if self_dtype in float16_types and mat2_dtype in float16_types and self_dtype != mat2_dtype:
+        return torch.float16
+
+    ranks: List[Optional[int]] = [self_rank, mat2_rank]
+    dtypes = [self_dtype, mat2_dtype]
+    return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(_check_two_tensor_op(
-    input_error_types={torch.complex64, torch.complex128},
-    output_error_types={torch.bool, torch.uint8, torch.int8, torch.int16,
-                        torch.int32, torch.int64, torch.bfloat16}))
+    output_error_types={torch.bool, torch.int8, torch.uint8, torch.int16, torch.int32, torch.int64}))
 def aten〇mse_loss〡dtype(self_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], reduction: int = 1) -> int:
     self_rank, self_dtype = self_rank_dtype
     target_rank, target_dtype = target_rank_dtype
-    assert not is_complex_dtype(self_dtype), "`self` cannot be complex"
-    assert not is_complex_dtype(target_dtype), "`target` cannot be complex"
     ranks: List[Optional[int]] = [self_rank, target_rank]
     dtypes = [self_dtype, target_dtype]
     promoted_dtype = promote_dtypes(ranks, dtypes)
-    assert is_float_dtype(promoted_dtype) and promoted_dtype != torch.bfloat16, \
-        "Expected promoted dtype to be float but not `bfloat16`"
+    assert not is_integer_dtype(promoted_dtype)
     return promoted_dtype
 
 @check_dtype_function(_check_two_tensor_op())
@@ -1641,66 +1566,48 @@ def aten〇mul〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dty
     dtypes = [self_dtype, other_dtype]
     return promote_dtypes(ranks, dtypes)
 
-@check_dtype_function(
-    _check_tensors_with_the_same_dtype(
-        tensor_shapes=[(3, 4), (4,)], error_types={torch.float16, torch.bool}) +
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(3, 4), (4,)]) +
     # Different width
-    [ErrorInvocation(TensorOfShape(3, 4, dtype=torch.float64),
-                     TensorOfShape(4, dtype=torch.float32)),
+    [Invocation(TensorOfShape(3, 4, dtype=torch.float64),
+                TensorOfShape(4, dtype=torch.float32)),
+     # Two f16 types
+     Invocation(TensorOfShape(3, 4, dtype=torch.float16),
+                TensorOfShape(4, dtype=torch.bfloat16)),
      # Different type
-     ErrorInvocation(TensorOfShape(3, 4, dtype=torch.float32),
-                     TensorOfShape(4, dtype=torch.int32))])
+     Invocation(TensorOfShape(3, 4, dtype=torch.float32),
+                TensorOfShape(4, dtype=torch.int32))])
 def aten〇mv〡dtype(self_rank_dtype: Tuple[int, int], vec_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     vec_rank, vec_dtype = vec_rank_dtype
-    assert self_dtype not in [torch.float16, torch.bool], \
-        "Expected dtype of `self` to not be float16 or bool"
-    assert vec_dtype not in [torch.float16, torch.bool], \
-        "Expected dtype of `vec` to not be float16 or bool"
-    assert self_dtype == vec_dtype, "`self` and `vec` must have the same dtype"
     ranks: List[Optional[int]] = [self_rank, vec_rank]
     dtypes = [self_dtype, vec_dtype]
     return promote_dtypes(ranks, dtypes)
 
-@check_dtype_function(_check_two_tensor_op(input_error_types={torch.bool}))
+@check_dtype_function(_check_two_tensor_op())
 def aten〇sub〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int], alpha: Union[int, float] = 1) -> int:
     other_rank, other_dtype = other_rank_dtype
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype != torch.bool, "`self` cannot be of bool dtype"
-    assert other_dtype != torch.bool, "`other` cannot be of bool dtype"
     ranks: List[Optional[int]] = [self_rank, other_rank]
     dtypes = [self_dtype, other_dtype]
     return promote_dtypes(ranks, dtypes)
 
-@check_dtype_function(_check_two_tensor_op(input_error_types={torch.complex64, torch.complex128}, output_error_types={torch.bool, torch.float16}, threshold=0))
+# TODO: This op has incosistent behavior when run on CPU vs META
+# If the following check is made to pass, e2e tests fail
+# @check_dtype_function(_check_two_tensor_op(threshold=0))
 def aten〇threshold_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], threshold: Union[int, float]) -> int:
     self_rank, self_dtype = self_rank_dtype
     grad_output_rank, grad_output_dtype = grad_output_rank_dtype
-    assert not is_complex_dtype(grad_output_dtype), "`grad_output` cannot be complex"
-    assert not is_complex_dtype(self_dtype), "`self` cannot be complex"
-    ranks: List[Optional[int]] = [grad_output_rank, self_rank]
-    dtypes = [grad_output_dtype, self_dtype]
-    promoted_dtype = promote_dtypes(ranks, dtypes)
-    assert promoted_dtype not in [torch.bool, torch.float16], \
-        "Result dtype for aten.threshold_backward cannot be bool or float16"
-    return promoted_dtype
+    ranks: List[Optional[int]] = [self_rank, grad_output_rank]
+    dtypes = [self_dtype, grad_output_dtype]
+    return promote_dtypes(ranks, dtypes)
 
-_convolution_kwargs = {
-    "stride" : [1, 1], "padding" : [0, 0], "dilation" : [1, 1], "transposed" : False, "output_padding" : [0, 0],
-    "groups" : 1, "benchmark" : False, "deterministic" : False, "cudnn_enabled" : False, "allow_tf32" : False}
-@check_dtype_function(
-    _check_tensors_with_the_same_dtype(
-        tensor_shapes=[(1, 1, 1, 1), (1, 1, 1, 1), (1,)],
-        error_types={torch.bool, torch.float16, torch.complex64, torch.complex128}, **_convolution_kwargs) +
-    [ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.bool), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
-                     TensorOfShape(1, dtype=torch.float32), **_convolution_kwargs),
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.bool),
-                     TensorOfShape(1, dtype=torch.float32), **_convolution_kwargs),
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float16), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
-                     TensorOfShape(1, dtype=torch.float32), **_convolution_kwargs),
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float16),
-                     TensorOfShape(1, dtype=torch.float32), **_convolution_kwargs)
-])
+# TODO: This op fails when using meta backend with error:
+# Op raised error 'convolution_overrideable not implemented.
+# You are likely triggering this with tensor backend other than
+# CPU/CUDA/MKLDNN, if this is intended, please use TORCH_LIBRARY_IMPL
+# to override this function ' but dtype function did not raise any error.
+#
+# This is similar to https://github.com/pytorch/pytorch/issues/97481
 def aten〇_convolution〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int, benchmark: bool, deterministic: bool, cudnn_enabled: bool, allow_tf32: bool) -> int:
     input_rank, input_dtype = input_rank_dtype
     weight_rank, weight_dtype = weight_rank_dtype
@@ -1710,22 +1617,13 @@ def aten〇_convolution〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_d
     dtypes = [input_dtype, weight_dtype]
     return promote_dtypes(ranks, dtypes)
 
-_convolution_deprecated_kwargs = {
-    "stride" : [1, 1], "padding" : [0, 0], "dilation" : [1, 1], "transposed" : False, "output_padding" : [0, 0],
-    "groups" : 1, "benchmark" : False, "deterministic" : False, "cudnn_enabled" : False}
-@check_dtype_function(
-    _check_tensors_with_the_same_dtype(
-        tensor_shapes=[(1, 1, 1, 1), (1, 1, 1, 1), (1,)],
-        error_types={torch.bool, torch.float16, torch.complex64, torch.complex128}, **_convolution_deprecated_kwargs) +
-    [ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.bool), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
-                     TensorOfShape(1, dtype=torch.float32), **_convolution_deprecated_kwargs),
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.bool),
-                     TensorOfShape(1, dtype=torch.float32), **_convolution_deprecated_kwargs),
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float16), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
-                     TensorOfShape(1, dtype=torch.float32), **_convolution_deprecated_kwargs),
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float16),
-                     TensorOfShape(1, dtype=torch.float32), **_convolution_deprecated_kwargs)
-])
+# TODO: This op fails when using meta backend with error:
+# Op raised error 'convolution_overrideable not implemented.
+# You are likely triggering this with tensor backend other than
+# CPU/CUDA/MKLDNN, if this is intended, please use TORCH_LIBRARY_IMPL
+# to override this function ' but dtype function did not raise any error.
+#
+# This is similar to https://github.com/pytorch/pytorch/issues/97481
 def aten〇_convolution〇deprecated〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int, benchmark: bool, deterministic: bool, cudnn_enabled: bool) -> int:
     input_rank, input_dtype = input_rank_dtype
     weight_rank, weight_dtype = weight_rank_dtype
@@ -1736,106 +1634,77 @@ def aten〇_convolution〇deprecated〡dtype(input_rank_dtype: Tuple[int, int], 
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(
-        tensor_shapes=[(1, 1, 1, 1), (1, 1, 1, 1)], error_types={torch.bool, torch.float16}) +
-    [ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.bool), TensorOfShape(1, 1, 1, 1, dtype=torch.float32)),
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.bool)),
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float16), TensorOfShape(1, 1, 1, 1, dtype=torch.float32)),
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float16))
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1, 1, 1), (1, 1, 1, 1)]) +
+    [Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.bool), TensorOfShape(1, 1, 1, 1, dtype=torch.float32)),
+     Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.bool)),
+     Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float16), TensorOfShape(1, 1, 1, 1, dtype=torch.float32)),
+     Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float16))
 ])
 def aten〇conv2d〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None, stride: List[int] = (1, 1), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), groups: int = 1) -> int:
     input_rank, input_dtype = input_rank_dtype
-    weight_rank, weight_dtype = weight_rank_dtype
-    assert input_dtype not in [torch.bool, torch.float16]
-    assert weight_dtype not in [torch.bool, torch.float16]
-    ranks: List[Optional[int]] = [input_rank, weight_rank]
-    dtypes = [input_dtype, weight_dtype]
-    return promote_dtypes(ranks, dtypes)
+    return input_dtype
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(
-        tensor_shapes=[(1, 1, 1, 1), (1, 1, 1, 1)],
-        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.float16}) +
-    [ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.bool), TensorOfShape(1, 1, 1, 1, dtype=torch.float32)),
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.bool)),
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float16), TensorOfShape(1, 1, 1, 1, dtype=torch.float32)),
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float16))
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1, 1, 1), (1, 1, 1, 1)]) +
+    [Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.bool), TensorOfShape(1, 1, 1, 1, dtype=torch.float32)),
+     Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.bool)),
+     Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float16), TensorOfShape(1, 1, 1, 1, dtype=torch.float32)),
+     Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float16))
 ])
 def aten〇conv_transpose2d〇input〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None, stride: List[int] = (1, 1), padding: List[int] = (0, 0), output_padding: List[int] = (0, 0), groups: int = 1, dilation: List[int] = (1, 1)) -> int:
     input_rank, input_dtype = input_rank_dtype
-    weight_rank, weight_dtype = weight_rank_dtype
-    assert (input_dtype == torch.int64 or not is_integer_dtype(input_dtype)) and input_dtype not in [torch.float16]
-    assert (weight_dtype == torch.int64 or not is_integer_dtype(weight_dtype)) and weight_dtype not in [torch.float16]
-    ranks: List[Optional[int]] = [input_rank, weight_rank]
-    dtypes = [input_dtype, weight_dtype]
-    return promote_dtypes(ranks, dtypes)
+    return input_dtype
 
 convolution_kwargs = {
     "stride" : [1, 1], "padding" : [0, 0], "dilation" : [1, 1], "transposed" : False, "output_padding" : [0, 0], "groups" : 1}
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(
-        tensor_shapes=[(1, 1, 1, 1), (1, 1, 1, 1), (1,)],
-        error_types={torch.bool, torch.float16, torch.complex64, torch.complex128}, **convolution_kwargs) +
-    [ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.bool), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
-                     TensorOfShape(1, dtype=torch.float32), **convolution_kwargs),
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.bool),
-                     TensorOfShape(1, dtype=torch.float32), **convolution_kwargs),
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float16), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
-                     TensorOfShape(1, dtype=torch.float32), **convolution_kwargs),
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float16),
-                     TensorOfShape(1, dtype=torch.float32), **convolution_kwargs)
+        tensor_shapes=[(1, 1, 1, 1), (1, 1, 1, 1), (1,)], **convolution_kwargs) +
+    [Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.bool), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
+                TensorOfShape(1, dtype=torch.float32), **convolution_kwargs),
+     Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.bool),
+                TensorOfShape(1, dtype=torch.float32), **convolution_kwargs),
+     Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float16), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
+                TensorOfShape(1, dtype=torch.float32), **convolution_kwargs),
+     Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float16),
+                TensorOfShape(1, dtype=torch.float32), **convolution_kwargs)
 ])
 def aten〇convolution〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int) -> int:
     input_rank, input_dtype = input_rank_dtype
-    weight_rank, weight_dtype = weight_rank_dtype
-    assert not is_complex_dtype(input_dtype) and input_dtype not in [torch.bool, torch.float16]
-    assert not is_complex_dtype(weight_dtype) and weight_dtype not in [torch.bool, torch.float16]
-    ranks: List[Optional[int]] = [input_rank, weight_rank]
-    dtypes = [input_dtype, weight_dtype]
-    return promote_dtypes(ranks, dtypes)
+    return input_dtype
 
 convolution_backward_kwargs = {
-    "stride" : [1, 1], "padding" : [0, 0], "dilation" : [1, 1], "transposed" : False, "output_padding" : [0, 0], "groups" : 1, "output_mask" : [True, True, True]}
+    "bias_sizes" : [1], "stride" : [1, 1], "padding" : [0, 0], "dilation" : [1, 1], "transposed" : False, "output_padding" : [0, 0], "groups" : 1, "output_mask" : [True, True, True]}
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(
-        tensor_shapes=[(1, 1, 1, 1), (1, 1, 1, 1), (1, 1, 1, 1), (1,)],
-        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.float16, torch.complex64, torch.complex128}, **convolution_backward_kwargs) +
+        tensor_shapes=[(1, 1, 1, 1), (1, 1, 1, 1), (1, 1, 1, 1)],
+        **convolution_backward_kwargs) +
     # dtype of first three tensors must be float
-    [ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.int32), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
-                     TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, dtype=torch.float32),
-                     **convolution_backward_kwargs),
+    [Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.int32), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
+                TensorOfShape(1, 1, 1, 1, dtype=torch.float32), **convolution_backward_kwargs),
      # dtype of first three tensors must be float
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.int32),
-                     TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, dtype=torch.float32),
-                     **convolution_backward_kwargs),
-     # dtype of first three tensors must be float
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
-                     TensorOfShape(1, 1, 1, 1, dtype=torch.int32), TensorOfShape(1, dtype=torch.float32),
-                     **convolution_backward_kwargs),
+     Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.int32),
+                TensorOfShape(1, 1, 1, 1, dtype=torch.float32), **convolution_backward_kwargs),
      # dtype of first three tensors must be float
      Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
-                TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, dtype=torch.int32),
-                **convolution_backward_kwargs),
+                TensorOfShape(1, 1, 1, 1, dtype=torch.int32), **convolution_backward_kwargs),
+     # dtype of first three tensors must be float
+     Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
+                TensorOfShape(1, 1, 1, 1, dtype=torch.float32), **convolution_backward_kwargs),
      # grad_output, input, and weight must have same dtype
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float64), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
-                     TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, dtype=torch.float32),
-                     **convolution_backward_kwargs),
+     Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float64), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
+                TensorOfShape(1, 1, 1, 1, dtype=torch.float32), **convolution_backward_kwargs),
      # grad_output, input, and weight must have same dtype
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float64),
-                     TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, dtype=torch.float32),
-                     **convolution_backward_kwargs),
+     Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float64),
+                TensorOfShape(1, 1, 1, 1, dtype=torch.float32), **convolution_backward_kwargs),
      # grad_output, input, and weight must have same dtype
-     ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
-                     TensorOfShape(1, 1, 1, 1, dtype=torch.float64), TensorOfShape(1, dtype=torch.float32),
-                     **convolution_backward_kwargs),
+     Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float32),
+                TensorOfShape(1, 1, 1, 1, dtype=torch.float64), **convolution_backward_kwargs),
 ])
 def aten〇convolution_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_sizes: Optional[List[int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int, output_mask: List[bool]) -> Tuple[int, int, int]:
     grad_output_rank, grad_output_dtype = grad_output_rank_dtype
     input_rank, input_dtype = input_rank_dtype
     weight_rank, weight_dtype = weight_rank_dtype
-    assert grad_output_dtype == input_dtype
-    assert weight_dtype == input_dtype
-    assert is_float_dtype(input_dtype) and input_dtype != torch.float16
     return grad_output_dtype, grad_output_dtype, grad_output_dtype
 
 # TODO: Currently unable to test because the op `torch.ops.aten.convolution_backward_overrideable`
@@ -1852,14 +1721,7 @@ def aten〇convolution_backward_overrideable〡dtype(grad_output_rank_dtype: Tup
     grad_output_rank, grad_output_dtype = grad_output_rank_dtype
     return grad_output_dtype, grad_output_dtype, grad_output_dtype
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(
-    num_of_tensors=2,
-    error_types={torch.bool, torch.bfloat16, torch.float16, torch.float32, torch.float64,
-                 torch.complex64, torch.complex128}) +
-    _check_tensors_with_the_same_dtype(
-    num_of_tensors=1,
-    error_types={torch.bool, torch.bfloat16, torch.float16, torch.float32, torch.float64,
-                 torch.complex64, torch.complex128}))
+# TODO: This op cannot be run on the Meta backend. We should have the test suite default on CPU when the Meta backend does not work.
 def aten〇bincount〡dtype(self_rank_dtype: Tuple[int, int], weights_rank_dtype: Optional[Tuple[int, int]] = None, minlength: int = 0) -> int:
     self_rank, self_dtype = self_rank_dtype
     assert is_integer_dtype(self_dtype) and self_dtype != torch.bool
@@ -1868,111 +1730,99 @@ def aten〇bincount〡dtype(self_rank_dtype: Tuple[int, int], weights_rank_dtype
     return torch.float64
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1), (1, 1)], error_types={torch.bool, torch.float16}) +
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1), (1, 1)]) +
     # Different width
-    [ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
-                     TensorOfShape(3, 4, dtype=torch.float64),
-                     TensorOfShape(4, 3, dtype=torch.float32)),
+    [Invocation(TensorOfShape(3, 3, dtype=torch.float32),
+                TensorOfShape(3, 4, dtype=torch.float64),
+                TensorOfShape(4, 3, dtype=torch.float32)),
      # Different type
-     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
-                     TensorOfShape(3, 4, dtype=torch.float32),
-                     TensorOfShape(4, 3, dtype=torch.int32)),
-     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.int32),
-                     TensorOfShape(3, 4, dtype=torch.float32),
-                     TensorOfShape(4, 3, dtype=torch.float32))])
+     Invocation(TensorOfShape(3, 3, dtype=torch.float32),
+                TensorOfShape(3, 4, dtype=torch.float32),
+                TensorOfShape(4, 3, dtype=torch.int32)),
+     Invocation(TensorOfShape(3, 3, dtype=torch.int32),
+                TensorOfShape(3, 4, dtype=torch.float32),
+                TensorOfShape(4, 3, dtype=torch.float32))])
 def aten〇addmm〡dtype(self_rank_dtype: Tuple[int, int], mat1_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[int, int], beta: Union[int, float] = 1, alpha: Union[int, float] = 1) -> int:
     self_rank, self_dtype = self_rank_dtype
     mat1_rank, mat1_dtype = mat1_rank_dtype
     mat2_rank, mat2_dtype = mat2_rank_dtype
 
-    assert self_dtype not in [torch.bool, torch.float16]
-    assert mat1_dtype not in [torch.bool, torch.float16]
-    assert mat2_dtype not in [torch.bool, torch.float16]
-    assert mat1_dtype == mat2_dtype
-    assert self_dtype == mat2_dtype
     ranks: List[Optional[int]] = [self_rank, mat1_rank, mat2_rank]
     dtypes = [self_dtype, mat1_dtype, mat2_dtype]
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1), (1, 1)], error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.float16}) +
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1), (1, 1)]) +
     # Different width
-    [ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
-                     TensorOfShape(3, 4, dtype=torch.float64),
-                     TensorOfShape(4, 3, dtype=torch.float32)),
+    [Invocation(TensorOfShape(4, 3, dtype=torch.float32),
+                TensorOfShape(4, 3, dtype=torch.float64),
+                TensorOfShape(4, 3, dtype=torch.float32)),
      # Different type
-     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
-                     TensorOfShape(3, 4, dtype=torch.float32),
-                     TensorOfShape(4, 3, dtype=torch.int32)),
-     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.int32),
-                     TensorOfShape(3, 4, dtype=torch.float32),
-                     TensorOfShape(4, 3, dtype=torch.float32))])
+     Invocation(TensorOfShape(4, 3, dtype=torch.float32),
+                TensorOfShape(4, 3, dtype=torch.float32),
+                TensorOfShape(4, 3, dtype=torch.int32)),
+     Invocation(TensorOfShape(4, 3, dtype=torch.int32),
+                TensorOfShape(4, 3, dtype=torch.float32),
+                TensorOfShape(4, 3, dtype=torch.float32))])
 def aten〇lerp〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], end_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     end_rank, end_dtype = end_rank_dtype
     weight_rank, weight_dtype = weight_rank_dtype
 
-    assert self_dtype not in [torch.bool, torch.float16] and not is_integer_dtype(self_dtype)
-    assert end_dtype not in [torch.bool, torch.float16] and not is_integer_dtype(end_dtype)
-    assert weight_dtype not in [torch.bool, torch.float16] and not is_integer_dtype(weight_dtype)
-    assert end_dtype == weight_dtype
     ranks: List[Optional[int]] = [self_rank, end_rank, weight_rank]
     dtypes = [self_dtype, end_dtype, weight_dtype]
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1), (1, 1)], error_types={torch.bool, torch.float16}) +
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1), (1, 1)], error_types={torch.bool}) +
     # Different width
-    [ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
-                     TensorOfShape(3, 4, dtype=torch.float64),
-                     TensorOfShape(4, 3, dtype=torch.float32)),
+    [Invocation(TensorOfShape(3, 3, dtype=torch.float32),
+                TensorOfShape(3, 3, dtype=torch.float64),
+                TensorOfShape(3, 3, dtype=torch.float32)),
      # Different type
-     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
-                     TensorOfShape(3, 4, dtype=torch.float32),
-                     TensorOfShape(4, 3, dtype=torch.int32)),
-     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.int32),
-                     TensorOfShape(3, 4, dtype=torch.float32),
-                     TensorOfShape(4, 3, dtype=torch.float32))])
+     Invocation(TensorOfShape(3, 3, dtype=torch.float32),
+                TensorOfShape(3, 3, dtype=torch.float32),
+                TensorOfShape(3, 3, dtype=torch.int32)),
+     Invocation(TensorOfShape(3, 3, dtype=torch.int32),
+                TensorOfShape(3, 3, dtype=torch.float32),
+                TensorOfShape(3, 3, dtype=torch.float32))])
 def aten〇addcmul〡dtype(self_rank_dtype: Tuple[int, int], tensor1_rank_dtype: Tuple[int, int], tensor2_rank_dtype: Tuple[int, int], value: Union[int, float] = 1) -> int:
     self_rank, self_dtype = self_rank_dtype
     tensor1_rank, tensor1_dtype = tensor1_rank_dtype
     tensor2_rank, tensor2_dtype = tensor2_rank_dtype
 
-    assert self_dtype not in [torch.bool, torch.float16]
-    assert tensor1_dtype not in [torch.bool, torch.float16]
-    assert tensor2_dtype not in [torch.bool, torch.float16]
-    assert tensor1_dtype == tensor2_dtype
-    assert self_dtype == tensor2_dtype
+    assert self_dtype != torch.bool
+    assert tensor1_dtype != torch.bool
+    assert tensor2_dtype != torch.bool
+
     ranks: List[Optional[int]] = [self_rank, tensor1_rank, tensor2_rank]
     dtypes = [self_dtype, tensor1_dtype, tensor2_dtype]
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1), (1, 1)], error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.float16}) +
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1), (1, 1)]) +
     # Different width
-    [ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
-                     TensorOfShape(3, 4, dtype=torch.float64),
-                     TensorOfShape(4, 3, dtype=torch.float32)),
+    [Invocation(TensorOfShape(3, 3, dtype=torch.float32),
+                TensorOfShape(3, 3, dtype=torch.float64),
+                TensorOfShape(3, 3, dtype=torch.float32)),
      # Different type
-     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
-                     TensorOfShape(3, 4, dtype=torch.float32),
-                     TensorOfShape(4, 3, dtype=torch.int32)),
-     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.int32),
-                     TensorOfShape(3, 4, dtype=torch.float32),
-                     TensorOfShape(4, 3, dtype=torch.float32))])
+     Invocation(TensorOfShape(3, 3, dtype=torch.float32),
+                TensorOfShape(3, 3, dtype=torch.float32),
+                TensorOfShape(3, 3, dtype=torch.int32)),
+     Invocation(TensorOfShape(3, 3, dtype=torch.int32),
+                TensorOfShape(3, 3, dtype=torch.float32),
+                TensorOfShape(3, 3, dtype=torch.float32))])
 def aten〇addcdiv〡dtype(self_rank_dtype: Tuple[int, int], tensor1_rank_dtype: Tuple[int, int], tensor2_rank_dtype: Tuple[int, int], value: Union[int, float] = 1) -> int:
     self_rank, self_dtype = self_rank_dtype
     tensor1_rank, tensor1_dtype = tensor1_rank_dtype
     tensor2_rank, tensor2_dtype = tensor2_rank_dtype
 
-    assert self_dtype not in [torch.bool, torch.float16] and not is_integer_dtype(self_dtype)
-    assert tensor1_dtype not in [torch.bool, torch.float16] and not is_integer_dtype(tensor1_dtype)
-    assert tensor2_dtype not in [torch.bool, torch.float16] and not is_integer_dtype(tensor2_dtype)
-    assert tensor1_dtype == tensor2_dtype
-    assert self_dtype == tensor2_dtype
     ranks: List[Optional[int]] = [self_rank, tensor1_rank, tensor2_rank]
     dtypes = [self_dtype, tensor1_dtype, tensor2_dtype]
-    return promote_dtypes(ranks, dtypes)
+    result = promote_dtypes(ranks, dtypes)
+    if is_integer_dtype(result):
+        return torch.float32
+    return result
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, other=1) +
                       _check_tensors_with_the_same_dtype(num_of_tensors=1, other=1.0))
@@ -1983,11 +1833,10 @@ def aten〇add〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[i
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}, other=1) +
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}, other=1.0))
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=1) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=1.0))
 def aten〇sub〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float], alpha: Union[int, float] = 1) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype != torch.bool
     ranks: List[Optional[int]] = [self_rank, None]
     dtypes = [self_dtype, get_dtype_of_scalar(other)]
     return promote_dtypes(ranks, dtypes)
@@ -2012,11 +1861,10 @@ def aten〇div〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[i
     return promoted_dtype
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1) +
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1.0))
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=1) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=1.0))
 def aten〇fmod〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype)
     ranks: List[Optional[int]] = [self_rank, None]
     dtypes = [self_dtype, get_dtype_of_scalar(other)]
     return promote_dtypes(ranks, dtypes)
@@ -2040,50 +1888,40 @@ def aten〇pow〇Tensor_Scalar〡dtype(self_rank_dtype: Tuple[int, int], exponen
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(
-        num_of_tensors=1,
-        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.float16, torch.complex64, torch.complex128},
-        negative_slope=1) +
-    _check_tensors_with_the_same_dtype(
-        num_of_tensors=1,
-        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.float16, torch.complex64, torch.complex128},
-        negative_slope=1.0))
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}, negative_slope=1) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool, torch.int8, torch.uint8, torch.int16, torch.int32, torch.int64}, negative_slope=1.0))
 def aten〇leaky_relu〡dtype(self_rank_dtype: Tuple[int, int], negative_slope: Union[int, float] = 0.01) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype) and not is_integer_dtype(self_dtype) and self_dtype != torch.float16
+    assert self_dtype != torch.bool
     ranks: List[Optional[int]] = [self_rank, None]
-    dtypes = [self_dtype, get_dtype_of_scalar(negative_slope)]
+    negative_slope_dtype = get_dtype_of_scalar(negative_slope)
+    if is_float_dtype(negative_slope_dtype):
+        assert not is_integer_dtype(self_dtype)
+    dtypes = [self_dtype, negative_slope_dtype]
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1) +
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1.0))
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=1) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=1.0))
 def aten〇remainder〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype)
     ranks: List[Optional[int]] = [self_rank, None]
     dtypes = [self_dtype, get_dtype_of_scalar(other)]
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1, 1), (1, 1, 1), (1, 1, 1)], error_types={torch.bool, torch.float16}) +
-    [ErrorInvocation(TensorOfShape(
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1, 1), (1, 1, 1), (1, 1, 1)]) +
+    [Invocation(TensorOfShape(
         1, 1, 1, dtype=torch.float64), TensorOfShape(1, 1, 1, dtype=torch.int16), TensorOfShape(1, 1, 1, dtype=torch.int32)),
-    ErrorInvocation(
+    Invocation(
         TensorOfShape(1, 1, 1, dtype=torch.float64), TensorOfShape(1, 1, 1, dtype=torch.int64), TensorOfShape(1, 1, 1, dtype=torch.float16)),
-    ErrorInvocation(
+    Invocation(
         TensorOfShape(1, 1, 1, dtype=torch.float64), TensorOfShape(1, 1, 1, dtype=torch.float16), TensorOfShape(1, 1, 1, dtype=torch.int64)),
-    ErrorInvocation(
+    Invocation(
         TensorOfShape(1, 1, 1, dtype=torch.float64), TensorOfShape(1, 1, 1, dtype=torch.bfloat16), TensorOfShape(1, 1, 1, dtype=torch.float16))])
 def aten〇baddbmm〡dtype(self_rank_dtype: Tuple[int, int], batch1_rank_dtype: Tuple[int, int], batch2_rank_dtype: Tuple[int, int], beta: Union[int, float] = 1, alpha: Union[int, float] = 1) -> int:
-    batch1_rank, batch1_dtype = batch1_rank_dtype
     batch2_rank, batch2_dtype = batch2_rank_dtype
-    assert batch1_dtype not in [torch.bool, torch.float16]
-    assert batch2_dtype not in [torch.bool, torch.float16]
-    assert batch1_dtype == batch2_dtype
-    ranks: List[Optional[int]] = [batch1_rank, batch2_rank]
-    dtypes = [batch1_dtype, batch2_dtype]
-    return promote_dtypes(ranks, dtypes)
+    return batch2_dtype
 
 @check_dtype_function([
     Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.int16), NonZeroDTensorWithDtype(torch.int32)),
@@ -2133,104 +1971,79 @@ def aten〇where〇ScalarSelf〡dtype(condition_rank_dtype: Tuple[int, int], sel
                      TensorOfShape(3, dtype=torch.float32), reduction=0, ignore_index=0),
      ErrorInvocation(TensorOfShape(2, 3, dtype=torch.float32), TensorOfShape(2, dtype=torch.float64), # target must be int64
                      TensorOfShape(3, dtype=torch.float32), reduction=0, ignore_index=0),
-     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.float64), TensorOfShape(2, dtype=torch.int64), # self and weight must have same dtype
-                     TensorOfShape(3, dtype=torch.float32), reduction=0, ignore_index=0),
-     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.int32), TensorOfShape(2, dtype=torch.int64), # self and weight must be float
-                     TensorOfShape(3, dtype=torch.int32), reduction=0, ignore_index=0),
-     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.complex64), TensorOfShape(2, dtype=torch.int64), # self and weight must be float
-                     TensorOfShape(3, dtype=torch.complex64), reduction=0, ignore_index=0)])
+     Invocation(TensorOfShape(2, 3, dtype=torch.float64), TensorOfShape(2, dtype=torch.int64), # self and weight must have same dtype
+                TensorOfShape(3, dtype=torch.float32), reduction=0, ignore_index=0),
+     Invocation(TensorOfShape(2, 3, dtype=torch.int32), TensorOfShape(2, dtype=torch.int64), # self and weight must be float
+                TensorOfShape(3, dtype=torch.int32), reduction=0, ignore_index=0),
+     Invocation(TensorOfShape(2, 3, dtype=torch.complex64), TensorOfShape(2, dtype=torch.int64), # self and weight must be float
+                TensorOfShape(3, dtype=torch.complex64), reduction=0, ignore_index=0)])
 def aten〇nll_loss_forward〡dtype(self_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], weight_rank_dtype: Optional[Tuple[int, int]], reduction: int, ignore_index: int) -> Tuple[int, int]:
     self_rank, self_dtype = self_rank_dtype
     target_rank, target_dtype = target_rank_dtype
-
-    assert is_float_dtype(self_dtype)
-    if weight_rank_dtype is not None:
-        weight_rank, weight_dtype = weight_rank_dtype
-        assert weight_dtype == self_dtype
     assert target_dtype == torch.int64
-
     return self_dtype, self_dtype
 
 @check_dtype_function(
     [Invocation(TensorOfShape(2, 3, dtype=torch.float32), [3], TensorOfShape(3, dtype=torch.float32),
                 TensorOfShape(3, dtype=torch.float32), eps=0.0),
-     # All tensors must have the same dtype
-     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.float64), [3], TensorOfShape(3, dtype=torch.float32),
-                     TensorOfShape(3, dtype=torch.float32), eps=0.0),
-     # All tensors must have the same dtype
-     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.float32), [3], TensorOfShape(3, dtype=torch.float64),
-                     TensorOfShape(3, dtype=torch.float32), eps=0.0),
-     # All tensors must have the same dtype
-     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.float32), [3], TensorOfShape(3, dtype=torch.float32),
-                     TensorOfShape(3, dtype=torch.float64), eps=0.0),
-     # All tensors must be float
+     Invocation(TensorOfShape(2, 3, dtype=torch.float64), [3], TensorOfShape(3, dtype=torch.float32),
+                TensorOfShape(3, dtype=torch.float32), eps=0.0),
+     Invocation(TensorOfShape(2, 3, dtype=torch.float32), [3], TensorOfShape(3, dtype=torch.float64),
+                TensorOfShape(3, dtype=torch.float32), eps=0.0),
+     Invocation(TensorOfShape(2, 3, dtype=torch.float32), [3], TensorOfShape(3, dtype=torch.float32),
+                TensorOfShape(3, dtype=torch.float64), eps=0.0),
+     # Input must be float or complex
      ErrorInvocation(TensorOfShape(2, 3, dtype=torch.int32), [3], TensorOfShape(3, dtype=torch.int32),
                      TensorOfShape(3, dtype=torch.int32), eps=0.0),
-     # All tensors must be float
-     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.complex64), [3], TensorOfShape(3, dtype=torch.complex64),
-                     TensorOfShape(3, dtype=torch.complex64), eps=0.0),
+     Invocation(TensorOfShape(2, 3, dtype=torch.complex64), [3], TensorOfShape(3, dtype=torch.complex64),
+                TensorOfShape(3, dtype=torch.complex64), eps=0.0),
+     Invocation(TensorOfShape(2, 3, dtype=torch.complex128), [3], TensorOfShape(3, dtype=torch.complex64),
+                TensorOfShape(3, dtype=torch.complex64), eps=0.0),
      ])
 def aten〇native_layer_norm〡dtype(input_rank_dtype: Tuple[int, int], normalized_shape: List[int], weight_rank_dtype: Optional[Tuple[int, int]], bias_rank_dtype: Optional[Tuple[int, int]], eps: float) -> Tuple[int, int, int]:
     input_rank, input_dtype = input_rank_dtype
-    if weight_rank_dtype is not None:
-        weight_rank, weight_dtype = weight_rank_dtype
-        assert input_dtype == weight_dtype
-    if bias_rank_dtype is not None:
-        bias_rank, bias_dtype = bias_rank_dtype
-        assert input_dtype == bias_dtype
-    assert is_float_dtype(input_dtype)
-    return input_dtype, input_dtype, input_dtype
+    assert not is_integer_dtype(input_dtype)
+    result_dtype = input_dtype
+    if input_dtype == torch.complex64:
+        result_dtype = torch.float32
+    if input_dtype == torch.complex128:
+        result_dtype = torch.float64
+    return input_dtype, input_dtype, result_dtype
 
 @check_dtype_function(
-    [Invocation(TensorOfShape(2, 3, dtype=torch.float32), TensorOfShape(2, dtype=torch.float32),
-                TensorOfShape(3, dtype=torch.float32), TensorOfShape(2, dtype=torch.float32),
-                TensorOfShape(2, dtype=torch.float32), training=False, momentum=0.0, eps=0.0),
-     # All tensors must have the same dtype
-     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.float64), TensorOfShape(2, dtype=torch.float32),
-                     TensorOfShape(3, dtype=torch.float32), TensorOfShape(2, dtype=torch.float32),
-                     TensorOfShape(2, dtype=torch.float32), training=False, momentum=0.0, eps=0.0),
-     # All tensors must have the same dtype
-     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.float32), TensorOfShape(2, dtype=torch.float64),
-                     TensorOfShape(3, dtype=torch.float32), TensorOfShape(2, dtype=torch.float32),
-                     TensorOfShape(2, dtype=torch.float32), training=False, momentum=0.0, eps=0.0),
-     # All tensors must have the same dtype
-     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.float32), TensorOfShape(2, dtype=torch.float32),
-                     TensorOfShape(3, dtype=torch.float64), TensorOfShape(2, dtype=torch.float32),
-                     TensorOfShape(2, dtype=torch.float32), training=False, momentum=0.0, eps=0.0),
-     # All tensors must have the same dtype
-     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.float32), TensorOfShape(2, dtype=torch.float32),
-                     TensorOfShape(3, dtype=torch.float32), TensorOfShape(2, dtype=torch.float64),
-                     TensorOfShape(2, dtype=torch.float32), training=False, momentum=0.0, eps=0.0),
-     # All tensors must have the same dtype
-     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.float32), TensorOfShape(2, dtype=torch.float32),
-                     TensorOfShape(3, dtype=torch.float32), TensorOfShape(2, dtype=torch.float32),
-                     TensorOfShape(2, dtype=torch.float64), training=False, momentum=0.0, eps=0.0),
-     # All tensors must be float
-     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.int32), TensorOfShape(2, dtype=torch.int32),
-                     TensorOfShape(3, dtype=torch.int32), TensorOfShape(2, dtype=torch.int32),
-                     TensorOfShape(2, dtype=torch.int32), training=False, momentum=0.0, eps=0.0),
-     # All tensors must be float
-     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.complex64), TensorOfShape(2, dtype=torch.complex64),
-                     TensorOfShape(3, dtype=torch.complex64), TensorOfShape(2, dtype=torch.complex64),
-                     TensorOfShape(2, dtype=torch.complex64), training=False, momentum=0.0, eps=0.0),
+    [Invocation(TensorOfShape(3, 3, dtype=torch.float32), TensorOfShape(3, dtype=torch.float32),
+                TensorOfShape(3, dtype=torch.float32), TensorOfShape(3, dtype=torch.float32),
+                TensorOfShape(3, dtype=torch.float32), training=False, momentum=0.0, eps=0.0),
+     # Tensors with different dtype
+     Invocation(TensorOfShape(3, 3, dtype=torch.float64), TensorOfShape(3, dtype=torch.float32),
+                TensorOfShape(3, dtype=torch.float32), TensorOfShape(3, dtype=torch.float32),
+                TensorOfShape(3, dtype=torch.float32), training=False, momentum=0.0, eps=0.0),
+     Invocation(TensorOfShape(3, 3, dtype=torch.float32), TensorOfShape(3, dtype=torch.float64),
+                TensorOfShape(3, dtype=torch.float32), TensorOfShape(3, dtype=torch.float32),
+                TensorOfShape(3, dtype=torch.float32), training=False, momentum=0.0, eps=0.0),
+     Invocation(TensorOfShape(3, 3, dtype=torch.float32), TensorOfShape(3, dtype=torch.float32),
+                TensorOfShape(3, dtype=torch.float64), TensorOfShape(3, dtype=torch.float32),
+                TensorOfShape(3, dtype=torch.float32), training=False, momentum=0.0, eps=0.0),
+     Invocation(TensorOfShape(3, 3, dtype=torch.float32), TensorOfShape(3, dtype=torch.float32),
+                TensorOfShape(3, dtype=torch.float32), TensorOfShape(3, dtype=torch.float64),
+                TensorOfShape(3, dtype=torch.float32), training=False, momentum=0.0, eps=0.0),
+     Invocation(TensorOfShape(3, 3, dtype=torch.float32), TensorOfShape(3, dtype=torch.float32),
+                TensorOfShape(3, dtype=torch.float32), TensorOfShape(3, dtype=torch.float32),
+                TensorOfShape(3, dtype=torch.float64), training=False, momentum=0.0, eps=0.0),
+     # Non-float tensors
+     Invocation(TensorOfShape(3, 3, dtype=torch.int32), TensorOfShape(3, dtype=torch.int32),
+                TensorOfShape(3, dtype=torch.int32), TensorOfShape(3, dtype=torch.int32),
+                TensorOfShape(3, dtype=torch.int32), training=False, momentum=0.0, eps=0.0),
+     Invocation(TensorOfShape(3, 3, dtype=torch.complex64), TensorOfShape(3, dtype=torch.complex64),
+                TensorOfShape(3, dtype=torch.complex64), TensorOfShape(3, dtype=torch.complex64),
+                TensorOfShape(3, dtype=torch.complex64), training=False, momentum=0.0, eps=0.0),
      ])
 def aten〇native_batch_norm〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Optional[Tuple[int, int]], bias_rank_dtype: Optional[Tuple[int, int]], running_mean_rank_dtype: Optional[Tuple[int, int]], running_var_rank_dtype: Optional[Tuple[int, int]], training: bool, momentum: float, eps: float) -> Tuple[int, int, int]:
     input_rank, input_dtype = input_rank_dtype
-    if weight_rank_dtype is not None:
-        weight_rank, weight_dtype = weight_rank_dtype
-        assert input_dtype == weight_dtype
-    if bias_rank_dtype is not None:
-        bias_rank, bias_dtype = bias_rank_dtype
-        assert input_dtype == bias_dtype
-    if running_mean_rank_dtype is not None:
-        running_mean_rank, running_mean_dtype = running_mean_rank_dtype
-        assert input_dtype == running_mean_dtype
-    if running_var_rank_dtype is not None:
-        running_var_rank, running_var_dtype = running_var_rank_dtype
-        assert input_dtype == running_var_dtype
-
-    assert is_float_dtype(input_dtype)
-    return input_dtype, input_dtype, input_dtype
+    result_dtype = input_dtype
+    if is_integer_dtype(input_dtype):
+        result_dtype = torch.float32
+    return input_dtype, input_dtype, result_dtype
 
 # ==============================================================================
 # Main
