@@ -849,6 +849,9 @@ def aten〇select〇int〡shape(self: List[int], dim: int, index: int) -> List[i
 def aten〇select_scatter〡shape(self: List[int], src: List[int], dim: int, index: int) -> List[int]:
     return self
 
+def aten〇scatter_reduce〇two〡shape(self: List[int], dim: int, index: List[int], src: List[int], reduce: str, include_self: bool = True) -> List[int]:
+    return self
+
 def aten〇index_select〡shape(self: List[int], dim: int, index: List[int]) -> List[int]:
     return upstream_shape_functions.index_select(self, dim, index)
 

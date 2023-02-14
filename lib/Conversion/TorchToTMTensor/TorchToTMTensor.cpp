@@ -553,6 +553,158 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenScatterReduceTwoOp
+    : public OpConversionPattern<AtenScatterReduceTwoOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenScatterReduceTwoOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Location loc = op.getLoc();
+    MLIRContext *context = op->getContext();
+
+    RankedTensorType selfType = adaptor.getSelf().getType().cast<RankedTensorType>();
+    RankedTensorType indexType = adaptor.getIndex().getType().cast<RankedTensorType>();
+    RankedTensorType srcType = adaptor.getSrc().getType().cast<RankedTensorType>();
+
+    if (selfType.getRank() != indexType.getRank() || indexType.getRank() != srcType.getRank())
+      return rewriter.notifyMatchFailure(
+          op,
+          "self, index and src should all have the same number of dimensions.");
+
+    std::string reduceType;
+    if (!matchPattern(op.getReduce(), m_TorchConstantStr(reduceType)))
+        return rewriter.notifyMatchFailure(op, "'reduce' must be a costant string");
+
+    Value dimValue = op.getDim();
+    int64_t dim;
+    if (!matchPattern(dimValue, m_TorchConstantInt(&dim)))
+      return op.emitError("unimplemented: dim is not constant");
+
+    // form inputs to the tm_tensor.scatter op
+    Value indexSize = getTensorSize(rewriter, loc, adaptor.getIndex());
+    indexSize = castIntToIndex(rewriter, loc, indexSize);
+    SmallVector<Value> indexShape = getTensorSizes(rewriter, loc, adaptor.getIndex());
+    Value cstOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+
+    // all the indices slices shapes will be (indexSize, 1)
+    SmallVector<Value> indSliceShape({indexSize, cstOne});
+    Value indSlice = createZeroInitTensor(rewriter, loc, indSliceShape,
+                                          rewriter.getI32Type());
+    SmallVector<Value> outputs(indexType.getRank(), indSlice);
+    // updates tensor will be of shape (indexSize).
+    outputs.push_back(createZeroInitTensor(rewriter, loc, {indexSize},
+                                           selfType.getElementType()));
+    SmallVector<Type> outputsType(indexType.getRank(), indSlice.getType());
+    outputsType.push_back(outputs[indexType.getRank()].getType());
+
+    // create mapping
+    SmallVector<AffineExpr> indSliceExpr;
+    indSliceExpr.push_back(rewriter.getAffineDimExpr(0));
+    indSliceExpr.push_back(rewriter.getAffineConstantExpr(0));
+    SmallVector<AffineMap> mapping(
+        indexType.getRank(), AffineMap::get(/*dimCount=*/1, /*symbolCount=*/0,
+                                  indSliceExpr, context));
+    // mapping for updates
+    mapping.push_back(rewriter.getDimIdentityMap());
+    SmallVector<utils::IteratorType> iteratorTypes({utils::IteratorType::parallel});
+
+    // Need to flatten the scatter argument
+    auto tmTensorScatterInputs = rewriter.create<linalg::GenericOp>(
+            loc, outputsType, ValueRange(), outputs, mapping, iteratorTypes,
+            [&](OpBuilder &b, Location loc, ValueRange args) {
+            SmallVector<Value> indices(indexType.getRank());
+                  // 1D to n-D mapping
+                  Value ind = b.create<linalg::IndexOp>(loc, 0);
+                  for (int i = indexType.getRank() - 1; i >= 0; i--) {
+                    indices[i] =
+                        b.create<arith::RemSIOp>(loc, ind, indexShape[i]);
+                    ind = b.create<arith::DivSIOp>(loc, ind, indexShape[i]);
+                  }
+                  // Extract values
+                  Value extractIndexValue =
+                      b.create<tensor::ExtractOp>(loc, adaptor.getIndex(), indices);
+                  Value extractSrcValue =
+                      b.create<tensor::ExtractOp>(loc, adaptor.getSrc(), indices);
+                      SmallVector<Value> yieldVals;
+                  for (Value v : indices) {
+                    Value scalar = castIndexToInt64(b, loc, v);
+                    yieldVals.push_back(b.create<arith::TruncIOp>(
+                        loc, rewriter.getI32Type(), scalar));
+                  }
+                  yieldVals[dim] = b.create<arith::TruncIOp>(
+                      loc, rewriter.getI32Type(), extractIndexValue);
+                  yieldVals.push_back(extractSrcValue);
+                  b.create<linalg::YieldOp>(loc, yieldVals);
+    }).getResultTensors();
+
+    auto toOpFoldResult = [](Value v) -> OpFoldResult {
+      auto op = v.getDefiningOp<arith::ConstantIndexOp>();
+      if (!op)
+        return v;
+      return op.getValue();
+    };
+
+    // concat index tensors
+    SmallVector<Value> offsets, strides;
+    strides.resize(2, rewriter.create<arith::ConstantIndexOp>(loc, 1));
+    offsets.resize(2, rewriter.create<arith::ConstantIndexOp>(loc, 0));
+    Value cstIndexRank =
+        rewriter.create<arith::ConstantIndexOp>(loc, indexType.getRank());
+    Value indices = createZeroInitTensor(
+        rewriter, loc, SmallVector<Value>({indexSize, cstIndexRank}),
+        rewriter.getI32Type());
+    SmallVector<Value> scatterInputsVector(tmTensorScatterInputs);
+    for (auto slice : ArrayRef(scatterInputsVector).drop_back()) {
+      SmallVector<Value> sizes = getTensorSizes(rewriter, loc, slice);
+      indices = rewriter.createOrFold<tensor::InsertSliceOp>(
+          loc, slice, indices,
+          llvm::to_vector(llvm::map_range(offsets, toOpFoldResult)),
+          llvm::to_vector(llvm::map_range(sizes, toOpFoldResult)),
+          llvm::to_vector(llvm::map_range(strides, toOpFoldResult)));
+      offsets[1] =
+          rewriter.createOrFold<arith::AddIOp>(loc, offsets[1], cstOne);
+    }
+    // cast to static shapes
+    SmallVector<int64_t> staticShape({ShapedType::kDynamic, indexType.getRank()});
+
+    auto staticType = RankedTensorType::get(staticShape, rewriter.getI32Type());
+    indices = rewriter.create<tensor::CastOp>(loc, staticType, indices);
+
+    Value updates = scatterInputsVector[indexType.getRank()];
+
+    // Create final operation
+    Value scatterOp = createTMTensorScatterOp(
+        rewriter, loc, updates, indices, adaptor.getSelf(),
+        /*uniqueIndices=*/false,
+        [&](OpBuilder &b, Location loc, Value update, Value current) {
+        Value result = nullptr;
+        if (reduceType == "sum") {
+            result = b.create<arith::AddFOp>(loc, update, current);
+        } else if (reduceType == "prod") {
+            result = b.create<arith::MulFOp>(loc, update, current);
+        } else if (reduceType == "mean") {
+            result = b.create<arith::AddFOp>(loc, update, current);
+        } else if (reduceType == "amax") {
+            result = b.create<arith::MaxFOp>(loc, update, current);
+        } else if (reduceType == "amin") {
+            result = b.create<arith::MinFOp>(loc, update, current);
+        }
+          b.create<TMTensor::YieldOp>(loc, result);
+        });
+    auto resultType = getTypeConverter()->convertType(op->getResult(0).getType())
+                          .cast<RankedTensorType>();
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, scatterOp);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenCumsumOp : public OpConversionPattern<AtenCumsumOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -643,6 +795,9 @@ public:
     patterns.add<ConvertAten_IndexPutImplOp>(typeConverter, context);
     target.addIllegalOp<AtenMaxPool2dWithIndicesBackwardOp>();
     patterns.add<ConvertAtenMaxPool2dWithIndicesBackwardOp>(typeConverter,
+                                                            context);
+    target.addIllegalOp<AtenScatterReduceTwoOp>();
+    patterns.add<ConvertAtenScatterReduceTwoOp>(typeConverter,
                                                             context);
     target.addIllegalOp<AtenCumsumOp>();
     patterns.add<ConvertAtenCumsumOp>(typeConverter, context);
