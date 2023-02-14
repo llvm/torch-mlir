@@ -692,18 +692,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  // Promote the two dtypes assuming non-zero rank.
-  if (isa<AtenConv2dOp, AtenConvolutionOp,
-          Aten_ConvolutionOp, Aten_ConvolutionDeprecatedOp,
-          AtenConvolutionOverrideableOp, AtenConvTranspose2dInputOp>(op)) {
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
-        op->getContext(), {&operands[0]->getValue(), &operands[1]->getValue()});
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
   // Dtype is always float32, except for bfloat16, float64 and nullptr after
   // promotion and assuming possible-zero rank.
   if (isa<AtenAtan2Op>(op)) {
