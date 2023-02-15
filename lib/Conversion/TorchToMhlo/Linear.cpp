@@ -22,6 +22,8 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 
+#include "llvm/Support/Debug.h"
+
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
@@ -783,40 +785,49 @@ public:
     auto outTy = getTypeConverter()
                      ->convertType(op.getType())
                      .template cast<RankedTensorType>();
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
     if (!inputTy || !weightTy || !outTy) {
       return op.emitError("input, weight and output must be ranked tensors");
     }
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
     if (inputTy.getRank() < 3)
       return op.emitError("only input with at least 3 dims valid");
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
     SmallVector<int64_t> stride;
     if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(stride))) {
       return rewriter.notifyMatchFailure(op,
                                          "non-const stride list unsupported");
     }
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
     SmallVector<int64_t> padding;
     if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding))) {
       return rewriter.notifyMatchFailure(op,
                                          "non-const padding list unsupported");
     }
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
     SmallVector<int64_t> dilation;
     if (!matchPattern(op.getDilation(), m_TorchListOfConstantInts(dilation))) {
       return rewriter.notifyMatchFailure(op,
                                          "non-const dilation list unsupported");
     }
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
     SmallVector<int64_t> outputPadding;
     if (!matchPattern(op.getOutputPadding(),
                       m_TorchListOfConstantInts(outputPadding))) {
       return rewriter.notifyMatchFailure(
           op, "non-const output_padding list unsupported");
     }
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
     int64_t groups;
     if (!matchPattern(op.getGroups(), m_TorchConstantInt(&groups))) {
       return rewriter.notifyMatchFailure(op, "non-int groups unsupported");
     }
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
     bool transposed;
     if (!matchPattern(op.getTransposed(), m_TorchConstantBool(&transposed))) {
       return rewriter.notifyMatchFailure(op, "non-bool transposed unsupported");
     }
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
     // Whether need to handle outputpadding
     bool needHandleOutputPadding = false;
     for (int64_t i : outputPadding) {
@@ -825,11 +836,13 @@ public:
         break;
       }
     }
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
     // Op validation check
     if (needHandleOutputPadding && !transposed) {
       return op->emitError(
           "output padding attr is valid only in transposed convolution");
     }
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
     assert(padding.size() == dilation.size() &&
            padding.size() == stride.size() &&
            padding.size() == static_cast<size_t>(inputTy.getRank()) - 2 &&
@@ -838,15 +851,18 @@ public:
     auto nSpatialDims = padding.size();
     auto nDims = inputTy.getRank();
 
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
     // Kernel size must be constant.
-    auto weightShape = weightTy.getShape();
-    for (int i = 2; i < nDims; ++i) {
-      if (weightShape[i] == ShapedType::kDynamic) {
-        return rewriter.notifyMatchFailure(
-            op, "only constant kernel size is supported");
-      }
-    }
+    // auto weightShape = weightTy.getShape();
+    // for (int i = 2; i < nDims; ++i) {
+    // llvm::dbgs() << __FILE__ << __LINE__ << "\n";
+    //   if (weightShape[i] == ShapedType::kDynamic) {
+    //     return rewriter.notifyMatchFailure(
+    //         op, "only constant kernel size is supported");
+    //   }
+    // }
 
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
     Value mhloConvResult;
     if (transposed) {
       mhloConvResult = convertTransposedConv(
@@ -857,6 +873,7 @@ public:
                                          stride, padding, dilation, groups);
     }
 
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
     auto bias = adaptor.getBias();
 
     // No bias provided
@@ -864,6 +881,7 @@ public:
       rewriter.replaceOp(op, mhloConvResult);
       return success();
     }
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
 
     // Handle bias
     if (!bias.getType().cast<RankedTensorType>()) {
@@ -876,6 +894,7 @@ public:
                           "legalization for bias supported");
     }
 
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
     assert(biasTy.getRank() <= 1);
 
     // Reshape and promote bias
@@ -886,6 +905,7 @@ public:
     bias = *mhlo::unsqueezeTensor(rewriter, op, bias, inputUnsqzDims,
                                   options.dimSizeIndexBits);
     bias = mhlo::promoteType(rewriter, bias, outTy);
+    llvm::dbgs() << __FILE__ << __LINE__ << "\n";
 
     DenseIntElementsAttr bcastDimensions;
     rewriter.replaceOpWithNewOp<chlo::BroadcastAddOp>(op, outTy, mhloConvResult,

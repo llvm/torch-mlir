@@ -22,6 +22,7 @@
 #include "llvm/ADT/StringSet.h"
 #include <cstdint>
 
+#include "llvm/Support/Debug.h"
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
@@ -326,6 +327,22 @@ public:
                                                 rewriter.getI64IntegerAttr(0));
     rewriter.replaceOpWithNewOp<AtenFillScalarOp>(op, op.getType(), op.getSelf(),
                                                   zero);
+    return success();
+  }
+};
+} // namespace
+
+
+namespace {
+class DecomposeAtenFillScalarOp
+    : public OpRewritePattern<AtenFillScalarOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFillScalarOp op,
+                                PatternRewriter &rewriter) const override {
+    auto resType = op.getType().cast<BaseTensorType>();
+    Value valTensor = createRank0Tensor(rewriter, op.getLoc(), resType, op.getValue());
+    rewriter.replaceOpWithNewOp<AtenExpandAsOp>(op, resType, valTensor, op.getSelf());
     return success();
   }
 };
@@ -1423,10 +1440,6 @@ public:
     if (!matchPattern(op.getOutputMask(), m_TorchListOfConstantBools(outMask)))
       return rewriter.notifyMatchFailure(
           op, "only constant bool output_mask is supported.");
-    // Support for `False` values for output mask unimplemented.
-    if (!llvm::all_of(outMask, [](bool mask) { return mask; }))
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only true values for output_mask supported.");
 
     bool transposed;
     if (!matchPattern(op.getTransposed(), m_TorchConstantBool(&transposed)))
@@ -1473,34 +1486,69 @@ public:
       padVal = rewriter.create<Torch::AtenSubIntOp>(loc, padVal, gradOutDim);
       padVal = rewriter.create<Torch::AtenFloordivIntOp>(loc, padVal, cstTwo);
 
-      gradInputPaddingValues.push_back(padVal);
+      // gradInputPaddingValues.push_back(padVal);
+      Value constantZero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+      gradInputPaddingValues.push_back(constantZero);
+ 
     }
-    Value gradInputPadding = rewriter.create<Torch::PrimListConstructOp>(
-        loc, ListType::get(IntType::get(context)), gradInputPaddingValues);
-    Value weightTransposed = rewriter.create<Torch::AtenTransposeIntOp>(
-        loc, weight.getType(), weight, cstZero, cstOne);
-    // Convolve grad_output with weight.
-    Value gradInput = rewriter.create<Torch::AtenConvolutionOp>(
-        loc, op.getResultTypes()[0], gradOutput, weightTransposed, cstNone,
-        op.getStride(), gradInputPadding, op.getDilation(), op.getTransposed(),
-        op.getOutputPadding(), op.getGroups());
 
-    Value gradOutputTransposed = rewriter.create<Torch::AtenTransposeIntOp>(
-        loc, gradOutput.getType(), gradOutput, cstZero, cstOne);
-    Value inputTransposed = rewriter.create<Torch::AtenTransposeIntOp>(
-        loc, input.getType(), input, cstZero, cstOne);
-    // Convolve input with grad_output.
-    Value gradWeight = rewriter.create<Torch::AtenConvolutionOp>(
-        loc, op.getResultTypes()[1], inputTransposed, gradOutputTransposed,
-        cstNone, op.getStride(), op.getPadding(), op.getDilation(), op.getTransposed(),
-        op.getOutputPadding(), op.getGroups());
-    gradWeight = rewriter.create<Torch::AtenTransposeIntOp>(
-        loc, gradWeight.getType(), gradWeight, cstZero, cstOne);
+    auto transposeType = [&](Type type, int64_t dim0, int64_t dim1) {
+	auto baseType = type.dyn_cast<BaseTensorType>();
+        SmallVector<int64_t> transposeShape =
+            llvm::to_vector(baseType.getSizes());
+	std::swap(transposeShape[dim0], transposeShape[dim1]);
+        return baseType.getWithSizesAndDtype(
+            llvm::ArrayRef(transposeShape), baseType.getOptionalDtype());
+    };
+
+    Value constantZero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value cstZeroTensor = createRank0Tensor(rewriter, loc, input.getType().dyn_cast<BaseTensorType>(), constantZero);
+    Value gradInput = rewriter.create<AtenExpandAsOp>(
+        loc, op.getResultTypes()[0], cstZeroTensor, input);
+    if (outMask[0]) {
+        Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), true);
+        // Convolve grad_output with weight.
+        gradInput = rewriter.create<Torch::AtenConvolutionOp>(
+          loc, op.getResultTypes()[0], gradOutput, weight, cstNone,
+          op.getStride(), op.getPadding(), op.getDilation(), /* transposed */cstTrue,
+          op.getOutputPadding(), op.getGroups());
+
+        // Value gradInputPadding = rewriter.create<Torch::PrimListConstructOp>(
+        //     loc, ListType::get(IntType::get(context)), gradInputPaddingValues);
+        // Value weightTransposed = rewriter.create<Torch::AtenTransposeIntOp>(
+        //     loc, transposeType(weight.getType(), 0, 1), weight, cstZero, cstOne);
+    
+        // // Convolve grad_output with weight.
+        // gradInput = rewriter.create<Torch::AtenConvolutionOp>(
+        //   loc, op.getResultTypes()[0], gradOutput, weightTransposed, cstNone,
+        //   op.getStride(), gradInputPadding, op.getDilation(), op.getTransposed(),
+        //   op.getOutputPadding(), op.getGroups());
+    }
+
+    Value gradWeight = rewriter.create<AtenExpandAsOp>(
+        loc, op.getResultTypes()[1], cstZeroTensor, weight);
+    if (outMask[1]) {
+        // Convolve input with grad_output.
+        Value gradOutputTransposed = rewriter.create<Torch::AtenTransposeIntOp>(
+            loc, transposeType(gradOutput.getType(), 0, 1), gradOutput, cstZero, cstOne);
+        Value inputTransposed = rewriter.create<Torch::AtenTransposeIntOp>(
+            loc, transposeType(input.getType(), 0, 1), input, cstZero, cstOne);
+        // Convolve input with grad_output.
+        gradWeight = rewriter.create<Torch::AtenConvolutionOp>(
+            loc, transposeType(op.getResultTypes()[1], 0, 1), inputTransposed, gradOutputTransposed,
+            cstNone, op.getStride(), op.getPadding(), op.getDilation(), op.getTransposed(),
+            op.getOutputPadding(), op.getGroups());
+        gradWeight = rewriter.create<Torch::AtenTransposeIntOp>(
+            loc, op.getResultTypes()[1], gradWeight, cstZero, cstOne);
+    }
 
     SmallVector<Value> dimIntList{cstZero};
-    for (unsigned i = 2; i < gradRank; i++)
+    for (unsigned i = 2; i < gradRank; i++) {
       dimIntList.push_back(rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(i)));
+    }
     Value gradIntList = rewriter.create<Torch::PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
         dimIntList);
@@ -4271,6 +4319,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeDropoutBackwardOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSliceScatterOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenGroupNormOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFillScalarOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
