@@ -15,6 +15,11 @@ jobs:
     name: Manylinux Build
     runs-on: a100
     steps:
+    
+    - name: chown $GITHUB_WORKSPACE
+      run: |
+        sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+        
     - name: Get torch-mlir
       uses: actions/checkout@v3
       with:

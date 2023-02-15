@@ -8,12 +8,17 @@ on:
 jobs:
   build_linux:
     name: Manylinux Build
-    runs-on: ubuntu-latest
+    runs-on: a100
 
     # Don't run this in everyone's forks.
     if: github.repository == 'llvm/torch-mlir'
 
     steps:
+    
+    - name: chown $GITHUB_WORKSPACE
+      run: |
+        sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+          
     - name: Get torch-mlir
       uses: actions/checkout@v3
       with:

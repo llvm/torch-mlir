@@ -51,6 +51,12 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+    
+    - name: chown $GITHUB_WORKSPACE
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
+      run: |
+        sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+    
     - name: Checkout torch-mlir
       uses: actions/checkout@v3
       with:
