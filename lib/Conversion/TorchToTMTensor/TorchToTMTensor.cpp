@@ -727,7 +727,7 @@ public:
         normalizationValue = rewriter.create<arith::ConstantOp>(
             loc, rewriter.getIntegerAttr(srcType.getElementType(), 1));
         if (llvm::isa<mlir::FloatType>(srcType.getElementType()))
-            normalizationValue = rewriter.create<arith::SIToFPOp>(loc, normalizationValue);
+            normalizationValue = rewriter.create<arith::SIToFPOp>(loc, srcType.getElementType(), normalizationValue);
       } else if (reduceType == "amax") {
         // Set the values in the input tensor to the smallest element of that type
         auto minAttr = getNumericLimit(rewriter, srcType.getElementType(), /*getMin=*/true);
@@ -738,14 +738,14 @@ public:
         normalizationValue = rewriter.create<arith::ConstantOp>(loc, maxAttr);
       }
       Value normalizations = createInitTensor(
-          rewriter, loc, SmallVector<Value>({indexSize, cstIndexRank}),
+          rewriter, loc, SmallVector<Value>({indexSize}),
           srcType.getElementType(), /*init_element*/ normalizationValue);
       self = createTMTensorScatterOp(
           rewriter, loc, normalizations, indices, self,
           /*uniqueIndices=*/false,
           [&](OpBuilder &b, Location loc, Value update, Value current) {
             b.create<TMTensor::YieldOp>(loc, update);
-          });
+      });
       if (reduceType == "mean") {
           counts = createTMTensorScatterOp(
               rewriter, loc, normalizations, indices, counts,
@@ -813,7 +813,7 @@ public:
         scatterOp = rewriter.create<linalg::MapOp>(loc, ValueRange{scatterOp, counts}, output,
                 [&](OpBuilder& b, Location loc, ValueRange args) {
                     Value result;
-                    if (llvm::isa<mlir::IntegerType>(args[0])) {
+                    if (llvm::isa<mlir::IntegerType>(args[0].getType())) {
                         b.create<arith::DivSIOp>(loc, args[0], args[1]);
                     } else {
                         b.create<arith::DivFOp>(loc, args[0], args[1]);
