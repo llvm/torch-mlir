@@ -26,6 +26,9 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
+#include "llvm/ADT/APFloat.h"
+#include "llvm/Support/ErrorHandling.h"
+#include <limits>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -52,6 +55,20 @@ using namespace mlir::torch::TMTensor;
 // that these patterns become mostly mechanical associations of
 // "aten.foo -> linalg.foo".
 
+static Attribute getNumericLimit(PatternRewriter& rewriter, Type elementType, bool getMin = true) {
+    auto bitWidth = elementType.getIntOrFloatBitWidth();
+    if (llvm::isa<mlir::IntegerType>(elementType)) {
+        if (getMin) {
+            return rewriter.getIntegerAttr(elementType, APInt::getSignedMinValue(bitWidth));
+        } else {
+            return rewriter.getIntegerAttr(elementType, APInt::getSignedMaxValue(bitWidth));
+        }
+    } else if (mlir::FloatType floatType = llvm::dyn_cast<mlir::FloatType>(elementType)) {
+        return rewriter.getFloatAttr(elementType, APFloat::getLargest(floatType.getFloatSemantics(), getMin));
+    } else {
+      llvm_unreachable("Only float/integer types are supported!");
+    }
+}
 static Value createTMTensorScatterOp(
     OpBuilder &b, Location loc, Value updates, Value indices, Value original,
     bool uniqueIndices,
@@ -584,11 +601,12 @@ public:
     Value dimValue = op.getDim();
     int64_t dim;
     if (!matchPattern(dimValue, m_TorchConstantInt(&dim)))
-      return rewriter.notifyMatchFailure(op, "'dim' is not constant");
+        return rewriter.notifyMatchFailure(op, "'dim' is not constant");
 
     bool includeSelf;
     if (!matchPattern(op.getIncludeSelf(), m_TorchConstantBool(&includeSelf)))
-        return rewriter.notifyMatchFailure(op, "'include_self' is not constant");
+        return rewriter.notifyMatchFailure(op,
+                                           "'include_self' is not constant");
 
     Value indexSize = getTensorSize(rewriter, loc, adaptor.getIndex());
     indexSize = castIntToIndex(rewriter, loc, indexSize);
@@ -681,35 +699,61 @@ public:
 
     Value updates = scatterInputsVector[indexType.getRank()];
 
-    // Normalize the scattered elements
-    if (!includeSelf) {
-        Value normalizationValue;
-        if (reduceType == "sum" || reduceType == "mean") {
-            // Create '0' attr
-            normalizationValue = rewriter.create<arith::ConstantOp>(
-                loc, rewriter.getZeroAttr(srcType.getElementType()));
-        } else if (reduceType == "prod") {
-            // TODO: Create '1' attr
-            normalizationValue = rewriter.create<arith::ConstantOp>(
-                loc, rewriter.getZeroAttr(srcType.getElementType()));
-        } else if (reduceType == "amax") {
-            // TODO: Create 'min' attr
-            normalizationValue = rewriter.create<arith::ConstantOp>(
-                loc, rewriter.getZeroAttr(srcType.getElementType()));
-        } else if (reduceType == "amin") {
-            // TODO: Create 'max' attr
-            normalizationValue = rewriter.create<arith::ConstantOp>(
-                loc, rewriter.getZeroAttr(srcType.getElementType()));
+    // @TODO: Create special count tensor to calculate the 'mean'
+    Value counts = nullptr;
+    if (reduceType == "mean") {
+        SmallVector<Value> selfShape = getTensorSizes(rewriter, loc, adaptor.getSelf());
+        Attribute initAttr;
+        if (llvm::isa<mlir::FloatType>(srcType.getElementType())) {
+            initAttr = rewriter.getFloatAttr(srcType.getElementType(), 1);
+        } else {
+            initAttr = rewriter.getIntegerAttr(srcType.getElementType(), 1);
         }
-        Value normalizations = createInitTensor(
-                rewriter, loc, SmallVector<Value>({indexSize, cstIndexRank}),
-                srcType.getElementType(), /*init_element*/normalizationValue);
-        self = createTMTensorScatterOp(
-                rewriter, loc, normalizations, indices, adaptor.getSelf(),
-                /*uniqueIndices=*/false,
-                [&](OpBuilder &b, Location loc, Value update, Value current) {
-                    b.create<TMTensor::YieldOp>(loc, update);
-                });
+        Value initElement = rewriter.create<arith::ConstantOp>(loc, initAttr);
+        counts = createInitTensor(rewriter, loc, selfShape,
+                                  selfType.getElementType(), initElement);
+    }
+
+    // If the original values shouldn't be included, normalize the 
+    // input tensor where the scatters take place.
+    if (!includeSelf) {
+      Value normalizationValue;
+      if (reduceType == "sum" || reduceType == "mean") {
+        // Set the values in the input tensor to '0' so they are not included
+        normalizationValue = rewriter.create<arith::ConstantOp>(
+            loc, rewriter.getZeroAttr(srcType.getElementType()));
+      } else if (reduceType == "prod") {
+        // Set the values in the input tensor to '1' (multiplication identity)
+        normalizationValue = rewriter.create<arith::ConstantOp>(
+            loc, rewriter.getIntegerAttr(srcType.getElementType(), 1));
+        if (llvm::isa<mlir::FloatType>(srcType.getElementType()))
+            normalizationValue = rewriter.create<arith::SIToFPOp>(loc, normalizationValue);
+      } else if (reduceType == "amax") {
+        // Set the values in the input tensor to the smallest element of that type
+        auto minAttr = getNumericLimit(rewriter, srcType.getElementType(), /*getMin=*/true);
+        normalizationValue = rewriter.create<arith::ConstantOp>(loc, minAttr);
+      } else if (reduceType == "amin") {
+        // Set the values in the input tensor to the largest element of that type
+        auto maxAttr = getNumericLimit(rewriter, srcType.getElementType(), /*getMin=*/false);
+        normalizationValue = rewriter.create<arith::ConstantOp>(loc, maxAttr);
+      }
+      Value normalizations = createInitTensor(
+          rewriter, loc, SmallVector<Value>({indexSize, cstIndexRank}),
+          srcType.getElementType(), /*init_element*/ normalizationValue);
+      self = createTMTensorScatterOp(
+          rewriter, loc, normalizations, indices, self,
+          /*uniqueIndices=*/false,
+          [&](OpBuilder &b, Location loc, Value update, Value current) {
+            b.create<TMTensor::YieldOp>(loc, update);
+          });
+      if (reduceType == "mean") {
+          counts = createTMTensorScatterOp(
+              rewriter, loc, normalizations, indices, counts,
+              /*uniqueIndices=*/false,
+              [&](OpBuilder &b, Location loc, Value update, Value current) {
+                b.create<TMTensor::YieldOp>(loc, update);
+              });
+      }
     }
 
     // Create final operation
@@ -717,34 +761,66 @@ public:
         rewriter, loc, updates, indices, self,
         /*uniqueIndices=*/false,
         [&](OpBuilder &b, Location loc, Value update, Value current) {
-        Value result;
-        if (reduceType == "sum" || reduceType == "mean") {
+          Value result;
+          if (reduceType == "sum" || reduceType == "mean") {
             if (update.getType().isa<mlir::IntegerType>()) {
-                result = b.create<arith::AddIOp>(loc, update, current);
+              result = b.create<arith::AddIOp>(loc, update, current);
             } else {
-                result = b.create<arith::AddFOp>(loc, update, current);
+              result = b.create<arith::AddFOp>(loc, update, current);
             }
-        } else if (reduceType == "prod") {
+          } else if (reduceType == "prod") {
             if (update.getType().isa<mlir::IntegerType>()) {
-                result = b.create<arith::MulIOp>(loc, update, current);
+              result = b.create<arith::MulIOp>(loc, update, current);
             } else {
-                result = b.create<arith::MulFOp>(loc, update, current);
+              result = b.create<arith::MulFOp>(loc, update, current);
             }
-        } else if (reduceType == "amax") {
+          } else if (reduceType == "amax") {
             if (update.getType().isa<mlir::IntegerType>()) {
-                result = b.create<arith::MaxSIOp>(loc, update, current);
+              result = b.create<arith::MaxSIOp>(loc, update, current);
             } else {
-                result = b.create<arith::MaxFOp>(loc, update, current);
+              result = b.create<arith::MaxFOp>(loc, update, current);
             }
-        } else if (reduceType == "amin") {
+          } else if (reduceType == "amin") {
             if (update.getType().isa<mlir::IntegerType>()) {
-                result = b.create<arith::MinSIOp>(loc, update, current);
+              result = b.create<arith::MinSIOp>(loc, update, current);
             } else {
-                result = b.create<arith::MinFOp>(loc, update, current);
+              result = b.create<arith::MinFOp>(loc, update, current);
             }
-        }
+          }
+          b.create<TMTensor::YieldOp>(loc, result);
+    });
+
+    // Special case for the mean
+    if (reduceType == "mean") {
+        counts = createTMTensorScatterOp(
+            rewriter, loc, updates, indices, self,
+         /*uniqueIndices=*/false,
+        [&](OpBuilder &b, Location loc, Value update, Value current) {
+            Value result;
+            if (update.getType().isa<mlir::IntegerType>()) {
+              result = b.create<arith::AddIOp>(loc, update, current);
+            } else {
+              result = b.create<arith::AddFOp>(loc, update, current);
+            }
           b.create<TMTensor::YieldOp>(loc, result);
         });
+        
+        Value output = rewriter.create<tensor::EmptyOp>(
+                loc, tensor::getMixedSizes(rewriter, loc, self),
+                selfType.getElementType());
+
+        // Finally divide the result
+        scatterOp = rewriter.create<linalg::MapOp>(loc, ValueRange{scatterOp, counts}, output,
+                [&](OpBuilder& b, Location loc, ValueRange args) {
+                    Value result;
+                    if (llvm::isa<mlir::IntegerType>(args[0])) {
+                        b.create<arith::DivSIOp>(loc, args[0], args[1]);
+                    } else {
+                        b.create<arith::DivFOp>(loc, args[0], args[1]);
+                    }
+                    b.create<linalg::YieldOp>(loc, result);
+                }).getResult()[0];
+    }
     auto resultType = getTypeConverter()->convertType(op->getResult(0).getType())
                           .cast<RankedTensorType>();
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, scatterOp);
