@@ -77,6 +77,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "Aten_EmbeddingBagExample_basic",
     # error: failed to legalize operation 'torch.valsem.aten.bernoulli.float' that was explicitly marked illegal
     "BernoulliFloatModule_basic",
+    "BernoulliPModule_basic",
     # error: failed to legalize operation 'torch.aten.view' that was explicitly marked illegal
     "ElementwiseFlattenBroadcastModule_basic",
     "FlattenRank0Module_basic",
@@ -704,7 +705,6 @@ LTC_XFAIL_SET = {
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AddIntModule_basic",
     "AtenIntBoolOpModule_basic",
-    "BernoulliFloatModule_basic",
     "BernoulliTensorModule_basic",
     "BincountMinlengthModule_basic",
     "BincountModule_basic",

@@ -215,6 +215,38 @@ def BernoulliTensorModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class BernoulliPModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, x, y):
+        a = torch.ops.aten.bernoulli(x, 0.4)
+        b = torch.ops.aten.bernoulli(y, 0.7)
+        mean = torch.cat([
+            torch.flatten(torch.mean(a)),
+            torch.flatten(torch.mean(b)),
+        ])
+        std = torch.cat([
+            torch.flatten(torch.std(a)),
+            torch.flatten(torch.std(b)),
+        ])
+        return  mean, std
+
+
+@register_test_case(module_factory=lambda: BernoulliPModule())
+def BernoulliPModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(512, 512, 16).double(),
+        tu.rand(512, 512, 16).double())
+
+# ==============================================================================
+
 class RandLikeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
