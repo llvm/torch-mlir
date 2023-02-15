@@ -610,6 +610,9 @@ def aten〇bernoulli〇float〡shape(self: List[int], p: float = 0.5, generator:
 def aten〇bernoulli〇Tensor〡shape(self: List[int], p: List[int], generator: Any = None) -> List[int]:
     return self
 
+def aten〇bernoulli〇p〡shape(self: List[int], p: float, generator: Any = None) -> List[int]:
+    return self
+
 def aten〇_index_put_impl〡shape(self: List[int], indices: List[Optional[List[int]]], values: List[int], accumulate: bool = False, unsafe: bool = False) -> List[int]:
     return upstream_shape_functions.unary(self)
 

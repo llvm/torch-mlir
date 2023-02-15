@@ -2160,16 +2160,16 @@ public:
 // aten.bernoulli.float(x, p) = (randLike(float(x)) < tensor(p)).cast(type(x)).
 // Since the input x can be an integer tensor, it's important to cast it to
 // float type before passing it to the `aten.randLike` op.
-class DecomposeValsemVariantAtenBernoulliFloatOp
-    : public OpRewritePattern<ValsemVariantAtenBernoulliFloatOp> {
+template <typename BernoulliLikeOp>
+class DecomposeAtenBernoulliLikeOp : public OpRewritePattern<BernoulliLikeOp> {
 public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(ValsemVariantAtenBernoulliFloatOp op,
+  using OpRewritePattern<BernoulliLikeOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(BernoulliLikeOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value input = op.getSelf();
     Value p = op.getP();
-    if (!op.getGenerator().getType().isa<Torch::NoneType>())
+    if (!op.getGenerator().getType().template isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(
           op, "The generator has to ben None because only global default "
               "generator is supported");
@@ -3883,8 +3883,11 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_UnsafeViewOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_ReshapeAliasOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBernoulliOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeValsemVariantAtenBernoulliFloatOp>(
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenBernoulliLikeOp<ValsemVariantAtenBernoulliFloatOp>>(
         patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenBernoulliLikeOp<AtenBernoulliPOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBernoulliTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenZeroOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandLikeOp>(patterns);
