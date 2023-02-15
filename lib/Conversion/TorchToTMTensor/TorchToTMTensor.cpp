@@ -724,10 +724,13 @@ public:
             loc, rewriter.getZeroAttr(srcType.getElementType()));
       } else if (reduceType == "prod") {
         // Set the values in the input tensor to '1' (multiplication identity)
-        normalizationValue = rewriter.create<arith::ConstantOp>(
-            loc, rewriter.getIntegerAttr(srcType.getElementType(), 1));
-        if (llvm::isa<mlir::FloatType>(srcType.getElementType()))
-            normalizationValue = rewriter.create<arith::SIToFPOp>(loc, srcType.getElementType(), normalizationValue);
+        if (llvm::isa<mlir::FloatType>(srcType.getElementType())) {
+            normalizationValue = rewriter.create<arith::ConstantOp>(
+                loc, rewriter.getFloatAttr(srcType.getElementType(), 1.0));
+        } else {
+            normalizationValue = rewriter.create<arith::ConstantOp>(
+                loc, rewriter.getIntegerAttr(srcType.getElementType(), 1));
+        }
       } else if (reduceType == "amax") {
         // Set the values in the input tensor to the smallest element of that type
         auto minAttr = getNumericLimit(rewriter, srcType.getElementType(), /*getMin=*/true);
