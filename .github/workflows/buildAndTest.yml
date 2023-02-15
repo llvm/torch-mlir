@@ -53,6 +53,7 @@ jobs:
     steps:
     
     - name: chown $GITHUB_WORKSPACE
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
       run: |
         sudo chown -R $USER:$USER $GITHUB_WORKSPACE
     
