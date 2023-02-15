@@ -311,3 +311,18 @@ class LinspaceModuleNegativeInt64(torch.nn.Module):
 @register_test_case(module_factory=lambda: LinspaceModuleNegativeInt64())
 def LinspaceModuleNegativeInt64_basic(module, tu: TestUtils):
     module.forward()
+
+class LinspaceModuleFloatStartEnd(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.linspace(-7.0, 7.0, 3)
+
+@register_test_case(module_factory=lambda: LinspaceModuleFloatStartEnd())
+def LinspaceModuleFloatStartEnd_basic(module, tu: TestUtils):
+    module.forward()
