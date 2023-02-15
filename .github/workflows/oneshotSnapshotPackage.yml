@@ -10,6 +10,10 @@ jobs:
     # Don't run this in everyone's forks.
     if: github.repository == 'llvm/torch-mlir'
     steps:
+      - name: chown $GITHUB_WORKSPACE
+        run: |
+          sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+        
       - name: Checking out repository
         uses: actions/checkout@v2
         with:
