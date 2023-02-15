@@ -704,7 +704,6 @@ LTC_XFAIL_SET = {
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AddIntModule_basic",
     "AtenIntBoolOpModule_basic",
-    "BernoulliFloatModule_basic",
     "BernoulliTensorModule_basic",
     "BincountMinlengthModule_basic",
     "BincountModule_basic",
