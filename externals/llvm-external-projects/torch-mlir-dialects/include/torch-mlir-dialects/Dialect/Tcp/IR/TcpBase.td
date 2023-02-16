@@ -33,6 +33,7 @@ def Tcp_Dialect : Dialect {
 
 def Tcp_Scalar : AnyTypeOf<[AnyFloat, AnySignlessInteger, AnyComplex]>;
 def Tcp_Tensor : RankedTensorOf<[Tcp_Scalar]>;
+def Tcp_TensorOrScalar : AnyTypeOf<[Tcp_Tensor, Tcp_Scalar]>;
 
 def Tcp_FloatTensor : RankedTensorOf<[AnyFloat]>;
 def Tcp_FloatOrIntTensor : RankedTensorOf<[AnyFloat, AnySignlessInteger]>;
