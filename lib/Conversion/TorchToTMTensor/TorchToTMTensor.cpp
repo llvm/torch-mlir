@@ -27,8 +27,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include "llvm/ADT/APFloat.h"
-#include "llvm/Support/ErrorHandling.h"
-#include <limits>
+#include "llvm/ADT/APInt.h"
 
 using namespace mlir;
 using namespace mlir::torch;
