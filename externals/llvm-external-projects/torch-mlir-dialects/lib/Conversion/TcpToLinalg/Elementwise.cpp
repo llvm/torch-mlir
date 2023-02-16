@@ -106,6 +106,10 @@ createLinalgPayloadForElementwiseOp(Operation *op,
     return {b.create<arith::DivFOp>(loc, one, sum)};
   }
 
+  if (isa<SqrtOp>(op)) {
+    return {b.create<math::SqrtOp>(loc, payloadArgs[0])};
+  }
+
   if (isa<AddOp>(op)) {
     if (elemType.isa<mlir::FloatType>())
       return {b.create<arith::AddFOp>(loc, payloadArgs[0], payloadArgs[1])};
@@ -197,4 +201,5 @@ void mlir::TcpToLinalg::populateElementwisePatternsAndLegality(
   patterns.add<ConvertElementwiseOp<SubOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<TanhOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<SigmoidOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<SqrtOp>>(typeConverter, context);
 }

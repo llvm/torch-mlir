@@ -302,4 +302,22 @@ def Tcp_IsolatedGroupOp : Tcp_Op<"isolated_group", [
   let hasVerifier = 1;
 }
 
+def Tcp_SqrtOp : Tcp_UnaryElementwiseOp<"sqrt", [SameOperandsAndResultElementType]> {
+  let summary = "Computes square root of input, elementwise";
+
+  let description = [{
+    Computes elementwise square root of the input tensor.
+  }];
+
+  let arguments = (ins
+    Tcp_FloatOrComplexTensor:$in
+  );
+
+  let results = (outs
+    Tcp_FloatOrComplexTensor:$out
+  );
+
+  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
+}
+
 #endif // TORCH_MLIR_DIALECT_TCP_OPS

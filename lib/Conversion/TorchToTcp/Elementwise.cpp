@@ -180,6 +180,28 @@ public:
   }
 };
 
+class ConvertAtenSqrtOp : public OpConversionPattern<AtenSqrtOp> {
+public:
+  using OpConversionPattern<AtenSqrtOp>::OpConversionPattern;
+  using OpAdaptor = typename AtenSqrtOp::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(AtenSqrtOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = adaptor.getSelf();
+    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
+    if (!inputType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+    if (!inputType.getElementType().isa<mlir::FloatType>())
+      return rewriter.notifyMatchFailure(
+          op, "Sqrt input tensor must have floating-point datatype");
+
+    rewriter.replaceOpWithNewOp<tcp::SqrtOp>(op, inputType, input);
+    return success();
+  }
+};
+
 class ConvertAtenClampOp : public OpConversionPattern<AtenClampOp> {
 public:
   using OpConversionPattern<AtenClampOp>::OpConversionPattern;
@@ -305,4 +327,7 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
 
   target.addIllegalOp<AtenDivTensorOp>();
   patterns.add<ConvertAtenDivFOp>(typeConverter, context);
+
+  target.addIllegalOp<AtenSqrtOp>();
+  patterns.add<ConvertAtenSqrtOp>(typeConverter, context);
 }
