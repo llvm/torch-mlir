@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-from typing import List, Optional, Any, Tuple, Union
+from typing import List, Optional, Any, Tuple, Union, Set
 import argparse
 import os
 
@@ -1026,8 +1026,8 @@ _SORTED_TORCH_TYPES = [
 
 def _check_tensors_with_the_same_dtype(
         num_of_tensors: Optional[int] = None,
-        tensor_shapes: Optional[list[tuple[int]]] = None,
-        error_types: Optional[set[int]] = None, *args, **kwargs):
+        tensor_shapes: Optional[List[Tuple[int]]] = None,
+        error_types: Optional[Set[int]] = None, *args, **kwargs):
     """Create invocations where all tensors have the same dtype.
 
     This function generates invocations with `num_of_tensors` tensors
@@ -1059,8 +1059,8 @@ def _check_tensors_with_the_same_dtype(
     return invocations
 
 def _check_two_tensor_op(
-        input_error_types: Optional[set[int]] = None,
-        output_error_types: Optional[set[int]] = None, **kwargs):
+        input_error_types: Optional[Set[int]] = None,
+        output_error_types: Optional[Set[int]] = None, **kwargs):
     """Generate invocations for basic two-tensor dtype functions.
 
     This helper function is meant to be used to check dtype functions that
@@ -1683,7 +1683,7 @@ def aten〇conv2d〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(
         tensor_shapes=[(1, 1, 1, 1), (1, 1, 1, 1)],
-        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.float16, torch.bfloat16}) +
+        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.float16}) +
     [ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.bool), TensorOfShape(1, 1, 1, 1, dtype=torch.float32)),
      ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.bool)),
      ErrorInvocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float16), TensorOfShape(1, 1, 1, 1, dtype=torch.float32)),
@@ -1692,8 +1692,8 @@ def aten〇conv2d〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: 
 def aten〇conv_transpose2d〇input〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None, stride: List[int] = (1, 1), padding: List[int] = (0, 0), output_padding: List[int] = (0, 0), groups: int = 1, dilation: List[int] = (1, 1)) -> int:
     input_rank, input_dtype = input_rank_dtype
     weight_rank, weight_dtype = weight_rank_dtype
-    assert (input_dtype == torch.int64 or not is_integer_dtype(input_dtype)) and input_dtype not in [torch.float16, torch.bfloat16]
-    assert (weight_dtype == torch.int64 or not is_integer_dtype(weight_dtype)) and weight_dtype not in [torch.float16, torch.bfloat16]
+    assert (input_dtype == torch.int64 or not is_integer_dtype(input_dtype)) and input_dtype != torch.float16
+    assert (weight_dtype == torch.int64 or not is_integer_dtype(weight_dtype)) and weight_dtype != torch.float16
     ranks: List[Optional[int]] = [input_rank, weight_rank]
     dtypes = [input_dtype, weight_dtype]
     return promote_dtypes(ranks, dtypes)
