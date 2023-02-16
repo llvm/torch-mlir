@@ -105,6 +105,72 @@ public:
   }
 };
 
+class ConvertAtenBatchNormOp : public OpConversionPattern<AtenBatchNormOp> {
+public:
+  using OpConversionPattern<AtenBatchNormOp>::OpConversionPattern;
+  using OpAdaptor = typename AtenBatchNormOp::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(AtenBatchNormOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = adaptor.getInput();
+    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
+
+    Value weight = adaptor.getWeight();
+    RankedTensorType weightType = weight.getType().dyn_cast<RankedTensorType>();
+
+    Value bias = adaptor.getBias();
+    RankedTensorType biasType = bias.getType().dyn_cast<RankedTensorType>();
+
+    Value running_mean = adaptor.getRunningMean();
+    RankedTensorType runningMeanType = running_mean.getType().dyn_cast<RankedTensorType>();
+
+    Value running_var = adaptor.getRunningVar();
+    RankedTensorType runningVarType = running_var.getType().dyn_cast<RankedTensorType>();
+
+    RankedTensorType resultType =
+        OpConversionPattern<AtenBatchNormOp>::getTypeConverter()
+            ->convertType(op.getType())
+            .template cast<RankedTensorType>();
+
+    if (!inputType || !weightType || !biasType ||
+          !runningMeanType || !runningVarType || !resultType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+
+    assert(runningMeanType.getNumElements() != 0 && runningVarType.getNumElements() != 0);
+
+    double eps = 0.0;
+    if (!matchPattern(op.getEps(), m_TorchConstantFloat(&eps))) {
+      return rewriter.notifyMatchFailure(op, "non-float(double) eps unsupported");
+    }
+
+    Value epsVal;
+    if (auto result = torch_to_tcp::getConstTensor<float>(rewriter, op, llvm::makeArrayRef(static_cast<float>(eps)), {}))
+      epsVal = *result;
+    else
+      return rewriter.notifyMatchFailure(op, "failed to get constTensor for eps");
+
+    // PyTorch inputs are [NCHW], and BatchNorm parameters are [C] length vectors
+    // axisInOutput = 1 allows [C] -> [1, C, 1, 1] expansion followed by a broadcast
+    running_mean = torch_to_tcp::broadcast1DToNDAndMatchShape(rewriter, running_mean, input, /*axisInOutput=*/1);
+    running_var = torch_to_tcp::broadcast1DToNDAndMatchShape(rewriter, running_var, input, /*axisInOutput=*/1);
+    weight = torch_to_tcp::broadcast1DToNDAndMatchShape(rewriter, weight, input, /*axisInOutput=*/1);
+    bias = torch_to_tcp::broadcast1DToNDAndMatchShape(rewriter, bias, input, /*axisInOutput=*/1);
+    epsVal = torch_to_tcp::broadcast0DToNDAndMatchShape(rewriter, epsVal, input);
+
+    Value op1SubInputMean = rewriter.create<tcp::SubOp>(op.getLoc(), resultType, input, running_mean);
+    Value op2AddVarEpsilon = rewriter.create<tcp::AddOp>(op.getLoc(), resultType, running_var, epsVal);
+    Value op3SqrtOp2 = rewriter.create<tcp::SqrtOp>(op.getLoc(), resultType, op2AddVarEpsilon);
+    Value op4DivOp1Op3 = rewriter.create<tcp::DivFOp>(op.getLoc(), resultType, op1SubInputMean, op3SqrtOp2);
+    Value op5MulWeightOp4 = rewriter.create<tcp::MulOp>(op.getLoc(), resultType, weight, op4DivOp1Op3);
+    Value op6AddOp5Bias = rewriter.create<tcp::AddOp>(op.getLoc(), resultType, op5MulWeightOp4, bias);
+
+    rewriter.replaceOp(op, {op6AddOp5Bias});
+    return success();
+  }
+};
+
 class ConvertAtenDivFOp : public OpConversionPattern<AtenDivTensorOp> {
 public:
   using OpConversionPattern<AtenDivTensorOp>::OpConversionPattern;
@@ -330,4 +396,7 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
 
   target.addIllegalOp<AtenSqrtOp>();
   patterns.add<ConvertAtenSqrtOp>(typeConverter, context);
+
+  target.addIllegalOp<AtenBatchNormOp>();
+  patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
 }

@@ -22,6 +22,13 @@ Value broadcastShapeInLeadingDims(ConversionPatternRewriter &rewriter,
 Value broadcastInLeadingDimsToMatchShape(ConversionPatternRewriter &rewriter,
                                          Value input, Value target);
 
+Value broadcast0DToNDAndMatchShape(ConversionPatternRewriter &rewriter,
+                                                 Value input, Value target);
+
+Value broadcast1DToNDAndMatchShape(ConversionPatternRewriter &rewriter,
+                                  Value input, Value target,
+                                  int64_t axisInOutput);
+
 template <typename T>
 std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
                                     ArrayRef<T> vec, ArrayRef<int64_t> shape);

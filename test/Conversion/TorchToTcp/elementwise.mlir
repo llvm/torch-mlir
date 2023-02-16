@@ -169,3 +169,86 @@ func.func @torch.aten.sqrt(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[
   %0 = torch.aten.sqrt %arg0 : !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
   return %0 : !torch.vtensor<[?,?],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.batch_norm(
+// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,4,?,?],f32>) -> !torch.vtensor<[?,4,?,?],f32> {
+// CHECK:              %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,4,?,?],f32> -> tensor<?x4x?x?xf32>
+// CHECK:              %[[T1:.*]] = tcp.const {value = dense<[5.000000e-01, 4.000000e-01, 3.000000e-01, 6.000000e-01]> : tensor<4xf32>} : tensor<4xf32>
+// CHECK:              %[[T2:.*]] = tcp.const {value = dense<[3.000000e+00, 2.000000e+00, 4.000000e+00, 5.000000e+00]> : tensor<4xf32>} : tensor<4xf32>
+// CHECK:              %[[T3:.*]] = torch.constant.float 1.000000e-01
+// CHECK:              %[[T4:.*]] = torch.constant.float 1.000000e-05
+// CHECK:              %[[T5:.*]] = torch.constant.bool true
+// CHECK:              %[[T6:.*]] = torch.constant.bool false
+// CHECK:              %[[T7:.*]] = tcp.const {value = dense<9.99999974E-6> : tensor<f32>} : tensor<f32>
+// CHECK:              %[[T8:.*]] = tensor.expand_shape %[[T1]]
+// CHECK-SAME:                      [0, 1, 2, 3]
+// CHECK-SAME:                      : tensor<4xf32> into tensor<1x4x1x1xf32>
+// CHECK:              %[[T9:.*]] = arith.constant 0 : index
+// CHECK:              %[[T10:.*]] = tensor.dim %[[T0]], %[[T9]] : tensor<?x4x?x?xf32>
+// CHECK:              %[[T11:.*]] = arith.constant 2 : index
+// CHECK:              %[[T12:.*]] = tensor.dim %[[T0]], %[[T11]] : tensor<?x4x?x?xf32>
+// CHECK:              %[[T13:.*]] = arith.constant 3 : index
+// CHECK:              %[[T14:.*]] = tensor.dim %[[T0]], %[[T13]] : tensor<?x4x?x?xf32>
+// CHECK:              %[[T15:.*]] = tcp.broadcast %[[T8]], %[[T10]], %[[T12]], %[[T14]] {axes = [0, 2, 3]} : tensor<1x4x1x1xf32>, index, index, index -> tensor<?x4x?x?xf32>
+// CHECK:              %[[T16:.*]] = tensor.expand_shape %[[T2]]
+// CHECK-SAME:                      [0, 1, 2, 3]
+// CHECK-SAME:                      : tensor<4xf32> into tensor<1x4x1x1xf32>
+// CHECK:              %[[T17:.*]] = arith.constant 0 : index
+// CHECK:              %[[T18:.*]] = tensor.dim %[[T0]], %[[T17]] : tensor<?x4x?x?xf32>
+// CHECK:              %[[T19:.*]] = arith.constant 2 : index
+// CHECK:              %[[T20:.*]] = tensor.dim %[[T0]], %[[T19]] : tensor<?x4x?x?xf32>
+// CHECK:              %[[T21:.*]] = arith.constant 3 : index
+// CHECK:              %[[T22:.*]] = tensor.dim %[[T0]], %[[T21]] : tensor<?x4x?x?xf32>
+// CHECK:              %[[T23:.*]] = tcp.broadcast %[[T16]], %[[T18]], %[[T20]], %[[T22]] {axes = [0, 2, 3]} : tensor<1x4x1x1xf32>, index, index, index -> tensor<?x4x?x?xf32>
+// CHECK:              %[[T24:.*]] = tensor.expand_shape %[[T2]]
+// CHECK-SAME:                      [0, 1, 2, 3]
+// CHECK-SAME:                      : tensor<4xf32> into tensor<1x4x1x1xf32>
+// CHECK:              %[[T25:.*]] = arith.constant 0 : index
+// CHECK:              %[[T26:.*]] = tensor.dim %[[T0]], %[[T25]] : tensor<?x4x?x?xf32>
+// CHECK:              %[[T27:.*]] = arith.constant 2 : index
+// CHECK:              %[[T28:.*]] = tensor.dim %[[T0]], %[[T27]] : tensor<?x4x?x?xf32>
+// CHECK:              %[[T29:.*]] = arith.constant 3 : index
+// CHECK:              %[[T30:.*]] = tensor.dim %[[T0]], %[[T29]] : tensor<?x4x?x?xf32>
+// CHECK:              %[[T31:.*]] = tcp.broadcast %[[T24]], %[[T26]], %[[T28]], %[[T30]] {axes = [0, 2, 3]} : tensor<1x4x1x1xf32>, index, index, index -> tensor<?x4x?x?xf32>
+// CHECK:              %[[T32:.*]] = tensor.expand_shape %[[T1]]
+// CHECK-SAME:                      [0, 1, 2, 3]
+// CHECK-SAME:                      : tensor<4xf32> into tensor<1x4x1x1xf32>
+// CHECK:              %[[T33:.*]] = arith.constant 0 : index
+// CHECK:              %[[T34:.*]] = tensor.dim %[[T0]], %[[T33]] : tensor<?x4x?x?xf32>
+// CHECK:              %[[T35:.*]] = arith.constant 2 : index
+// CHECK:              %[[T36:.*]] = tensor.dim %[[T0]], %[[T35]] : tensor<?x4x?x?xf32>
+// CHECK:              %[[T37:.*]] = arith.constant 3 : index
+// CHECK:              %[[T38:.*]] = tensor.dim %[[T0]], %[[T37]] : tensor<?x4x?x?xf32>
+// CHECK:              %[[T39:.*]] = tcp.broadcast %[[T32]], %[[T34]], %[[T36]], %[[T38]] {axes = [0, 2, 3]} : tensor<1x4x1x1xf32>, index, index, index -> tensor<?x4x?x?xf32>
+// CHECK:              %[[T40:.*]] = tensor.expand_shape %[[T7]]
+// CHECK-SAME:                      []
+// CHECK-SAME:                      : tensor<f32> into tensor<1x1x1x1xf32>
+// CHECK:              %[[T41:.*]] = arith.constant 0 : index
+// CHECK:              %[[T42:.*]] = tensor.dim %[[T0]], %[[T41]] : tensor<?x4x?x?xf32>
+// CHECK:              %[[T43:.*]] = arith.constant 1 : index
+// CHECK:              %[[T44:.*]] = arith.constant 4 : index
+// CHECK:              %[[T45:.*]] = arith.constant 2 : index
+// CHECK:              %[[T46:.*]] = tensor.dim %[[T0]], %[[T45]] : tensor<?x4x?x?xf32>
+// CHECK:              %[[T47:.*]] = arith.constant 3 : index
+// CHECK:              %[[T48:.*]] = tensor.dim %[[T0]], %[[T47]] : tensor<?x4x?x?xf32>
+// CHECK:              %[[T49:.*]] = tcp.broadcast %[[T40]], %[[T42]], %[[T44]], %[[T46]], %[[T48]] {axes = [0, 1, 2, 3]} : tensor<1x1x1x1xf32>, index, index, index, index -> tensor<?x4x?x?xf32>
+// CHECK:              %[[T50:.*]] = tcp.sub %[[T0]], %[[T15]] : tensor<?x4x?x?xf32>, tensor<?x4x?x?xf32> -> tensor<?x4x?x?xf32>
+// CHECK:              %[[T51:.*]] = tcp.add %[[T23]], %[[T49]] : tensor<?x4x?x?xf32>, tensor<?x4x?x?xf32> -> tensor<?x4x?x?xf32>
+// CHECK:              %[[T52:.*]] = tcp.sqrt %[[T51]] : tensor<?x4x?x?xf32> -> tensor<?x4x?x?xf32>
+// CHECK:              %[[T53:.*]] = tcp.divf %[[T50]], %[[T52]] : tensor<?x4x?x?xf32>, tensor<?x4x?x?xf32> -> tensor<?x4x?x?xf32>
+// CHECK:              %[[T54:.*]] = tcp.mul %[[T31]], %[[T53]] : tensor<?x4x?x?xf32>, tensor<?x4x?x?xf32> -> tensor<?x4x?x?xf32>
+// CHECK:              %[[T55:.*]] = tcp.add %[[T54]], %[[T39]] : tensor<?x4x?x?xf32>, tensor<?x4x?x?xf32> -> tensor<?x4x?x?xf32>
+// CHECK:              %[[T56:.*]] = torch_c.from_builtin_tensor %[[T55]] : tensor<?x4x?x?xf32> -> !torch.vtensor<[?,4,?,?],f32>
+// CHECK:              return %[[T56]] : !torch.vtensor<[?,4,?,?],f32>
+func.func @torch.aten.batch_norm(%arg0: !torch.vtensor<[?,4,?,?],f32>) -> !torch.vtensor<[?,4,?,?],f32> {
+  %0 = torch.vtensor.literal(dense<[5.000000e-01, 4.000000e-01, 3.000000e-01, 6.000000e-01]> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %1 = torch.vtensor.literal(dense<[3.000000e+00, 2.000000e+00, 4.000000e+00, 5.000000e+00]> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %float1.000000e-01 = torch.constant.float 1.000000e-01
+  %float1.000000e-05 = torch.constant.float 1.000000e-05
+  %true = torch.constant.bool true
+  %false = torch.constant.bool false
+  %2 = torch.aten.batch_norm %arg0, %1, %0, %0, %1, %false, %float1.000000e-01, %float1.000000e-05, %true : !torch.vtensor<[?,4,?,?],f32>, !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>, !torch.bool, !torch.float, !torch.float, !torch.bool -> !torch.vtensor<[?,4,?,?],f32>
+  return %2 : !torch.vtensor<[?,4,?,?],f32>
+}

@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpDialect.h"
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpOps.h"
+#include <mlir/IR/Value.h>
 
 using namespace mlir;
 using namespace mlir::tcp;
@@ -73,6 +74,87 @@ Value torch_to_tcp::broadcastInLeadingDimsToMatchShape(
     result = torch_to_tcp::broadcastShapeInLeadingDims(rewriter, result, target,
                                                        rankIncrease);
   }
+
+  return result;
+}
+
+// Example: [] -> [N, C, H, W]
+Value torch_to_tcp::broadcast0DToNDAndMatchShape(
+    ConversionPatternRewriter &rewriter, Value input, Value target) {
+
+  RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+  RankedTensorType targetType = target.getType().cast<RankedTensorType>();
+
+  // This utility only accepts 0D inputs
+  assert(inputType.getRank() == 0);
+
+  Value result = input;
+
+  // First: Broadcast Rank
+  // [] -> [1, 1, 1, 1]
+  // reassociation map = [[]]
+  SmallVector<ReassociationExprs> reassociationMap(inputType.getRank());
+  SmallVector<int64_t> resultShape(targetType.getRank(), 1);
+  auto resultType = targetType.cloneWith(makeArrayRef(resultShape),
+                                        targetType.getElementType());
+  result = rewriter.create<tensor::ExpandShapeOp>(result.getDefiningOp()->getLoc(),
+                                                  resultType, input,
+                                                  reassociationMap);
+  // Second: Broadcast Shape
+  // [1, 1, 1, 1] -> [N, C, H, W]
+  SmallVector<int64_t> axes;
+  SmallVector<Value> dimSizes;
+  for (int64_t axis = 0; axis < targetType.getRank(); ++axis) {
+    axes.push_back(axis);
+    dimSizes.push_back(
+        rewriter.createOrFold<tensor::DimOp>(result.getDefiningOp()->getLoc(), target, axis));
+  }
+  auto axesAttr = rewriter.getI64ArrayAttr(axes);
+  result = rewriter.create<tcp::BroadcastOp>(result.getDefiningOp()->getLoc(), target.getType(),
+                                           result, dimSizes, axesAttr);
+
+  return result;
+}
+
+// Example: [C] -> [N, C, H, W]
+Value torch_to_tcp::broadcast1DToNDAndMatchShape(
+    ConversionPatternRewriter &rewriter, Value input, Value target, int64_t axisInOutput) {
+
+  RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+  RankedTensorType targetType = target.getType().cast<RankedTensorType>();
+
+  // This utility only accepts 1D inputs
+  assert(inputType.getRank() == 1);
+
+  Value result = input;
+
+  // First: Broadcast Rank
+  // [C] -> [1, C, 1, 1] if axisInOutput = 1
+  // reassociation map = [[0, 1, 2, 3]]
+  SmallVector<ReassociationExprs> reassociationMap(inputType.getRank());
+  for (int64_t axis = 0; axis < targetType.getRank(); ++axis)
+    reassociationMap[0].push_back(rewriter.getAffineDimExpr(axis));
+  SmallVector<int64_t> resultShape(targetType.getRank(), 1);
+  resultShape[axisInOutput] = inputType.getShape()[0];
+  auto resultType = targetType.cloneWith(makeArrayRef(resultShape),
+                                        targetType.getElementType());
+  result = rewriter.create<tensor::ExpandShapeOp>(result.getDefiningOp()->getLoc(),
+                                                  resultType, input,
+                                                  reassociationMap);
+  // Second: Broadcast Shape
+  // [1, C, 1, 1] -> [N, C, H, W]
+  SmallVector<int64_t> axes;
+  SmallVector<Value> dimSizes;
+  for (int64_t axis = 0; axis < targetType.getRank(); ++axis) {
+    if (axis != axisInOutput) {
+      axes.push_back(axis);
+      dimSizes.push_back(
+          rewriter.createOrFold<tensor::DimOp>(result.getDefiningOp()->getLoc(), target, axis));
+    }
+  }
+  auto axesAttr = rewriter.getI64ArrayAttr(axes);
+  result = rewriter.create<tcp::BroadcastOp>(result.getDefiningOp()->getLoc(), target.getType(),
+                                           result, dimSizes, axesAttr);
 
   return result;
 }

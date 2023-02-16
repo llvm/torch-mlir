@@ -102,7 +102,7 @@ def Tcp_AddOp : Tcp_BinaryElementwiseOp<"add", [SameOperandsAndResultElementType
 }
 
 def Tcp_SubOp : Tcp_BinaryElementwiseOp<"sub", [SameOperandsAndResultElementType]> {
-  let summary = "Computes elementwise addition";
+  let summary = "Computes elementwise subtraction";
 
   let description = [{
     Computes the elementwise subtraction of `in2` from `in1`.

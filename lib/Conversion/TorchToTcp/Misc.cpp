@@ -78,6 +78,33 @@ public:
   }
 };
 
+class ConvertValueTensorLiteralOp : public OpConversionPattern<ValueTensorLiteralOp> {
+public:
+  using OpConversionPattern<ValueTensorLiteralOp>::OpConversionPattern;
+  using OpAdaptor = typename ValueTensorLiteralOp::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(ValueTensorLiteralOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    RankedTensorType resultType =
+        OpConversionPattern<ValueTensorLiteralOp>::getTypeConverter()
+            ->convertType(op.getType())
+            .template cast<RankedTensorType>();
+
+    // TODO: Implement integer constant lowering to tcp::ConstOp
+    if (auto elements = op.getValueAttr().dyn_cast<DenseIntElementsAttr>()) {
+      auto elementType = elements.getElementType();
+      if (elementType.isSignedInteger() || elementType.isSignlessInteger() || elementType.isUnsignedInteger()) {
+        return rewriter.notifyMatchFailure(
+            op, "Integer constants lowering to TCP is unimplemented");
+      }
+    }
+
+    rewriter.replaceOpWithNewOp<tcp::ConstOp>(op, resultType, adaptor.getValue());
+    return success();
+  }
+};
+
 } // namespace
 
 void torch_to_tcp::populateMiscPatternsAndLegality(TypeConverter &typeConverter,
@@ -87,4 +114,7 @@ void torch_to_tcp::populateMiscPatternsAndLegality(TypeConverter &typeConverter,
 
   target.addIllegalOp<AtenBroadcastToOp>();
   patterns.add<ConvertAtenBroadcastToOp>(typeConverter, context);
+
+  target.addIllegalOp<ValueTensorLiteralOp>();
+  patterns.add<ConvertValueTensorLiteralOp>(typeConverter, context);
 }
