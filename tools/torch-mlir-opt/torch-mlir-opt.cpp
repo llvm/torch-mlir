@@ -11,6 +11,7 @@
 #include "mlir/InitAllPasses.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "torch-mlir/InitAll.h"
+#include "stablehlo/dialect/Register.h"
 
 using namespace mlir;
 
@@ -21,7 +22,8 @@ int main(int argc, char **argv) {
   DialectRegistry registry;
   registerAllDialects(registry);
   mlir::torch::registerAllDialects(registry);
-
+  mlir::stablehlo::registerAllDialects(registry);
+  
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "MLIR modular optimizer driver\n", registry,
                         /*preloadDialectsInContext=*/false));
