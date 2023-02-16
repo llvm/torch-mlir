@@ -725,11 +725,11 @@ public:
       } else if (reduceType == "prod") {
         // Set the values in the input tensor to '1' (multiplication identity)
         if (llvm::isa<mlir::FloatType>(srcType.getElementType())) {
-            normalizationValue = rewriter.create<arith::ConstantOp>(
-                loc, rewriter.getFloatAttr(srcType.getElementType(), 1.0));
+          normalizationValue = rewriter.create<arith::ConstantOp>(
+              loc, rewriter.getFloatAttr(srcType.getElementType(), 1.0));
         } else {
-            normalizationValue = rewriter.create<arith::ConstantOp>(
-                loc, rewriter.getIntegerAttr(srcType.getElementType(), 1));
+          normalizationValue = rewriter.create<arith::ConstantOp>(
+              loc, rewriter.getIntegerAttr(srcType.getElementType(), 1));
         }
       } else if (reduceType == "amax") {
         // Set the values in the input tensor to the smallest element of that type
@@ -796,14 +796,16 @@ public:
     // Special case for the mean
     if (reduceType == "mean") {
         counts = createTMTensorScatterOp(
-            rewriter, loc, updates, indices, self,
+            rewriter, loc, updates, indices, counts,
          /*uniqueIndices=*/false,
         [&](OpBuilder &b, Location loc, Value update, Value current) {
             Value result;
-            if (update.getType().isa<mlir::IntegerType>()) {
-              result = b.create<arith::AddIOp>(loc, update, current);
-            } else {
-              result = b.create<arith::AddFOp>(loc, update, current);
+            if (mlir::IntegerType intType = llvm::dyn_cast<mlir::IntegerType>(current.getType())) {
+              Value constantUpdate = b.create<arith::ConstantOp>(loc, b.getIntegerAttr(intType, 1));
+              result = b.create<arith::AddIOp>(loc, constantUpdate, current);
+            } else if (mlir::FloatType floatType = llvm::dyn_cast<mlir::FloatType>(current.getType())) {
+              Value constantUpdate = b.create<arith::ConstantOp>(loc, b.getFloatAttr(floatType, 1.0));
+              result = b.create<arith::AddFOp>(loc, constantUpdate, current);
             }
           b.create<TMTensor::YieldOp>(loc, result);
         });
@@ -814,15 +816,15 @@ public:
 
         // Finally divide the result
         scatterOp = rewriter.create<linalg::MapOp>(loc, ValueRange{scatterOp, counts}, output,
-                [&](OpBuilder& b, Location loc, ValueRange args) {
-                    Value result;
-                    if (llvm::isa<mlir::IntegerType>(args[0].getType())) {
-                        b.create<arith::DivSIOp>(loc, args[0], args[1]);
-                    } else {
-                        b.create<arith::DivFOp>(loc, args[0], args[1]);
-                    }
-                    b.create<linalg::YieldOp>(loc, result);
-                }).getResult()[0];
+            [&](OpBuilder& b, Location loc, ValueRange args) {
+                Value result;
+                if (llvm::isa<mlir::IntegerType>(args[0].getType())) {
+                    result = b.create<arith::DivSIOp>(loc, args[0], args[1]);
+                } else {
+                    result = b.create<arith::DivFOp>(loc, args[0], args[1]);
+                }
+                b.create<linalg::YieldOp>(loc, result);
+            }).getResult()[0];
     }
     auto resultType = getTypeConverter()->convertType(op->getResult(0).getType())
                           .cast<RankedTensorType>();

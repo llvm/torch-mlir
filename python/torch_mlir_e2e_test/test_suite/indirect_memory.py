@@ -71,5 +71,15 @@ def ScatterReduceMinModule(module, tu: TestUtils):
 def ScatterReduceMinModuleIncludeSelf(module, tu: TestUtils):
     module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4),
                    tu.rand(5, 8, 6))
+@register_test_case(
+    module_factory=lambda: ScatterReduceModule("mean", False))
+def ScatterReduceMeanModule(module, tu: TestUtils):
+    module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4),
+                   tu.rand(5, 8, 6))
+@register_test_case(
+    module_factory=lambda: ScatterReduceModule("mean", True))
+def ScatterReduceMeanModuleIncludeSelf(module, tu: TestUtils):
+    module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4),
+                   tu.rand(5, 8, 6))
 
 # ==============================================================================
