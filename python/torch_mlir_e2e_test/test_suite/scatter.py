@@ -833,9 +833,9 @@ class ScatterReduceFloatModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([10, 8, 6], torch.float32, True),
-        ([2, 4, 3], torch.int64, True),
-        ([5, 8, 6], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.int64, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, input, index, src):
         return torch.ops.aten.scatter_reduce(input, 0, index, src, self.reduce_type, include_self=self.include_self)
@@ -906,9 +906,9 @@ class ScatterReduceIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([10, 8, 6], torch.int32, True),
-        ([2, 4, 3], torch.int64, True),
-        ([5, 8, 6], torch.int32, True),
+        ([-1, -1, -1], torch.int32, True),
+        ([-1, -1, -1], torch.int64, True),
+        ([-1, -1, -1], torch.int32, True),
     ])
     def forward(self, input, index, src):
         return torch.ops.aten.scatter_reduce(input, 0, index, src, self.reduce_type, include_self=self.include_self)
