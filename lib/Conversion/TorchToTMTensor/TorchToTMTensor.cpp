@@ -17,6 +17,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/ValueRange.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -88,7 +89,11 @@ static Attribute getNumericLimit(PatternRewriter& rewriter, Type elementType, bo
     }
 }
 
-static std::pair<Value,Value> formatTMTensorScatterOpInputs(PatternRewriter& rewriter, Value self, Value indices, Value src, int64_t dim) {
+// This function will reformat the `index` and `src` from torch operations 
+// like `torch.scatter` or `torch.scatter_reduce` to match the expected 
+// input for the TMScatterOp.
+static std::pair<Value,Value> formatTMTensorScatterOpInputs(
+        PatternRewriter& rewriter, Value self, Value indices, Value src, int64_t dim) {
     // Get information on types for inputs
     RankedTensorType indexType = indices.getType().cast<RankedTensorType>();
     RankedTensorType selfType = self.getType().cast<RankedTensorType>();
@@ -101,50 +106,55 @@ static std::pair<Value,Value> formatTMTensorScatterOpInputs(PatternRewriter& rew
     SmallVector<Value> indexShape = getTensorSizes(rewriter, loc, indices);
     Value cstOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
-    // all the indices slices shapes will be (indexSize, 1)
+    // We flatten the `src` values from (i, j, k, ...) -> (i * j * k * ...)
     SmallVector<Value> indSliceShape({indexSize, cstOne});
     Value indSlice = createZeroInitTensor(rewriter, loc, indSliceShape,
                                           rewriter.getI32Type());
 
-    // updates tensor will be of shape (indexSize).
+    // New output shape will be equal to the product of the dimensions of the updates
     SmallVector<Value> outputs(indexType.getRank(), indSlice);
     outputs.push_back(createZeroInitTensor(rewriter, loc, {indexSize},
                                            selfType.getElementType()));
     SmallVector<Type> outputsType(indexType.getRank(), indSlice.getType());
     outputsType.push_back(outputs[indexType.getRank()].getType());
 
-    // create mapping
+    // Create mapping over flattened iteration space
     SmallVector<AffineExpr> indSliceExpr = {rewriter.getAffineDimExpr(0), rewriter.getAffineConstantExpr(0)};
     SmallVector<AffineMap> mapping(
         indexType.getRank(), AffineMap::get(/*dimCount=*/1, /*symbolCount=*/0,
                                   indSliceExpr, self.getContext()));
-    // mapping for updates
+    // Mapping for updates
     mapping.push_back(rewriter.getDimIdentityMap());
     SmallVector<utils::IteratorType> iteratorTypes({utils::IteratorType::parallel});
 
-    // Need to flatten the scatter argument
-    auto tmTensorScatterInputs = rewriter.create<linalg::GenericOp>(
+    // This function goes over the flattened iteration space of the `indices`
+    // and `src`. It will reconstruct the original induction variables based
+    // on the current flattened index. The flattened iteration space is required
+    // because TMTensorScatterOp expects a list of single element updates.
+    // It
+    auto flattenedUpdates = rewriter.create<linalg::GenericOp>(
             loc, outputsType, ValueRange(), outputs, mapping, iteratorTypes,
             [&](OpBuilder &b, Location loc, ValueRange args) {
             SmallVector<Value> indexValues(indexType.getRank());
-                  // 1D to n-D mapping
                   Value ind = b.create<linalg::IndexOp>(loc, 0);
                   for (int i = indexType.getRank() - 1; i >= 0; i--) {
                     indexValues[i] =
                         b.create<arith::RemSIOp>(loc, ind, indexShape[i]);
                     ind = b.create<arith::DivSIOp>(loc, ind, indexShape[i]);
                   }
-                  // Extract values
+                  // Extract the scatter index and update value
                   Value extractIndexValue =
                       b.create<tensor::ExtractOp>(loc, indices, indexValues);
                   Value extractSrcValue =
-                      b.create<tensor::ExtractOp>(loc, src, indices);
+                      b.create<tensor::ExtractOp>(loc, src, indexValues);
                       SmallVector<Value> yieldVals;
                   for (Value v : indexValues) {
                     Value scalar = castIndexToInt64(b, loc, v);
                     yieldVals.push_back(b.create<arith::TruncIOp>(
                         loc, rewriter.getI32Type(), scalar));
                   }
+                  // Replace the original index with the index specified
+                  // by the scatter.
                   yieldVals[dim] = b.create<arith::TruncIOp>(
                       loc, rewriter.getI32Type(), extractIndexValue);
                   yieldVals.push_back(extractSrcValue);
@@ -158,34 +168,43 @@ static std::pair<Value,Value> formatTMTensorScatterOpInputs(PatternRewriter& rew
       return op.getValue();
     };
 
-    // concat index tensors
-    SmallVector<Value> offsets, strides;
-    strides.resize(2, rewriter.create<arith::ConstantIndexOp>(loc, 1));
-    offsets.resize(2, rewriter.create<arith::ConstantIndexOp>(loc, 0));
-    Value cstIndexRank =
+    // The result of the linalg::Generic operation gives us (rank(`src`) + 1) 1D-tensors 
+    // where each contains a number of elements equal to the total number of 
+    // elements in the `src` tensor. The indices must now be constructed by 
+    // concatanating the first rank(`src`) tensors together. The new `src`
+    // tensor is the last tensor returned from the linalg::Generic operation.
+    SmallVector<Value> offsets = {
+        rewriter.create<arith::ConstantIndexOp>(loc, 0),
+        rewriter.create<arith::ConstantIndexOp>(loc, 0)
+    };
+    SmallVector<Value> strides = {
+        rewriter.create<arith::ConstantIndexOp>(loc, 1),
+        rewriter.create<arith::ConstantIndexOp>(loc, 1)
+    };
+    Value indicesRank =
         rewriter.create<arith::ConstantIndexOp>(loc, indexType.getRank());
     Value flattenedIndices = createZeroInitTensor(
-        rewriter, loc, SmallVector<Value>({indexSize, cstIndexRank}),
+        rewriter, loc, SmallVector<Value>({indexSize, indicesRank}),
         rewriter.getI32Type());
-    SmallVector<Value> scatterInputsVector(tmTensorScatterInputs);
-    for (auto slice : ArrayRef(scatterInputsVector).drop_back()) {
+    SmallVector<Value> scatterInputsVector(flattenedUpdates);
+    for (auto const slice : ArrayRef(scatterInputsVector).drop_back()) {
       SmallVector<Value> sizes = getTensorSizes(rewriter, loc, slice);
       flattenedIndices = rewriter.createOrFold<tensor::InsertSliceOp>(
-          loc, slice, indices,
+          loc, slice, flattenedIndices,
           llvm::to_vector(llvm::map_range(offsets, toOpFoldResult)),
           llvm::to_vector(llvm::map_range(sizes, toOpFoldResult)),
           llvm::to_vector(llvm::map_range(strides, toOpFoldResult)));
+      // Increment offset to insert into next column
       offsets[1] =
           rewriter.createOrFold<arith::AddIOp>(loc, offsets[1], cstOne);
     }
 
-    // Cast to static shapes
+    // `TMTensor::ScatterOp` expects indices of element type i32.
     SmallVector<int64_t> staticShape({ShapedType::kDynamic, indexType.getRank()});
-
     auto staticType = RankedTensorType::get(staticShape, rewriter.getI32Type());
     flattenedIndices = rewriter.create<tensor::CastOp>(loc, staticType, flattenedIndices);
-    Value updates = scatterInputsVector[indexType.getRank()];
-    return std::make_pair(flattenedIndices, updates);
+
+    return std::make_pair(flattenedIndices, scatterInputsVector[indexType.getRank()]);
 }
 
 static Value createTMTensorScatterOp(
@@ -729,13 +748,8 @@ public:
     auto reduceEnum = getReductionEnum(reduceType);
 
     // Get the inputs reformatted for the TMScatterOp
-    auto [indices, updates] = formatTMTensorScatterOpInputs(rewriter, adaptor.getSelf(), adaptor.getIndex(), adaptor.getSrc(), dim);
-
-    // Cast to static shapes
-    SmallVector<int64_t> staticShape({ShapedType::kDynamic, indexType.getRank()});
-
-    auto staticType = RankedTensorType::get(staticShape, rewriter.getI32Type());
-    indices = rewriter.create<tensor::CastOp>(loc, staticType, indices);
+    auto [indices, updates] = formatTMTensorScatterOpInputs(
+            rewriter, adaptor.getSelf(), adaptor.getIndex(), adaptor.getSrc(), dim);
 
     // Value 'counts' will be used to tally the number of reductions into 
     // each unique index. The tally is used to calculate the average of the 
@@ -747,8 +761,10 @@ public:
       Attribute initAttr;
       if (llvm::isa<mlir::FloatType>(srcType.getElementType())) {
         initAttr = rewriter.getFloatAttr(srcType.getElementType(), 1);
-      } else {
+      } else if (llvm::isa<mlir::IntegerType>(srcType.getElementType())) {
         initAttr = rewriter.getIntegerAttr(srcType.getElementType(), 1);
+      } else {
+        llvm_unreachable("Only integer/float types supported!");
       }
       Value initElement = rewriter.create<arith::ConstantOp>(loc, initAttr);
       counts = createInitTensor(rewriter, loc, selfShape,
@@ -769,9 +785,11 @@ public:
         if (llvm::isa<mlir::FloatType>(srcType.getElementType())) {
           normalizationValue = rewriter.create<arith::ConstantOp>(
               loc, rewriter.getFloatAttr(srcType.getElementType(), 1.0));
-        } else {
+        } else if (llvm::isa<mlir::IntegerType>(srcType.getElementType())) {
           normalizationValue = rewriter.create<arith::ConstantOp>(
               loc, rewriter.getIntegerAttr(srcType.getElementType(), 1));
+        } else {
+            llvm_unreachable("Only integer/float types supported!");
         }
       } else if (reduceEnum == torch_upstream::ReductionType::MAX) {
         // Set the values in the input tensor to the smallest element of that type
@@ -784,8 +802,9 @@ public:
       }
 
       // Scatter the normalizations into the input tensor
-      SmallVector<Value> indexSize =
-          getTensorSizes(rewriter, loc, adaptor.getIndex());
+      Value indexSize =
+          getTensorSize(rewriter, loc, adaptor.getIndex());
+      indexSize = castIntToIndex(rewriter, loc, indexSize);
       Value normalizations = createInitTensor(
           rewriter, loc, SmallVector<Value>({indexSize}),
           srcType.getElementType(), /*init_element*/ normalizationValue);
