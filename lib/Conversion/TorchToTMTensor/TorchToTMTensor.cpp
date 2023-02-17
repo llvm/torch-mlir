@@ -73,15 +73,16 @@ static Attribute getNumericLimit(PatternRewriter& rewriter, Type elementType, bo
 
 // This function will reformat the `index` and `src` from torch operations 
 // like `torch.scatter` or `torch.scatter_reduce` to match the expected 
-// input for the TMScatterOp.
-static std::pair<Value,Value> formatTMTensorScatterOpInputs(
-        PatternRewriter& rewriter, Value self, Value indices, Value src, int64_t dim) {
+// input for the TMScatterOp. It will return the reformated `index` and `src`
+// as a pair of mlir::Value that can be used as inputs for the TMScatterOp.
+static std::pair<Value,Value> convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(
+        PatternRewriter& rewriter, Value indices, Value src, int64_t dim) {
     // Get information on types for inputs
     RankedTensorType indexType = indices.getType().cast<RankedTensorType>();
-    RankedTensorType selfType = self.getType().cast<RankedTensorType>();
+    RankedTensorType srcSelf = src.getType().cast<RankedTensorType>();
 
     // Store location for insertions
-    Location loc = self.getLoc();
+    Location loc = src.getLoc();
 
     Value indexSize = getTensorSize(rewriter, loc, indices);
     indexSize = castIntToIndex(rewriter, loc, indexSize);
@@ -96,7 +97,7 @@ static std::pair<Value,Value> formatTMTensorScatterOpInputs(
     // New output shape will be equal to the product of the dimensions of the updates
     SmallVector<Value> outputs(indexType.getRank(), indSlice);
     outputs.push_back(createZeroInitTensor(rewriter, loc, {indexSize},
-                                           selfType.getElementType()));
+                                           srcSelf.getElementType()));
     SmallVector<Type> outputsType(indexType.getRank(), indSlice.getType());
     outputsType.push_back(outputs[indexType.getRank()].getType());
 
@@ -104,7 +105,7 @@ static std::pair<Value,Value> formatTMTensorScatterOpInputs(
     SmallVector<AffineExpr> indSliceExpr = {rewriter.getAffineDimExpr(0), rewriter.getAffineConstantExpr(0)};
     SmallVector<AffineMap> mapping(
         indexType.getRank(), AffineMap::get(/*dimCount=*/1, /*symbolCount=*/0,
-                                  indSliceExpr, self.getContext()));
+                                  indSliceExpr, src.getContext()));
     // Mapping for updates
     mapping.push_back(rewriter.getDimIdentityMap());
     SmallVector<utils::IteratorType> iteratorTypes({utils::IteratorType::parallel});
@@ -724,8 +725,8 @@ public:
     auto reduceEnum = torch_upstream::get_reduction_enum(reduceType);
 
     // Get the inputs reformatted for the TMScatterOp
-    auto [indices, updates] = formatTMTensorScatterOpInputs(
-            rewriter, adaptor.getSelf(), adaptor.getIndex(), adaptor.getSrc(), dim);
+    auto [indices, updates] = convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(
+            rewriter, adaptor.getIndex(), adaptor.getSrc(), dim);
 
     // Value 'counts' will be used to tally the number of reductions into 
     // each unique index. The tally is used to calculate the average of the 
