@@ -586,7 +586,7 @@ class ReduceL1NormModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceL1NormModule())
 def ReduceL1NormModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(3, 4, 5))
+    module.forward(tu.rand(3, 4, 5))
 
 # ==============================================================================
 
@@ -622,7 +622,7 @@ class ReduceL2NormModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceL2NormModule())
 def ReduceL2NormModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(3, 4, 5))
+    module.forward(tu.rand(3, 4, 5))
 
 # ==============================================================================
 
@@ -640,7 +640,7 @@ class ReduceLN3NormModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceLN3NormModule())
 def ReduceLN3NormModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(3, 4, 5))
+    module.forward(tu.rand(3, 4, 5))
 
 # ==============================================================================
 
@@ -658,7 +658,7 @@ class ReduceL3NormAllDimsModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceL3NormAllDimsModule())
 def ReduceL3NormAllDimsModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(3, 4, 5))
+    module.forward(tu.rand(3, 4, 5))
 
 # ==============================================================================
 
@@ -676,7 +676,7 @@ class ReduceL3NormKeepDimModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceL3NormKeepDimModule())
 def ReduceL3NormKeepDimModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(3, 4, 5))
+    module.forward(tu.rand(3, 4, 5))
 
 # ==============================================================================
 class ReduceFrobeniusNormModule(torch.nn.Module):
@@ -693,7 +693,7 @@ class ReduceFrobeniusNormModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceFrobeniusNormModule())
 def ReduceFrobeniusNormModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(3, 4, 5))
+    module.forward(tu.rand(3, 4, 5))
 
 # ==============================================================================
 class ReduceFrobeniusNormKeepDimModule(torch.nn.Module):
@@ -710,7 +710,7 @@ class ReduceFrobeniusNormKeepDimModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceFrobeniusNormKeepDimModule())
 def ReduceFrobeniusNormKeepDimModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(3, 4, 5))
+    module.forward(tu.rand(3, 4, 5))
 
 # ==============================================================================
 

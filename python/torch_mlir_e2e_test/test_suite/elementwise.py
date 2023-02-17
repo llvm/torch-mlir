@@ -152,7 +152,7 @@ class ElementwiseAtenWhereSelfModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseAtenWhereSelfModule())
 def ElementwiseAtenWhereSelfModule_basic(module, tu: TestUtils):
-    module.forward(torch.zeros(1, 1, 5, 5, dtype=torch.bool), torch.rand(1, 12, 5, 5), torch.rand(()))
+    module.forward(torch.zeros(1, 1, 5, 5, dtype=torch.bool), tu.rand(1, 12, 5, 5), tu.rand())
 
 
 # ==============================================================================
@@ -1500,7 +1500,7 @@ class ElementwiseRemainderScalarModule_Float(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Float())
 def ElementwiseRemainderScalarModule_Float_basic(module, tu: TestUtils):
-    module.forward(torch.rand(10, 3))
+    module.forward(tu.rand(10, 3))
 
 
 # ==============================================================================
@@ -2313,7 +2313,7 @@ class ElementwiseAtenLogicalOrOpRandomFloatModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpRandomFloatModule())
 def ElementwiseAtenLogicalOrOpRandomFloatModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(2, 3, 3, 5), torch.rand(2, 3, 3, 5))
+    module.forward(tu.rand(2, 3, 3, 5), tu.rand(2, 3, 3, 5))
 
 # ==============================================================================
 
@@ -2729,7 +2729,7 @@ class Fill_TensorFloat64WithFloat32(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Fill_TensorFloat64WithFloat32())
 def Fill_TensorFloat64WithFloat32_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 2, 4))
+    module.forward(tu.rand(3, 2, 4))
 
 
 class Fill_TensorFloat64WithFloat64(torch.nn.Module):
@@ -2748,7 +2748,7 @@ class Fill_TensorFloat64WithFloat64(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Fill_TensorFloat64WithFloat64())
 def Fill_TensorFloat64WithFloat64_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 2, 4).to(torch.float64))
+    module.forward(tu.rand(3, 2, 4).to(torch.float64))
 
 
 class Fill_TensorFloat64WithInt64(torch.nn.Module):
@@ -2767,7 +2767,7 @@ class Fill_TensorFloat64WithInt64(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Fill_TensorFloat64WithInt64())
 def Fill_TensorFloat64WithInt64_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 2, 4).to(torch.float64))
+    module.forward(tu.rand(3, 2, 4).to(torch.float64))
 
 
 # ==============================================================================

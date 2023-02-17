@@ -728,7 +728,7 @@ class AddSizeIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AddSizeIntModule())
 def AddSizeIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 3))
+    module.forward(tu.rand(3, 3))
 
 
 # ==============================================================================
@@ -753,7 +753,7 @@ class AddSizeIntNegDimModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AddSizeIntNegDimModule())
 def AddSizeIntNegDimModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 3))
+    module.forward(tu.rand(3, 3))
 
 
 # ==============================================================================
@@ -904,7 +904,7 @@ class SoftmaxIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: SoftmaxIntModule())
 def SoftmaxIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 2, 4))
+    module.forward(tu.rand(3, 2, 4))
 
 
 # ==============================================================================
@@ -926,7 +926,7 @@ class _SoftmaxModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: _SoftmaxModule())
 def _SoftmaxModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 2, 4))
+    module.forward(tu.rand(3, 2, 4))
 
 
 # ==============================================================================
@@ -950,7 +950,7 @@ class SoftmaxIntNegDimModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: SoftmaxIntNegDimModule())
 def SoftmaxIntNegDimModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 2, 4))
+    module.forward(tu.rand(3, 2, 4))
 
 
 # ==============================================================================
@@ -974,7 +974,7 @@ class SoftmaxIntArgTypeF64Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: SoftmaxIntArgTypeF64Module())
 def SoftmaxIntArgTypeF64Module_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 2, 4).double())
+    module.forward(tu.rand(3, 2, 4).double())
 
 
 # ==============================================================================
@@ -996,7 +996,7 @@ class _LogSoftmaxModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: _LogSoftmaxModule())
 def _LogSoftmaxModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 2, 4))
+    module.forward(tu.rand(3, 2, 4))
 
 
 # ==============================================================================
@@ -1265,7 +1265,7 @@ class LogSoftmaxIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: LogSoftmaxIntModule())
 def LogSoftmaxIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 2, 4).double())
+    module.forward(tu.rand(3, 2, 4).double())
 
 
 # ==============================================================================
@@ -3031,7 +3031,7 @@ class AtenEmbeddingBagSumExample(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AtenEmbeddingBagSumExample())
 def AtenEmbeddingBagSumExample_basic(module, tu: TestUtils):
-    weight  = torch.rand(100, 10)
+    weight  = tu.rand(100, 10)
     indices = torch.LongTensor([0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
     offsets = torch.LongTensor([0, 3, 5, 7, 9, 10, 15])
     module.forward(weight, indices, offsets)
@@ -3053,7 +3053,7 @@ class Aten_EmbeddingBagExample(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Aten_EmbeddingBagExample())
 def Aten_EmbeddingBagExample_basic(module, tu: TestUtils):
-    weight  = torch.rand(100, 10)
+    weight  = tu.rand(100, 10)
     indices = torch.LongTensor([0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
     offsets = torch.LongTensor([0, 3, 5, 7, 9, 10, 15])
     module.forward(weight, indices, offsets)
@@ -3128,7 +3128,7 @@ class AtenToDeviceModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AtenToDeviceModule())
 def AtenToDeviceModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(2, 4))
+    module.forward(tu.rand(2, 4))
 
 # ==============================================================================
 

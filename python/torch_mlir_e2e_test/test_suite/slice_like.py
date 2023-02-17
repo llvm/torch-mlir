@@ -384,7 +384,7 @@ class SelectScatterModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: SelectScatterModule())
 def SelectScattertModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(6, 8, 5), torch.rand(8, 5))
+    module.forward(tu.rand(6, 8, 5), tu.rand(8, 5))
 
 class SelectScatterStaticModule(torch.nn.Module):
     def __init__(self):
@@ -402,7 +402,7 @@ class SelectScatterStaticModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: SelectScatterStaticModule())
 def SelectScattertStaticModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(6, 8, 5), torch.rand(6, 5))
+    module.forward(tu.rand(6, 8, 5), tu.rand(6, 5))
 
 # ==============================================================================
 

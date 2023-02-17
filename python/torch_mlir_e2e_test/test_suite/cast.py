@@ -64,7 +64,7 @@ class TensorToFloatZeroRank(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: TensorToFloatZeroRank())
 def TensorToFloatZeroRank_basic(module, tu: TestUtils):
-    module.forward(torch.rand((), dtype=torch.float64))
+    module.forward(tu.rand().to(torch.float64))
 
 # ==============================================================================
 
@@ -83,7 +83,7 @@ class TensorToFloat(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: TensorToFloat())
 def TensorToFloat_basic(module, tu: TestUtils):
-    module.forward(torch.rand((1, 1), dtype=torch.float64))
+    module.forward(tu.rand(1, 1).to(torch.float64))
 
 # ==============================================================================
 
