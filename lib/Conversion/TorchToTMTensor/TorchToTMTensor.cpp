@@ -113,7 +113,6 @@ static std::pair<Value,Value> formatTMTensorScatterOpInputs(
     // and `src`. It will reconstruct the original induction variables based
     // on the current flattened index. The flattened iteration space is required
     // because TMTensorScatterOp expects a list of single element updates.
-    // It
     auto flattenedUpdates = rewriter.create<linalg::GenericOp>(
             loc, outputsType, ValueRange(), outputs, mapping, iteratorTypes,
             [&](OpBuilder &b, Location loc, ValueRange args) {
