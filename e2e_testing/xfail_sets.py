@@ -136,6 +136,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseClampModule_basic",
     "ElementwiseClampMinModule_basic",
     "ElementwiseClampMaxModule_basic",
+    "ElementwisePowModule_basic",
     "ElementwiseExpModule_basic",
     "ElementwiseFlattenBroadcastModule_basic",
     "ElementwiseLeakyReluModule_basic",
