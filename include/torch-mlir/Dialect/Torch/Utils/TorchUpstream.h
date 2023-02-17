@@ -160,6 +160,13 @@ enum Layout { Strided, Sparse, SparseCsr, Mkldnn, NumOptions };
 //===-----------------------------------------------------------------------===//
 enum EmbeddingBagMode { MODE_SUM, MODE_MEAN, MODE_MAX };
 
+//===----------------------------------------------------------------------===//
+// Possible value for `reduce` argument for Scatter reduce ops.
+// Source:
+// https://github.com/llvm/torch-mlir/blob/main/include/torch-mlir/Dialect/Torch/Utils/TorchUpstream.h
+//===-----------------------------------------------------------------------===//
+enum ReductionType {MAX, MEAN, MIN, SUM, PROD};
+
 } // namespace torch_upstream
 } // namespace torch
 } // namespace mlir

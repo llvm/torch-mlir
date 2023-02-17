@@ -28,6 +28,7 @@
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/Support/ErrorHandling.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -54,6 +55,22 @@ using namespace mlir::torch::TMTensor;
 // that these patterns become mostly mechanical associations of
 // "aten.foo -> linalg.foo".
 
+static inline torch_upstream::ReductionType getReductionEnum(std::string& reduce) {
+  if (reduce == "max" || reduce == "amax") {
+    return torch_upstream::ReductionType::MAX;
+  } else if (reduce == "mean") {
+    return torch_upstream::ReductionType::MEAN;
+  } else if (reduce == "min" || reduce == "amin") {
+    return torch_upstream::ReductionType::MIN;
+  } else if (reduce == "sum") {
+    return torch_upstream::ReductionType::SUM;
+  } else if (reduce == "prod") {
+    return torch_upstream::ReductionType::PROD;
+  } else {
+    llvm_unreachable("reduce argument must be either sum, prod, mean, amax or amin");
+  }
+}
+
 static Attribute getNumericLimit(PatternRewriter& rewriter, Type elementType, bool getMin = true) {
     auto bitWidth = elementType.getIntOrFloatBitWidth();
     if (llvm::isa<mlir::IntegerType>(elementType)) {
@@ -68,6 +85,7 @@ static Attribute getNumericLimit(PatternRewriter& rewriter, Type elementType, bo
       llvm_unreachable("Only float/integer types are supported!");
     }
 }
+
 static Value createTMTensorScatterOp(
     OpBuilder &b, Location loc, Value updates, Value indices, Value original,
     bool uniqueIndices,
@@ -696,9 +714,10 @@ public:
     indices = rewriter.create<tensor::CastOp>(loc, staticType, indices);
 
     Value updates = scatterInputsVector[indexType.getRank()];
+    auto reduceEnum = getReductionEnum(reduceType);
 
     Value counts = nullptr;
-    if (reduceType == "mean") {
+    if (reduceEnum == torch_upstream::ReductionType::MEAN) {
         SmallVector<Value> selfShape = getTensorSizes(rewriter, loc, adaptor.getSelf());
         Attribute initAttr;
         if (llvm::isa<mlir::FloatType>(srcType.getElementType())) {
@@ -710,16 +729,15 @@ public:
         counts = createInitTensor(rewriter, loc, selfShape,
                                   selfType.getElementType(), initElement);
     }
-
     // If the original values shouldn't be included, normalize the 
     // input tensor where the scatters take place.
     if (!includeSelf) {
       Value normalizationValue;
-      if (reduceType == "sum" || reduceType == "mean") {
+      if (reduceEnum == torch_upstream::ReductionType::SUM || reduceEnum == torch_upstream::ReductionType::MEAN) {
         // Set the values in the input tensor to '0' so they are not included
         normalizationValue = rewriter.create<arith::ConstantOp>(
             loc, rewriter.getZeroAttr(srcType.getElementType()));
-      } else if (reduceType == "prod") {
+      } else if (reduceEnum == torch_upstream::ReductionType::PROD) {
         // Set the values in the input tensor to '1' (multiplication identity)
         if (llvm::isa<mlir::FloatType>(srcType.getElementType())) {
           normalizationValue = rewriter.create<arith::ConstantOp>(
@@ -728,11 +746,11 @@ public:
           normalizationValue = rewriter.create<arith::ConstantOp>(
               loc, rewriter.getIntegerAttr(srcType.getElementType(), 1));
         }
-      } else if (reduceType == "amax") {
+      } else if (reduceEnum == torch_upstream::ReductionType::MAX) {
         // Set the values in the input tensor to the smallest element of that type
         auto minAttr = getNumericLimit(rewriter, srcType.getElementType(), /*getMin=*/true);
         normalizationValue = rewriter.create<arith::ConstantOp>(loc, minAttr);
-      } else if (reduceType == "amin") {
+      } else if (reduceEnum == torch_upstream::ReductionType::MIN) {
         // Set the values in the input tensor to the largest element of that type
         auto maxAttr = getNumericLimit(rewriter, srcType.getElementType(), /*getMin=*/false);
         normalizationValue = rewriter.create<arith::ConstantOp>(loc, maxAttr);
@@ -746,7 +764,7 @@ public:
           [&](OpBuilder &b, Location loc, Value update, Value current) {
             b.create<TMTensor::YieldOp>(loc, update);
       });
-      if (reduceType == "mean") {
+      if (reduceEnum == torch_upstream::ReductionType::MEAN) {
           counts = createTMTensorScatterOp(
               rewriter, loc, normalizations, indices, counts,
               /*uniqueIndices=*/false,
@@ -762,36 +780,44 @@ public:
         /*uniqueIndices=*/false,
         [&](OpBuilder &b, Location loc, Value update, Value current) {
           Value result;
-          if (reduceType == "sum" || reduceType == "mean") {
+          if (reduceEnum == torch_upstream::ReductionType::SUM || reduceEnum == torch_upstream::ReductionType::MEAN) {
             if (update.getType().isa<mlir::IntegerType>()) {
               result = b.create<arith::AddIOp>(loc, update, current);
-            } else {
+            } else if (update.getType().isa<mlir::FloatType>()) {
               result = b.create<arith::AddFOp>(loc, update, current);
+            } else {
+                llvm_unreachable("Only integer/float types supported!");
             }
-          } else if (reduceType == "prod") {
+          } else if (reduceEnum == torch_upstream::ReductionType::PROD) {
             if (update.getType().isa<mlir::IntegerType>()) {
               result = b.create<arith::MulIOp>(loc, update, current);
-            } else {
+            } else if (update.getType().isa<mlir::FloatType>()) {
               result = b.create<arith::MulFOp>(loc, update, current);
+            } else {
+                llvm_unreachable("Only integer/float types supported!");
             }
-          } else if (reduceType == "amax") {
+          } else if (reduceEnum == torch_upstream::ReductionType::MAX) {
             if (update.getType().isa<mlir::IntegerType>()) {
               result = b.create<arith::MaxSIOp>(loc, update, current);
-            } else {
+            } else if (update.getType().isa<mlir::FloatType>()) {
               result = b.create<arith::MaxFOp>(loc, update, current);
+            } else {
+                llvm_unreachable("Only integer/float types supported!");
             }
-          } else if (reduceType == "amin") {
+          } else if (reduceEnum == torch_upstream::ReductionType::MIN) {
             if (update.getType().isa<mlir::IntegerType>()) {
               result = b.create<arith::MinSIOp>(loc, update, current);
-            } else {
+            } else if (update.getType().isa<mlir::FloatType>()) {
               result = b.create<arith::MinFOp>(loc, update, current);
+            } else {
+                llvm_unreachable("Only integer/float types supported!");
             }
           }
           b.create<TMTensor::YieldOp>(loc, result);
     });
 
     // Special case for the mean
-    if (reduceType == "mean") {
+    if (reduceEnum == torch_upstream::ReductionType::MEAN) {
         counts = createTMTensorScatterOp(
             rewriter, loc, updates, indices, counts,
          /*uniqueIndices=*/false,
@@ -803,6 +829,8 @@ public:
             } else if (mlir::FloatType floatType = llvm::dyn_cast<mlir::FloatType>(current.getType())) {
               Value constantUpdate = b.create<arith::ConstantOp>(loc, b.getFloatAttr(floatType, 1.0));
               result = b.create<arith::AddFOp>(loc, constantUpdate, current);
+            } else {
+              llvm_unreachable("Only integer/float types supported!");
             }
           b.create<TMTensor::YieldOp>(loc, result);
         });
@@ -817,8 +845,10 @@ public:
                 Value result;
                 if (llvm::isa<mlir::IntegerType>(args[0].getType())) {
                     result = b.create<arith::DivSIOp>(loc, args[0], args[1]);
-                } else {
+                } else if (llvm::isa<mlir::FloatType>(args[0].getType())) {
                     result = b.create<arith::DivFOp>(loc, args[0], args[1]);
+                } else {
+                    llvm_unreachable("Only integer/float types supported!");
                 }
                 b.create<linalg::YieldOp>(loc, result);
             }).getResult()[0];
