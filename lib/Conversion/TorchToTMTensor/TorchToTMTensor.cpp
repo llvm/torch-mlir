@@ -55,7 +55,8 @@ using namespace mlir::torch::TMTensor;
 // that these patterns become mostly mechanical associations of
 // "aten.foo -> linalg.foo".
 
-static inline torch_upstream::ReductionType getReductionEnum(std::string& reduce) {
+static inline torch_upstream::ReductionType
+getReductionEnum(std::string &reduce) {
   if (reduce == "max" || reduce == "amax") {
     return torch_upstream::ReductionType::MAX;
   } else if (reduce == "mean") {
@@ -67,7 +68,8 @@ static inline torch_upstream::ReductionType getReductionEnum(std::string& reduce
   } else if (reduce == "prod") {
     return torch_upstream::ReductionType::PROD;
   } else {
-    llvm_unreachable("reduce argument must be either sum, prod, mean, amax or amin");
+    llvm_unreachable(
+        "reduce argument must be either sum, prod, mean, amax or amin");
   }
 }
 
@@ -718,22 +720,24 @@ public:
 
     Value counts = nullptr;
     if (reduceEnum == torch_upstream::ReductionType::MEAN) {
-        SmallVector<Value> selfShape = getTensorSizes(rewriter, loc, adaptor.getSelf());
-        Attribute initAttr;
-        if (llvm::isa<mlir::FloatType>(srcType.getElementType())) {
-            initAttr = rewriter.getFloatAttr(srcType.getElementType(), 1);
-        } else {
-            initAttr = rewriter.getIntegerAttr(srcType.getElementType(), 1);
-        }
-        Value initElement = rewriter.create<arith::ConstantOp>(loc, initAttr);
-        counts = createInitTensor(rewriter, loc, selfShape,
-                                  selfType.getElementType(), initElement);
+      SmallVector<Value> selfShape =
+          getTensorSizes(rewriter, loc, adaptor.getSelf());
+      Attribute initAttr;
+      if (llvm::isa<mlir::FloatType>(srcType.getElementType())) {
+        initAttr = rewriter.getFloatAttr(srcType.getElementType(), 1);
+      } else {
+        initAttr = rewriter.getIntegerAttr(srcType.getElementType(), 1);
+      }
+      Value initElement = rewriter.create<arith::ConstantOp>(loc, initAttr);
+      counts = createInitTensor(rewriter, loc, selfShape,
+                                selfType.getElementType(), initElement);
     }
     // If the original values shouldn't be included, normalize the 
     // input tensor where the scatters take place.
     if (!includeSelf) {
       Value normalizationValue;
-      if (reduceEnum == torch_upstream::ReductionType::SUM || reduceEnum == torch_upstream::ReductionType::MEAN) {
+      if (reduceEnum == torch_upstream::ReductionType::SUM ||
+          reduceEnum == torch_upstream::ReductionType::MEAN) {
         // Set the values in the input tensor to '0' so they are not included
         normalizationValue = rewriter.create<arith::ConstantOp>(
             loc, rewriter.getZeroAttr(srcType.getElementType()));
@@ -765,12 +769,12 @@ public:
             b.create<TMTensor::YieldOp>(loc, update);
       });
       if (reduceEnum == torch_upstream::ReductionType::MEAN) {
-          counts = createTMTensorScatterOp(
-              rewriter, loc, normalizations, indices, counts,
-              /*uniqueIndices=*/false,
-              [&](OpBuilder &b, Location loc, Value update, Value current) {
-                b.create<TMTensor::YieldOp>(loc, update);
-              });
+        counts = createTMTensorScatterOp(
+            rewriter, loc, normalizations, indices, counts,
+            /*uniqueIndices=*/false,
+            [&](OpBuilder &b, Location loc, Value update, Value current) {
+              b.create<TMTensor::YieldOp>(loc, update);
+            });
       }
     }
 
@@ -780,13 +784,14 @@ public:
         /*uniqueIndices=*/false,
         [&](OpBuilder &b, Location loc, Value update, Value current) {
           Value result;
-          if (reduceEnum == torch_upstream::ReductionType::SUM || reduceEnum == torch_upstream::ReductionType::MEAN) {
+          if (reduceEnum == torch_upstream::ReductionType::SUM ||
+              reduceEnum == torch_upstream::ReductionType::MEAN) {
             if (update.getType().isa<mlir::IntegerType>()) {
               result = b.create<arith::AddIOp>(loc, update, current);
             } else if (update.getType().isa<mlir::FloatType>()) {
               result = b.create<arith::AddFOp>(loc, update, current);
             } else {
-                llvm_unreachable("Only integer/float types supported!");
+              llvm_unreachable("Only integer/float types supported!");
             }
           } else if (reduceEnum == torch_upstream::ReductionType::PROD) {
             if (update.getType().isa<mlir::IntegerType>()) {
@@ -794,7 +799,7 @@ public:
             } else if (update.getType().isa<mlir::FloatType>()) {
               result = b.create<arith::MulFOp>(loc, update, current);
             } else {
-                llvm_unreachable("Only integer/float types supported!");
+              llvm_unreachable("Only integer/float types supported!");
             }
           } else if (reduceEnum == torch_upstream::ReductionType::MAX) {
             if (update.getType().isa<mlir::IntegerType>()) {
@@ -802,7 +807,7 @@ public:
             } else if (update.getType().isa<mlir::FloatType>()) {
               result = b.create<arith::MaxFOp>(loc, update, current);
             } else {
-                llvm_unreachable("Only integer/float types supported!");
+              llvm_unreachable("Only integer/float types supported!");
             }
           } else if (reduceEnum == torch_upstream::ReductionType::MIN) {
             if (update.getType().isa<mlir::IntegerType>()) {
@@ -810,7 +815,7 @@ public:
             } else if (update.getType().isa<mlir::FloatType>()) {
               result = b.create<arith::MinFOp>(loc, update, current);
             } else {
-                llvm_unreachable("Only integer/float types supported!");
+              llvm_unreachable("Only integer/float types supported!");
             }
           }
           b.create<TMTensor::YieldOp>(loc, result);
@@ -818,10 +823,10 @@ public:
 
     // Special case for the mean
     if (reduceEnum == torch_upstream::ReductionType::MEAN) {
-        counts = createTMTensorScatterOp(
-            rewriter, loc, updates, indices, counts,
-         /*uniqueIndices=*/false,
-        [&](OpBuilder &b, Location loc, Value update, Value current) {
+      counts = createTMTensorScatterOp(
+          rewriter, loc, updates, indices, counts,
+          /*uniqueIndices=*/false,
+          [&](OpBuilder &b, Location loc, Value update, Value current) {
             Value result;
             if (mlir::IntegerType intType = llvm::dyn_cast<mlir::IntegerType>(current.getType())) {
               Value constantUpdate = b.create<arith::ConstantOp>(loc, b.getIntegerAttr(intType, 1));
@@ -832,26 +837,30 @@ public:
             } else {
               llvm_unreachable("Only integer/float types supported!");
             }
-          b.create<TMTensor::YieldOp>(loc, result);
-        });
-        
-        Value output = rewriter.create<tensor::EmptyOp>(
-                loc, tensor::getMixedSizes(rewriter, loc, self),
-                selfType.getElementType());
+            b.create<TMTensor::YieldOp>(loc, result);
+          });
 
-        // Finally divide the result
-        scatterOp = rewriter.create<linalg::MapOp>(loc, ValueRange{scatterOp, counts}, output,
-            [&](OpBuilder& b, Location loc, ValueRange args) {
-                Value result;
-                if (llvm::isa<mlir::IntegerType>(args[0].getType())) {
-                    result = b.create<arith::DivSIOp>(loc, args[0], args[1]);
-                } else if (llvm::isa<mlir::FloatType>(args[0].getType())) {
-                    result = b.create<arith::DivFOp>(loc, args[0], args[1]);
-                } else {
-                    llvm_unreachable("Only integer/float types supported!");
-                }
-                b.create<linalg::YieldOp>(loc, result);
-            }).getResult()[0];
+      Value output = rewriter.create<tensor::EmptyOp>(
+          loc, tensor::getMixedSizes(rewriter, loc, self),
+          selfType.getElementType());
+
+      // Finally divide the result
+      scatterOp =
+          rewriter
+              .create<linalg::MapOp>(
+                  loc, ValueRange{scatterOp, counts}, output,
+                  [&](OpBuilder &b, Location loc, ValueRange args) {
+                    Value result;
+                    if (llvm::isa<mlir::IntegerType>(args[0].getType())) {
+                      result = b.create<arith::DivSIOp>(loc, args[0], args[1]);
+                    } else if (llvm::isa<mlir::FloatType>(args[0].getType())) {
+                      result = b.create<arith::DivFOp>(loc, args[0], args[1]);
+                    } else {
+                      llvm_unreachable("Only integer/float types supported!");
+                    }
+                    b.create<linalg::YieldOp>(loc, result);
+                  })
+              .getResult()[0];
     }
     auto resultType = getTypeConverter()->convertType(op->getResult(0).getType())
                           .cast<RankedTensorType>();
