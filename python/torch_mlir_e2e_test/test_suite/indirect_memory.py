@@ -11,7 +11,7 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
-class ScatterReduceModule(torch.nn.Module):
+class ScatterReduceFloatModule(torch.nn.Module):
     include_self: bool
     reduce_type: str
 
@@ -32,53 +32,53 @@ class ScatterReduceModule(torch.nn.Module):
 
 
 @register_test_case(
-    module_factory=lambda: ScatterReduceModule("sum", False))
-def ScatterReduceSumModule(module, tu: TestUtils):
+    module_factory=lambda: ScatterReduceFloatModule("sum", False))
+def ScatterReduceFloatSumModule(module, tu: TestUtils):
     module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4),
                    tu.rand(5, 8, 6))
 @register_test_case(
-    module_factory=lambda: ScatterReduceModule("sum", True))
-def ScatterReduceSumModuleIncludeSelf(module, tu: TestUtils):
+    module_factory=lambda: ScatterReduceFloatModule("sum", True))
+def ScatterReduceFloatSumModuleIncludeSelf(module, tu: TestUtils):
     module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4),
                    tu.rand(5, 8, 6))
 @register_test_case(
-    module_factory=lambda: ScatterReduceModule("prod", False))
-def ScatterReduceProdModule(module, tu: TestUtils):
+    module_factory=lambda: ScatterReduceFloatModule("prod", False))
+def ScatterReduceFloatProdModule(module, tu: TestUtils):
     module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4),
                    tu.rand(5, 8, 6))
 @register_test_case(
-    module_factory=lambda: ScatterReduceModule("prod", True))
-def ScatterReduceProdModuleIncludeSelf(module, tu: TestUtils):
+    module_factory=lambda: ScatterReduceFloatModule("prod", True))
+def ScatterReduceFloatProdModuleIncludeSelf(module, tu: TestUtils):
     module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4),
                    tu.rand(5, 8, 6))
 @register_test_case(
-    module_factory=lambda: ScatterReduceModule("amax", False))
-def ScatterReduceMaxModule(module, tu: TestUtils):
+    module_factory=lambda: ScatterReduceFloatModule("amax", False))
+def ScatterReduceFloatMaxModule(module, tu: TestUtils):
     module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4),
                    tu.rand(5, 8, 6))
 @register_test_case(
-    module_factory=lambda: ScatterReduceModule("amax", True))
-def ScatterReduceMaxModuleIncludeSelf(module, tu: TestUtils):
+    module_factory=lambda: ScatterReduceFloatModule("amax", True))
+def ScatterReduceFloatMaxModuleIncludeSelf(module, tu: TestUtils):
     module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4),
                    tu.rand(5, 8, 6))
 @register_test_case(
-    module_factory=lambda: ScatterReduceModule("amin", False))
-def ScatterReduceMinModule(module, tu: TestUtils):
+    module_factory=lambda: ScatterReduceFloatModule("amin", False))
+def ScatterReduceFloatMinModule(module, tu: TestUtils):
     module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4),
                    tu.rand(5, 8, 6))
 @register_test_case(
-    module_factory=lambda: ScatterReduceModule("amin", True))
-def ScatterReduceMinModuleIncludeSelf(module, tu: TestUtils):
+    module_factory=lambda: ScatterReduceFloatModule("amin", True))
+def ScatterReduceFloatMinModuleIncludeSelf(module, tu: TestUtils):
     module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4),
                    tu.rand(5, 8, 6))
 @register_test_case(
-    module_factory=lambda: ScatterReduceModule("mean", False))
-def ScatterReduceMeanModule(module, tu: TestUtils):
+    module_factory=lambda: ScatterReduceFloatModule("mean", False))
+def ScatterReduceFloatMeanModule(module, tu: TestUtils):
     module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4),
                    tu.rand(5, 8, 6))
 @register_test_case(
-    module_factory=lambda: ScatterReduceModule("mean", True))
-def ScatterReduceMeanModuleIncludeSelf(module, tu: TestUtils):
+    module_factory=lambda: ScatterReduceFloatModule("mean", True))
+def ScatterReduceFloatMeanModuleIncludeSelf(module, tu: TestUtils):
     module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4),
                    tu.rand(5, 8, 6))
 
