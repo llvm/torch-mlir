@@ -56,24 +56,6 @@ using namespace mlir::torch::TMTensor;
 // that these patterns become mostly mechanical associations of
 // "aten.foo -> linalg.foo".
 
-static inline torch_upstream::ReductionType
-getReductionEnum(std::string &reduce) {
-  if (reduce == "max" || reduce == "amax") {
-    return torch_upstream::ReductionType::MAX;
-  } else if (reduce == "mean") {
-    return torch_upstream::ReductionType::MEAN;
-  } else if (reduce == "min" || reduce == "amin") {
-    return torch_upstream::ReductionType::MIN;
-  } else if (reduce == "sum") {
-    return torch_upstream::ReductionType::SUM;
-  } else if (reduce == "prod") {
-    return torch_upstream::ReductionType::PROD;
-  } else {
-    llvm_unreachable(
-        "'reduce' argument must be either sum, prod, mean, amax or amin");
-  }
-}
-
 static Attribute getNumericLimit(PatternRewriter& rewriter, Type elementType, bool getMin = true) {
     auto bitWidth = elementType.getIntOrFloatBitWidth();
     if (llvm::isa<mlir::IntegerType>(elementType)) {
@@ -198,11 +180,6 @@ static std::pair<Value,Value> formatTMTensorScatterOpInputs(
       offsets[1] =
           rewriter.createOrFold<arith::AddIOp>(loc, offsets[1], cstOne);
     }
-
-    // `TMTensor::ScatterOp` expects indices of element type i32.
-    SmallVector<int64_t> staticShape({ShapedType::kDynamic, indexType.getRank()});
-    auto staticType = RankedTensorType::get(staticShape, rewriter.getI32Type());
-    flattenedIndices = rewriter.create<tensor::CastOp>(loc, staticType, flattenedIndices);
 
     return std::make_pair(flattenedIndices, scatterInputsVector[indexType.getRank()]);
 }
@@ -745,7 +722,7 @@ public:
                                            "'include_self' is not constant");
 
     // Get reduce string as the equivalent enum
-    auto reduceEnum = getReductionEnum(reduceType);
+    auto reduceEnum = torch_upstream::get_reduction_enum(reduceType);
 
     // Get the inputs reformatted for the TMScatterOp
     auto [indices, updates] = formatTMTensorScatterOpInputs(
