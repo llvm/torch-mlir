@@ -597,9 +597,8 @@ public:
     if (!matchPattern(op.getReduce(), m_TorchConstantStr(reduceType)))
         return rewriter.notifyMatchFailure(op, "'reduce' must be a costant string");
 
-    Value dimValue = op.getDim();
     int64_t dim;
-    if (!matchPattern(dimValue, m_TorchConstantInt(&dim)))
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
         return rewriter.notifyMatchFailure(op, "'dim' is not constant");
 
     bool includeSelf;
@@ -698,7 +697,6 @@ public:
 
     Value updates = scatterInputsVector[indexType.getRank()];
 
-    // @TODO: Create special count tensor to calculate the 'mean'
     Value counts = nullptr;
     if (reduceType == "mean") {
         SmallVector<Value> selfShape = getTensorSizes(rewriter, loc, adaptor.getSelf());
