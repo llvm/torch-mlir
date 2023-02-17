@@ -784,7 +784,7 @@ public:
       indexSize = castIntToIndex(rewriter, loc, indexSize);
       Value normalizations = createInitTensor(
           rewriter, loc, SmallVector<Value>({indexSize}),
-          srcType.getElementType(), /*init_element*/ normalizationValue);
+          srcType.getElementType(), /*init_element=*/ normalizationValue);
       self = createTMTensorScatterOp(
           rewriter, loc, normalizations, indices, self,
           /*uniqueIndices=*/false,
