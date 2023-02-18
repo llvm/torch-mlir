@@ -672,16 +672,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
-  // Take dtype from second operand.
-  if (isa<AtenNllLossBackwardOp, AtenMaxPool2dWithIndicesBackwardOp>(op)) {
-    auto self = operands[1]->getValue();
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = self.dtype;
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
   // Dtype is always si64.
   if (isa<AtenBincountOp>(op)) {
     auto knowledge =
