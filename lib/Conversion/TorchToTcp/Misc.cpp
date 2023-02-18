@@ -31,7 +31,6 @@ namespace {
 class ConvertAtenBroadcastToOp : public OpConversionPattern<AtenBroadcastToOp> {
 public:
   using OpConversionPattern<AtenBroadcastToOp>::OpConversionPattern;
-  using OpAdaptor = typename AtenBroadcastToOp::Adaptor;
 
   LogicalResult
   matchAndRewrite(AtenBroadcastToOp op, OpAdaptor adaptor,
@@ -69,7 +68,7 @@ public:
     RankedTensorType resultType =
         OpConversionPattern<AtenBroadcastToOp>::getTypeConverter()
             ->convertType(op->getResult(0).getType())
-            .template cast<RankedTensorType>();
+            .cast<RankedTensorType>();
 
     auto axesAttr = rewriter.getI64ArrayAttr(axes);
     rewriter.replaceOpWithNewOp<tcp::BroadcastOp>(op, resultType, input,
@@ -78,10 +77,10 @@ public:
   }
 };
 
-class ConvertValueTensorLiteralOp : public OpConversionPattern<ValueTensorLiteralOp> {
+class ConvertValueTensorLiteralOp
+    : public OpConversionPattern<ValueTensorLiteralOp> {
 public:
   using OpConversionPattern<ValueTensorLiteralOp>::OpConversionPattern;
-  using OpAdaptor = typename ValueTensorLiteralOp::Adaptor;
 
   LogicalResult
   matchAndRewrite(ValueTensorLiteralOp op, OpAdaptor adaptor,
@@ -89,18 +88,15 @@ public:
     RankedTensorType resultType =
         OpConversionPattern<ValueTensorLiteralOp>::getTypeConverter()
             ->convertType(op.getType())
-            .template cast<RankedTensorType>();
+            .cast<RankedTensorType>();
 
     // TODO: Implement integer constant lowering to tcp::ConstOp
-    if (auto elements = op.getValueAttr().dyn_cast<DenseIntElementsAttr>()) {
-      auto elementType = elements.getElementType();
-      if (elementType.isSignedInteger() || elementType.isSignlessInteger() || elementType.isUnsignedInteger()) {
-        return rewriter.notifyMatchFailure(
-            op, "Integer constants lowering to TCP is unimplemented");
-      }
-    }
+    if (auto elements = op.getValueAttr().dyn_cast<DenseIntElementsAttr>())
+      return rewriter.notifyMatchFailure(
+          op, "Integer constants lowering to TCP is unimplemented");
 
-    rewriter.replaceOpWithNewOp<tcp::ConstOp>(op, resultType, adaptor.getValue());
+    rewriter.replaceOpWithNewOp<tcp::ConstOp>(op, resultType,
+                                              adaptor.getValue());
     return success();
   }
 };

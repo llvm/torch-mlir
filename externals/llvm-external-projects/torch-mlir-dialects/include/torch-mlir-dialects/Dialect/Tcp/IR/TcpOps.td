@@ -162,7 +162,7 @@ def Tcp_ConstOp : Tcp_Op<"const", [ConstantLike, Pure]> {
   let summary = "Constant op";
 
   let description = [{
-    An op that produces constant data that are used in other ops.
+    An op that produces constant tensor (of floating point or signless integer type).
   }];
 
   let arguments = (ins
@@ -175,7 +175,8 @@ def Tcp_ConstOp : Tcp_Op<"const", [ConstantLike, Pure]> {
 
   let assemblyFormat = "attr-dict `:` type($out)";
 
-  let hasFolder = 1;
+  // TODO: Enable this after adding `ConstOp::fold` and unit tests
+  // let hasFolder = 1;
 }
 
 def Tcp_BroadcastOp : Tcp_Op<"broadcast", [

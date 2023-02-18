@@ -14,7 +14,6 @@
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Value.h"
-#include "mlir/Transforms/FoldUtils.h"
 
 #define GET_OP_CLASSES
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpOps.cpp.inc"
@@ -109,10 +108,5 @@ LogicalResult IsolatedGroupOp::verify() {
 
   return success();
 }
-
-OpFoldResult ConstOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.empty() && "constant has no operands");
-  return getValueAttr();
-} // namespace mlir::tcp
 
 } // namespace mlir::tcp
