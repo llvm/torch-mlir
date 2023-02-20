@@ -14,6 +14,14 @@ from torch_mlir_e2e_test.linalg_on_tensors_backends import refbackend
 
 from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
 
+def _returns_empty_tuple(fx_graph: torch.fx.GraphModule) -> bool:
+    for node in fx_graph.graph.nodes:
+        if node.op == "output":
+            assert len(node.args) == 1, "Output node must have a single argument"
+            node_arg = node.args[0]
+            if node_arg != ():
+                return False
+    return True
 
 @make_simple_dynamo_backend
 def _refbackend_torchdynamo_backend(fx_graph: torch.fx.GraphModule,
@@ -32,6 +40,16 @@ def _refbackend_torchdynamo_backend(fx_graph: torch.fx.GraphModule,
     # for that right now since it is still very early stages, but eventually
     # this Config should test that path (and maybe the current behavior can
     # be moved to a `legacy_frontend_via_torchdynamo` config).
+
+    # Torch-MLIR does not support returning an empty tuple. The reason is
+    # that both returning an empty tuple and returning `None` results in MLIR
+    # functions that have as a return type `()`. In other words, there is no
+    # way of differentiating between the two. Moreover, since Torch-MLIR treats
+    # inputs as having value semantics, graphs that return nothing are no-ops to
+    # Torch-MLIR.
+    if _returns_empty_tuple(fx_graph):
+        return fx_graph
+
     mlir_module = torch_mlir.compile(
         fx_graph, example_inputs, output_type="linalg-on-tensors")
     backend = refbackend.RefBackendLinalgOnTensorsBackend()
@@ -59,13 +77,17 @@ class TorchDynamoTestConfig(TestConfig):
         return program
 
     def run(self, artifact: torch.nn.Module, trace: Trace) -> Trace:
+        def item_symbol_that_clones_inputs(*inputs):
+            cloned_inputs = [x.clone() for x in inputs]
+            result = getattr(artifact, item.symbol)(*cloned_inputs)
+            return result
         # TODO: Deepcopy the torch.nn.Module, so that if the program is
         # stateful then it does not mutate the original compiled program.
         result: Trace = []
         for item in trace:
             f = lambda method, *inputs: method(*inputs)
             dynamo_f = dynamo.optimize(_refbackend_torchdynamo_backend)(f)
-            output = dynamo_f(getattr(artifact, item.symbol), *item.inputs)
+            output = dynamo_f(item_symbol_that_clones_inputs, *item.inputs)
             result.append(
                 TraceItem(symbol=item.symbol,
                           inputs=item.inputs,
