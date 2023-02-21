@@ -679,6 +679,46 @@ def ReduceL3NormKeepDimModule_basic(module, tu: TestUtils):
     module.forward(torch.rand(3, 4, 5))
 
 # ==============================================================================
+
+class NormScalarOptDimModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.p = 3.0
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.norm(a, self.p, dim=[0, 1], keepdim=False)
+
+@register_test_case(module_factory=lambda: NormScalarOptDimModule())
+def NormScalarOptDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+class NormScalarOptDimKeepDimModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.p = 3.0
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.norm(a, self.p, dim=[0, 1], keepdim=True)
+
+@register_test_case(module_factory=lambda: NormScalarOptDimKeepDimModule())
+def NormScalarOptDimKeepDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
 class ReduceFrobeniusNormModule(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
