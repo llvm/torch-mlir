@@ -1238,6 +1238,36 @@ def prims〇sqrt〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     assert self_dtype != torch.float16
     return _get_dtype_of_floating_point_op(self_dtype)
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(
+    None, [(3,), (3, 4)],
+    {torch.complex128, torch.complex64, torch.float16, torch.int64, torch.int32, torch.int16, torch.int8, torch.uint8, torch.bool},
+    TensorOfShape(3, dtype=torch.int64), None, 0, 10, TensorOfShape(1, dtype=torch.float32)) +
+    [ErrorInvocation(TensorOfShape(3, dtype=torch.float32), TensorOfShape(3, 4, dtype=torch.float64), TensorOfShape(3, dtype=torch.int64), None, 0, 10, TensorOfShape(1, dtype=torch.float32)),
+     ErrorInvocation(TensorOfShape(3, dtype=torch.float64), TensorOfShape(3, 4, dtype=torch.float32), TensorOfShape(3, dtype=torch.int64), None, 0, 10, TensorOfShape(1, dtype=torch.float32))])
+def aten〇nll_loss_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], weight_rank_dtype: Optional[Tuple[int, int]], reduction: int, ignore_index: int, total_weight_rank_dtype: Tuple[int, int]) -> int:
+    grad_output_rank, grad_output_dtype = grad_output_rank_dtype
+    self_rank, self_dtype = self_rank_dtype
+    assert grad_output_dtype == self_dtype, "`grad_output` and `self` must have the same dtype"
+    assert not is_complex_dtype(self_dtype), "`self` cannot have complex dtype"
+    assert not is_integer_dtype(self_dtype), "`self` cannot have integer dtype"
+    assert self_dtype != torch.float16, "`self` cannot have float16 dtype"
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(
+    None, [(2, 4, 7, 6), (2, 4, 6, 5)], 
+    {torch.complex128, torch.complex64, torch.float16, torch.int64, torch.int32, torch.int16, torch.int8, torch.uint8, torch.bool},
+    [2, 2], [1, 1], [1, 1], [1, 1], False, TensorOfShape(2, 4, 7, 6, dtype=torch.int64)) +
+    [ErrorInvocation(TensorOfShape(2, 4, 7, 6, dtype=torch.float32), TensorOfShape(2, 4, 6, 5, dtype=torch.float64), [2, 2], [1, 1], [1, 1], [1, 1], False, TensorOfShape(2, 4, 7, 6, dtype=torch.int64)),
+     ErrorInvocation(TensorOfShape(2, 4, 7, 6, dtype=torch.float64), TensorOfShape(2, 4, 6, 5, dtype=torch.float32), [2, 2], [1, 1], [1, 1], [1, 1], False, TensorOfShape(2, 4, 7, 6, dtype=torch.int64))])
+def aten〇max_pool2d_with_indices_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], kernel_size: List[int], stride: List[int], padding: List[int], dilation: List[int], ceil_mode: bool, indices_rank_dtype: Tuple[int, int]) -> int:
+    grad_output_rank, grad_output_dtype = grad_output_rank_dtype
+    self_rank, self_dtype = self_rank_dtype
+    assert grad_output_dtype == self_dtype, "`grad_output` and `self` must have the same dtype"
+    assert not is_complex_dtype(self_dtype), "`self` cannot have complex dtype"
+    assert not is_integer_dtype(self_dtype), "`self` cannot have integer dtype"
+    assert self_dtype != torch.float16, "`self` cannot have float16 dtype"
+    return self_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇all〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
