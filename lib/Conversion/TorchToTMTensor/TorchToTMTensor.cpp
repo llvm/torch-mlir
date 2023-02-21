@@ -63,6 +63,9 @@ static Attribute getNumericLimit(PatternRewriter &rewriter, Type elementType,
     if (getMin) {
       return rewriter.getIntegerAttr(elementType,
                                      APInt::getSignedMinValue(bitWidth));
+    } else {
+      return rewriter.getIntegerAttr(elementType,
+                                     APInt::getSignedMaxValue(bitWidth));
     }
   } else if (mlir::FloatType floatType =
                  llvm::dyn_cast<mlir::FloatType>(elementType)) {
