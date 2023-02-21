@@ -56,19 +56,22 @@ using namespace mlir::torch::TMTensor;
 // that these patterns become mostly mechanical associations of
 // "aten.foo -> linalg.foo".
 
-static Attribute getNumericLimit(PatternRewriter& rewriter, Type elementType, bool getMin = true) {
-    auto bitWidth = elementType.getIntOrFloatBitWidth();
-    if (llvm::isa<mlir::IntegerType>(elementType)) {
-        if (getMin) {
-            return rewriter.getIntegerAttr(elementType, APInt::getSignedMinValue(bitWidth));
-        } else {
-            return rewriter.getIntegerAttr(elementType, APInt::getSignedMaxValue(bitWidth));
-        }
-    } else if (mlir::FloatType floatType = llvm::dyn_cast<mlir::FloatType>(elementType)) {
-        return rewriter.getFloatAttr(elementType, APFloat::getLargest(floatType.getFloatSemantics(), getMin));
-    } else {
-      llvm_unreachable("Only float/integer types are supported!");
+static Attribute getNumericLimit(PatternRewriter &rewriter, Type elementType,
+                                 bool getMin = true) {
+  auto bitWidth = elementType.getIntOrFloatBitWidth();
+  if (llvm::isa<mlir::IntegerType>(elementType)) {
+    if (getMin) {
+      return rewriter.getIntegerAttr(elementType,
+                                     APInt::getSignedMinValue(bitWidth));
     }
+  } else if (mlir::FloatType floatType =
+                 llvm::dyn_cast<mlir::FloatType>(elementType)) {
+    return rewriter.getFloatAttr(
+        elementType,
+        APFloat::getLargest(floatType.getFloatSemantics(), getMin));
+  } else {
+    llvm_unreachable("Only float/integer types are supported!");
+  }
 }
 
 // This function will reformat the `index` and `src` from torch operations 
@@ -84,15 +87,15 @@ static std::pair<Value,Value> convertTorchScatterIndexAndSrcToTMScatterIndexAndS
     // Store location for insertions
     Location loc = src.getLoc();
 
-    Value indexSize = getTensorSize(rewriter, loc, indices);
-    indexSize = castIntToIndex(rewriter, loc, indexSize);
-    SmallVector<Value> indexShape = getTensorSizes(rewriter, loc, indices);
-    Value cstOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+  Value indexSize = getTensorSize(rewriter, loc, indices);
+  indexSize = castIntToIndex(rewriter, loc, indexSize);
+  SmallVector<Value> indexShape = getTensorSizes(rewriter, loc, indices);
+  Value cstOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
-    // We flatten the `src` values from (i, j, k, ...) -> (i * j * k * ...)
-    SmallVector<Value> indSliceShape({indexSize, cstOne});
-    Value indSlice = createZeroInitTensor(rewriter, loc, indSliceShape,
-                                          rewriter.getI32Type());
+  // We flatten the `src` values from (i, j, k, ...) -> (i * j * k * ...)
+  SmallVector<Value> indSliceShape({indexSize, cstOne});
+  Value indSlice =
+      createZeroInitTensor(rewriter, loc, indSliceShape, rewriter.getI32Type());
 
     // New output shape will be equal to the product of the dimensions of the
     // updates
@@ -113,81 +116,80 @@ static std::pair<Value,Value> convertTorchScatterIndexAndSrcToTMScatterIndexAndS
     SmallVector<utils::IteratorType> iteratorTypes(
         {utils::IteratorType::parallel});
 
-    // This function goes over the flattened iteration space of the `indices`
-    // and `src`. It will reconstruct the original induction variables based
-    // on the current flattened index. The flattened iteration space is required
-    // because TMTensorScatterOp expects a list of single element updates.
-    auto flattenedUpdates =
-        rewriter
-            .create<linalg::GenericOp>(
-                loc, outputsType, ValueRange(), outputs, mapping, iteratorTypes,
-                [&](OpBuilder &b, Location loc, ValueRange args) {
-                  SmallVector<Value> indexValues(indexType.getRank());
-                  Value ind = b.create<linalg::IndexOp>(loc, 0);
-                  for (int i = indexType.getRank() - 1; i >= 0; i--) {
-                    indexValues[i] =
-                        b.create<arith::RemSIOp>(loc, ind, indexShape[i]);
-                    ind = b.create<arith::DivSIOp>(loc, ind, indexShape[i]);
-                  }
-                  // Extract the scatter index and update value
-                  Value extractIndexValue =
-                      b.create<tensor::ExtractOp>(loc, indices, indexValues);
-                  Value extractSrcValue =
-                      b.create<tensor::ExtractOp>(loc, src, indexValues);
-                  SmallVector<Value> yieldVals;
-                  for (Value v : indexValues) {
-                    Value scalar = castIndexToInt64(b, loc, v);
-                    yieldVals.push_back(b.create<arith::TruncIOp>(
-                        loc, rewriter.getI32Type(), scalar));
-                  }
-                  // Replace the original index with the index specified
-                  // by the scatter.
-                  yieldVals[dim] = b.create<arith::TruncIOp>(
-                      loc, rewriter.getI32Type(), extractIndexValue);
-                  yieldVals.push_back(extractSrcValue);
-                  b.create<linalg::YieldOp>(loc, yieldVals);
-                })
-            .getResultTensors();
+  // This function goes over the flattened iteration space of the `indices`
+  // and `src`. It will reconstruct the original induction variables based
+  // on the current flattened index. The flattened iteration space is required
+  // because TMTensorScatterOp expects a list of single element updates.
+  auto flattenedUpdates =
+      rewriter
+          .create<linalg::GenericOp>(
+              loc, outputsType, ValueRange(), outputs, mapping, iteratorTypes,
+              [&](OpBuilder &b, Location loc, ValueRange args) {
+                SmallVector<Value> indexValues(indexType.getRank());
+                Value ind = b.create<linalg::IndexOp>(loc, 0);
+                for (int i = indexType.getRank() - 1; i >= 0; i--) {
+                  indexValues[i] =
+                      b.create<arith::RemSIOp>(loc, ind, indexShape[i]);
+                  ind = b.create<arith::DivSIOp>(loc, ind, indexShape[i]);
+                }
+                // Extract the scatter index and update value
+                Value extractIndexValue =
+                    b.create<tensor::ExtractOp>(loc, indices, indexValues);
+                Value extractSrcValue =
+                    b.create<tensor::ExtractOp>(loc, src, indexValues);
+                SmallVector<Value> yieldVals;
+                for (Value v : indexValues) {
+                  Value scalar = castIndexToInt64(b, loc, v);
+                  yieldVals.push_back(b.create<arith::TruncIOp>(
+                      loc, rewriter.getI32Type(), scalar));
+                }
+                // Replace the original index with the index specified
+                // by the scatter.
+                yieldVals[dim] = b.create<arith::TruncIOp>(
+                    loc, rewriter.getI32Type(), extractIndexValue);
+                yieldVals.push_back(extractSrcValue);
+                b.create<linalg::YieldOp>(loc, yieldVals);
+              })
+          .getResultTensors();
 
-    auto toOpFoldResult = [](Value v) -> OpFoldResult {
-      auto op = v.getDefiningOp<arith::ConstantIndexOp>();
-      if (!op)
-        return v;
-      return op.getValue();
-    };
+  auto toOpFoldResult = [](Value v) -> OpFoldResult {
+    auto op = v.getDefiningOp<arith::ConstantIndexOp>();
+    if (!op)
+      return v;
+    return op.getValue();
+  };
 
-    // The result of the linalg::Generic operation gives us (rank(`src`) + 1)
-    // 1D-tensors where each contains a number of elements equal to the total
-    // number of elements in the `src` tensor. The indices must now be
-    // constructed by concatanating the first rank(`src`) tensors together. The
-    // new `src` tensor is the last tensor returned from the linalg::Generic
-    // operation.
-    SmallVector<Value> offsets = {
-        rewriter.create<arith::ConstantIndexOp>(loc, 0),
-        rewriter.create<arith::ConstantIndexOp>(loc, 0)};
-    SmallVector<Value> strides = {
-        rewriter.create<arith::ConstantIndexOp>(loc, 1),
-        rewriter.create<arith::ConstantIndexOp>(loc, 1)};
-    Value indicesRank =
-        rewriter.create<arith::ConstantIndexOp>(loc, indexType.getRank());
-    Value flattenedIndices = createZeroInitTensor(
-        rewriter, loc, SmallVector<Value>({indexSize, indicesRank}),
-        rewriter.getI32Type());
-    SmallVector<Value> scatterInputsVector(flattenedUpdates);
-    for (auto const slice : ArrayRef(scatterInputsVector).drop_back()) {
-      SmallVector<Value> sizes = getTensorSizes(rewriter, loc, slice);
-      flattenedIndices = rewriter.createOrFold<tensor::InsertSliceOp>(
-          loc, slice, flattenedIndices,
-          llvm::to_vector(llvm::map_range(offsets, toOpFoldResult)),
-          llvm::to_vector(llvm::map_range(sizes, toOpFoldResult)),
-          llvm::to_vector(llvm::map_range(strides, toOpFoldResult)));
-      // Increment offset to insert into next column
-      offsets[1] =
-          rewriter.createOrFold<arith::AddIOp>(loc, offsets[1], cstOne);
-    }
+  // The result of the linalg::Generic operation gives us (rank(`src`) + 1)
+  // 1D-tensors where each contains a number of elements equal to the total
+  // number of elements in the `src` tensor. The indices must now be
+  // constructed by concatanating the first rank(`src`) tensors together. The
+  // new `src` tensor is the last tensor returned from the linalg::Generic
+  // operation.
+  SmallVector<Value> offsets = {
+      rewriter.create<arith::ConstantIndexOp>(loc, 0),
+      rewriter.create<arith::ConstantIndexOp>(loc, 0)};
+  SmallVector<Value> strides = {
+      rewriter.create<arith::ConstantIndexOp>(loc, 1),
+      rewriter.create<arith::ConstantIndexOp>(loc, 1)};
+  Value indicesRank =
+      rewriter.create<arith::ConstantIndexOp>(loc, indexType.getRank());
+  Value flattenedIndices = createZeroInitTensor(
+      rewriter, loc, SmallVector<Value>({indexSize, indicesRank}),
+      rewriter.getI32Type());
+  SmallVector<Value> scatterInputsVector(flattenedUpdates);
+  for (auto const slice : ArrayRef(scatterInputsVector).drop_back()) {
+    SmallVector<Value> sizes = getTensorSizes(rewriter, loc, slice);
+    flattenedIndices = rewriter.createOrFold<tensor::InsertSliceOp>(
+        loc, slice, flattenedIndices,
+        llvm::to_vector(llvm::map_range(offsets, toOpFoldResult)),
+        llvm::to_vector(llvm::map_range(sizes, toOpFoldResult)),
+        llvm::to_vector(llvm::map_range(strides, toOpFoldResult)));
+    // Increment offset to insert into next column
+    offsets[1] = rewriter.createOrFold<arith::AddIOp>(loc, offsets[1], cstOne);
+  }
 
-    return std::make_pair(flattenedIndices,
-                          scatterInputsVector[indexType.getRank()]);
+  return std::make_pair(flattenedIndices,
+                        scatterInputsVector[indexType.getRank()]);
 }
 
 static Value createTMTensorScatterOp(
@@ -703,29 +705,33 @@ public:
 
     Location loc = op.getLoc();
 
-    RankedTensorType selfType = adaptor.getSelf().getType().cast<RankedTensorType>();
-    RankedTensorType indexType = adaptor.getIndex().getType().cast<RankedTensorType>();
-    RankedTensorType srcType = adaptor.getSrc().getType().cast<RankedTensorType>();
+    RankedTensorType selfType =
+        adaptor.getSelf().getType().cast<RankedTensorType>();
+    RankedTensorType indexType =
+        adaptor.getIndex().getType().cast<RankedTensorType>();
+    RankedTensorType srcType =
+        adaptor.getSrc().getType().cast<RankedTensorType>();
 
     Value self = adaptor.getSelf();
 
-    if (selfType.getRank() != indexType.getRank() || indexType.getRank() != srcType.getRank())
+    if (selfType.getRank() != indexType.getRank() ||
+        indexType.getRank() != srcType.getRank())
       return rewriter.notifyMatchFailure(op,
                                          "'self', 'index' and 'src' should all "
                                          "have the same number of dimensions.");
 
     std::string reduceType;
     if (!matchPattern(op.getReduce(), m_TorchConstantStr(reduceType)))
-        return rewriter.notifyMatchFailure(op, "'reduce' must be a costant string");
+      return rewriter.notifyMatchFailure(op,
+                                         "'reduce' must be a costant string");
 
     int64_t dim;
     if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
-        return rewriter.notifyMatchFailure(op, "'dim' is not constant");
+      return rewriter.notifyMatchFailure(op, "'dim' is not constant");
 
     bool includeSelf;
     if (!matchPattern(op.getIncludeSelf(), m_TorchConstantBool(&includeSelf)))
-        return rewriter.notifyMatchFailure(op,
-                                           "'include_self' is not constant");
+      return rewriter.notifyMatchFailure(op, "'include_self' is not constant");
 
     // Get reduce string as the equivalent enum
     auto reduceEnum = torch_upstream::get_reduction_enum(reduceType);
@@ -739,22 +745,22 @@ public:
     // values scattered per index.
     Value counts = nullptr;
     if (reduceEnum == torch_upstream::ReductionType::MEAN) {
-        SmallVector<Value> selfShape =
-            getTensorSizes(rewriter, loc, adaptor.getSelf());
-        Attribute initAttr;
-        if (llvm::isa<mlir::FloatType>(srcType.getElementType())) {
+      SmallVector<Value> selfShape =
+          getTensorSizes(rewriter, loc, adaptor.getSelf());
+      Attribute initAttr;
+      if (llvm::isa<mlir::FloatType>(srcType.getElementType())) {
         initAttr = rewriter.getFloatAttr(srcType.getElementType(), 1);
-        } else if (llvm::isa<mlir::IntegerType>(srcType.getElementType())) {
+      } else if (llvm::isa<mlir::IntegerType>(srcType.getElementType())) {
         initAttr = rewriter.getIntegerAttr(srcType.getElementType(), 1);
-        } else {
+      } else {
         llvm_unreachable("Only integer/float types supported!");
-        }
-        Value initElement = rewriter.create<arith::ConstantOp>(loc, initAttr);
-        counts = createInitTensor(rewriter, loc, selfShape,
-                                  selfType.getElementType(), initElement);
+      }
+      Value initElement = rewriter.create<arith::ConstantOp>(loc, initAttr);
+      counts = createInitTensor(rewriter, loc, selfShape,
+                                selfType.getElementType(), initElement);
     }
 
-    // If the original values shouldn't be included, normalize the 
+    // If the original values shouldn't be included, normalize the
     // input tensor where the scatters take place.
     if (!includeSelf) {
       Value normalizationValue;
@@ -775,12 +781,16 @@ public:
           llvm_unreachable("Only integer/float types supported!");
         }
       } else if (reduceEnum == torch_upstream::ReductionType::MAX) {
-        // Set the values in the input tensor to the smallest element of that type
-        auto minAttr = getNumericLimit(rewriter, srcType.getElementType(), /*getMin=*/true);
+        // Set the values in the input tensor to the smallest element of that
+        // type
+        auto minAttr = getNumericLimit(rewriter, srcType.getElementType(),
+                                       /*getMin=*/true);
         normalizationValue = rewriter.create<arith::ConstantOp>(loc, minAttr);
       } else if (reduceEnum == torch_upstream::ReductionType::MIN) {
-        // Set the values in the input tensor to the largest element of that type
-        auto maxAttr = getNumericLimit(rewriter, srcType.getElementType(), /*getMin=*/false);
+        // Set the values in the input tensor to the largest element of that
+        // type
+        auto maxAttr = getNumericLimit(rewriter, srcType.getElementType(),
+                                       /*getMin=*/false);
         normalizationValue = rewriter.create<arith::ConstantOp>(loc, maxAttr);
       }
 
@@ -847,7 +857,7 @@ public:
             }
           }
           b.create<TMTensor::YieldOp>(loc, result);
-    });
+        });
 
     // Special case for the mean
     if (reduceEnum == torch_upstream::ReductionType::MEAN) {
@@ -894,7 +904,8 @@ public:
                   })
               .getResult()[0];
     }
-    auto resultType = getTypeConverter()->convertType(op->getResult(0).getType())
+    auto resultType = getTypeConverter()
+                          ->convertType(op->getResult(0).getType())
                           .cast<RankedTensorType>();
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, scatterOp);
 
@@ -996,8 +1007,7 @@ public:
     patterns.add<ConvertAtenMaxPool2dWithIndicesBackwardOp>(typeConverter,
                                                             context);
     target.addIllegalOp<AtenScatterReduceTwoOp>();
-    patterns.add<ConvertAtenScatterReduceTwoOp>(typeConverter,
-                                                            context);
+    patterns.add<ConvertAtenScatterReduceTwoOp>(typeConverter, context);
     target.addIllegalOp<AtenCumsumOp>();
     patterns.add<ConvertAtenCumsumOp>(typeConverter, context);
 
