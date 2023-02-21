@@ -140,10 +140,10 @@ ReductionType get_reduction_enum(const llvm::StringRef &reduce) {
   } else if (reduce == "prod") {
     return torch_upstream::ReductionType::PROD;
   } else {
-    llvm_unreachable("'reduce' argument must be either sum, prod, mean, amax or amin");
+    llvm_unreachable(
+        "'reduce' argument must be either sum, prod, mean, amax or amin");
   }
 }
-
 
 } // namespace torch_upstream
 } // namespace torch

@@ -166,9 +166,9 @@ enum EmbeddingBagMode { MODE_SUM, MODE_MEAN, MODE_MAX };
 // Source:
 // https://github.com/llvm/torch-mlir/blob/main/include/torch-mlir/Dialect/Torch/Utils/TorchUpstream.h
 //===-----------------------------------------------------------------------===//
-enum ReductionType {MAX, MEAN, MIN, SUM, PROD};
+enum ReductionType { MAX, MEAN, MIN, SUM, PROD };
 
-ReductionType get_reduction_enum(const llvm::StringRef& reduce);
+ReductionType get_reduction_enum(const llvm::StringRef &reduce);
 
 } // namespace torch_upstream
 } // namespace torch
