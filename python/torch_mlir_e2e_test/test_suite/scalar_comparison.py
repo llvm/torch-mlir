@@ -121,7 +121,7 @@ class GeFloatModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: GeFloatModule())
 def GeFloatModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(()).double(), torch.randn(()).double())
+    module.forward(tu.rand().double(), tu.rand().double())
 
 
 # ==============================================================================
@@ -144,7 +144,7 @@ class GeFloatIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: GeFloatIntModule())
 def GeFloatIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(()).double(), tu.randint(low=-100, high=100))
+    module.forward(tu.rand().double(), tu.randint(low=-100, high=100))
 
 
 # ==============================================================================
@@ -167,7 +167,7 @@ class NeFloatIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NeFloatIntModule())
 def NeFloatIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(()).double(), tu.randint(low=-100, high=100))
+    module.forward(tu.rand().double(), tu.randint(low=-100, high=100))
 
 
 # ==============================================================================
@@ -190,4 +190,4 @@ class GtFloatIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: GtFloatIntModule())
 def GtFloatIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(()).double(), tu.randint(low=-100, high=100))
+    module.forward(tu.rand().double(), tu.randint(low=-100, high=100))

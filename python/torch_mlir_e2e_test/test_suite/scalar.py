@@ -75,7 +75,7 @@ class SubFloatModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: SubFloatModule())
 def SubFloatModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(()).double(), torch.rand(()).double())
+    module.forward(tu.rand().double(), tu.rand().double())
 
 
 # ==============================================================================
@@ -146,7 +146,7 @@ class DivFloatModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: DivFloatModule())
 def DivFloatModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(()).double(), torch.rand(()).double())
+    module.forward(tu.rand().double(), tu.rand().double())
 
 
 # ==============================================================================
@@ -175,7 +175,7 @@ class CeilFloatModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: CeilFloatModule())
 def CeilFloatModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(()).double(), torch.rand(()).double())
+    module.forward(tu.rand().double(), tu.rand().double())
 
 
 # ==============================================================================

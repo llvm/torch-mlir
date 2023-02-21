@@ -1095,7 +1095,7 @@ class ZeroFloat32Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ZeroFloat32Module())
 def ZeroFloat32Module_basic(module, tu: TestUtils):
-    module.forward(torch.rand(3, 2))
+    module.forward(tu.rand(3, 2))
 
 
 class ZeroInt32Module(torch.nn.Module):
