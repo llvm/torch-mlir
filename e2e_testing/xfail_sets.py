@@ -88,8 +88,6 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # Dtype function transition failures
     "MobilenetV3Module_basic",
-    "ResNet18Module_basic",
-    "ResNet18StaticModule_basic",
 }
 
 MHLO_PASS_SET = {
@@ -651,6 +649,7 @@ TOSA_PASS_SET = {
     "HardsigmoidRandomModule_basic",
     "HardswishModule_basic",
     "HardswishRandomModule_basic",
+    "ResNet18StaticModule_basic",
 }
 
 LTC_XFAIL_SET = {
