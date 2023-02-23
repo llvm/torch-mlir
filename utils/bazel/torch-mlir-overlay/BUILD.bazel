@@ -337,6 +337,7 @@ cc_library(
     ]),
     hdrs = glob(["include/torch-mlir/Conversion/TorchToLinalg/*.h"]),
     strip_include_prefix = "include",
+
     deps = [
         ":TorchMLIRConversionPassesIncGen",
         ":TorchMLIRConversionUtils",
@@ -449,6 +450,7 @@ cc_library(
         ":TorchMLIRTorchConversionDialect",
         "@llvm-project//mlir:Dialect",
         "@mlir-hlo//:mlir_hlo",
+        "@mlir-hlo//:transforms_passes"
     ],
 )
 
@@ -461,6 +463,9 @@ cc_library(
         "include/torch-mlir/Conversion/Passes.h",
     ],
     strip_include_prefix = "include",
+    defines = [
+        "TORCH_MLIR_ENABLE_STABLEHLO"
+    ],
     deps = [
         ":TorchMLIRTorchConversionToMLProgram",
         ":TorchMLIRTorchToArith",
