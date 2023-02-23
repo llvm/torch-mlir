@@ -646,6 +646,7 @@ TOSA_PASS_SET = {
     "TensorOpaqueLiteralModule_basic",
     "TypePromotionDifferentCategoryModule_basic",
     "TypePromotionSameCategoryDifferentWidthModule_basic",
+    "TypePromotionSameCategoryZeroRankWider_basic",
     "TypePromotionZeroRankHigherCategoryModule_basic",
     "GatherStaticModule_basic",
     "IndexTensorStaticModule_basic",
