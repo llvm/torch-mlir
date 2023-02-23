@@ -65,4 +65,48 @@ LogicalResult BroadcastOp::verify() {
   return success();
 }
 
+LogicalResult GroupOp::verify() {
+  auto &groupBlock = getBody().front();
+  if (groupBlock.empty() ||
+      !groupBlock.back().mightHaveTrait<OpTrait::IsTerminator>())
+    return emitOpError(
+        "failed to verify that op region ends with a terminator");
+
+  auto yieldOp = getBody().front().getTerminator();
+  if (yieldOp->getNumOperands() != getNumResults())
+    return emitOpError("failed to verify that the number of yielded values is "
+                       "same as the number of results");
+
+  for (unsigned i = 0; i < getNumResults(); ++i) {
+    if (yieldOp->getOperand(i).getType() != getResult(i).getType())
+      return emitOpError()
+             << "failed to verify that the type of operand #" << i
+             << " of terminator matches the corresponding result type";
+  }
+
+  return success();
+}
+
+LogicalResult IsolatedGroupOp::verify() {
+  auto &groupBlock = getBody().front();
+  if (groupBlock.empty() ||
+      !groupBlock.back().mightHaveTrait<OpTrait::IsTerminator>())
+    return emitOpError(
+        "failed to verify that op region ends with a terminator");
+
+  auto yieldOp = getBody().front().getTerminator();
+  if (yieldOp->getNumOperands() != getNumResults())
+    return emitOpError("failed to verify that the number of yielded values is "
+                       "same as the number of results");
+
+  for (unsigned i = 0; i < getNumResults(); ++i) {
+    if (yieldOp->getOperand(i).getType() != getResult(i).getType())
+      return emitOpError()
+             << "failed to verify that the type of operand #" << i
+             << " of terminator matches the corresponding result type";
+  }
+
+  return success();
+}
+
 } // namespace mlir::tcp

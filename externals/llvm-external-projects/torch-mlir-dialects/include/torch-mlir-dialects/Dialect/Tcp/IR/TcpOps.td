@@ -191,4 +191,95 @@ def Tcp_BroadcastOp : Tcp_Op<"broadcast", [
   let hasVerifier = 1;
 }
 
+def Tcp_YieldOp : Tcp_Op<"yield", [Terminator, Pure]> {
+  let summary = "Yields values from regions in Tcp";
+
+  let description = [{
+    Terminates and yields values from regions in Tcp.
+
+    The values that are yielded should correspond to the parent operation's
+    results.
+  }];
+
+  let arguments = (ins
+    Variadic<Tcp_TensorOrScalar>:$ins
+  );
+
+  let builders = [
+    OpBuilder<(ins), [{ }]>,
+  ];
+
+  let assemblyFormat = "$ins attr-dict `:` type($ins)";
+}
+
+def Tcp_GroupOp : Tcp_Op<"group", [
+          AffineScope,
+          ParentOneOf<["func::FuncOp", "tcp::GroupOp", "tcp::IsolatedGroupOp"]>,
+          SingleBlockImplicitTerminator<"tcp::YieldOp">]> {
+  let summary = "Groups ops into a region that is not isolated from above";
+
+  let description = [{
+    Provides a way to group ops into a region that is not isolated from above.
+
+    Since this is not isolated from above, ops inside this region can refer to
+    values in the outer scopes. So, this op does not have any input parameters.
+
+    This op must not include control flow ops in its region. However, it can
+    be present within regions that are inside control flow ops.
+
+    The enclosed region will terminate with a `tcp.yield` op. This ops results
+    should correspond to the values that are yielded by the terminating op.
+  }];
+
+  let results = (outs
+    Variadic<Tcp_TensorOrScalar>:$outs
+  );
+
+  let regions = (region
+    SizedRegion<1>:$body
+  );
+
+  let assemblyFormat = "attr-dict-with-keyword $body `:` type($outs)";
+
+  let hasVerifier = 1;
+}
+
+def Tcp_IsolatedGroupOp : Tcp_Op<"isolated_group", [
+          AffineScope,
+          IsolatedFromAbove,
+          ParentOneOf<["func::FuncOp", "tcp::GroupOp", "tcp::IsolatedGroupOp"]>,
+          SingleBlockImplicitTerminator<"tcp::YieldOp">]> {
+  let summary = "Groups ops into a region that is isolated from above";
+
+  let description = [{
+    Provides a way to group ops into a region that is isolated from above.
+
+    Since the enclosed region is isolated from above, any use of values from
+    outer scopes requires passing that value as an input parameter to this op
+    and using that parameter instead.
+
+    This op must not include control flow ops in its region. However, it can
+    be present within regions that are inside control flow ops.
+
+    The enclosed region will terminate with a `tcp.yield` op. This ops results
+    should correspond to the values that are yielded by the terminating op.
+  }];
+
+  let arguments = (ins
+    Variadic<Tcp_TensorOrScalar>:$ins
+  );
+
+  let results = (outs
+    Variadic<Tcp_TensorOrScalar>:$outs
+  );
+
+  let regions = (region
+    SizedRegion<1>:$body
+  );
+
+  let assemblyFormat = "$ins attr-dict-with-keyword $body `:` type($ins) `->` type($outs)";
+
+  let hasVerifier = 1;
+}
+
 #endif // TORCH_MLIR_DIALECT_TCP_OPS
