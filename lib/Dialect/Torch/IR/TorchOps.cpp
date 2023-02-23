@@ -2382,6 +2382,15 @@ OpFoldResult PrimMinIntOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenAliasOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenAliasOp::fold(FoldAdaptor adaptor) {
+  // We can simply return the same tensor.
+  return getOperand();
+}
+
+//===----------------------------------------------------------------------===//
 // ShapeCalculateOp
 //===----------------------------------------------------------------------===//
 
