@@ -161,8 +161,8 @@ static Value getScalarValue(Value input, Location loc,
 //===----------------------------------------------------------------------===//
 
 LogicalResult MethodOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
-  auto func =
-      symbolTable.lookupNearestSymbolFrom<func::FuncOp>(*this, getFunctionAttr());
+  auto func = symbolTable.lookupNearestSymbolFrom<func::FuncOp>(
+      *this, getFunctionAttr());
   if (!func)
     return emitError() << "'@" << getFunction()
                        << "' does not reference a valid function";
@@ -415,11 +415,13 @@ void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   // If the condition is constant, delete the dead branch and inline the live
   // branch.
   patterns.add(+[](PrimIfOp op, PatternRewriter &rewriter) {
-    auto constantBool = op.getCondition().getDefiningOp<Torch::ConstantBoolOp>();
+    auto constantBool =
+        op.getCondition().getDefiningOp<Torch::ConstantBoolOp>();
     if (!constantBool)
       return rewriter.notifyMatchFailure(op, "non-constant condition");
-    replaceOpWithRegion(
-        rewriter, op, constantBool.getValue() ? op.getThenRegion() : op.getElseRegion());
+    replaceOpWithRegion(rewriter, op,
+                        constantBool.getValue() ? op.getThenRegion()
+                                                : op.getElseRegion());
     return success();
   });
   // If the thenRegion and elseRegion yield the same Value's, then use those
@@ -477,14 +479,16 @@ void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
         continue;
       newResultTypes.push_back(op->getResult(i).getType());
     }
-    auto newIf =
-        rewriter.create<PrimIfOp>(op->getLoc(), newResultTypes, op.getCondition());
+    auto newIf = rewriter.create<PrimIfOp>(op->getLoc(), newResultTypes,
+                                           op.getCondition());
     rewriter.inlineRegionBefore(op.getThenRegion(), newIf.getThenRegion(),
                                 newIf.getThenRegion().end());
     rewriter.inlineRegionBefore(op.getElseRegion(), newIf.getElseRegion(),
                                 newIf.getElseRegion().end());
-    newIf.getThenRegion().front().getTerminator()->eraseOperands(resultsToErase);
-    newIf.getElseRegion().front().getTerminator()->eraseOperands(resultsToErase);
+    newIf.getThenRegion().front().getTerminator()->eraseOperands(
+        resultsToErase);
+    newIf.getElseRegion().front().getTerminator()->eraseOperands(
+        resultsToErase);
     SmallVector<Value> replacementValues;
     for (int i = 0, e = op->getNumResults(), nextNewValue = 0; i < e; ++i) {
       if (resultsToErase[i])
@@ -877,8 +881,11 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
     return rewriter.notifyMatchFailure(
         op, "only int scalar lhs or rhs is supported");
   }
-  if (isa<AtenSubTensorOp, AtenSubScalarOp, AtenAddTensorOp, AtenAddScalarOp>(
-          op)) {
+  if (isa<AtenRsubScalarOp>(op)) {
+    std::swap(lhs, rhs);
+  }
+  if (isa<AtenSubTensorOp, AtenSubScalarOp, AtenRsubScalarOp, AtenAddTensorOp,
+          AtenAddScalarOp>(op)) {
     Value alpha = getScalarValue(op->getOperand(2), loc, rewriter);
     if (!alpha) {
       return rewriter.notifyMatchFailure(op,
@@ -935,7 +942,7 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
   // Other Add/Sub/Mul ops
   if (isa<AtenAddTensorOp, AtenAddScalarOp>(op)) {
     result = rewriter.create<AtenAddIntOp>(loc, lhs, rhs);
-  } else if (isa<AtenSubScalarOp, AtenSubTensorOp>(op)) {
+  } else if (isa<AtenSubScalarOp, AtenSubTensorOp, AtenRsubScalarOp>(op)) {
     result = rewriter.create<AtenSubIntOp>(loc, lhs, rhs);
   } else if (isa<AtenMulScalarOp, AtenMulTensorOp>(op)) {
     result = rewriter.create<AtenMulIntOp>(loc, lhs, rhs);
@@ -985,6 +992,16 @@ void AtenSubScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenRSubScalarOp
+//===----------------------------------------------------------------------===//
+void AtenRsubScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                   MLIRContext *context) {
+  patterns.add(+[](AtenRsubScalarOp op, PatternRewriter &rewriter) {
+    return rewrite0DBinaryTensorOp(op, rewriter);
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenMulTensorOp
 //===----------------------------------------------------------------------===//
 void AtenMulTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
@@ -1011,6 +1028,23 @@ void AtenDivTensorModeOp::getCanonicalizationPatterns(
     RewritePatternSet &patterns, MLIRContext *context) {
   patterns.add(+[](AtenDivTensorModeOp op, PatternRewriter &rewriter) {
     return rewrite0DBinaryTensorOp(op, rewriter);
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenScalarImplicitOp
+//===----------------------------------------------------------------------===//
+void AtenScalarImplicitOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenScalarImplicitOp op, PatternRewriter &rewriter) {
+    Location loc = op.getLoc();
+    Value a = op.getA();
+    auto outType = op.getResult().getType();
+    Value scalarValue = getScalarValue(a, loc, rewriter);
+    if (!scalarValue)
+      return failure();
+    rewriter.replaceOpWithNewOp<Torch::DerefineOp>(op, outType, scalarValue);
+    return success();
   });
 }
 
@@ -1649,7 +1683,7 @@ void Torch::ConstantFloatOp::getAsmResultNames(
   // float string representation).
   SmallVector<char> buf;
   getValue().toString(buf, /*FormatPrecision=*/6, /*FormatMaxPadding=*/0,
-                   /*TruncateZero=*/false);
+                      /*TruncateZero=*/false);
   auto isValidMLIRIdentifierChar = [](char c) {
     return isalpha(c) || isdigit(c) || c == '_' || c == '$' || c == '.' ||
            c == '-';
@@ -1760,7 +1794,8 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
     // compiler treat the size as having value semantics?
     // There's a small number of such ops, and they are marked as `inplace_view`
     // in PyTorch's `native_functions.yaml` file.
-    rewriter.replaceOpWithNewOp<AtenSizeIntOp>(op, sizeOp.getSelf(), op.getIdx());
+    rewriter.replaceOpWithNewOp<AtenSizeIntOp>(op, sizeOp.getSelf(),
+                                               op.getIdx());
     return success();
   });
 }
@@ -1772,11 +1807,13 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
 void AtenAddTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                              MLIRContext *context) {
   patterns.add(+[](AtenAddTOp op, PatternRewriter &rewriter) {
-    auto lhsListConstruct = op.getA().getDefiningOp<Torch::PrimListConstructOp>();
+    auto lhsListConstruct =
+        op.getA().getDefiningOp<Torch::PrimListConstructOp>();
     if (!lhsListConstruct || isListPotentiallyMutated(lhsListConstruct))
       return failure();
 
-    auto rhsListConstruct = op.getB().getDefiningOp<Torch::PrimListConstructOp>();
+    auto rhsListConstruct =
+        op.getB().getDefiningOp<Torch::PrimListConstructOp>();
     if (!rhsListConstruct || isListPotentiallyMutated(rhsListConstruct))
       return failure();
 
@@ -1894,7 +1931,8 @@ LogicalResult PrimTupleConstructOp::verify() {
 void PrimTupleIndexOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                    MLIRContext *context) {
   patterns.add(+[](PrimTupleIndexOp op, PatternRewriter &rewriter) {
-    auto tupleConstruct = op.getTup().getDefiningOp<Torch::PrimTupleConstructOp>();
+    auto tupleConstruct =
+        op.getTup().getDefiningOp<Torch::PrimTupleConstructOp>();
     if (!tupleConstruct)
       return failure();
 
@@ -1944,7 +1982,8 @@ void PrimUninitializedOp::getCanonicalizationPatterns(
 void PrimTupleUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                     MLIRContext *context) {
   patterns.add(+[](PrimTupleUnpackOp op, PatternRewriter &rewriter) {
-    auto tupleConstruct = op.getTup().getDefiningOp<Torch::PrimTupleConstructOp>();
+    auto tupleConstruct =
+        op.getTup().getDefiningOp<Torch::PrimTupleConstructOp>();
     if (!tupleConstruct)
       return failure();
 

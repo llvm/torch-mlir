@@ -318,7 +318,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::maximum : (Tensor, Tensor) -> (Tensor)")
     emit("aten::minimum : (Tensor, Tensor) -> (Tensor)")
     emit("aten::mish : (Tensor) -> (Tensor)")
-    emit("aten::rsub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)")
+    emit("aten::rsub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)", has_canonicalizer=True)
     emit("aten::gelu : (Tensor, str) -> (Tensor)")
     emit("aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)")
     emit("aten::pow.Tensor_Tensor : (Tensor, Tensor) -> (Tensor)")
@@ -641,7 +641,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::eq.device : (Device, Device) -> (bool)")
     emit("aten::ceil.float : (float) -> (int)", has_folder=True)
     emit("aten::narrow : (Tensor, int, int, int) -> (Tensor)")
-    emit("aten::ScalarImplicit : (Tensor) -> (Scalar)")
+    emit("aten::ScalarImplicit : (Tensor) -> (Scalar)", has_canonicalizer=True)
 
     # backprop ops
     emit("aten::_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)")

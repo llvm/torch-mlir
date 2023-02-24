@@ -1838,3 +1838,52 @@ func.func @torch.aten.slice.tensor$fold_full_domain_slice(%arg0: !torch.vtensor<
   %0 = torch.aten.slice.Tensor %arg0, %int0, %int0, %int-1, %int1 : !torch.vtensor<[4], f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4], f32>
   return %0 : !torch.vtensor<[4],f32>
 }
+
+// CHECK-LABEL:   func.func @torch.aten.rsub.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
+// CHECK:             %int-1 = torch.constant.int -1
+// CHECK:             %[[VAL_0:.*]] = torch.prim.NumToTensor.Scalar %int-1 : !torch.int -> !torch.vtensor<[],si64>
+// CHECK:             return %[[VAL_0]] : !torch.vtensor<[],si64>
+func.func @torch.aten.rsub.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
+    %int2 = torch.constant.int 2
+    %int3 = torch.constant.int 3
+    %0 = torch.vtensor.literal(dense<1> : tensor<si64>) : !torch.vtensor<[],si64>
+    %2 = torch.aten.rsub.Scalar %0, %int2, %int3 : !torch.vtensor<[],si64>, !torch.int, !torch.int -> !torch.vtensor<[],si64>
+    return %2 : !torch.vtensor<[],si64>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.rsub.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
+// CHECK:             %int-1 = torch.constant.int -1
+// CHECK:             %int1 = torch.constant.int 1
+// CHECK:             %[[VAL_0:.*]] = torch.prim.NumToTensor.Scalar %int1 : !torch.int -> !torch.vtensor<[],si64>
+// CHECK:             %[[VAL_1:.*]] = torch.prim.NumToTensor.Scalar %int-1 : !torch.int -> !torch.vtensor<[],si64>
+// CHECK:             return %[[VAL_1]] : !torch.vtensor<[],si64>
+func.func @torch.aten.rsub.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
+    %int1 = torch.constant.int 1
+    %int2 = torch.constant.int 2
+    %int3 = torch.constant.int 3
+    %0 = torch.prim.NumToTensor.Scalar %int1 : !torch.int -> !torch.vtensor<[],si64>
+    %2 = torch.aten.rsub.Scalar %0, %int2, %int3 : !torch.vtensor<[],si64>, !torch.int, !torch.int -> !torch.vtensor<[],si64>
+    return %2 : !torch.vtensor<[],si64>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.ScalarImplicit$canonicalize_numtotensor_0d() -> !torch.number {
+// CHECK:             %int1 = torch.constant.int 1
+// CHECK:             %[[VAL_0:.*]] = torch.prim.NumToTensor.Scalar %int1 : !torch.int -> !torch.vtensor<[],si64>
+// CHECK:             %[[VAL_1:.*]] = torch.derefine %int1 : !torch.int to !torch.number
+// CHECK:             return %[[VAL_1]] : !torch.number
+func.func @torch.aten.ScalarImplicit$canonicalize_numtotensor_0d() -> !torch.number {
+    %int1 = torch.constant.int 1
+    %0 = torch.prim.NumToTensor.Scalar %int1 : !torch.int -> !torch.vtensor<[],si64>
+    %1 = torch.aten.ScalarImplicit %0 : !torch.vtensor<[],si64> -> !torch.number
+    return %1 : !torch.number
+}
+
+// CHECK-LABEL:   func.func @torch.aten.ScalarImplicit$canonicalize_literal_0d() -> !torch.number {
+// CHECK:             %int1 = torch.constant.int 1
+// CHECK:             %[[VAL_0:.*]] = torch.derefine %int1 : !torch.int to !torch.number
+// CHECK:             return %[[VAL_0]] : !torch.number
+func.func @torch.aten.ScalarImplicit$canonicalize_literal_0d() -> !torch.number {
+    %0 = torch.vtensor.literal(dense<1> : tensor<si64>) : !torch.vtensor<[],si64>
+    %1 = torch.aten.ScalarImplicit %0 : !torch.vtensor<[],si64> -> !torch.number
+    return %1 : !torch.number
+}
