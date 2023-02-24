@@ -80,9 +80,6 @@ void createTorchSimplificationPipeline(
 /// Creates a pipeline that refines shapes of tensor operations in the program.
 void createTorchShapeRefinementPipeline(OpPassManager &pm);
 
-/// Creates a pipeline that obfuscate ops in the program.
-void createTorchObfuscateOpsPipeline(OpPassManager &pm);
-
 /// Creates a pipeline that refines dtype of tensor operations in the program.
 void createTorchDtypeRefinementPipeline(OpPassManager &pm);
 
@@ -101,7 +98,9 @@ std::unique_ptr<OperationPass<ModuleOp>> createRefinePublicReturnPass();
 std::unique_ptr<OperationPass<func::FuncOp>>
 createDecomposeComplexOpsPass(ArrayRef<std::string> legalOps);
 
-std::unique_ptr<OperationPass<func::FuncOp>> createObfuscateOpsPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createWidenConvLayerPass();
+
+std::unique_ptr<OperationPass<func::FuncOp>> createInsertSkipPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createPreprocessShapeLibraryPass();
 

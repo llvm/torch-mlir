@@ -238,16 +238,21 @@ def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "func::FuncOp"> {
   }];
 }
 
-def ObfuscateOps : Pass<"torch-obfuscate-ops", "func::FuncOp"> {
-  let summary = "obfuscate torch operations";
+def WidenConvLayer : Pass<"torch-widen-conv-layer", "func::FuncOp"> {
+  let summary = "widen convolution operations";
   let constructor = [{
-    mlir::torch::Torch::createObfuscateOpsPass()
+    mlir::torch::Torch::createWidenConvLayerPass()
   }];
   let description = [{
-    Obfuscate torch operation
+  }];
+}
 
-    An example of the transformations done in this pass is:
-        - convert aten.mm to two aten.add.Tensor
+def InsertSkip : Pass<"torch-insert-skip", "func::FuncOp"> {
+  let summary = "Insert a skip with a convolution";
+  let constructor = [{
+    mlir::torch::Torch::createInsertSkipPass()
+  }];
+  let description = [{
   }];
 }
 

@@ -1,7 +1,8 @@
 add_mlir_library(TorchMLIRTorchPasses
   AdjustCallingConventions.cpp
   DecomposeComplexOps.cpp
-  ObfuscateOps.cpp
+  WidenConvLayer.cpp
+  InsertSkip.cpp
   DropAbstractInterpCalculations.cpp
   EraseModuleInitializer.cpp
   Passes.cpp

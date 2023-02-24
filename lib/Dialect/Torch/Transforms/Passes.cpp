@@ -28,9 +28,6 @@ void mlir::torch::registerTorchPasses() {
   mlir::PassPipelineRegistration<>(
       "torch-shape-refinement-pipeline", "Pipeline refining shapes of tensors.",
       mlir::torch::Torch::createTorchShapeRefinementPipeline);
-  mlir::PassPipelineRegistration<>(
-      "torch-obfuscate-ops-pipeline", "Pipeline obfuscate ops.",
-      mlir::torch::Torch::createTorchObfuscateOpsPipeline);
 }
 
 void mlir::torch::Torch::createTorchScriptModuleToTorchBackendPipeline(
@@ -178,8 +175,4 @@ void mlir::torch::Torch::createTorchShapeRefinementPipeline(OpPassManager &pm) {
 void mlir::torch::Torch::createTorchDtypeRefinementPipeline(OpPassManager &pm) {
   createRefinementPipeline(pm, Torch::createReifyDtypeCalculationsPass,
                            Torch::createSimplifyDtypeCalculationsPass);
-}
-
-void mlir::torch::Torch::createTorchObfuscateOpsPipeline(OpPassManager &pm) {
-  pm.addNestedPass<mlir::func::FuncOp>(createObfuscateOpsPass());
 }

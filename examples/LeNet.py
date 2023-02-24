@@ -33,13 +33,34 @@ net = LeNet5()
 net.eval()
 print(net)
 
+# compile to torch mlir
 # NCHW layout in pytorch
 module = torch_mlir.compile(net, torch.ones(1, 1, 28, 28), output_type="torch")
 print(module.operation.get_asm(large_elements_limit=10))
+
+print("================")
+print("after WidenConvLayer pass")
+print("================")
 torch_mlir.compiler_utils.run_pipeline_with_repro_report(
-    module, "builtin.module(torch-obfuscate-ops-pipeline)", "obfuscate torch IR"
+    module,
+    "builtin.module(func.func(torch-widen-conv-layer))",
+    "WidenConvLayer",
 )
 print(module.operation.get_asm(large_elements_limit=10))
+
+print("================")
+print("after InsertSkip pass")
+print("================")
+torch_mlir.compiler_utils.run_pipeline_with_repro_report(
+    module,
+    "builtin.module(func.func(torch-insert-skip))",
+    "InsertSkip",
+)
+print(module.operation.get_asm(large_elements_limit=10))
+
+print("================")
+print("after lower to linalg")
+print("================")
 torch_mlir.compiler_utils.run_pipeline_with_repro_report(
     module,
     "builtin.module(torch-backend-to-linalg-on-tensors-backend-pipeline)",
@@ -47,6 +68,9 @@ torch_mlir.compiler_utils.run_pipeline_with_repro_report(
 )
 print(module.operation.get_asm(large_elements_limit=10))
 
+print("================")
+print("run model")
+print("================")
 backend = refbackend.RefBackendLinalgOnTensorsBackend()
 compiled = backend.compile(module)
 jit_module = backend.load(compiled)
