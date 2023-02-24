@@ -3222,7 +3222,9 @@ class SortIntListReverse(torch.nn.Module):
 def SortIntListReverse_basic(module, tu: TestUtils):
     module.forward()
 
+
 # ==============================================================================
+
 
 class BucketizeTensorModule(torch.nn.Module):
     def __init__(self):
@@ -3308,3 +3310,40 @@ class BucketizeTensorStaticFloatModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: BucketizeTensorStaticFloatModule())
 def BucketizeTensorStaticFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(15, 17), torch.sort(tu.rand(16)).values)
+
+
+# ==============================================================================
+
+
+class AtenGluModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True)
+    ])
+    def forward(self, x):
+        return torch.ops.aten.glu(x)
+
+@register_test_case(module_factory=lambda: AtenGluModule())
+def AtenGluModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 2))
+
+class GLUModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.glu = torch.nn.GLU()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True)
+    ])
+    def forward(self, x):
+        return self.glu(x)
+
+@register_test_case(module_factory=lambda: GLUModule())
+def GLUModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 2))
