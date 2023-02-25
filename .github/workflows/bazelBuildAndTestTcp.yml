@@ -1,0 +1,108 @@
+name: Bazel Build and Test (TCP)
+
+on:
+  pull_request:
+    branches: [ mlir-tcp ]
+  push:
+    branches: [ mlir-tcp ]
+  workflow_dispatch:
+
+# Ensure that only a single job or workflow using the same
+# concurrency group will run at a time. This would cancel
+# any in-progress jobs in the same github workflow and github
+# ref (e.g. refs/heads/main or refs/pull/<pr_number>/merge).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
+jobs:
+  ubuntu-build:
+    name: ubuntu-x86_64
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout torch-mlir
+      uses: actions/checkout@v3
+      with:
+        submodules: 'true'
+
+    # Continually update cache even if there's a "hit" during
+    # restore to avoid the cache going stale over time
+    # https://github.com/actions/cache/blob/main/workarounds.md#update-a-cache
+    - name: Setup cache for bazel
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/bazel
+        key: torch_mlir-bazel-build-cache-${{ runner.os }}-${{ github.sha }}
+        restore-keys: |
+          torch_mlir-bazel-build-cache-${{ runner.os }}
+
+    # Change bazel cache directory to root ownership
+    # to allow writing to it from within the docker container.
+    # If no cache hits, this directory is not present
+    # so don't run chown (will error otherwise).
+    - name: Set bazel cache permissions
+      run: |
+        if [ -d "${HOME}/.cache/bazel" ]; then
+          sudo chown -R root:root "${HOME}/.cache/bazel"
+        fi
+
+    - name: Build docker image
+      run: |
+        docker build -f utils/bazel/docker/Dockerfile \
+                     -t torch-mlir:ci \
+                     .
+
+    - name: Bazel build torch-mlir
+      run: |
+        docker run --rm \
+                   -v "$(pwd)":"/opt/src/torch-mlir" \
+                   -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
+                   torch-mlir:ci \
+                   bazel build @torch-mlir//:torch-mlir-opt
+
+    - name: Bazel test torch-mlir (lit tests)
+      run: |
+        docker run --rm \
+                   -v "$(pwd)":"/opt/src/torch-mlir" \
+                   -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
+                   torch-mlir:ci \
+                   bazel test @torch-mlir//test/...
+
+    - name: Bazel build torch-mlir-dialects
+      run: |
+        docker run --rm \
+                   -v "$(pwd)":"/opt/src/torch-mlir" \
+                   -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
+                   torch-mlir:ci \
+                   bazel build @torch-mlir//:torch-mlir-dialects-opt
+
+    - name: Bazel test torch-mlir-dialects (lit tests)
+      run: |
+        docker run --rm \
+                   -v "$(pwd)":"/opt/src/torch-mlir" \
+                   -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
+                   torch-mlir:ci \
+                   bazel test @torch-mlir//externals/llvm-external-projects/torch-mlir-dialects/test/...
+
+    - name: Verify buildifier was run (bazel lint)
+      run: |
+        docker run --rm \
+                   -v "$(pwd)":"/opt/src/torch-mlir" \
+                   -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
+                   torch-mlir:ci \
+                   bazel run @torch-mlir//:buildifier
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "Please 'bazel run @torch-mlir//:buildifier' and commit changes."
+          exit 1
+        fi
+
+    # Switch back bazel cache directory to user ownership
+    # to allow GHA post-cache step to save cache without
+    # permissions issue.
+    - name: Switch bazel cache permissions
+      run: |
+        if [ -d "${HOME}/.cache/bazel" ]; then
+          sudo chown -R "$USER":"$USER" "${HOME}/.cache/bazel"
+        fi
