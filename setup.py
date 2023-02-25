@@ -49,6 +49,8 @@ TORCH_MLIR_ENABLE_LTC_DEFAULT = True
 TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS = int(os.environ.get('TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS', False))
 if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS:
     import torch
+TORCH_MLIR_OUT_OF_TREE_BUILD_DEFAULT = False
+TORCH_MLIR_ENABLE_STABLEHLO_DEFAULT = True
 
 # Build phase discovery is unreliable. Just tell it what phases to run.
 class CustomBuild(_build):
@@ -66,15 +68,11 @@ class CMakeBuild(build_py):
         if not cmake_build_dir:
             cmake_build_dir = os.path.abspath(
                 os.path.join(target_dir, "..", "cmake_build"))
-        python_package_dir = os.path.join(cmake_build_dir,
-                                          "tools", "torch-mlir", "python_packages",
-                                          "torch_mlir")
         if not os.getenv("TORCH_MLIR_CMAKE_BUILD_DIR_ALREADY_BUILT"):
             src_dir = os.path.abspath(os.path.dirname(__file__))
-            llvm_dir = os.path.join(
-                src_dir, "externals", "llvm-project", "llvm")
-
             enable_ltc = int(os.environ.get('TORCH_MLIR_ENABLE_LTC', TORCH_MLIR_ENABLE_LTC_DEFAULT))
+            enable_out_of_tree_build = int(os.environ.get('TORCH_MLIR_OUT_OF_TREE_BUILD', TORCH_MLIR_OUT_OF_TREE_BUILD_DEFAULT))
+            enable_stablehlo = int(os.environ.get('TORCH_MLIR_ENABLE_STABLEHLO', TORCH_MLIR_ENABLE_STABLEHLO_DEFAULT))
 
             cmake_args = [
                 f"-DCMAKE_BUILD_TYPE=Release",
@@ -93,6 +91,8 @@ class CMakeBuild(build_py):
                 f"-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
                 f"-DTORCH_MLIR_ENABLE_LTC={'ON' if enable_ltc else 'OFF'}",
                 f"-DTORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS={'ON' if TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else 'OFF'}",
+                f"-DTORCH_MLIR_OUT_OF_TREE_BUILD={'ON' if enable_out_of_tree_build else 'OFF'}",
+                f"-DTORCH_MLIR_ENABLE_STABLEHLO={'ON' if enable_stablehlo else 'OFF'}",
             ]
 
             os.makedirs(cmake_build_dir, exist_ok=True)
@@ -106,6 +106,12 @@ class CMakeBuild(build_py):
             # delete the directory where we build native extensions to keep
             # this from happening but still take advantage of most of the
             # build cache.
+            if enable_out_of_tree_build:
+                python_package_dir = os.path.join(cmake_build_dir, "python_packages", "torch_mlir")
+            else:
+                python_package_dir = os.path.join(cmake_build_dir, "tools", "torch-mlir", "python_packages",
+                                                  "torch_mlir")
+
             mlir_libs_dir = os.path.join(python_package_dir, "torch_mlir", "_mlir_libs")
             if os.path.exists(mlir_libs_dir):
                 print(f"Removing _mlir_mlibs dir to force rebuild: {mlir_libs_dir}")
@@ -113,7 +119,13 @@ class CMakeBuild(build_py):
             else:
                 print(f"Not removing _mlir_libs dir (does not exist): {mlir_libs_dir}")
 
-            subprocess.check_call(["cmake", llvm_dir] +
+            if enable_out_of_tree_build:
+                cmake_src_dir = src_dir
+            else:
+                cmake_src_dir = os.path.join(
+                    src_dir, "externals", "llvm-project", "llvm")
+
+            subprocess.check_call(["cmake", cmake_src_dir] +
                                   cmake_args, cwd=cmake_build_dir)
             subprocess.check_call(["cmake",
                                    "--build",  ".",
