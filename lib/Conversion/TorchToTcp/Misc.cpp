@@ -31,7 +31,6 @@ namespace {
 class ConvertAtenBroadcastToOp : public OpConversionPattern<AtenBroadcastToOp> {
 public:
   using OpConversionPattern<AtenBroadcastToOp>::OpConversionPattern;
-  using OpAdaptor = typename AtenBroadcastToOp::Adaptor;
 
   LogicalResult
   matchAndRewrite(AtenBroadcastToOp op, OpAdaptor adaptor,
@@ -69,11 +68,35 @@ public:
     RankedTensorType resultType =
         OpConversionPattern<AtenBroadcastToOp>::getTypeConverter()
             ->convertType(op->getResult(0).getType())
-            .template cast<RankedTensorType>();
+            .cast<RankedTensorType>();
 
     auto axesAttr = rewriter.getI64ArrayAttr(axes);
     rewriter.replaceOpWithNewOp<tcp::BroadcastOp>(op, resultType, input,
                                                   resultShape, axesAttr);
+    return success();
+  }
+};
+
+class ConvertValueTensorLiteralOp
+    : public OpConversionPattern<ValueTensorLiteralOp> {
+public:
+  using OpConversionPattern<ValueTensorLiteralOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(ValueTensorLiteralOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    RankedTensorType resultType =
+        OpConversionPattern<ValueTensorLiteralOp>::getTypeConverter()
+            ->convertType(op.getType())
+            .cast<RankedTensorType>();
+
+    // TODO: Implement integer constant lowering to tcp::ConstOp
+    if (auto elements = op.getValueAttr().dyn_cast<DenseIntElementsAttr>())
+      return rewriter.notifyMatchFailure(
+          op, "Integer constants lowering to TCP is unimplemented");
+
+    rewriter.replaceOpWithNewOp<tcp::ConstOp>(op, resultType,
+                                              adaptor.getValue());
     return success();
   }
 };
@@ -87,4 +110,7 @@ void torch_to_tcp::populateMiscPatternsAndLegality(TypeConverter &typeConverter,
 
   target.addIllegalOp<AtenBroadcastToOp>();
   patterns.add<ConvertAtenBroadcastToOp>(typeConverter, context);
+
+  target.addIllegalOp<ValueTensorLiteralOp>();
+  patterns.add<ConvertValueTensorLiteralOp>(typeConverter, context);
 }

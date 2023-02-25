@@ -6,7 +6,7 @@
 // CHECK:         %[[BCAST:.*]] = tcp.broadcast %[[ARG0]], %[[ARG1]] {axes = [0]} : tensor<1x?xf32>, index -> tensor<?x?xf32>
 // CHECK:         return %[[BCAST]] : tensor<?x?xf32>
 func.func @test_broadcast(%arg0 : tensor<1x?xf32>, %arg1 : index) -> tensor<?x?xf32> {
-  %0 = "tcp.broadcast"(%arg0, %arg1) {axes = [0]} : (tensor<1x?xf32>, index) -> tensor<?x?xf32>
+  %0 = tcp.broadcast %arg0, %arg1 {axes = [0]} : tensor<1x?xf32>, index -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
 
@@ -19,7 +19,7 @@ func.func @test_broadcast(%arg0 : tensor<1x?xf32>, %arg1 : index) -> tensor<?x?x
 // CHECK:         %[[BCAST:.*]] = tcp.broadcast %[[ARG0]], %[[ARG1]], %[[ARG2]] {axes = [1, 3]} : tensor<?x1x?x1xf32>, index, index -> tensor<?x?x?x?xf32>
 // CHECK:         return %[[BCAST]] : tensor<?x?x?x?xf32>
 func.func @test_broadcast_multiple_dims(%arg0 : tensor<?x1x?x1xf32>, %arg1 : index, %arg2 : index) -> tensor<?x?x?x?xf32> {
-  %0 = "tcp.broadcast"(%arg0, %arg1, %arg2) {axes = [1, 3]} : (tensor<?x1x?x1xf32>, index, index) -> tensor<?x?x?x?xf32>
+  %0 = tcp.broadcast %arg0, %arg1, %arg2 {axes = [1, 3]} : tensor<?x1x?x1xf32>, index, index -> tensor<?x?x?x?xf32>
   return %0 : tensor<?x?x?x?xf32>
 }
 
@@ -27,7 +27,7 @@ func.func @test_broadcast_multiple_dims(%arg0 : tensor<?x1x?x1xf32>, %arg1 : ind
 
 func.func @test_broadcast_diff_rank(%arg0 : tensor<?xf32>, %arg1 : index) -> tensor<?x?xf32> {
   // expected-error@+1{{'tcp.broadcast' op failed to verify that all of {in, out} have same rank}}
-  %0 = "tcp.broadcast"(%arg0, %arg1) {axes = [0]} : (tensor<?xf32>, index) -> tensor<?x?xf32>
+  %0 = tcp.broadcast %arg0, %arg1 {axes = [0]} : tensor<?xf32>, index -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
 
@@ -35,7 +35,7 @@ func.func @test_broadcast_diff_rank(%arg0 : tensor<?xf32>, %arg1 : index) -> ten
 
 func.func @test_broadcast_diff_elem_type(%arg0 : tensor<1x?xf32>, %arg1 : index) -> tensor<?x?xi32> {
   // expected-error@+1{{'tcp.broadcast' op failed to verify that all of {in, out} have same element type}}
-  %0 = "tcp.broadcast"(%arg0, %arg1) {axes = [0]} : (tensor<1x?xf32>, index) -> tensor<?x?xi32>
+  %0 = tcp.broadcast %arg0, %arg1 {axes = [0]} : tensor<1x?xf32>, index -> tensor<?x?xi32>
   return %0 : tensor<?x?xi32>
 }
 
@@ -43,7 +43,7 @@ func.func @test_broadcast_diff_elem_type(%arg0 : tensor<1x?xf32>, %arg1 : index)
 
 func.func @test_broadcast_diff_num_axes(%arg0 : tensor<1x1xf32>, %arg1 : index, %arg2 : index) -> tensor<?x?xf32> {
   // expected-error@+1{{'tcp.broadcast' op failed to verify that argument `new_dim_sizes` has the same size as the attribute `axes`}}
-  %0 = "tcp.broadcast"(%arg0, %arg1, %arg2) {axes = [0]} : (tensor<1x1xf32>, index, index) -> tensor<?x?xf32>
+  %0 = tcp.broadcast %arg0, %arg1, %arg2 {axes = [0]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
 
@@ -51,7 +51,7 @@ func.func @test_broadcast_diff_num_axes(%arg0 : tensor<1x1xf32>, %arg1 : index, 
 
 func.func @test_broadcast_axes_not_sorted(%arg0 : tensor<?x1x?x1xf32>, %arg1 : index, %arg2 : index) -> tensor<?x?x?x?xf32> {
   // expected-error@+1{{'tcp.broadcast' op failed to verify that attribute `axes` must be in increasing order}}
-  %0 = "tcp.broadcast"(%arg0, %arg1, %arg2) {axes = [3, 1]} : (tensor<?x1x?x1xf32>, index, index) -> tensor<?x?x?x?xf32>
+  %0 = tcp.broadcast %arg0, %arg1, %arg2 {axes = [3, 1]} : tensor<?x1x?x1xf32>, index, index -> tensor<?x?x?x?xf32>
   return %0 : tensor<?x?x?x?xf32>
 }
 
@@ -59,7 +59,7 @@ func.func @test_broadcast_axes_not_sorted(%arg0 : tensor<?x1x?x1xf32>, %arg1 : i
 
 func.func @test_broadcast_axes_w_duplicates(%arg0 : tensor<?x1x?x1xf32>, %arg1 : index, %arg2 : index) -> tensor<?x?x?x?xf32> {
   // expected-error@+1{{'tcp.broadcast' op failed to verify that attribute `axes` must not have any duplicates}}
-  %0 = "tcp.broadcast"(%arg0, %arg1, %arg2) {axes = [1, 1]} : (tensor<?x1x?x1xf32>, index, index) -> tensor<?x?x?x?xf32>
+  %0 = tcp.broadcast %arg0, %arg1, %arg2 {axes = [1, 1]} : tensor<?x1x?x1xf32>, index, index -> tensor<?x?x?x?xf32>
   return %0 : tensor<?x?x?x?xf32>
 }
 
@@ -180,4 +180,19 @@ func.func @test_isolated_group_incorrect_yield_arg_type(%arg0 : tensor<?x?xf32>,
       tcp.yield %3 : tensor<?x?xf32>
   }) : (tensor<?x?xf32>, tensor<?x?xf32>) -> tensor<?xf32>
   return %10 : tensor<?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_constants() -> tensor<f32>
+// CHECK:         %[[CONST0:.*]] = tcp.const {value = dense<2.500000e+00> : tensor<f32>} : tensor<f32>
+// CHECK:         %[[CONST1:.*]] = tcp.const {value = dense<[3, 6, 10]> : tensor<3xi32>} : tensor<3xi32>
+// CHECK:         %[[CONST2:.*]] = tcp.const
+// CHECK-SAME{LITERAL}: value = dense<[[2, 3, 5], [20, 25, 30]]> : tensor<2x3xi64>} : tensor<2x3xi64>
+// CHECK:         return %[[CONST0]] : tensor<f32>
+func.func @test_constants() -> tensor<f32> {
+  %0 = tcp.const {value = dense<2.5> : tensor<f32>} : tensor<f32>
+  %1 = tcp.const {value = dense<[3, 6, 10]> : tensor<3xi32>} : tensor<3xi32>
+  %2 = tcp.const {value = dense<[[2, 3, 5], [20, 25, 30]]> : tensor<2x3xi64>} : tensor<2x3xi64>
+  return %0 : tensor<f32>
 }

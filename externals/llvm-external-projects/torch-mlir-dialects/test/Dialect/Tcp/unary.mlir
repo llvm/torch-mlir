@@ -73,3 +73,14 @@ func.func @test_sigmoid_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
   %0 = tcp.sigmoid %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @test_sqrt_f32(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:         %[[SQRT:.*]] = tcp.sqrt %[[ARG]] : tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         return %[[SQRT]] : tensor<?x?xf32>
+func.func @test_sqrt_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.sqrt %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}

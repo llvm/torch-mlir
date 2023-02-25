@@ -77,7 +77,6 @@ public:
 class ConvertAtenMulOp : public OpConversionPattern<AtenMulTensorOp> {
 public:
   using OpConversionPattern<AtenMulTensorOp>::OpConversionPattern;
-  using OpAdaptor = typename AtenMulTensorOp::Adaptor;
 
   LogicalResult
   matchAndRewrite(AtenMulTensorOp op, OpAdaptor adaptor,
@@ -91,7 +90,7 @@ public:
     RankedTensorType resultType =
         OpConversionPattern<AtenMulTensorOp>::getTypeConverter()
             ->convertType(op.getType())
-            .template cast<RankedTensorType>();
+            .cast<RankedTensorType>();
 
     if (!lhsType || !rhsType || !resultType)
       return rewriter.notifyMatchFailure(
@@ -105,10 +104,109 @@ public:
   }
 };
 
+class ConvertAtenBatchNormOp : public OpConversionPattern<AtenBatchNormOp> {
+public:
+  using OpConversionPattern<AtenBatchNormOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(AtenBatchNormOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = adaptor.getInput();
+    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
+
+    Value weight = adaptor.getWeight();
+    RankedTensorType weightType = weight.getType().dyn_cast<RankedTensorType>();
+
+    Value bias = adaptor.getBias();
+    RankedTensorType biasType = bias.getType().dyn_cast<RankedTensorType>();
+
+    Value runningMean = adaptor.getRunningMean();
+    RankedTensorType runningMeanType =
+        runningMean.getType().dyn_cast<RankedTensorType>();
+
+    Value runningVar = adaptor.getRunningVar();
+    RankedTensorType runningVarType =
+        runningVar.getType().dyn_cast<RankedTensorType>();
+
+    RankedTensorType resultType =
+        OpConversionPattern<AtenBatchNormOp>::getTypeConverter()
+            ->convertType(op.getType())
+            .cast<RankedTensorType>();
+
+    if (!inputType || !weightType || !biasType || !runningMeanType ||
+        !runningVarType || !resultType)
+      return rewriter.notifyMatchFailure(
+          op, "only Ranked Tensor types are supported in TCP");
+
+    if (runningMeanType.getNumElements() == 0 ||
+        runningVarType.getNumElements() == 0)
+      return rewriter.notifyMatchFailure(
+          op, "zero element running_mean and running_var not supported");
+
+    double eps = 0.0;
+    if (!matchPattern(op.getEps(), m_TorchConstantFloat(&eps)))
+      return rewriter.notifyMatchFailure(op,
+                                         "non-float(double) eps unsupported");
+
+    Value epsVal;
+    if (auto result = torch_to_tcp::getConstTensor<float>(
+            rewriter, op, llvm::makeArrayRef(static_cast<float>(eps)), {}))
+      epsVal = *result;
+    else
+      return rewriter.notifyMatchFailure(op,
+                                         "failed to get constTensor for eps");
+
+    // momentum is ignored
+    Value momentum = adaptor.getMomentum();
+    (void)momentum;
+
+    // cudnnEnabled is ignored
+    Value cudnnEnabled = adaptor.getCudnnEnabled();
+    (void)cudnnEnabled;
+
+    bool training = false;
+    if (!matchPattern(op.getTraining(), m_TorchConstantBool(&training)))
+      return rewriter.notifyMatchFailure(op, "non-bool training unsupported");
+    if (training)
+      return rewriter.notifyMatchFailure(
+          op, "only inference mode batch_norm lowering supported");
+
+    // PyTorch inputs are [NCHW], and BatchNorm parameters are [C] length
+    // vectors. `axisInOutput = 1` allows [C] -> [1, C, 1, 1] expansion
+    // followed by a broadcast.
+    runningMean = torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
+        rewriter, runningMean, input, /*axisInOutput=*/1);
+    runningVar = torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
+        rewriter, runningVar, input, /*axisInOutput=*/1);
+    weight =
+        torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(rewriter, weight, input,
+                                                       /*axisInOutput=*/1);
+    bias = torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(rewriter, bias, input,
+                                                          /*axisInOutput=*/1);
+    epsVal =
+        torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(rewriter, epsVal, input);
+
+    Value op1SubInputMean = rewriter.create<tcp::SubOp>(op.getLoc(), resultType,
+                                                        input, runningMean);
+    Value op2AddVarEpsilon = rewriter.create<tcp::AddOp>(
+        op.getLoc(), resultType, runningVar, epsVal);
+    Value op3SqrtOp2 =
+        rewriter.create<tcp::SqrtOp>(op.getLoc(), resultType, op2AddVarEpsilon);
+    Value op4DivOp1Op3 = rewriter.create<tcp::DivFOp>(
+        op.getLoc(), resultType, op1SubInputMean, op3SqrtOp2);
+    Value op5MulWeightOp4 = rewriter.create<tcp::MulOp>(op.getLoc(), resultType,
+                                                        weight, op4DivOp1Op3);
+    Value op6AddOp5Bias = rewriter.create<tcp::AddOp>(op.getLoc(), resultType,
+                                                      op5MulWeightOp4, bias);
+
+    rewriter.replaceOp(op, {op6AddOp5Bias});
+    return success();
+  }
+};
+
 class ConvertAtenDivFOp : public OpConversionPattern<AtenDivTensorOp> {
 public:
   using OpConversionPattern<AtenDivTensorOp>::OpConversionPattern;
-  using OpAdaptor = typename AtenDivTensorOp::Adaptor;
 
   LogicalResult
   matchAndRewrite(AtenDivTensorOp op, OpAdaptor adaptor,
@@ -122,7 +220,7 @@ public:
     RankedTensorType resultType =
         OpConversionPattern<AtenDivTensorOp>::getTypeConverter()
             ->convertType(op.getType())
-            .template cast<RankedTensorType>();
+            .cast<RankedTensorType>();
 
     if (!lhsType || !rhsType || !resultType)
       return rewriter.notifyMatchFailure(
@@ -139,7 +237,6 @@ public:
 class ConvertAtenTanhOp : public OpConversionPattern<AtenTanhOp> {
 public:
   using OpConversionPattern<AtenTanhOp>::OpConversionPattern;
-  using OpAdaptor = typename AtenTanhOp::Adaptor;
 
   LogicalResult
   matchAndRewrite(AtenTanhOp op, OpAdaptor adaptor,
@@ -161,7 +258,6 @@ public:
 class ConvertAtenSigmoidOp : public OpConversionPattern<AtenSigmoidOp> {
 public:
   using OpConversionPattern<AtenSigmoidOp>::OpConversionPattern;
-  using OpAdaptor = typename AtenSigmoidOp::Adaptor;
 
   LogicalResult
   matchAndRewrite(AtenSigmoidOp op, OpAdaptor adaptor,
@@ -180,10 +276,30 @@ public:
   }
 };
 
+class ConvertAtenSqrtOp : public OpConversionPattern<AtenSqrtOp> {
+public:
+  using OpConversionPattern<AtenSqrtOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(AtenSqrtOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = adaptor.getSelf();
+    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
+    if (!inputType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+    if (!inputType.getElementType().isa<mlir::FloatType>())
+      return rewriter.notifyMatchFailure(
+          op, "Sqrt input tensor must have floating-point datatype");
+
+    rewriter.replaceOpWithNewOp<tcp::SqrtOp>(op, inputType, input);
+    return success();
+  }
+};
+
 class ConvertAtenClampOp : public OpConversionPattern<AtenClampOp> {
 public:
   using OpConversionPattern<AtenClampOp>::OpConversionPattern;
-  using OpAdaptor = typename AtenClampOp::Adaptor;
 
   LogicalResult
   matchAndRewrite(AtenClampOp op, OpAdaptor adaptor,
@@ -247,7 +363,6 @@ public:
 class ConvertAtenReluOp : public OpConversionPattern<AtenReluOp> {
 public:
   using OpConversionPattern<AtenReluOp>::OpConversionPattern;
-  using OpAdaptor = typename AtenReluOp::Adaptor;
 
   LogicalResult
   matchAndRewrite(AtenReluOp op, OpAdaptor adaptor,
@@ -305,4 +420,10 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
 
   target.addIllegalOp<AtenDivTensorOp>();
   patterns.add<ConvertAtenDivFOp>(typeConverter, context);
+
+  target.addIllegalOp<AtenSqrtOp>();
+  patterns.add<ConvertAtenSqrtOp>(typeConverter, context);
+
+  target.addIllegalOp<AtenBatchNormOp>();
+  patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
 }

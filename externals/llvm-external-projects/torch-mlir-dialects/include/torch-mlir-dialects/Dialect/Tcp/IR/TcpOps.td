@@ -102,7 +102,7 @@ def Tcp_AddOp : Tcp_BinaryElementwiseOp<"add", [SameOperandsAndResultElementType
 }
 
 def Tcp_SubOp : Tcp_BinaryElementwiseOp<"sub", [SameOperandsAndResultElementType]> {
-  let summary = "Computes elementwise addition";
+  let summary = "Computes elementwise subtraction";
 
   let description = [{
     Computes the elementwise subtraction of `in2` from `in1`.
@@ -156,6 +156,27 @@ def Tcp_DivFOp : Tcp_BinaryElementwiseOp<"divf", [SameOperandsAndResultElementTy
   );
 
   let assemblyFormat = "$in1 `,` $in2 attr-dict `:` type($in1) `,` type($in2) `->` type($out)";
+}
+
+def Tcp_ConstOp : Tcp_Op<"const", [ConstantLike, Pure]> {
+  let summary = "Constant op";
+
+  let description = [{
+    An op that produces constant tensor (of floating point or signless integer type).
+  }];
+
+  let arguments = (ins
+    ElementsAttr:$value
+  );
+
+  let results = (outs
+    Tcp_Tensor:$out
+  );
+
+  let assemblyFormat = "attr-dict `:` type($out)";
+
+  // TODO: Enable this after adding `ConstOp::fold` and unit tests
+  // let hasFolder = 1;
 }
 
 def Tcp_BroadcastOp : Tcp_Op<"broadcast", [
@@ -280,6 +301,24 @@ def Tcp_IsolatedGroupOp : Tcp_Op<"isolated_group", [
   let assemblyFormat = "$ins attr-dict-with-keyword $body `:` type($ins) `->` type($outs)";
 
   let hasVerifier = 1;
+}
+
+def Tcp_SqrtOp : Tcp_UnaryElementwiseOp<"sqrt", [SameOperandsAndResultElementType]> {
+  let summary = "Computes square root of input, elementwise";
+
+  let description = [{
+    Computes elementwise square root of the input tensor.
+  }];
+
+  let arguments = (ins
+    Tcp_FloatOrComplexTensor:$in
+  );
+
+  let results = (outs
+    Tcp_FloatOrComplexTensor:$out
+  );
+
+  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
 }
 
 #endif // TORCH_MLIR_DIALECT_TCP_OPS
