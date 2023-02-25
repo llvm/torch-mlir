@@ -35,6 +35,9 @@ print(net)
 
 # compile to torch mlir
 # NCHW layout in pytorch
+print("================")
+print("origin torch mlir")
+print("================")
 module = torch_mlir.compile(net, torch.ones(1, 1, 28, 28), output_type="torch")
 print(module.operation.get_asm(large_elements_limit=10))
 

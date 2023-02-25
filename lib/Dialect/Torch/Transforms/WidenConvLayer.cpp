@@ -33,7 +33,7 @@ static void widenConvLayer(MLIRContext *context, Operation *f) {
   llvm::SmallPtrSet<mlir::Operation *, 16> opWorklist;
   bool flag = false;
   f->walk([&](mlir::Operation *op) {
-    if (llvm::dyn_cast<AtenConvolutionOp>(op)) {
+    if (isa<AtenConvolutionOp>(op)) {
       flag = !flag;
       opWorklist.insert(op);
     } else if (flag) {

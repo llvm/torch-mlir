@@ -29,7 +29,7 @@ static void insertSkip(MLIRContext *context, Operation *f) {
 
   llvm::SmallPtrSet<mlir::Operation *, 16> opWorklist;
   f->walk([&](mlir::Operation *op) {
-    if (llvm::dyn_cast<AtenConvolutionOp>(op)) {
+    if (isa<AtenConvolutionOp>(op)) {
       opWorklist.insert(op);
     }
   });
