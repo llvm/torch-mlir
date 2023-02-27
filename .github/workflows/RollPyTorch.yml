@@ -19,7 +19,7 @@ jobs:
       run: |
         # Clear the workspace directory so that we don't run into errors about
         # existing lock files.
-        rm -rf $GITHUB_WORKSPACE/*
+        sudo rm -rf $GITHUB_WORKSPACE/*
 
     - name: Get torch-mlir
       uses: actions/checkout@v3
