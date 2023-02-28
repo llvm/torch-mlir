@@ -5248,11 +5248,11 @@ def Torch_AtenStdCorrectionOp : Torch_Op<"aten.std.correction", [
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::std.correction : (Tensor, int[]?, int?, bool) -> (Tensor)`";
+  let summary = "Generated op for `aten::std.correction : (Tensor, int[]?, Scalar?, bool) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
     AnyTorchOptionalListOfTorchIntType:$dim,
-    AnyTorchOptionalIntType:$correction,
+    AnyTorchOptionalScalarType:$correction,
     Torch_BoolType:$keepdim
   );
   let results = (outs
@@ -5324,11 +5324,11 @@ def Torch_AtenVarCorrectionOp : Torch_Op<"aten.var.correction", [
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::var.correction : (Tensor, int[]?, int?, bool) -> (Tensor)`";
+  let summary = "Generated op for `aten::var.correction : (Tensor, int[]?, Scalar?, bool) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
     AnyTorchOptionalListOfTorchIntType:$dim,
-    AnyTorchOptionalIntType:$correction,
+    AnyTorchOptionalScalarType:$correction,
     Torch_BoolType:$keepdim
   );
   let results = (outs
@@ -5350,11 +5350,11 @@ def Torch_AtenVarMeanCorrectionOp : Torch_Op<"aten.var_mean.correction", [
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::var_mean.correction : (Tensor, int[]?, int?, bool) -> (Tensor, Tensor)`";
+  let summary = "Generated op for `aten::var_mean.correction : (Tensor, int[]?, Scalar?, bool) -> (Tensor, Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
     AnyTorchOptionalListOfTorchIntType:$dim,
-    AnyTorchOptionalIntType:$correction,
+    AnyTorchOptionalScalarType:$correction,
     Torch_BoolType:$keepdim
   );
   let results = (outs
@@ -11170,11 +11170,11 @@ def Torch_PrimsVarOp : Torch_Op<"prims.var", [
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `prims::var : (Tensor, int[]?, int, int?) -> (Tensor)`";
+  let summary = "Generated op for `prims::var : (Tensor, int[]?, float, int?) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$inp,
     AnyTorchOptionalListOfTorchIntType:$dims,
-    Torch_IntType:$correction,
+    Torch_FloatType:$correction,
     AnyTorchOptionalIntType:$output_dtype
   );
   let results = (outs
