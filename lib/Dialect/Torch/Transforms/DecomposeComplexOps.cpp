@@ -3184,7 +3184,7 @@ class DecomposeAtenNumpyTOp : public OpRewritePattern<AtenNumpyTOp> {
 
 template <typename OpTy>
 static LogicalResult calculateVariance(OpTy op, PatternRewriter &rewriter,
-                                       bool unbiased, int64_t correction) {
+                                       bool unbiased, double correction) {
   Location loc = op.getLoc();
   Value self = op.getSelf();
   Value dimList = op.getDim();
@@ -3270,19 +3270,22 @@ static LogicalResult calculateVariance(OpTy op, PatternRewriter &rewriter,
     productDimSize =
         rewriter.create<AtenMulIntOp>(loc, productDimSize, dimSize);
   }
-  Value cstCorrection = rewriter.create<Torch::ConstantIntOp>(
-      loc, rewriter.getI64IntegerAttr(correction));
+  productDimSize = rewriter.create<AtenFloatScalarOp>(loc, productDimSize);
+  constantOne = rewriter.create<Torch::ConstantFloatOp>(
+      loc, rewriter.getF64FloatAttr(1.0));
+  Value cstCorrection = rewriter.create<Torch::ConstantFloatOp>(
+      loc, rewriter.getF64FloatAttr(correction));
   // The `correction` value should be less than or equal to `productDimSize +
   // 1`.
-  Value productDimSizePlusOne =
-      rewriter.create<AtenAddIntOp>(loc, productDimSize, constantOne);
+  Value productDimSizePlusOne = rewriter.create<AtenAddOp>(
+      loc, productDimSize.getType(), productDimSize, constantOne);
   Value cond =
-      rewriter.create<AtenGeIntOp>(loc, productDimSizePlusOne, cstCorrection);
+      rewriter.create<AtenGeFloatOp>(loc, productDimSizePlusOne, cstCorrection);
   rewriter.create<RuntimeAssertOp>(
       loc, cond,
       "correction value should be less than or equal to productDimSize + 1");
   Value productDimSizeSubCorrection =
-      rewriter.create<AtenSubIntOp>(loc, productDimSize, cstCorrection);
+      rewriter.create<AtenSubFloatOp>(loc, productDimSize, cstCorrection);
   Value result = rewriter.create<AtenDivScalarOp>(loc, newOutputType, squareSum,
                                                   productDimSizeSubCorrection);
   result =
@@ -3309,7 +3312,7 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Only support constant unbiased for aten.var");
     }
-    int64_t correction = unbiased ? 1 : 0;
+    double correction = unbiased ? 1.0 : 0.0;
     if (failed(calculateVariance<AtenVarDimOp>(op, rewriter, unbiased,
                                                correction)))
       return rewriter.notifyMatchFailure(op, "invalid variance parameters");
@@ -3329,18 +3332,32 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenVarCorrectionOp op,
                                 PatternRewriter &rewriter) const override {
-    int64_t correction;
+    int64_t correctionValInt;
+    double correctionValFloat = 1.0;
     if (!op.getCorrection().getType().isa<Torch::NoneType>()) {
-      if (!matchPattern(op.getCorrection(), m_TorchConstantInt(&correction)))
+      if (op.getCorrection().getType().isa<Torch::FloatType>()) {
+        if (!matchPattern(op.getCorrection(),
+                          m_TorchConstantFloat(&correctionValFloat)))
+          return rewriter.notifyMatchFailure(
+              op, "Only support constant int or float correction value for "
+                  "aten.var");
+      } else if (op.getCorrection().getType().isa<Torch::IntType>()) {
+        if (!matchPattern(op.getCorrection(),
+                          m_TorchConstantInt(&correctionValInt)))
+          return rewriter.notifyMatchFailure(
+              op, "Only support constant int or float correction value for "
+                  "aten.var");
+        correctionValFloat = (double)correctionValInt;
+      } else {
         return rewriter.notifyMatchFailure(
-            op, "Only support constant int correction for aten.var");
-    } else {
-      // The default value in case of `correction` being None is 1.
-      correction = 1;
+            op, "unimplemented: correction value should be only constant int "
+                "or float for aten.var");
+      }
     }
-    bool unbiased = correction == 0 ? false : true;
+
+    bool unbiased = correctionValFloat == 0.0 ? false : true;
     if (failed(calculateVariance<AtenVarCorrectionOp>(op, rewriter, unbiased,
-                                                      correction)))
+                                                      correctionValFloat)))
       return rewriter.notifyMatchFailure(op, "invalid variance parameters");
     return success();
   }

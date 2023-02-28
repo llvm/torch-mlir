@@ -3308,3 +3308,25 @@ class BucketizeTensorStaticFloatModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: BucketizeTensorStaticFloatModule())
 def BucketizeTensorStaticFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(15, 17), torch.sort(tu.rand(16)).values)
+
+
+# ==============================================================================
+
+class AtenFloatScalarModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int64, True),
+    ])
+    def forward(self, x):
+        a = torch.ops.aten.ScalarImplicit(x)
+        return torch.ops.aten.Float(a)
+
+
+@register_test_case(module_factory=lambda: AtenFloatScalarModule())
+def AtenFloatScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(high=5))
