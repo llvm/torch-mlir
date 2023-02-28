@@ -27,7 +27,6 @@ def TorchConversion_Dialect : Dialect {
   }];
 
   let hasConstantMaterializer = 1;
-  let useFoldAPI = kEmitFoldAdaptorFolder;
 }
 
 #endif // TORCHCONVERSION_BASE
