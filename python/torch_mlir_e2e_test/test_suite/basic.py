@@ -2747,6 +2747,25 @@ def ScalarImplicitIntModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class PowIntFloat(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.value = 2
+        self.power_value = 3.0
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.pow(self.value, self.power_value)
+
+@register_test_case(module_factory=lambda: IntFloatModule())
+def PowIntFloatModule_basic(module, tu: TestUtils):
+    module.forward()
+
+# ==============================================================================
 
 class BaddbmmDynamicModule(torch.nn.Module):
 

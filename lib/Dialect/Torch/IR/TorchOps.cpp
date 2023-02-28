@@ -2203,6 +2203,18 @@ OpFoldResult AtenDivOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenPowIntFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenPowIntFloatOp::fold(FoldAdaptor adaptor) {
+  if (!adaptor.getA() || !adaptor.getB()) {
+    return nullptr;
+  }
+  return atenBinaryFloatOperatorFoldHelper(
+      adaptor.getOperands(), [](double a, double b) { return std::pow(a, b); });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenCeilScalarOp
 //===----------------------------------------------------------------------===//
 
