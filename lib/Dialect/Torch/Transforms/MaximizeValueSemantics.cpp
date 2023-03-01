@@ -113,7 +113,6 @@ public:
     for (Operation *user : nonValueTensorUsers) {
       for (Value operand : nonValueTensorsUsedByOp.lookup(user)) {
         if (!availableAliases.contains(operand)) {
-          operand.dump();
           return rewriter.notifyMatchFailure(
               copyToNonValueTensor,
               "operand of op is not a valid tensor alias");
