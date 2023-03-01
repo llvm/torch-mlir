@@ -28,6 +28,50 @@ static Value assertNonValueTensor(Value tensor) {
   return tensor;
 }
 
+// TODO: We currently ignore step information. This can be fixed by using
+// a more precise domain like Presburger formulas.
+struct AliasSliceInfo {
+  // The tensor that is aliased.
+  Value tensor;
+  // The dimension that the slice is taken along. We currently only support
+  // slicing along one dimension. A value of -1 indicates that the tensor is
+  // not sliced.
+  int dim;
+  int start;
+  // A length of -1 indicates a slice [start:].
+  int length;
+  // A flag indicating whether the slice is approximated. If it is, we
+  // do not perform any more slicing analysis on it.
+  bool approximated = false;
+
+  bool isOverlapping(const AliasSliceInfo &other) {
+    // If tensors are different, then the aliases are not overlapping.
+    if (tensor != other.tensor)
+      return false;
+
+    // If there is no slicing on either side, then the aliases are
+    // overlapping as one must be a slice of the other.
+    if (dim == -1 || other.dim == -1)
+      return true;
+
+    // If the slices are on different dimensions, then the aliases are
+    // overlapping.
+    if (dim != other.dim)
+      return true;
+
+    int start1 = start;
+    int start2 = other.start;
+    int end1 = length == -1 ? INT_MAX : start + length;
+    int end2 = other.length == -1 ? INT_MAX : other.start + other.length;
+
+    // If the slices are disjoint, then the aliases are not overlapping.
+    if (end1 <= start2 || end2 <= start1)
+      return false;
+    // Otherwise, the aliases are overlapping.
+    return true;
+  }
+};
+
 namespace {
 class AbstractlyInterpretCopyToNonValueTensorOpUsersWithinABlock
     : public OpRewritePattern<CopyToNonValueTensorOp> {
@@ -65,9 +109,11 @@ public:
     result.copyLikeOps.push_back(copyToNonValueTensor);
     DenseSet<Value> availableAliases{
         assertNonValueTensor(copyToNonValueTensor.getResult())};
+    DenseMap<Value, AliasSliceInfo> aliasSliceInfo;
     for (Operation *user : nonValueTensorUsers) {
       for (Value operand : nonValueTensorsUsedByOp.lookup(user)) {
         if (!availableAliases.contains(operand)) {
+          operand.dump();
           return rewriter.notifyMatchFailure(
               copyToNonValueTensor,
               "operand of op is not a valid tensor alias");
@@ -80,17 +126,16 @@ public:
         // to use value semantics (which happens for example with ops
         // that take two aliases as input), then it is possible that the
         // op no longer generates an alias.
-        if (userResult.getType().isa<NonValueTensorType>())
+        if (userResult.getType().isa<NonValueTensorType>()) {
           availableAliases.insert(userResult);
+          (void)calculateAliasInfo(userResult, aliasSliceInfo);
+        }
         result.viewLikeOps.push_back(user);
       } else if (auto copyToValueTensor = dyn_cast<CopyToValueTensorOp>(user)) {
         result.copyLikeOps.push_back(copyToValueTensor);
       } else if (auto overwrite = dyn_cast<OverwriteTensorContentsOp>(user)) {
-        // To simplify the analysis, we only support the case where the
-        // only aliases used after an overwrite are the aliases generated
-        // after plus the alias being overwritten.
-        availableAliases.clear();
-        availableAliases.insert(assertNonValueTensor(overwrite.getOverwritten()));
+        removePossiblyMutatedAliases(availableAliases, aliasSliceInfo,
+                                     overwrite);
         result.overwriteTensorContentsOps.push_back(overwrite);
       } else if (auto returnOp = dyn_cast<mlir::func::ReturnOp>(user)) {
         result.returnOp = returnOp;
@@ -243,6 +288,111 @@ public:
       return failure();
     rewriteSlice(*interpretedOps, rewriter);
     return success();
+  }
+
+private:
+  static LogicalResult
+  calculateAliasInfo(Value tensor,
+                     DenseMap<Value, AliasSliceInfo> &aliasSliceInfo) {
+    Operation *op = tensor.getDefiningOp();
+
+    // If op is not a view-like op, then the tensor is an alias of itself.
+    if (!isViewLikeOp(op)) {
+      aliasSliceInfo[tensor] = AliasSliceInfo{tensor, -1, 0, -1, false};
+      return success();
+    }
+
+    // Check if the alias information of the operation is already available.
+    if (aliasSliceInfo.count(tensor))
+      return success();
+
+    if (auto staticInfoCast = dyn_cast<TensorStaticInfoCastOp>(op)) {
+      // If op is static info cast, we assume it does not perform any
+      // reshaping or slicing.
+      LogicalResult result =
+          calculateAliasInfo(staticInfoCast.getOperand(), aliasSliceInfo);
+      return result;
+    } else if (auto sliceOp = dyn_cast<AtenSliceTensorOp>(op)) {
+      // Get the alias information of the input tensor.
+      LogicalResult result =
+          calculateAliasInfo(sliceOp.getSelf(), aliasSliceInfo);
+      if (failed(result))
+        return failure();
+
+      AliasSliceInfo &aliasInfo = aliasSliceInfo[sliceOp.getSelf()];
+
+      // We mark the slice as approximate unless we can statically determine
+      // the slicing information.
+      aliasSliceInfo[tensor] =
+          AliasSliceInfo{aliasInfo.tensor, aliasInfo.dim, aliasInfo.start,
+                         aliasInfo.length, true};
+      AliasSliceInfo &newSliceInfo = aliasSliceInfo[tensor];
+
+      // Shape of slice is not statically analyzable.
+      if (aliasInfo.approximated)
+        return success();
+      // If operation is already sliced, we take an approximation of alias with
+      // only the dimension from the first slice.
+      // TODO: Support multiple slices.
+      if (aliasInfo.dim != -1)
+        return success();
+
+      int start = -1, end = -1, dim = -1, step = -1;
+      if (auto startInt = sliceOp.getStart().getDefiningOp<ConstantIntOp>())
+        start = startInt.getValue().getSExtValue();
+      if (auto endInt = sliceOp.getEnd().getDefiningOp<ConstantIntOp>())
+        end = endInt.getValue().getSExtValue();
+      if (auto dimInt = sliceOp.getDim().getDefiningOp<ConstantIntOp>())
+        dim = dimInt.getValue().getSExtValue();
+      if (auto stepInt = sliceOp.getStep().getDefiningOp<ConstantIntOp>())
+        step = stepInt.getValue().getSExtValue();
+
+      // Shape of slice is not statically analyzable.
+      if (start < 0 || end < 0 || dim < 0 || step < 0)
+        return success();
+
+      // Get length of the dimension being sliced.
+      assert(end > start);
+      int length = end - start;
+      // We can directly set the slice information since we assume only
+      // one slice if performed for now.
+      // TODO: Support multiple slices.
+      newSliceInfo.dim = dim;
+      newSliceInfo.start = start;
+      newSliceInfo.length = length;
+      newSliceInfo.approximated = false;
+      return success();
+    } else {
+      // TODO: Support other view-like ops.
+      return failure();
+    }
+  }
+
+  static void
+  removePossiblyMutatedAliases(DenseSet<Value> &availableAliases,
+                               DenseMap<Value, AliasSliceInfo> &aliasSliceInfo,
+                               OverwriteTensorContentsOp overwrite) {
+    Value tensor = overwrite.getOverwritten();
+    if (!aliasSliceInfo.count(tensor)) {
+      // If no alias information about overwritten tensor is available, we
+      // conservatively assume that all available aliases are mutated.
+      availableAliases.clear();
+      availableAliases.insert(assertNonValueTensor(overwrite.getOverwritten()));
+      return;
+    }
+
+    AliasSliceInfo tensorInfo = aliasSliceInfo[tensor];
+
+    // Remove all aliases that overlap with the overwritten tensor.
+    DenseSet<Value> newAvailableAliases;
+    for (Value alias : availableAliases) {
+      if (aliasSliceInfo.count(alias) &&
+          !tensorInfo.isOverlapping(aliasSliceInfo[alias]))
+        newAvailableAliases.insert(alias);
+    }
+
+    availableAliases = newAvailableAliases;
+    availableAliases.insert(assertNonValueTensor(tensor));
   }
 };
 } // namespace
