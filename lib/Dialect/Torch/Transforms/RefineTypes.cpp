@@ -70,6 +70,7 @@
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include <iostream>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -598,6 +599,9 @@ static Type getPromotedResultType(MLIRContext *context,
   assert(tensors.size() == rankIsNonZero.size());
   for (auto t : llvm::zip(tensors, rankIsNonZero)) {
     const ValueKnowledge *tensor = std::get<0>(t);
+    std::cout << "Step i: " << std::flush;
+    tensor->print(llvm::outs());
+    std::cout << std::endl;
     std::optional<bool> rankIsNonZero = std::get<1>(t);
     if (!tensor->dtype)
       return Type();
@@ -1449,15 +1453,15 @@ void TypeAnalysis::visitAtenCatOp(AtenCatOp op,
       llvm::map_range(listConstruct.getElements(), [&](Value v) -> ValueKnowledge {
         return getLatticeElement(v)->getValue();
       }));
-  for (auto tensor : tensors) {
-    auto newDtype = meetElementTypes(knowledge.dtype, tensor.dtype);
-    if (!newDtype.has_value()) {
-      incorporateKnowledge(op.getResult(), knowledge);
-      return;
-    }
-    knowledge.dtype = newDtype.value();
+
+  SmallVector<const ValueKnowledge*> vknlg;
+  for (size_t i = 0; i < tensors.size(); ++i) {
+    vknlg.push_back(&tensors[i]);
   }
-  incorporateKnowledge(op.getResult(), knowledge);
+
+  knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
+      op->getContext(), vknlg);
+  incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 void TypeAnalysis::visitNumToTensorOp(PrimNumToTensorScalarOp op) {
