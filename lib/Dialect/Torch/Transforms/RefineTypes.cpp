@@ -70,7 +70,6 @@
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include <iostream>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -599,9 +598,6 @@ static Type getPromotedResultType(MLIRContext *context,
   assert(tensors.size() == rankIsNonZero.size());
   for (auto t : llvm::zip(tensors, rankIsNonZero)) {
     const ValueKnowledge *tensor = std::get<0>(t);
-    std::cout << "Step i: " << std::flush;
-    tensor->print(llvm::outs());
-    std::cout << std::endl;
     std::optional<bool> rankIsNonZero = std::get<1>(t);
     if (!tensor->dtype)
       return Type();
