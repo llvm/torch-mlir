@@ -877,9 +877,6 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
     return rewriter.notifyMatchFailure(
         op, "only int scalar lhs or rhs is supported");
   }
-  if (isa<AtenRsubScalarOp>(op)) {
-    std::swap(lhs, rhs);
-  }
   if (isa<AtenSubTensorOp, AtenSubScalarOp, AtenRsubScalarOp, AtenAddTensorOp,
           AtenAddScalarOp>(op)) {
     Value alpha = getScalarValue(op->getOperand(2), loc, rewriter);
@@ -887,7 +884,10 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
       return rewriter.notifyMatchFailure(op,
                                          "only int scalar alpha is supported");
     }
-    rhs = rewriter.create<AtenMulIntOp>(loc, rhs, alpha);
+    if (isa<AtenRsubScalarOp>(op))
+      rhs = rewriter.create<AtenMulIntOp>(loc, lhs, alpha);
+    else
+      rhs = rewriter.create<AtenMulIntOp>(loc, rhs, alpha);
   }
 
   if (isa<AtenDivTensorModeOp>(op)) {
