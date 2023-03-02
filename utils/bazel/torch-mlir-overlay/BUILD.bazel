@@ -898,6 +898,7 @@ cc_library(
         ":TorchMLIRTcpOpsIncGen",
         "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:DialectUtils",
+        "@llvm-project//mlir:FuncDialect",
     ],
 )
 
@@ -976,6 +977,28 @@ cc_library(
 )
 
 cc_library(
+    name = "TorchMLIRTcpToArith",
+    srcs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Conversion/PassDetail.h",
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Conversion/TcpToArith/TcpToArith.cpp",
+    ],
+    hdrs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Conversion/TcpToArith/TcpToArith.h",
+    ],
+    strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
+    deps = [
+        ":TorchMLIRDialectsConversionPassesIncGen",
+        ":TorchMLIRTcpDialect",
+        "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:Dialect",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:LinalgDialect",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Transforms",
+    ],
+)
+
+cc_library(
     name = "TorchMLIRDialectsConversionPasses",
     srcs = [
         "externals/llvm-external-projects/torch-mlir-dialects/lib/Conversion/Passes.cpp",
@@ -985,7 +1008,10 @@ cc_library(
     ],
     defines = ["TORCH_MLIR_DIALECTS_ENABLE_TCP"],
     strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
-    deps = [":TorchMLIRTcpToLinalg"],
+    deps = [
+        ":TorchMLIRTcpToArith",
+        ":TorchMLIRTcpToLinalg",
+    ],
 )
 
 # torch-mlir-dialects tools

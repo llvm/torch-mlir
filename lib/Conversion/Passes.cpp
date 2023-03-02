@@ -8,7 +8,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/Passes.h"
-#include "torch-mlir-dialects/Conversion/TcpToArith/TcpToArith.h"
 
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
@@ -20,10 +19,11 @@
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
+#include "torch-mlir/Conversion/TorchToTcp/TorchToTcp.h"
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #ifdef TORCH_MLIR_ENABLE_TCP
+#include "torch-mlir-dialects/Conversion/TcpToArith/TcpToArith.h"
 #include "torch-mlir-dialects/Conversion/TcpToLinalg/TcpToLinalg.h"
-#include "torch-mlir/Conversion/TorchToTcp/TorchToTcp.h"
 #endif // TORCH_MLIR_ENABLE_TCP
 
 //===----------------------------------------------------------------------===//

@@ -26,6 +26,7 @@ endif()
 if(TORCH_MLIR_ENABLE_TCP)
   list(APPEND linked_libs TorchMLIRTorchToTcp)
   list(APPEND linked_libs TorchMLIRTcpToLinalg)
+  list(APPEND linked_libs TorchMLIRTcpToArith)
 endif()
 
 add_mlir_library(TorchMLIRConversionPasses
