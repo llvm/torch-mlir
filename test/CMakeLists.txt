@@ -1,8 +1,8 @@
 llvm_canonicalize_cmake_booleans(
   MLIR_ENABLE_BINDINGS_PYTHON
   TORCH_MLIR_ENABLE_JIT_IR_IMPORTER
-  TORCH_MLIR_ENABLE_MHLO
   TORCH_MLIR_ENABLE_TCP
+  TORCH_MLIR_ENABLE_STABLEHLO
 )
 
 configure_lit_site_cfg(
@@ -24,3 +24,5 @@ add_lit_testsuite(check-torch-mlir "Running the torch-mlir regression tests"
 set_target_properties(check-torch-mlir PROPERTIES FOLDER "Tests")
 
 add_lit_testsuites(TORCH_MLIR ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${TORCH_MLIR_TEST_DEPENDS})
+
+add_subdirectory(CAPI)

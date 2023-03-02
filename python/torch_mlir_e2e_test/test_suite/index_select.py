@@ -28,7 +28,7 @@ class IndexSelectSingleIdxModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: IndexSelectSingleIdxModule())
 def IndexSelectSingleIdxModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(4, 5, 6), torch.tensor([2]))
+    module.forward(tu.rand(4, 5, 6), torch.tensor([2]))
 
 
 class IndexSelectTwoIdxModule(torch.nn.Module):
@@ -47,7 +47,7 @@ class IndexSelectTwoIdxModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: IndexSelectTwoIdxModule())
 def IndexSelectTwoIdxModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(4, 5, 6), torch.tensor([2, 4]))
+    module.forward(tu.rand(4, 5, 6), torch.tensor([2, 4]))
 
 
 class IndexSelectWholeDimensionModule(torch.nn.Module):
@@ -66,7 +66,7 @@ class IndexSelectWholeDimensionModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: IndexSelectWholeDimensionModule())
 def IndexSelectWholeDimensionModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(4, 5, 6), torch.tensor([0, 1, 2, 3]))
+    module.forward(tu.rand(4, 5, 6), torch.tensor([0, 1, 2, 3]))
 
 
 class IndexSelectWholeTensorModule(torch.nn.Module):
@@ -85,7 +85,7 @@ class IndexSelectWholeTensorModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: IndexSelectWholeTensorModule())
 def IndexSelectWholeTensorModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3), torch.tensor([0, 1, 2]))
+    module.forward(tu.rand(3), torch.tensor([0, 1, 2]))
 
 
 class IndexSelectDynamicModule(torch.nn.Module):
@@ -104,7 +104,7 @@ class IndexSelectDynamicModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: IndexSelectDynamicModule())
 def IndexSelectDynamicModulebasic(module, tu: TestUtils):
-    module.forward(torch.randn(4, 5, 6), torch.tensor([0, 4]))
+    module.forward(tu.rand(4, 5, 6), torch.tensor([0, 4]))
 
 
 class IndexSelectDynamicInputSizeModule(torch.nn.Module):
@@ -123,7 +123,7 @@ class IndexSelectDynamicInputSizeModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: IndexSelectDynamicInputSizeModule())
 def IndexSelectDynamicInputSizeModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(4, 5, 6), torch.tensor([0, 2]))
+    module.forward(tu.rand(4, 5, 6), torch.tensor([0, 2]))
 
 
 class IndexSelectDynamicIndexSizeModule(torch.nn.Module):
@@ -142,4 +142,4 @@ class IndexSelectDynamicIndexSizeModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: IndexSelectDynamicIndexSizeModule())
 def IndexSelectDynamicIndexSizeModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(4, 5, 6), torch.tensor([1, 2]))
+    module.forward(tu.rand(4, 5, 6), torch.tensor([1, 2]))

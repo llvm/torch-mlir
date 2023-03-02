@@ -44,9 +44,9 @@ class OutputType(Enum):
     # as taking the `TORCH` output type and lowering it to TOSA.
     TOSA = "tosa"
 
-    # This output type consists of `mhlo` dialect ops. It can be thought of
-    # as taking the `TORCH` output type and lowering it to MHLO.
-    MHLO = "mhlo"
+    # This output type consists of `stablehlo` dialect ops. It can be thought of
+    # as taking the `TORCH` output type and lowering it to StableHLO.
+    STABLEHLO = "stablehlo"
 
     # This output type consists of `tcp` dialect ops. It can be thought of
     # as taking the `TORCH` output type and lowering it to TCP.
@@ -246,8 +246,8 @@ class ExampleArgs:
 BACKEND_LEGAL_OPS = {
     OutputType.TOSA: ['torch.aten.flatten.using_ints', 'torch.aten.native_layer_norm', 'torch.aten.linear'],
     OutputType.LINALG_ON_TENSORS: ['torch.aten.flatten.using_ints', ],
-    OutputType.MHLO: [],
     OutputType.TCP: [],
+    OutputType.STABLEHLO: [],
 }
 
 
@@ -295,7 +295,7 @@ def compile(model: torch.nn.Module,
 
     # We only allow `backend_legal_ops` to be specified for the `"torch"`
     # output type because the other output types actually invoke their
-    # respective backends (Linalg, TOSA, or MHLO), and those backends have
+    # respective backends (Linalg, TOSA, or STABLEHLO), and those backends have
     # very specific requirements about the ops which are legal.
     # See `BACKEND_LEGAL_OPS` for more details.
     if backend_legal_ops is not None:
@@ -409,14 +409,14 @@ PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
             print(mb.module)
         return mb.module
 
-    elif output_type == OutputType.MHLO:
+    elif output_type == OutputType.STABLEHLO:
         run_pipeline_with_repro_report(
             mb.module,
-            "builtin.module(torch-backend-to-mhlo-backend-pipeline)",
-            "Lowering Torch Backend IR -> MHLO Backend IR")
+            "builtin.module(torch-backend-to-stablehlo-backend-pipeline)",
+            "Lowering Torch Backend IR -> StableHLO Backend IR")
         if verbose:
             print("\n====================")
-            print("MHLO Backend IR")
+            print("StableHLO Backend IR")
             print(mb.module)
         return mb.module
 

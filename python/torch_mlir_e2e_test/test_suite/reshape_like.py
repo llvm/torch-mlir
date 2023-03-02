@@ -655,6 +655,23 @@ class ViewNoChangeStaticModule(torch.nn.Module):
 def ViewNoChangeStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 5, 6))
 
+class ViewNegativeStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 128], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(-1, 128)
+
+@register_test_case(module_factory=lambda: ViewNegativeStaticModule())
+def ViewNegativeStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 128))
+
 # ==============================================================================
 
 class ReshapeAliasExpandModule(torch.nn.Module):

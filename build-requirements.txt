@@ -1,0 +1,10 @@
+numpy
+pybind11
+wheel
+setuptools
+cmake
+ninja
+
+# Workaround for what should be a torch dep
+# See discussion in #1174
+pyyaml

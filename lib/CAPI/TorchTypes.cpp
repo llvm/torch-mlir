@@ -42,6 +42,11 @@ MlirType torchMlirTorchOptionalTypeGet(MlirType containedType) {
   return wrap(Torch::OptionalType::get(unwrap(containedType)));
 }
 
+MlirType torchMlirTorchOptionalTypeGetContained(MlirType t) {
+    auto type = unwrap(t).cast<Torch::OptionalType>();
+    return wrap(type.getContainedType());
+}
+
 //===----------------------------------------------------------------------===//
 // torch.tuple<T1, T2, T3> type.
 //===----------------------------------------------------------------------===//
@@ -56,8 +61,18 @@ MlirType torchMlirTorchTupleTypeGet(MlirContext context,
   return wrap(Torch::TupleType::get(
       unwrap(context),
       llvm::to_vector<6>(
-          llvm::map_range(llvm::makeArrayRef(containedTypes, numContainedTypes),
+          llvm::map_range(llvm::ArrayRef(containedTypes, numContainedTypes),
                           [](MlirType t) { return unwrap(t); }))));
+}
+
+size_t torchMlirTorchTupleTypeGetNumTypes(MlirType t) {
+  auto type = unwrap(t).cast<Torch::TupleType>();
+  return type.getContainedTypes().size();
+}
+
+MlirType torchMlirTorchTupleTypeGetType(MlirType t, intptr_t pos) {
+  auto type = unwrap(t).cast<Torch::TupleType>();
+  return wrap(type.getContainedTypes()[pos]);
 }
 
 //===----------------------------------------------------------------------===//
@@ -74,8 +89,18 @@ MlirType torchMlirTorchUnionTypeGet(MlirContext context,
   return wrap(Torch::UnionType::get(
       unwrap(context),
       llvm::to_vector<6>(
-          llvm::map_range(llvm::makeArrayRef(containedTypes, numContainedTypes),
+          llvm::map_range(llvm::ArrayRef(containedTypes, numContainedTypes),
                           [](MlirType t) { return unwrap(t); }))));
+}
+
+size_t torchMlirTorchUnionTypeGetNumTypes(MlirType t) {
+  auto type = unwrap(t).cast<Torch::UnionType>();
+  return type.getContainedTypes().size();
+}
+
+MlirType torchMlirTorchUnionTypeGetType(MlirType t, intptr_t pos) {
+  auto type = unwrap(t).cast<Torch::UnionType>();
+  return wrap(type.getContainedTypes()[pos]);
 }
 
 //===----------------------------------------------------------------------===//
@@ -88,6 +113,10 @@ bool torchMlirTypeIsATorchList(MlirType t) {
 
 MlirType torchMlirTorchListTypeGet(MlirType containedType) {
   return wrap(Torch::ListType::get(unwrap(containedType)));
+}
+
+MlirType torchMlirTorchListTypeGetContainedType(MlirType t) {
+  return wrap(unwrap(t).cast<Torch::ListType>().getContainedType());
 }
 
 //===----------------------------------------------------------------------===//
@@ -201,7 +230,7 @@ MlirType torchMlirTorchNonValueTensorTypeGet(MlirContext context,
   std::optional<ArrayRef<int64_t>> optionalSizesArrayRef = std::nullopt;
   // if numSizes == -1, then it is unranked.
   if (numSizes > -1)
-    optionalSizesArrayRef = llvm::makeArrayRef(optionalSizes, numSizes);
+    optionalSizesArrayRef = llvm::ArrayRef(optionalSizes, numSizes);
   return wrap(Torch::NonValueTensorType::get(
       unwrap(context), optionalSizesArrayRef, unwrap(optionalDtype)));
 }
@@ -220,6 +249,35 @@ MlirType torchMlirTorchNonValueTensorTypeGetFromAttribute(MlirAttribute attr) {
                                              attrTensorType.getElementType()));
 }
 
+int64_t torchMlirTorchNonValueTensorTypeGetRank(MlirType t) {
+  return unwrap(t).cast<Torch::NonValueTensorType>().getSizes().size();
+}
+
+bool torchMlirTorchNonValueTensorTypeHasSizes(MlirType t) {
+    return unwrap(t).cast<Torch::NonValueTensorType>().hasSizes();
+}
+
+bool torchMlirTorchNonValueTensorTypeHasDtype(MlirType t) {
+    return unwrap(t).cast<Torch::NonValueTensorType>().hasDtype();
+}
+
+int64_t torchMlirTorchNonValueTensorTypeGetSizes(MlirType t, int64_t *sizes) {
+  auto tensorType = unwrap(t).cast<Torch::NonValueTensorType>();
+  bool hasSizes = tensorType.hasSizes();
+  if (!hasSizes)
+    return -1;
+
+  auto sizes_ = tensorType.getSizes();
+  for (const auto &s : llvm::enumerate(sizes_)) {
+    sizes[s.index()] = s.value();
+  }
+  return 0;
+}
+
+MlirType torchMlirTorchNonValueTensorTypeGetDtype(MlirType t) {
+  return wrap(unwrap(t).cast<Torch::NonValueTensorType>().getDtype());
+}
+
 //===----------------------------------------------------------------------===//
 // torch.vtensor type.
 //===----------------------------------------------------------------------===//
@@ -235,7 +293,7 @@ MlirType torchMlirTorchValueTensorTypeGet(MlirContext context,
   std::optional<ArrayRef<int64_t>> optionalSizesArrayRef = std::nullopt;
   // if numSizes == -1, then it is unranked.
   if (numSizes > -1)
-    optionalSizesArrayRef = llvm::makeArrayRef(optionalSizes, numSizes);
+    optionalSizesArrayRef = llvm::ArrayRef(optionalSizes, numSizes);
   return wrap(Torch::ValueTensorType::get(
       unwrap(context), optionalSizesArrayRef, unwrap(optionalDtype)));
 }
@@ -252,6 +310,35 @@ MlirType torchMlirTorchValueTensorTypeGetFromAttribute(MlirAttribute attr) {
   return wrap(Torch::ValueTensorType::get(attrTensorType.getContext(),
                                           attrTensorType.getShape(),
                                           attrTensorType.getElementType()));
+}
+
+int64_t torchMlirTorchValueTensorTypeGetRank(MlirType t) {
+  return unwrap(t).cast<Torch::ValueTensorType>().getSizes().size();
+}
+
+bool torchMlirTorchValueTensorTypeHasSizes(MlirType t) {
+    return unwrap(t).cast<Torch::ValueTensorType>().hasSizes();
+}
+
+bool torchMlirTorchValueTensorTypeHasDtype(MlirType t) {
+    return unwrap(t).cast<Torch::ValueTensorType>().hasDtype();
+}
+
+int64_t torchMlirTorchValueTensorTypeGetSizes(MlirType t, int64_t *sizes) {
+  auto tensorType = unwrap(t).cast<Torch::ValueTensorType>();
+  bool hasSizes = tensorType.hasSizes();
+  if (!hasSizes)
+    return -1;
+
+  auto sizes_ = tensorType.getSizes();
+  for (const auto &s : llvm::enumerate(sizes_)) {
+    sizes[s.index()] = s.value();
+  }
+  return 0;
+}
+
+MlirType torchMlirTorchValueTensorTypeGetDtype(MlirType t) {
+  return wrap(unwrap(t).cast<Torch::ValueTensorType>().getDtype());
 }
 
 //===----------------------------------------------------------------------===//
@@ -312,4 +399,21 @@ bool torchMlirTypeIsATorchDict(MlirType t) {
 
 MlirType torchMlirTorchDictTypeGet(MlirType keyType, MlirType valueType) {
   return wrap(Torch::DictType::get(unwrap(keyType), unwrap(valueType)));
+}
+
+MlirType torchMlirTorchDictTypeGetChecked(MlirContext context, MlirType keyType,
+                                          MlirType valueType) {
+  auto unknownLoc = unwrap(mlirLocationUnknownGet(context));
+  return wrap(Torch::DictType::getChecked(unknownLoc, unwrap(context),
+                                          unwrap(keyType), unwrap(valueType)));
+}
+
+MlirType torchMlirTorchDictTypeGetKeyType(MlirType t) {
+    auto type = unwrap(t).cast<Torch::DictType>();
+    return wrap(type.getKeyType());
+}
+
+MlirType torchMlirTorchDictTypeGetValueType(MlirType t) {
+    auto type = unwrap(t).cast<Torch::DictType>();
+    return wrap(type.getValueType());
 }

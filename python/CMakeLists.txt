@@ -45,14 +45,16 @@ endif()
 declare_mlir_python_sources(TorchMLIRPythonSources)
 declare_mlir_python_sources(TorchMLIRPythonExtensions)
 
-declare_mlir_python_sources(TorchMLIRPythonSources.TopLevel
-  ROOT_DIR "${TORCH_MLIR_PYTHON_ROOT_DIR}"
-  ADD_TO_PARENT TorchMLIRPythonSources
-  SOURCES
-    __init__.py
-    compiler_utils.py
-    dynamo.py
-)
+if (NOT TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS)
+  declare_mlir_python_sources(TorchMLIRPythonSources.TopLevel
+    ROOT_DIR "${TORCH_MLIR_PYTHON_ROOT_DIR}"
+    ADD_TO_PARENT TorchMLIRPythonSources
+    SOURCES
+      __init__.py
+      compiler_utils.py
+      dynamo.py
+  )
+endif()
 
 declare_mlir_python_sources(TorchMLIRPythonSources.Dialects
   ROOT_DIR "${TORCH_MLIR_PYTHON_ROOT_DIR}"
@@ -91,7 +93,9 @@ if(TORCH_MLIR_ENABLE_LTC)
 endif()
 # Reference backend has a separate check for TORCH_MLIR_ENABLE_LTC, since it
 # generates a dummy Python library when disabled.
-add_subdirectory(torch_mlir/csrc/reference_lazy_backend)
+if(NOT TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS)
+  add_subdirectory(torch_mlir/csrc/reference_lazy_backend)
+endif()
 
 ################################################################################
 # Optionally handle JIT IR importer.

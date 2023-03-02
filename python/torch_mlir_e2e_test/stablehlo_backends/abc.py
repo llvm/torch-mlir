@@ -10,29 +10,30 @@ import torch
 
 from torch_mlir.ir import Module
 
-# A type shared between the result of `MhloBackend.compile` and the
-# input to `MhloBackend.load`. Each backend will likely have a
+# A type shared between the result of `StablehloBackend.compile` and the
+# input to `StablehloBackend.load`. Each backend will likely have a
 # different definition of this type.
-CompiledArtifact = TypeVar('CompiledArtifact')
+CompiledArtifact = TypeVar("CompiledArtifact")
 
 # A wrapper around a backend-specific loaded program representation
 # that uniformly translates the `x.method(...)` interface expected of
 # Torch modules into appropriate lower-level operations.
-Invoker = TypeVar('Invoker')
+Invoker = TypeVar("Invoker")
 
 
-class MhloBackend(abc.ABC):
-    """The interface to an MHLO backend.
+class StablehloBackend(abc.ABC):
+    """The interface to an StableHLO backend.
 
     Backends are recommended to raise meaningful exceptions in case of error,
     ideally with easy reproduction instructions.
     """
+
     @abc.abstractmethod
     def compile(self, module: Module) -> CompiledArtifact:
         """Compile the provided MLIR module into a compiled artifact.
 
-        The module adheres to the MHLO backend contract
-        (see the VerifyMhloBackendContract pass).
+        The module adheres to the StableHLO backend contract
+        (see the VerifyStablehloBackendContract pass).
 
         The compiled artifact can be any type, but must be correctly
         interpreted by the `load` method.

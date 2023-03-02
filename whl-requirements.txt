@@ -1,10 +1,5 @@
+-f build-requirements.txt
 -f pytorch-requirements.txt
 
-setuptools>=42
-wheel
-cmake==3.22.2
-ninja==1.10.2
+# Packaging requirements.
 packaging
-pybind11>=2.6.0,!=2.7.0
-PyYAML
-numpy

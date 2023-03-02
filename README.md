@@ -8,13 +8,12 @@ necessarily a reflection of the completeness or stability of the code, it
 does indicate that the project is not yet endorsed as a component of LLVM.
 
 [PyTorch](https://pytorch.org)
-An open source machine learning framework that accelerates the path from research prototyping to production deployment.
+PyTorch is an open source machine learning framework that facilitates the seamless transition from research and prototyping to production-level deployment. 
 
 [MLIR](https://mlir.llvm.org)
-The MLIR project is a novel approach to building reusable and extensible compiler infrastructure. MLIR aims to address software fragmentation, improve compilation for heterogeneous hardware, significantly reduce the cost of building domain specific compilers, and aid in connecting existing compilers together.
-
+The MLIR project offers a novel approach for building extensible and reusable compiler architectures, which address the issue of software fragmentation, reduce the cost of developing domain-specific compilers, improve compilation for heterogeneous hardware, and promote compatibility between existing compilers.
 [Torch-MLIR](https://github.com/llvm/torch-mlir)
-Multiple Vendors use MLIR as the middle layer, mapping from platform frameworks like PyTorch, JAX, and TensorFlow into MLIR and then progressively lowering down to their target hardware. We have seen half a dozen custom lowerings from PyTorch to MLIR. Having canonical lowerings from the PyTorch ecosystem to the MLIR ecosystem provides much needed relief to hardware vendors to focus on their unique value rather than implementing yet another PyTorch frontend for MLIR. The goal is to be similar to current hardware vendors adding LLVM target support instead of each one also implementing Clang / a C++ frontend.
+Several vendors have adopted MLIR as the middle layer in their systems, enabling them to map frameworks such as PyTorch, JAX, and TensorFlow into MLIR and subsequently lower them to their target hardware. We have observed half a dozen custom lowerings from PyTorch to MLIR, making it easier for hardware vendors to focus on their unique value, rather than needing to implement yet another PyTorch frontend for MLIR. The ultimate aim is to be similar to the current hardware vendors adding LLVM target support, rather than each one implementing Clang or a C++ frontend.
 
 [![Release Build](https://github.com/llvm/torch-mlir/actions/workflows/buildRelease.yml/badge.svg)](https://github.com/llvm/torch-mlir/actions/workflows/buildRelease.yml)
 
@@ -43,15 +42,26 @@ We have few paths to lower down to the Torch MLIR Dialect.
 
 ## Install torch-mlir snapshot
 
-This installs a pre-built snapshot of torch-mlir for Python 3.7/3.8/3.9/3.10 on Linux and macOS.
+At the time of writing, we release pre-built snapshot of torch-mlir for Python 3.10 on Linux and macOS.
 
+If you have Python 3.10, the following commands initialize a virtual environment.
 ```shell
-python -m venv mlir_venv
+python3.10 -m venv mlir_venv
 source mlir_venv/bin/activate
-# Some older pip installs may not be able to handle the recent PyTorch deps
+```
+
+Or, if you want to switch over multiple versions of Python using conda, you can create a conda environment with Python 3.10.
+```shell
+conda create -n torch-mlir python=3.10
+conda activate torch-mlir
 python -m pip install --upgrade pip
-pip install --pre torch-mlir torchvision -f https://llvm.github.io/torch-mlir/package-index/ --extra-index-url https://download.pytorch.org/whl/nightly/cpu
-# This will install the corresponding torch and torchvision nightlies
+```
+
+Then, we can install torch-mlir with the corresponding torch and torchvision nightlies.
+```
+pip install --pre torch-mlir torchvision \
+  -f https://llvm.github.io/torch-mlir/package-index/
+  --extra-index-url https://download.pytorch.org/whl/nightly/cpu
 ```
 
 ## Demos

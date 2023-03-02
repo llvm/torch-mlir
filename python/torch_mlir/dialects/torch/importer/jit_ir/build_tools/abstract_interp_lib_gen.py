@@ -107,6 +107,9 @@ def aten〇hardtanh〡shape(self: List[int], min_val: float = -1, max_val: float
 def aten〇sqrt〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def prims〇sqrt〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇neg〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -204,6 +207,9 @@ def aten〇dropout〡shape(input: List[int], p: float, train: bool) -> List[int]
     return upstream_shape_functions.unary(input)
 
 def aten〇gelu〡shape(self: List[int], approximate: str = "none") -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇bucketize〇Tensor〡shape(self: List[int], boundaries: List[int], out_int32: bool = False, right: bool = False) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇contiguous〡shape(self: List[int], memory_format: int = 0) -> List[int]:
@@ -307,13 +313,16 @@ def aten〇mean〡shape(self: List[int], dtype: Optional[int] = None) -> List[in
 def aten〇var〡shape(self: List[int], unbiased: bool = True) -> List[int]:
     return []
 
+def prims〇var〡shape(inp: List[int], dims: Optional[List[int]], correction: float, output_dtype: Optional[int] = None) -> List[int]:
+    return upstream_shape_functions.sum_mean_dim(inp, dims, False, None)
+
 def aten〇var〇dim〡shape(self: List[int], dim: Optional[List[int]], unbiased: bool = True, keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
 
-def aten〇var〇correction〡shape(self: List[int], dim: Optional[List[int]] = None, correction: Optional[int] = None, keepdim: bool = False) -> List[int]:
+def aten〇var〇correction〡shape(self: List[int], dim: Optional[List[int]] = None, correction: Optional[float] = None, keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
 
-def aten〇var_mean〇correction〡shape(self: List[int], dim: Optional[List[int]] = None, correction: Optional[int] = None, keepdim: bool = False) -> Tuple[List[int], List[int]]:
+def aten〇var_mean〇correction〡shape(self: List[int], dim: Optional[List[int]] = None, correction: Optional[float] = None, keepdim: bool = False) -> Tuple[List[int], List[int]]:
     out = upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
     return out, out
 
@@ -326,7 +335,7 @@ def aten〇std〡shape(self: List[int], unbiased: bool = True) -> List[int]:
 def aten〇std〇dim〡shape(self: List[int], dim: Optional[List[int]], unbiased: bool = True, keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
 
-def aten〇std〇correction〡shape(self: List[int], dim: Optional[List[int]] = None, correction: Optional[int] = None, keepdim: bool = False) -> List[int]:
+def aten〇std〇correction〡shape(self: List[int], dim: Optional[List[int]] = None, correction: Optional[float] = None, keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
 
 def _reduce_along_dim(self: List[int], dim: int, keepdim: bool):
@@ -567,6 +576,9 @@ def aten〇new_ones〡shape(self: List[int], size: List[int], dtype: Optional[in
 def aten〇new_empty〡shape(self: List[int], size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return size
 
+def aten〇new_empty_strided〡shape(self: List[int], size: List[int], stride: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    return size
+
 def aten〇_to_copy〡shape(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, non_blocking: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -598,6 +610,9 @@ def aten〇bernoulli〇float〡shape(self: List[int], p: float = 0.5, generator:
 def aten〇bernoulli〇Tensor〡shape(self: List[int], p: List[int], generator: Any = None) -> List[int]:
     return self
 
+def aten〇bernoulli〇p〡shape(self: List[int], p: float, generator: Any = None) -> List[int]:
+    return self
+
 def aten〇_index_put_impl〡shape(self: List[int], indices: List[Optional[List[int]]], values: List[int], accumulate: bool = False, unsafe: bool = False) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -608,6 +623,9 @@ def aten〇cumsum〡shape(self: List[int], dim: int, dtype: Optional[int] = None
     return self
 
 def aten〇rand_like〡shape(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
+    return self
+
+def aten〇randn_like〡shape(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
     return self
 
 def aten〇randint〇low〡shape(low: int, high: int, size: List[int], dtype: Optional[int] = 4, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
@@ -679,6 +697,9 @@ def aten〇bitwise_or〇Tensor〡shape(self: List[int], other: List[int]) -> Lis
     return upstream_shape_functions.broadcast(self, other)
 
 def aten〇bitwise_and〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, other)
+
+def aten〇bitwise_xor〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
 def aten〇bitwise_not〡shape(self: List[int]) -> List[int]:
@@ -826,6 +847,9 @@ def aten〇select〇int〡shape(self: List[int], dim: int, index: int) -> List[i
     return upstream_shape_functions.select(self, dim, index)
 
 def aten〇select_scatter〡shape(self: List[int], src: List[int], dim: int, index: int) -> List[int]:
+    return self
+
+def aten〇scatter_reduce〇two〡shape(self: List[int], dim: int, index: List[int], src: List[int], reduce: str, include_self: bool = True) -> List[int]:
     return self
 
 def aten〇index_select〡shape(self: List[int], dim: int, index: List[int]) -> List[int]:
@@ -1065,6 +1089,9 @@ def aten〇linalg_vector_norm〡shape(self: List[int], ord: float = 2, dim: Opti
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, dtype)
 
 def aten〇frobenius_norm〇dim〡shape(self: List[int], dim: List[int], keepdim: bool = False) -> List[int]:
+    return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, 0)
+
+def aten〇norm〇ScalarOpt_dim〡shape(self: List[int], p: Optional[float], dim: List[int], keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, 0)
 
 def aten〇upsample_nearest2d〡shape(self: List[int], output_size: List[int], scales_h: Optional[float] = None, scales_w: Optional[float] = None) -> List[int]:

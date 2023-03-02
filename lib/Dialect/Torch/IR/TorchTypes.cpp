@@ -463,5 +463,46 @@ Type Torch::meetTensorTypes(BaseTensorType lhs, BaseTensorType rhs) {
     }
   }
 
-  return lhs.getWithSizesAndDtype(makeArrayRef(newSizes), dtype);
+  return lhs.getWithSizesAndDtype(ArrayRef(newSizes), dtype);
+}
+
+////===----------------------------------------------------------------------===//
+//// DictType
+////===----------------------------------------------------------------------===//
+
+// TODO: These are not DRY in that the two type predicates AnyTorchDictKeyType
+// and AnyTorchType generate the exact same code (in TorchOps.cpp.inc).
+// Unfortunately the generated implementations aren't visible/exposed ("static" linkage)
+// and the predicates themselves can't be added/used in the specification of the parameters
+// of the Torch_DictType.
+static bool isAnyTorchDictKeyType(Type type) {
+  return type.isa<Torch::AnyType>() || type.isa<Torch::IntType>() ||
+         type.isa<Torch::BoolType>() || type.isa<Torch::FloatType>() ||
+         type.isa<Torch::StringType>() || type.isa<Torch::BaseTensorType>();
+}
+
+static bool isAnyTorchType(Type type) {
+  return isValidSubtype(type, Torch::NumberType::get(type.getContext())) ||
+         type.isa<Torch::BaseTensorType>() || type.isa<Torch::AnyType>() ||
+         type.isa<Torch::BoolType>() || type.isa<Torch::DictType>() ||
+         type.isa<Torch::DeviceType>() || type.isa<Torch::GeneratorType>() ||
+         type.isa<Torch::ListType>() || type.isa<Torch::LinearParamsType>() ||
+         type.isa<Torch::NumberType>() || type.isa<Torch::NnModuleType>() ||
+         type.isa<Torch::NoneType>() || type.isa<Torch::OptionalType>() ||
+         type.isa<Torch::StringType>() || type.isa<Torch::TupleType>() ||
+         type.isa<Torch::UnionType>();
+}
+
+LogicalResult
+DictType::verify(llvm::function_ref<InFlightDiagnostic()> emitError,
+                 Type keyType, Type valueType) {
+  if (!isAnyTorchDictKeyType(keyType)) {
+    emitError() << "invalid " << keyType << " for !torch.dict key type";
+    return failure();
+  }
+  if (!isAnyTorchType(valueType)) {
+    emitError() << "invalid " << valueType << " for !torch.dict value type";
+    return failure();
+  }
+  return success();
 }

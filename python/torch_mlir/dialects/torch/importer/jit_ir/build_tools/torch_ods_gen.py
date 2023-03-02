@@ -283,6 +283,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::masked_fill.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)",
             "aten::masked_fill.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)",
             "aten::clamp : (Tensor, Scalar?, Scalar?) -> (Tensor)",
+            "aten::clamp.Tensor : (Tensor, Tensor?, Tensor?) -> (Tensor)",
             "aten::clamp_min : (Tensor, Scalar) -> (Tensor)",
             "aten::clamp_max : (Tensor, Scalar) -> (Tensor)",
             "aten::log2 : (Tensor) -> (Tensor)",
@@ -293,6 +294,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::reciprocal : (Tensor) -> (Tensor)",
             "aten::bitwise_and.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::bitwise_or.Tensor : (Tensor, Tensor) -> (Tensor)",
+            "aten::bitwise_xor.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::threshold : (Tensor, Scalar, Scalar) -> (Tensor)",
             "aten::square : (Tensor) -> (Tensor)",
             "aten::unsqueeze : (Tensor, int) -> (Tensor)",
@@ -330,10 +332,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::rand_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
     emit("aten::bernoulli : (Tensor, Generator?) -> (Tensor)")
     emit("aten::bernoulli_.float : (Tensor, float, Generator?) -> (Tensor)")
+    emit("aten::bernoulli.p : (Tensor, float, Generator?) -> (Tensor)")
     emit("aten::randint.low : (int, int, int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit_with_mutating_variants("aten::bernoulli.Tensor : (Tensor, Tensor, Generator?) -> (Tensor)")
     emit("aten::randn : (int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::randn.generator : (int[], Generator?, int?, int?, Device?, bool?) -> (Tensor)")
+    emit("aten::randn_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
 
     emit_with_mutating_variants("aten::triu : (Tensor, int) -> (Tensor)")
     emit_with_mutating_variants("aten::round : (Tensor) -> (Tensor)", has_folder=True)
@@ -370,6 +374,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     )
     emit(
         "aten::layer_norm : (Tensor, int[], Tensor?, Tensor?, float, bool) -> (Tensor)"
+    )
+    emit(
+        "aten::norm.ScalarOpt_dim : (Tensor, Scalar?, int[], bool) -> (Tensor)"
     )
     emit(
         "aten::native_layer_norm : (Tensor, int[], Tensor?, Tensor?, float) -> (Tensor, Tensor, Tensor)"
@@ -409,11 +416,11 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::mean : (Tensor, int?) -> (Tensor)")
     emit("aten::std : (Tensor, bool) -> (Tensor)")
     emit("aten::std.dim : (Tensor, int[]?, bool, bool) -> (Tensor)")
-    emit("aten::std.correction : (Tensor, int[]?, int?, bool) -> (Tensor)")
+    emit("aten::std.correction : (Tensor, int[]?, Scalar?, bool) -> (Tensor)")
     emit("aten::var : (Tensor, bool) -> (Tensor)")
     emit("aten::var.dim : (Tensor, int[]?, bool, bool) -> (Tensor)")
-    emit("aten::var.correction : (Tensor, int[]?, int?, bool) -> (Tensor)")
-    emit("aten::var_mean.correction : (Tensor, int[]?, int?, bool) -> (Tensor, Tensor)")
+    emit("aten::var.correction : (Tensor, int[]?, Scalar?, bool) -> (Tensor)")
+    emit("aten::var_mean.correction : (Tensor, int[]?, Scalar?, bool) -> (Tensor, Tensor)")
     emit("aten::var_mean : (Tensor, bool) -> (Tensor, Tensor)")
     emit("aten::nll_loss_forward : (Tensor, Tensor, Tensor?, int, int) -> (Tensor, Tensor)")
     emit("aten::nll_loss_backward : (Tensor, Tensor, Tensor, Tensor?, int, int, Tensor) -> (Tensor)")
@@ -462,6 +469,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::_embedding_bag : (Tensor, Tensor, Tensor, bool, int, bool, Tensor?, bool, int) -> (Tensor, Tensor, Tensor, Tensor)")
     emit("aten::empty_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
     emit("aten::new_empty : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)")
+    emit("aten::new_empty_strided : (Tensor, int[], int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::zeros_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
     emit("aten::ones_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
     emit("aten::empty.memory_format : (int[], int?, int?, Device?, bool?, int?) -> (Tensor)")
@@ -503,7 +511,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::len.Tensor : (Tensor) -> (int)")
     emit("aten::cpu : (Tensor) -> (Tensor)")
     emit("aten::gather : (Tensor, int, Tensor, bool) -> (Tensor)")
-    emit("aten::scatter_add : (Tensor, int, Tensor, Tensor) -> (Tensor)")
+    emit_with_mutating_variants("aten::scatter_add : (Tensor, int, Tensor, Tensor) -> (Tensor)")
+    emit_with_mutating_variants("aten::scatter_reduce.two : (Tensor, int, Tensor, Tensor, str, bool) -> (Tensor)")
     emit("aten::IntImplicit : (Tensor) -> (int)")
     emit("aten::FloatImplicit : (Tensor) -> (float)")
     emit("aten::tensor.float : (float, int?, Device?, bool) -> (Tensor)")
@@ -575,8 +584,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     # Type conversion ops.
     emit("aten::Float.Scalar : (Scalar) -> (float)", has_folder=True)
     emit("aten::Float.str : (str) -> (float)")
-    emit("aten::Int.float : (float) -> (int)")
+    emit("aten::Int.float : (float) -> (int)", has_folder=True)
     emit("aten::Int.Scalar : (Scalar) -> (int)", has_folder=True)
+    emit("aten::Int.bool : (bool) -> (int)", has_folder=True)
 
     # Primitive ops
     emit("aten::__range_length : (int, int, int) -> (int)", has_folder=True)
@@ -597,7 +607,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::neg.int : (int) -> (int)", has_folder=True)
     emit("aten::log.int : (int) -> (float)")
     emit("aten::add.float_int : (float, int) -> (float)")
-    emit("aten::sub.float : (float, float) -> (float)")
+    emit("aten::sub.float : (float, float) -> (float)", has_folder=True)
     emit("aten::mul.float : (float, float) -> (float)")
     emit("aten::div.float : (float, float) -> (float)", has_folder=True)
     emit("aten::neg.float : (float) -> (float)")
@@ -609,6 +619,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::ge.float_int : (float, int) -> (bool)")
     emit("aten::ne.float_int : (float, int) -> (bool)")
     emit("aten::gt.float_int : (float, int) -> (bool)")
+    emit("aten::pow.int_float : (int, float) -> (float)", has_folder=True)
     emit("aten::__and__.bool : (bool, bool) -> (bool)")
     emit("aten::ne.bool : (bool, bool) -> (bool)", has_folder=True)
     emit("aten::__is__ : (t1, t2) -> (bool)", has_folder=True)
@@ -654,7 +665,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("prim::TupleUnpack : (Any) -> (...)", has_canonicalizer=True)
     emit("prim::NumToTensor.Scalar : (Scalar) -> (Tensor)")
     emit("prim::min.self_int : (int[]) -> (int)", has_folder=True)
-    emit("prim::min.int : (int, int) -> (int)")
+    emit("prim::min.int : (int, int) -> (int)", has_folder=True)
     emit("prim::max.self_int : (int[]) -> (int)")
     emit("prim::max.int : (int, int) -> (int)", has_folder=True)
     emit("prim::RaiseException : (str, str?) -> ()")
@@ -671,6 +682,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     # ==========================================================================
 
     emit("prims::convert_element_type : (Tensor, int) -> (Tensor)")
+    emit("prims::var : (Tensor, int[]?, float, int?) -> (Tensor)")
+    emit("prims::sqrt : (Tensor) -> (Tensor)")
 
     # ==========================================================================
     # `quantized::` namespace.

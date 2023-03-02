@@ -13,10 +13,17 @@ on:
 jobs:
   build_linux:
     name: Manylinux Build
-    runs-on: ubuntu-latest
+    runs-on: a100
     steps:
+
+    - name: Prepare workspace
+      run: |
+        # Clear the workspace directory so that we don't run into errors about
+        # existing lock files.
+        sudo rm -rf $GITHUB_WORKSPACE/*
+
     - name: Get torch-mlir
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         submodules: 'true'
     - uses: ./.github/actions/setup-build
@@ -72,7 +79,7 @@ jobs:
     runs-on: macos-latest
     steps:
     - name: Get torch-mlir
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         submodules: 'true'
     - uses: ./.github/actions/setup-build
@@ -85,7 +92,7 @@ jobs:
         TM_PACKAGE_VERSION=${{ github.event.inputs.python_package_version }}
         printf "TORCH_MLIR_PYTHON_PACKAGE_VERSION=%s\n" $TM_PACKAGE_VERSION > ./torch_mlir_package_version
         sudo ./build_tools/python_deploy/install_macos_deps.sh
-        TORCH_MLIR_PYTHON_VERSIONS="3.10" ./build_tools/python_deploy/build_macos_packages.sh
+        TORCH_MLIR_PYTHON_VERSIONS="3.11" ./build_tools/python_deploy/build_macos_packages.sh
 
     # If we were given a release_id, then upload the package we just built
     # to the github releases page.
@@ -129,7 +136,7 @@ jobs:
     runs-on: windows-latest
     steps:
     - name: Get torch-mlir
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         submodules: 'true'
     - uses: ./.github/actions/setup-build

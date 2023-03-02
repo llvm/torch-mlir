@@ -8,21 +8,22 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/Passes.h"
+#include "torch-mlir-dialects/Conversion/TcpToArith/TcpToArith.h"
 
-#ifdef TORCH_MLIR_ENABLE_MHLO
-#include "mhlo/transforms/passes.h"
-#include "mlir-hlo/Transforms/passes.h"
-#endif // TORCH_MLIR_ENABLE_MHLO
+#ifdef TORCH_MLIR_ENABLE_STABLEHLO
+#include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
+#include "transforms/passes.h"
+#endif // TORCH_MLIR_ENABLE_STABLEHLO
+
+#include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
+#include "torch-mlir/Conversion/TorchToArith/TorchToArith.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
-#include "torch-mlir/Conversion/TorchToArith/TorchToArith.h"
-#include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
-#include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
-#include "torch-mlir/Conversion/TorchToTcp/TorchToTcp.h"
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
-#include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
+#include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #ifdef TORCH_MLIR_ENABLE_TCP
 #include "torch-mlir-dialects/Conversion/TcpToLinalg/TcpToLinalg.h"
+#include "torch-mlir/Conversion/TorchToTcp/TorchToTcp.h"
 #endif // TORCH_MLIR_ENABLE_TCP
 
 //===----------------------------------------------------------------------===//
@@ -36,17 +37,12 @@ namespace {
 
 void mlir::torch::registerConversionPasses() {
   ::registerPasses();
-#ifdef TORCH_MLIR_ENABLE_MHLO
-  ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
-    return mlir::mhlo::createLegalizeHloToLinalgPass();
-  });
-  ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
-    return mlir::createSymbolicShapeOptimizationPass();
-  });
-#endif // TORCH_MLIR_ENABLE_MHLO
 #ifdef TORCH_MLIR_ENABLE_TCP
   ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
     return mlir::tcp::createConvertTcpToLinalgPass();
+  });
+  ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
+    return mlir::tcp::createConvertTcpToArithPass();
   });
 #endif // TORCH_MLIR_ENABLE_TCP
 }

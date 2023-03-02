@@ -9,6 +9,7 @@ config.host_os = "@HOST_OS@"
 config.llvm_src_root = "@LLVM_SOURCE_DIR@"
 config.llvm_obj_root = "@LLVM_BINARY_DIR@"
 config.llvm_tools_dir = "@LLVM_TOOLS_DIR@"
+config.llvm_build_dir = "@CMAKE_BINARY_DIR@"
 config.llvm_lib_dir = "@LLVM_LIBS_DIR@"
 config.llvm_shlib_dir = "@SHLIBDIR@"
 config.llvm_shlib_ext = "@SHLIBEXT@"
@@ -16,7 +17,7 @@ config.llvm_exe_ext = "@EXEEXT@"
 config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
 config.python_executable = "@Python3_EXECUTABLE@"
 config.enable_jit_ir_importer = @TORCH_MLIR_ENABLE_JIT_IR_IMPORTER@
-config.enable_mhlo = @TORCH_MLIR_ENABLE_MHLO@
+config.enable_stablehlo = @TORCH_MLIR_ENABLE_STABLEHLO@
 config.enable_tcp = @TORCH_MLIR_ENABLE_TCP@
 
 import lit.llvm

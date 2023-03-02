@@ -13,12 +13,12 @@ RUN apt-get update && \
     unzip
 
 # Install clang
-ARG REPO_NAME="deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy main"
+ARG REPO_NAME="deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main"
 RUN echo $REPO_NAME >> /etc/apt/sources.list.d/llvm.list && \
     wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
     apt-get update && \
     apt-get install -y \
-    clang
+    clang-16
 
 # Install bazel
 ARG ARCH="x86_64"
@@ -28,6 +28,9 @@ RUN wget -q https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSIO
 
 # Install torch-mlir requirements
 COPY requirements.txt /opt/app/requirements.txt
+COPY build-requirements.txt /opt/app/build-requirements.txt
+COPY test-requirements.txt  /opt/app/test-requirements.txt
+COPY torchvision-requirements.txt  /opt/app/torchvision-requirements.txt
 COPY pytorch-requirements.txt /opt/app/pytorch-requirements.txt
 WORKDIR /opt/app
 RUN python3 -m pip install --upgrade pip

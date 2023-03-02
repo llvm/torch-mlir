@@ -59,11 +59,28 @@ static Value createGreaterThan(OpBuilder &b, Location loc, Type elementalType,
       b, loc, elementalType, lhs, rhs);
 }
 
+static Value createGreaterThanOrEqual(OpBuilder &b, Location loc,
+                                      Type elementalType, Value lhs,
+                                      Value rhs) {
+  return createComparisonTemplate<arith::CmpFPredicate::UGE,
+                                  arith::CmpIPredicate::uge,
+                                  arith::CmpIPredicate::sge>(
+      b, loc, elementalType, lhs, rhs);
+}
+
 static Value createLessThan(OpBuilder &b, Location loc, Type elementalType,
                             Value lhs, Value rhs) {
   return createComparisonTemplate<arith::CmpFPredicate::ULT,
                                   arith::CmpIPredicate::ult,
                                   arith::CmpIPredicate::slt>(
+      b, loc, elementalType, lhs, rhs);
+}
+
+static Value createLessThanOrEqual(OpBuilder &b, Location loc,
+                                   Type elementalType, Value lhs, Value rhs) {
+  return createComparisonTemplate<arith::CmpFPredicate::ULE,
+                                  arith::CmpIPredicate::ule,
+                                  arith::CmpIPredicate::sle>(
       b, loc, elementalType, lhs, rhs);
 }
 
@@ -115,6 +132,46 @@ static Value createCalculationForMathOpWithDtypeConversion(
   Location loc = op->getLoc();
   Value arg = convertScalarToDtype(b, loc, payloadArg, dtype);
   return b.create<MathOpTy>(loc, arg);
+}
+
+template <typename OpTy>
+static Value createCompareTensorOp(OpBuilder &b, Location loc, OpTy op,
+                                   Value lhs, Value rhs) {
+  static_assert(std::is_same<OpTy, AtenLtTensorOp>() ||
+                    std::is_same<OpTy, AtenLeTensorOp>() ||
+                    std::is_same<OpTy, AtenGtTensorOp>() ||
+                    std::is_same<OpTy, AtenGeTensorOp>() ||
+                    std::is_same<OpTy, AtenEqTensorOp>(),
+                "unimplemented: op type not supported");
+
+  Type lhsDtype = lhs.getType();
+  Type rhsDtype = rhs.getType();
+
+  // TODO: Type promotion in case of different `lhsDtype` and `rhsDtype` needs
+  // to be handled.
+  if (lhsDtype != rhsDtype) {
+    op.emitError("unimplemented: lhs and rhs dtype must be same");
+    return nullptr;
+  }
+
+  Type elementalType =
+      op.getSelf().getType().template cast<BaseTensorType>().getDtype();
+  if constexpr (std::is_same<OpTy, AtenLtTensorOp>()) {
+    return createLessThan(b, loc, elementalType, lhs, rhs);
+  }
+  if constexpr (std::is_same<OpTy, AtenLeTensorOp>()) {
+    return createLessThanOrEqual(b, loc, elementalType, lhs, rhs);
+  }
+  if constexpr (std::is_same<OpTy, AtenGtTensorOp>()) {
+    return createGreaterThan(b, loc, elementalType, lhs, rhs);
+  }
+  if constexpr (std::is_same<OpTy, AtenGeTensorOp>()) {
+    return createGreaterThanOrEqual(b, loc, elementalType, lhs, rhs);
+  }
+  if constexpr (std::is_same<OpTy, AtenEqTensorOp>()) {
+    return createEqual(b, loc, elementalType, lhs, rhs);
+  }
+  llvm_unreachable("unimplemented: op type not supported");
 }
 
 static Value createLinalgPayloadCalculationForElementwiseOp(
@@ -177,8 +234,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     if (!clone.getMemoryFormat().getType().isa<Torch::NoneType>() &&
         (!matchPattern(clone.getMemoryFormat(),
                        m_TorchConstantInt(&memoryFormat)) ||
-         memoryFormat != torch_upstream::MemoryFormat::Contiguous)) {
-      clone.emitError("unimplemented: only default memory format is supported");
+         (memoryFormat != torch_upstream::MemoryFormat::Contiguous &&
+          memoryFormat != torch_upstream::MemoryFormat::ChannelsLast))) {
+      clone.emitError("unimplemented: only contiguous and channels last memory "
+                      "format is supported");
       return nullptr;
     }
     return payloadArgs[0];
@@ -214,6 +273,22 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
     return b.create<arith::OrIOp>(loc, lhs, rhs);
+  }
+  if (auto bitwiseXorTensor = dyn_cast<AtenBitwiseXorTensorOp>(op)) {
+    if (bitwiseXorTensor.getType()
+            .cast<ValueTensorType>()
+            .getDtype()
+            .isa<mlir::FloatType>()) {
+      bitwiseXorTensor.emitError(
+          "Bitwise_Xor does not support floating point dtype");
+      return nullptr;
+    }
+    Type dtype = converter->convertType(bitwiseXorTensor.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    return b.create<arith::XOrIOp>(loc, lhs, rhs);
   }
   if (isa<AtenLogicalOrOp, AtenLogicalAndOp, AtenLogicalXorOp>(op)) {
     MLIRContext *context = op->getContext();
@@ -277,7 +352,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       round.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    return b.create<math::RoundOp>(loc, payloadArgs[0]);
+    return b.create<math::RoundEvenOp>(loc, payloadArgs[0]);
   }
   if (auto prelu = dyn_cast<AtenPreluOp>(op)) {
     if (!prelu.getType()
@@ -447,64 +522,25 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
     return b.create<math::Atan2Op>(loc, lhs, rhs);
   }
+  if (auto ltTensor = dyn_cast<AtenLtTensorOp>(op)) {
+    return createCompareTensorOp(b, loc, ltTensor, payloadArgs[0],
+                                 payloadArgs[1]);
+  }
+  if (auto leTensor = dyn_cast<AtenLeTensorOp>(op)) {
+    return createCompareTensorOp(b, loc, leTensor, payloadArgs[0],
+                                 payloadArgs[1]);
+  }
   if (auto gtTensor = dyn_cast<AtenGtTensorOp>(op)) {
-    AtenGtTensorOp::Adaptor adaptor(operands);
-    Type lhsDtype = payloadArgs[0].getType();
-    Type rhsDtype = payloadArgs[1].getType();
-
-    // TODO: Type promotion in case of different `lhsDtype` and `rhsDtype` needs
-    // to be handled.
-    if (lhsDtype != rhsDtype) {
-      gtTensor.emitError("unimplemented: different lhs and rhs dtype");
-      return nullptr;
-    }
-
-    Type elementalType =
-        gtTensor.getSelf().getType().cast<BaseTensorType>().getDtype();
-    return createGreaterThan(b, loc, elementalType, payloadArgs[0],
-                             payloadArgs[1]);
+    return createCompareTensorOp(b, loc, gtTensor, payloadArgs[0],
+                                 payloadArgs[1]);
+  }
+  if (auto geTensor = dyn_cast<AtenGeTensorOp>(op)) {
+    return createCompareTensorOp(b, loc, geTensor, payloadArgs[0],
+                                 payloadArgs[1]);
   }
   if (auto eqTensor = dyn_cast<AtenEqTensorOp>(op)) {
-    AtenEqTensorOp::Adaptor adaptor(operands);
-    Type lhsDtype = payloadArgs[0].getType();
-    Type rhsDtype = payloadArgs[1].getType();
-
-    // TODO: Type promotion in case of different `lhsDtype` and `rhsDtype` needs
-    // to be handled.
-    if (lhsDtype != rhsDtype) {
-      eqTensor.emitError("unimplemented: lhs and rhs dtype must be same");
-      return nullptr;
-    }
-
-    Type elementalType =
-        eqTensor.getSelf().getType().cast<BaseTensorType>().getDtype();
-
-    if (elementalType.isa<mlir::FloatType>())
-      return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UEQ,
-                                     payloadArgs[0], payloadArgs[1]);
-    if (elementalType.isa<mlir::IntegerType>()) {
-      return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-                                     payloadArgs[0], payloadArgs[1]);
-    }
-    eqTensor.emitError("unimplemented: dtype isn't supported.");
-    return nullptr;
-  }
-  if (auto ltTensor = dyn_cast<AtenLtTensorOp>(op)) {
-    AtenLtTensorOp::Adaptor adaptor(operands);
-    Type lhsDtype = payloadArgs[0].getType();
-    Type rhsDtype = payloadArgs[1].getType();
-
-    // TODO: Type promotion in case of different `lhsDtype` and `rhsDtype` needs
-    // to be handled.
-    if (lhsDtype != rhsDtype) {
-      ltTensor.emitError("unimplemented: lhs and rhs dtype must be same");
-      return nullptr;
-    }
-
-    Type elementalType =
-        ltTensor.getSelf().getType().cast<BaseTensorType>().getDtype();
-    return createLessThan(b, loc, elementalType, payloadArgs[0],
-                          payloadArgs[1]);
+    return createCompareTensorOp(b, loc, eqTensor, payloadArgs[0],
+                                 payloadArgs[1]);
   }
   if (auto div = dyn_cast<AtenDivTensorOp>(op)) {
     AtenDivTensorOp::Adaptor adaptor(operands);
@@ -948,18 +984,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
     return convertScalarToDtype(b, loc, adaptor.getValue(), dtype);
   }
-  if (auto maskedFillScalar = dyn_cast<AtenMaskedFillScalarOp>(op)) {
-    AtenMaskedFillScalarOp::Adaptor adaptor(operands);
-    Type dtype = converter->convertType(maskedFillScalar.getType())
-                     .cast<RankedTensorType>()
-                     .getElementType();
-
-    Value input = payloadArgs[0];
-    Value mask = payloadArgs[1];
-    Value fillValue = convertScalarToDtype(b, loc, adaptor.getValue(), dtype);
-
-    return b.create<arith::SelectOp>(loc, mask, fillValue, input);
-  }
   if (auto maskedFillTensor = dyn_cast<AtenMaskedFillTensorOp>(op)) {
     AtenMaskedFillScalarOp::Adaptor adaptor(operands);
     Type dtype = converter->convertType(maskedFillTensor.getType())
@@ -1064,11 +1088,12 @@ public:
              AtenPowTensorTensorOp, AtenLog2Op, AtenLog1pOp, AtenRsqrtOp,
              AtenDivScalarOp, AtenRemainderScalarOp, AtenAbsOp,
              AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenBitwiseOrTensorOp,
-             AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp,
-             AtenLeScalarOp, AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp,
-             AtenEqTensorOp, AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp,
+             AtenBitwiseXorTensorOp, AtenGtScalarOp, AtenGeScalarOp,
+             AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp,
+             AtenCeilOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
+             AtenLtTensorOp, AtenLeTensorOp, AtenSubScalarOp, AtenAddScalarOp,
              AtenThresholdOp, AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp,
-             AtenCosOp, AtenNeScalarOp, AtenNegOp, AtenMaskedFillScalarOp,
+             AtenCosOp, AtenNeScalarOp, AtenNegOp,
              AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
              AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenBitwiseNotOp,
              AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp>(op))
@@ -1542,10 +1567,11 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenCeilOp, AtenPreluOp,
       AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op, AtenLog1pOp,
       AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
-      AtenBitwiseOrTensorOp, AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp,
-      AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp,
-      AtenEqTensorOp, AtenLtTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
-      AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillScalarOp,
+      AtenBitwiseOrTensorOp, AtenBitwiseXorTensorOp, AtenGtScalarOp,
+      AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp,
+      AtenWhereSelfOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
+      AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
+      AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
       AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
       AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenRemainderScalarOp,
       AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp>();

@@ -8,7 +8,7 @@ from typing import List
 import torch
 from torch._functorch.compile_utils import strip_overloads
 from torch._decomp import get_decompositions
-from torch._dynamo.optimizations.training import aot_autograd
+from torch._dynamo.backends.common import aot_autograd
 import functorch
 
 import warnings
@@ -49,6 +49,20 @@ def _get_decomposition_table():
         # (the upstream decomposition we use here does), even though we have
         # support for aten.native_batch_norm_backward.
         aten._native_batch_norm_legit_functional,
+        aten.native_group_norm,
+        aten.split.Tensor,
+        aten.split_with_sizes,
+        aten.norm.ScalarOpt_dim,
+        aten.embedding_dense_backward,
+        aten.native_layer_norm_backward,
+        aten.slice_backward,
+        aten.select_backward,
+        aten.upsample_bilinear2d.vec,
+        aten.mse_loss_backward,
+        aten.native_group_norm_backward,
+        aten.sigmoid_backward,
+        aten._native_batch_norm_legit,
+        aten._native_batch_norm_legit_no_training
     ])
 
 

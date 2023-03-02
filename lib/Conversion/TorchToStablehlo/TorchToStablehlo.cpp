@@ -7,17 +7,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
+#include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 
 #include "../PassDetail.h"
-#include "./PopulatePatterns.h"
-#include "mhlo/IR/hlo_ops.h"
+#include "PopulatePatterns.h"
+
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "stablehlo/dialect/ChloOps.h"
+#include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -30,17 +31,18 @@ using namespace mlir::torch::Torch;
 
 namespace {
 
-class ConvertTorchToMhlo : public ConvertTorchToMhloBase<ConvertTorchToMhlo> {
+class ConvertTorchToStablehlo
+    : public ConvertTorchToStablehloBase<ConvertTorchToStablehlo> {
 public:
-  ConvertTorchToMhlo() = default;
-  ConvertTorchToMhlo(bool enableStaticShape, bool enableI32Index) {
+  ConvertTorchToStablehlo() = default;
+  ConvertTorchToStablehlo(bool enableStaticShape, bool enableI32Index) {
     this->enableStaticShape = enableStaticShape;
     this->enableI32Index = enableI32Index;
   }
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<chlo::ChloDialect>();
-    registry.insert<mhlo::MhloDialect>();
+    registry.insert<stablehlo::StablehloDialect>();
     registry.insert<tensor::TensorDialect>();
     registry.insert<arith::ArithDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
@@ -48,7 +50,7 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
-    target.addLegalDialect<chlo::ChloDialect, mhlo::MhloDialect,
+    target.addLegalDialect<chlo::ChloDialect, stablehlo::StablehloDialect,
                            tensor::TensorDialect, arith::ArithDialect>();
 
     TypeConverter typeConverter;
@@ -57,20 +59,20 @@ public:
 
     RewritePatternSet patterns(context);
 
-    torch_to_mhlo::TorchToMhloOptions options{enableStaticShape,
-                                              enableI32Index ? 32u : 64u};
-    torch_to_mhlo::populateBasicOpPatternsAndLegality(typeConverter, patterns,
-                                                      target, options);
-    torch_to_mhlo::populateViewLikeOpPatternsAndLegality(
+    torch_to_stablehlo::TorchToStablehloOptions options{
+        enableStaticShape, enableI32Index ? 32u : 64u};
+    torch_to_stablehlo::populateBasicOpPatternsAndLegality(
         typeConverter, patterns, target, options);
-    torch_to_mhlo::populateGatherOpPatternsAndLegality(typeConverter, patterns,
-                                                       target, options);
-    torch_to_mhlo::populateReductionOpPatternsAndLegality(
+    torch_to_stablehlo::populateViewLikeOpPatternsAndLegality(
         typeConverter, patterns, target, options);
-    torch_to_mhlo::populateLinearOpPatternsAndLegality(typeConverter, patterns,
-                                                       target, options);
-    torch_to_mhlo::populatePoolingOpPatternsAndLegality(typeConverter, patterns,
-                                                        target, options);
+    torch_to_stablehlo::populateGatherOpPatternsAndLegality(
+        typeConverter, patterns, target, options);
+    torch_to_stablehlo::populateReductionOpPatternsAndLegality(
+        typeConverter, patterns, target, options);
+    torch_to_stablehlo::populateLinearOpPatternsAndLegality(
+        typeConverter, patterns, target, options);
+    torch_to_stablehlo::populatePoolingOpPatternsAndLegality(
+        typeConverter, patterns, target, options);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
@@ -82,13 +84,13 @@ public:
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::createConvertTorchToMhloPass() {
-  return std::make_unique<ConvertTorchToMhlo>(false, false);
+mlir::torch::createConvertTorchToStablehloPass() {
+  return std::make_unique<ConvertTorchToStablehlo>(false, false);
 }
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::createConvertTorchToMhloPass(bool enableStaticShape,
-                                          bool enableI32Index) {
-  return std::make_unique<ConvertTorchToMhlo>(enableStaticShape,
-                                              enableI32Index);
+mlir::torch::createConvertTorchToStablehloPass(bool enableStaticShape,
+                                               bool enableI32Index) {
+  return std::make_unique<ConvertTorchToStablehlo>(enableStaticShape,
+                                                   enableI32Index);
 }

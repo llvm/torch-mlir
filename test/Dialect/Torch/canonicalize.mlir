@@ -502,6 +502,24 @@ func.func @torch.prim.max.int$constant() -> !torch.int {
   return %0 : !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.prim.min.int$identity(
+// CHECK-SAME:                                      %[[ARG:.*]]: !torch.int) -> !torch.int {
+// CHECK:           return %[[ARG]] : !torch.int
+func.func @torch.prim.min.int$identity(%arg0: !torch.int) -> !torch.int {
+  %0 = torch.prim.min.int %arg0, %arg0 : !torch.int, !torch.int -> !torch.int
+  return %0 : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.prim.min.int$constant() -> !torch.int {
+// CHECK:           %[[INT1:.*]] = torch.constant.int -1
+// CHECK:           return %[[INT1]] : !torch.int
+func.func @torch.prim.min.int$constant() -> !torch.int {
+  %int-1 = torch.constant.int -1
+  %int3 = torch.constant.int 3
+  %0 = torch.prim.min.int %int-1, %int3 : !torch.int, !torch.int -> !torch.int
+  return %0 : !torch.int
+}
+
 // CHECK-LABEL:   func.func @torch.prim.min.self_int$basic() -> !torch.int {
 // CHECK:           %[[M1:.*]] = torch.constant.int -1
 // CHECK:           return %[[M1]] : !torch.int
@@ -1044,6 +1062,16 @@ func.func @torch.aten.remainder.int() -> !torch.int {
     return %ret : !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.aten.pow.int_float() -> !torch.float {
+// CHECK:           %[[FLOAT_8:.*]] = torch.constant.float 8.000000e+00
+// CHECK:           return %[[FLOAT_8]] : !torch.float
+func.func @torch.aten.pow.int_float() -> !torch.float {
+    %cst2 = torch.constant.int 2
+    %float3.0 = torch.constant.float 3.0
+    %ret = torch.aten.pow.int_float %cst2, %float3.0: !torch.int, !torch.float -> !torch.float
+    return %ret : !torch.float
+}
+
 // CHECK-LABEL:   func.func @torch.prim.dtype$bfloat16(
 // CHECK-SAME:             %[[T:.*]]: !torch.tensor<*,bf16>) -> !torch.int {
 // CHECK:           %[[CST:.*]] = torch.constant.int 15
@@ -1251,6 +1279,15 @@ func.func @torch.aten.Int.Tensor(%arg0: !torch.int) -> !torch.int {
   %tensor = torch.prim.NumToTensor.Scalar %arg0: !torch.int -> !torch.vtensor<[],si64>
   %scalar = torch.aten.Int.Tensor %tensor : !torch.vtensor<[],si64> -> !torch.int
   return %scalar : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.aten.Int.float() -> !torch.int {
+// CHECK:             %[[NUM:.*]] = torch.constant.int 1
+// CHECK:             return %[[NUM]] : !torch.int
+func.func @torch.aten.Int.float() -> !torch.int {
+    %float1 = torch.constant.float 1.0
+    %int1 = torch.aten.Int.float %float1 : !torch.float -> !torch.int
+    return %int1 : !torch.int
 }
 
 // CHECK-LABEL:   func.func @torch.aten.Float.Tensor(
@@ -1647,6 +1684,16 @@ func.func @torch.aten.sub.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],
     %0 = torch.vtensor.literal(dense<0> : tensor<si64>) : !torch.vtensor<[],si64>
     %2 = torch.aten.sub.Scalar %0, %int2, %int3 : !torch.vtensor<[],si64>, !torch.int, !torch.int -> !torch.vtensor<[],si64>
     return %2 : !torch.vtensor<[],si64>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.sub.float$fold() -> !torch.float {
+// CHECK:             %[[FLOAT_1:.*]] = torch.constant.float -1.000000e+00
+// CHECK:             return %[[FLOAT_1]] : !torch.float
+func.func @torch.aten.sub.float$fold() -> !torch.float {
+    %float1 = torch.constant.float 1.0
+    %float2 = torch.constant.float 2.0
+    %0 = torch.aten.sub.float %float1, %float2 : !torch.float, !torch.float -> !torch.float
+    return %0 : !torch.float
 }
 
 // CHECK-LABEL:   func.func @torch.aten.mul.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {

@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TORCHMLIR_CONVERSION_TORCHTOMHLO_MHLOLEGALIZEUTILS_H
-#define TORCHMLIR_CONVERSION_TORCHTOMHLO_MHLOLEGALIZEUTILS_H
+#ifndef TORCHMLIR_CONVERSION_TORCHTOSTABLEHLO_STABLEHLOLEGALIZEUTILS_H
+#define TORCHMLIR_CONVERSION_TORCHTOSTABLEHLO_STABLEHLOLEGALIZEUTILS_H
 
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -18,22 +18,22 @@
 #include "mlir/Transforms/DialectConversion.h"
 
 namespace mlir {
-namespace mhlo {
+namespace hlo {
 
 using mlir::ConversionPatternRewriter;
 
 // Create a 32-bit float constant operator from a float
-Value getMhloConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
-                                  float val);
+Value getStablehloConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
+                                       float val);
 
 // Create a 64-bit float constant operator from a double
-Value getMhloConstTensorSingleF64(PatternRewriter &rewriter, Operation *op,
-                                  double val);
+Value getStablehloConstTensorSingleF64(PatternRewriter &rewriter, Operation *op,
+                                       double val);
 
 // Templated function to create a constant op for given type and shape.
 // T: storage C type.
 // Default template creates a constant tensor in T.
-// To create INT48 MHLO constant, need to pass in llvm::APInt instead.
+// To create INT48 StableHLO constant, need to pass in llvm::APInt instead.
 template <typename T>
 std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
                                     ArrayRef<T> vec, ArrayRef<int64_t> shape);
@@ -42,8 +42,8 @@ template <typename T>
 Value getSplatConstTensor(ConversionPatternRewriter &rewriter, Operation *op,
                           T val, Type dtype, llvm::ArrayRef<int64_t> dshape);
 
-Value scalarToMhloTensor(ConversionPatternRewriter &rewriter, Operation *op,
-                         Value scalarValue, Type dtype);
+Value scalarToStablehloTensor(ConversionPatternRewriter &rewriter,
+                              Operation *op, Value scalarValue, Type dtype);
 
 Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType);
 
@@ -71,7 +71,7 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
 Value getConstantOfShape(PatternRewriter &rewriter, Location loc,
                          const APFloat &constant, Value shape,
                          TensorType outType);
-} // namespace mhlo
+} // namespace hlo
 } // namespace mlir
 
-#endif // TORCHMLIR_CONVERSION_TORCHTOMHLO_MHLOLEGALIZEUTILS_H
+#endif // TORCHMLIR_CONVERSION_TORCHTOSTABLEHLO_STABLEHLOLEGALIZEUTILS_H

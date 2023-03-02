@@ -16,7 +16,7 @@ from torch_mlir_e2e_test.registry import GLOBAL_TEST_REGISTRY
 from torch_mlir_e2e_test.configs import (
     LazyTensorCoreTestConfig,
     LinalgOnTensorsBackendTestConfig,
-    MhloBackendTestConfig,
+    StablehloBackendTestConfig,
     NativeTorchTestConfig,
     TcpBackendTestConfig,
     TorchScriptTestConfig,
@@ -25,18 +25,18 @@ from torch_mlir_e2e_test.configs import (
 )
 
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
-from torch_mlir_e2e_test.mhlo_backends.linalg_on_tensors import LinalgOnTensorsMhloBackend
+from torch_mlir_e2e_test.stablehlo_backends.linalg_on_tensors import LinalgOnTensorsStablehloBackend
 from torch_mlir_e2e_test.tcp_backends.linalg_on_tensors import LinalgOnTensorsTcpBackend
 from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import LinalgOnTensorsTosaBackend
 
-from .xfail_sets import LINALG_XFAIL_SET, MHLO_PASS_SET, TCP_PASS_SET, TOSA_PASS_SET, LTC_XFAIL_SET, TORCHDYNAMO_XFAIL_SET
+from .xfail_sets import LINALG_XFAIL_SET, STABLEHLO_PASS_SET, TCP_PASS_SET, TOSA_PASS_SET, LTC_XFAIL_SET, TORCHDYNAMO_XFAIL_SET
 
 # Import tests to register them in the global registry.
 from torch_mlir_e2e_test.test_suite import register_all_tests
 register_all_tests()
 
 def _get_argparse():
-    config_choices = ["native_torch", "torchscript", "linalg", "mhlo", "tcp", "tosa", "lazy_tensor_core", "torchdynamo"]
+    config_choices = ["native_torch", "torchscript", "linalg", "stablehlo", "tcp", "tosa", "lazy_tensor_core", "torchdynamo"]
     parser = argparse.ArgumentParser(description="Run torchscript e2e tests.")
     parser.add_argument("-c", "--config",
         choices=config_choices,
@@ -44,7 +44,7 @@ def _get_argparse():
         help=f"""
 Meaning of options:
 "linalg": run through torch-mlir"s default Linalg-on-Tensors backend.
-"mhlo": run through torch-mlir"s default MHLO backend.
+"stablehlo": run through torch-mlir"s default StableHLO backend.
 "tcp": run through torch-mlir's default TCP backend.
 "tosa": run through torch-mlir"s default TOSA backend.
 "native_torch": run the torch.nn.Module as-is without compiling (useful for verifying model is deterministic; ALL tests should pass in this configuration).
@@ -83,12 +83,12 @@ def main():
     if args.config == "tosa":
         config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend())
         xfail_set = all_test_unique_names - TOSA_PASS_SET
-    if args.config == "mhlo":
-        config = MhloBackendTestConfig(LinalgOnTensorsMhloBackend())
-        xfail_set = all_test_unique_names - MHLO_PASS_SET
-    elif args.config == 'tcp':
+    if args.config == 'tcp':
         config = TcpBackendTestConfig(LinalgOnTensorsTcpBackend())
         xfail_set = all_test_unique_names - TCP_PASS_SET
+    if args.config == "stablehlo":
+        config = StablehloBackendTestConfig(LinalgOnTensorsStablehloBackend())
+        xfail_set = all_test_unique_names - STABLEHLO_PASS_SET
     elif args.config == "native_torch":
         config = NativeTorchTestConfig()
         xfail_set = {}

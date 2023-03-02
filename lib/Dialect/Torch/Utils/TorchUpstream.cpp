@@ -8,6 +8,8 @@
 
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 
+#include "llvm/Support/ErrorHandling.h"
+
 namespace mlir {
 namespace torch {
 namespace torch_upstream {
@@ -124,6 +126,23 @@ ScalarType result_type(const ResultTypeState &in_state) {
   return combine_categories(
       in_state.dimResult,
       combine_categories(in_state.zeroResult, in_state.wrappedResult));
+}
+
+ReductionType get_reduction_enum(const llvm::StringRef &reduce) {
+  if (reduce == "max" || reduce == "amax") {
+    return torch_upstream::ReductionType::MAX;
+  } else if (reduce == "mean") {
+    return torch_upstream::ReductionType::MEAN;
+  } else if (reduce == "min" || reduce == "amin") {
+    return torch_upstream::ReductionType::MIN;
+  } else if (reduce == "sum") {
+    return torch_upstream::ReductionType::SUM;
+  } else if (reduce == "prod") {
+    return torch_upstream::ReductionType::PROD;
+  } else {
+    llvm_unreachable(
+        "'reduce' argument must be either sum, prod, mean, amax or amin");
+  }
 }
 
 } // namespace torch_upstream

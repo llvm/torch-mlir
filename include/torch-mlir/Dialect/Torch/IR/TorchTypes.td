@@ -347,6 +347,7 @@ def Torch_DictType : Torch_Type<"Dict", "dict"> {
     Torch Dict type with key and value type.
   }];
   let hasCustomAssemblyFormat = 1;
+  let genVerifyDecl = 1;
   let builders = [
     TypeBuilderWithInferredContext<(ins "::mlir::Type":$keyType,
                                         "::mlir::Type":$valueType), [{
@@ -411,7 +412,6 @@ def AnyTorchDictKeyType : AnyTypeOf<[
   Torch_BoolType,
   Torch_FloatType,
   Torch_StringType,
-  Torch_FloatType,
   AnyTorchTensorType,
 ], "Allowed dict key types">;
 
