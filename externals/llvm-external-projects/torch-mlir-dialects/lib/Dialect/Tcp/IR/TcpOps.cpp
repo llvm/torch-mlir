@@ -109,4 +109,9 @@ LogicalResult IsolatedGroupOp::verify() {
   return success();
 }
 
+OpFoldResult ConstOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.empty() && "constant can have no operands");
+  return getValueAttr();
+}
+
 } // namespace mlir::tcp

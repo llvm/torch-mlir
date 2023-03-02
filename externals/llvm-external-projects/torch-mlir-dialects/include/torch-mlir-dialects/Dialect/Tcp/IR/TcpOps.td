@@ -175,8 +175,7 @@ def Tcp_ConstOp : Tcp_Op<"const", [ConstantLike, Pure]> {
 
   let assemblyFormat = "attr-dict `:` type($out)";
 
-  // TODO: Enable this after adding `ConstOp::fold` and unit tests
-  // let hasFolder = 1;
+  let hasFolder = 1;
 }
 
 def Tcp_BroadcastOp : Tcp_Op<"broadcast", [
