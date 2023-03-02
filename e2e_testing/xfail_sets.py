@@ -44,10 +44,6 @@ TORCHDYNAMO_XFAIL_SET = {
     # RuntimeError: Failed running call_function aten.uniform(...
     # https://github.com/pytorch/torchdynamo/issues/1954
     "UniformNoCorrelationModule_basic",
-    # TypeError: expected np.ndarray (got float)
-    # TODO: This is due to returning a scalar float as output from the test.
-    # We should probably just standardize all tests to return tensors.
-    "DivIntModule_basic",
 
     #### Torch-MLIR internal compiler errors
 

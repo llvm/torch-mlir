@@ -5,6 +5,7 @@
 
 from typing import List
 
+import numpy
 import torch
 import torch._dynamo as dynamo
 import torch_mlir
@@ -57,13 +58,18 @@ def _refbackend_torchdynamo_backend(fx_graph: torch.fx.GraphModule,
     loaded = backend.load(compiled)
 
     def compiled_callable(*inputs):
+        def refine_result_type(_result):
+            if isinstance(_result, tuple):
+                return tuple(refine_result_type(x) for x in _result)
+            elif isinstance(_result, numpy.ndarray):
+                return torch.from_numpy(_result)
+            elif isinstance(_result, (bool, int, float)):
+                return _result
+            else:
+                raise ValueError(f"Unhandled return type {type(_result)}")
         inputs = [x.numpy() for x in inputs]
         result = loaded.forward(*inputs)
-        if not isinstance(result, tuple):
-            result = torch.from_numpy(result)
-        else:
-            result = tuple(torch.from_numpy(x) for x in result)
-        return result
+        return refine_result_type(result)
     return compiled_callable
 
 
