@@ -885,7 +885,7 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
                                          "only int scalar alpha is supported");
     }
     if (isa<AtenRsubScalarOp>(op))
-      rhs = rewriter.create<AtenMulIntOp>(loc, lhs, alpha);
+      lhs = rewriter.create<AtenMulIntOp>(loc, lhs, alpha);
     else
       rhs = rewriter.create<AtenMulIntOp>(loc, rhs, alpha);
   }
@@ -938,8 +938,10 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
   // Other Add/Sub/Mul ops
   if (isa<AtenAddTensorOp, AtenAddScalarOp>(op)) {
     result = rewriter.create<AtenAddIntOp>(loc, lhs, rhs);
-  } else if (isa<AtenSubScalarOp, AtenSubTensorOp, AtenRsubScalarOp>(op)) {
+  } else if (isa<AtenSubScalarOp, AtenSubTensorOp>(op)) {
     result = rewriter.create<AtenSubIntOp>(loc, lhs, rhs);
+  } else if (isa<AtenRsubScalarOp>(op)) {
+    result = rewriter.create<AtenSubIntOp>(loc, rhs, lhs);
   } else if (isa<AtenMulScalarOp, AtenMulTensorOp>(op)) {
     result = rewriter.create<AtenMulIntOp>(loc, lhs, rhs);
   }
