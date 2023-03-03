@@ -31,8 +31,6 @@ static Value assertNonValueTensor(Value tensor) {
 // TODO: We currently ignore step information. This can be fixed by using
 // a more precise domain like Presburger formulas.
 struct AliasSliceInfo {
-  // The tensor that is aliased.
-  Value tensor;
   // The dimension that the slice is taken along. We currently only support
   // slicing along one dimension. A value of -1 indicates that the tensor is
   // not sliced.
@@ -44,10 +42,6 @@ struct AliasSliceInfo {
   bool approximated = false;
 
   bool isOverlapping(const AliasSliceInfo &other) {
-    // If tensors are different, then the aliases are not overlapping.
-    if (tensor != other.tensor)
-      return false;
-
     // If there is no slicing on either side, then the aliases are
     // overlapping as one must be a slice of the other.
     if (dim == -1 || other.dim == -1)
@@ -126,7 +120,7 @@ public:
         // op no longer generates an alias.
         if (userResult.getType().isa<NonValueTensorType>()) {
           availableAliases.insert(userResult);
-          (void)calculateAliasInfo(userResult, aliasSliceInfo);
+          calculateAliasInfo(userResult, aliasSliceInfo);
         }
         result.viewLikeOps.push_back(user);
       } else if (auto copyToValueTensor = dyn_cast<CopyToValueTensorOp>(user)) {
@@ -289,80 +283,67 @@ public:
   }
 
 private:
-  static LogicalResult
+  static void
   calculateAliasInfo(Value tensor,
                      DenseMap<Value, AliasSliceInfo> &aliasSliceInfo) {
     Operation *op = tensor.getDefiningOp();
 
     // If op is not a view-like op, then the tensor is an alias of itself.
     if (!isViewLikeOp(op)) {
-      aliasSliceInfo[tensor] = AliasSliceInfo{tensor, -1, 0, INT64_MAX, false};
-      return success();
+      aliasSliceInfo[tensor] = AliasSliceInfo{-1, 0, INT64_MAX, false};
+      return;
     }
 
     // Check if the alias information of the operation is already available.
     if (aliasSliceInfo.count(tensor))
-      return success();
+      return;
 
     if (auto staticInfoCast = dyn_cast<TensorStaticInfoCastOp>(op)) {
       // If op is static info cast, we assume it does not perform any
       // reshaping or slicing.
-      LogicalResult result =
-          calculateAliasInfo(staticInfoCast.getOperand(), aliasSliceInfo);
+      calculateAliasInfo(staticInfoCast.getOperand(), aliasSliceInfo);
       aliasSliceInfo[tensor] = aliasSliceInfo[staticInfoCast.getOperand()];
-      return result;
+      return;
     } else if (auto sliceOp = dyn_cast<AtenSliceTensorOp>(op)) {
       // Get the alias information of the input tensor.
-      LogicalResult result =
-          calculateAliasInfo(sliceOp.getSelf(), aliasSliceInfo);
-      if (failed(result))
-        return failure();
+      calculateAliasInfo(sliceOp.getSelf(), aliasSliceInfo);
+      if (!aliasSliceInfo.count(sliceOp.getSelf()))
+        return;
 
       AliasSliceInfo &aliasInfo = aliasSliceInfo[sliceOp.getSelf()];
 
       // We mark the slice as approximate unless we can statically determine
       // the slicing information.
       aliasSliceInfo[tensor] =
-          AliasSliceInfo{aliasInfo.tensor, aliasInfo.dim, aliasInfo.start,
-                         aliasInfo.end, true};
+          AliasSliceInfo{aliasInfo.dim, aliasInfo.start, aliasInfo.end, true};
       AliasSliceInfo &newSliceInfo = aliasSliceInfo[tensor];
 
       // Shape of slice is not statically analyzable.
       if (aliasInfo.approximated)
-        return success();
+        return;
       // If operation is already sliced, we take an approximation of alias with
       // only the dimension from the first slice.
       // TODO: Support multiple slices.
       if (aliasInfo.dim != -1)
-        return success();
+        return;
 
       int64_t start, end, dim, step;
-      if (auto startInt = sliceOp.getStart().getDefiningOp<ConstantIntOp>())
-        start = startInt.getValue().getSExtValue();
-      else
-        return success();
-      if (auto endInt = sliceOp.getEnd().getDefiningOp<ConstantIntOp>())
-        end = endInt.getValue().getSExtValue();
-      else
-        return success();
-      if (auto dimInt = sliceOp.getDim().getDefiningOp<ConstantIntOp>())
-        dim = dimInt.getValue().getSExtValue();
-      else
-        return success();
-      if (auto stepInt = sliceOp.getStep().getDefiningOp<ConstantIntOp>())
-        step = stepInt.getValue().getSExtValue();
-      else
-        return success();
+      if (!matchPattern(sliceOp.getStart(), m_TorchConstantInt(&start)) ||
+          !matchPattern(sliceOp.getEnd(), m_TorchConstantInt(&end)) ||
+          !matchPattern(sliceOp.getDim(), m_TorchConstantInt(&dim)) ||
+          !matchPattern(sliceOp.getStep(), m_TorchConstantInt(&step)))
+        return;
 
       // We currently do not support negative strides.
       if (step < 0)
-        return success();
+        return;
 
-      if (end == -1)
-        end = INT64_MAX;
+      if (start < 0)
+        start += INT64_MAX;
+      if (end < 0)
+        end += INT64_MAX;
 
       // Get length of the dimension being sliced.
-      assert(end > start);
       // We can directly set the slice information since we assume only
       // one slice if performed for now.
       // TODO: Support multiple slices.
@@ -370,10 +351,10 @@ private:
       newSliceInfo.start = start;
       newSliceInfo.end = end;
       newSliceInfo.approximated = false;
-      return success();
+      return;
     } else {
       // TODO: Support other view-like ops.
-      return failure();
+      return;
     }
   }
 
