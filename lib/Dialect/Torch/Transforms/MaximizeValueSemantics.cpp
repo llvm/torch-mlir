@@ -112,7 +112,12 @@ public:
     aliasSliceInfo[copyToNonValueTensor.getResult()] =
         AliasSliceInfo::getFullSlice();
 
-    for (Operation *user : nonValueTensorUsers) {
+    // Get slice information for all views.
+    analyzeSlice(0, nonValueTensorUsers.size(), nonValueTensorUsers,
+                 availableAliases, aliasSliceInfo);
+
+    for (unsigned i = 0, e = nonValueTensorUsers.size(); i < e; ++i) {
+      Operation *user = nonValueTensorUsers[i];
       for (Value operand : nonValueTensorsUsedByOp.lookup(user)) {
         // View like operations are allowed to use any alias since they
         // may create a view that is still available.
@@ -124,22 +129,17 @@ public:
       }
 
       if (isViewLikeOp(user)) {
-        Value userResult = user->getResult(0);
-        // View-like ops produce a new alias available to later ops.
-        // However, if the view-like op has been partially converted
-        // to use value semantics (which happens for example with ops
-        // that take two aliases as input), then it is possible that the
-        // op no longer generates an alias.
-        if (userResult.getType().isa<NonValueTensorType>()) {
-          availableAliases.insert(userResult);
-          calculateAliasInfo(userResult, aliasSliceInfo);
-        }
         result.viewLikeOps.push_back(user);
       } else if (auto copyToValueTensor = dyn_cast<CopyToValueTensorOp>(user)) {
         result.copyLikeOps.push_back(copyToValueTensor);
       } else if (auto overwrite = dyn_cast<OverwriteTensorContentsOp>(user)) {
+        // Remove all aliases that overlap with the overwritten alias.
         removePossiblyMutatedAliases(availableAliases, aliasSliceInfo,
                                      overwrite);
+        // Analyze further slices again in case they are aliases of the
+        // overwritten alias.
+        analyzeSlice(i + 1, e, nonValueTensorUsers, availableAliases,
+                     aliasSliceInfo);
         result.overwriteTensorContentsOps.push_back(overwrite);
       } else if (auto returnOp = dyn_cast<mlir::func::ReturnOp>(user)) {
         result.returnOp = returnOp;
@@ -364,6 +364,23 @@ private:
     }
   }
 
+  static void analyzeSlice(unsigned start, unsigned end,
+                           SmallVectorImpl<Operation *> &ops,
+                           DenseSet<Value> &availableAliases,
+                           DenseMap<Value, AliasSliceInfo> &aliasSliceInfo) {
+    // Get all aliases that are used.
+    for (unsigned i = 0, e = ops.size(); i < e; ++i) {
+      Operation *user = ops[i];
+      if (isViewLikeOp(user)) {
+        Value userResult = user->getResult(0);
+        if (userResult.getType().isa<NonValueTensorType>()) {
+          availableAliases.insert(userResult);
+          calculateAliasInfo(userResult, aliasSliceInfo);
+        }
+      }
+    }
+  }
+
   static void
   removePossiblyMutatedAliases(DenseSet<Value> &availableAliases,
                                DenseMap<Value, AliasSliceInfo> &aliasSliceInfo,
@@ -380,15 +397,24 @@ private:
     AliasSliceInfo tensorInfo = aliasSliceInfo[tensor];
 
     // Remove all aliases that overlap with the overwritten tensor.
+    // We also remove them from the aliasSliceInfo map since they are no longer
+    // valid.
     DenseSet<Value> newAvailableAliases;
     for (Value alias : availableAliases) {
-      if (aliasSliceInfo.count(alias) &&
-          !tensorInfo.isOverlapping(aliasSliceInfo[alias]))
-        newAvailableAliases.insert(alias);
+      if (!aliasSliceInfo.count(alias)) {
+        if (!tensorInfo.isOverlapping(aliasSliceInfo[alias])) {
+          newAvailableAliases.insert(assertNonValueTensor(alias));
+        } else {
+          aliasSliceInfo.erase(alias);
+        }
+      }
     }
 
     availableAliases = newAvailableAliases;
     availableAliases.insert(assertNonValueTensor(tensor));
+
+    // The overwritten tensor is again available to be used as an alias.
+    aliasSliceInfo[tensor] = tensorInfo;
   }
 };
 } // namespace
@@ -445,7 +471,8 @@ public:
     // All uses of `copy` will be updated by the logic below.
     copy.replaceAllUsesWith(copy.getOperand());
     // Keep track of the original types of any view-like ops, so that we can
-    // correctly copy them back to their mlir::func::ReturnOp's expected types.
+    // correctly copy them back to their mlir::func::ReturnOp's expected
+    // types.
     DenseMap<Value, Type> originalTypes;
     for (Operation *op : viewLikeOps) {
       rewriter.updateRootInPlace(op, [&]() {
