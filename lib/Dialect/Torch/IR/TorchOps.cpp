@@ -161,8 +161,8 @@ static Value getScalarValue(Value input, Location loc,
 //===----------------------------------------------------------------------===//
 
 LogicalResult MethodOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
-  auto func = symbolTable.lookupNearestSymbolFrom<func::FuncOp>(
-      *this, getFunctionAttr());
+  auto func =
+      symbolTable.lookupNearestSymbolFrom<func::FuncOp>(*this, getFunctionAttr());
   if (!func)
     return emitError() << "'@" << getFunction()
                        << "' does not reference a valid function";
@@ -415,13 +415,11 @@ void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   // If the condition is constant, delete the dead branch and inline the live
   // branch.
   patterns.add(+[](PrimIfOp op, PatternRewriter &rewriter) {
-    auto constantBool =
-        op.getCondition().getDefiningOp<Torch::ConstantBoolOp>();
+    auto constantBool = op.getCondition().getDefiningOp<Torch::ConstantBoolOp>();
     if (!constantBool)
       return rewriter.notifyMatchFailure(op, "non-constant condition");
-    replaceOpWithRegion(rewriter, op,
-                        constantBool.getValue() ? op.getThenRegion()
-                                                : op.getElseRegion());
+    replaceOpWithRegion(
+        rewriter, op, constantBool.getValue() ? op.getThenRegion() : op.getElseRegion());
     return success();
   });
   // If the thenRegion and elseRegion yield the same Value's, then use those
@@ -479,16 +477,14 @@ void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
         continue;
       newResultTypes.push_back(op->getResult(i).getType());
     }
-    auto newIf = rewriter.create<PrimIfOp>(op->getLoc(), newResultTypes,
-                                           op.getCondition());
+    auto newIf =
+        rewriter.create<PrimIfOp>(op->getLoc(), newResultTypes, op.getCondition());
     rewriter.inlineRegionBefore(op.getThenRegion(), newIf.getThenRegion(),
                                 newIf.getThenRegion().end());
     rewriter.inlineRegionBefore(op.getElseRegion(), newIf.getElseRegion(),
                                 newIf.getElseRegion().end());
-    newIf.getThenRegion().front().getTerminator()->eraseOperands(
-        resultsToErase);
-    newIf.getElseRegion().front().getTerminator()->eraseOperands(
-        resultsToErase);
+    newIf.getThenRegion().front().getTerminator()->eraseOperands(resultsToErase);
+    newIf.getElseRegion().front().getTerminator()->eraseOperands(resultsToErase);
     SmallVector<Value> replacementValues;
     for (int i = 0, e = op->getNumResults(), nextNewValue = 0; i < e; ++i) {
       if (resultsToErase[i])
@@ -1653,7 +1649,7 @@ void Torch::ConstantFloatOp::getAsmResultNames(
   // float string representation).
   SmallVector<char> buf;
   getValue().toString(buf, /*FormatPrecision=*/6, /*FormatMaxPadding=*/0,
-                      /*TruncateZero=*/false);
+                   /*TruncateZero=*/false);
   auto isValidMLIRIdentifierChar = [](char c) {
     return isalpha(c) || isdigit(c) || c == '_' || c == '$' || c == '.' ||
            c == '-';
@@ -1764,8 +1760,7 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
     // compiler treat the size as having value semantics?
     // There's a small number of such ops, and they are marked as `inplace_view`
     // in PyTorch's `native_functions.yaml` file.
-    rewriter.replaceOpWithNewOp<AtenSizeIntOp>(op, sizeOp.getSelf(),
-                                               op.getIdx());
+    rewriter.replaceOpWithNewOp<AtenSizeIntOp>(op, sizeOp.getSelf(), op.getIdx());
     return success();
   });
 }
@@ -1777,13 +1772,11 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
 void AtenAddTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                              MLIRContext *context) {
   patterns.add(+[](AtenAddTOp op, PatternRewriter &rewriter) {
-    auto lhsListConstruct =
-        op.getA().getDefiningOp<Torch::PrimListConstructOp>();
+    auto lhsListConstruct = op.getA().getDefiningOp<Torch::PrimListConstructOp>();
     if (!lhsListConstruct || isListPotentiallyMutated(lhsListConstruct))
       return failure();
 
-    auto rhsListConstruct =
-        op.getB().getDefiningOp<Torch::PrimListConstructOp>();
+    auto rhsListConstruct = op.getB().getDefiningOp<Torch::PrimListConstructOp>();
     if (!rhsListConstruct || isListPotentiallyMutated(rhsListConstruct))
       return failure();
 
@@ -1901,8 +1894,7 @@ LogicalResult PrimTupleConstructOp::verify() {
 void PrimTupleIndexOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                    MLIRContext *context) {
   patterns.add(+[](PrimTupleIndexOp op, PatternRewriter &rewriter) {
-    auto tupleConstruct =
-        op.getTup().getDefiningOp<Torch::PrimTupleConstructOp>();
+    auto tupleConstruct = op.getTup().getDefiningOp<Torch::PrimTupleConstructOp>();
     if (!tupleConstruct)
       return failure();
 
@@ -1952,8 +1944,7 @@ void PrimUninitializedOp::getCanonicalizationPatterns(
 void PrimTupleUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                     MLIRContext *context) {
   patterns.add(+[](PrimTupleUnpackOp op, PatternRewriter &rewriter) {
-    auto tupleConstruct =
-        op.getTup().getDefiningOp<Torch::PrimTupleConstructOp>();
+    auto tupleConstruct = op.getTup().getDefiningOp<Torch::PrimTupleConstructOp>();
     if (!tupleConstruct)
       return failure();
 
