@@ -150,6 +150,7 @@ public:
                                       "` encountered during abstract analysis");
       }
     }
+
     return result;
   }
 
@@ -295,26 +296,26 @@ public:
   }
 
 private:
-  static void
+  static LogicalResult
   calculateAliasInfo(Value tensor,
                      DenseMap<Value, AliasSliceInfo> &aliasSliceInfo) {
     // Check if the alias information of the operation is already available.
     if (aliasSliceInfo.count(tensor))
-      return;
+      return success();
 
     Operation *op = tensor.getDefiningOp();
 
     if (auto staticInfoCast = dyn_cast<TensorStaticInfoCastOp>(op)) {
       if (!aliasSliceInfo.count(staticInfoCast.getOperand()))
-        return;
+        return failure();
       // If op is static info cast, we assume it does not perform any
       // reshaping or slicing.
       aliasSliceInfo[tensor] = aliasSliceInfo[staticInfoCast.getOperand()];
-      return;
+      return success();
     } else if (auto sliceOp = dyn_cast<AtenSliceTensorOp>(op)) {
       // Get the alias information of the input tensor.
       if (!aliasSliceInfo.count(sliceOp.getSelf()))
-        return;
+        return failure();
 
       AliasSliceInfo &aliasInfo = aliasSliceInfo[sliceOp.getSelf()];
 
@@ -326,23 +327,23 @@ private:
 
       // Shape of slice is not statically analyzable.
       if (aliasInfo.approximated)
-        return;
+        return success();
       // If operation is already sliced, we take an approximation of alias with
       // only the dimension from the first slice.
       // TODO: Support multiple slices.
       if (aliasInfo.dim != -1)
-        return;
+        return success();
 
       int64_t start, end, dim, step;
       if (!matchPattern(sliceOp.getStart(), m_TorchConstantInt(&start)) ||
           !matchPattern(sliceOp.getEnd(), m_TorchConstantInt(&end)) ||
           !matchPattern(sliceOp.getDim(), m_TorchConstantInt(&dim)) ||
           !matchPattern(sliceOp.getStep(), m_TorchConstantInt(&step)))
-        return;
+        return success();
 
       // We currently do not support negative strides.
       if (step < 0)
-        return;
+        return success();
 
       if (start < 0)
         start += INT64_MAX;
@@ -357,10 +358,16 @@ private:
       newSliceInfo.start = start;
       newSliceInfo.end = end;
       newSliceInfo.approximated = false;
-      return;
+      return success();
     } else {
-      // TODO: Support other view-like ops.
-      return;
+      // The alias will be atleast as big as the input alias. In case of
+      // multiple operands, we assume that op is a view of the first operand.
+      if (!aliasSliceInfo.count(op->getOperand(0)))
+        return failure();
+      aliasSliceInfo[tensor] = aliasSliceInfo[op->getOperand(0)];
+      // The alias is now an approximation of the input alias.
+      aliasSliceInfo[tensor].approximated = true;
+      return success();
     }
   }
 
@@ -369,13 +376,13 @@ private:
                            DenseSet<Value> &availableAliases,
                            DenseMap<Value, AliasSliceInfo> &aliasSliceInfo) {
     // Get all aliases that are used.
-    for (unsigned i = 0, e = ops.size(); i < e; ++i) {
+    for (unsigned i = start, e = end; i < e; ++i) {
       Operation *user = ops[i];
       if (isViewLikeOp(user)) {
         Value userResult = user->getResult(0);
         if (userResult.getType().isa<NonValueTensorType>()) {
-          availableAliases.insert(userResult);
-          calculateAliasInfo(userResult, aliasSliceInfo);
+          if (succeeded(calculateAliasInfo(userResult, aliasSliceInfo)))
+            availableAliases.insert(userResult);
         }
       }
     }
@@ -397,11 +404,11 @@ private:
     AliasSliceInfo tensorInfo = aliasSliceInfo[tensor];
 
     // Remove all aliases that overlap with the overwritten tensor.
-    // We also remove them from the aliasSliceInfo map since they are no longer
-    // valid.
+    // We also remove them from the aliasSliceInfo map since they are no
+    // longer valid.
     DenseSet<Value> newAvailableAliases;
     for (Value alias : availableAliases) {
-      if (!aliasSliceInfo.count(alias)) {
+      if (aliasSliceInfo.count(alias)) {
         if (!tensorInfo.isOverlapping(aliasSliceInfo[alias])) {
           newAvailableAliases.insert(assertNonValueTensor(alias));
         } else {

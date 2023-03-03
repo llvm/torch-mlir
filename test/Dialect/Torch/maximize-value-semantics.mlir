@@ -263,10 +263,10 @@ func.func @viewlike$two_inputs_two_copies(%arg0: !torch.vtensor, %arg1: !torch.v
 }
 
 // CHECK-LABEL:   func.func @multiple_aliases_independent(
-// CHECK-SAME:                                    %[[ARG0:.*]]: !torch.vtensor) -> (!torch.tensor, !torch.tensor) {
+// CHECK-SAME:                                    %[[ARG0:.*]]: !torch.vtensor) -> (!torch.vtensor, !torch.vtensor) {
 // CHECK:           %[[SLICE1:.*]] = torch.aten.slice.Tensor %[[ARG0]], %[[INT0:.*]], %[[INT0]], %[[INT2:.*]], %[[INT1:.*]] : !torch.vtensor, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor
 // CHECK:           %[[SLICE2:.*]] = torch.aten.slice.Tensor %[[ARG0]], %[[INT0]], %[[INT2]], %[[INT4:.*]], %[[INT1]] : !torch.vtensor, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor 
-func.func @multiple_aliases_independent(%arg0: !torch.vtensor) -> (!torch.tensor, !torch.tensor) {
+func.func @multiple_aliases_independent(%arg0: !torch.vtensor) -> (!torch.vtensor, !torch.vtensor) {
   %int1 = torch.constant.int 1
   %int4 = torch.constant.int 4
   %int2 = torch.constant.int 2
@@ -281,7 +281,9 @@ func.func @multiple_aliases_independent(%arg0: !torch.vtensor) -> (!torch.tensor
   %6 = torch.copy.to_vtensor %3 : !torch.vtensor
   %7 = torch.aten.fill.Scalar %6, %int2 : !torch.vtensor, !torch.int -> !torch.vtensor
   torch.overwrite.tensor.contents %7 overwrites %3 : !torch.vtensor, !torch.tensor
-  return %2, %3 : !torch.tensor, !torch.tensor
+  %8 = torch.copy.to_vtensor %2 : !torch.vtensor
+  %9 = torch.copy.to_vtensor %3 : !torch.vtensor
+  return %8, %9 : !torch.vtensor, !torch.vtensor
 }
 
 // CHECK-LABEL:  func.func @multiple_aliases_independent_lstm_cell(
