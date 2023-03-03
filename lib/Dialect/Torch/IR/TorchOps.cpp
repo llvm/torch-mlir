@@ -128,32 +128,36 @@ static FloatAttr getF64FloatAttr(MLIRContext *context, double value) {
   return FloatAttr::get(Float64Type::get(context), value);
 }
 
-static Value getScalarValue(Value input, Location loc,
-                            PatternRewriter &rewriter) {
+static Value getScalarIntValue(Value input, Location loc,
+                               PatternRewriter &rewriter) {
   auto inputType = input.getType();
   if (inputType.isa<Torch::IntType>()) {
     return input;
   }
-  Value scalar = nullptr;
+
+  auto inputTensorType = inputType.dyn_cast<BaseTensorType>();
+  if (!inputTensorType)
+    return nullptr;
+
+  Type inputDtype = inputTensorType.getOptionalDtype();
+  if (!inputDtype || !inputDtype.isInteger(64))
+    return nullptr;
+
+  std::optional<unsigned> inputRank = getTensorRank(input);
+  if (!inputRank || *inputRank != 0)
+    return nullptr;
+
   if (auto valueTensorLiteralOp = input.getDefiningOp<ValueTensorLiteralOp>()) {
-    std::optional<unsigned> tensorRank =
-        getTensorRank(valueTensorLiteralOp.getResult());
-    if (valueTensorLiteralOp && tensorRank && *tensorRank == 0) {
-      auto tensorType =
-          valueTensorLiteralOp.getValue().getType().cast<RankedTensorType>();
-      if (tensorType.getElementType().isa<mlir::IntegerType>()) {
-        auto val = valueTensorLiteralOp.getValue()
-                       .cast<DenseElementsAttr>()
-                       .getSplatValue<int64_t>();
-        scalar = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(val));
-      }
-    }
+    auto val = valueTensorLiteralOp.getValue()
+                   .cast<DenseElementsAttr>()
+                   .getSplatValue<int64_t>();
+    return rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(val));
   } else if (auto primNumToTensorScalarOp =
                  input.getDefiningOp<PrimNumToTensorScalarOp>()) {
-    scalar = primNumToTensorScalarOp.getA();
+    return primNumToTensorScalarOp.getA();
   }
-  return scalar;
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -869,8 +873,8 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
   if (op->getNumOperands() < 2) {
     return failure();
   }
-  auto lhs = getScalarValue(op->getOperand(0), loc, rewriter);
-  auto rhs = getScalarValue(op->getOperand(1), loc, rewriter);
+  auto lhs = getScalarIntValue(op->getOperand(0), loc, rewriter);
+  auto rhs = getScalarIntValue(op->getOperand(1), loc, rewriter);
   auto outType = op->getResult(0).getType();
 
   if (!lhs || !rhs) {
@@ -879,7 +883,7 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
   }
   if (isa<AtenSubTensorOp, AtenSubScalarOp, AtenAddTensorOp, AtenAddScalarOp>(
           op)) {
-    Value alpha = getScalarValue(op->getOperand(2), loc, rewriter);
+    Value alpha = getScalarIntValue(op->getOperand(2), loc, rewriter);
     if (!alpha) {
       return rewriter.notifyMatchFailure(op,
                                          "only int scalar alpha is supported");

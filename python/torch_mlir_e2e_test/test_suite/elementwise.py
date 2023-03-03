@@ -1919,6 +1919,52 @@ def ElementwiseAddScalarFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAddScalar_NumToTensorFloat_Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        x = torch.ops.prim.NumToTensor(5.0)
+        return torch.add(x, 3)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAddScalar_NumToTensorFloat_Module())
+def ElementwiseAddScalar_NumToTensorFloat_Module_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class ElementwiseAddScalar_TensorLiteralInt32_Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.x = torch.tensor(2, dtype=torch.int32)
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.add(self.x, 3)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAddScalar_TensorLiteralInt32_Module())
+def ElementwiseAddScalar_TensorLiteralInt32_Module_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
 class ElementwiseCloneModule(torch.nn.Module):
 
     def __init__(self):
