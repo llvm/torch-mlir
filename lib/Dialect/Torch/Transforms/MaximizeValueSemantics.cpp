@@ -36,10 +36,9 @@ struct AliasSliceInfo {
   // The dimension that the slice is taken along. We currently only support
   // slicing along one dimension. A value of -1 indicates that the tensor is
   // not sliced.
-  int dim;
-  int start;
-  // A length of -1 indicates a slice [start:].
-  int length;
+  int64_t dim;
+  int64_t start;
+  int64_t end;
   // A flag indicating whether the slice is approximated. If it is, we
   // do not perform any more slicing analysis on it.
   bool approximated = false;
@@ -59,10 +58,10 @@ struct AliasSliceInfo {
     if (dim != other.dim)
       return true;
 
-    int start1 = start;
-    int start2 = other.start;
-    int end1 = length == -1 ? INT_MAX : start + length;
-    int end2 = other.length == -1 ? INT_MAX : other.start + other.length;
+    int64_t start1 = start;
+    int64_t start2 = other.start;
+    int64_t end1 = end;
+    int64_t end2 = other.end;
 
     // If the slices are disjoint, then the aliases are not overlapping.
     if (end1 <= start2 || end2 <= start1)
@@ -297,7 +296,7 @@ private:
 
     // If op is not a view-like op, then the tensor is an alias of itself.
     if (!isViewLikeOp(op)) {
-      aliasSliceInfo[tensor] = AliasSliceInfo{tensor, -1, 0, -1, false};
+      aliasSliceInfo[tensor] = AliasSliceInfo{tensor, -1, 0, INT64_MAX, false};
       return success();
     }
 
@@ -310,6 +309,7 @@ private:
       // reshaping or slicing.
       LogicalResult result =
           calculateAliasInfo(staticInfoCast.getOperand(), aliasSliceInfo);
+      aliasSliceInfo[tensor] = aliasSliceInfo[staticInfoCast.getOperand()];
       return result;
     } else if (auto sliceOp = dyn_cast<AtenSliceTensorOp>(op)) {
       // Get the alias information of the input tensor.
@@ -324,7 +324,7 @@ private:
       // the slicing information.
       aliasSliceInfo[tensor] =
           AliasSliceInfo{aliasInfo.tensor, aliasInfo.dim, aliasInfo.start,
-                         aliasInfo.length, true};
+                         aliasInfo.end, true};
       AliasSliceInfo &newSliceInfo = aliasSliceInfo[tensor];
 
       // Shape of slice is not statically analyzable.
@@ -336,29 +336,39 @@ private:
       if (aliasInfo.dim != -1)
         return success();
 
-      int start = -1, end = -1, dim = -1, step = -1;
+      int64_t start, end, dim, step;
       if (auto startInt = sliceOp.getStart().getDefiningOp<ConstantIntOp>())
         start = startInt.getValue().getSExtValue();
+      else
+        return success();
       if (auto endInt = sliceOp.getEnd().getDefiningOp<ConstantIntOp>())
         end = endInt.getValue().getSExtValue();
+      else
+        return success();
       if (auto dimInt = sliceOp.getDim().getDefiningOp<ConstantIntOp>())
         dim = dimInt.getValue().getSExtValue();
+      else
+        return success();
       if (auto stepInt = sliceOp.getStep().getDefiningOp<ConstantIntOp>())
         step = stepInt.getValue().getSExtValue();
-
-      // Shape of slice is not statically analyzable.
-      if (start < 0 || end < 0 || dim < 0 || step < 0)
+      else
         return success();
+
+      // We currently do not support negative strides.
+      if (step < 0)
+        return success();
+
+      if (end == -1)
+        end = INT64_MAX;
 
       // Get length of the dimension being sliced.
       assert(end > start);
-      int length = end - start;
       // We can directly set the slice information since we assume only
       // one slice if performed for now.
       // TODO: Support multiple slices.
       newSliceInfo.dim = dim;
       newSliceInfo.start = start;
-      newSliceInfo.length = length;
+      newSliceInfo.end = end;
       newSliceInfo.approximated = false;
       return success();
     } else {
