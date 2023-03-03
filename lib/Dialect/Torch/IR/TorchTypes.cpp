@@ -9,9 +9,9 @@
 
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/STLExtras.h"
 
 using namespace mlir;
@@ -75,9 +75,25 @@ bool Torch::isValidSubtype(Type subtype, Type type) {
           NonValueTensorType::getWithLeastStaticInformation(type.getContext()))
     return true;
 
-  if (subtype.isa<ValueTensorType>() && type.isa<ValueTensorType>() &&
-      type == ValueTensorType::getWithLeastStaticInformation(type.getContext()))
-    return true;
+  if (subtype.isa<ValueTensorType>() && type.isa<ValueTensorType>()) {
+    if (type ==
+        ValueTensorType::getWithLeastStaticInformation(type.getContext()))
+      return true;
+    auto vTy = type.cast<ValueTensorType>();
+    auto vSubTy = subtype.cast<ValueTensorType>();
+    if (vTy.getOptionalDtype() != vSubTy.getOptionalDtype())
+      return false;
+    if (!vTy.hasSizes() || !vSubTy.hasSizes())
+      return false;
+    if (vTy.getSizes().size() != vSubTy.getSizes().size())
+      return false;
+    bool hasSubShape = true;
+    for (size_t i = 0; i < vTy.getSizes().size(); ++i) {
+      hasSubShape = hasSubShape && (vTy.getSizes()[i] == kUnknownSize ||
+                                    vTy.getSizes()[i] == vSubTy.getSizes()[i]);
+    }
+    return hasSubShape;
+  }
   return false;
 }
 
@@ -387,7 +403,8 @@ TensorType ValueTensorType::toBuiltinTensor() const {
   Type elementType = convertDtypeToBuiltinElementType(getContext(), getDtype());
   if (!elementType)
     return nullptr;
-  return RankedTensorType::get(makeShapeLLVMCompatible(getSizes()), elementType);
+  return RankedTensorType::get(makeShapeLLVMCompatible(getSizes()),
+                               elementType);
 }
 
 LogicalResult
@@ -472,9 +489,9 @@ Type Torch::meetTensorTypes(BaseTensorType lhs, BaseTensorType rhs) {
 
 // TODO: These are not DRY in that the two type predicates AnyTorchDictKeyType
 // and AnyTorchType generate the exact same code (in TorchOps.cpp.inc).
-// Unfortunately the generated implementations aren't visible/exposed ("static" linkage)
-// and the predicates themselves can't be added/used in the specification of the parameters
-// of the Torch_DictType.
+// Unfortunately the generated implementations aren't visible/exposed ("static"
+// linkage) and the predicates themselves can't be added/used in the
+// specification of the parameters of the Torch_DictType.
 static bool isAnyTorchDictKeyType(Type type) {
   return type.isa<Torch::AnyType>() || type.isa<Torch::IntType>() ||
          type.isa<Torch::BoolType>() || type.isa<Torch::FloatType>() ||

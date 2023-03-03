@@ -1838,3 +1838,26 @@ func.func @torch.aten.slice.tensor$fold_full_domain_slice(%arg0: !torch.vtensor<
   %0 = torch.aten.slice.Tensor %arg0, %int0, %int0, %int-1, %int1 : !torch.vtensor<[4], f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4], f32>
   return %0 : !torch.vtensor<[4],f32>
 }
+
+// CHECK-LABEL:    @torch.aten.slice.tensor$infer_dynamic_shape
+// CHECK-SAME:        %[[ARG0:.+]]: !torch.vtensor<[2,56,56,96],f16>
+// CHECK:             %[[NONE:.*]] = torch.constant.none
+// CHECK:             %[[INT0:.*]] = torch.constant.int 0
+// CHECK:             %[[INT1:.*]] = torch.constant.int 1
+// CHECK:             %[[INT3:.*]] = torch.constant.int 3
+// CHECK:             %[[PR0:.*]] = torch.aten.slice.Tensor %[[ARG0]], %[[INT1]], %[[INT3]], %[[NONE]], %[[INT1]] : !torch.vtensor<[2,56,56,96],f16>, !torch.int, !torch.int, !torch.none, !torch.int -> !torch.vtensor<[2,53,56,96],f16>
+// CHECK:             %[[PR1:.*]] = torch.aten.slice.Tensor %[[ARG0]], %[[INT1]], %[[INT0]], %[[INT3]], %[[INT1]] : !torch.vtensor<[2,56,56,96],f16>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3,56,96],f16>
+// CHECK:             %[[PR2:.*]] = torch.prim.ListConstruct %[[PR0]], %[[PR1]] : (!torch.vtensor<[2,53,56,96],f16>, !torch.vtensor<[2,3,56,96],f16>) -> !torch.list<vtensor<[2,?,56,96],f16>>
+// CHECK:             %[[PR3:.*]] = torch.aten.cat %[[PR2]], %[[INT1]] : !torch.list<vtensor<[2,?,56,96],f16>>, !torch.int -> !torch.vtensor<[2,56,56,96],f16>
+// CHECK:             return %[[PR3]] : !torch.vtensor<[2,56,56,96],f16>
+func.func @torch.aten.slice.tensor$infer_dynamic_shape(%arg0: !torch.vtensor<[2,56,56,96],f16>) -> !torch.vtensor<[2,56,56,96],f16> {
+  %none = torch.constant.none
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int3 = torch.constant.int 3
+  %0 = torch.aten.slice.Tensor %arg0, %int1, %int3, %none, %int1 : !torch.vtensor<[2,56,56,96],f16>, !torch.int, !torch.int, !torch.none, !torch.int -> !torch.vtensor<[2,?,56,96],f16>
+  %1 = torch.aten.slice.Tensor %arg0, %int1, %int0, %int3, %int1 : !torch.vtensor<[2,56,56,96],f16>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,?,56,96],f16>
+  %2 = torch.prim.ListConstruct %0, %1 : (!torch.vtensor<[2,?,56,96],f16>, !torch.vtensor<[2,?,56,96],f16>) -> !torch.list<vtensor<[2,?,56,96],f16>>
+  %3 = torch.aten.cat %2, %int1 : !torch.list<vtensor<[2,?,56,96],f16>>, !torch.int -> !torch.vtensor<[2,56,56,96],f16>
+  return %3 : !torch.vtensor<[2,56,56,96],f16>
+}

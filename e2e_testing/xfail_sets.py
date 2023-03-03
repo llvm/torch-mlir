@@ -315,6 +315,7 @@ STABLEHLO_PASS_SET = {
     "SliceStaticModule_basic",
     "SliceModule_basic",
     "SliceNegIdxModule_basic",
+    "SliceListConcatModule_basic",
     "SliceOutOfLowerBoundStartIndexModule_basic",
     "SliceOutOfUpperBoundIndexModule_basic",
     "SliceStartEqEndModule_basic",

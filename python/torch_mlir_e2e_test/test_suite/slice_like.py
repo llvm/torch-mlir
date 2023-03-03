@@ -233,6 +233,25 @@ def SliceWholeTensorModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class SliceListConcatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 8], torch.float32, True)
+    ])
+    def forward(self, x):
+        slices = [torch.ops.aten.slice(input, 0, i, i+1, 1) for i in range(x.shape[0])]
+        return torch.cat(slices, 0)
+
+@register_test_case(module_factory=lambda: SliceListConcatModule())
+def SliceListConcatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 8))
+
+# ==============================================================================
+
 class SelectIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

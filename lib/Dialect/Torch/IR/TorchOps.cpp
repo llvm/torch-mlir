@@ -161,8 +161,8 @@ static Value getScalarValue(Value input, Location loc,
 //===----------------------------------------------------------------------===//
 
 LogicalResult MethodOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
-  auto func =
-      symbolTable.lookupNearestSymbolFrom<func::FuncOp>(*this, getFunctionAttr());
+  auto func = symbolTable.lookupNearestSymbolFrom<func::FuncOp>(
+      *this, getFunctionAttr());
   if (!func)
     return emitError() << "'@" << getFunction()
                        << "' does not reference a valid function";
@@ -415,11 +415,13 @@ void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   // If the condition is constant, delete the dead branch and inline the live
   // branch.
   patterns.add(+[](PrimIfOp op, PatternRewriter &rewriter) {
-    auto constantBool = op.getCondition().getDefiningOp<Torch::ConstantBoolOp>();
+    auto constantBool =
+        op.getCondition().getDefiningOp<Torch::ConstantBoolOp>();
     if (!constantBool)
       return rewriter.notifyMatchFailure(op, "non-constant condition");
-    replaceOpWithRegion(
-        rewriter, op, constantBool.getValue() ? op.getThenRegion() : op.getElseRegion());
+    replaceOpWithRegion(rewriter, op,
+                        constantBool.getValue() ? op.getThenRegion()
+                                                : op.getElseRegion());
     return success();
   });
   // If the thenRegion and elseRegion yield the same Value's, then use those
@@ -477,14 +479,16 @@ void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
         continue;
       newResultTypes.push_back(op->getResult(i).getType());
     }
-    auto newIf =
-        rewriter.create<PrimIfOp>(op->getLoc(), newResultTypes, op.getCondition());
+    auto newIf = rewriter.create<PrimIfOp>(op->getLoc(), newResultTypes,
+                                           op.getCondition());
     rewriter.inlineRegionBefore(op.getThenRegion(), newIf.getThenRegion(),
                                 newIf.getThenRegion().end());
     rewriter.inlineRegionBefore(op.getElseRegion(), newIf.getElseRegion(),
                                 newIf.getElseRegion().end());
-    newIf.getThenRegion().front().getTerminator()->eraseOperands(resultsToErase);
-    newIf.getElseRegion().front().getTerminator()->eraseOperands(resultsToErase);
+    newIf.getThenRegion().front().getTerminator()->eraseOperands(
+        resultsToErase);
+    newIf.getElseRegion().front().getTerminator()->eraseOperands(
+        resultsToErase);
     SmallVector<Value> replacementValues;
     for (int i = 0, e = op->getNumResults(), nextNewValue = 0; i < e; ++i) {
       if (resultsToErase[i])
@@ -1649,7 +1653,7 @@ void Torch::ConstantFloatOp::getAsmResultNames(
   // float string representation).
   SmallVector<char> buf;
   getValue().toString(buf, /*FormatPrecision=*/6, /*FormatMaxPadding=*/0,
-                   /*TruncateZero=*/false);
+                      /*TruncateZero=*/false);
   auto isValidMLIRIdentifierChar = [](char c) {
     return isalpha(c) || isdigit(c) || c == '_' || c == '$' || c == '.' ||
            c == '-';
@@ -1760,7 +1764,8 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
     // compiler treat the size as having value semantics?
     // There's a small number of such ops, and they are marked as `inplace_view`
     // in PyTorch's `native_functions.yaml` file.
-    rewriter.replaceOpWithNewOp<AtenSizeIntOp>(op, sizeOp.getSelf(), op.getIdx());
+    rewriter.replaceOpWithNewOp<AtenSizeIntOp>(op, sizeOp.getSelf(),
+                                               op.getIdx());
     return success();
   });
 }
@@ -1772,11 +1777,13 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
 void AtenAddTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                              MLIRContext *context) {
   patterns.add(+[](AtenAddTOp op, PatternRewriter &rewriter) {
-    auto lhsListConstruct = op.getA().getDefiningOp<Torch::PrimListConstructOp>();
+    auto lhsListConstruct =
+        op.getA().getDefiningOp<Torch::PrimListConstructOp>();
     if (!lhsListConstruct || isListPotentiallyMutated(lhsListConstruct))
       return failure();
 
-    auto rhsListConstruct = op.getB().getDefiningOp<Torch::PrimListConstructOp>();
+    auto rhsListConstruct =
+        op.getB().getDefiningOp<Torch::PrimListConstructOp>();
     if (!rhsListConstruct || isListPotentiallyMutated(rhsListConstruct))
       return failure();
 
@@ -1894,7 +1901,8 @@ LogicalResult PrimTupleConstructOp::verify() {
 void PrimTupleIndexOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                    MLIRContext *context) {
   patterns.add(+[](PrimTupleIndexOp op, PatternRewriter &rewriter) {
-    auto tupleConstruct = op.getTup().getDefiningOp<Torch::PrimTupleConstructOp>();
+    auto tupleConstruct =
+        op.getTup().getDefiningOp<Torch::PrimTupleConstructOp>();
     if (!tupleConstruct)
       return failure();
 
@@ -1944,7 +1952,8 @@ void PrimUninitializedOp::getCanonicalizationPatterns(
 void PrimTupleUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                     MLIRContext *context) {
   patterns.add(+[](PrimTupleUnpackOp op, PatternRewriter &rewriter) {
-    auto tupleConstruct = op.getTup().getDefiningOp<Torch::PrimTupleConstructOp>();
+    auto tupleConstruct =
+        op.getTup().getDefiningOp<Torch::PrimTupleConstructOp>();
     if (!tupleConstruct)
       return failure();
 
@@ -2151,6 +2160,60 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
       return nullptr;
   }
   return getOperand(0);
+}
+
+void AtenSliceTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                    MLIRContext *context) {
+  patterns.add(+[](AtenSliceTensorOp op, PatternRewriter &rewriter) {
+    // Rewrite output type if it's unknown, but can be inferred.
+    if (!op->getOperand(0).getType().isa<ValueTensorType>() ||
+        !op->getResult(0).getType().isa<ValueTensorType>())
+      return failure();
+
+    auto inputTy = op->getOperand(0).getType().cast<ValueTensorType>();
+    auto outputTy = op->getResult(0).getType().cast<ValueTensorType>();
+    if (!inputTy.hasSizes())
+      return failure();
+    if (!outputTy.hasSizes())
+      return failure();
+    if (outputTy.areAllSizesKnown())
+      return failure();
+    if (op->getNumResults() != 1)
+      return failure();
+
+    int64_t dim, start, end, step;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return failure();
+    if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)))
+      return failure();
+    if (auto none = dyn_cast<ConstantNoneOp>(op.getEnd().getDefiningOp()))
+      end = inputTy.getSizes()[dim];
+    else if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end)))
+      return failure();
+    if (!matchPattern(op.getStep(), m_TorchConstantInt(&step)))
+      return failure();
+    if (step != 1)
+      return failure();
+
+    if (start < 0)
+      start += inputTy.getSizes()[dim];
+    if (end < 0)
+      end += inputTy.getSizes()[dim];
+    std::vector<int64_t> outputShape;
+    for (int i = 0; i < inputTy.getSizes().size(); ++i) {
+      if (i == dim)
+        outputShape.push_back(end - start);
+      else
+        outputShape.push_back(inputTy.getSizes()[i]);
+    }
+    Type newOutputTy = outputTy.getWithSizesAndDtype(
+        ArrayRef<int64_t>(outputShape), outputTy.getOptionalDtype());
+    AtenSliceTensorOp newSlice = rewriter.create<AtenSliceTensorOp>(
+        op->getLoc(), newOutputTy, op->getOperand(0), op.getDim(),
+        op.getStart(), op.getEnd(), op.getStep());
+    rewriter.replaceOp(op, newSlice->getResult(0));
+    return success();
+  });
 }
 
 //===----------------------------------------------------------------------===//
