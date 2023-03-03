@@ -102,6 +102,8 @@ std::unique_ptr<OperationPass<func::FuncOp>> createWidenConvLayerPass();
 
 std::unique_ptr<OperationPass<func::FuncOp>> createInsertSkipPass();
 
+std::unique_ptr<OperationPass<func::FuncOp>> createInsertConvsPass();
+
 std::unique_ptr<OperationPass<ModuleOp>> createPreprocessShapeLibraryPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createReifyShapeCalculationsPass();

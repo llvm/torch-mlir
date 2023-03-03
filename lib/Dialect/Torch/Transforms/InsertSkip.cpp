@@ -27,8 +27,8 @@ using namespace mlir::torch::Torch;
 static void insertSkip(MLIRContext *context, Operation *f) {
   // this demo insert a skip for the second convolution
 
-  llvm::SmallPtrSet<mlir::Operation *, 16> opWorklist;
-  f->walk([&](mlir::Operation *op) {
+  llvm::SmallPtrSet<Operation *, 16> opWorklist;
+  f->walk([&](Operation *op) {
     if (isa<AtenConvolutionOp>(op)) {
       opWorklist.insert(op);
     }
@@ -36,8 +36,8 @@ static void insertSkip(MLIRContext *context, Operation *f) {
   auto it = opWorklist.begin();
   it++;
   AtenConvolutionOp convOp = llvm::dyn_cast<AtenConvolutionOp>(*it);
-  mlir::OpBuilder builder(convOp);
-  mlir::IRRewriter rewriter(builder);
+  IRRewriter rewriter(context);
+  rewriter.setInsertionPointAfter(originOp);
   Location loc = convOp.getLoc();
 
   // create a new conv with zero kernel and bias, to make sure output is the
@@ -53,9 +53,9 @@ static void insertSkip(MLIRContext *context, Operation *f) {
   int kernelSize = shape[0] * shape[1] * shape[2] * shape[3];
   std::vector<float> zeroKernelVec(kernelSize, 0);
   auto resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
-                                               builder.getF32Type());
-  auto dense = mlir::DenseElementsAttr::get(
-      mlir::RankedTensorType::get(llvm::ArrayRef(shape), builder.getF32Type()),
+                                               rewriter.getF32Type());
+  auto dense = DenseElementsAttr::get(
+      RankedTensorType::get(llvm::ArrayRef(shape), rewriter.getF32Type()),
       llvm::ArrayRef(zeroKernelVec));
   Value zeroKernel =
       rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
@@ -63,9 +63,9 @@ static void insertSkip(MLIRContext *context, Operation *f) {
   shape.erase(shape.begin() + 1, shape.end());
   std::vector<float> zeroBiasVec(shape[0], 0);
   resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
-                                          builder.getF32Type());
-  dense = mlir::DenseElementsAttr::get(
-      mlir::RankedTensorType::get(llvm::ArrayRef(shape), builder.getF32Type()),
+                                          rewriter.getF32Type());
+  dense = DenseElementsAttr::get(
+      RankedTensorType::get(llvm::ArrayRef(shape), rewriter.getF32Type()),
       llvm::ArrayRef(zeroBiasVec));
   Value zeroBias =
       rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
@@ -77,7 +77,7 @@ static void insertSkip(MLIRContext *context, Operation *f) {
       convOp.getOperand(8));
   // add
   Value float0 =
-      rewriter.create<ConstantFloatOp>(loc, builder.getF64FloatAttr(0));
+      rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0));
   Value skip = rewriter.create<AtenAddTensorOp>(
       loc, zeroConv.getType(), convOp.getOperand(0), zeroConv, float0);
   rewriter.replaceOpWithNewOp<AtenConvolutionOp>(

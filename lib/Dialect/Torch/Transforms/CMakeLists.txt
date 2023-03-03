@@ -3,6 +3,7 @@ add_mlir_library(TorchMLIRTorchPasses
   DecomposeComplexOps.cpp
   WidenConvLayer.cpp
   InsertSkip.cpp
+  InsertConvs.cpp
   DropAbstractInterpCalculations.cpp
   EraseModuleInitializer.cpp
   Passes.cpp
