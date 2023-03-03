@@ -785,15 +785,16 @@ class RsubInt0d_NumToTensor_Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
+        ([], torch.int64, True),
     ])
     def forward(self, x):
-        return torch.rsub(x, 2., 1.)
+        x = torch.ops.prim.NumToTensor(x)
+        return torch.rsub(x, 2, 1)
 
 
 @register_test_case(module_factory=lambda: RsubInt0d_NumToTensor_Module())
 def RsubInt0d_NumToTensor_Module_basic(module, tu: TestUtils):
-    module.forward(torch.ops.prim.NumToTensor(5))
+    module.forward(tu.randint())
 
 # ==============================================================================
 
