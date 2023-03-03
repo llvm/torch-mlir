@@ -63,7 +63,7 @@ jobs:
       run: mkdir dist
     - name: Copy releases to publish to dist directory
       if: github.event.inputs.release_id != ''
-      run: cp build_tools/python_deploy/wheelhouse/torch_mlir-*.whl dist/
+      run: cp build_tools/python_deploy/wheelhouse/torch_mlir*.whl dist/
 
     # Wheels must be published from a linux environment.
     #
@@ -120,7 +120,7 @@ jobs:
       run: mkdir dist
     - name: Copy releases to publish to dist directory
       if: github.event.inputs.release_id != ''
-      run: cp build_tools/python_deploy/wheelhouse/torch_mlir-*.whl dist/
+      run: cp build_tools/python_deploy/wheelhouse/torch_mlir*.whl dist/
 
     # Wheels must be published from a linux environment.
     #
@@ -179,7 +179,7 @@ jobs:
       continue-on-error: true
     - name: Copy releases to publish to dist directory
       if: github.event.inputs.release_id != ''
-      run: cp ./wheelhouse/torch_mlir-*.whl dist/
+      run: cp ./wheelhouse/torch_mlir*.whl dist/
 
     # Wheels must be published from a linux environment.
     #
