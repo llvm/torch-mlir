@@ -41,6 +41,10 @@ struct AliasSliceInfo {
   // do not perform any more slicing analysis on it.
   bool approximated = false;
 
+  static AliasSliceInfo getFullSlice() {
+    return AliasSliceInfo{-1, 0, INT64_MAX, false};
+  }
+
   bool isOverlapping(const AliasSliceInfo &other) {
     // If there is no slicing on either side, then the aliases are
     // overlapping as one must be a slice of the other.
@@ -102,15 +106,23 @@ public:
     result.copyLikeOps.push_back(copyToNonValueTensor);
     DenseSet<Value> availableAliases{
         assertNonValueTensor(copyToNonValueTensor.getResult())};
+
+    // Initialize the alias slice info for the initial alias.
     DenseMap<Value, AliasSliceInfo> aliasSliceInfo;
+    aliasSliceInfo[copyToNonValueTensor.getResult()] =
+        AliasSliceInfo::getFullSlice();
+
     for (Operation *user : nonValueTensorUsers) {
       for (Value operand : nonValueTensorsUsedByOp.lookup(user)) {
-        if (!availableAliases.contains(operand)) {
+        // View like operations are allowed to use any alias since they
+        // may create a view that is still available.
+        if (!isViewLikeOp(user) && !availableAliases.contains(operand)) {
           return rewriter.notifyMatchFailure(
               copyToNonValueTensor,
               "operand of op is not a valid tensor alias");
         }
       }
+
       if (isViewLikeOp(user)) {
         Value userResult = user->getResult(0);
         // View-like ops produce a new alias available to later ops.
@@ -286,27 +298,21 @@ private:
   static void
   calculateAliasInfo(Value tensor,
                      DenseMap<Value, AliasSliceInfo> &aliasSliceInfo) {
-    Operation *op = tensor.getDefiningOp();
-
-    // If op is not a view-like op, then the tensor is an alias of itself.
-    if (!isViewLikeOp(op)) {
-      aliasSliceInfo[tensor] = AliasSliceInfo{-1, 0, INT64_MAX, false};
-      return;
-    }
-
     // Check if the alias information of the operation is already available.
     if (aliasSliceInfo.count(tensor))
       return;
 
+    Operation *op = tensor.getDefiningOp();
+
     if (auto staticInfoCast = dyn_cast<TensorStaticInfoCastOp>(op)) {
+      if (!aliasSliceInfo.count(staticInfoCast.getOperand()))
+        return;
       // If op is static info cast, we assume it does not perform any
       // reshaping or slicing.
-      calculateAliasInfo(staticInfoCast.getOperand(), aliasSliceInfo);
       aliasSliceInfo[tensor] = aliasSliceInfo[staticInfoCast.getOperand()];
       return;
     } else if (auto sliceOp = dyn_cast<AtenSliceTensorOp>(op)) {
       // Get the alias information of the input tensor.
-      calculateAliasInfo(sliceOp.getSelf(), aliasSliceInfo);
       if (!aliasSliceInfo.count(sliceOp.getSelf()))
         return;
 
