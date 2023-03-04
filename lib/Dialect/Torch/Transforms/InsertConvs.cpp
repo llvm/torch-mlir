@@ -41,14 +41,13 @@ static void insertConvs(MLIRContext *context, Operation *f) {
     }
   });
 
+  // select a random place to insert
   auto it = opWorklist.begin();
   std::srand(std::time(0));
   Operation* originOp = *(std::next(it, std::rand() % opWorklist.size()));
-  llvm::outs() << "=========select random op\n";
-  llvm::outs() << originOp->getName() << "\n";
-  llvm::outs() << originOp->getResult(0).getType() << "\n";
-
-  // OpBuilder builder(op);
+  // llvm::outs() << "=========select random op\n";
+  // llvm::outs() << originOp->getName() << "\n";
+  // llvm::outs() << originOp->getResult(0).getType() << "\n";
   IRRewriter rewriter(context);
   rewriter.setInsertionPointAfter(originOp);
   // copy origin op

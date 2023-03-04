@@ -42,14 +42,14 @@ static void widenConvLayer(MLIRContext *context, Operation *f) {
   });
 
   auto it = opWorklist.begin();
-  AtenConvolutionOp conv = llvm::dyn_cast<AtenConvolutionOp>(*it);
+  AtenConvolutionOp convOp = llvm::dyn_cast<AtenConvolutionOp>(*it);
   IRRewriter rewriter(context);
-  rewriter.setInsertionPointAfter(originOp);
+  rewriter.setInsertionPoint(convOp);
 
   // add three channels by copy existing channels, two channel 0 and one
   // channel 1
-  Value oldKernel = conv.getOperand(1);
-  Value oldBias = conv.getOperand(2);
+  Value oldKernel = convOp.getOperand(1);
+  Value oldBias = convOp.getOperand(2);
   auto oldKernelOp = oldKernel.getDefiningOp<ValueTensorLiteralOp>();
   auto oldBiasOp = oldBias.getDefiningOp<ValueTensorLiteralOp>();
 
@@ -113,8 +113,8 @@ static void widenConvLayer(MLIRContext *context, Operation *f) {
   }
 
   // widen second conv kernel, no need to widen bias
-  conv = llvm::dyn_cast<AtenConvolutionOp>(*it);
-  oldKernel = conv.getOperand(1);
+  convOp = llvm::dyn_cast<AtenConvolutionOp>(*it);
+  oldKernel = convOp.getOperand(1);
   oldKernelOp = oldKernel.getDefiningOp<ValueTensorLiteralOp>();
   kernelVec.clear();
   for (auto i : oldKernelOp.getValue().getValues<float>()) {

@@ -37,7 +37,7 @@ static void insertSkip(MLIRContext *context, Operation *f) {
   it++;
   AtenConvolutionOp convOp = llvm::dyn_cast<AtenConvolutionOp>(*it);
   IRRewriter rewriter(context);
-  rewriter.setInsertionPointAfter(originOp);
+  rewriter.setInsertionPoint(convOp);
   Location loc = convOp.getLoc();
 
   // create a new conv with zero kernel and bias, to make sure output is the
