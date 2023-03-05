@@ -22,7 +22,7 @@ this_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$this_dir"/../../ && pwd)"
 python_versions="${TORCH_MLIR_PYTHON_VERSIONS:-3.9 3.10 3.11}"
 output_dir="${output_dir:-${this_dir}/wheelhouse}"
-packages="${packages:-torch-mlir torch-mlir-no-jit-importer}"
+packages="${packages:-torch-mlir}"
 
 PKG_VER_FILE="${repo_root}"/torch_mlir_package_version ; [ -f "$PKG_VER_FILE" ] && . "$PKG_VER_FILE"
 export TORCH_MLIR_PYTHON_PACKAGE_VERSION="${TORCH_MLIR_PYTHON_PACKAGE_VERSION:-0.0.1}"
@@ -61,7 +61,7 @@ function run() {
           build_torch_mlir torch_mlir "$python_version"
           run_audit_wheel torch_mlir "$python_version"
           ;;
-        torch-mlir-no-jit-importer)
+        torch-mlir-no-jit)
           clean_wheels torch_mlir_no_jit "$python_version"
           build_torch_mlir_no_jit torch_mlir_no_jit "$python_version"
           run_audit_wheel_no_jit torch_mlir_no_jit "$python_version"
