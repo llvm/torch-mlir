@@ -14,6 +14,11 @@ jobs:
   build_linux:
     name: Manylinux Build
     runs-on: a100
+    strategy:
+      matrix:
+        package: [ torch-mlir, torch-mlir-no-jit ]
+        py_version: [ cp38-cp38, cp310-cp310, cp311-cp311 ]
+
     steps:
 
     - name: Prepare workspace
@@ -35,7 +40,7 @@ jobs:
         python -m pip install wheel
         TM_PACKAGE_VERSION=${{ github.event.inputs.python_package_version }}
         printf "TORCH_MLIR_PYTHON_PACKAGE_VERSION=%s\n" $TM_PACKAGE_VERSION > ./torch_mlir_package_version
-        ./build_tools/python_deploy/build_linux_packages.sh
+        TM_PYTHON_VERSIONS=${{ matrix.py_version }} TM_PACKAGES=${{ matrix.package }} ./build_tools/python_deploy/build_linux_packages.sh
               
     # If we were given a release_id, then upload the package we just built
     # to the github releases page.
@@ -77,6 +82,9 @@ jobs:
   build_macos:
     name: MacOS Build
     runs-on: macos-latest
+    strategy:
+      matrix:
+        package: [ torch-mlir, torch-mlir-no-jit ]
     steps:
     - name: Get torch-mlir
       uses: actions/checkout@v3
@@ -92,7 +100,7 @@ jobs:
         TM_PACKAGE_VERSION=${{ github.event.inputs.python_package_version }}
         printf "TORCH_MLIR_PYTHON_PACKAGE_VERSION=%s\n" $TM_PACKAGE_VERSION > ./torch_mlir_package_version
         sudo ./build_tools/python_deploy/install_macos_deps.sh
-        TORCH_MLIR_PYTHON_VERSIONS="3.11" ./build_tools/python_deploy/build_macos_packages.sh
+        packages=${{ matrix.package }} TORCH_MLIR_PYTHON_VERSIONS="3.11" ./build_tools/python_deploy/build_macos_packages.sh
 
     # If we were given a release_id, then upload the package we just built
     # to the github releases page.
