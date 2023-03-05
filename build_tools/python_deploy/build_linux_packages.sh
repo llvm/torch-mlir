@@ -165,6 +165,9 @@ function run_in_docker() {
           clean_build torch_mlir "$python_version"
           ;;
         torch-mlir-no-jit)
+          if ! [ "$python_version" == "cp311-cp311" ]; then
+            continue
+          fi
           clean_wheels torch_mlir_no_jit "$python_version"
           build_torch_mlir_no_jit
           run_audit_wheel torch_mlir_no_jit "$python_version"
