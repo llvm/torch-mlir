@@ -61,10 +61,10 @@ function run() {
           build_torch_mlir torch_mlir "$python_version"
           run_audit_wheel torch_mlir "$python_version"
           ;;
-        torch-mlir-no-jit)
-          clean_wheels torch_mlir_no_jit "$python_version"
-          build_torch_mlir_no_jit torch_mlir_no_jit "$python_version"
-          run_audit_wheel_no_jit torch_mlir_no_jit "$python_version"
+        torch-mlir-core)
+          clean_wheels torch_mlir_core "$python_version"
+          build_torch_mlir_core torch_mlir_core "$python_version"
+          run_audit_wheel torch_mlir_core "$python_version"
           ;;
         *)
           echo "Unrecognized package '$package'"
@@ -93,7 +93,7 @@ function build_torch_mlir() {
   rm -rf "$output_dir"/build_venv
 }
 
-function build_torch_mlir_no_jit() {
+function build_torch_mlir_core() {
   local wheel_basename="$1"
   local python_version="$2"
   rm -rf "$output_dir"/build_venv
@@ -135,26 +135,6 @@ function run_audit_wheel() {
     python"${python_version}" -m pip install -r "$repo_root"/pytorch-requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
     python"${python_version}" -m pip install -r "$repo_root"/build-requirements.txt
     python"${python_version}" -m pip install "$generic_wheel" --extra-index-url https://download.pytorch.org/whl/nightly/cpu
-    DYLD_LIBRARY_PATH="$output_dir"/test_venv/lib/python"${python_version}"/site-packages/torch/lib delocate-wheel -v "$generic_wheel"
-    deactivate
-    rm -rf "$output_dir"/test_venv
-  fi
-}
-
-function run_audit_wheel_no_jit() {
-  set +x
-  local wheel_basename="$1"
-  local python_version="$2"
-  generic_wheel=$(ls "$output_dir"/"${wheel_basename}"-* | grep "${python_version//./}")
-  echo "Looking for $generic_wheel"
-  if [ -f "$generic_wheel" ]; then
-    echo "$generic_wheel found. Delocating it.."
-    rm -rf "$output_dir"/test_venv
-    python"${python_version}" -m venv "$output_dir"/test_venv
-    source "$output_dir"/test_venv/bin/activate
-    python"${python_version}" -m pip install -U pip delocate
-    python"${python_version}" -m pip install -r "$repo_root"/build-requirements.txt
-    python"${python_version}" -m pip install "$generic_wheel"
     DYLD_LIBRARY_PATH="$output_dir"/test_venv/lib/python"${python_version}"/site-packages/torch/lib delocate-wheel -v "$generic_wheel"
     deactivate
     rm -rf "$output_dir"/test_venv
