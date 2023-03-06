@@ -503,3 +503,25 @@ class SliceCopy_Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: SliceCopy_Module())
 def SliceCopy_Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 4, 4), tu.rand(4, 4, 4))
+
+# ==============================================================================
+
+class SliceCopyNegative_Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([10, 4, 4], torch.float32, True),
+        ([4, 4, 4], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        xslice = torch.ops.aten.slice(x, 0, 2, -4, 1)
+        xslice.copy_(y)
+        return x
+
+
+@register_test_case(module_factory=lambda: SliceCopyNegative_Module())
+def SliceCopyNegative_Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 4, 4), tu.rand(4, 4, 4))
