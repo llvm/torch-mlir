@@ -789,7 +789,7 @@ class RsubInt0d_NumToTensor_Module(torch.nn.Module):
     ])
     def forward(self, x):
         x = torch.ops.prim.NumToTensor(x)
-        return torch.rsub(x, 2, 1)
+        return torch.rsub(x, 2, alpha=1)
 
 
 @register_test_case(module_factory=lambda: RsubInt0d_NumToTensor_Module())
