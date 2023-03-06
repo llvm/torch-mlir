@@ -2248,17 +2248,22 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
 void AtenSliceTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                               MLIRContext *context) {
   patterns.add(+[](AtenSliceTensorOp op, PatternRewriter &rewriter) {
+    int64_t start;
+    if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)))
+      return failure();
     int64_t end;
     if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end)) || end >= 0)
       return failure();
     int64_t dim;
     if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
       return failure();
-    auto sliceType = cast<BaseTensorType>(op.getResultType(0));
+    auto sliceType = cast<BaseTensorType>(op.getType());
     if(!sliceType.hasSizes() || sliceType.getSizes()[dim] == kUnknownSize)
       return failure();
 
-    Value newEnd = rewriter.create<ConstantIntOp>(op.getLoc(), rewriter.getI64IntegerAttr(sliceType.getSizes()[dim] + end))
+    Value newEnd = rewriter.create<ConstantIntOp>(
+        op.getLoc(),
+        rewriter.getI64IntegerAttr(sliceType.getSizes()[dim] + start));
     rewriter.replaceOpWithNewOp<AtenSliceTensorOp>(op, sliceType, op.getSelf(), op.getDim(), op.getStart(), newEnd, op.getStep());
 
     return success();

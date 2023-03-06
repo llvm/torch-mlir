@@ -7590,6 +7590,7 @@ def Torch_AtenSliceTensorOp : Torch_Op<"aten.slice.Tensor", [
     }
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenLenTensorOp : Torch_Op<"aten.len.Tensor", [
