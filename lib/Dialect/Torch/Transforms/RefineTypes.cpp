@@ -112,24 +112,6 @@ static torch_upstream::TypeKind getTypeKind(Type type) {
   return torch_upstream::TypeKind::AnyType;
 }
 
-/// Returns the dtype that assumes information from both `lhs` and `rhs`.
-/// Returns `std::nullopt` if the types are contradictory. Note this can only
-/// be used on the `dtype` from tensors and can't be used on other types like
-/// scalar types.
-static std::optional<Type> meetElementTypes(Type lhs, Type rhs) {
-  auto isNullOrBuiltIn = [](Type type) { return !type || isBuiltInType(type); };
-  (void)isNullOrBuiltIn;
-  assert(isNullOrBuiltIn(lhs) && "`lhs` must be a builtin type");
-  assert(isNullOrBuiltIn(rhs) && "`rhs` must be a builtin type");
-
-  if (!lhs)
-    return rhs;
-  if (!rhs)
-    return lhs;
-  if (lhs == rhs)
-    return lhs;
-  return std::nullopt;
-}
 
 enum class OptionalKnowledge {
   unKnown,
@@ -1445,18 +1427,13 @@ void TypeAnalysis::visitAtenCatOp(AtenCatOp op,
     return;
   }
 
-  auto tensors = llvm::to_vector<4>(
-      llvm::map_range(listConstruct.getElements(), [&](Value v) -> ValueKnowledge {
-        return getLatticeElement(v)->getValue();
+  SmallVector<ValueKnowledge*, 4> tensors = llvm::to_vector<4>(
+      llvm::map_range(listConstruct.getElements(), [&](Value v) -> ValueKnowledge* {
+        return &getLatticeElement(v)->getValue();
       }));
 
-  SmallVector<const ValueKnowledge*> vknlg;
-  for (size_t i = 0; i < tensors.size(); ++i) {
-    vknlg.push_back(&tensors[i]);
-  }
-
   knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
-      op->getContext(), vknlg);
+      op->getContext(), tensors);
   incorporateKnowledge(op->getResult(0), knowledge);
 }
 
