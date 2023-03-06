@@ -146,7 +146,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 
 setup(
-    name="torch-mlir" if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else "torch-mlir-no-jit",
+    name="torch-mlir" if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else "torch-mlir-core",
     version=f"{PACKAGE_VERSION}",
     author="Sean Silva",
     author_email="silvasean@google.com",
