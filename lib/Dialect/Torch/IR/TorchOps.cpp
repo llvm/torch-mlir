@@ -1042,7 +1042,7 @@ void AtenScalarImplicitOp::getCanonicalizationPatterns(
     Location loc = op.getLoc();
     Value a = op.getA();
     auto outType = op.getResult().getType();
-    Value scalarValue = getScalarValue(a, loc, rewriter);
+    Value scalarValue = getScalarIntValue(a, loc, rewriter);
     if (!scalarValue)
       return failure();
     rewriter.replaceOpWithNewOp<Torch::DerefineOp>(op, outType, scalarValue);
