@@ -16,12 +16,12 @@ jobs:
     runs-on: a100
     strategy:
       matrix:
-        package: [ torch-mlir, torch-mlir-no-jit ]
+        package: [ torch-mlir, torch-mlir-core ]
         py_version: [ cp38-cp38, cp310-cp310, cp311-cp311 ]
         exclude:
-          - package: torch-mlir-no-jit
+          - package: torch-mlir-core
             py_version: cp38-cp38
-          - package: torch-mlir-no-jit
+          - package: torch-mlir-core
             py_version: cp310-cp310
 
     steps:
@@ -89,7 +89,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        package: [ torch-mlir, torch-mlir-no-jit ]
+        package: [ torch-mlir, torch-mlir-core ]
     steps:
     - name: Get torch-mlir
       uses: actions/checkout@v3
@@ -147,6 +147,9 @@ jobs:
   build_windows:
     name: Windows Build
     runs-on: windows-latest
+    strategy:
+      matrix:
+        package: [ torch-mlir, torch-mlir-core ]
     steps:
     - name: Get torch-mlir
       uses: actions/checkout@v3
@@ -162,6 +165,10 @@ jobs:
     - name: Build Python wheels and smoke test.
       shell: pwsh
       run: |
+        if [ "${{ matrix.package }}" == "torch-mlir-core" ]
+          $env:TORCH_MLIR_ENABLE_JIT_IR_IMPORTER='0'
+          $env:TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS='1'
+        fi
         $env:TORCH_MLIR_PYTHON_PACKAGE_VERSION = '${{ github.event.inputs.python_package_version }}'
         ./build_tools/python_deploy/build_windows.ps1
 
