@@ -639,9 +639,9 @@ class TensorsConcatPromoteDTypeModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: TensorsConcatPromoteDTypeModule())
 def TensorsConcatPromoteDTypeModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(0, 2, (2, 2, 4)).bool(),
-                   tu.randint(0, 100, (2, 1, 4)).int(),
-                   tu.randint(0, 100, (2, 3, 4)).long())
+    module.forward(tu.randint(2, 2, 4, low=0, high=2).bool(),
+                   tu.randint(2, 1, 4, low=0, high=100).int(),
+                   tu.randint(2, 3, 4, low=0, high=100).long())
 
 
 # ==============================================================================
