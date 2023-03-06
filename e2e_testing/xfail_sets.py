@@ -91,6 +91,8 @@ TORCHDYNAMO_XFAIL_SET = {
     "AtenIntTensorByteDtypeModule_basic",
     # ERROR: assert isinstance(e, FakeTensor)
     "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
+    # ERROR: assert isinstance(e, FakeTensor)
+    "RsubInt0d_NumToTensor_Module_basic",
 }
 
 STABLEHLO_PASS_SET = {
