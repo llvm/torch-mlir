@@ -89,6 +89,8 @@ TORCHDYNAMO_XFAIL_SET = {
     "ReduceMaxAlongDimUnsignedInt_basic",
     #ERROR: value (-56) is not equal to golden value (200)
     "AtenIntTensorByteDtypeModule_basic",
+    # ERROR: assert isinstance(e, FakeTensor)
+    "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
 }
 
 STABLEHLO_PASS_SET = {
@@ -155,6 +157,8 @@ STABLEHLO_PASS_SET = {
     "ElementwiseAddScalarFloatModule_basic",
     "ElementwiseAddScalarInt64Module_basic",
     "ElementwiseAddScalarIntModule_basic",
+    "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
+    "ElementwiseAddScalar_TensorLiteralInt32_Module_basic",
     "ElementwiseDivScalarModule_basic",
     "ElementwiseEqDiffWidthScalarModule_basic",
     "ElementwiseEqFloatScalarModule_basic",
@@ -539,6 +543,7 @@ TOSA_PASS_SET = {
     "ElementwiseDivScalarModule_basic",
     "ElementwiseSubScalarFloatModule_basic",
     "ElementwiseAddScalarFloatModule_basic",
+    "ElementwiseAddScalar_TensorLiteralInt32_Module_basic",
     "ElementwiseMulScalarModule_float",
     "ElementwiseCeilModule_basic",
     "ElementwiseReciprocalModule_basic",

@@ -1532,12 +1532,16 @@ static Type getMostRefinedStaticType(Value v, DataFlowSolver &solver) {
     if (!latticeElement)
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
+    if (!knowledge.isInitialized)
+      return nullptr;
     return getRefinedTensorType(tensorType, knowledge);
   } else if (auto optionalType = v.getType().dyn_cast<OptionalType>()) {
     const ValueState *latticeElement = solver.lookupState<ValueState>(v);
     if (!latticeElement)
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
+    if (!knowledge.isInitialized)
+      return nullptr;
     if (knowledge.optional == OptionalKnowledge::isNone)
       return Torch::NoneType::get(v.getContext());
     else if (knowledge.optional == OptionalKnowledge::notNone) {
@@ -1552,6 +1556,8 @@ static Type getMostRefinedStaticType(Value v, DataFlowSolver &solver) {
     if (!latticeElement)
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
+    if (!knowledge.isInitialized)
+      return nullptr;
     if (knowledge.kind == torch_upstream::TypeKind::IntType)
       return Torch::IntType::get(v.getContext());
     if (knowledge.kind == torch_upstream::TypeKind::FloatType)
