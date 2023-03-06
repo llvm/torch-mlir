@@ -173,7 +173,7 @@ def generate_library(globals_) -> str:
         mb.import_function(function)
     # Clean up the IR a bit before writing it out.
     pm = PassManager.parse("builtin.module(canonicalize)", context=mb.module.context)
-    pm.run(mb.module)
+    pm.run(mb.module.operation)
     # Munge the IR a bit to make it more systematically accessible.
     asm = mb.module.operation.get_asm()
     # We'd like a unique function prefix to avoid collisions with user-
