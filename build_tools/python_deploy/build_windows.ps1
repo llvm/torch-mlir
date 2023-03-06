@@ -21,6 +21,8 @@ Write-Host "Build Deps installation completed successfully"
 Write-Host "Building torch-mlir"
 $env:CMAKE_GENERATOR='Ninja'
 $env:TORCH_MLIR_ENABLE_LTC='0'
+$env:TORCH_MLIR_ENABLE_JIT_IR_IMPORTER='1'
+$env:TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS='0'
 python -m pip wheel -v -w  wheelhouse ./  -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html  -r whl-requirements.txt
 
 Write-Host "Build completed successfully"
