@@ -202,6 +202,10 @@ public:
     if (!op->hasTrait<Torch::OpTrait::IsTrailingUnderscoreInplaceVariant>())
       return rewriter.notifyMatchFailure(op, "is not trailing_ variant");
 
+    if (isa<AtenCopy_Op>(op))
+      if (isa<AtenSliceTensorOp>(op->getOperand(0).getDefiningOp()))
+        return failure();
+
     SmallVector<StringRef> fragments;
     llvm::SplitString(op->getName().getStringRef(), fragments, ".");
     assert(fragments.size() >= 3 && fragments[2].endswith("_") &&
@@ -254,6 +258,8 @@ class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
     target.addIllegalOp<NonValueTensorLiteralOp>();
     target.addIllegalOp<AtenBernoulli_FloatOp>();
     target.markUnknownOpDynamicallyLegal([](Operation *op) {
+      if (isa<AtenCopy_Op>(op))
+        return true;
       if (op->hasTrait<Torch::OpTrait::HasValueSemantics>()) {
         auto hasValueSemantics = [](Type t) {
           // TODO: Make this an allowlist based on a closed torch dialect
