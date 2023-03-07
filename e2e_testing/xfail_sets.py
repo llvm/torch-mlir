@@ -275,6 +275,7 @@ STABLEHLO_PASS_SET = {
     "FlattenStaticModule_basic",
     "FlattenRank0Module_basic",
     "TensorsConcatNegativeDimModule_basic",
+    "TensorsConcatPromoteDTypeModule_basic",
     "LiftFreshCopyModule_basic",
     "Mlp2LayerModuleNoBias_basic",
     "NumelModule_basic",
