@@ -62,6 +62,16 @@ torch_mlir.compiler_utils.run_pipeline_with_repro_report(
 print(module.operation.get_asm(large_elements_limit=10))
 
 print("================")
+print("after InsertConv pass")
+print("================")
+torch_mlir.compiler_utils.run_pipeline_with_repro_report(
+    module,
+    "builtin.module(func.func(torch-insert-conv{number=5}))",
+    "InsertSkip",
+)
+print(module.operation.get_asm(large_elements_limit=10))
+
+print("================")
 print("after lower to linalg")
 print("================")
 torch_mlir.compiler_utils.run_pipeline_with_repro_report(

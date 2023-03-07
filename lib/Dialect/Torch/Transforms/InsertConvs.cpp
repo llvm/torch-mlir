@@ -26,95 +26,128 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
-static void insertConvs(MLIRContext *context, Operation *f) {
-  // insert a invariant convolution
+static void insertConv(MLIRContext *context, Operation *f, int number) {
+  // insert invariant convolutions
 
   llvm::SmallPtrSet<Operation *, 16> opWorklist;
   f->walk([&](Operation *op) {
-    if (!isa<mlir::func::ReturnOp, mlir::func::FuncOp>(op)) {
-      if (auto t = op->getResult(0).getType().dyn_cast<ValueTensorType>()) {
-        if (t.getSizes().size() == 4 && op->getNumResults() == 1) {
-          opWorklist.insert(op);
-          // llvm::outs() << op->getName() << "\n";
-        }
+    if (isa<AtenReluOp>(op)) {
+      if (op->getResult(0).getType().isa<ValueTensorType>()) {
+        opWorklist.insert(op);
       }
     }
   });
 
-  // select a random place to insert
-  auto it = opWorklist.begin();
   std::srand(std::time(0));
-  Operation* originOp = *(std::next(it, std::rand() % opWorklist.size()));
-  // llvm::outs() << "=========select random op\n";
-  // llvm::outs() << originOp->getName() << "\n";
-  // llvm::outs() << originOp->getResult(0).getType() << "\n";
-  IRRewriter rewriter(context);
-  rewriter.setInsertionPointAfter(originOp);
-  // copy origin op
-  Operation* op = rewriter.clone(*originOp);
-  Location loc = op->getLoc();
+  for (int i = 0; i < number; i++) {
+    // select a random place to insert
+    Operation *originOp =
+        *(std::next(opWorklist.begin(), std::rand() % opWorklist.size()));
+    IRRewriter rewriter(context);
+    rewriter.setInsertionPointAfter(originOp);
+    // copy originOp, for convinience of replace use of op
+    Operation *op = rewriter.clone(*originOp);
+    Location loc = op->getLoc();
 
-  // create unit tensor as convolution kernel
-  auto rst = op->getResult(0);
-  auto shape = rst.getType().cast<ValueTensorType>().getSizes().vec();
-  int sz = shape[1];
-  // new kernel size is: sz x sz x 1 x 1
-  shape[0] = sz;
-  shape[2] = shape[3] = 1;
-  std::vector<float> unitWeightVec(sz * sz, 0);
-  for (int i = 0; i < sz; i++) {
-    unitWeightVec[i * sz + i] = 1;
+    // create other oprands for conv
+    int padNum = std::rand() % 10;
+    Value int0 =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value int1 =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value intPad =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(padNum));
+    Value constFalse = rewriter.create<ConstantBoolOp>(loc, false);
+    Value listInt1_1 = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)), ValueRange({int1, int1}));
+    Value listIntPad_Pad = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)),
+        ValueRange({intPad, intPad}));
+    Value listInt = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)), ValueRange({}));
+    // create unsqueeze if dimansion less than 4, such as : (1,84) -> (1,1,1,84)
+    Value rst = op->getResult(0);
+    std::vector<long> shape =
+        rst.getType().cast<ValueTensorType>().getSizes().vec();
+    int squeezeTime = 4 - shape.size();
+    if (squeezeTime < 0) {
+      continue;
+    }
+    for (int i = 0; i < squeezeTime; i++) {
+      shape.insert(shape.begin(), 1);
+      rst = rewriter.create<AtenUnsqueezeOp>(
+          loc,
+          ValueTensorType::get(context, llvm::ArrayRef(shape),
+                               rewriter.getF32Type()),
+          rst, int0);
+    }
+    // create unit tensor as convolution kernel
+    // new kernel size is: ChannelSz  x ChannelSz  x kernelSz x kernelSz
+    int ChannelSz = shape[1];
+    int kernelSz = 2 * padNum + 1;
+    shape[0] = ChannelSz;
+    shape[2] = shape[3] = kernelSz;
+    std::vector<float> unitWeightVec(ChannelSz * ChannelSz *kernelSz*kernelSz, 0);
+    for (int i = 0; i < ChannelSz; i++) {
+      // unitWeightVec[i][i][padNum][padNum] = 1
+      unitWeightVec[((i * ChannelSz + i) * kernelSz + padNum) * kernelSz +
+                    padNum] = 1;
+    }
+    auto resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
+                                                 rewriter.getF32Type());
+    auto dense = DenseElementsAttr::get(
+        RankedTensorType::get(llvm::ArrayRef(shape), rewriter.getF32Type()),
+        llvm::ArrayRef(unitWeightVec));
+    Value unitWeight =
+        rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
+    // create zero bias
+    shape.erase(shape.begin() + 1, shape.end());
+    std::vector<float> zeroBiasVec(shape[0], 0);
+    resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
+                                            rewriter.getF32Type());
+    dense = DenseElementsAttr::get(
+        RankedTensorType::get(llvm::ArrayRef(shape), rewriter.getF32Type()),
+        llvm::ArrayRef(zeroBiasVec));
+    Value zeroBias =
+        rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
+    // create conv
+    rst = rewriter.create<AtenConvolutionOp>(
+        loc, rst.getType(), rst, unitWeight, zeroBias, listInt1_1, listIntPad_Pad,
+        listInt1_1, constFalse, listInt, int1);
+    // create relu
+    rst = rewriter.create<AtenReluOp>(loc, rst.getType(), rst);
+    // create squeeze
+    for (int i = 0; i < squeezeTime; i++) {
+      shape = rst.getType().cast<ValueTensorType>().getSizes().vec();
+      shape.erase(shape.begin());
+      rst = rewriter.create<AtenSqueezeDimOp>(
+          loc,
+          ValueTensorType::get(context, llvm::ArrayRef(shape),
+                               rewriter.getF32Type()),
+          rst, int0);
+    }
+
+    originOp->replaceAllUsesWith(ValueRange({rst}));
+    originOp->erase();
+    opWorklist.erase(originOp);
+    opWorklist.insert({op});
   }
-  auto resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
-                                               rewriter.getF32Type());
-  auto dense = DenseElementsAttr::get(
-      RankedTensorType::get(llvm::ArrayRef(shape), rewriter.getF32Type()),
-      llvm::ArrayRef(unitWeightVec));
-  Value unitWeight =
-      rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
-  // create zero bias
-  shape.erase(shape.begin() + 1, shape.end());
-  std::vector<float> zeroBiasVec(shape[0], 0);
-  resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
-                                          rewriter.getF32Type());
-  dense = DenseElementsAttr::get(
-      RankedTensorType::get(llvm::ArrayRef(shape), rewriter.getF32Type()),
-      llvm::ArrayRef(zeroBiasVec));
-  Value zeroBias =
-      rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
-  // create other oprands for conv
-  Value int0 =
-      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
-  Value int1 =
-      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-  Value constFalse = rewriter.create<ConstantBoolOp>(loc, false);
-  Value listInt0_0 = rewriter.create<PrimListConstructOp>(
-      loc, ListType::get(IntType::get(context)), ValueRange({int0, int0}));
-  Value listInt1_1 = rewriter.create<PrimListConstructOp>(
-      loc, ListType::get(IntType::get(context)), ValueRange({int1, int1}));
-  Value listInt = rewriter.create<PrimListConstructOp>(
-      loc, ListType::get(IntType::get(context)), ValueRange({}));
-  // create conv
-  Value conv = rewriter.create<AtenConvolutionOp>(
-      loc, rst.getType(), rst, unitWeight, zeroBias, listInt1_1, listInt0_0,
-      listInt1_1, constFalse, listInt, int1);
-  originOp->replaceAllUsesWith(ValueRange({conv}));
-  originOp->erase();
 }
 
 namespace {
-class InsertConvsPass : public InsertConvsBase<InsertConvsPass> {
+class InsertConvPass : public InsertConvBase<InsertConvPass> {
 public:
-  InsertConvsPass() = default;
+  InsertConvPass() = default;
+  InsertConvPass(int number) { this->number = number; }
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     auto f = getOperation();
-    insertConvs(context, f);
+    insertConv(context, f, number);
   }
 };
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createInsertConvsPass() {
-  return std::make_unique<InsertConvsPass>();
+mlir::torch::Torch::createInsertConvPass(int number) {
+  return std::make_unique<InsertConvPass>(number);
 }

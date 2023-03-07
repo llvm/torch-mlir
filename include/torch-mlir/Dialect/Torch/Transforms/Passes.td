@@ -256,13 +256,17 @@ def InsertSkip : Pass<"torch-insert-skip", "func::FuncOp"> {
   }];
 }
 
-def InsertConvs : Pass<"torch-insert-convs", "func::FuncOp"> {
+def InsertConv : Pass<"torch-insert-conv", "func::FuncOp"> {
   let summary = "Insert equivalent convolutions";
   let constructor = [{
-    mlir::torch::Torch::createInsertConvsPass()
+    mlir::torch::Torch::createInsertConvPass(/*maxIterations=*/1)
   }];
   let description = [{
   }];
+  let options = [
+    Option<"number", "number", "int", /*default=*/"1",
+           "Number of convolutions to insert.">
+  ];
 }
 
 def ReifyShapeCalculations : Pass<"torch-reify-shape-calculations", "ModuleOp"> {
