@@ -91,6 +91,8 @@ TORCHDYNAMO_XFAIL_SET = {
     "AtenIntTensorByteDtypeModule_basic",
     # ERROR: assert isinstance(e, FakeTensor)
     "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
+    # ERROR: assert isinstance(e, FakeTensor)
+    "RsubInt0d_NumToTensor_Module_basic",
 }
 
 STABLEHLO_PASS_SET = {
@@ -316,6 +318,7 @@ STABLEHLO_PASS_SET = {
     "RsubFloatModule_noalpha_basic",
     "RsubIntModule_basic",
     "RsubIntModule_noalpha_basic",
+    "RsubInt0d_NumToTensor_Module_basic",
     "SliceStaticModule_basic",
     "SliceModule_basic",
     "SliceNegIdxModule_basic",
@@ -513,6 +516,7 @@ TOSA_PASS_SET = {
     "Matmul_3d",
     "RsubFloatModule_basic",
     "RsubFloatModule_noalpha_basic",
+    "RsubInt0d_NumToTensor_Module_basic",
     "ElementwiseBitwiseAndModule_basic",
     "ElementwiseBitwiseAndStaticShapeModule_basic",
     "ElementwiseBitwiseNotInt32Module_basic",

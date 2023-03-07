@@ -881,14 +881,17 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
     return rewriter.notifyMatchFailure(
         op, "only int scalar lhs or rhs is supported");
   }
-  if (isa<AtenSubTensorOp, AtenSubScalarOp, AtenAddTensorOp, AtenAddScalarOp>(
-          op)) {
+  if (isa<AtenSubTensorOp, AtenSubScalarOp, AtenRsubScalarOp, AtenAddTensorOp,
+          AtenAddScalarOp>(op)) {
     Value alpha = getScalarIntValue(op->getOperand(2), loc, rewriter);
     if (!alpha) {
       return rewriter.notifyMatchFailure(op,
                                          "only int scalar alpha is supported");
     }
-    rhs = rewriter.create<AtenMulIntOp>(loc, rhs, alpha);
+    if (isa<AtenRsubScalarOp>(op))
+      lhs = rewriter.create<AtenMulIntOp>(loc, lhs, alpha);
+    else
+      rhs = rewriter.create<AtenMulIntOp>(loc, rhs, alpha);
   }
 
   if (isa<AtenDivTensorModeOp>(op)) {
@@ -941,6 +944,8 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
     result = rewriter.create<AtenAddIntOp>(loc, lhs, rhs);
   } else if (isa<AtenSubScalarOp, AtenSubTensorOp>(op)) {
     result = rewriter.create<AtenSubIntOp>(loc, lhs, rhs);
+  } else if (isa<AtenRsubScalarOp>(op)) {
+    result = rewriter.create<AtenSubIntOp>(loc, rhs, lhs);
   } else if (isa<AtenMulScalarOp, AtenMulTensorOp>(op)) {
     result = rewriter.create<AtenMulIntOp>(loc, lhs, rhs);
   }
@@ -989,6 +994,16 @@ void AtenSubScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenRSubScalarOp
+//===----------------------------------------------------------------------===//
+void AtenRsubScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                   MLIRContext *context) {
+  patterns.add(+[](AtenRsubScalarOp op, PatternRewriter &rewriter) {
+    return rewrite0DBinaryTensorOp(op, rewriter);
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenMulTensorOp
 //===----------------------------------------------------------------------===//
 void AtenMulTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
@@ -1015,6 +1030,23 @@ void AtenDivTensorModeOp::getCanonicalizationPatterns(
     RewritePatternSet &patterns, MLIRContext *context) {
   patterns.add(+[](AtenDivTensorModeOp op, PatternRewriter &rewriter) {
     return rewrite0DBinaryTensorOp(op, rewriter);
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenScalarImplicitOp
+//===----------------------------------------------------------------------===//
+void AtenScalarImplicitOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenScalarImplicitOp op, PatternRewriter &rewriter) {
+    Location loc = op.getLoc();
+    Value a = op.getA();
+    auto outType = op.getResult().getType();
+    Value scalarValue = getScalarIntValue(a, loc, rewriter);
+    if (!scalarValue)
+      return failure();
+    rewriter.replaceOpWithNewOp<Torch::DerefineOp>(op, outType, scalarValue);
+    return success();
   });
 }
 
