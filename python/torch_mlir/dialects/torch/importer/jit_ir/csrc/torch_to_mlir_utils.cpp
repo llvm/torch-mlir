@@ -11,6 +11,8 @@
 #include "function_importer.h"
 #include "ivalue_importer.h"
 
+#include <c10/util/irange.h>
+
 #include <ATen/TensorUtils.h>
 #include <unordered_map>
 
@@ -407,8 +409,27 @@ MlirAttribute torch_mlir::importAttribute(MlirLocation loc,
 
 MlirLocation torch_mlir::getMlirLocationFromNode(MlirContext context,
                                                  torch::jit::Node *node) {
-  auto flc = node->sourceRange().file_line_col();
-  if (flc) {
+  if (node->hasAttribute(c10::Symbol::attr("source_files"))) {
+    const auto& source_files = node->ss(c10::Symbol::attr("source_files"));
+    const auto& line_numbers = node->is(c10::Symbol::attr("line_numbers"));
+    const auto& functions = node->ss(c10::Symbol::attr("functions"));
+
+    MlirLocation loc = mlirLocationUnknownGet(context);
+    for (const auto i : c10::irange(source_files.size())) {
+      MlirLocation new_loc = mlirLocationNameGet(
+        context,
+        toMlirStringRef(functions[i]),
+        mlirLocationFileLineColGet(
+          context,
+          toMlirStringRef(source_files[i]),
+          line_numbers[i],
+          0 /* column is not available */
+        )
+      );
+      loc = (i == 0 ? new_loc : mlirLocationCallSiteGet(new_loc, loc));
+    }
+    return loc;
+  } else if (auto flc = node->sourceRange().file_line_col()) {
     const std::string &file = std::get<0>(*flc);
     int line = std::get<1>(*flc);
     int col = std::get<2>(*flc);
