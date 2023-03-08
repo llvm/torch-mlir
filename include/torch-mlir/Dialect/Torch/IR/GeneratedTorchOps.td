@@ -7107,30 +7107,6 @@ def Torch_AtenSizeIntOp : Torch_Op<"aten.size.int", [
   let hasFolder = 1;
 }
 
-def Torch_AtenStackOp : Torch_Op<"aten.stack", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::stack : (Tensor[], int) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchListOfTensorType:$tensors,
-    Torch_IntType:$dim
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenStackOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 2, 1);
-    }
-    void AtenStackOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 2, 1);
-    }
-  }];
-}
-
 def Torch_AtenSumOp : Torch_Op<"aten.sum", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -8876,6 +8852,31 @@ def Torch_AtenCatOp : Torch_Op<"aten.cat", [
       return parseDefaultTorchOp(parser, result, 2, 1);
     }
     void AtenCatOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
+def Torch_AtenStackOp : Torch_Op<"aten.stack", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::stack : (Tensor[], int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchListOfTensorType:$tensors,
+    Torch_IntType:$dim
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenStackOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenStackOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
