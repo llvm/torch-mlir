@@ -320,4 +320,25 @@ def Tcp_SqrtOp : Tcp_UnaryElementwiseOp<"sqrt", [SameOperandsAndResultElementTyp
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
 }
 
+def Tcp_ConcatOp : Tcp_Op<"concat", [SameOperandsAndResultElementType]> {
+  let summary = "Concatenation of input tensors";
+
+  let description = [{
+    Concatenates tensors of same datatype and rank into a single tensor on specific single axis.
+  }];
+
+  let arguments = (ins
+    Variadic<Tcp_Tensor>:$inputs,
+    I64Attr:$axis
+  );
+
+  let results = (outs
+    Tcp_Tensor:$result
+  );
+
+  let assemblyFormat = "$inputs attr-dict-with-keyword `:` type($inputs) `->` type($result)";
+
+  let hasVerifier = 1;
+}
+
 #endif // TORCH_MLIR_DIALECT_TCP_OPS
