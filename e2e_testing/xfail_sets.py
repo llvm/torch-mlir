@@ -797,6 +797,7 @@ LTC_XFAIL_SET = {
     "SubFloatModule_basic",
     "SubIntModule_basic",
     "TensorsConcatNegativeDimModule_basic",
+    "TensorsConcatPromoteDTypeModule_basic",
     "TensorToBoolZeroRank_basic",
     "TensorToBool_basic",
     "TensorToFloatZeroRank_basic",
