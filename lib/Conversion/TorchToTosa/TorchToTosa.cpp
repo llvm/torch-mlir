@@ -4218,6 +4218,90 @@ public:
   }
 };
 
+template <>
+LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
+    AtenConstantPadNdOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Location loc = op.getLoc();
+  Value self = adaptor.getSelf();
+  auto selfTy = self.getType().cast<RankedTensorType>();
+  auto selfElemTy = selfTy.getElementType();
+  auto selfShape = selfTy.getShape();
+  //auto selfTensorTy = RankedTensorType::get(makeShapeLLVMCompatible(selfShape), selfElemTy);
+  int64_t rank = selfTy.getRank();
+
+  // Pattern match against the op's original operands, because otherwise we
+  // will get the lowered version of the operands which is harder to pattern
+  // match.
+  SmallVector<int64_t> padInts;
+  if (!matchPattern(op.getPad(), m_TorchListOfConstantInts(padInts)))
+    return rewriter.notifyMatchFailure(
+        op, "only support constant int pad ranges");
+  uint64_t padRank = padInts.size() / 2;
+  if (padRank * 2 != padInts.size())
+    return rewriter.notifyMatchFailure(op, "pad range size is not even");
+  if (rank < 0 || padRank > (uint64_t)rank)
+    return rewriter.notifyMatchFailure(op, "padding exceeds tensor rank");
+
+  // Initialize low/high paddings with the dims that should not be padded.
+  SmallVector<int64_t, 4> lowPadding(/*Size=*/rank - padRank, /*Value=*/0);
+  SmallVector<int64_t, 4> highPadding(/*Size=*/rank - padRank, /*Value=*/0);
+  // Add the requested padding - note op.pad() is highest dim first ordered
+  // pairs of low,high.
+  for (uint64_t i = padRank; i > 0; --i) {
+    lowPadding.push_back(padInts[i * 2 - 2]);
+    highPadding.push_back(padInts[i * 2 - 1]);
+  }
+
+  llvm::SmallVector<int64_t, 8> translatePadsList;
+
+  const unsigned int dimSize = lowPadding.size();
+  for (unsigned int i = 0; i < dimSize; i++) {
+    translatePadsList.push_back(lowPadding[i]);
+    translatePadsList.push_back(highPadding[i]);
+  }
+
+  DenseElementsAttr paddingAttr = DenseIntElementsAttr::get(
+      RankedTensorType::get({dimSize, 2}, rewriter.getI64Type()),
+      translatePadsList);
+
+  Value padsList1 = rewriter.create<mlir::tosa::ConstOp>(
+      loc, paddingAttr.getType(), paddingAttr);
+
+  Value padValue = adaptor.getValue();
+  Operation *padOp = padValue.getDefiningOp();
+  if (padOp != nullptr) {
+    padValue = padOp->getOperand(0);
+  }
+  Type padValueType = padValue.getType();
+
+  if (!padValueType.isa<Torch::FloatType>() && !padValueType.isa<Torch::IntType>()) {
+    return rewriter.notifyMatchFailure(
+            op, "Pad value needs to be a float or int scalar constant for conversion to "
+                "TOSA pad operation");
+  }
+  Value padTensor;
+  if (failed(torchScalarToTosaTensor(rewriter, op.getOperation(), padValue,
+                                  padTensor, selfElemTy, {})))
+        return rewriter.notifyMatchFailure(
+            op, "Pad value needs to be a scalar constant for conversion to "
+                "TOSA pad operation");
+  
+  /*Value paddedResult = rewriter
+                          .create<mlir::tosa::PadOp>(
+                            loc,
+                            getTypeConverter()->convertType(op.getType()), self, 
+                            padsList1, padTensor)
+                          .getResult();
+
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(
+      op, getTypeConverter()->convertType(op.getType()), paddedResult);*/
+
+  rewriter.replaceOpWithNewOp<mlir::tosa::PadOp>(
+        op, getTypeConverter()->convertType(op.getType()), self, padsList1, padTensor);
+  return success();
+}
+
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -4440,6 +4524,7 @@ public:
     INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
     INSERT_ATENOP_PATTERN(AtenCopyOp);
     INSERT_ATENOP_PATTERN(AtenToDtypeOp);
+    INSERT_ATENOP_PATTERN(AtenConstantPadNdOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
