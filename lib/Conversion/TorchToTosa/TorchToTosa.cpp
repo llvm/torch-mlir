@@ -4287,16 +4287,6 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
             op, "Pad value needs to be a scalar constant for conversion to "
                 "TOSA pad operation");
   
-  /*Value paddedResult = rewriter
-                          .create<mlir::tosa::PadOp>(
-                            loc,
-                            getTypeConverter()->convertType(op.getType()), self, 
-                            padsList1, padTensor)
-                          .getResult();
-
-  rewriter.replaceOpWithNewOp<tensor::CastOp>(
-      op, getTypeConverter()->convertType(op.getType()), paddedResult);*/
-
   rewriter.replaceOpWithNewOp<mlir::tosa::PadOp>(
         op, getTypeConverter()->convertType(op.getType()), self, padsList1, padTensor);
   return success();
