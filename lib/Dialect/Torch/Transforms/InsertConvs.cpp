@@ -127,8 +127,7 @@ static void insertConv(MLIRContext *context, Operation *f, int number) {
           rst, int0);
     }
 
-    originOp->replaceAllUsesWith(ValueRange({rst}));
-    originOp->erase();
+    rewriter.replaceOp(originOp, rst);
     opWorklist.erase(originOp);
     opWorklist.insert({op});
   }

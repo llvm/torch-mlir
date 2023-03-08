@@ -47,11 +47,9 @@ static void insertSkip(MLIRContext *context, Operation *f) {
   // kernel
   // shape: (new channels, old channels, height, width)
   auto shape = oldKernel.getType().cast<ValueTensorType>().getSizes().vec();
-  // todo: 不确定有没有理解错，是添加一个1x1卷积核的卷积层吗
   shape[0] = shape[1];
-  shape[2] = shape[3] = 1;
-  int kernelSize = shape[0] * shape[1] * shape[2] * shape[3];
-  std::vector<float> zeroKernelVec(kernelSize, 0);
+  shape[2] = shape[3] = 1; // 1x1 conv kernel
+  std::vector<float> zeroKernelVec(shape[0] * shape[1], 0);
   auto resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
                                                rewriter.getF32Type());
   auto dense = DenseElementsAttr::get(
@@ -69,7 +67,7 @@ static void insertSkip(MLIRContext *context, Operation *f) {
       llvm::ArrayRef(zeroBiasVec));
   Value zeroBias =
       rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
-  // conv
+  // zero conv
   Value zeroConv = rewriter.create<AtenConvolutionOp>(
       loc, convOp.getOperand(0).getType(), convOp.getOperand(0), zeroKernel,
       zeroBias, convOp.getOperand(3), convOp.getOperand(4),
@@ -80,10 +78,12 @@ static void insertSkip(MLIRContext *context, Operation *f) {
       rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0));
   Value skip = rewriter.create<AtenAddTensorOp>(
       loc, zeroConv.getType(), convOp.getOperand(0), zeroConv, float0);
-  rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
-      convOp, convOp.getType(), skip, oldKernel, oldBias, convOp.getOperand(3),
+  // new conv
+  Value newConv = rewriter.create<AtenConvolutionOp>(
+      loc, convOp.getType(), skip, oldKernel, oldBias, convOp.getOperand(3),
       convOp.getOperand(4), convOp.getOperand(5), convOp.getOperand(6),
       convOp.getOperand(7), convOp.getOperand(8));
+  rewriter.replaceOp(convOp, newConv);
 }
 
 namespace {
@@ -102,4 +102,3 @@ std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::Torch::createInsertSkipPass() {
   return std::make_unique<InsertSkipPass>();
 }
-
