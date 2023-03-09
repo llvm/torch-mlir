@@ -224,7 +224,7 @@ func.func @test_concat(%arg0: tensor<?x?xf32>, %arg1: tensor<5x?xf32>) -> tensor
 // -----
 
 func.func @test_concat(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?xf32> {
-  // expected-error @+1 {{'tcp.concat' op failed to verify tcp.concat with input and output operands rank mismatch}}
+  // expected-error @+1 {{'tcp.concat' op failed to verify tcp.concat operands and results rank mismatched}}
   %0 = tcp.concat %arg0, %arg1 attributes {axis = 0 : i64} : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?xf32>
   return %0 : tensor<?xf32>
 }

@@ -115,18 +115,14 @@ LogicalResult ConcatOp::verify() {
   auto outputTensorType = getResult().getType().cast<TensorType>();
   int64_t axis = getAxis();
   int64_t concatDimVal = outputTensorType.getShape()[axis];
-  // Accumulate concat dim, ignored if any of the inputs is dynamic.
+  // Accumulate concat dim, ignored if any of the inputs are dynamic.
   int64_t concatDimAcc = 0;
-  // All tensors must have the smae dtype, rank and all non-concat dims must be
+  // All tensors must have the same dtype, rank and all non-concat dims must be
   // the same.
   for (auto type : getInputs().getTypes()) {
     auto inputTensorType = type.cast<TensorType>();
-    if (inputTensorType.getElementType() != outputTensorType.getElementType())
-      return emitOpError() << "failed to verify tcp.concat with input and "
-                              "output operands rank mismatch";
     if (outputTensorType.getRank() != inputTensorType.getRank())
-      return emitOpError() << "failed to verify tcp.concat with input and "
-                              "output operands rank mismatch";
+      return emitOpError() << "failed to verify tcp.concat operands and results rank mismatched";
     for (int64_t dim = 0; dim < inputTensorType.getRank(); ++dim) {
       if (dim == axis) {
         concatDimAcc += inputTensorType.getShape()[dim];

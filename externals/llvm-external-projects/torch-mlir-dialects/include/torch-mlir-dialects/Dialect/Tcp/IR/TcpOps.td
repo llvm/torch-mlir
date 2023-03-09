@@ -321,7 +321,7 @@ def Tcp_SqrtOp : Tcp_UnaryElementwiseOp<"sqrt", [SameOperandsAndResultElementTyp
 }
 
 def Tcp_ConcatOp : Tcp_Op<"concat", [SameOperandsAndResultElementType]> {
-  let summary = "Concatenation of input tensors";
+  let summary = "Concatenates input tensors";
 
   let description = [{
     Concatenates tensors of same datatype and rank into a single tensor on specific single axis.
