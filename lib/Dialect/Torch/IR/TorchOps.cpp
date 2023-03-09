@@ -8,6 +8,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -2171,6 +2173,60 @@ OpFoldResult AtenCatOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenCopy_Op
+//===----------------------------------------------------------------------===//
+
+void AtenCopy_Op::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                              MLIRContext *context) {
+  patterns.add(+[](AtenCopy_Op op, PatternRewriter &rewriter) {
+    if (!op.getSelf().getDefiningOp() ||
+        !isa<AtenSliceTensorOp>(op.getSelf().getDefiningOp()))
+      return failure();
+    auto sliceOp = cast<AtenSliceTensorOp>(op.getSelf().getDefiningOp());
+    // auto sliceOp = (AtenSliceTensorOp *)op.getSelf().getDefiningOp();
+
+    // Get indices
+    int64_t dim;
+    if (!matchPattern(sliceOp.getDim(), m_TorchConstantInt(&dim)))
+      return failure();
+    int64_t end;
+    if (!matchPattern(sliceOp.getEnd(), m_TorchConstantInt(&end)) || end < 0)
+      return failure();
+    int64_t step;
+    if (!matchPattern(sliceOp.getStep(), m_TorchConstantInt(&step)) ||
+        step != 1)
+      return failure();
+
+    Value noneVal = rewriter.create<ConstantNoneOp>(op.getLoc());
+    Value falseVal = rewriter.create<ConstantBoolOp>(op.getLoc(), false);
+
+    // Create IndexPut_Op
+    BaseTensorType tensorType = op->getResultTypes()[0].cast<BaseTensorType>();
+    Value range = rewriter.create<AtenArangeStartStepOp>(
+        op.getLoc(), tensorType, sliceOp.getStart(), sliceOp.getEnd(),
+        sliceOp.getStep(),
+        /*dtype=*/noneVal, /*layout=*/noneVal, /*device=*/noneVal,
+        /*pin_memory=*/noneVal);
+
+    SmallVector<Value> indicesVector;
+    for (auto i = 0; i < dim - 1; i++)
+      indicesVector.push_back(noneVal);
+    indicesVector.push_back(range);
+    Value indices = rewriter.create<PrimListConstructOp>(
+        op.getLoc(),
+        Torch::ListType::get(op->getContext(),
+                             Torch::OptionalType::get(tensorType)),
+        indicesVector);
+
+    rewriter.replaceOpWithNewOp<Aten_IndexPutImpl_Op>(
+        op, op->getResultTypes(), sliceOp.getSelf(), indices, op.getSrc(),
+        /*accumulate=*/falseVal, /*unsafe=*/falseVal);
+
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSliceTensorOp
 //===----------------------------------------------------------------------===//
 
@@ -2187,6 +2243,31 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
       return nullptr;
   }
   return getOperand(0);
+}
+
+void AtenSliceTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                              MLIRContext *context) {
+  patterns.add(+[](AtenSliceTensorOp op, PatternRewriter &rewriter) {
+    int64_t start;
+    if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)))
+      return failure();
+    int64_t end;
+    if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end)) || end >= 0)
+      return failure();
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return failure();
+    auto sliceType = cast<BaseTensorType>(op.getType());
+    if(!sliceType.hasSizes() || sliceType.getSizes()[dim] == kUnknownSize)
+      return failure();
+
+    Value newEnd = rewriter.create<ConstantIntOp>(
+        op.getLoc(),
+        rewriter.getI64IntegerAttr(sliceType.getSizes()[dim] + start));
+    rewriter.replaceOpWithNewOp<AtenSliceTensorOp>(op, sliceType, op.getSelf(), op.getDim(), op.getStart(), newEnd, op.getStep());
+
+    return success();
+  });
 }
 
 //===----------------------------------------------------------------------===//

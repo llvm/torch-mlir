@@ -234,6 +234,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
                 emitter_td,
                 traits=["IsTrailingUnderscoreInplaceVariant"] if not is_functional_op else [])
 
+    def emit_as_mutating_variant(key, **kwargs):
+        emit_op(registry[key],
+                emitter_td,
+                traits=["IsTrailingUnderscoreInplaceVariant"],
+                **kwargs)
+
     # ==========================================================================
     # `aten::` namespace.
     # ==========================================================================
@@ -461,7 +467,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::clone : (Tensor, int?) -> (Tensor)")
     emit("aten::lift_fresh_copy : (Tensor) -> (Tensor)")
     emit("aten::contiguous : (Tensor, int) -> (Tensor)")
-    emit_with_mutating_variants("aten::copy : (Tensor, Tensor, bool) -> (Tensor)")
+    emit("aten::copy : (Tensor, Tensor, bool) -> (Tensor)")
+    emit_as_mutating_variant("aten::copy_ : (Tensor, Tensor, bool) -> (Tensor)", has_canonicalizer=True)
     emit("aten::_to_copy : (Tensor, int?, int?, Device?, bool?, bool, int?) -> (Tensor)")
     emit("aten::detach : (Tensor) -> (Tensor)")
     emit("aten::embedding : (Tensor, Tensor, int, bool, bool) -> (Tensor)")
@@ -507,7 +514,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::where.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::where.ScalarOther : (Tensor, Tensor, Scalar) -> (Tensor)")
     emit("aten::where.ScalarSelf : (Tensor, Scalar, Tensor) -> (Tensor)")
-    emit("aten::slice.Tensor : (Tensor, int, int?, int?, int) -> (Tensor)", has_folder=True)
+    emit("aten::slice.Tensor : (Tensor, int, int?, int?, int) -> (Tensor)", has_folder=True, has_canonicalizer=True)
     emit("aten::len.Tensor : (Tensor) -> (int)")
     emit("aten::cpu : (Tensor) -> (Tensor)")
     emit("aten::gather : (Tensor, int, Tensor, bool) -> (Tensor)")

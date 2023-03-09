@@ -1887,3 +1887,22 @@ func.func @torch.aten.ScalarImplicit$canonicalize_literal_0d() -> !torch.number 
     %1 = torch.aten.ScalarImplicit %0 : !torch.vtensor<[],si64> -> !torch.number
     return %1 : !torch.number
 }
+
+// CHECK-LABEL:   func.func @torch.aten.slice.tensor$slice_plus_copy
+// CHECK-SAME:        %[[ARG0:.+]]: !torch.vtensor<[10,4,4],f32>
+// CHECK-SAME:        %[[ARG1:.+]]: !torch.vtensor<[4,4,4],f32>
+// CHECK:             %[[SLICE:.*]] = torch.aten.slice.Tensor %[[ARG0]], %[[INT0]], %[[INT2]], %[[INT6]], %[[INT1]] : !torch.vtensor<[10,4,4],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,4,4],f32>
+// CHECK:             %[[ARANGE:.*]] = torch.aten.arange.start_step %[[INT2]], %[[INT6]], %[[INT1]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.int, !torch.int, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[4,4,4],f32>
+// CHECK:             %[[LIST:.*]] = torch.prim.ListConstruct %[[ARANGE]] : (!torch.vtensor<[4,4,4],f32>) -> !torch.list<optional<vtensor<[4,4,4],f32>>>
+// CHECK:             %[[INDEXPUT:.*]] = torch.aten._index_put_impl_ %[[ARG0]], %[[LIST]], %[[ARG1]], %[[FALSE]], %[[FALSE]] : !torch.vtensor<[10,4,4],f32>, !torch.list<optional<vtensor<[4,4,4],f32>>>, !torch.vtensor<[4,4,4],f32>, !torch.bool, !torch.bool -> !torch.vtensor<[4,4,4],f32>
+// CHECK:             return %[[ARG0]] : !torch.vtensor<[10,4,4],f32>
+func.func @torch.aten.slice.tensor$slice_plus_copy(%arg0: !torch.vtensor<[10,4,4],f32>, %arg1: !torch.vtensor<[4,4,4],f32>) -> !torch.vtensor<[10,4,4],f32> {
+  %false = torch.constant.bool false
+  %int0 = torch.constant.int 0
+  %int2 = torch.constant.int 2
+  %int6 = torch.constant.int 6
+  %int1 = torch.constant.int 1
+  %1 = torch.aten.slice.Tensor %arg0, %int0, %int2, %int6, %int1 : !torch.vtensor<[10,4,4],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,4,4],f32>
+  %2 = torch.aten.copy_ %1, %arg1, %false : !torch.vtensor<[4,4,4],f32>, !torch.vtensor<[4,4,4],f32>, !torch.bool -> !torch.vtensor<[4,4,4],f32>
+  return %arg0 : !torch.vtensor<[10,4,4],f32>
+}

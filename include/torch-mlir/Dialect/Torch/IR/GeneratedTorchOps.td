@@ -6381,6 +6381,7 @@ def Torch_AtenCopy_Op : Torch_Op<"aten.copy_", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_Aten_ToCopyOp : Torch_Op<"aten._to_copy", [
@@ -7589,6 +7590,7 @@ def Torch_AtenSliceTensorOp : Torch_Op<"aten.slice.Tensor", [
     }
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenLenTensorOp : Torch_Op<"aten.len.Tensor", [
