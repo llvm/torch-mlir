@@ -1427,7 +1427,7 @@ void TypeAnalysis::visitAtenCatOp(AtenCatOp op,
     return;
   }
 
-  SmallVector<ValueKnowledge*, 4> tensors = llvm::to_vector<4>(
+  SmallVector<ValueKnowledge*> tensors = llvm::to_vector(
       llvm::map_range(listConstruct.getElements(), [&](Value v) -> ValueKnowledge* {
         return &getLatticeElement(v)->getValue();
       }));
