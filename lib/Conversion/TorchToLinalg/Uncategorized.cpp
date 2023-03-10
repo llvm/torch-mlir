@@ -1065,7 +1065,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value allOnesVal = b.create<arith::ConstantOp>(
         loc, b.getIntegerAttr(
                  elementType,
-                 APSInt::getAllOnesValue(elementType.getIntOrFloatBitWidth())));
+                 APSInt::getAllOnes(elementType.getIntOrFloatBitWidth())));
     return b.create<arith::XOrIOp>(loc, payloadArgs[0], allOnesVal);
   }
 

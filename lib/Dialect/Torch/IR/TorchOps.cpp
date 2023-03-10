@@ -390,7 +390,7 @@ void PrimIfOp::getSuccessorRegions(std::optional<unsigned> index,
   // If the condition is constant, we can give a more precise answer.
   if (auto condAttr = operands.front().dyn_cast_or_null<IntegerAttr>()) {
     Region *executedRegion =
-        condAttr.getValue().isOneValue() ? &getThenRegion() : &getElseRegion();
+        condAttr.getValue().isOne() ? &getThenRegion() : &getElseRegion();
     regions.push_back(RegionSuccessor(executedRegion));
     return;
   }
