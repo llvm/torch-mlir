@@ -1201,6 +1201,26 @@ func.func @torch.tensor_static_info_cast$refine(%arg0: !torch.vtensor<[], f32>) 
   return %1 : !torch.vtensor
 }
 
+// CHECK-LABEL:   func.func @torch.tensor_static_info_cast$refine$dtype(
+// CHECK-SAME:                                               %[[ARG:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor {
+// CHECK-NEXT:       %[[RESULT:.*]] = torch.aten.relu %[[ARG]] : !torch.vtensor<[],f32> -> !torch.vtensor
+// CHECK-NEXT:       return %[[RESULT]] : !torch.vtensor
+func.func @torch.tensor_static_info_cast$refine$dtype(%arg0: !torch.vtensor<[], f32>) -> !torch.vtensor {
+  %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[],f32> to !torch.vtensor<[],unk>
+  %1 = torch.aten.relu %0 : !torch.vtensor<[],unk> -> !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
+// CHECK-LABEL:   func.func @torch.tensor_static_info_cast$refine$shape(
+// CHECK-SAME:                                               %[[ARG:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor {
+// CHECK-NEXT:       %[[RESULT:.*]] = torch.aten.relu %[[ARG]] : !torch.vtensor<[],f32> -> !torch.vtensor
+// CHECK-NEXT:       return %[[RESULT]] : !torch.vtensor
+func.func @torch.tensor_static_info_cast$refine$shape(%arg0: !torch.vtensor<[], f32>) -> !torch.vtensor {
+  %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[],f32> to !torch.vtensor<*,f32>
+  %1 = torch.aten.relu %0 : !torch.vtensor<*,f32> -> !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
 // CHECK-LABEL:   func.func @torch.tensor_static_info_cast$no_refine(
 // CHECK-SAME:                                                  %[[ARG:.*]]: !torch.vtensor) -> !torch.vtensor {
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[ARG]] : !torch.vtensor to !torch.vtensor<[],f32>
@@ -1208,6 +1228,28 @@ func.func @torch.tensor_static_info_cast$refine(%arg0: !torch.vtensor<[], f32>) 
 // CHECK:           return %[[RESULT]] : !torch.vtensor
 func.func @torch.tensor_static_info_cast$no_refine(%arg0: !torch.vtensor) -> !torch.vtensor {
   %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor to !torch.vtensor<[],f32>
+  %1 = torch.aten.relu %0 : !torch.vtensor<[],f32> -> !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
+// CHECK-LABEL:   func.func @torch.tensor_static_info_cast$no_refine$dtype(
+// CHECK-SAME:                                                  %[[ARG:.*]]: !torch.vtensor<[],unk>) -> !torch.vtensor {
+// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[ARG]] : !torch.vtensor<[],unk> to !torch.vtensor<[],f32>
+// CHECK:           %[[RESULT:.*]] = torch.aten.relu %[[CAST]] : !torch.vtensor<[],f32> -> !torch.vtensor
+// CHECK:           return %[[RESULT]] : !torch.vtensor
+func.func @torch.tensor_static_info_cast$no_refine$dtype(%arg0: !torch.vtensor<[],unk>) -> !torch.vtensor {
+  %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[],unk> to !torch.vtensor<[],f32>
+  %1 = torch.aten.relu %0 : !torch.vtensor<[],f32> -> !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
+// CHECK-LABEL:   func.func @torch.tensor_static_info_cast$no_refine$shape(
+// CHECK-SAME:                                                  %[[ARG:.*]]: !torch.vtensor<*,f32>) -> !torch.vtensor {
+// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[ARG]] : !torch.vtensor<*,f32> to !torch.vtensor<[],f32>
+// CHECK:           %[[RESULT:.*]] = torch.aten.relu %[[CAST]] : !torch.vtensor<[],f32> -> !torch.vtensor
+// CHECK:           return %[[RESULT]] : !torch.vtensor
+func.func @torch.tensor_static_info_cast$no_refine$shape(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor {
+  %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<*,f32> to !torch.vtensor<[],f32>
   %1 = torch.aten.relu %0 : !torch.vtensor<[],f32> -> !torch.vtensor
   return %1 : !torch.vtensor
 }
