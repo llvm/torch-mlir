@@ -848,6 +848,8 @@ LTC_XFAIL_SET = {
     "DropoutTrainModule_basic",
     "StdCorrectionKeepDimModule_basic",
     "StdCorrectionNoneModule_basic",
+    "SliceCopy_Module_basic",
+    "SliceCopyNegative_Module_basic",
     "VarBiasedModule_basic",
     "VarCorrectionAllDimReduceModule_basic",
     "VarCorrectionEmptyDimModule_basic",
