@@ -621,6 +621,32 @@ def TensorsConcatNegativeDimModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class TensorsConcatPromoteDTypeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.bool, True),
+        ([-1, -1, -1], torch.int32, True),
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y, z):
+        return torch.cat([x, y, z], dim=-2)
+
+
+@register_test_case(module_factory=lambda: TensorsConcatPromoteDTypeModule())
+def TensorsConcatPromoteDTypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 2, 4, low=0, high=2).bool(),
+                   tu.randint(2, 1, 4, low=0, high=100).int(),
+                   tu.randint(2, 3, 4, low=0, high=100).long())
+
+
+# ==============================================================================
+
+
 class GatherModule(torch.nn.Module):
 
     def __init__(self):

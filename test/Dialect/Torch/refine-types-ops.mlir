@@ -164,6 +164,22 @@ func.func @torch.aten.cat(%t0: !torch.tensor<[?,1,4], f32>, %t1: !torch.tensor<[
 }
 
 // -----
+// CHECK-LABEL:   func.func @torch.aten.cat$promote_type(
+// CHECK-SAME:                                 %[[T1:.*]]: !torch.tensor<[2,1,4],i1>,
+// CHECK-SAME:                                 %[[T2:.*]]: !torch.tensor<[2,3,4],si64>) -> !torch.tensor {
+// CHECK:           %[[INT1:.*]] = torch.constant.int 1
+// CHECK:           %[[TENSORS:.*]] = torch.prim.ListConstruct %[[T1]], %[[T2]] : (!torch.tensor<[2,1,4],i1>, !torch.tensor<[2,3,4],si64>) -> !torch.list<tensor>
+// CHECK:           %[[RET:.*]] = torch.aten.cat %[[TENSORS]], %[[INT1]] : !torch.list<tensor>, !torch.int -> !torch.tensor<*,si64>
+// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<*,si64> to !torch.tensor
+// CHECK:           return %[[CAST]] : !torch.tensor
+func.func @torch.aten.cat$promote_type(%t0: !torch.tensor<[2,1,4], i1>, %t1: !torch.tensor<[2,3,4], si64>) -> !torch.tensor {
+  %int1 = torch.constant.int 1
+  %tensorList = torch.prim.ListConstruct %t0, %t1: (!torch.tensor<[2,1,4], i1>, !torch.tensor<[2,3,4], si64>) -> !torch.list<tensor>
+  %ret = torch.aten.cat %tensorList, %int1 : !torch.list<tensor>, !torch.int -> !torch.tensor
+  return %ret : !torch.tensor
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten._shape_as_tensor(
 // CHECK-SAME:                                 %[[INPUT:.*]]: !torch.tensor<[?,1,4],f32>) -> !torch.tensor {
 // CHECK:           %[[RET:.*]] = torch.aten._shape_as_tensor %[[INPUT]] : !torch.tensor<[?,1,4],f32> -> !torch.tensor<*,si64>
