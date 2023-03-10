@@ -4227,7 +4227,6 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
   auto selfTy = self.getType().cast<RankedTensorType>();
   auto selfElemTy = selfTy.getElementType();
   auto selfShape = selfTy.getShape();
-  //auto selfTensorTy = RankedTensorType::get(makeShapeLLVMCompatible(selfShape), selfElemTy);
   int64_t rank = selfTy.getRank();
 
   // Pattern match against the op's original operands, because otherwise we
@@ -4243,26 +4242,25 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
   if (rank < 0 || padRank > (uint64_t)rank)
     return rewriter.notifyMatchFailure(op, "padding exceeds tensor rank");
 
-  // Initialize low/high paddings with the dims that should not be padded.
-  SmallVector<int64_t, 4> lowPadding(/*Size=*/rank - padRank, /*Value=*/0);
-  SmallVector<int64_t, 4> highPadding(/*Size=*/rank - padRank, /*Value=*/0);
+  // Initialize low/high paddings with 0 for all the dims.
+  SmallVector<int64_t> lowPadding(/*Size=*/rank, /*Value=*/0);
+  SmallVector<int64_t> highPadding(/*Size=*/rank, /*Value=*/0);
   // Add the requested padding - note op.pad() is highest dim first ordered
   // pairs of low,high.
-  for (uint64_t i = padRank; i > 0; --i) {
-    lowPadding.push_back(padInts[i * 2 - 2]);
-    highPadding.push_back(padInts[i * 2 - 1]);
+  for (uint64_t i = 0; i < padRank; ++i) {
+    lowPadding[rank-i-1] = padInts[i * 2];
+    highPadding[rank-i-1] = padInts[i * 2 + 1];
   }
 
-  llvm::SmallVector<int64_t, 8> translatePadsList;
+  llvm::SmallVector<int64_t> translatePadsList;
 
-  const unsigned int dimSize = lowPadding.size();
-  for (unsigned int i = 0; i < dimSize; i++) {
+  for (unsigned int i = 0; i < rank; i++) {
     translatePadsList.push_back(lowPadding[i]);
     translatePadsList.push_back(highPadding[i]);
   }
 
   DenseElementsAttr paddingAttr = DenseIntElementsAttr::get(
-      RankedTensorType::get({dimSize, 2}, rewriter.getI64Type()),
+      RankedTensorType::get({rank, 2}, rewriter.getI64Type()),
       translatePadsList);
 
   Value padsList1 = rewriter.create<mlir::tosa::ConstOp>(
