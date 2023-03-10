@@ -54,6 +54,8 @@ public:
                                                          patterns, target);
     torch_to_tcp::populateMiscPatternsAndLegality(typeConverter, patterns,
                                                   target);
+    torch_to_tcp::populateDataMovementPatternsAndLegality(typeConverter,
+                                                          patterns, target);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

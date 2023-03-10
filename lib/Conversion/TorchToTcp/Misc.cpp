@@ -15,7 +15,6 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpDialect.h"
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpOps.h"
-#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -102,37 +101,6 @@ public:
   }
 };
 
-class ConvertAtenCatOp : public OpConversionPattern<AtenCatOp> {
-public:
-  using OpConversionPattern<AtenCatOp>::OpConversionPattern;
-
-  LogicalResult
-  matchAndRewrite(AtenCatOp catOp, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    SmallVector<Value> inputs;
-    if (!getListConstructElements(adaptor.getTensors(), inputs))
-      return rewriter.notifyMatchFailure(
-          catOp, "aten.cat operands be a list of tensors");
-
-    SmallVector tensorInputs = getTypeConvertedValues(
-        rewriter, catOp->getLoc(), getTypeConverter(), inputs);
-
-    int64_t dim;
-    if (!matchPattern(catOp.getDim(), m_TorchConstantInt(&dim)))
-      return rewriter.notifyMatchFailure(
-          catOp, "aten.cat dim must be constant integer");
-
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(catOp.getType())
-                                      .cast<RankedTensorType>();
-
-    rewriter.replaceOpWithNewOp<tcp::ConcatOp>(
-        catOp, resultType, tensorInputs,
-        rewriter.getIntegerAttr(rewriter.getI64Type(), dim));
-    return success();
-  }
-}; // namespace
-
 } // namespace
 
 void torch_to_tcp::populateMiscPatternsAndLegality(TypeConverter &typeConverter,
@@ -145,7 +113,4 @@ void torch_to_tcp::populateMiscPatternsAndLegality(TypeConverter &typeConverter,
 
   target.addIllegalOp<ValueTensorLiteralOp>();
   patterns.add<ConvertValueTensorLiteralOp>(typeConverter, context);
-
-  target.addIllegalOp<AtenCatOp>();
-  patterns.add<ConvertAtenCatOp>(typeConverter, context);
 }
