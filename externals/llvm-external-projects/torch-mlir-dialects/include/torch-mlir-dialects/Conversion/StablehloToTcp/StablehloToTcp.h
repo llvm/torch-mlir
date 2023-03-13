@@ -7,20 +7,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TORCH_MLIR_DIALECTS_CONVERSION_PASSDETAIL_H
-#define TORCH_MLIR_DIALECTS_CONVERSION_PASSDETAIL_H
+#ifndef TORCH_MLIR_DIALECTS_CONVERSION_STABLEHLOTOTCP_STABLEHLOTOTCP_H_
+#define TORCH_MLIR_DIALECTS_CONVERSION_STABLEHLOTOTCP_STABLEHLOTOTCP_H_
 
-#include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Pass/Pass.h"
-#include "torch-mlir-dialects/Dialect/Tcp/IR/TcpDialect.h"
 
 namespace mlir {
 
-#define GEN_PASS_CLASSES
+#define GEN_PASS_DECL_CONVERTSTABLEHLOTOTCP
 #include "torch-mlir-dialects/Conversion/Passes.h.inc"
 
-} // end namespace mlir
+namespace tcp {
 
-#endif // TORCH_MLIR_DIALECTS_CONVERSION_PASSDETAIL_H
+std::unique_ptr<Pass> createConvertStablehloToTcpPass();
+
+}  // namespace tcp
+}  // namespace mlir
+
+#endif  // TORCH_MLIR_DIALECTS_CONVERSION_STABLEHLOTOTCP_STABLEHLOTOTCP_H_

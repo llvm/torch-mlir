@@ -22,6 +22,9 @@
 #ifdef TORCH_MLIR_DIALECTS_ENABLE_TCP
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpDialect.h"
 #endif // TORCH_MLIR_DIALECTS_ENABLE_TCP
+#ifdef TORCH_MLIR_ENABLE_STABLEHLO
+#include "stablehlo/dialect/StablehloOps.h"
+#endif // TORCH_MLIR_ENABLE_STABLEHLO
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/ScalarLoopOpInterface.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h"
@@ -45,6 +48,9 @@ int main(int argc, char **argv) {
 #ifdef TORCH_MLIR_DIALECTS_ENABLE_TCP
       mlir::tcp::TcpDialect,
 #endif // TORCH_MLIR_DIALECTS_ENABLE_TCP
+#ifdef TORCH_MLIR_ENABLE_STABLEHLO
+      mlir::stablehlo::StablehloDialect,
+#endif // TORCH_MLIR_ENABLE_STABLEHLO
       // Upstream dialects
       mlir::arith::ArithDialect, mlir::linalg::LinalgDialect,
       mlir::func::FuncDialect, mlir::memref::MemRefDialect,

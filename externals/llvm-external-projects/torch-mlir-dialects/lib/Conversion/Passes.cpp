@@ -10,6 +10,9 @@
 #include "torch-mlir-dialects/Conversion/Passes.h"
 
 #ifdef TORCH_MLIR_DIALECTS_ENABLE_TCP
+#ifdef TORCH_MLIR_ENABLE_STABLEHLO
+#include "torch-mlir-dialects/Conversion/StablehloToTcp/StablehloToTcp.h"
+#endif // TORCH_MLIR_ENABLE_STABLEHLO
 #include "torch-mlir-dialects/Conversion/TcpToArith/TcpToArith.h"
 #include "torch-mlir-dialects/Conversion/TcpToLinalg/TcpToLinalg.h"
 #endif // TORCH_MLIR_DIALECTS_ENABLE_TCP

@@ -10,6 +10,10 @@ endif()
 
 option(MLIR_ENABLE_BINDINGS_PYTHON "Enables MLIR Python Bindings" OFF)
 
+if(TORCH_MLIR_ENABLE_STABLEHLO)
+  add_definitions(-DTORCH_MLIR_ENABLE_STABLEHLO)
+endif()
+
 if(TORCH_MLIR_ENABLE_TCP)
   option(TORCH_MLIR_DIALECTS_ENABLE_TCP "Add TCP dialect" ON)
   add_definitions(-DTORCH_MLIR_DIALECTS_ENABLE_TCP)
