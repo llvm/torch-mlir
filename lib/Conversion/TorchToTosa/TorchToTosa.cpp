@@ -4226,7 +4226,6 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
   Value self = adaptor.getSelf();
   auto selfTy = self.getType().cast<RankedTensorType>();
   auto selfElemTy = selfTy.getElementType();
-  auto selfShape = selfTy.getShape();
   int64_t rank = selfTy.getRank();
 
   // Pattern match against the op's original operands, because otherwise we
@@ -4271,8 +4270,6 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
   Value padValue = adaptor.getValue();
   Operation *padOp = padValue.getDefiningOp();
   padValue = padOp->getOperand(0);
-  
-  Type padValueType = padValue.getType();
 
   Value padTensor;
   if (failed(torchScalarToTosaTensor(rewriter, op.getOperation(), padValue,
