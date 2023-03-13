@@ -4275,11 +4275,6 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
   }
   Type padValueType = padValue.getType();
 
-  if (!padValueType.isa<Torch::FloatType>() && !padValueType.isa<Torch::IntType>()) {
-    return rewriter.notifyMatchFailure(
-            op, "Pad value needs to be a float or int scalar constant for conversion to "
-                "TOSA pad operation");
-  }
   Value padTensor;
   if (failed(torchScalarToTosaTensor(rewriter, op.getOperation(), padValue,
                                   padTensor, selfElemTy, {})))
