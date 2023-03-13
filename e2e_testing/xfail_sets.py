@@ -688,7 +688,11 @@ TOSA_PASS_SET = {
     "FullLikeModuleInt2DStatic_basic",
     "FullModuleInt3D_basic",
     "FullModuleFloat2D_basic",
-    "RepeatModule_basic"
+    "RepeatModule_basic",
+    "ConstantPad2dStaticModule_basic",
+    "ConstantPadNdModule_basic",
+    "ConstantPadNdPartialStaticModule_basic",
+    "ConstantPadNdStaticModule_basic"
 }
 
 LTC_XFAIL_SET = {
