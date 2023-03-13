@@ -462,26 +462,102 @@ public:
           indexTensorType.getDtype());
       indexTensor = rewriter.create<AtenUnsqueezeOp>(
           loc, expandedIndexTensorType, indexTensor, torchCstOne);
-    } else if (indicesList.size() > 1 && indicesList.size() == 4) {
-      // Only support the case of torch.index_put(input, (None, None, index1,
-      // index2), values), where index1 is of shape: [n, 1] and index2 is of
-      // shape: [m].
-      if (indicesList[0].getType().isa<Torch::NoneType>() &&
-          indicesList[1].getType().isa<Torch::NoneType>()) {
-        auto indexC = indicesList[2].getType().cast<BaseTensorType>();
-        auto indexD = indicesList[3].getType().cast<BaseTensorType>();
-        if (!(indexC && indexD && indexC.getSizes().size() == 2 &&
-              indexC.getSizes()[1] == 1 && indexD.getSizes().size() == 1)) {
-          return rewriter.notifyMatchFailure(
-              op, "unimplemented: this case is not supported");
-        }
-      } else {
+    } else if (indicesList.size() > 1 &&
+               (int64_t)indicesList.size() == inputRank) {
+      // Support the cases where index list size is equal to the rank of the
+      // input tensor. Also, the index list should have atmost two non none
+      // index tensors along the consecutive dimension.
+
+      // This implementation assumes input and index tensors to be statically
+      // shaped.
+      if (!inputType.hasStaticShape())
         return rewriter.notifyMatchFailure(
-            op, "unimplemented: this case is not supported");
+            op, "unimplemented: input tensor should be statically shaped");
+
+      SmallVector<int64_t> nonNoneIndexTensorDim;
+      for (unsigned i = 0; i < indicesList.size(); i++) {
+        if (!indicesList[i].getType().isa<Torch::NoneType>()) {
+          RankedTensorType indexType =
+              typeConverter->convertType(indicesList[i].getType())
+                  .cast<RankedTensorType>();
+          if (!indexType.hasStaticShape())
+            return rewriter.notifyMatchFailure(
+                op, "unimplemented: index tensor should "
+                    "be statically shaped");
+          nonNoneIndexTensorDim.push_back(i);
+        }
+      }
+      unsigned numNonNoneIndices = nonNoneIndexTensorDim.size();
+
+      if (numNonNoneIndices > 2) {
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: non none index tensors less than or equal to 2 "
+                "supported only");
+      } else if (numNonNoneIndices == 2 &&
+                 nonNoneIndexTensorDim[0] != nonNoneIndexTensorDim[1] - 1) {
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: case of 2 non none index tensors is supported "
+                "only when both the tensors are along consecutive dimensions");
       }
 
-      // The final index tensor is formed as follows:
-      // final_shape = (input.size(0), input.size(1), 6, 7)
+      SmallVector<int64_t> indexBroadcastShape{
+          indicesList[nonNoneIndexTensorDim[0]]
+              .getType()
+              .cast<BaseTensorType>()
+              .getSizes()};
+      if (numNonNoneIndices == 2) {
+        if (failed(computeBroadcastShape(
+                SmallVector<int64_t>(indicesList[nonNoneIndexTensorDim[0]]
+                                         .getType()
+                                         .cast<BaseTensorType>()
+                                         .getSizes()),
+                SmallVector<int64_t>(indicesList[nonNoneIndexTensorDim[1]]
+                                         .getType()
+                                         .cast<BaseTensorType>()
+                                         .getSizes()),
+                indexBroadcastShape))) {
+          return rewriter.notifyMatchFailure(
+              op, "index tensors are non-broadcastable");
+        }
+      }
+
+      // Check for broadcast shape size equal to number of non-none index
+      // tensors.
+      if (indexBroadcastShape.size() != nonNoneIndexTensorDim.size()) {
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: rank of broadcasted shape of indices should be "
+                "equal to the number of non-none index tensors");
+      }
+
+      // Computing final shape of indices.
+      SmallVector<int64_t> inputShape{inputType.getShape()};
+      SmallVector<int64_t> finalShapeIndicesInt;
+      int64_t indexTensorCount = 0;
+      for (unsigned i = 0; i < inputShape.size(); i++) {
+        if (nonNoneIndexTensorDim[indexTensorCount] == i) {
+          finalShapeIndicesInt.push_back(indexBroadcastShape[indexTensorCount]);
+          indexTensorCount++;
+        } else {
+          finalShapeIndicesInt.push_back(inputShape[i]);
+        }
+      }
+
+      SmallVector<Value> finalShapeIndices;
+      for (unsigned i = 0; i < finalShapeIndicesInt.size(); i++)
+        finalShapeIndices.push_back(rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(finalShapeIndicesInt[i])));
+
+      int64_t indexCount = 1;
+      for (int64_t i : finalShapeIndicesInt)
+        indexCount *= i;
+
+      // For the case of `torch.index_put(input, (None, None, index1, index2),
+      // ...)` where input, index1, and index2, are as follows:
+      // input = torch.rand((2, 3, 4, 5))
+      // index1 = torch.randint(4, (6, 1))
+      // index2 = torch.randint(5, (7,))
+
+      // The updates index tensors are constructed as follows:
 
       // index_dim0_broadcast = torch.arange(0, input.size(0))\
       //                       .reshape(input.size(0), 1, 1, 1)\
@@ -497,31 +573,6 @@ public:
       // indices = torch.stack([index_dim0_broadcast, index_dim1_broadcast,
       //                        index_dim2_broadcast, index_dim3_broadcast],
       //                        dim=0).t()
-
-      SmallVector<Value> finalShapeIndices;
-      SmallVector<int64_t> finalShapeIndicesInt;
-      Value inputDimZero =
-          rewriter.create<AtenSizeIntOp>(loc, op.getSelf(), torchCstZero);
-      Value inputDimOne =
-          rewriter.create<AtenSizeIntOp>(loc, op.getSelf(), torchCstOne);
-      Value index2DimZero =
-          rewriter.create<AtenSizeIntOp>(loc, indicesList[2], torchCstZero);
-      Value index3DimZero =
-          rewriter.create<AtenSizeIntOp>(loc, indicesList[3], torchCstZero);
-      finalShapeIndices.push_back(inputDimZero);
-      finalShapeIndices.push_back(inputDimOne);
-      finalShapeIndices.push_back(index2DimZero);
-      finalShapeIndices.push_back(index3DimZero);
-
-      auto inputTensorType = op.getSelf().getType().cast<BaseTensorType>();
-      finalShapeIndicesInt.push_back(inputTensorType.getSizes()[0]);
-      finalShapeIndicesInt.push_back(inputTensorType.getSizes()[1]);
-      finalShapeIndicesInt.push_back(
-          indicesList[2].getType().cast<BaseTensorType>().getSizes()[0]);
-      finalShapeIndicesInt.push_back(
-          indicesList[3].getType().cast<BaseTensorType>().getSizes()[0]);
-      int64_t indexCount = finalShapeIndicesInt[0] * finalShapeIndicesInt[1] *
-                           finalShapeIndicesInt[2] * finalShapeIndicesInt[3];
 
       Type indicesDtype =
           indicesList[2].getType().cast<BaseTensorType>().getDtype();
@@ -548,8 +599,7 @@ public:
               rewriter.create<AtenSizeIntOp>(loc, op.getSelf(), torchCstDim);
 
           ValueTensorType tensorType = ValueTensorType::get(
-              context, llvm::ArrayRef(inputTensorType.getSizes()[i]),
-              indicesDtype);
+              context, llvm::ArrayRef(inputShape[i]), indicesDtype);
           updatedIndices[i] = rewriter.create<AtenArangeStartStepOp>(
               loc, tensorType, /*start=*/torchCstZero, /*end=*/inputDim,
               /*step=*/torchCstOne,
@@ -558,7 +608,7 @@ public:
               /*device=*/torchCstNone,
               /*pin_memory=*/torchCstNone);
 
-          SmallVector<int64_t> indicesTypeShape{inputTensorType.getSizes()[i]};
+          SmallVector<int64_t> indicesTypeShape{inputShape[i]};
           SmallVector<Value> reshapeIndicesShapeList{inputDim};
           for (unsigned j = 1; j < inputRank - i; j++) {
             indicesTypeShape.push_back(1);

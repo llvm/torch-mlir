@@ -89,6 +89,12 @@ mlir::RankedTensorType GetTypeFromTensorShape(llvm::ArrayRef<int64_t> shape,
 Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
                            std::optional<Type> srcOriginalDtype = std::nullopt);
 
+// Checks whether the `shapeA` and `shapeB` are broadcast compatible or not. If
+// yes, then computes the final broadcast shape.
+LogicalResult computeBroadcastShape(SmallVector<int64_t> shapeA,
+                                    SmallVector<int64_t> shapeB,
+                                    SmallVector<int64_t> &resultShape);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

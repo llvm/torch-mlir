@@ -324,6 +324,40 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
   llvm_unreachable("convertScalarToDtype should handle all the types");
 }
 
+// Checks whether the `shapeA` and `shapeB` are broadcast compatible or not. If
+// yes, then computes the final broadcast shape.
+LogicalResult computeBroadcastShape(SmallVector<int64_t> shapeA,
+                                    SmallVector<int64_t> shapeB,
+                                    SmallVector<int64_t> &resultShape) {
+  unsigned rankA = shapeA.size();
+  unsigned rankB = shapeB.size();
+  unsigned minRank = rankA > rankB ? rankB : rankA;
+  // Check whether the shapes of the tensors are broadcastable or not.
+  // Two tensors are “broadcastable” if the following rules hold:
+  // 1.) Each tensor has at least one dimension.
+  // 2.) When iterating over the dimension sizes, starting at the trailing
+  // dimension, the dimension sizes must either be equal, one of them is 1, or
+  // one of them does not exist.
+  if (rankA && rankB) {
+    for (unsigned i = 0; i < minRank; i++) {
+      if (shapeA[rankA - i - 1] != shapeB[rankB - i - 1] &&
+          shapeA[rankA - i - 1] != 1 && shapeB[rankB - i - 1] != 1)
+        return failure();
+    }
+    // If we reach here then it means both the shapes are broadcast compatible.
+    resultShape = rankA >= rankB ? shapeA : shapeB;
+    unsigned resultRank = resultShape.size();
+    for (unsigned i = 0; i < minRank; i++) {
+      resultShape[resultRank - i - 1] =
+          std::max(shapeA[rankA - i - 1], shapeB[rankB - i - 1]);
+    }
+    return success();
+  }
+  // Return failure when both the shapes does not have atleast one dimension. In
+  // this case broadcasting can't be done.
+  return failure();
+}
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
