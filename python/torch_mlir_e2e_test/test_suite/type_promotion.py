@@ -51,7 +51,7 @@ class TypePromotionDifferentCategoryModule(torch.nn.Module):
 @register_test_case(
     module_factory=lambda: TypePromotionDifferentCategoryModule())
 def TypePromotionDifferentCategoryModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(4, high=10), torch.randn(4))
+    module.forward(tu.randint(4, high=10), tu.rand(4))
 
 
 class TypePromotionSameCategoryZeroRankWiderModule(torch.nn.Module):

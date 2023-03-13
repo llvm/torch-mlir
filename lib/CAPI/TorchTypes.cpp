@@ -61,7 +61,7 @@ MlirType torchMlirTorchTupleTypeGet(MlirContext context,
   return wrap(Torch::TupleType::get(
       unwrap(context),
       llvm::to_vector<6>(
-          llvm::map_range(llvm::makeArrayRef(containedTypes, numContainedTypes),
+          llvm::map_range(llvm::ArrayRef(containedTypes, numContainedTypes),
                           [](MlirType t) { return unwrap(t); }))));
 }
 
@@ -89,7 +89,7 @@ MlirType torchMlirTorchUnionTypeGet(MlirContext context,
   return wrap(Torch::UnionType::get(
       unwrap(context),
       llvm::to_vector<6>(
-          llvm::map_range(llvm::makeArrayRef(containedTypes, numContainedTypes),
+          llvm::map_range(llvm::ArrayRef(containedTypes, numContainedTypes),
                           [](MlirType t) { return unwrap(t); }))));
 }
 
@@ -230,7 +230,7 @@ MlirType torchMlirTorchNonValueTensorTypeGet(MlirContext context,
   std::optional<ArrayRef<int64_t>> optionalSizesArrayRef = std::nullopt;
   // if numSizes == -1, then it is unranked.
   if (numSizes > -1)
-    optionalSizesArrayRef = llvm::makeArrayRef(optionalSizes, numSizes);
+    optionalSizesArrayRef = llvm::ArrayRef(optionalSizes, numSizes);
   return wrap(Torch::NonValueTensorType::get(
       unwrap(context), optionalSizesArrayRef, unwrap(optionalDtype)));
 }
@@ -293,7 +293,7 @@ MlirType torchMlirTorchValueTensorTypeGet(MlirContext context,
   std::optional<ArrayRef<int64_t>> optionalSizesArrayRef = std::nullopt;
   // if numSizes == -1, then it is unranked.
   if (numSizes > -1)
-    optionalSizesArrayRef = llvm::makeArrayRef(optionalSizes, numSizes);
+    optionalSizesArrayRef = llvm::ArrayRef(optionalSizes, numSizes);
   return wrap(Torch::ValueTensorType::get(
       unwrap(context), optionalSizesArrayRef, unwrap(optionalDtype)));
 }

@@ -189,7 +189,7 @@ class NllLossModule_backwardWeight(torch.nn.Module):
 @register_test_case(module_factory=lambda: NllLossModule_backwardWeight())
 def NllLossModuleBackwardWeight_basic(module, tu: TestUtils):
   module.forward(tu.rand(3), tu.rand(3, 4), torch.tensor([2, 3, 0]),
-                 torch.rand(4), torch.tensor(3.))
+                 tu.rand(4), torch.tensor(3.))
 
 
 
@@ -279,7 +279,7 @@ class NllLossModule_backwardMeanWeight(torch.nn.Module):
 @register_test_case(module_factory=lambda: NllLossModule_backwardMeanWeight())
 def NllLossModuleBackwardMeanWeight_basic(module, tu: TestUtils):
   module.forward(tu.rand(1), tu.rand(3, 4), torch.tensor([2, 3, 0]),
-                 torch.rand(4), torch.tensor(3.))
+                 tu.rand(4), torch.tensor(3.))
 
 
 class NllLossModule_backwardSum(torch.nn.Module):
@@ -338,7 +338,7 @@ class NllLossModule_backwardSumWeight(torch.nn.Module):
 @register_test_case(module_factory=lambda: NllLossModule_backwardSumWeight())
 def NllLossModuleBackwardSumWeight_basic(module, tu: TestUtils):
   module.forward(tu.rand(1), tu.rand(3, 4), torch.tensor([2, 3, 0]),
-                 torch.rand(4), torch.tensor(3.))
+                 tu.rand(4), torch.tensor(3.))
 
 
 class NllLossModule_backward1D(torch.nn.Module):
@@ -397,7 +397,7 @@ class NllLossModule_backward1DWeight(torch.nn.Module):
 @register_test_case(module_factory=lambda: NllLossModule_backward1DWeight())
 def NllLossModuleBackward1DWeight_basic(module, tu: TestUtils):
   module.forward(tu.rand(1), tu.rand(3), torch.tensor([2, 3, 0]),
-                 torch.rand(3), torch.tensor(3.))
+                 tu.rand(3), torch.tensor(3.))
 
 
 class NllLossModule_backward1DMean(torch.nn.Module):
@@ -456,7 +456,7 @@ class NllLossModule_backward1DMeanWeight(torch.nn.Module):
 @register_test_case(module_factory=lambda: NllLossModule_backward1DMeanWeight())
 def NllLossModuleBackward1DMeanWeight_basic(module, tu: TestUtils):
   module.forward(tu.rand(1), tu.rand(3), torch.tensor([2, 3, 0]),
-                 torch.rand(3), torch.tensor(3.))
+                 tu.rand(3), torch.tensor(3.))
 
 
 class NllLossModule_backward1DSum(torch.nn.Module):
@@ -515,4 +515,4 @@ class NllLossModule_backward1DSumWeight(torch.nn.Module):
 @register_test_case(module_factory=lambda: NllLossModule_backward1DSumWeight())
 def NllLossModuleBackward1DSumWeight_basic(module, tu: TestUtils):
   module.forward(tu.rand(1), tu.rand(3), torch.tensor([2, 3, 0]),
-                 torch.rand(3), torch.tensor(3.))
+                 tu.rand(3), torch.tensor(3.))

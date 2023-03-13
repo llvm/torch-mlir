@@ -127,9 +127,14 @@ public:
       if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeInt)))
         return rewriter.notifyMatchFailure(
             op, "unimplemented: dtype must be a constant integer or none");
-      resultElementType = getTypeForScalarType(
+      FailureOr<Type> maybeResultElementType = getTypeForScalarType(
           op->getContext(), (torch_upstream::ScalarType)dtypeInt,
           IntegerType::Signless);
+      if (failed(maybeResultElementType)) {
+        return rewriter.notifyMatchFailure(
+            op, "unable to convert `dtypeInt` to builtin type");
+      }
+      resultElementType = *maybeResultElementType;
     }
 
     // Create an uninitialized tensor of `resultSize` shape and fill it with
@@ -227,9 +232,14 @@ public:
       if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeInt)))
         return rewriter.notifyMatchFailure(
             op, "unimplemented: dtype must be a constant integer or none");
-      resultElementType = getTypeForScalarType(
+      FailureOr<Type> maybeResultElementType = getTypeForScalarType(
           op->getContext(), (torch_upstream::ScalarType)dtypeInt,
           IntegerType::Signless);
+      if (failed(maybeResultElementType)) {
+        return rewriter.notifyMatchFailure(
+            op, "unable to convert `dtypeInt` to builtin type");
+      }
+      resultElementType = *maybeResultElementType;
     }
 
     // Create an uninitialized tensor of `resultSize` shape.

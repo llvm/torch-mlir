@@ -165,7 +165,7 @@ class Convolution2DModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Convolution2DModule())
 def Convolution2DModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+    module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 
 class Convolution2DStaticModule(torch.nn.Module):
@@ -191,7 +191,7 @@ class Convolution2DStaticModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Convolution2DStaticModule())
 def Convolution2DStaticModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+    module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 class Convolution2DStridedModule(torch.nn.Module):
     def __init__(self):
@@ -216,7 +216,7 @@ class Convolution2DStridedModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Convolution2DStridedModule())
 def Convolution2DStridedModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+    module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 class _Convolution2DAllFalseModule(torch.nn.Module):
     def __init__(self):
@@ -245,7 +245,7 @@ class _Convolution2DAllFalseModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: _Convolution2DAllFalseModule())
 def _Convolution2DAllFalseModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+    module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 class _Convolution2DBenchmarkModule(torch.nn.Module):
     def __init__(self):
@@ -274,7 +274,7 @@ class _Convolution2DBenchmarkModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: _Convolution2DBenchmarkModule())
 def _Convolution2DBenchmarkModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+    module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 class _Convolution2DDeterministicModule(torch.nn.Module):
     def __init__(self):
@@ -303,7 +303,7 @@ class _Convolution2DDeterministicModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: _Convolution2DDeterministicModule())
 def _Convolution2DDeterministicModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+    module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 class _Convolution2DCudnnModule(torch.nn.Module):
     def __init__(self):
@@ -332,7 +332,7 @@ class _Convolution2DCudnnModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: _Convolution2DCudnnModule())
 def _Convolution2DCudnnModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+    module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 class _Convolution2DTF32Module(torch.nn.Module):
     def __init__(self):
@@ -361,7 +361,7 @@ class _Convolution2DTF32Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: _Convolution2DTF32Module())
 def _Convolution2DTF32Module_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+    module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 class _ConvolutionDeprecated2DAllFalseModule(torch.nn.Module):
     def __init__(self):
@@ -389,7 +389,7 @@ class _ConvolutionDeprecated2DAllFalseModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: _ConvolutionDeprecated2DAllFalseModule())
 def _ConvolutionDeprecated2DAllFalseModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+    module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 class _ConvolutionDeprecated2DBenchmarkModule(torch.nn.Module):
     def __init__(self):
@@ -417,7 +417,7 @@ class _ConvolutionDeprecated2DBenchmarkModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: _ConvolutionDeprecated2DBenchmarkModule())
 def _ConvolutionDeprecated2DBenchmarkModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+    module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 class _ConvolutionDeprecated2DDeterministicModule(torch.nn.Module):
     def __init__(self):
@@ -445,7 +445,7 @@ class _ConvolutionDeprecated2DDeterministicModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: _ConvolutionDeprecated2DDeterministicModule())
 def _ConvolutionDeprecated2DDeterministicModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+    module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 class _ConvolutionDeprecated2DCudnnModule(torch.nn.Module):
     def __init__(self):
@@ -473,7 +473,7 @@ class _ConvolutionDeprecated2DCudnnModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: _ConvolutionDeprecated2DCudnnModule())
 def _ConvolutionDeprecated2DCudnnModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+    module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 class ConvolutionModule2DGroups(torch.nn.Module):
     def __init__(self):
@@ -498,7 +498,7 @@ class ConvolutionModule2DGroups(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ConvolutionModule2DGroups())
 def ConvolutionModule2DGroups_basic(module, tu: TestUtils):
-    module.forward(torch.randn(1, 32, 4, 4), torch.randn(32, 8, 3, 3))
+    module.forward(tu.rand(1, 32, 4, 4), tu.rand(32, 8, 3, 3))
 
 # ==============================================================================
 
@@ -527,7 +527,7 @@ class ConvolutionModule2DTranspose(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ConvolutionModule2DTranspose())
 def ConvolutionModule2DTranspose_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 3, 4, 4), torch.randn(3, 3, 2, 2))
+    module.forward(tu.rand(3, 3, 4, 4), tu.rand(3, 3, 2, 2))
 
 class ConvolutionModule2DTransposeStrided(torch.nn.Module):
 
@@ -554,7 +554,7 @@ class ConvolutionModule2DTransposeStrided(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ConvolutionModule2DTransposeStrided())
 def ConvolutionModule2DTransposeStrided_basic(module, tu: TestUtils):
-    module.forward(torch.randn(5, 2, 5, 6), torch.randn(2, 5, 2, 2))
+    module.forward(tu.rand(5, 2, 5, 6), tu.rand(2, 5, 2, 2))
 
 class ConvolutionModule2DTransposeStridedStatic(torch.nn.Module):
 
@@ -581,7 +581,7 @@ class ConvolutionModule2DTransposeStridedStatic(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ConvolutionModule2DTransposeStridedStatic())
 def ConvolutionModule2DTransposeStridedStatic_basic(module, tu: TestUtils):
-    module.forward(torch.randn(5, 2, 5, 6), torch.randn(2, 5, 2, 2))
+    module.forward(tu.rand(5, 2, 5, 6), tu.rand(2, 5, 2, 2))
 
 
 class Conv_Transpose2dModule(torch.nn.Module):
@@ -608,7 +608,7 @@ class Conv_Transpose2dModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Conv_Transpose2dModule())
 def Conv_Transpose2dModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(5, 2, 5, 6), torch.randn(2, 5, 2, 2))
+    module.forward(tu.rand(5, 2, 5, 6), tu.rand(2, 5, 2, 2))
 
 
 class UpSampleNearest2d(torch.nn.Module):

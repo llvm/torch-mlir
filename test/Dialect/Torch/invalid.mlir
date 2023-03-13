@@ -101,17 +101,17 @@ torch.class_type @c {
 // -----
 
 // expected-error @+1 {{'torch.type_bound' must be attached to an argument of !torch.tensor/!torch.vtensor type}}
-func.func @f(%arg0: i32 {torch.type_bound = !torch.tensor<*,f32>})
+func.func private @f(%arg0: i32 {torch.type_bound = !torch.tensor<*,f32>})
 
 // -----
 
 // expected-error @+1 {{'torch.type_bound' must be TypeAttr}}
-func.func @f(%arg0: i32 {torch.type_bound = 1})
+func.func private @f(%arg0: i32 {torch.type_bound = 1})
 
 // -----
 
 // expected-error @+1 {{'torch.type_bound' must be of !torch.tensor/!torch.vtensor type}}
-func.func @f(%arg0: i32 {torch.type_bound = i32})
+func.func private @f(%arg0: i32 {torch.type_bound = i32})
 
 // -----
 
@@ -264,4 +264,20 @@ torch.global_slot.module_initializer {
   torch.initialize.global_slots [
     @tensor(%1 : !torch.tensor)
   ]
+}
+
+// -----
+
+func.func @torch.tensor_static_info_cast$shape_mismatch(%arg0: !torch.vtensor<[],unk>) -> !torch.vtensor<[?],unk> {
+  // expected-error@+1 {{'torch.tensor_static_info_cast' op operand type '!torch.vtensor<[],unk>' and result type '!torch.vtensor<[?],unk>' are cast incompatible}}
+  %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[],unk> to !torch.vtensor<[?],unk>
+  return %0 : !torch.vtensor<[?],unk>
+}
+
+// -----
+
+func.func @torch.tensor_static_info_cast$dtype_mismatch(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor<*,f64> {
+  // expected-error@+1 {{'torch.tensor_static_info_cast' op operand type '!torch.vtensor<*,f32>' and result type '!torch.vtensor<*,f64>' are cast incompatible}}
+  %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<*,f32> to !torch.vtensor<*,f64>
+  return %0 : !torch.vtensor<*,f64>
 }

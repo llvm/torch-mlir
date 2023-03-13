@@ -71,6 +71,7 @@ add_library(torch_mlir_ltc_backend SHARED
   mlir_node.cpp
   ops/device_data.cpp
   ops/generic.cpp
+  utils/jit_utils.cpp
   utils/tensor_utils.cpp
 )
 target_compile_features(torch_mlir_ltc_backend PRIVATE cxx_std_17)

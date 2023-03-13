@@ -463,8 +463,8 @@ public:
     }
 
     SmallVector<Value> inputSize = getTensorSizes(rewriter, loc, input);
-    ArrayRef<Value> outputShapeInt = llvm::makeArrayRef(outputSizeInt);
-    ArrayRef<Value> inputShapeInt = llvm::makeArrayRef(inputSize);
+    ArrayRef<Value> outputShapeInt = llvm::ArrayRef(outputSizeInt);
+    ArrayRef<Value> inputShapeInt = llvm::ArrayRef(inputSize);
 
     // Association indices for expand/collapse ops. These two vectors
     // are populated such that two entries at the same index corresponds
@@ -1117,6 +1117,18 @@ public:
 
     RankedTensorType newResultType =
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+
+    auto outElemType = newResultType.getElementType();
+    auto dtypePromoteBody = [&](OpBuilder &builder, Location loc,
+                        ValueRange payloadArgs) {
+      Value elem = convertScalarToDtype(builder, loc, payloadArgs[0], outElemType);
+      builder.create<linalg::YieldOp>(loc, elem);
+    };
+    for (size_t i = 0; i < tensors.size(); ++i) {
+      tensors[i] = torch_to_linalg::createElementwiseLinalgGeneric(
+          rewriter, loc, {tensors[i]}, outElemType, dtypePromoteBody);
+    }
+
     int rank = newResultType.getRank();
     SmallVector<Value> offsets, sizes, strides;
     sizes.reserve(rank);
@@ -1136,7 +1148,7 @@ public:
 
     Value dimIndex = rewriter.createOrFold<arith::ConstantOp>(
         loc, rewriter.getIndexAttr(dim));
-    for (auto tensor : makeArrayRef(tensors).drop_front()) {
+    for (auto tensor : ArrayRef(tensors).drop_front()) {
       auto size = rewriter.createOrFold<tensor::DimOp>(loc, tensor, dimIndex);
       resultDimSize =
           rewriter.createOrFold<arith::AddIOp>(loc, resultDimSize, size);
@@ -1270,7 +1282,7 @@ public:
                            /*resultType=*/selfType,
                            /*inputs=*/broadcastedSrc,
                            /*outputs=*/self,
-                           /*indexingMaps=*/llvm::makeArrayRef({id, id}),
+                           /*indexingMaps=*/llvm::ArrayRef({id, id}),
                            /*iteratorTypes=*/iteratorTypes,
                            [](OpBuilder &b, Location loc, ValueRange args) {
                              Value result = args[0];

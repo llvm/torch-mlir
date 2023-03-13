@@ -44,7 +44,7 @@ def run_pipeline_with_repro_report(module,
         # Lower module in place to make it ready for compiler backends.
         with module.context:
             pm = PassManager.parse(pipeline)
-            pm.run(module)
+            pm.run(module.operation)
     except Exception as e:
         # TODO: More robust.
         # - don't arbitrarily clutter up /tmp. When a test suite has many

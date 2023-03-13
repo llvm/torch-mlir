@@ -32,3 +32,6 @@ bazel-*
 build_oot/
 docker_venv/
 llvm-build/
+
+# C++ build artifacts
+compile_commands.json

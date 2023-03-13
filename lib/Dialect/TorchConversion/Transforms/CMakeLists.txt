@@ -11,7 +11,7 @@ set(LinkedLibs  MLIRIR
                 TorchMLIRTorchConversionToMLProgram
                 MLIRMemRefTransforms)
                 
-if(TORCH_MLIR_ENABLE_MHLO)
+if(TORCH_MLIR_ENABLE_STABLEHLO)
   list(APPEND LinkedLibs ChloPasses)
 endif()
 
@@ -21,7 +21,7 @@ add_mlir_library(TorchMLIRTorchConversionPasses
   Passes.cpp
   VerifyLinalgOnTensorsBackendContract.cpp
   VerifyTosaBackendContract.cpp
-  VerifyMhloBackendContract.cpp
+  VerifyStablehloBackendContract.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/torch-mlir/Dialect/TorchConversion/Transforms

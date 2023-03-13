@@ -51,6 +51,14 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+    
+    - name: Prepare workspace
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
+      run: |
+        # Clear the workspace directory so that we don't run into errors about
+        # existing lock files.
+        sudo rm -rf $GITHUB_WORKSPACE/*
+    
     - name: Checkout torch-mlir
       uses: actions/checkout@v3
       with:
@@ -113,7 +121,7 @@ jobs:
           -DLLVM_USE_HOST_TOOLS=ON \
           -DLLVM_ENABLE_ZSTD=OFF \
           -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-          -DTORCH_MLIR_ENABLE_MHLO=OFF \
+          -DTORCH_MLIR_ENABLE_STABLEHLO=OFF \
           -DTORCH_MLIR_ENABLE_LTC=OFF \
           -DTORCH_MLIR_USE_INSTALLED_PYTORCH="${{ matrix.torch-binary }}" \
           -DMACOSX_DEPLOYMENT_TARGET=12.0 \

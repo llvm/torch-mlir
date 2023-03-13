@@ -23,7 +23,7 @@ expand_template(
         # All disabled, but required to substituted because they are not in quotes.
         "@MLIR_ENABLE_BINDINGS_PYTHON@": "0",
         "@TORCH_MLIR_ENABLE_JIT_IR_IMPORTER@": "0",
-        "@TORCH_MLIR_ENABLE_MHLO@": "0",
+        "@TORCH_MLIR_ENABLE_STABLEHLO@": "0",
     },
     template = "lit.site.cfg.py.in",
 )
