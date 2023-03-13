@@ -692,7 +692,9 @@ TOSA_PASS_SET = {
     "ConstantPad2dStaticModule_basic",
     "ConstantPadNdModule_basic",
     "ConstantPadNdPartialStaticModule_basic",
-    "ConstantPadNdStaticModule_basic"
+    "ConstantPadNdStaticModule_basic",
+    "PadModule_basic",
+    "PadWithNoneValModule_basic"
 }
 
 LTC_XFAIL_SET = {
