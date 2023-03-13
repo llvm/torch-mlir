@@ -4270,9 +4270,8 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
 
   Value padValue = adaptor.getValue();
   Operation *padOp = padValue.getDefiningOp();
-  if (padOp != nullptr) {
-    padValue = padOp->getOperand(0);
-  }
+  padValue = padOp->getOperand(0);
+  
   Type padValueType = padValue.getType();
 
   Value padTensor;
