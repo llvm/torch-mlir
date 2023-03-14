@@ -269,6 +269,15 @@ def InsertConv : Pass<"torch-insert-conv", "func::FuncOp"> {
   ];
 }
 
+def ObfuscateRNN : Pass<"torch-obfuscate-rnn", "func::FuncOp"> {
+  let summary = "Insert obfuscate in RNN cell";
+  let constructor = [{
+    mlir::torch::Torch::createObfuscateRNNPass()
+  }];
+  let description = [{
+  }];
+}
+
 def ReifyShapeCalculations : Pass<"torch-reify-shape-calculations", "ModuleOp"> {
   let summary = "Reify shape calculations.";
   let constructor = "mlir::torch::Torch::createReifyShapeCalculationsPass()";

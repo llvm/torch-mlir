@@ -124,3 +124,10 @@ def ObfuscateRNN_2(module, tu: TestUtils):
 )
 def ObfuscateRNN_3(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 10))
+
+# precesion error
+# @register_test_case(
+#     module_factory=lambda: RNN_scratch(), passes="func.func(torch-obfuscate-rnn)"
+# )
+# def ObfuscateRNN_4(module, tu: TestUtils):
+#     module.forward(tu.rand(3, 1, 10))

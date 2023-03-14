@@ -4,6 +4,7 @@ add_mlir_library(TorchMLIRTorchPasses
   WidenConvLayer.cpp
   InsertSkip.cpp
   InsertConvs.cpp
+  ObfuscateRNN.cpp
   DropAbstractInterpCalculations.cpp
   EraseModuleInitializer.cpp
   Passes.cpp
