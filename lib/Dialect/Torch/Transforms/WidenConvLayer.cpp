@@ -41,6 +41,11 @@ static void widenConvLayer(MLIRContext *context, Operation *f) {
     }
   });
 
+  if (opWorklist.size() < 2) {
+    llvm::errs() << "Not run WidenConvLayer\n";
+    return;
+  }
+
   auto it = opWorklist.begin();
   AtenConvolutionOp convOp = llvm::dyn_cast<AtenConvolutionOp>(*it);
   IRRewriter rewriter(context);

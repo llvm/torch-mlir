@@ -24,18 +24,26 @@ class LinalgOnTensorsBackendTestConfig(TestConfig):
     This class handles all the common lowering that torch-mlir does before
     reaching the linalg-on-tensors abstraction level.
     """
+
     def __init__(self, backend: LinalgOnTensorsBackend):
         super().__init__()
         self.backend = backend
 
-    def compile(self, program: torch.nn.Module) -> Any:
+    def compile(self, program: torch.nn.Module, passes: str) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
         module = torch_mlir.compile(
-            program, example_args, output_type="linalg-on-tensors")
-
+            program, example_args, output_type="torch", use_tracing=True, ignore_traced_shapes=True)
+        torch_mlir.compiler_utils.run_pipeline_with_repro_report(
+            module,
+            f"builtin.module({passes})",
+            "Run passes: "+passes,
+        )
+        torch_mlir.compiler_utils.run_pipeline_with_repro_report(
+            module,
+            "builtin.module(torch-backend-to-linalg-on-tensors-backend-pipeline)",
+            "Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR",
+        )
         return self.backend.compile(module)
-
-
 
     def run(self, artifact: Any, trace: Trace) -> Trace:
         backend_module = self.backend.load(artifact)

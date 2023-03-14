@@ -213,6 +213,9 @@ class Test(NamedTuple):
     # module, actually).
     # The secon parameter is a `TestUtils` instance for convenience.
     program_invoker: Callable[[Any, TestUtils], None]
+    # additional pass for comile
+    # for example: "func.func(torch-insert-skip)"
+    passes: str
 
 
 class TestResult(NamedTuple):
@@ -287,7 +290,10 @@ def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
         golden_trace = generate_golden_trace(test)
         if verbose:
             print(f"Compiling {test.unique_name}...", file=sys.stderr)
-        compiled = config.compile(test.program_factory())
+        if "LinalgOnTensorsBackendTestConfig" in str(config):
+            compiled = config.compile(test.program_factory(), test.passes)
+        else:
+            compiled = config.compile(test.program_factory())
     except Exception as e:
         return TestResult(unique_name=test.unique_name,
                           compilation_error="".join(

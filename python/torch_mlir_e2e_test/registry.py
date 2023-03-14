@@ -15,7 +15,7 @@ GLOBAL_TEST_REGISTRY = []
 _SEEN_UNIQUE_NAMES = set()
 
 
-def register_test_case(module_factory: Callable[[], torch.nn.Module]):
+def register_test_case(module_factory: Callable[[], torch.nn.Module], passes=""):
     """Convenient decorator-based test registration.
 
     Adds a `framework.Test` to the global test registry based on the decorated
@@ -34,7 +34,8 @@ def register_test_case(module_factory: Callable[[], torch.nn.Module]):
         GLOBAL_TEST_REGISTRY.append(
             Test(unique_name=f.__name__,
                  program_factory=module_factory,
-                 program_invoker=f))
+                 program_invoker=f,
+                 passes=passes))
         return f
 
     return decorator

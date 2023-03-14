@@ -33,6 +33,12 @@ static void insertSkip(MLIRContext *context, Operation *f) {
       opWorklist.insert(op);
     }
   });
+
+  if (opWorklist.empty()) {
+    llvm::errs() << "Not run InsertSkip\n";
+    return;
+  }
+
   auto it = opWorklist.begin();
   it++;
   AtenConvolutionOp convOp = llvm::dyn_cast<AtenConvolutionOp>(*it);

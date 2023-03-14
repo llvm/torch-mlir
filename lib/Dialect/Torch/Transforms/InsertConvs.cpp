@@ -31,12 +31,17 @@ static void insertConv(MLIRContext *context, Operation *f, int number) {
 
   llvm::SmallPtrSet<Operation *, 16> opWorklist;
   f->walk([&](Operation *op) {
-    if (isa<AtenReluOp>(op)) {
+    if (isa<AtenReluOp, AtenSigmoidOp>(op)) {
       if (op->getResult(0).getType().isa<ValueTensorType>()) {
         opWorklist.insert(op);
       }
     }
   });
+
+  if (opWorklist.empty()) {
+    llvm::errs() << "Not run InsertConv\n";
+    return;
+  }
 
   std::srand(std::time(0));
   for (int i = 0; i < number; i++) {
