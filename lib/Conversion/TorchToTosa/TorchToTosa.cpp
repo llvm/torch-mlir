@@ -4228,6 +4228,7 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
   auto selfElemTy = selfTy.getElementType();
   int64_t rank = selfTy.getRank();
 
+  // START the code snippet from lib/Conversion/TorchToLinalg/TensorConstructors.cpp (see: ConvertAtenConstantPadNdOp)
   // Pattern match against the op's original operands, because otherwise we
   // will get the lowered version of the operands which is harder to pattern
   // match.
@@ -4241,7 +4242,6 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
   if (rank < 0 || padRank > (uint64_t)rank)
     return rewriter.notifyMatchFailure(op, "padding exceeds tensor rank");
 
-  // START the code snippet from lib/Conversion/TorchToLinalg/TensorConstructors.cpp (see: ConvertAtenConstantPadNdOp)
   // Initialize low/high paddings with 0 for all the dims.
   SmallVector<int64_t> lowPadding(/*Size=*/rank, /*Value=*/0);
   SmallVector<int64_t> highPadding(/*Size=*/rank, /*Value=*/0);
