@@ -736,6 +736,36 @@ public:
                   outputTensor, stridesAttr, dilationAttr)
               .getResult(0);
     } else {
+      // Special depthwise case
+      auto inShape = makeShapeTorchCompatible(
+          input.getType().cast<RankedTensorType>().getShape());
+      auto weightShape = makeShapeTorchCompatible(
+          weight.getType().cast<RankedTensorType>().getShape());
+      if (weightShape[0] != kUnknownSize && inShape[1] == groupSize &&
+          weightShape[0] % inShape[1] == 0 && weightShape[1] == 1) {
+        // Collapse weight shape
+        SmallVector<ReassociationIndices, 4> collapsedDims = {{0, 1}, {2}, {3}};
+        SmallVector<int64_t> collapsedShape{
+            (weightShape[0] == kUnknownSize ? kUnknownSize
+                                            : weightShape[0] * weightShape[1]),
+            weightShape[2], weightShape[3]};
+        Type collapsedType = RankedTensorType::get(
+            makeShapeLLVMCompatible(collapsedShape), elementType);
+        Value collapsedWeight = rewriter.create<tensor::CollapseShapeOp>(
+            loc, collapsedType, weight, collapsedDims);
+
+        conv = rewriter
+                   .create<linalg::DepthwiseConv2DNchwChwOp>(
+                       loc, outputTensor.getType(),
+                       ValueRange{paddedInput, collapsedWeight}, outputTensor,
+                       stridesAttr, dilationAttr)
+                   .getResult(0);
+
+        Type newResultType = getTypeConverter()->convertType(op.getType());
+        rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
+        return success();
+      }
+
       // Grouped case, use the grouped conv linalg op
       auto expandGroups = [&](Value tensor, size_t dim) {
         auto inType = tensor.getType().cast<RankedTensorType>();

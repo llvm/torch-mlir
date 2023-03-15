@@ -1463,8 +1463,8 @@ public:
     return success();
   }
 };
-
 } // namespace
+
 // Decompose aten.convolution_overrideable to aten.convolution op.
 namespace {
 class DecomposeAtenConvolutionOverrideableOp
@@ -1572,7 +1572,7 @@ static Type getTransposedType(Type inType, int64_t dimA, int64_t dimB) {
   int64_t tmp = shape[0];
   shape[0] = shape[1];
   shape[1] = tmp;
-  return type.getWithSizesAndDtype(llvm::makeArrayRef(shape),
+  return type.getWithSizesAndDtype(llvm::ArrayRef(shape),
                                    type.getOptionalDtype());
 }
 
@@ -1658,8 +1658,6 @@ public:
         loc, rewriter.getI64IntegerAttr(1));
     Value cstTwo = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(2));
-    Value cstThree = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(3));
     Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
     Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
         loc, rewriter.getBoolAttr(false));
@@ -1693,13 +1691,12 @@ public:
       return rewriter.notifyMatchFailure(
           op, "unimplemented: only output padding of 0 supported.");
 
-    SmallVector<bool> outMask;
-    if (!matchPattern(op.getOutputMask(), m_TorchListOfConstantBools(outMask)))
-      return rewriter.notifyMatchFailure(
-          op, "output mask must be a list of constant bools");
-    // if (!llvm::all_of(outMask, [](bool mask) { return mask; }))
-    //   return rewriter.notifyMatchFailure(
-    //       op, "unimplemented: only true values for output_mask supported.");
+    // TODO: Add a check for output mask. Removed it now since we don't support
+    // returning none values as of now in Torch-MLIR. So, right now we just
+    // assume that all the values of output mask are `True`, even if they turn
+    // out to be `False`, there is no harm in this assumption, since the
+    // resultant tensors corresponding to the `False` mask value would never be
+    // used.
 
     bool transposed;
     if (!matchPattern(op.getTransposed(), m_TorchConstantBool(&transposed)))
@@ -1716,10 +1713,10 @@ public:
     // Computing Grad Input.
     // Calculate output padding for first convolution.
     // output_padding_ = [
-    //     inputH - 1 + (2 * padding_[0]) - (dilation_[0] * (weight.size()[2] -
-    //     1)) - ((grad_out.size()[2] - 1) * stride_[0]),
-    //     inputW - 1 + (2 * padding_[1]) - (dilation_[1] * (weight.size()[3] -
-    //     1)) - ((grad_out.size()[3] - 1) * stride_[1]),
+    //     inputH - 1 + (2 * padding_[0]) - (dilation_[0] * (weight.size()[2]
+    //     - 1)) - ((grad_out.size()[2] - 1) * stride_[0]), inputW - 1 + (2 *
+    //     padding_[1]) - (dilation_[1] * (weight.size()[3] - 1)) -
+    //     ((grad_out.size()[3] - 1) * stride_[1]),
     // ]
     SmallVector<Value> outputPaddingValues;
     for (unsigned i = 2; i < gradRank; i++) {
@@ -1759,168 +1756,179 @@ public:
         op.getStride(), op.getPadding(), outputPaddingForGradInput,
         op.getGroups(), op.getDilation());
 
-    // Computing Grad Weight.
     Value inputTransposed = rewriter.create<Torch::AtenTransposeIntOp>(
         loc, getTransposedType(input.getType(), 0, 1), input, cstZero, cstOne);
 
-    SmallVector<Value, 4> gradOutputSize;
-    for (unsigned i = 0; i < gradRank; i++) {
-      gradOutputSize.push_back(rewriter.create<Torch::AtenSizeIntOp>(
-          loc, gradOutput,
-          rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(i))));
-    }
-
-    Value gradOutputViewDimZero = rewriter.create<Torch::AtenMulIntOp>(
-        loc, gradOutputSize[0], gradOutputSize[1]);
-    Value gradOutputViewShapeList = rewriter.create<Torch::PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
-        ValueRange{gradOutputViewDimZero, cstOne, gradOutputSize[2],
-                   gradOutputSize[3]});
-
-    BaseTensorType gradOutputTy = gradOutput.getType().cast<BaseTensorType>();
-    if (!gradOutputTy.hasSizes())
-      return failure();
-    SmallVector<int64_t> gradOutputSizesInt(gradOutputTy.getSizes());
-    SmallVector<int64_t> gradOutputViewSizesInt(gradOutputSizesInt);
-    if (gradOutputViewSizesInt[0] != kUnknownSize &&
-        gradOutputViewSizesInt[1] != kUnknownSize)
-      gradOutputViewSizesInt[0] *= gradOutputViewSizesInt[1];
-    else
-      gradOutputViewSizesInt[0] = kUnknownSize;
-    gradOutputViewSizesInt[1] = 1;
-    BaseTensorType gradOutputTypeForView =
-        gradOutputTy
-            .getWithSizesAndDtype(llvm::makeArrayRef(gradOutputViewSizesInt),
-                                  gradOutputTy.getOptionalDtype())
-            .cast<BaseTensorType>();
-    Value gradOutputView = rewriter.create<Torch::AtenViewOp>(
-        loc, gradOutputTypeForView, gradOutput, gradOutputViewShapeList);
-
-    BaseTensorType inputTransposedTy =
-        inputTransposed.getType().cast<BaseTensorType>();
-    if (!inputTransposedTy.hasSizes())
-      return failure();
-    SmallVector<int64_t> inputTransposedSizesInt(inputTransposedTy.getSizes());
-    SmallVector<int64_t> gradWeightSizesInt{inputTransposedSizesInt[0],
-                                            gradOutputViewSizesInt[0]};
-    for (unsigned i = 2; i < gradRank; i++) {
-      if (inputTransposedSizesInt[i] != kUnknownSize &&
-          gradOutputViewSizesInt[i] != kUnknownSize) {
-        int64_t kernelSizeInt =
-            strideInt[i - 2] * (gradOutputViewSizesInt[i] - 1) + 1;
-        gradWeightSizesInt.push_back(
-            ((inputTransposedSizesInt[i] + (paddingInt[i - 2] * 2) -
-              kernelSizeInt) /
-             dilationInt[i - 2]) +
-            1);
-      } else {
-        gradWeightSizesInt.push_back(kUnknownSize);
+    // For the cases where the stride is non-unit, we compute the `GradWeight`
+    // through this implementation.
+    Value gradWeight;
+    if (!llvm::all_of(strideInt, [](int64_t stride) { return stride == 1; })) {
+      // Computing Grad Weight.
+      SmallVector<Value, 4> gradOutputSize;
+      for (unsigned i = 0; i < gradRank; i++) {
+        gradOutputSize.push_back(rewriter.create<Torch::AtenSizeIntOp>(
+            loc, gradOutput,
+            rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(i))));
       }
-    }
 
-    BaseTensorType gradWeightTy =
-        inputTransposedTy
-            .getWithSizesAndDtype(llvm::ArrayRef(gradWeightSizesInt),
-                                  inputTransposedTy.getOptionalDtype())
-            .cast<BaseTensorType>();
+      Value gradOutputViewDimZero = rewriter.create<Torch::AtenMulIntOp>(
+          loc, gradOutputSize[0], gradOutputSize[1]);
+      Value gradOutputViewShapeList =
+          rewriter.create<Torch::PrimListConstructOp>(
+              loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
+              ValueRange{gradOutputViewDimZero, cstOne, gradOutputSize[2],
+                         gradOutputSize[3]});
 
-    Value numGroup = rewriter.create<AtenSizeIntOp>(loc, input, cstZero);
-    // Setting this to value two for `ConvolutionBackwardModule2D_basic` test case.
-    // Value numGroup = cstTwo;
-    Value gradWeight = rewriter.create<Torch::AtenConvolutionOp>(
-        loc, gradWeightTy, inputTransposed, gradOutputView, cstNone,
-        /*stride=*/op.getDilation(), op.getPadding(),
-        /*dilation=*/op.getStride(), op.getTransposed(), op.getOutputPadding(),
-        numGroup);
+      BaseTensorType gradOutputTy = gradOutput.getType().cast<BaseTensorType>();
+      if (!gradOutputTy.hasSizes())
+        return failure();
+      SmallVector<int64_t> gradOutputSizesInt(gradOutputTy.getSizes());
+      SmallVector<int64_t> gradOutputViewSizesInt(gradOutputSizesInt);
+      if (gradOutputViewSizesInt[0] != kUnknownSize &&
+          gradOutputViewSizesInt[1] != kUnknownSize)
+        gradOutputViewSizesInt[0] *= gradOutputViewSizesInt[1];
+      else
+        gradOutputViewSizesInt[0] = kUnknownSize;
+      gradOutputViewSizesInt[1] = 1;
+      BaseTensorType gradOutputTypeForView =
+          gradOutputTy
+              .getWithSizesAndDtype(llvm::ArrayRef(gradOutputViewSizesInt),
+                                    gradOutputTy.getOptionalDtype())
+              .cast<BaseTensorType>();
+      Value gradOutputView = rewriter.create<Torch::AtenViewOp>(
+          loc, gradOutputTypeForView, gradOutput, gradOutputViewShapeList);
 
-    BaseTensorType weightTy = weight.getType().cast<BaseTensorType>();
-    if (!weightTy.hasSizes())
-      return failure();
-    SmallVector<int64_t> weightSizes(weightTy.getSizes());
-    for (unsigned i = 0; i < 2; i++) {
-      gradWeightSizesInt[i + 2] = weightSizes[i + 2];
-      BaseTensorType gradWeightNarrowTy =
-          gradWeightTy
+      BaseTensorType inputTransposedTy =
+          inputTransposed.getType().cast<BaseTensorType>();
+      if (!inputTransposedTy.hasSizes())
+        return failure();
+      SmallVector<int64_t> inputTransposedSizesInt(
+          inputTransposedTy.getSizes());
+      SmallVector<int64_t> gradWeightSizesInt{inputTransposedSizesInt[0],
+                                              gradOutputViewSizesInt[0]};
+      for (unsigned i = 2; i < gradRank; i++) {
+        if (inputTransposedSizesInt[i] != kUnknownSize &&
+            gradOutputViewSizesInt[i] != kUnknownSize) {
+          int64_t kernelSizeInt =
+              strideInt[i - 2] * (gradOutputViewSizesInt[i] - 1) + 1;
+          gradWeightSizesInt.push_back(
+              ((inputTransposedSizesInt[i] + (paddingInt[i - 2] * 2) -
+                kernelSizeInt) /
+               dilationInt[i - 2]) +
+              1);
+        } else {
+          gradWeightSizesInt.push_back(kUnknownSize);
+        }
+      }
+
+      BaseTensorType gradWeightTy =
+          inputTransposedTy
               .getWithSizesAndDtype(llvm::ArrayRef(gradWeightSizesInt),
+                                    inputTransposedTy.getOptionalDtype())
+              .cast<BaseTensorType>();
+
+      Value numGroup = rewriter.create<AtenSizeIntOp>(loc, input, cstZero);
+      gradWeight = rewriter.create<Torch::AtenConvolutionOp>(
+          loc, gradWeightTy, inputTransposed, gradOutputView, cstNone,
+          /*stride=*/op.getDilation(), op.getPadding(),
+          /*dilation=*/op.getStride(), op.getTransposed(),
+          op.getOutputPadding(), numGroup);
+
+      BaseTensorType weightTy = weight.getType().cast<BaseTensorType>();
+      if (!weightTy.hasSizes())
+        return failure();
+      SmallVector<int64_t> weightSizes(weightTy.getSizes());
+      for (unsigned i = 0; i < 2; i++) {
+        gradWeightSizesInt[i + 2] = weightSizes[i + 2];
+        BaseTensorType gradWeightNarrowTy =
+            gradWeightTy
+                .getWithSizesAndDtype(llvm::ArrayRef(gradWeightSizesInt),
+                                      gradWeightTy.getOptionalDtype())
+                .cast<BaseTensorType>();
+
+        Value dim = rewriter.create<ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(i + 2));
+        Value length = rewriter.create<Torch::AtenSizeIntOp>(loc, weight, dim);
+        gradWeight = rewriter.create<Torch::AtenNarrowOp>(
+            loc, gradWeightNarrowTy, gradWeight, dim, /*start=*/cstZero,
+            length);
+      }
+
+      SmallVector<int64_t, 5> gradWeightViewShapeInt{
+          inputTransposedSizesInt[0], inputTransposedSizesInt[1]};
+      gradWeightViewShapeInt.push_back(gradOutputSizesInt[1]);
+      gradWeightViewShapeInt.insert(
+          gradWeightViewShapeInt.end(),
+          {gradWeightSizesInt[2], gradWeightSizesInt[3]});
+
+      SmallVector<Value> gradWeightViewShapeValue;
+      for (unsigned i = 0; i < gradWeightViewShapeInt.size(); i++) {
+        gradWeightViewShapeValue.push_back(
+            rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(gradWeightViewShapeInt[i])));
+      }
+
+      Value gradWeightViewShapeList =
+          rewriter.create<Torch::PrimListConstructOp>(
+              loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
+              gradWeightViewShapeValue);
+
+      BaseTensorType gradWeightTypeForView =
+          gradWeightTy
+              .getWithSizesAndDtype(llvm::ArrayRef(gradWeightViewShapeInt),
+                                    gradWeightTy.getOptionalDtype())
+              .cast<BaseTensorType>();
+      gradWeight = rewriter.create<Torch::AtenViewOp>(
+          loc, gradWeightTypeForView, gradWeight, gradWeightViewShapeList);
+
+      gradWeightTy = gradWeight.getType().cast<BaseTensorType>();
+      SmallVector<int64_t, 5> gradWeightDimsOrder =
+          computeDimsOrderForMoveDim(0, 2, gradWeightViewShapeInt.size());
+      SmallVector<int64_t, 5> gradWeightMoveDimShape;
+      for (unsigned i = 0; i < gradWeightDimsOrder.size(); i++) {
+        gradWeightMoveDimShape.push_back(
+            gradWeightViewShapeInt[gradWeightDimsOrder[i]]);
+      }
+      BaseTensorType gradWeightTypeForMoveDim =
+          gradWeightTy
+              .getWithSizesAndDtype(llvm::ArrayRef(gradWeightMoveDimShape),
                                     gradWeightTy.getOptionalDtype())
               .cast<BaseTensorType>();
 
-      Value dim = rewriter.create<ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(i + 2));
-      Value length = rewriter.create<Torch::AtenSizeIntOp>(loc, weight, dim);
-      gradWeight = rewriter.create<Torch::AtenNarrowOp>(
-          loc, gradWeightNarrowTy, gradWeight, dim, /*start=*/cstZero, length);
+      gradWeight = rewriter.create<AtenMovedimIntOp>(
+          loc, gradWeightTypeForMoveDim, gradWeight, /*source=*/cstZero,
+          /*destination=*/cstTwo);
+
+      Value gradIntList = rewriter.create<Torch::PrimListConstructOp>(
+          loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
+          llvm::ArrayRef{cstZero});
+      gradWeight = rewriter.create<Torch::AtenSumDimIntListOp>(
+          loc, op.getResultTypes()[1], gradWeight, gradIntList, cstFalse,
+          cstNone);
+    } else {
+      Value gradOutputTransposed = rewriter.create<Torch::AtenTransposeIntOp>(
+          loc, getTransposedType(gradOutput.getType(), 0, 1), gradOutput,
+          cstZero, cstOne);
+      // Convolve input with grad_output.
+      gradWeight = rewriter.create<Torch::AtenConvolutionOp>(
+          loc, getTransposedType(op.getResultTypes()[1], 0, 1), inputTransposed,
+          gradOutputTransposed, cstNone, op.getStride(), op.getPadding(),
+          op.getDilation(), op.getTransposed(), op.getOutputPadding(),
+          op.getGroups());
+      gradWeight = rewriter.create<Torch::AtenTransposeIntOp>(
+          loc, op.getResultTypes()[1], gradWeight, cstZero, cstOne);
     }
 
-    SmallVector<int64_t, 5> gradWeightViewShapeInt{inputTransposedSizesInt[0],
-                                                   inputTransposedSizesInt[1]};
-    gradWeightViewShapeInt.push_back(gradOutputSizesInt[1]);
-    gradWeightViewShapeInt.insert(
-        gradWeightViewShapeInt.end(),
-        {gradWeightSizesInt[2], gradWeightSizesInt[3]});
-
-    SmallVector<Value> gradWeightViewShapeValue;
-    for (unsigned i = 0; i < gradWeightViewShapeInt.size(); i++)
-      gradWeightViewShapeValue.push_back(rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(gradWeightViewShapeInt[i])));
-
-    // gradWeightViewShapeValue.push_back(
-    //     rewriter.create<Torch::AtenSizeIntOp>(loc, input, cstOne));
-    // gradWeightViewShapeValue.push_back(
-    //     rewriter.create<Torch::AtenSizeIntOp>(loc, input, cstZero));
-    // gradWeightViewShapeValue.push_back(
-    //     rewriter.create<Torch::AtenSizeIntOp>(loc, gradOutput, cstOne));
-    // gradWeightViewShapeValue.push_back(
-    //     rewriter.create<Torch::AtenSizeIntOp>(loc, weight, cstTwo));
-    // gradWeightViewShapeValue.push_back(
-    //     rewriter.create<Torch::AtenSizeIntOp>(loc, weight, cstThree));
-
-    Value gradWeightViewShapeList = rewriter.create<Torch::PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
-        gradWeightViewShapeValue);
-
-    BaseTensorType gradWeightTypeForView =
-        gradWeightTy
-            .getWithSizesAndDtype(llvm::ArrayRef(gradWeightViewShapeInt),
-                                  gradWeightTy.getOptionalDtype())
-            .cast<BaseTensorType>();
-    gradWeight = rewriter.create<Torch::AtenViewOp>(
-        loc, gradWeightTypeForView, gradWeight, gradWeightViewShapeList);
-
-    gradWeightTy = gradWeight.getType().cast<BaseTensorType>();
-    SmallVector<int64_t, 5> gradWeightDimsOrder =
-        computeDimsOrderForMoveDim(0, 2, gradWeightViewShapeInt.size());
-    SmallVector<int64_t, 5> gradWeightMoveDimShape;
-    for (unsigned i = 0; i < gradWeightDimsOrder.size(); i++)
-      gradWeightMoveDimShape.push_back(
-          gradWeightViewShapeInt[gradWeightDimsOrder[i]]);
-    BaseTensorType gradWeightTypeForMoveDim =
-        gradWeightTy
-            .getWithSizesAndDtype(llvm::ArrayRef(gradWeightMoveDimShape),
-                                  gradWeightTy.getOptionalDtype())
-            .cast<BaseTensorType>();
-
-    gradWeight = rewriter.create<AtenMovedimIntOp>(
-        loc, gradWeightTypeForMoveDim, gradWeight, /*source=*/cstZero,
-        /*destination=*/cstTwo);
-
+    // Computing Grad Bias.
     SmallVector<Value> dimIntList{cstZero};
-    Value gradIntList = rewriter.create<Torch::PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
-        dimIntList);
-    gradWeight = rewriter.create<Torch::AtenSumDimIntListOp>(
-        loc, op.getResultTypes()[1], gradWeight, gradIntList, cstFalse,
-        cstNone);
-
     for (unsigned i = 2; i < gradRank; i++)
       dimIntList.push_back(rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(i)));
-    gradIntList = rewriter.create<Torch::PrimListConstructOp>(
+    Value gradIntList = rewriter.create<Torch::PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
         dimIntList);
 
-    // Computing Grad Bias.
     // Sum grad_output along dim 1.
     Value gradBias = rewriter.create<Torch::AtenSumDimIntListOp>(
         loc, op.getResultTypes()[2], gradOutput, gradIntList, cstFalse,

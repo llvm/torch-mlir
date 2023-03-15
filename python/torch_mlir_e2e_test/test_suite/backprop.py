@@ -88,9 +88,9 @@ class ConvolutionBackwardModule2D(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([2, 2, 5, 5], torch.float32, True),
-        ([2, 2, 6, 6], torch.float32, True),
-        ([2, 2, 2, 2], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, grad_out, input_vec, weight):
         return torch.ops.aten.convolution_backward(
@@ -155,9 +155,9 @@ class ConvolutionBackwardModule2DPadded(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([2, 2, 8, 8], torch.float32, True),
-        ([2, 2, 6, 6], torch.float32, True),
-        ([2, 2, 3, 3], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, grad_out, input_vec, weight):
         return torch.ops.aten.convolution_backward(
