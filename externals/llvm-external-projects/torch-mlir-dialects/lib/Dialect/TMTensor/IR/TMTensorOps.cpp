@@ -204,7 +204,7 @@ LogicalResult ScanOp::generateScalarImplementation(OpBuilder &b, Location loc,
   }
 
   auto scfIf = b.create<scf::IfOp>(
-      loc, TypeRange{}, cond,
+      loc, cond,
       [&](OpBuilder &b, Location loc) {
         if (isInclusive) {
           auto value = b.create<memref::LoadOp>(loc, input(), indices);
@@ -232,7 +232,7 @@ LogicalResult ScanOp::generateScalarImplementation(OpBuilder &b, Location loc,
 
   auto &srcBlock = getRegion().front();
   Region &thisRegion = scfIf.getElseRegion();
-  BlockAndValueMapping bvm;
+  IRMapping bvm;
   {
     OpBuilder::InsertionGuard guard(b);
     auto &block = thisRegion.front();
@@ -266,7 +266,7 @@ static LogicalResult foldMemRefCast(Operation *op) {
   return success(folded);
 }
 
-LogicalResult ScanOp::fold(ArrayRef<Attribute>,
+LogicalResult ScanOp::fold(FoldAdaptor adaptor,
                            SmallVectorImpl<OpFoldResult> &) {
   return foldMemRefCast(*this);
 }
@@ -461,7 +461,7 @@ LogicalResult ScatterOp::generateScalarImplementation(OpBuilder &b,
 
   Value init = b.create<memref::LoadOp>(loc, original(), starts);
 
-  BlockAndValueMapping bvm;
+  IRMapping bvm;
   Block &block = getRegion().front();
   bvm.map(block.getArgument(0), update);
   bvm.map(block.getArgument(1), init);

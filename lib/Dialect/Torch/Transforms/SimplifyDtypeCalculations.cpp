@@ -46,10 +46,15 @@ static LogicalResult refineDtypeCalculateResult(DtypeCalculateOp op,
     impliedTypeFromDtype = *torchType;
   } else if (auto originalResultType =
                  result.getType().dyn_cast<BaseTensorType>()) {
+    FailureOr<Type> builtinType =
+        getTypeForScalarType(op->getContext(), dtypeScalarType);
+    if (failed(builtinType)) {
+      return rewriter.notifyMatchFailure(
+          op, "Failed to convert `dtypeScalarType` to a builtin type");
+    }
     impliedTypeFromDtype =
         originalResultType.cast<BaseTensorType>().getWithSizesAndDtype(
-            originalResultType.getOptionalSizes(),
-            getTypeForScalarType(op->getContext(), dtypeScalarType));
+            originalResultType.getOptionalSizes(), *builtinType);
   } else {
     return rewriter.notifyMatchFailure(op,
                                        "Unimplemented: Expected result type to "

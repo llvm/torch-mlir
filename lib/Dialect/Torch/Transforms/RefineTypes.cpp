@@ -59,7 +59,6 @@
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -81,7 +80,9 @@ using namespace mlir::torch::Torch;
 // -----------------------------------------------------------------------------
 
 static Type getTypeForDTypeInteger(MLIRContext *context, int64_t dtypeInt) {
-  return getTypeForScalarType(context, (torch_upstream::ScalarType)dtypeInt);
+  FailureOr<Type> result =
+      getTypeForScalarType(context, (torch_upstream::ScalarType)dtypeInt);
+  return failed(result) ? Type() : *result;
 }
 
 static Type getDtypeOrDefault(MLIRContext *context, Value optionalDtype,
@@ -111,24 +112,6 @@ static torch_upstream::TypeKind getTypeKind(Type type) {
   return torch_upstream::TypeKind::AnyType;
 }
 
-/// Returns the dtype that assumes information from both `lhs` and `rhs`.
-/// Returns `std::nullopt` if the types are contradictory. Note this can only
-/// be used on the `dtype` from tensors and can't be used on other types like
-/// scalar types.
-static std::optional<Type> meetElementTypes(Type lhs, Type rhs) {
-  auto isNullOrBuiltIn = [](Type type) { return !type || isBuiltInType(type); };
-  (void)isNullOrBuiltIn;
-  assert(isNullOrBuiltIn(lhs) && "`lhs` must be a builtin type");
-  assert(isNullOrBuiltIn(rhs) && "`rhs` must be a builtin type");
-
-  if (!lhs)
-    return rhs;
-  if (!rhs)
-    return lhs;
-  if (lhs == rhs)
-    return lhs;
-  return std::nullopt;
-}
 
 enum class OptionalKnowledge {
   unKnown,
@@ -475,7 +458,8 @@ private:
   void visitAtenToDtypeLikeOp(OpTy op, ArrayRef<const ValueState *> operands);
   template <typename OpTy>
   void visitTypeConversionOp(OpTy op, ArrayRef<const ValueState *> operands);
-  void visitAtenCatOp(AtenCatOp op, ArrayRef<const ValueState *> operands);
+  template <typename OpTy>
+  void visitAtenCatLikeOp(OpTy op, ArrayRef<const ValueState *> operands);
 
   template <typename OpTy>
   void visitAtenSoftmaxLikeOp(OpTy op, ArrayRef<const ValueState *> operands);
@@ -563,7 +547,9 @@ static Type getPromotedResultDType(ValueKnowledge *tensor, Type scalarType) {
                                 /*skipRankCheck=*/true);
   state =
       updateResultTypeState(getDefaultDtypeForTorchScalar(scalarType), state);
-  return getTypeForScalarType(scalarType.getContext(), result_type(state));
+  FailureOr<Type> result =
+      getTypeForScalarType(scalarType.getContext(), result_type(state));
+  return failed(result) ? Type() : *result;
 }
 
 static SmallVector<std::optional<bool>>
@@ -600,7 +586,8 @@ static Type getPromotedResultType(MLIRContext *context,
       return Type();
     state = updateResultTypeState(tensor, rankIsNonZero, state, skipRankCheck);
   }
-  return getTypeForScalarType(context, result_type(state));
+  FailureOr<Type> result = getTypeForScalarType(context, result_type(state));
+  return failed(result) ? Type() : *result;
 }
 
 static Type getPromotedResultTypeAssumingNonZeroRank(
@@ -649,23 +636,26 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenDetachOp, AtenMaskedFill_ScalarOp, AtenCopyOp, AtenCumsumOp,
           AtenLayerNormOp, AtenClampOp, AtenClampMinOp, AtenClampMaxOp,
           AtenNegOp, AtenFloorOp, Aten_SoftmaxBackwardDataOp, AtenDropoutOp,
-          AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp,
-          AtenAbsOp, AtenThresholdOp, AtenSquareOp, AtenUniformOp,
-          AtenBernoulliOp, AtenBernoulli_FloatOp, AtenBernoulliTensorOp,
+          AtenTanhBackwardOp, AtenHardtanhBackwardOp,
+          Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp, AtenAbsOp,
+          AtenThresholdOp, AtenSquareOp, AtenUniformOp, AtenBernoulliOp,
+          AtenBernoulli_FloatOp, AtenBernoulliTensorOp,
           ValsemVariantAtenBernoulliFloatOp, AtenBernoulliTensorOp,
-          AtenFillScalarOp, AtenHardsigmoidOp, AtenCloneOp, AtenHardswishOp,
-          AtenSiluOp, AtenHardtanhOp, AtenMaskedSelectOp, AtenMaxPool2dOp,
-          AtenAvgPool2dOp, AtenAdaptiveAvgPool2dOp, AtenFlattenUsingIntsOp,
-          AtenSqueezeOp, AtenSqueezeDimOp, AtenUnsqueezeOp, AtenViewOp,
-          Aten_UnsafeViewOp, AtenReshapeOp, Aten_ReshapeAliasOp, AtenResize_Op,
-          AtenTransposeIntOp, AtenTOp, AtenPermuteOp, AtenIndexSelectOp,
-          AtenSelectIntOp, AtenSelectScatterOp, AtenNarrowOp, AtenSliceTensorOp,
-          AtenSliceScatterOp, AtenGatherOp, AtenExpandOp, AtenExpandAsOp,
-          AtenBroadcastToOp, AtenRepeatOp, AtenConstantPadNdOp, AtenPadOp,
-          AtenZero_Op, AtenIndexTensorOp, Aten_IndexPutImplOp, AtenIndexPutOp,
-          AtenCopyOp, AtenZeroOp, AtenIndexPutHackedTwinOp, AtenPreluOp,
-          AtenMaskedFillScalarOp, AtenFlipOp, PrimAbsScalarOp, AtenNumpyTOp,
-          AtenTriuOp, AtenMaskedFillTensorOp, AtenRollOp, AtenPowTensorTensorOp,
+          AtenBernoulliPOp, AtenFillScalarOp, AtenHardsigmoidOp, AtenCloneOp,
+          AtenHardswishOp, AtenSiluOp, AtenHardtanhOp, AtenMaskedSelectOp,
+          AtenMaxPool2dOp, AtenAvgPool2dOp, AtenAdaptiveAvgPool2dOp,
+          AtenFlattenUsingIntsOp, AtenSqueezeOp, AtenSqueezeDimOp,
+          AtenUnsqueezeOp, AtenViewOp, Aten_UnsafeViewOp, AtenReshapeOp,
+          Aten_ReshapeAliasOp, AtenResize_Op, AtenTransposeIntOp, AtenTOp,
+          AtenPermuteOp, AtenIndexSelectOp, AtenSelectIntOp,
+          AtenSelectScatterOp, AtenNarrowOp, AtenSliceTensorOp,
+          AtenScatterReduceTwoOp, AtenSliceScatterOp, AtenGatherOp,
+          AtenExpandOp, AtenExpandAsOp, AtenBroadcastToOp, AtenRepeatOp,
+          AtenConstantPadNdOp, AtenPadOp, AtenZero_Op, AtenIndexTensorOp,
+          Aten_IndexPutImplOp, AtenIndexPutOp, AtenCopyOp, AtenZeroOp,
+          AtenIndexPutHackedTwinOp, AtenPreluOp, AtenMaskedFillScalarOp,
+          AtenFlipOp, PrimAbsScalarOp, AtenNumpyTOp, AtenTriuOp,
+          AtenMaskedFillTensorOp, AtenRollOp, AtenPowTensorTensorOp,
           AtenLiftFreshCopyOp, AtenIndexTensorHackedTwinOp,
           AtenUpsampleNearest2dOp, AtenMishOp, AtenRoundOp, AtenFillTensorOp,
           AtenUpsampleNearest2dBackwardOp, AtenLeakyReluBackwardOp>(op)) {
@@ -970,8 +960,15 @@ void TypeAnalysis::visitOperation(Operation *op,
   } else if (auto newEmpty = dyn_cast<AtenNewEmptyOp>(op)) {
     visitConstantTensorNewLikeOp<AtenNewEmptyOp>(newEmpty, operands);
     return;
+  } else if (auto newEmptyStrided = dyn_cast<AtenNewEmptyStridedOp>(op)) {
+    visitConstantTensorNewLikeOp<AtenNewEmptyStridedOp>(newEmptyStrided,
+                                                        operands);
+    return;
   } else if (auto randLike = dyn_cast<AtenRandLikeOp>(op)) {
     visitConstantTensorAllocLikeOp<AtenRandLikeOp>(randLike, operands);
+    return;
+  } else if (auto randLike = dyn_cast<AtenRandnLikeOp>(op)) {
+    visitConstantTensorAllocLikeOp<AtenRandnLikeOp>(randLike, operands);
     return;
   } else if (auto toCopy = dyn_cast<Aten_ToCopyOp>(op)) {
     visitConstantTensorAllocLikeOp<Aten_ToCopyOp>(toCopy, operands);
@@ -1008,7 +1005,10 @@ void TypeAnalysis::visitOperation(Operation *op,
   }
 
   if (auto cat = dyn_cast<AtenCatOp>(op)) {
-    visitAtenCatOp(cat, operands);
+    visitAtenCatLikeOp<AtenCatOp>(cat, operands);
+    return;
+  } else if (auto stack = dyn_cast<AtenStackOp>(op)) {
+    visitAtenCatLikeOp<AtenStackOp>(stack, operands);
     return;
   }
 
@@ -1111,6 +1111,22 @@ void TypeAnalysis::visitOperation(Operation *op,
     knowledge.dtype = getDtypeOrDefault(op->getContext(),
                                         randnGenerator.getDtype(), defaultDtype);
     incorporateKnowledge(randnGenerator.getResult(), knowledge);
+    return;
+  }
+
+  if (auto bucketize = dyn_cast<AtenBucketizeTensorOp>(op)) {
+    auto knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    bool outInt32;
+    if (matchPattern(bucketize.getOutInt32(), m_TorchConstantBool(&outInt32)) &&
+        outInt32) {
+      knowledge.dtype =
+          IntegerType::get(op->getContext(), 32, IntegerType::Signed);
+    } else {
+      knowledge.dtype =
+          IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+    }
+    incorporateKnowledge(bucketize.getResult(), knowledge);
     return;
   }
 
@@ -1338,30 +1354,26 @@ void TypeAnalysis::visitTypeConversionOp(
 // `torch.aten.cat` concatenates the given sequence of seq tensors in the given
 // dimension. The output has the same sizes as the input for all dimensions
 // except the given dimension.
-void TypeAnalysis::visitAtenCatOp(AtenCatOp op,
-                                  ArrayRef<const ValueState *> operands) {
+template <typename OpTy>
+void TypeAnalysis::visitAtenCatLikeOp(OpTy op,
+                                      ArrayRef<const ValueState *> operands) {
   auto tensorList = op.getTensors();
   auto knowledge =
       ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-  auto listConstruct = tensorList.getDefiningOp<PrimListConstructOp>();
+  auto listConstruct = tensorList.template getDefiningOp<PrimListConstructOp>();
   if (!listConstruct) {
     incorporateKnowledge(op.getResult(), knowledge);
     return;
   }
 
-  auto tensors = llvm::to_vector<4>(
-      llvm::map_range(listConstruct.getElements(), [&](Value v) -> ValueKnowledge {
-        return getLatticeElement(v)->getValue();
+  SmallVector<ValueKnowledge*> tensors = llvm::to_vector(
+      llvm::map_range(listConstruct.getElements(), [&](Value v) -> ValueKnowledge* {
+        return &getLatticeElement(v)->getValue();
       }));
-  for (auto tensor : tensors) {
-    auto newDtype = meetElementTypes(knowledge.dtype, tensor.dtype);
-    if (!newDtype.has_value()) {
-      incorporateKnowledge(op.getResult(), knowledge);
-      return;
-    }
-    knowledge.dtype = newDtype.value();
-  }
-  incorporateKnowledge(op.getResult(), knowledge);
+
+  knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
+      op->getContext(), tensors);
+  incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 void TypeAnalysis::visitNumToTensorOp(PrimNumToTensorScalarOp op) {
@@ -1436,12 +1448,16 @@ static Type getMostRefinedStaticType(Value v, DataFlowSolver &solver) {
     if (!latticeElement)
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
+    if (!knowledge.isInitialized)
+      return nullptr;
     return getRefinedTensorType(tensorType, knowledge);
   } else if (auto optionalType = v.getType().dyn_cast<OptionalType>()) {
     const ValueState *latticeElement = solver.lookupState<ValueState>(v);
     if (!latticeElement)
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
+    if (!knowledge.isInitialized)
+      return nullptr;
     if (knowledge.optional == OptionalKnowledge::isNone)
       return Torch::NoneType::get(v.getContext());
     else if (knowledge.optional == OptionalKnowledge::notNone) {
@@ -1456,6 +1472,8 @@ static Type getMostRefinedStaticType(Value v, DataFlowSolver &solver) {
     if (!latticeElement)
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
+    if (!knowledge.isInitialized)
+      return nullptr;
     if (knowledge.kind == torch_upstream::TypeKind::IntType)
       return Torch::IntType::get(v.getContext());
     if (knowledge.kind == torch_upstream::TypeKind::FloatType)

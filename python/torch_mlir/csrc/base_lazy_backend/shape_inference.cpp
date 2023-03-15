@@ -49,5 +49,12 @@ std::vector<torch::lazy::Shape> compute_shape_where(
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
+std::vector<torch::lazy::Shape> compute_shape_bucketize(
+    const at::Tensor& self, const at::Tensor& boundaries, bool out_int32,
+    bool right) {
+  auto dtype = out_int32 ? at::kInt : at::kLong;
+  return {Shape(dtype, self.sizes().vec())};
+}
+
 } // namespace lazy
 } // namespace torch

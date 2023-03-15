@@ -75,7 +75,7 @@ class SubFloatModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: SubFloatModule())
 def SubFloatModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(()).double(), torch.rand(()).double())
+    module.forward(tu.rand().double(), tu.rand().double())
 
 
 # ==============================================================================
@@ -146,7 +146,7 @@ class DivFloatModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: DivFloatModule())
 def DivFloatModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(()).double(), torch.rand(()).double())
+    module.forward(tu.rand().double(), tu.rand().double())
 
 
 # ==============================================================================
@@ -175,7 +175,7 @@ class CeilFloatModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: CeilFloatModule())
 def CeilFloatModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(()).double(), torch.rand(()).double())
+    module.forward(tu.rand().double(), tu.rand().double())
 
 
 # ==============================================================================
@@ -335,6 +335,59 @@ class BoolIntConstantModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: BoolIntConstantModule())
 def BoolIntConstantModule_basic(module, tu: TestUtils):
+    module.forward()
+
+# ==============================================================================
+
+class AtenIntBoolOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.bool, True),
+    ])
+    def forward(self, x):
+        return int(torch.ops.aten.Int(x))
+
+
+@register_test_case(module_factory=lambda: AtenIntBoolOpModule())
+def AtenIntBoolOpModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(low=0, high=2).bool())
+
+
+class AtenIntBoolOpConstTrueModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return int(torch.ops.aten.Int(True))
+
+
+@register_test_case(module_factory=lambda: AtenIntBoolOpConstTrueModule())
+def AtenIntBoolOpConstTrueModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenIntBoolOpConstFalseModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return int(torch.ops.aten.Int(False))
+
+
+@register_test_case(module_factory=lambda: AtenIntBoolOpConstFalseModule())
+def AtenIntBoolOpConstFalseModule_basic(module, tu: TestUtils):
     module.forward()
 
 # ==============================================================================

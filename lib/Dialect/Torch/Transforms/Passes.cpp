@@ -106,6 +106,7 @@ void mlir::torch::Torch::createTorchSimplificationPipeline(
   // Clean up again to avoid needing to to back around the fixed-point
   // iteration.
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createRecomposeComplexOps());
   // Reduce variants of ops to a smaller set of primitives.
   pm.addNestedPass<func::FuncOp>(createReduceOpVariantsPass());
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());

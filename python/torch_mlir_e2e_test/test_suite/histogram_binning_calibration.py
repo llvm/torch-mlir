@@ -89,7 +89,7 @@ class HistogramBinningCalibrationByFeature(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: HistogramBinningCalibrationByFeature())
 def HBC_basic(module, tu: TestUtils):
-    logits = torch.rand(NUM_LOGITS, dtype=torch.float)
+    logits = tu.rand(NUM_LOGITS)
     segment_lengths: Tensor = tu.randint(NUM_LOGITS, high=2).to(torch.int)
     segment_offsets: Tensor = torch.cumsum(segment_lengths, 0)
     segment_offsets: Tensor = torch.cat(

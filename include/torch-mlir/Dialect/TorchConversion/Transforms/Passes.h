@@ -30,10 +30,10 @@ void createTorchBackendToLinalgOnTensorsBackendPipeline(OpPassManager &pm);
 /// TOSA backend contract.
 void createTorchBackendToTosaBackendPipeline(OpPassManager &pm);
 
-// Do not register the torch-to-mhlo pipeline if mhlo target is disabled
-#ifdef TORCH_MLIR_ENABLE_MHLO
-struct MhloBackendPipelineOptions
-    : public PassPipelineOptions<MhloBackendPipelineOptions> {
+// Do not register the stablehlo options if the stablehlo target is disabled
+#ifdef TORCH_MLIR_ENABLE_STABLEHLO
+struct StablehloBackendPipelineOptions
+    : public PassPipelineOptions<StablehloBackendPipelineOptions> {
   Option<bool> enableStaticShape{
       *this, "enable-static-shape",
       llvm::cl::desc("Enable static shape conversion."), llvm::cl::init(false)};
@@ -46,9 +46,10 @@ struct MhloBackendPipelineOptions
       llvm::cl::init(false)};
 };
 
-void createTorchBackendToMhloBackendPipeline(
-    OpPassManager &pm, const MhloBackendPipelineOptions &options);
-std::unique_ptr<OperationPass<ModuleOp>> createVerifyMhloBackendContractPass();
+void createTorchBackendToStablehloBackendPipeline(
+    OpPassManager &pm, const StablehloBackendPipelineOptions &options);
+std::unique_ptr<OperationPass<ModuleOp>>
+createVerifyStablehloBackendContractPass();
 #endif
 
 std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();

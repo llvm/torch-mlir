@@ -13,8 +13,15 @@ jobs:
     # Don't run this in everyone's forks.
     if: github.repository == 'llvm/torch-mlir'
     steps:
+
+      - name: Prepare workspace
+        run: |
+          # Clear the workspace directory so that we don't run into errors about
+          # existing lock files.
+          sudo rm -rf $GITHUB_WORKSPACE/*
+
       - name: Checking out repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
 

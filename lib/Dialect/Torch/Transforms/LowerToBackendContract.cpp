@@ -285,19 +285,16 @@ public:
   }
 };
 
-class VerifyBackendContractPass
-    : public VerifyBackendContractBase<VerifyBackendContractPass> {
+class VerifyBackendContractNoDecompositionsPass
+    : public VerifyBackendContractNoDecompositionsBase<VerifyBackendContractNoDecompositionsPass> {
 public:
-  VerifyBackendContractPass() = default;
-  VerifyBackendContractPass(bool decompose,
-                            ArrayRef<std::string> backendLegalOps) {
-    this->decompose = decompose;
-    this->backendLegalOps = backendLegalOps;
-  }
+  VerifyBackendContractNoDecompositionsPass() = default;
+
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target =
-        getBackendContractTarget(context, decompose, backendLegalOps);
+        getBackendContractTarget(context, /*decompose*/false,
+                                 /*backendLegalOps*/{});
 
     if (!satisfiesBackendContract(getOperation(), target,
                                   /*actuallyEmitDiagnostics=*/true)) {
@@ -315,10 +312,8 @@ mlir::torch::Torch::createLowerToBackendContractPass(
 }
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::Torch::createVerifyBackendContractPass(
-    bool decompose, ArrayRef<std::string> backendLegalOps) {
-  return std::make_unique<VerifyBackendContractPass>(decompose,
-                                                     backendLegalOps);
+mlir::torch::Torch::createVerifyBackendContractNoDecompositionsPass() {
+  return std::make_unique<VerifyBackendContractNoDecompositionsPass>();
 }
 
 // The backend contract guarantees that ops with decompositions available will
@@ -347,6 +342,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenEmptyLikeOp>();
   target.addIllegalOp<AtenOnesLikeOp>();
   target.addIllegalOp<AtenZerosLikeOp>();
+  target.addIllegalOp<AtenStackOp>();
   target.addIllegalOp<AtenRollOp>();
   target.addIllegalOp<AtenRepeatOp>();
   target.addIllegalOp<AtenExpandOp>();
@@ -354,6 +350,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenWhereScalarOp>();
   target.addIllegalOp<AtenWhereScalarOtherOp>();
   target.addIllegalOp<AtenWhereScalarSelfOp>();
+  target.addIllegalOp<AtenMaskedFillScalarOp>();
   target.addIllegalOp<AtenConvolutionBackwardOverrideableOp>();
   target.addIllegalOp<AtenSizeOp>();
   target.addIllegalOp<AtenReshapeOp>();
@@ -362,6 +359,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenAddmmOp>();
   target.addIllegalOp<AtenMeanOp>();
   target.addIllegalOp<AtenMeanDimOp>();
+  target.addIllegalOp<AtenNormScalarOptDimOp>();
   target.addIllegalOp<AtenSelectIntOp>();
   target.addIllegalOp<AtenMvOp>();
   target.addIllegalOp<AtenTOp>();
@@ -394,6 +392,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<Aten_ReshapeAliasOp>();
   target.addIllegalOp<AtenBernoulliOp>();
   target.addIllegalOp<ValsemVariantAtenBernoulliFloatOp>();
+  target.addIllegalOp<AtenBernoulliPOp>();
   target.addIllegalOp<AtenBernoulliTensorOp>();
   target.addIllegalOp<AtenZeroOp>();
   target.addIllegalOp<AtenRandLikeOp>();
@@ -442,7 +441,10 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<PrimsSqrtOp>();
   target.addIllegalOp<AtenRandnOp>();
   target.addIllegalOp<AtenRandnGeneratorOp>();
+  target.addIllegalOp<AtenRandnLikeOp>();
   target.addIllegalOp<AtenVarMeanOp>();
+  target.addIllegalOp<AtenNewEmptyStridedOp>();
+  target.addIllegalOp<AtenBucketizeTensorOp>();
   for (std::string opName : backendLegalOps) {
     target.addLegalOp(OperationName(opName, context));
   }
