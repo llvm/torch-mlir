@@ -82,6 +82,44 @@ def Tcp_SigmoidOp : Tcp_UnaryElementwiseOp<"sigmoid"> {
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
 }
 
+def Tcp_MinOp : Tcp_BinaryElementwiseOp<"min", [SameOperandsAndResultElementType]> {
+  let summary = "Computes elementwise min";
+
+  let description = [{
+    Computes the elementwise min of `in1` and `in2`.
+  }];
+
+  let arguments = (ins
+    Tcp_Tensor:$in1,
+    Tcp_Tensor:$in2
+  );
+
+  let results = (outs
+    Tcp_Tensor:$out
+  );
+
+  let assemblyFormat = "$in1 `,` $in2 attr-dict `:` type($in1) `,` type($in2) `->` type($out)";
+}
+
+def Tcp_MaxOp : Tcp_BinaryElementwiseOp<"max", [SameOperandsAndResultElementType]> {
+  let summary = "Computes elementwise max";
+
+  let description = [{
+    Computes the elementwise max of `in1` and `in2`.
+  }];
+
+  let arguments = (ins
+    Tcp_Tensor:$in1,
+    Tcp_Tensor:$in2
+  );
+
+  let results = (outs
+    Tcp_Tensor:$out
+  );
+
+  let assemblyFormat = "$in1 `,` $in2 attr-dict `:` type($in1) `,` type($in2) `->` type($out)";
+}
+
 def Tcp_AddOp : Tcp_BinaryElementwiseOp<"add", [SameOperandsAndResultElementType]> {
   let summary = "Computes elementwise addition";
 

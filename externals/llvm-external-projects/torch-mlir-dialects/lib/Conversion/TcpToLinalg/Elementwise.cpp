@@ -106,6 +106,40 @@ createLinalgPayloadForElementwiseOp(Operation *op,
     return {b.create<arith::DivFOp>(loc, one, sum)};
   }
 
+  if (isa<MinOp>(op)) {
+    if (elemType.isa<mlir::FloatType>()) {
+      return {b.create<arith::MinFOp>(loc, payloadArgs[0], payloadArgs[1])};
+    }else if (elemType.isa<mlir::IntegerType>()){
+      mlir::IntegerType intElemType = elemType.dyn_cast<mlir::IntegerType>();
+      if (intElemType) {
+        if (intElemType.isSigned()) {
+          return {b.create<arith::MinSIOp>(loc, payloadArgs[0], payloadArgs[1])};
+        }else if (intElemType.isUnsigned()){
+          return {b.create<arith::MinUIOp>(loc, payloadArgs[0], payloadArgs[1])};
+        }
+      }
+   }
+   llvm_unreachable(
+      "unsupported element type in createLinalgPayloadForElementwiseOp");
+  }
+
+  if (isa<MaxOp>(op)) {
+    if (elemType.isa<mlir::FloatType>()) {
+      return {b.create<arith::MaxFOp>(loc, payloadArgs[0], payloadArgs[1])};
+    }else if (elemType.isa<mlir::IntegerType>()){
+      mlir::IntegerType intElemType = elemType.dyn_cast<mlir::IntegerType>();
+      if (intElemType) {
+        if (intElemType.isSigned()) {
+          return {b.create<arith::MaxSIOp>(loc, payloadArgs[0], payloadArgs[1])};
+        }else if (intElemType.isUnsigned()){
+          return {b.create<arith::MaxUIOp>(loc, payloadArgs[0], payloadArgs[1])};
+        }
+      }
+   }
+   llvm_unreachable(
+      "unsupported element type in createLinalgPayloadForElementwiseOp");
+  }
+
   if (isa<AddOp>(op)) {
     if (elemType.isa<mlir::FloatType>())
       return {b.create<arith::AddFOp>(loc, payloadArgs[0], payloadArgs[1])};
