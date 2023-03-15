@@ -429,6 +429,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::frobenius_norm.dim : (Tensor, int[], bool) -> (Tensor)")
     emit("aten::mse_loss : (Tensor, Tensor, int) -> (Tensor)")
     emit("aten::upsample_nearest2d_backward : (Tensor, int[], int[], float?, float?) -> (Tensor)")
+    emit("aten::cross_entropy_loss : (Tensor, Tensor, Tensor?, int, int, float) -> (Tensor)")
 
     # Misc tensor ops.
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")
