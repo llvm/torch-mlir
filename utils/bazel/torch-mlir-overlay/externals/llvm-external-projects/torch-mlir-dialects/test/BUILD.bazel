@@ -22,6 +22,7 @@ expand_template(
         "\"@TORCH_MLIR_BINARY_DIR@\"": "os.path.join(os.environ['TEST_SRCDIR'], 'torch-mlir')",
         "\"@LLVM_TOOLS_DIR@\"": "os.path.join(os.environ['TEST_SRCDIR'], 'llvm-project', 'llvm')",
         "@TORCH_MLIR_DIALECTS_ENABLE_TCP@": "1",
+        "@TORCH_MLIR_ENABLE_STABLEHLO@": "1",
     },
     template = "lit.site.cfg.py.in",
 )

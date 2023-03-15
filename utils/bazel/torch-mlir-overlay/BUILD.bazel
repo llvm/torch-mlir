@@ -939,6 +939,7 @@ gentbl_cc_library(
             [
                 "-gen-pass-decls",
                 "-DTORCH_MLIR_DIALECTS_ENABLE_TCP",
+                "-DTORCH_MLIR_ENABLE_STABLEHLO",
             ],
             "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Conversion/Passes.h.inc",
         ),
@@ -948,6 +949,27 @@ gentbl_cc_library(
     deps = [
         ":TorchMLIRDialectsConversionPassesTdFiles",
         "@llvm-project//mlir:PassBaseTdFiles",
+    ],
+)
+
+cc_library(
+    name = "TorchMLIRStablehloToTcp",
+    srcs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Conversion/PassDetail.h",
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Conversion/StablehloToTcp/StablehloToTcp.cpp",
+    ],
+    hdrs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Conversion/StablehloToTcp/StablehloToTcp.h",
+    ],
+    strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
+    deps = [
+        ":TorchMLIRDialectsConversionPassesIncGen",
+        ":TorchMLIRTcpDialect",
+        "@llvm-project//mlir:Dialect",
+        "@llvm-project//mlir:LinalgDialect",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Transforms",
+        "@mlir-hlo//stablehlo:stablehlo_ops",
     ],
 )
 
@@ -1007,9 +1029,13 @@ cc_library(
     hdrs = [
         "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Conversion/Passes.h",
     ],
-    defines = ["TORCH_MLIR_DIALECTS_ENABLE_TCP"],
+    defines = [
+        "TORCH_MLIR_DIALECTS_ENABLE_TCP",
+        "TORCH_MLIR_ENABLE_STABLEHLO"
+    ],
     strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
     deps = [
+        ":TorchMLIRStablehloToTcp",
         ":TorchMLIRTcpToArith",
         ":TorchMLIRTcpToLinalg",
     ],
