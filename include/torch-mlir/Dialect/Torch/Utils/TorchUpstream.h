@@ -9,7 +9,6 @@
 #define TORCHMLIR_DIALECT_TORCH_UPSTREAM_H
 
 #include "mlir/Support/LLVM.h"
-#include "llvm/ADT/StringRef.h"
 
 // For layering reasons, the parts of the core MLIR compiler code written in C++
 // never take a C++ dependency on Torch itself (any code depending on Torch C++
@@ -160,15 +159,6 @@ enum Layout { Strided, Sparse, SparseCsr, Mkldnn, NumOptions };
 // https://github.com/llvm/torch-mlir/blob/main/include/torch-mlir/Dialect/Torch/Utils/TorchUpstream.h
 //===-----------------------------------------------------------------------===//
 enum EmbeddingBagMode { MODE_SUM, MODE_MEAN, MODE_MAX };
-
-//===----------------------------------------------------------------------===//
-// Possible value for `reduce` argument for Scatter reduce ops.
-// Source:
-// https://github.com/llvm/torch-mlir/blob/main/include/torch-mlir/Dialect/Torch/Utils/TorchUpstream.h
-//===-----------------------------------------------------------------------===//
-enum ReductionType { MAX, MEAN, MIN, SUM, PROD };
-
-ReductionType get_reduction_enum(const llvm::StringRef &reduce);
 
 } // namespace torch_upstream
 } // namespace torch

@@ -1,3 +1,6 @@
--r pytorch-requirements.txt
 -r build-requirements.txt
--r test-requirements.txt
+
+# Test Requirements
+pillow
+dill
+multiprocess

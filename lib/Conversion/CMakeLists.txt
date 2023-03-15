@@ -2,8 +2,8 @@ add_subdirectory(TorchToLinalg)
 add_subdirectory(TorchToSCF)
 add_subdirectory(TorchToArith)
 add_subdirectory(TorchToTosa)
-if(TORCH_MLIR_ENABLE_STABLEHLO)
-  add_subdirectory(TorchToStablehlo)
+if(TORCH_MLIR_ENABLE_MHLO)
+  add_subdirectory(TorchToMhlo)
 endif()
 add_subdirectory(TorchToTMTensor)
 add_subdirectory(TorchConversionToMLProgram)
@@ -17,8 +17,10 @@ set(linked_libs TorchMLIRTorchToLinalg
                 TorchMLIRTorchToTMTensor
                 TorchMLIRTorchConversionToMLProgram
                 TorchMLIRConversionUtils)
-if(TORCH_MLIR_ENABLE_STABLEHLO)
-  list(APPEND linked_libs TorchMLIRTorchToStablehlo)
+if(TORCH_MLIR_ENABLE_MHLO)
+  list(APPEND linked_libs
+    MhloPasses
+    TorchMLIRTorchToMhlo)
 endif()
 
 add_mlir_library(TorchMLIRConversionPasses

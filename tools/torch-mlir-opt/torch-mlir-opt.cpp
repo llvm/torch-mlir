@@ -12,10 +12,6 @@
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "torch-mlir/InitAll.h"
 
-#ifdef TORCH_MLIR_ENABLE_STABLEHLO
-#include "stablehlo/dialect/Register.h"
-#endif
-
 using namespace mlir;
 
 int main(int argc, char **argv) {
@@ -25,10 +21,7 @@ int main(int argc, char **argv) {
   DialectRegistry registry;
   registerAllDialects(registry);
   mlir::torch::registerAllDialects(registry);
-  
-#ifdef TORCH_MLIR_ENABLE_STABLEHLO
-  mlir::stablehlo::registerAllDialects(registry);
-#endif  
+
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "MLIR modular optimizer driver\n", registry,
                         /*preloadDialectsInContext=*/false));

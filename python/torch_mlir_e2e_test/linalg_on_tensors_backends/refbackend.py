@@ -162,7 +162,7 @@ LOWERING_PIPELINE = "builtin.module(" + ",".join([
     "convert-math-to-libm",
     "convert-linalg-to-llvm",
     "expand-strided-metadata",
-    "finalize-memref-to-llvm",
+    "convert-memref-to-llvm",
     "lower-affine",
     "func.func(convert-arith-to-llvm)",
     "convert-func-to-llvm",

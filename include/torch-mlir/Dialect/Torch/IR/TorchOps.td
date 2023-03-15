@@ -376,6 +376,9 @@ def Torch_PrimListUnpackOp: Torch_Op<"prim.ListUnpack", [
 
 def Torch_PrimTupleConstructOp: Torch_Op<"prim.TupleConstruct", [
     Pure,
+    TypesMatchWith<"contained types correspond to operand types",
+    "elements", "result", "Torch::TupleType::get($_ctxt, llvm::to_vector<6>($_self))",
+    "isValidSubtype">,
     AllowedInModuleInitializer,
   ]> {
   let summary = "TorchScript prim::TupleConstruct op";
@@ -394,8 +397,6 @@ def Torch_PrimTupleConstructOp: Torch_Op<"prim.TupleConstruct", [
   let assemblyFormat = [{
     $elements attr-dict `:` qualified(type($elements)) `->` qualified(type($result))
   }];
-
-  let hasVerifier = 1;
 }
 
 def Torch_PrimListConstructOp: Torch_Op<"prim.ListConstruct", [

@@ -15,10 +15,10 @@ class BertTinyWrapper(torch.nn.Module):
 model = BertTinyWrapper()
 model.eval()
 data = torch.randint(30522, (2, 128))
-out_stablehlo_mlir_path = "./bert_tiny_stablehlo.mlir"
+out_mhlo_mlir_path = "./bert_tiny_mhlo.mlir"
 
-module = torch_mlir.compile(model, data, output_type=torch_mlir.OutputType.STABLEHLO, use_tracing=True)
-with open(out_stablehlo_mlir_path, "w", encoding="utf-8") as outf:
+module = torch_mlir.compile(model, data, output_type=torch_mlir.OutputType.MHLO, use_tracing=True)
+with open(out_mhlo_mlir_path, "w", encoding="utf-8") as outf:
     outf.write(str(module))
 
-print(f"StableHLO IR of tiny bert successfully written into {out_stablehlo_mlir_path}")
+print(f"MHLO IR of tiny bert successfully written into {out_mhlo_mlir_path}")

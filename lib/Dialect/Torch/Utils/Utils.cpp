@@ -83,10 +83,9 @@ Type Torch::getTypeForTorchType(
   llvm::report_fatal_error("unhandled type for getTypeForTorchType");
 }
 
-FailureOr<Type>
-Torch::getTypeForScalarType(MLIRContext *context,
-                            torch_upstream::ScalarType dtypeInt,
-                            mlir::IntegerType::SignednessSemantics signedness) {
+Type Torch::getTypeForScalarType(
+    MLIRContext *context, torch_upstream::ScalarType dtypeInt,
+    mlir::IntegerType::SignednessSemantics signedness) {
   switch (dtypeInt) {
   case torch_upstream::ScalarType::Float:
     return Float32Type::get(context);
@@ -111,8 +110,6 @@ Torch::getTypeForScalarType(MLIRContext *context,
     return mlir::ComplexType::get(Float64Type::get(context));
   case torch_upstream::ScalarType::ComplexDouble:
     return mlir::ComplexType::get(Float128Type::get(context));
-  case torch_upstream::ScalarType::Undefined:
-    return failure();
   default:
     llvm::report_fatal_error("unhandled type for getTypeForScalarType");
   }
@@ -126,7 +123,6 @@ Torch::getTorchTypeForScalarType(MLIRContext *context,
     return Torch::FloatType::get(context);
   case torch_upstream::ScalarType::Long:
     return Torch::IntType::get(context);
-  case torch_upstream::ScalarType::Undefined:
   default:
     return failure();
   }

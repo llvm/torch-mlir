@@ -7,32 +7,28 @@ from torch_mlir.ir import *
 from torch_mlir.passmanager import *
 from torch_mlir.compiler_utils import run_pipeline_with_repro_report
 
-from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import (
-    RefBackendLinalgOnTensorsBackend,
-)
+from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
 
-from .abc import StablehloBackend
+from .abc import MhloBackend
 
 __all__ = [
-    "LinalgOnTensorsStablehloBackend",
+    "LinalgOnTensorsMhloBackend",
 ]
 
-
-class LinalgOnTensorsStablehloBackend(StablehloBackend):
-    """Main entry-point for the linalg-on-tensors based StableHLO backend.
+class LinalgOnTensorsMhloBackend(MhloBackend):
+    """Main entry-point for the linalg-on-tensors based MHLO backend.
 
     This currently uses the linalg-on-tensors RefBackend for actual execution.
     """
-
     def __init__(self):
         super().__init__()
         self.refbackend = RefBackendLinalgOnTensorsBackend()
 
     def compile(self, imported_module: Module):
-        """Compiles an imported module that satisfied the StableHLO backend contract.
+        """Compiles an imported module that satisfied the MHLO backend contract.
 
         Args:
-          imported_module: The MLIR module consisting of funcs in the StableHLO
+          imported_module: The MLIR module consisting of funcs in the MHLO
             dialect.
         Returns:
           An opaque, backend specific compiled artifact object that can be
@@ -40,9 +36,8 @@ class LinalgOnTensorsStablehloBackend(StablehloBackend):
         """
         run_pipeline_with_repro_report(
             imported_module,
-            "builtin.module(func.func(chlo-legalize-to-hlo),stablehlo-legalize-to-hlo,func.func(canonicalize,cse,symbolic-shape-optimization,hlo-legalize-to-linalg,canonicalize))",
-            "Lowering StableHLO to Linalg-on-Tensors",
-        )
+            "builtin.module(func.func(symbolic-shape-optimization),func.func(hlo-legalize-to-linalg),func.func(canonicalize))",
+            "Lowering MLIR-HLO to Linalg-on-Tensors")
         return self.refbackend.compile(imported_module)
 
     def load(self, module):

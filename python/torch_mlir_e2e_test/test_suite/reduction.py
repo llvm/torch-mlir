@@ -315,44 +315,6 @@ def ReduceMaxAlongDim_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-class ReduceMaxAlongDimSignedInt(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.int64, True),
-    ])
-    def forward(self, a):
-        return torch.ops.aten.max(a, 1)
-
-
-@register_test_case(module_factory=lambda: ReduceMaxAlongDimSignedInt())
-def ReduceMaxAlongDimSignedInt_basic(module, tu: TestUtils):
-    module.forward(tu.randint(3, 4, 5, low=-100, high=100))
-
-# ==============================================================================
-
-class ReduceMaxAlongDimUnsignedInt(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.uint8, True),
-    ])
-    def forward(self, a):
-        return torch.ops.aten.max(a, 1)
-
-
-@register_test_case(module_factory=lambda: ReduceMaxAlongDimUnsignedInt())
-def ReduceMaxAlongDimUnsignedInt_basic(module, tu: TestUtils):
-    module.forward(tu.randint(3, 4, 5, low=-100, high=100).to(torch.uint8))
-
-# ==============================================================================
-
 class ReduceMaxAlongDimNegative(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -586,7 +548,7 @@ class ReduceL1NormModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceL1NormModule())
 def ReduceL1NormModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5))
+    module.forward(torch.rand(3, 4, 5))
 
 # ==============================================================================
 
@@ -622,7 +584,7 @@ class ReduceL2NormModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceL2NormModule())
 def ReduceL2NormModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5))
+    module.forward(torch.rand(3, 4, 5))
 
 # ==============================================================================
 
@@ -640,7 +602,7 @@ class ReduceLN3NormModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceLN3NormModule())
 def ReduceLN3NormModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5))
+    module.forward(torch.rand(3, 4, 5))
 
 # ==============================================================================
 
@@ -658,7 +620,7 @@ class ReduceL3NormAllDimsModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceL3NormAllDimsModule())
 def ReduceL3NormAllDimsModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5))
+    module.forward(torch.rand(3, 4, 5))
 
 # ==============================================================================
 
@@ -676,47 +638,7 @@ class ReduceL3NormKeepDimModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceL3NormKeepDimModule())
 def ReduceL3NormKeepDimModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5))
-
-# ==============================================================================
-
-class NormScalarOptDimModule(torch.nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-        self.p = 3.0
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, a):
-        return torch.ops.aten.norm(a, self.p, dim=[0, 1], keepdim=False)
-
-@register_test_case(module_factory=lambda: NormScalarOptDimModule())
-def NormScalarOptDimModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5))
-
-
-# ==============================================================================
-
-class NormScalarOptDimKeepDimModule(torch.nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-        self.p = 3.0
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, a):
-        return torch.ops.aten.norm(a, self.p, dim=[0, 1], keepdim=True)
-
-@register_test_case(module_factory=lambda: NormScalarOptDimKeepDimModule())
-def NormScalarOptDimKeepDimModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5))
-
+    module.forward(torch.rand(3, 4, 5))
 
 # ==============================================================================
 class ReduceFrobeniusNormModule(torch.nn.Module):
@@ -733,7 +655,7 @@ class ReduceFrobeniusNormModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceFrobeniusNormModule())
 def ReduceFrobeniusNormModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5))
+    module.forward(torch.rand(3, 4, 5))
 
 # ==============================================================================
 class ReduceFrobeniusNormKeepDimModule(torch.nn.Module):
@@ -750,7 +672,7 @@ class ReduceFrobeniusNormKeepDimModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceFrobeniusNormKeepDimModule())
 def ReduceFrobeniusNormKeepDimModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5))
+    module.forward(torch.rand(3, 4, 5))
 
 # ==============================================================================
 

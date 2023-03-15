@@ -10,9 +10,9 @@
 #include "PassDetail.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/IRMapping.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -244,7 +244,7 @@ createGlobalSlotModuleInitializer(ModuleOp module, SymbolTable &symbolTable,
       continue;
     opsToMove.push_back(&op);
   }
-  IRMapping mapping;
+  BlockAndValueMapping mapping;
   for (Operation *op : opsToMove) {
     // The ops are used by `torch.slot` ops in the enclosing module.
     // Cloning avoids needing to handle those uses specially.
@@ -329,7 +329,7 @@ template <> struct llvm::DenseMapInfo<Monomorphization> {
 // currently only analyzes a subset of ops.
 static LogicalResult analyzeInstances(func::FuncOp func,
                                       ArrayRef<ArgInstance> argInstances,
-                                      IRMapping &mapping) {
+                                      BlockAndValueMapping &mapping) {
   for (auto &argInstance : argInstances)
     mapping.map(func.getArgument(argInstance.argIndex), argInstance.instance);
   auto walkResult = func.walk([&](PrimGetAttrOp op) {
@@ -349,7 +349,7 @@ static LogicalResult analyzeInstances(func::FuncOp func,
 }
 
 static FailureOr<Monomorphization>
-createMonomorphizationForCall(func::CallOp op, IRMapping &mapping,
+createMonomorphizationForCall(func::CallOp op, BlockAndValueMapping &mapping,
                               SymbolTable &symbolTable) {
   auto func = symbolTable.lookup<func::FuncOp>(op.getCallee());
   Monomorphization monomorphization;
@@ -410,7 +410,7 @@ public:
 private:
   LogicalResult generateNewMonomorphizations(const Monomorphization &m) {
     auto func = m.func;
-    IRMapping mapping;
+    BlockAndValueMapping mapping;
     if (failed(analyzeInstances(func, m.argInstances, mapping)))
       return failure();
     auto walkResult = func.walk([&](func::CallOp op) {
@@ -495,7 +495,7 @@ verifyPublicMonomorphizations(ModuleOp module, SymbolTable &symbolTable,
 // Rewrite `func`, given that all values of `NnModuleType` have been mapped in
 // `mapping` to corresponding global instances.
 static LogicalResult rewriteMonomorphizedFuncClone(
-    func::FuncOp func, IRMapping mapping, SymbolTable &symbolTable,
+    func::FuncOp func, BlockAndValueMapping mapping, SymbolTable &symbolTable,
     DenseMap<Monomorphization, func::FuncOp> &newFuncs,
     ObjectGraphInfo &objectGraphInfo) {
 
@@ -662,7 +662,7 @@ static LogicalResult globalizeObjectGraph(ModuleOp module) {
   }
 
   for (auto &kv : newFuncs) {
-    IRMapping mapping;
+    BlockAndValueMapping mapping;
     if (failed(analyzeInstances(kv.second, kv.first.argInstances, mapping)))
       return failure();
     if (failed(rewriteMonomorphizedFuncClone(kv.second, mapping, symbolTable,

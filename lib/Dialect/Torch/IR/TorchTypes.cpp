@@ -68,32 +68,16 @@ bool Torch::isValidSubtype(Type subtype, Type type) {
     return true;
   }
 
-  auto subtypeTensorType = subtype.dyn_cast<BaseTensorType>();
-  auto typeTensorType = type.dyn_cast<BaseTensorType>();
-  if (subtypeTensorType && typeTensorType) {
-    // Check that both tensors have the same `BaseTensorType` subtype.
-    // TODO: This is not subtyping according to PEP 483. See description
-    // of NonValueTensorType.
-    if (subtypeTensorType.isa<ValueTensorType>() !=
-        typeTensorType.isa<ValueTensorType>())
-      return false;
-
-    // `type` must not have more static information than `subtype`, and `type`
-    // must not disagree with `subtype`.
-    if (typeTensorType.hasDtype() &&
-        (!subtypeTensorType.hasDtype() ||
-         typeTensorType.getDtype() != subtypeTensorType.getDtype())) {
-      return false;
-    }
-
-    if (typeTensorType.hasSizes() &&
-        (!subtypeTensorType.hasSizes() ||
-         typeTensorType.getSizes() != subtypeTensorType.getSizes())) {
-      return false;
-    }
-
+  // TODO: This is not subtyping according to PEP 483. See description
+  // of NonValueTensorType.
+  if (subtype.isa<NonValueTensorType>() && type.isa<NonValueTensorType>() &&
+      type ==
+          NonValueTensorType::getWithLeastStaticInformation(type.getContext()))
     return true;
-  }
+
+  if (subtype.isa<ValueTensorType>() && type.isa<ValueTensorType>() &&
+      type == ValueTensorType::getWithLeastStaticInformation(type.getContext()))
+    return true;
   return false;
 }
 
@@ -479,7 +463,7 @@ Type Torch::meetTensorTypes(BaseTensorType lhs, BaseTensorType rhs) {
     }
   }
 
-  return lhs.getWithSizesAndDtype(ArrayRef(newSizes), dtype);
+  return lhs.getWithSizesAndDtype(makeArrayRef(newSizes), dtype);
 }
 
 ////===----------------------------------------------------------------------===//

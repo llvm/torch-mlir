@@ -81,21 +81,9 @@ public:
 
     Type inElementType = inputType.getElementType();
     if (!inElementType.isa<mlir::FloatType>()) {
-      if (inElementType.isa<mlir::IntegerType>()) {
-        auto integerTy = maxDimOp.getSelf()
-                             .getType()
-                             .cast<BaseTensorType>()
-                             .getDtype()
-                             .dyn_cast<mlir::IntegerType>();
-        if (integerTy.isUnsigned())
-          return rewriter.notifyMatchFailure(
-              maxDimOp, "aten.max_dim to linalg.* requires input element type "
-                        "to be signed in case of integer");
-      } else {
-        return rewriter.notifyMatchFailure(
-            maxDimOp, "aten.max_dim to linalg.* requires Float or Integer "
-                      "input element type");
-      }
+      return rewriter.notifyMatchFailure(
+          maxDimOp,
+          "aten.max_dim to linalg.* requires Float input element type");
     }
 
     // Constant op to account for the reduction along dim.
@@ -116,23 +104,13 @@ public:
     Value initTensorMax = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(resultShape), inElementType);
 
-    Value fillValueMax;
-    if (inElementType.isa<mlir::FloatType>()) {
-      fillValueMax = rewriter.create<arith::ConstantOp>(
-          loc,
-          rewriter.getFloatAttr(
-              inElementType,
-              APFloat::getLargest(
-                  inElementType.cast<mlir::FloatType>().getFloatSemantics(),
-                  true)));
-    } else {
-      fillValueMax = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getIntegerAttr(
-                   inElementType,
-                   APSInt::getSignedMinValue(
-                       inElementType.cast<mlir::IntegerType>().getWidth())));
-    }
+    FloatAttr fillValueMaxAttr = rewriter.getFloatAttr(
+        inElementType,
+        APFloat::getLargest(
+            inElementType.cast<mlir::FloatType>().getFloatSemantics(), true));
 
+    Value fillValueMax =
+        rewriter.create<arith::ConstantOp>(loc, fillValueMaxAttr);
     Value filledTensorMax =
         rewriter.create<linalg::FillOp>(loc, fillValueMax, initTensorMax)
             .result();
@@ -174,18 +152,10 @@ public:
               nestedLoc, oldIndex.getType(),
               rewriter.create<linalg::IndexOp>(loc, dim));
 
-          Value resultMax, predicate;
-          if (inElementType.isa<mlir::FloatType>()) {
-            resultMax =
-                rewriter.create<arith::MaxFOp>(nestedLoc, newValue, oldValue);
-            predicate = rewriter.create<arith::CmpFOp>(
-                nestedLoc, arith::CmpFPredicate::OGT, newValue, oldValue);
-          } else {
-            resultMax =
-                rewriter.create<arith::MaxSIOp>(nestedLoc, newValue, oldValue);
-            predicate = rewriter.create<arith::CmpIOp>(
-                nestedLoc, arith::CmpIPredicate::sgt, newValue, oldValue);
-          }
+          auto resultMax = rewriter.create<arith::MaxFOp>(
+              nestedLoc, newValue, oldValue);
+          Value predicate = rewriter.create<arith::CmpFOp>(
+              nestedLoc, arith::CmpFPredicate::OGT, newValue, oldValue);
           auto resultIndex = rewriter.create<arith::SelectOp>(
               nestedLoc, predicate, newIndex, oldIndex);
           nestedBuilder.create<linalg::YieldOp>(

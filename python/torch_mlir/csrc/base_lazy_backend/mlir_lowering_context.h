@@ -73,7 +73,7 @@ public:
   // embedded builder (returned by the builder() API).
   torch::lazy::ComputationPtr Build() override;
 
-  virtual torch::lazy::ComputationPtr CreateComputation(MlirModule module_op);
+  virtual torch::lazy::ComputationPtr CreateComputation(MlirOperation func_op);
 
   // Retrieves the lowered operation for an output. If the requested output is
   // not available yet, the graph behind the output's Node is lowered, and the
@@ -123,7 +123,7 @@ public:
   using InputOutputAlias = TorchMlirLoweringContext::InputOutputAlias;
 
   TorchMlirComputation(
-      MlirModule module_op, MlirContext mlir_context,
+      MlirOperation func_op, MlirContext mlir_context,
       const std::shared_ptr<torch::jit::Graph>& graph,
       std::unordered_map<int, std::string> parameters_map,
       InputOutputAliases input_output_aliases);
@@ -142,8 +142,6 @@ public:
 
   MlirOperation func_op() const;
 
-  MlirModule module_op() const;
-
   MlirContext mlir_context() const;
 
   virtual const std::string debug_string() const;
@@ -157,7 +155,7 @@ protected:
   std::vector<Shape> parameter_shapes_;
   Shape result_shape_;
 
-  MlirModule module_op_;
+  MlirOperation func_op_;
   MlirContext mlir_context_;
   std::shared_ptr<torch::jit::Graph> graph_;
   InputOutputAliases input_output_aliases_;

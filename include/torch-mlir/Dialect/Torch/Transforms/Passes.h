@@ -98,8 +98,6 @@ std::unique_ptr<OperationPass<ModuleOp>> createRefinePublicReturnPass();
 std::unique_ptr<OperationPass<func::FuncOp>>
 createDecomposeComplexOpsPass(ArrayRef<std::string> legalOps);
 
-std::unique_ptr<OperationPass<func::FuncOp>> createRecomposeComplexOps();
-
 std::unique_ptr<OperationPass<ModuleOp>> createPreprocessShapeLibraryPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createReifyShapeCalculationsPass();
@@ -123,7 +121,8 @@ createLowerToBackendContractPass(int maxIterations, bool decompose,
                                  ArrayRef<std::string> backendLegalOps);
 
 std::unique_ptr<OperationPass<ModuleOp>>
-createVerifyBackendContractNoDecompositionsPass();
+createVerifyBackendContractPass(bool decompose,
+                                ArrayRef<std::string> backendLegalOps);
 
 StringRef getAbstractInterpLibrary();
 

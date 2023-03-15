@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TORCHMLIR_CONVERSION_TORCHTOSTABLEHLO_TORCHTOSTABLEHLO_H
-#define TORCHMLIR_CONVERSION_TORCHTOSTABLEHLO_TORCHTOSTABLEHLO_H
+#ifndef TORCHMLIR_CONVERSION_TORCHTOMHLO_TORCHTOMHLO_H
+#define TORCHMLIR_CONVERSION_TORCHTOMHLO_TORCHTOMHLO_H
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
@@ -16,11 +16,10 @@
 
 namespace mlir {
 namespace torch {
+std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToMhloPass();
 std::unique_ptr<OperationPass<func::FuncOp>>
-createConvertTorchToStablehloPass();
-std::unique_ptr<OperationPass<func::FuncOp>>
-createConvertTorchToStablehloPass(bool enableStaticShape, bool enableI32Index);
+createConvertTorchToMhloPass(bool enableStaticShape, bool enableI32Index);
 } // namespace torch
 } // namespace mlir
 
-#endif // TORCHMLIR_CONVERSION_TORCHTOSTABLEHLO_TORCHTOSTABLEHLO_H
+#endif // TORCHMLIR_CONVERSION_TORCHTOMHLO_TORCHTOMHLO_H

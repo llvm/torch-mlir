@@ -17,7 +17,7 @@ runs:
   - name: Set up Python
     uses: actions/setup-python@v4
     with:
-      python-version: '3.11'
+      python-version: '3.10'
 
   - name: Install MLIR Python depends
     run: |
@@ -26,8 +26,7 @@ runs:
 
   - name: Install PyTorch nightly depends
     run: |
-      python -m pip install -r pytorch-requirements.txt
-      python -m pip install -r build-requirements.txt
+      python -m pip install -r requirements.txt
     shell: bash
 
   - name: Install prerequisites (Linux)

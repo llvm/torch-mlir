@@ -1,3 +1,5 @@
+-r pytorch-requirements.txt
+
 numpy
 pybind11
 wheel

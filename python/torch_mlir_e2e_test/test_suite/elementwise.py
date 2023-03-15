@@ -152,7 +152,7 @@ class ElementwiseAtenWhereSelfModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseAtenWhereSelfModule())
 def ElementwiseAtenWhereSelfModule_basic(module, tu: TestUtils):
-    module.forward(torch.zeros(1, 1, 5, 5, dtype=torch.bool), tu.rand(1, 12, 5, 5), tu.rand())
+    module.forward(torch.zeros(1, 1, 5, 5, dtype=torch.bool), torch.rand(1, 12, 5, 5), torch.rand(()))
 
 
 # ==============================================================================
@@ -774,26 +774,6 @@ class RsubIntModule_noalpha(torch.nn.Module):
 def RsubIntModule_noalpha_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, high=100))
 
-# ==============================================================================
-
-
-class RsubInt0d_NumToTensor_Module(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-    ])
-    def forward(self):
-        x = torch.ops.prim.NumToTensor(5)
-        return torch.rsub(x, 2)
-
-
-@register_test_case(module_factory=lambda: RsubInt0d_NumToTensor_Module())
-def RsubInt0d_NumToTensor_Module_basic(module, tu: TestUtils):
-    module.forward()
 
 # ==============================================================================
 
@@ -1520,7 +1500,7 @@ class ElementwiseRemainderScalarModule_Float(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Float())
 def ElementwiseRemainderScalarModule_Float_basic(module, tu: TestUtils):
-    module.forward(tu.rand(10, 3))
+    module.forward(torch.rand(10, 3))
 
 
 # ==============================================================================
@@ -1939,52 +1919,6 @@ def ElementwiseAddScalarFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class ElementwiseAddScalar_NumToTensorFloat_Module(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-    ])
-    def forward(self):
-        x = torch.ops.prim.NumToTensor(5.0)
-        return torch.add(x, 3)
-
-
-@register_test_case(
-    module_factory=lambda: ElementwiseAddScalar_NumToTensorFloat_Module())
-def ElementwiseAddScalar_NumToTensorFloat_Module_basic(module, tu: TestUtils):
-    module.forward()
-
-
-# ==============================================================================
-
-
-class ElementwiseAddScalar_TensorLiteralInt32_Module(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-        self.x = torch.tensor(2, dtype=torch.int32)
-
-    @export
-    @annotate_args([
-        None,
-    ])
-    def forward(self):
-        return torch.add(self.x, 3)
-
-
-@register_test_case(
-    module_factory=lambda: ElementwiseAddScalar_TensorLiteralInt32_Module())
-def ElementwiseAddScalar_TensorLiteralInt32_Module_basic(module, tu: TestUtils):
-    module.forward()
-
-
-# ==============================================================================
-
-
 class ElementwiseCloneModule(torch.nn.Module):
 
     def __init__(self):
@@ -2024,30 +1958,6 @@ class ElementwiseCloneContiguousModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseCloneContiguousModule())
 def ElementwiseCloneContiguousModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))
-
-
-# ==============================================================================
-
-
-class ElementwiseCloneChannelsLastMemoryFormatModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, x):
-        return torch.clone(x, memory_format=torch.channels_last)
-
-
-@register_test_case(
-    module_factory=lambda: ElementwiseCloneChannelsLastMemoryFormatModule())
-def ElementwiseCloneChannelsLastMemoryFormatModule_basic(
-        module, tu: TestUtils):
-    module.forward(tu.rand(2, 3, 4, 5))
 
 
 # ==============================================================================
@@ -2379,7 +2289,7 @@ class ElementwiseAtenLogicalOrOpRandomFloatModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpRandomFloatModule())
 def ElementwiseAtenLogicalOrOpRandomFloatModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 3, 3, 5), tu.rand(2, 3, 3, 5))
+    module.forward(torch.rand(2, 3, 3, 5), torch.rand(2, 3, 3, 5))
 
 # ==============================================================================
 
@@ -2737,26 +2647,6 @@ class AtenRoundFloatModule(torch.nn.Module):
 def AtenRoundFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 5, low = -3.0, high = 3.0))
 
-
-class AtenRoundFloatHalfToEvenModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.float32, True),
-    ])
-    def forward(self, x):
-        return torch.ops.aten.round(x)
-
-
-@register_test_case(module_factory=lambda: AtenRoundFloatHalfToEvenModule())
-def AtenRoundFloatHalfToEvenModule_basic(module, tu: TestUtils):
-    module.forward(torch.FloatTensor([[0.5, 1.5], [-0.5, -1.5]]))
-
-
 class AtenRoundIntModule(torch.nn.Module):
 
     def __init__(self):
@@ -2795,7 +2685,7 @@ class Fill_TensorFloat64WithFloat32(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Fill_TensorFloat64WithFloat32())
 def Fill_TensorFloat64WithFloat32_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 2, 4))
+    module.forward(torch.randn(3, 2, 4))
 
 
 class Fill_TensorFloat64WithFloat64(torch.nn.Module):
@@ -2814,7 +2704,7 @@ class Fill_TensorFloat64WithFloat64(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Fill_TensorFloat64WithFloat64())
 def Fill_TensorFloat64WithFloat64_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 2, 4).to(torch.float64))
+    module.forward(torch.randn(3, 2, 4).to(torch.float64))
 
 
 class Fill_TensorFloat64WithInt64(torch.nn.Module):
@@ -2833,7 +2723,7 @@ class Fill_TensorFloat64WithInt64(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Fill_TensorFloat64WithInt64())
 def Fill_TensorFloat64WithInt64_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 2, 4).to(torch.float64))
+    module.forward(torch.randn(3, 2, 4).to(torch.float64))
 
 
 # ==============================================================================

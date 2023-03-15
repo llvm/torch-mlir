@@ -139,7 +139,7 @@ Ex:
 module = torch_mlir.compile(resnet18, torch.ones(1, 3, 224, 224), output_type="torch")
 ```
 
-Currently, `output_type` can be: `TORCH`, `TOSA`, `LINALG_ON_TENSORS`, `RAW` and `STABLEHLO`.
+Currently, `output_type` can be: `TORCH`, `TOSA`, `LINALG_ON_TENSORS`, `RAW` and `MHLO`.
 
 ## Jupyter
 

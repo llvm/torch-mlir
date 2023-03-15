@@ -7,6 +7,6 @@ from .lazy_tensor_core import LazyTensorCoreTestConfig
 from .linalg_on_tensors_backend import LinalgOnTensorsBackendTestConfig
 from .native_torch import NativeTorchTestConfig
 from .torchscript import TorchScriptTestConfig
-from .stablehlo_backend import StablehloBackendTestConfig
+from .mhlo_backend import MhloBackendTestConfig
 from .tosa_backend import TosaBackendTestConfig
 from .torchdynamo import TorchDynamoTestConfig

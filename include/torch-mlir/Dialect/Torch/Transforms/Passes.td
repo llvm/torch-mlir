@@ -343,17 +343,24 @@ def LowerToBackendContract
   let dependentDialects = ["func::FuncDialect"];
 }
 
-def VerifyBackendContractNoDecompositions
-    : Pass<"torch-verify-backend-contract-no-decompositions", "ModuleOp"> {
+def VerifyBackendContract
+    : Pass<"torch-verify-backend-contract", "ModuleOp"> {
   let summary = "Check that program satisfies backend contract.";
   let constructor = [{
-    mlir::torch::Torch::createVerifyBackendContractNoDecompositionsPass()
+    mlir::torch::Torch::createVerifyBackendContractPass(
+      /*decompose=*/true, /*backendLegalOps=*/{})
   }];
   let description = [{
     This pass performs a set of inspections to check that program satisfies backend
-    contract assuming that no decompositions were applied. In case of check failure
-    it prints out the error message and returns `signalPassFailure()` status.
+    contract. In case of check failure it prints out the error message and returns
+    `signalPassFailure()` status.
   }];
+  let options = [
+    Option<"decompose", "decompose", "bool", /*default=*/"true",
+           "Decompose ops.">,
+    ListOption<"backendLegalOps", "backend-legal-ops", "std::string",
+               "List of ops to be considered legal for the backend.">
+  ];
 }
 
 #endif // TORCHMLIR_TORCH_PASSES

@@ -39,16 +39,16 @@ set -eu -o errtrace
 this_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$this_dir"/../../ && pwd)"
 # This needs to be a manylinux image so we can ship pip packages
-TM_RELEASE_DOCKER_IMAGE="${TM_RELEASE_DOCKER_IMAGE:-gcr.io/iree-oss/manylinux2014_x86_64-release@sha256:d8994b87b45b7b2e6055fccc32db018ec73aeb05a4e43a9daa61b77cc34f846e}"
+TM_RELEASE_DOCKER_IMAGE="${TM_RELEASE_DOCKER_IMAGE:-stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest}"
 # This assumes an Ubuntu LTS like image. You can build your own with
 # ./build_tools/docker/Dockerfile
 TM_CI_DOCKER_IMAGE="${TM_CI_DOCKER_IMAGE:-powderluv/torch-mlir-ci:latest}"
 # Version of Python to use in Release builds. Ignored in CIs.
-TM_PYTHON_VERSIONS="${TM_PYTHON_VERSIONS:-cp38-cp38 cp310-cp310 cp311-cp311}"
+TM_PYTHON_VERSIONS="${TM_PYTHON_VERSIONS:-cp310-cp310}"
 # Location to store Release wheels
 TM_OUTPUT_DIR="${TM_OUTPUT_DIR:-${this_dir}/wheelhouse}"
 # What "packages to build"
-TM_PACKAGES="${TM_PACKAGES:-torch-mlir torch-mlir-core}"
+TM_PACKAGES="${TM_PACKAGES:-torch-mlir}"
 # Use pre-built Pytorch
 TM_USE_PYTORCH_BINARY="${TM_USE_PYTORCH_BINARY:-ON}"
 # Skip running tests if you want quick iteration
@@ -80,11 +80,6 @@ function run_on_host() {
   mkdir -p "${TM_OUTPUT_DIR}"
   case "$package" in
     torch-mlir)
-      TM_CURRENT_DOCKER_IMAGE=${TM_RELEASE_DOCKER_IMAGE}
-      export USERID=0
-      export GROUPID=0
-      ;;
-    torch-mlir-core)
       TM_CURRENT_DOCKER_IMAGE=${TM_RELEASE_DOCKER_IMAGE}
       export USERID=0
       export GROUPID=0
@@ -163,12 +158,6 @@ function run_in_docker() {
           #run_audit_wheel torch_mlir "$python_version"
 
           clean_build torch_mlir "$python_version"
-          ;;
-        torch-mlir-core)
-          clean_wheels torch_mlir_core "$python_version"
-          build_torch_mlir_core
-          run_audit_wheel torch_mlir_core "$python_version"
-          clean_build torch_mlir_core "$python_version"
           ;;
         out-of-tree)
           setup_venv "$python_version"
@@ -278,8 +267,8 @@ function test_in_tree() {
   echo ":::: Run Linalg e2e integration tests"
   python -m e2e_testing.main --config=linalg -v
 
-  echo ":::: Run StableHLO e2e integration tests"
-  python -m e2e_testing.main --config=stablehlo -v
+  echo ":::: Run MHLO e2e integration tests"
+  python -m e2e_testing.main --config=mhlo -v
 
   echo ":::: Run TOSA e2e integration tests"
   python -m e2e_testing.main --config=tosa -v
@@ -288,7 +277,7 @@ function test_in_tree() {
   python -m e2e_testing.main --config=lazy_tensor_core -v
 
   echo ":::: Run TorchDynamo e2e integration tests"
-  python -m e2e_testing.main --config=torchdynamo -v --crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed RandnDtypeDeviceModule_basic RandnLikeModule_basic Matmul_dot
+  python -m e2e_testing.main --config=torchdynamo -v --crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed RandnDtypeDeviceModule_basic
 }
 
 function setup_venv() {
@@ -382,15 +371,6 @@ function run_audit_wheel() {
   echo ":::: Auditwheel $generic_wheel"
   auditwheel repair -w /wheelhouse "$generic_wheel"
   rm "$generic_wheel"
-}
-
-function build_torch_mlir_core() {
-  python -m pip install --no-cache-dir -r /main_checkout/torch-mlir/build-requirements.txt
-  CMAKE_GENERATOR=Ninja \
-  TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
-  TORCH_MLIR_ENABLE_JIT_IR_IMPORTER=0 \
-  TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS=1 \
-  python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir
 }
 
 function clean_wheels() {

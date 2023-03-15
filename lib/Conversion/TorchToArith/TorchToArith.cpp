@@ -232,67 +232,6 @@ public:
     return success();
   }
 };
-
-class ConvertTorchConstantIntOp
-    : public OpConversionPattern<Torch::ConstantIntOp> {
-public:
-  using OpConversionPattern<Torch::ConstantIntOp>::OpConversionPattern;
-  using OpAdaptor = Torch::ConstantIntOp::Adaptor;
-  LogicalResult
-  matchAndRewrite(Torch::ConstantIntOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    // note: arith.constant only accept singless integer, so convert singed to
-    // singless
-    rewriter.replaceOpWithNewOp<arith::ConstantOp>(
-        op, rewriter.getIntegerAttr(rewriter.getI64Type(),
-                                    op.getValueAttr().getValue()));
-    return success();
-  }
-};
-} // namespace
-
-namespace {
-class ConvertAtenFloatScalarOp : public OpConversionPattern<AtenFloatScalarOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenFloatScalarOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Type resultType =
-        this->getTypeConverter()->convertType(op->getResult(0).getType());
-    Value result =
-        convertScalarToDtype(rewriter, op.getLoc(), adaptor.getA(), resultType);
-    rewriter.replaceOp(op, result);
-    return success();
-  }
-};
-} // namespace
-
-namespace {
-class ConvertAtenAddOp : public OpConversionPattern<AtenAddOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenAddOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
-    Type resultType =
-        this->getTypeConverter()->convertType(op->getResult(0).getType());
-    Value operandA =
-        convertScalarToDtype(rewriter, loc, adaptor.getA(), resultType);
-    Value operandB =
-        convertScalarToDtype(rewriter, loc, adaptor.getB(), resultType);
-    if (resultType.isa<mlir::FloatType>()) {
-      rewriter.replaceOpWithNewOp<arith::AddFOp>(op, operandA, operandB);
-    } else if (resultType.isa<mlir::IntegerType>()) {
-      rewriter.replaceOpWithNewOp<arith::AddIOp>(op, operandA, operandB);
-    } else {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only support integer or float result type");
-    }
-    return success();
-  }
-};
 } // namespace
 
 namespace {
@@ -442,14 +381,8 @@ public:
     patterns.add<ConvertTorchConstantOp<Torch::ConstantFloatOp>>(typeConverter,
                                                                  context);
     target.addIllegalOp<Torch::ConstantIntOp>();
-    patterns.add<ConvertTorchConstantIntOp>(typeConverter, context);
-
-    target.addIllegalOp<AtenFloatScalarOp>();
-    patterns.add<ConvertAtenFloatScalarOp>(typeConverter, context);
-
-    target.addIllegalOp<AtenAddOp>();
-    patterns.add<ConvertAtenAddOp>(typeConverter, context);
-
+    patterns.add<ConvertTorchConstantOp<Torch::ConstantIntOp>>(typeConverter,
+                                                               context);
     target.addIllegalOp<AtenAddIntOp, AtenSubIntOp, AtenMulIntOp>();
     patterns.add<ConvertAtenBinaryOp<AtenAddIntOp, arith::AddIOp>>(
         typeConverter, context);

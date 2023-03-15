@@ -41,14 +41,12 @@ from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
 
+import torch
 
 PACKAGE_VERSION = os.environ.get("TORCH_MLIR_PYTHON_PACKAGE_VERSION") or "0.0.1"
 
 # If true, enable LTC build by default
 TORCH_MLIR_ENABLE_LTC_DEFAULT = True
-TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS = int(os.environ.get('TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS', False))
-if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS:
-    import torch
 
 # Build phase discovery is unreliable. Just tell it what phases to run.
 class CustomBuild(_build):
@@ -92,7 +90,6 @@ class CMakeBuild(build_py):
                 f"-DCMAKE_C_VISIBILITY_PRESET=hidden",
                 f"-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
                 f"-DTORCH_MLIR_ENABLE_LTC={'ON' if enable_ltc else 'OFF'}",
-                f"-DTORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS={'ON' if TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else 'OFF'}",
             ]
 
             os.makedirs(cmake_build_dir, exist_ok=True)
@@ -146,7 +143,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 
 setup(
-    name="torch-mlir" if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else "torch-mlir-core",
+    name="torch-mlir",
     version=f"{PACKAGE_VERSION}",
     author="Sean Silva",
     author_email="silvasean@google.com",
@@ -161,8 +158,10 @@ setup(
     },
     ext_modules=[
         CMakeExtension("torch_mlir._mlir_libs._jit_ir_importer"),
-    ] if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else [CMakeExtension("torch_mlir._mlir_libs._torchMlir")],
-    install_requires=["numpy", ] + (
-        [f"torch=={torch.__version__}".split("+", 1)[0], ] if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else []),
+    ],
+    install_requires=[
+        "numpy",
+        f"torch=={torch.__version__}".split("+", 1)[0],
+    ],
     zip_safe=False,
 )

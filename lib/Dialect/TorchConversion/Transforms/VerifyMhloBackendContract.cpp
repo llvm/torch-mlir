@@ -6,9 +6,10 @@
 // Also available under a BSD-style license. See LICENSE.
 //
 //===----------------------------------------------------------------------===//
-#ifdef TORCH_MLIR_ENABLE_STABLEHLO
+#ifdef TORCH_MLIR_ENABLE_MHLO
 #include "PassDetail.h"
 
+#include "mhlo/IR/hlo_ops.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
@@ -17,7 +18,6 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "stablehlo/dialect/ChloOps.h"
-#include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 
 using namespace mlir;
@@ -25,15 +25,17 @@ using namespace mlir::torch;
 using namespace mlir::torch::TorchConversion;
 
 namespace {
-class VerifyStablehloBackendContractPass
-    : public VerifyStablehloBackendContractBase<
-          VerifyStablehloBackendContractPass> {
+class VerifyMhloBackendContractPass
+    : public VerifyMhloBackendContractBase<VerifyMhloBackendContractPass> {
   void runOnOperation() override {
+    MLIRContext *context = &getContext();
+    auto module = getOperation();
     TypeConverter converter;
     converter.addConversion([](Type type) -> Type {
       auto elemTy = type;
-      if (isa<TensorType>(type))
+      if (isa<TensorType>(type)) {
         elemTy = type.cast<TensorType>().getElementType();
+      }
       if (BaseMemRefType::isValidElementType(elemTy))
         return type;
       return nullptr;
@@ -41,7 +43,6 @@ class VerifyStablehloBackendContractPass
 
     auto opHasLegalTypes = [&](Operation *op) { return converter.isLegal(op); };
 
-    MLIRContext *context = &getContext();
     ConversionTarget target(*context);
 
     // Structural operations.
@@ -49,16 +50,26 @@ class VerifyStablehloBackendContractPass
     // Shape operations.
     target.addDynamicallyLegalOp<shape::ShapeOfOp>(opHasLegalTypes);
 
+    target.addLegalDialect<mhlo::MhloDialect>();
     target.addLegalDialect<chlo::ChloDialect>();
-    target.addLegalDialect<stablehlo::StablehloDialect>();
     target.addLegalDialect<tensor::TensorDialect>();
     target.addLegalDialect<arith::ArithDialect>();
+
+    RewritePatternSet patterns(context);
+    if (failed(applyFullConversion(module, target, std::move(patterns)))) {
+      // We avoid `module.emitError()` so that mlir-print-op-on-diagnostics
+      // doesn't unnecessarily spew out the entire module.
+      emitError(module.getLoc())
+          << "Module does not conform to the MHLO backend contract. "
+             "See dialect conversion legality information above.";
+      return signalPassFailure();
+    }
   }
 };
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::TorchConversion::createVerifyStablehloBackendContractPass() {
-  return std::make_unique<VerifyStablehloBackendContractPass>();
+mlir::torch::TorchConversion::createVerifyMhloBackendContractPass() {
+  return std::make_unique<VerifyMhloBackendContractPass>();
 }
-#endif // TORCH_MLIR_ENABLE_STABLEHLO
+#endif // TORCH_MLIR_ENABLE_MHLO
