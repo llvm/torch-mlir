@@ -930,6 +930,9 @@ def aten〇mse_loss〡shape(self: List[int], target: List[int], reduction: int =
         return upstream_shape_functions.unary(self)
     return []
 
+def aten〇cross_entropy_loss〡shape(self: List[int], target: List[int], weight: Optional[List[int]] = None, reduction: int = 1, ignore_index: int = -100, label_smoothing: float = 0.) -> List[int]:
+    return upstream_shape_functions.cross_entropy_loss(self, target, weight, reduction, ignore_index, label_smoothing)
+
 @check_shape_function([
     Invocation(TensorOfShape(2, 5, 2, 2, 3), [2, 2, 3], None, None, 1e-6), # Basic case.
 ])

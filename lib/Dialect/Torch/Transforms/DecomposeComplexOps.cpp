@@ -4170,6 +4170,68 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenCrossEntropyLossOp
+    : public OpRewritePattern<AtenCrossEntropyLossOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenCrossEntropyLossOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value target = op.getTarget();
+    std::optional<unsigned> maybeRank = getTensorRank(self);
+    if (!maybeRank)
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: unranked input tensor");
+    unsigned selfRank = maybeRank.value();
+    maybeRank = getTensorRank(target);
+    if (!maybeRank)
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: unranked target tensor");
+    unsigned targetRank = maybeRank.value();
+
+    // When the input is 2-d i.e. of the form [minibatch, C] and target is 1-d
+    // of the form [minibatch] the cross entropy loss decomposes to the
+    // combination of softmax and nll loss as follows:
+    // cross_entropy_loss = NLLLoss(LogSoftmax(input, dim=1), target)
+    // Currently, we only support the above-mentioned case.
+    if (selfRank != 2 || targetRank != 1) {
+      return rewriter.notifyMatchFailure(
+          op,
+          "unimplemented: only support cases with 2-d input and 1-d target");
+    }
+
+    // TODO: Add support for label_smoothing value other than 0.0 (default
+    // value).
+    double labelSmoothing;
+    if (!matchPattern(op.getLabelSmoothing(),
+                      m_TorchConstantFloat(&labelSmoothing))) {
+      return rewriter.notifyMatchFailure(
+          op, "Only support constant float label_smoothing value");
+    } else if (labelSmoothing != 0.0) {
+      return rewriter.notifyMatchFailure(op,
+                                         "unimplemented: only support default "
+                                         "value of 0.0 for label_smoothing");
+    }
+
+    Value noneVal = rewriter.create<ConstantNoneOp>(loc);
+    Value dim = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value logSoftmax = rewriter.create<AtenLogSoftmaxIntOp>(
+        loc, self.getType(), self, dim, /*dtype=*/noneVal);
+    Value nllLoss =
+        rewriter
+            .create<AtenNllLossForwardOp>(
+                loc, op.getType(), target.getType(), logSoftmax, target,
+                op.getWeight(), op.getReduction(), op.getIgnoreIndex())
+            ->getResult(0);
+    rewriter.replaceOp(op, nllLoss);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
   using OpRewritePattern<AtenOneHotOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenOneHotOp op,
@@ -4389,6 +4451,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposePrimsSqueezeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMovedimIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenOneHotOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenCrossEntropyLossOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

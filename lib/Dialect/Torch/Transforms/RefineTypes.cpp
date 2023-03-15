@@ -659,7 +659,7 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenLiftFreshCopyOp, AtenIndexTensorHackedTwinOp,
           AtenUpsampleNearest2dOp, AtenMishOp, AtenRoundOp, AtenFillTensorOp,
           AtenUpsampleNearest2dBackwardOp, AtenLeakyReluBackwardOp,
-          PrimsSqueezeOp, AtenOneHotOp>(op)) {
+          PrimsSqueezeOp, AtenOneHotOp, AtenCrossEntropyLossOp>(op)) {
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
