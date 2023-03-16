@@ -272,8 +272,12 @@ def InsertConv : Pass<"torch-insert-conv", "func::FuncOp"> {
 def ObfuscateRNN : Pass<"torch-obfuscate-rnn", "func::FuncOp"> {
   let summary = "Insert obfuscate in RNN cell";
   let constructor = [{
-    mlir::torch::Torch::createObfuscateRNNPass()
+    mlir::torch::Torch::createObfuscateRNNPass(/*obfuscation*/"")
   }];
+  let options = [
+    Option<"obfuscation", "obfuscation", "std::string", /*default=*/"",
+           "obfuscation to apply: valueSplit, maskSplit">
+  ];
   let description = [{
   }];
 }

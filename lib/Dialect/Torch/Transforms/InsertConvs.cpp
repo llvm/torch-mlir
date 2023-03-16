@@ -27,7 +27,7 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 static void insertConv(MLIRContext *context, Operation *f, int number) {
-  // insert invariant convolutions
+  // insert invariant convolutions, with different pad and dilation
 
   llvm::SmallPtrSet<Operation *, 16> opWorklist;
   f->walk([&](Operation *op) {
@@ -43,33 +43,30 @@ static void insertConv(MLIRContext *context, Operation *f, int number) {
     return;
   }
 
-  std::srand(std::time(0));
+  IRRewriter rewriter(context);
+  Operation *op = *opWorklist.begin();
+  rewriter.setInsertionPoint(op);
+  // reusable ops
+  Location loc = op->getLoc();
+  Value int0 =
+      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+  Value int1 =
+      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+  Value constFalse = rewriter.create<ConstantBoolOp>(loc, false);
+  Value listInt1_1 = rewriter.create<PrimListConstructOp>(
+      loc, ListType::get(IntType::get(context)), ValueRange({int1, int1}));
+  Value listInt = rewriter.create<PrimListConstructOp>(
+      loc, ListType::get(IntType::get(context)), ValueRange({}));
+
   for (int i = 0; i < number; i++) {
     // select a random place to insert
     Operation *originOp =
         *(std::next(opWorklist.begin(), std::rand() % opWorklist.size()));
-    IRRewriter rewriter(context);
     rewriter.setInsertionPointAfter(originOp);
     // copy originOp, for convinience of replace use of op
     Operation *op = rewriter.clone(*originOp);
     Location loc = op->getLoc();
 
-    // create other oprands for conv
-    int padNum = std::rand() % 10;
-    Value int0 =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
-    Value int1 =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-    Value intPad =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(padNum));
-    Value constFalse = rewriter.create<ConstantBoolOp>(loc, false);
-    Value listInt1_1 = rewriter.create<PrimListConstructOp>(
-        loc, ListType::get(IntType::get(context)), ValueRange({int1, int1}));
-    Value listIntPad_Pad = rewriter.create<PrimListConstructOp>(
-        loc, ListType::get(IntType::get(context)),
-        ValueRange({intPad, intPad}));
-    Value listInt = rewriter.create<PrimListConstructOp>(
-        loc, ListType::get(IntType::get(context)), ValueRange({}));
     // create unsqueeze if dimansion less than 4, such as : (1,84) -> (1,1,1,84)
     Value rst = op->getResult(0);
     std::vector<long> shape =
@@ -89,14 +86,15 @@ static void insertConv(MLIRContext *context, Operation *f, int number) {
     // create unit tensor as convolution kernel
     // new kernel size is: ChannelSz  x ChannelSz  x kernelSz x kernelSz
     int ChannelSz = shape[1];
-    int kernelSz = 2 * padNum + 1;
+    int kernelSz = (1 + std::rand() % 5) * 2 + 1;
     shape[0] = ChannelSz;
     shape[2] = shape[3] = kernelSz;
-    std::vector<float> unitWeightVec(ChannelSz * ChannelSz *kernelSz*kernelSz, 0);
+    std::vector<float> unitWeightVec(
+        ChannelSz * ChannelSz * kernelSz * kernelSz, 0);
     for (int i = 0; i < ChannelSz; i++) {
-      // unitWeightVec[i][i][padNum][padNum] = 1
-      unitWeightVec[((i * ChannelSz + i) * kernelSz + padNum) * kernelSz +
-                    padNum] = 1;
+      // unitWeightVec[i][i][kernelSz/2][kernelSz/2] = 1
+      unitWeightVec[((i * ChannelSz + i) * kernelSz + kernelSz / 2) * kernelSz +
+                    kernelSz / 2] = 1;
     }
     auto resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
                                                  rewriter.getF32Type());
@@ -115,10 +113,23 @@ static void insertConv(MLIRContext *context, Operation *f, int number) {
         llvm::ArrayRef(zeroBiasVec));
     Value zeroBias =
         rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
+    // create other oprands for conv
+    int dilNum = 1 + std::rand() % 5;
+    int padNum = (kernelSz - 1) * dilNum / 2;
+    Value intPad =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(padNum));
+    Value intDil =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dilNum));
+    Value listIntPad_Pad = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)),
+        ValueRange({intPad, intPad}));
+    Value listIntDil_Dil = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)),
+        ValueRange({intDil, intDil}));
     // create conv
     rst = rewriter.create<AtenConvolutionOp>(
-        loc, rst.getType(), rst, unitWeight, zeroBias, listInt1_1, listIntPad_Pad,
-        listInt1_1, constFalse, listInt, int1);
+        loc, rst.getType(), rst, unitWeight, zeroBias, listInt1_1,
+        listIntPad_Pad, listIntDil_Dil, constFalse, listInt, int1);
     // create relu
     rst = rewriter.create<AtenReluOp>(loc, rst.getType(), rst);
     // create squeeze

@@ -80,10 +80,10 @@ static void insertSkip(MLIRContext *context, Operation *f) {
       convOp.getOperand(5), convOp.getOperand(6), convOp.getOperand(7),
       convOp.getOperand(8));
   // add
-  Value float0 =
-      rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0));
+  Value int1 =
+      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
   Value skip = rewriter.create<AtenAddTensorOp>(
-      loc, zeroConv.getType(), convOp.getOperand(0), zeroConv, float0);
+      loc, zeroConv.getType(), convOp.getOperand(0), zeroConv, int1);
   // new conv
   Value newConv = rewriter.create<AtenConvolutionOp>(
       loc, convOp.getType(), skip, oldKernel, oldBias, convOp.getOperand(3),

@@ -67,7 +67,14 @@ def ObfuscateLeNet_3(module, tu: TestUtils):
 @register_test_case(
     module_factory=lambda: LeNet(), passes="func.func(torch-insert-conv{number=5})"
 )
-def LeNet_4(module, tu: TestUtils):
+def ObfuscateLeNet_4(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 28, 28))
+
+
+@register_test_case(
+    module_factory=lambda: LeNet(), passes="func.func(torch-widen-conv-layer), func.func(torch-insert-conv)"
+)
+def ObfuscateLeNet_5(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 28, 28))
 
 
@@ -125,9 +132,26 @@ def ObfuscateRNN_2(module, tu: TestUtils):
 def ObfuscateRNN_3(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 10))
 
-# precesion error
-# @register_test_case(
-#     module_factory=lambda: RNN_scratch(), passes="func.func(torch-obfuscate-rnn)"
-# )
-# def ObfuscateRNN_4(module, tu: TestUtils):
-#     module.forward(tu.rand(3, 1, 10))
+
+@register_test_case(
+    module_factory=lambda: RNN_scratch(),
+    passes="func.func(torch-obfuscate-rnn{obfuscation=valueSplit})",
+)
+def ObfuscateRNN_4(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 10))
+
+
+@register_test_case(
+    module_factory=lambda: RNN_scratch(),
+    passes="func.func(torch-obfuscate-rnn{obfuscation=maskSplit})",
+)
+def ObfuscateRNN_5(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 10))
+
+
+@register_test_case(
+    module_factory=lambda: RNN_scratch(),
+    passes="func.func(torch-obfuscate-rnn{obfuscation=valueSplit}), func.func(torch-obfuscate-rnn{obfuscation=valueSplit})",
+)
+def ObfuscateRNN_6(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 10))

@@ -26,8 +26,8 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
-static void obfuscateRNN(MLIRContext *context, Operation *f) {
-  // obfuscate RNN cells
+static SmallPtrSet<Operation *, 16> getRNNHidenLayers(Operation *f) {
+  // return pointer set of AtenMmOp which represent hidden layer of RNN
 
   llvm::SmallPtrSet<Operation *, 16> opWorklist, filteredOpWorklist;
   f->walk([&](Operation *op) {
@@ -62,39 +62,93 @@ static void obfuscateRNN(MLIRContext *context, Operation *f) {
       }
     }
   }
+  return filteredOpWorklist;
+}
 
-  // apply this  translation for every AtenMmOp in OpWorklit:
-  // replace its first operand x with x/2+x/2
+static void maskSplit(MLIRContext *context,
+                      SmallPtrSet<Operation *, 16> opWorklist) {
+  // replace input x with x1+x2, x1 and x2 are obtaioned by x through the
+  // opposite mask
+
+  // create constant 1 and masks
   IRRewriter rewriter(context);
-  it = filteredOpWorklist.begin();
-  // obfuscate too many layers cause precision error
-  for (int i=0; i<2; i++) {
-    Operation *op = (*it);
+  Operation *op = *opWorklist.begin();
+  std::vector<long> shape =
+      op->getOperand(0).getType().cast<ValueTensorType>().getSizes().vec();
+  long size = 1;
+  for (auto n : shape) {
+    size *= n;
+  }
+  std::vector<float> mask(size, 0), unMask(size, 1);
+  std::srand(std::time(0)); // can delete to enforce obfuscate
+  for (int i = 0; i < size; i++) {
+    if (std::rand() % 2) {
+      mask[i] = 1;
+      unMask[i] = 0;
+    }
+  }
+
+  rewriter.setInsertionPoint(op);
+  auto resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
+                                               rewriter.getF32Type());
+  auto maskDense = DenseElementsAttr::get(
+      RankedTensorType::get(llvm::ArrayRef(shape), rewriter.getF32Type()),
+      llvm::ArrayRef(mask));
+  auto unMaskDense = DenseElementsAttr::get(
+      RankedTensorType::get(llvm::ArrayRef(shape), rewriter.getF32Type()),
+      llvm::ArrayRef(unMask));
+  Value maskVal = rewriter.create<ValueTensorLiteralOp>(
+      op->getLoc(), resultTensorType, maskDense);
+  Value unMaskVal = rewriter.create<ValueTensorLiteralOp>(
+      op->getLoc(), resultTensorType, unMaskDense);
+  Value int1 = rewriter.create<ConstantIntOp>(op->getLoc(),
+                                              rewriter.getI64IntegerAttr(1));
+
+  // split every op in opWorklist
+  for (auto op : opWorklist) {
     Location loc = op->getLoc();
     rewriter.setInsertionPoint(op);
     Value op0 = op->getOperand(0);
-    std::vector<long> shape =
-        op0.getType().cast<ValueTensorType>().getSizes().vec();
-    int size = 1;
-    for (auto i : shape) {
-      size *= i;
-    }
-    std::vector<float> weightVec(size, 0.5);
-    auto resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
-                                                 rewriter.getF32Type());
-    auto dense = DenseElementsAttr::get(
-        RankedTensorType::get(llvm::ArrayRef(shape), rewriter.getF32Type()),
-        llvm::ArrayRef(weightVec));
-    Value weight =
-        rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
     Value mul1 =
-        rewriter.create<AtenMulTensorOp>(loc, op0.getType(), op0, weight);
+        rewriter.create<AtenMulTensorOp>(loc, op0.getType(), op0, maskVal);
     Value mul2 =
-        rewriter.create<AtenMulTensorOp>(loc, op0.getType(), op0, weight);
-    Value float0 =
-        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0));
-    Value add = rewriter.create<AtenAddTensorOp>(loc, op0.getType(), mul1, mul2,
-                                                 float0);
+        rewriter.create<AtenMulTensorOp>(loc, op0.getType(), op0, unMaskVal);
+    Value add =
+        rewriter.create<AtenAddTensorOp>(loc, op0.getType(), mul1, mul2, int1);
+    op->setOperand(0, add);
+  }
+}
+
+static void valueSplit(MLIRContext *context,
+                       SmallPtrSet<Operation *, 16> opWorklist) {
+  // replace input x with x/2+x/2
+
+  // create constant 0.5 and 1
+  IRRewriter rewriter(context);
+  Operation *op = *opWorklist.begin();
+  std::vector<long> empty_dim;
+  rewriter.setInsertionPoint(op);
+  auto resultTensorType = ValueTensorType::get(
+      context, llvm::ArrayRef(empty_dim), rewriter.getF64Type());
+  auto dense = DenseElementsAttr::get(
+      RankedTensorType::get(llvm::ArrayRef(empty_dim), rewriter.getF64Type()),
+      llvm::ArrayRef(std::vector<double>{0.5}));
+  Value halfVal = rewriter.create<ValueTensorLiteralOp>(
+      op->getLoc(), resultTensorType, dense);
+  Value int1 = rewriter.create<ConstantIntOp>(op->getLoc(),
+                                              rewriter.getI64IntegerAttr(1));
+
+  // split every op in opWorklist
+  for (auto op : opWorklist) {
+    Location loc = op->getLoc();
+    rewriter.setInsertionPoint(op);
+    Value op0 = op->getOperand(0);
+    Value mul1 =
+        rewriter.create<AtenMulTensorOp>(loc, op0.getType(), op0, halfVal);
+    Value mul2 =
+        rewriter.create<AtenMulTensorOp>(loc, op0.getType(), op0, halfVal);
+    Value add =
+        rewriter.create<AtenAddTensorOp>(loc, op0.getType(), mul1, mul2, int1);
     op->setOperand(0, add);
   }
 }
@@ -103,15 +157,31 @@ namespace {
 class ObfuscateRNNPass : public ObfuscateRNNBase<ObfuscateRNNPass> {
 public:
   ObfuscateRNNPass() = default;
+  ObfuscateRNNPass(std::string obfuscation) { this->obfuscation = obfuscation; }
   void runOnOperation() override {
+    // obfuscate RNN cells
+    // apply this transformation for every hidden layer:
+
     MLIRContext *context = &getContext();
     auto f = getOperation();
-    obfuscateRNN(context, f);
+
+    auto opWorkList = getRNNHidenLayers(f);
+    if (obfuscation == "value-split") {
+      valueSplit(context, opWorkList);
+    } else if (obfuscation == "mask-split") {
+      maskSplit(context, opWorkList);
+    } else if (obfuscation == "") {
+      // default obfuscation
+      valueSplit(context, opWorkList);
+    } else {
+      llvm::errs() << "unsupported obfuscation: " << obfuscation << "\n";
+      return;
+    }
   }
 };
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createObfuscateRNNPass() {
-  return std::make_unique<ObfuscateRNNPass>();
+mlir::torch::Torch::createObfuscateRNNPass(std::string obfuscation) {
+  return std::make_unique<ObfuscateRNNPass>(obfuscation);
 }
