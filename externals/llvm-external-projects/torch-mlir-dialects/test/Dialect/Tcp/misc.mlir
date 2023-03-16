@@ -196,3 +196,59 @@ func.func @test_constants() -> tensor<f32> {
   %2 = tcp.const {value = dense<[[2, 3, 5], [20, 25, 30]]> : tensor<2x3xi64>} : tensor<2x3xi64>
   return %0 : tensor<f32>
 }
+
+// -----
+//      CHECK: tcp.concat
+// CHECK-SAME: {axis = 0 : i64} : tensor<1x1xf32>, tensor<1x1xf32> -> tensor<2x1xf32>
+func.func @test_concat(%arg0: tensor<1x1xf32>, %arg1: tensor<1x1xf32>) -> tensor<2x1xf32> {
+  %0 = tcp.concat %arg0, %arg1 attributes {axis = 0 : i64} : tensor<1x1xf32>, tensor<1x1xf32> -> tensor<2x1xf32>
+  return %0 : tensor<2x1xf32>
+}
+
+// -----
+//      CHECK: tcp.concat
+// CHECK-SAME: {axis = 0 : i64} : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
+func.func @test_concat(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.concat %arg0, %arg1 attributes {axis = 0 : i64} : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+//      CHECK: tcp.concat
+// CHECK-SAME: {axis = 0 : i64} : tensor<?x?xf32>, tensor<5x?xf32> -> tensor<?x?xf32>
+func.func @test_concat(%arg0: tensor<?x?xf32>, %arg1: tensor<5x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.concat %arg0, %arg1 attributes {axis = 0 : i64} : tensor<?x?xf32>, tensor<5x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+func.func @test_concat(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?xf32> {
+  // expected-error @+1 {{'tcp.concat' op failed to verify tcp.concat operands and results rank mismatched}}
+  %0 = tcp.concat %arg0, %arg1 attributes {axis = 0 : i64} : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?xf32>
+  return %0 : tensor<?xf32>
+}
+
+// -----
+
+func.func @test_concat(%arg0: tensor<?x4xf32>, %arg1: tensor<5x5xf32>) -> tensor<?x5xf32> {
+  // expected-error @+1 {{'tcp.concat' op failed to verify tcp.concat with non concat dim 1, having different values 4 5}}
+  %0 = tcp.concat %arg0, %arg1 attributes {axis = 0 : i64} : tensor<?x4xf32>, tensor<5x5xf32> -> tensor<?x5xf32>
+  return %0 : tensor<?x5xf32>
+}
+
+// -----
+
+func.func @test_concat(%arg0: tensor<3x?xf32>, %arg1: tensor<5x?xf32>) -> tensor<?x?xf32> {
+  // expected-error @+1 {{'tcp.concat' op failed to verify tcp.concat with dynamic concat axis and static inputs}}
+  %0 = tcp.concat %arg0, %arg1 attributes {axis = 0 : i64} : tensor<3x?xf32>, tensor<5x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+func.func @test_concat(%arg0: tensor<1x5xf32>, %arg1: tensor<5x5xf32>) -> tensor<4x5xf32> {
+  // expected-error @+1 {{'tcp.concat' op failed to verify tcp.concat with dim 0 != 6}}
+  %0 = tcp.concat %arg0, %arg1 attributes {axis = 0 : i64} : tensor<1x5xf32>, tensor<5x5xf32> -> tensor<4x5xf32>
+  return %0 : tensor<4x5xf32>
+}

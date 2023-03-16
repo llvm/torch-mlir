@@ -1,4 +1,5 @@
 add_mlir_conversion_library(TorchMLIRTorchToTcp
+  DataMovement.cpp
   Elementwise.cpp
   Misc.cpp
   TorchToTcp.cpp

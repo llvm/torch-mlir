@@ -19,5 +19,9 @@ void populateMiscPatternsAndLegality(TypeConverter &typeConverter,
                                      RewritePatternSet &patterns,
                                      ConversionTarget &target);
 
+void populateDataMovementPatternsAndLegality(TypeConverter &typeConverter,
+                                             RewritePatternSet &patterns,
+                                             ConversionTarget &target);
+
 } // namespace torch_to_tcp
 } // namespace mlir
