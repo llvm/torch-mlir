@@ -47,6 +47,8 @@ public:
                                       ->convertType(catOp.getType())
                                       .cast<RankedTensorType>();
 
+    dim = toPositiveDim(dim, resultType.getRank());
+
     rewriter.replaceOpWithNewOp<tcp::ConcatOp>(
         catOp, resultType, tensorInputs,
         rewriter.getIntegerAttr(rewriter.getI64Type(), dim));
