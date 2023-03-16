@@ -34,8 +34,8 @@ Value torch_to_tcp::broadcastRankInLeadingDims(
   ArrayRef<int64_t> inputShape = inputType.getShape();
   SmallVector<int64_t> resultShape(rankIncrease, 1);
   resultShape.insert(resultShape.end(), inputShape.begin(), inputShape.end());
-  auto resultType = inputType.cloneWith(makeArrayRef(resultShape),
-                                        inputType.getElementType());
+  auto resultType =
+      inputType.cloneWith(ArrayRef(resultShape), inputType.getElementType());
 
   return rewriter.create<tensor::ExpandShapeOp>(
       input.getDefiningOp()->getLoc(), resultType, input, reassociationMap);
@@ -105,8 +105,8 @@ Value torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
       reassociationMap[0].push_back(rewriter.getAffineDimExpr(axis));
     resultShape[axisInOutput] = inputType.getShape()[0];
   }
-  auto resultType = targetType.cloneWith(makeArrayRef(resultShape),
-                                         targetType.getElementType());
+  auto resultType =
+      targetType.cloneWith(ArrayRef(resultShape), targetType.getElementType());
   result = rewriter.create<tensor::ExpandShapeOp>(
       result.getDefiningOp()->getLoc(), resultType, input, reassociationMap);
 

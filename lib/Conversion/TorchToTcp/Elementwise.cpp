@@ -150,7 +150,7 @@ public:
 
     Value epsVal;
     if (auto result = torch_to_tcp::getConstTensor<float>(
-            rewriter, op, llvm::makeArrayRef(static_cast<float>(eps)), {}))
+            rewriter, op, llvm::ArrayRef(static_cast<float>(eps)), {}))
       epsVal = *result;
     else
       return rewriter.notifyMatchFailure(op,
@@ -204,7 +204,7 @@ public:
   }
 };
 
-class ConvertAtenDivFOp : public OpConversionPattern<AtenDivTensorOp> {
+class ConvertAtenDivOp : public OpConversionPattern<AtenDivTensorOp> {
 public:
   using OpConversionPattern<AtenDivTensorOp>::OpConversionPattern;
 
@@ -225,6 +225,13 @@ public:
     if (!lhsType || !rhsType || !resultType)
       return rewriter.notifyMatchFailure(
           op, "Only Ranked Tensor types are supported in TCP");
+
+    // TODO: Add integer conversions once `tcp.divsi` and `tcp.divui` are
+    // added
+    if (resultType.getElementType().isa<mlir::IntegerType>()) {
+      return rewriter.notifyMatchFailure(
+          op, "Only floating point division supported for now");
+    }
 
     lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, lhs, rhs);
     rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, rhs, lhs);
@@ -419,7 +426,7 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
   patterns.add<ConvertAtenMulOp>(typeConverter, context);
 
   target.addIllegalOp<AtenDivTensorOp>();
-  patterns.add<ConvertAtenDivFOp>(typeConverter, context);
+  patterns.add<ConvertAtenDivOp>(typeConverter, context);
 
   target.addIllegalOp<AtenSqrtOp>();
   patterns.add<ConvertAtenSqrtOp>(typeConverter, context);
