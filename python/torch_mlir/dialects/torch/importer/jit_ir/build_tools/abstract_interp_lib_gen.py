@@ -880,20 +880,7 @@ def aten〇_embedding_bag〡shape(weight: List[int], indices: List[int], offsets
     ErrorInvocation(TensorOfShape(2, 3), LongTensorOfShape(7), None, 1, -100), # Mismatched batch dimension.
 ])
 def aten〇nll_loss_forward〡shape(self: List[int], target: List[int], weight: Optional[List[int]], reduction: int, ignore_index: int) -> Tuple[List[int], List[int]]:
-    # This is taken shamelessly from the meta function in LossNLL.cpp
-    self_dim = len(self)
-    target_dim = len(target)
-    assert 0 < self_dim <= 2
-    assert target_dim <= 1
-    no_batch_dim = self_dim == 1 and target_dim == 0
-    assert no_batch_dim or (self[0] == target[0])
-    n_classes = self[-1]
-    scalar_shape: List[int] = []
-    assert weight is None or (len(weight) == 1 and weight[0] == n_classes)
-    if reduction == 0 and self_dim == 2:
-        return [self[0]], scalar_shape
-    else:
-        return scalar_shape, scalar_shape
+    return upstream_shape_functions.nll_loss_forward(self, target, weight, reduction)
 
 def aten〇nll_loss_backward〡shape(grad_output: List[int], self: List[int], target: List[int], weight: Optional[List[int]], reduction: int, ignore_index: int, total_weight: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
