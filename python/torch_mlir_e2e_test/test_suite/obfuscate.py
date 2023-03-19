@@ -65,16 +65,9 @@ def ObfuscateLeNet_3(module, tu: TestUtils):
 
 
 @register_test_case(
-    module_factory=lambda: LeNet(), passes="func.func(torch-insert-conv{number=5})"
-)
-def ObfuscateLeNet_4(module, tu: TestUtils):
-    module.forward(tu.rand(1, 1, 28, 28))
-
-
-@register_test_case(
     module_factory=lambda: LeNet(), passes="func.func(torch-widen-conv-layer), func.func(torch-insert-conv)"
 )
-def ObfuscateLeNet_5(module, tu: TestUtils):
+def ObfuscateLeNet_4(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 28, 28))
 
 
@@ -154,4 +147,18 @@ def ObfuscateRNN_5(module, tu: TestUtils):
     passes="func.func(torch-obfuscate-rnn{obfuscation=valueSplit}), func.func(torch-obfuscate-rnn{obfuscation=valueSplit})",
 )
 def ObfuscateRNN_6(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 10))
+
+@register_test_case(
+    module_factory=lambda: RNN_scratch(),
+    passes="func.func(torch-obfuscate-rnn{obfuscation=valueSplit splitNumber=5})",
+)
+def ObfuscateRNN_7(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 10))
+
+@register_test_case(
+    module_factory=lambda: RNN_scratch(),
+    passes="func.func(torch-obfuscate-rnn{obfuscation=deepen})",
+)
+def ObfuscateRNN_8(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 10))

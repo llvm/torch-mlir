@@ -102,9 +102,9 @@ std::unique_ptr<OperationPass<func::FuncOp>> createWidenConvLayerPass();
 
 std::unique_ptr<OperationPass<func::FuncOp>> createInsertSkipPass();
 
-std::unique_ptr<OperationPass<func::FuncOp>> createInsertConvPass(int number);
+std::unique_ptr<OperationPass<func::FuncOp>> createInsertConvPass();
 
-std::unique_ptr<OperationPass<func::FuncOp>> createObfuscateRNNPass(std::string obfuscation);
+std::unique_ptr<OperationPass<func::FuncOp>> createObfuscateRNNPass(std::string obfuscation, int splitNumber);
 
 std::unique_ptr<OperationPass<ModuleOp>> createPreprocessShapeLibraryPass();
 

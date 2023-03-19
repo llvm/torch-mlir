@@ -75,6 +75,7 @@ int64_t getNumberOfElements(RankedTensorType inputType);
 
 SmallVector<int64_t> makeShapeLLVMCompatible(ArrayRef<int64_t> shape);
 SmallVector<int64_t> makeShapeTorchCompatible(ArrayRef<int64_t> shape);
+void insertConv(MLIRContext *context, SmallPtrSet<Operation *, 16> opWorklist);
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

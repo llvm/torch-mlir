@@ -259,24 +259,22 @@ def InsertSkip : Pass<"torch-insert-skip", "func::FuncOp"> {
 def InsertConv : Pass<"torch-insert-conv", "func::FuncOp"> {
   let summary = "Insert equivalent convolutions";
   let constructor = [{
-    mlir::torch::Torch::createInsertConvPass(/*maxIterations=*/1)
+    mlir::torch::Torch::createInsertConvPass()
   }];
   let description = [{
   }];
-  let options = [
-    Option<"number", "number", "int", /*default=*/"1",
-           "Number of convolutions to insert.">
-  ];
 }
 
 def ObfuscateRNN : Pass<"torch-obfuscate-rnn", "func::FuncOp"> {
   let summary = "Insert obfuscate in RNN cell";
   let constructor = [{
-    mlir::torch::Torch::createObfuscateRNNPass(/*obfuscation*/"")
+    mlir::torch::Torch::createObfuscateRNNPass(/*obfuscation=*/"", /*splitNumber=*/2)
   }];
   let options = [
     Option<"obfuscation", "obfuscation", "std::string", /*default=*/"",
-           "obfuscation to apply: valueSplit, maskSplit">
+           "obfuscation to apply: valueSplit, maskSplit">,
+    Option<"splitNumber", "splitNumber", "int", /*default=*/"2",
+           "split numbers, only used for valueSplit and maskSplit">
   ];
   let description = [{
   }];
