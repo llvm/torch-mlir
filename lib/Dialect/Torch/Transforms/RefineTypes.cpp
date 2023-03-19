@@ -845,7 +845,7 @@ void TypeAnalysis::visitOperation(Operation *op,
   }
 
   // 3 results take dtype from first operand.
-  if (isa<AtenNativeLayerNormOp, AtenNativeBatchNormOp,
+  if (isa<AtenNativeBatchNormOp,
           AtenConvolutionBackwardOp, AtenConvolutionBackwardOverrideableOp>(
           op)) {
     auto self = operands[0]->getValue();
@@ -860,7 +860,32 @@ void TypeAnalysis::visitOperation(Operation *op,
     result2Knowledge.dtype = self.dtype;
     incorporateKnowledge(op->getResult(0), result0Knowledge);
     incorporateKnowledge(op->getResult(1), result1Knowledge);
-    incorporateKnowledge(op->getResult(2), result1Knowledge);
+    incorporateKnowledge(op->getResult(2), result2Knowledge);
+    return;
+  }
+
+  // If the self's dtype is a `float16` type result types are `float16`,
+  // `float32` and `float32` respectively.
+  if (isa<AtenNativeLayerNormOp>(op)) {
+    auto self = operands[0]->getValue();
+    auto result0Knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    result0Knowledge.dtype = self.dtype;
+    auto result1Knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    result1Knowledge.dtype = self.dtype;
+    if (self.dtype.isa<Float16Type>()){
+      result1Knowledge.dtype = Float32Type::get(op->getContext());
+    }
+    auto result2Knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    result2Knowledge.dtype = self.dtype;
+    if (self.dtype.isa<Float16Type>()){
+      result2Knowledge.dtype = Float32Type::get(op->getContext());
+    }
+    incorporateKnowledge(op->getResult(0), result0Knowledge);
+    incorporateKnowledge(op->getResult(1), result1Knowledge);
+    incorporateKnowledge(op->getResult(2), result2Knowledge);
     return;
   }
 
