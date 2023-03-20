@@ -684,19 +684,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  // Promote LHS with scalar RHS.
-  if (isa<AtenAddScalarOp, AtenSubScalarOp, AtenMulScalarOp, AtenDivScalarOp,
-          AtenFmodScalarOp, AtenFloorDivideScalarOp, AtenPowTensorScalarOp,
-          AtenLeakyReluOp, AtenRemainderScalarOp>(op)) {
-    auto lhs = operands[0]->getValue();
-    Value scalar = op->getOperand(1);
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultDType(&lhs, scalar.getType());
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
   // Promote 2nd and 3rd operands.
   if (isa<AtenWhereSelfOp, AtenBaddbmmOp>(op)) {
     auto knowledge =
