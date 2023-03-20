@@ -90,10 +90,14 @@ public:
             ->convertType(op.getType())
             .cast<RankedTensorType>();
 
-    // TODO: Implement integer constant lowering to tcp::ConstOp
-    if (auto elements = op.getValueAttr().dyn_cast<DenseIntElementsAttr>())
-      return rewriter.notifyMatchFailure(
-          op, "Integer constants lowering to TCP is unimplemented");
+    if (auto elements = op.getValueAttr().dyn_cast<DenseIntElementsAttr>()) {
+      Type elementType = resultType.getElementType();
+      auto denseIntAttr = elements.mapValues(elementType, [&](const APInt &v) {
+        return APInt(elementType.getIntOrFloatBitWidth(), v.getSExtValue());
+      });
+      rewriter.replaceOpWithNewOp<tcp::ConstOp>(op, resultType, denseIntAttr);
+      return success();
+    }
 
     rewriter.replaceOpWithNewOp<tcp::ConstOp>(op, resultType,
                                               adaptor.getValue());
