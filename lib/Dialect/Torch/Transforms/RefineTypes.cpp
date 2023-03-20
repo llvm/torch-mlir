@@ -679,17 +679,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  // Promote three dtypes.
-  if (isa<AtenAddmmOp, AtenLerpTensorOp, AtenAddcmulOp, AtenAddcdivOp>(op)) {
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
-        op->getContext(), {&operands[0]->getValue(), &operands[1]->getValue(),
-                           &operands[2]->getValue()});
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
   if (auto linear = llvm::dyn_cast<AtenLinearOp>(op)) {
     visitAtenLinearOp(linear, operands);
     return;
