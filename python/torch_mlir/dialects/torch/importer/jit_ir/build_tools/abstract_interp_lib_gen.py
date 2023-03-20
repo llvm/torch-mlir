@@ -1794,6 +1794,21 @@ def aten〇convolution〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dt
     dtypes = [input_dtype, weight_dtype]
     return promote_dtypes(ranks, dtypes)
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(
+    num_of_tensors=2,
+    error_types={torch.bool, torch.bfloat16, torch.float16, torch.float32, torch.float64,
+                 torch.complex64, torch.complex128}) +
+    _check_tensors_with_the_same_dtype(
+    num_of_tensors=1,
+    error_types={torch.bool, torch.bfloat16, torch.float16, torch.float32, torch.float64,
+                 torch.complex64, torch.complex128}))
+def aten〇bincount〡dtype(self_rank_dtype: Tuple[int, int], weights_rank_dtype: Optional[Tuple[int, int]] = None, minlength: int = 0) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert is_integer_dtype(self_dtype) and self_dtype != torch.bool
+    if weights_rank_dtype is None:
+        return torch.int64
+    return torch.float64
+
 # ==============================================================================
 # Main
 # ==============================================================================

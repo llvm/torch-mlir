@@ -662,16 +662,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
-  // Dtype is always si64.
-  if (isa<AtenBincountOp>(op)) {
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype =
-        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
   // Dtype is always float32, except for bfloat16, float64 and nullptr after
   // promotion and assuming possible-zero rank.
   if (isa<AtenAtan2Op>(op)) {
