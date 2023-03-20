@@ -29,8 +29,8 @@ TOSA_TO_LINALG_FUNC_PIPELINE = ",".join([
     "tosa-to-linalg-named",
     # TOSA-to-LinAlg may generate tosa.const() ops, so we want to lower them
     # to arith.constants here before proceeding further.
-    "tosa-to-tensor",
     "tosa-to-linalg",
+    "tosa-to-tensor",
     "tosa-to-arith",
 ])
 
