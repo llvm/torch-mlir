@@ -191,7 +191,10 @@ static bool isValidNonContainerResultType(Type resultType) {
          resultType.isa<Torch::FloatType>() ||
          resultType.isa<Torch::IntType>() ||
          resultType.isa<Torch::BoolType>() ||
-         resultType.isa<Torch::NoneType>();
+         resultType.isa<Torch::NoneType>() ||
+         (resultType.isa<Torch::ListType>() && cast<Torch::ListType>(resultType)
+                                                   .getContainedType()
+                                                   .isa<Torch::IntType>());
 }
 
 static LogicalResult validateReturns(func::FuncOp func) {

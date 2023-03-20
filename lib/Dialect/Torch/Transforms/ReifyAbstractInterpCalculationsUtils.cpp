@@ -66,7 +66,16 @@ LogicalResult Torch::wrapWithCalculateOpIfLibraryFunctionAvailable(
         libFuncArgsBuilder) {
   Location loc = op->getLoc();
   MLIRContext *context = op->getContext();
-  auto name = op->getName().stripDialect();
+
+  std::string name_;
+  if (isa<OperatorOp>(op)) {
+    auto opOp = cast<OperatorOp>(op);
+    auto opName = opOp->getAttr("name").cast<StringAttr>().getValue();
+    name_ = "operator." + opName.str();
+  } else {
+    name_ = op->getName().stripDialect();
+  }
+  StringRef name = name_;
   // For value-semantic variant ops, i.e. valsem-ops (ops that are
   // mechanically consistent with existing torch conventions of in-place vs.
   //  out-of-place (value-semantic) variants), remove the prefix when
@@ -76,9 +85,17 @@ LogicalResult Torch::wrapWithCalculateOpIfLibraryFunctionAvailable(
   std::string libFuncName =
       (getLibraryFunctionPrefix(libFuncKind) + Twine(name)).str();
   auto libFunc = library.lookupSymbol<func::FuncOp>(libFuncName);
-  if (!libFunc)
-    return success();
-  libFuncNamesUsed.push_back(libFuncName);
+  if (!libFunc) {
+    auto parentModule = op->getParentOfType<ModuleOp>();
+    if (parentModule)
+      libFunc =
+          op->getParentOfType<ModuleOp>().lookupSymbol<func::FuncOp>(libFuncName);
+    if (!libFunc)
+      return success();
+  } else {
+    libFuncNamesUsed.push_back(libFuncName);
+  }
+
   OpBuilder b(op);
   Operation *calculate =
       createCalculateOp(b, loc, op->getResultTypes(), libFuncKind);
