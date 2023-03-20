@@ -199,6 +199,13 @@ static bool satisfiesBackendContract(ModuleOp module,
 
   // Check for unimplemented operators first to give more direct diagnostics.
   walkResult0 = module.walk([&](Torch::OperatorOp op) {
+    if (llvm::all_of(op.getResults(), [&op](auto res) {
+          return succeeded(
+              checkType(op.getOperation(), res.getType(), /*actuallyEmitDiagnostics=*/false));
+        })) {
+      return WalkResult::advance();
+    }
+
     if (actuallyEmitDiagnostics) {
       op->emitError("unsupported by backend contract: Unimplemented operator '"
         + op.getName() + "'");
