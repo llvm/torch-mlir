@@ -341,4 +341,40 @@ def Tcp_ConcatOp : Tcp_Op<"concat", [SameOperandsAndResultElementType]> {
   let hasVerifier = 1;
 }
 
+def Tcp_CeilOp : Tcp_UnaryElementwiseOp<"ceil"> {
+  let summary = "Computes ceil of input, elementwise";
+
+  let description = [{
+    Computes elementwise ceil of the input tensor.
+  }];
+
+  let arguments = (ins
+    Tcp_FloatOrComplexTensor:$in
+  );
+
+  let results = (outs
+    Tcp_FloatOrComplexTensor:$out
+  );
+
+  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
+}
+
+def Tcp_FloorOp : Tcp_UnaryElementwiseOp<"floor"> {
+  let summary = "Computes floor of input, elementwise";
+
+  let description = [{
+    Computes elementwise floor of the input tensor.
+  }];
+
+  let arguments = (ins
+    Tcp_FloatOrComplexTensor:$in
+  );
+
+  let results = (outs
+    Tcp_FloatOrComplexTensor:$out
+  );
+
+  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
+}
+
 #endif // TORCH_MLIR_DIALECT_TCP_OPS

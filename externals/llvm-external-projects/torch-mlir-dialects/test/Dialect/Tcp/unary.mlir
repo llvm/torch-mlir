@@ -84,3 +84,25 @@ func.func @test_sqrt_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
   %0 = tcp.sqrt %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @test_ceil_f32(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:         %[[CEIL:.*]] = tcp.ceil %[[ARG]] : tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         return %[[CEIL]] : tensor<?x?xf32>
+func.func @test_ceil_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.ceil %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_floor_f32(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:         %[[FLOOR:.*]] = tcp.floor %[[ARG]] : tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         return %[[FLOOR]] : tensor<?x?xf32>
+func.func @test_floor_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.floor %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}

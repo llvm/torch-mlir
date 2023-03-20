@@ -304,6 +304,48 @@ public:
   }
 };
 
+class ConvertAtenCeilOp : public OpConversionPattern<AtenCeilOp> {
+public:
+  using OpConversionPattern<AtenCeilOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(AtenCeilOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = adaptor.getSelf();
+    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
+    if (!inputType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+    if (!inputType.getElementType().isa<mlir::FloatType>())
+      return rewriter.notifyMatchFailure(
+          op, "Ceil input tensor must have floating-point datatype");
+
+    rewriter.replaceOpWithNewOp<tcp::CeilOp>(op, inputType, input);
+    return success();
+  }
+};
+
+class ConvertAtenFloorOp : public OpConversionPattern<AtenFloorOp> {
+public:
+  using OpConversionPattern<AtenFloorOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(AtenFloorOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = adaptor.getSelf();
+    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
+    if (!inputType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+    if (!inputType.getElementType().isa<mlir::FloatType>())
+      return rewriter.notifyMatchFailure(
+          op, "Floor input tensor must have floating-point datatype");
+
+    rewriter.replaceOpWithNewOp<tcp::FloorOp>(op, inputType, input);
+    return success();
+  }
+};
+
 class ConvertAtenClampOp : public OpConversionPattern<AtenClampOp> {
 public:
   using OpConversionPattern<AtenClampOp>::OpConversionPattern;
@@ -430,6 +472,12 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
 
   target.addIllegalOp<AtenSqrtOp>();
   patterns.add<ConvertAtenSqrtOp>(typeConverter, context);
+
+  target.addIllegalOp<AtenCeilOp>();
+  patterns.add<ConvertAtenCeilOp>(typeConverter, context);
+
+  target.addIllegalOp<AtenFloorOp>();
+  patterns.add<ConvertAtenFloorOp>(typeConverter, context);
 
   target.addIllegalOp<AtenBatchNormOp>();
   patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
