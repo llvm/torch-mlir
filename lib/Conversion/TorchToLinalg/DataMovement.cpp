@@ -33,31 +33,6 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
-static Value toPositiveValidDim(ConversionPatternRewriter &rewriter,
-                                Location loc, Value torchOptionalInt,
-                                Value builtinInt, Value defaultValue,
-                                Value dimSize) {
-  if (torchOptionalInt.getType().isa<Torch::NoneType>())
-    return defaultValue;
-  auto dimSizeAsInt = castIndexToInt64(rewriter, loc, dimSize);
-  Value positiveDim =
-      toPositiveDimDynamic(rewriter, loc, builtinInt, dimSizeAsInt);
-  // positveDim < 0 ? 0 : positiveDim
-  Value cst0 = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getZeroAttr(dimSizeAsInt.getType()));
-  Value predDimSltZero = rewriter.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::slt, positiveDim, cst0);
-  Value atLeastZero =
-      rewriter.create<arith::SelectOp>(loc, predDimSltZero, cst0, positiveDim);
-  // atLeastZero > dimSizeAsInt ? dimSizeAsInt : atLeastZero
-  Value sgtDimSize = rewriter.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::sgt, atLeastZero, dimSizeAsInt);
-  Value boundedByDimSize = rewriter.create<arith::SelectOp>(
-      loc, sgtDimSize, dimSizeAsInt, atLeastZero);
-
-  return castIntToIndex(rewriter, loc, boundedByDimSize);
-}
-
 template <typename OpTy, typename OpAdaptor>
 LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
                                            ConversionPatternRewriter &rewriter,
