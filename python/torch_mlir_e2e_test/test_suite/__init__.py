@@ -3,13 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-# Lists of tests that fail to even reach the backends.
-# These represent further work needed in torch-mlir to lower them properly
-# to the backend contract.
-COMMON_TORCH_MLIR_LOWERING_XFAILS = {
-    "QuantizedMLP_basic",
-    "ReduceMaxAlongDimUnsignedInt_basic",
-}
 
 def register_all_tests():
     """Registers all the built-in E2E tests that Torch-MLIR provides."""
