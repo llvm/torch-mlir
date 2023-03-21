@@ -52,14 +52,6 @@ static Type getContainerOrTensorTypeWithValueSemantics(Type type) {
   }
 }
 
-static bool operatorOpHasValueSemantics(OperatorOp opOp) {
-  if (!opOp->hasAttr("has_value_semantics"))
-    return false;
-  auto hasValueSemantics =
-      opOp->getAttr("has_value_semantics").cast<BoolAttr>().getValue();
-  return hasValueSemantics;
-}
-
 namespace {
 // Convert value semantic ops operating on mutable arrays to instead operate on
 // immutable tensors.
@@ -69,13 +61,8 @@ public:
       : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, context) {}
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
-    if (isa<OperatorOp>(op)) {
-      if (!operatorOpHasValueSemantics(cast<OperatorOp>(op))) {
-        return rewriter.notifyMatchFailure(op, "does not have value semantics");
-      }
-    } else if (!op->hasTrait<Torch::OpTrait::HasValueSemantics>()) {
+    if (!op->hasTrait<Torch::OpTrait::HasValueSemantics>())
       return rewriter.notifyMatchFailure(op, "does not have value semantics");
-    }
 
     rewriter.startRootUpdate(op);
     // Convert all operands.
@@ -267,9 +254,7 @@ class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
     target.addIllegalOp<NonValueTensorLiteralOp>();
     target.addIllegalOp<AtenBernoulli_FloatOp>();
     target.markUnknownOpDynamicallyLegal([](Operation *op) {
-      if (op->hasTrait<Torch::OpTrait::HasValueSemantics>() ||
-          (isa<OperatorOp>(op) &&
-           operatorOpHasValueSemantics(cast<OperatorOp>(op)))) {
+      if (op->hasTrait<Torch::OpTrait::HasValueSemantics>()) {
         auto hasValueSemantics = [](Type t) {
           // TODO: Make this an allowlist based on a closed torch dialect
           // type system.
