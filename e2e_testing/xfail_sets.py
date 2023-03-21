@@ -576,6 +576,7 @@ TOSA_PASS_SET = {
     "ElementwiseFlattenBroadcastModule_basic",
     "SquareModule_basic",
     "MaxPool2dStaticModule_basic",
+    "MaxPool2dStaticCeilModeTrueModule_basic",
     "ResNet18StaticModule_basic",
     "ReduceAmaxKeepDim_basic",
     "NativeLayerNormModule4D_basic",
