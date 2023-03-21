@@ -3794,23 +3794,14 @@ public:
   static int64_t getOutputDim(int64_t inputDim, int64_t kernelDim,
                               int64_t stride, int64_t padBefore,
                               int64_t padAfter, int64_t dilation,
-                              bool ceilMode=false) {
+                              bool ceilMode = false) {
     if (inputDim == kUnknownSize) {
       return kUnknownSize;
     } else {
       int64_t dimSize = inputDim + padBefore + padAfter - dilation * (kernelDim - 1) - 1;
-      if (!ceilMode) {
-        dimSize = (dimSize / stride + 1);
-      }
-      else {
-        if (dimSize % stride == 0) {
-          dimSize = (dimSize / stride + 1);
-        }
-        else {
-          dimSize = (dimSize / stride + 2);
-        }
-      }
-      return dimSize;
+      if (ceilMode && (dimSize % stride != 0))
+        return dimSize / stride + 2;
+      return dimSize / stride + 1;
     }
   }
 
@@ -3987,8 +3978,7 @@ template <typename AtenOpT, typename tosaOp>
 static Type getOutputTypeForNonAdaptivePoolingOp(
     RankedTensorType inputTy, SmallVectorImpl<int64_t> &kernelSize,
     SmallVectorImpl<int64_t> &strideArray, SmallVectorImpl<int64_t> &padArray,
-    SmallVectorImpl<int64_t> &dilationArray,
-    bool ceilMode=false) {
+    SmallVectorImpl<int64_t> &dilationArray, bool ceilMode = false) {
   auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
   auto inputRank = inputTy.getRank();
   auto inputElemTy = inputTy.getElementType();
@@ -3999,12 +3989,12 @@ static Type getOutputTypeForNonAdaptivePoolingOp(
   int64_t outputWDim = ConvertAtenPoolingBaseOp<AtenOpT, tosaOp>::getOutputDim(
       inputShape[inputRank - 1], kernelSize[1], strideArray[1], padArray[1],
       padArray[1], dilationArray[1], ceilMode);
-  padArray[0] = (outputHDim - 1) * strideArray[0] + 
-                dilationArray[0]*kernelSize[0] -  dilationArray[0] + 1 
-                -padArray[0]*2 - inputShape[inputRank - 2];
+  padArray[0] = (outputHDim - 1) * strideArray[0] +
+                dilationArray[0] * kernelSize[0] - dilationArray[0] + 1 -
+                padArray[0] * 2 - inputShape[inputRank - 2];
   padArray[1] = (outputWDim - 1) * strideArray[1] +
-                dilationArray[0]*kernelSize[1] -  dilationArray[0] + 1
-                - padArray[1]*2 - inputShape[inputRank - 1];
+                dilationArray[0] * kernelSize[1] - dilationArray[0] + 1 -
+                padArray[1] * 2 - inputShape[inputRank - 1];
   SmallVector<int64_t> outputShape;
   if (inputRank > 3)
     outputShape.push_back(inputShape[0]);
@@ -4047,18 +4037,19 @@ static LogicalResult getOutputTypeAndPoolingParameters(
     return rewriter.notifyMatchFailure(
         op, "Non-const padding factor for pooling op unsupported");
 
-  SmallVector<int64_t, 4> padArr = {paddingInts[0], paddingInts[0], paddingInts[1], paddingInts[1]};
+  SmallVector<int64_t, 4> padArr = {paddingInts[0], paddingInts[0],
+                                    paddingInts[1], paddingInts[1]};
   kernel = rewriter.getDenseI64ArrayAttr(kernelSizeInts);
   stride = rewriter.getDenseI64ArrayAttr(strideInts);
-  
+
   bool ceilMode;
   if (!matchPattern(op.getCeilMode(), m_TorchConstantBool(&ceilMode)))
     return rewriter.notifyMatchFailure(
         op, "only support constant bool ceil_mode for pooling op");
 
-  // add ceil_mode support.
   outputTy = getOutputTypeForNonAdaptivePoolingOp<AtenOpT, tosaOp>(
-      inputTy, kernelSizeInts, strideInts, paddingInts, dilationArray, ceilMode);
+      inputTy, kernelSizeInts, strideInts, paddingInts, dilationArray,
+      ceilMode);
   padArr[1] = padArr[1] + paddingInts[0];
   padArr[3] = padArr[3] + paddingInts[1];
   pad = rewriter.getDenseI64ArrayAttr(
