@@ -22,7 +22,12 @@ namespace mlir {
 namespace torch {
 namespace Torch {
 
-enum class LibraryFunctionKind { ShapeFunction, DtypeFunction, Decomposition };
+enum class LibraryFunctionKind {
+  ShapeFunction,
+  DtypeFunction,
+  Decomposition,
+  HasValueSemantics
+};
 
 // Searches the function library for an abstract interpretation function for
 // `op`. If one is found, wraps the op in a `CalculateOp`, with the op placed in
@@ -60,6 +65,16 @@ FailureOr<Value> adjustFunctionArg(
     OpBuilder &b, Location loc, Value operand, Type desiredType,
     function_ref<Value(OpBuilder &, Location, Value, Type)> baseTransformation =
         [](OpBuilder &, Location, Value operand, Type) { return operand; });
+
+std::string getLibraryFunctionPrefix(LibraryFunctionKind libFuncKind);
+
+// Parse MLIR module at `filename` into a ModuleOp that will then
+// be appended to an existing, fully hydrated, ModuleOp; note the module
+// should have been instantiated with an associated context like so:
+// `OwningOpRef<ModuleOp> module = ModuleOp::create(UnknownLoc::get(&context));`
+LogicalResult loadExtraLibrary(const std::string &filename,
+                               OwningOpRef<ModuleOp> &moduleToAppendTo);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

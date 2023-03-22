@@ -240,8 +240,8 @@ class ExampleArgs:
 # ops in the backend contract, and move these lists somewhere deeper in the
 # compiler where each backend can "own" its set of legal ops.
 BACKEND_LEGAL_OPS = {
-    OutputType.TOSA: ['torch.aten.flatten.using_ints', 'torch.aten.native_layer_norm', 'torch.aten.linear'],
-    OutputType.LINALG_ON_TENSORS: ['torch.aten.flatten.using_ints', ],
+    OutputType.TOSA: ['aten.flatten.using_ints', 'aten.native_layer_norm', 'aten.linear'],
+    OutputType.LINALG_ON_TENSORS: ['aten.flatten.using_ints', ],
     OutputType.STABLEHLO: [],
 }
 
@@ -252,6 +252,7 @@ def compile(model: torch.nn.Module,
             use_tracing: bool = False,
             ignore_traced_shapes=False,
             backend_legal_ops: Optional[Sequence[str]] = None,
+            _completely_unsupported_in_progress_extra_library: Optional[str] = None,
             verbose: bool = False):
     """Convert a PyTorch model to MLIR.
 
@@ -367,7 +368,11 @@ PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
     if output_type == OutputType.RAW:
         return mb.module
 
-    option_string = "{backend-legal-ops=" + ",".join(backend_legal_ops) + "}"
+    option_string = "{backend-legal-ops=" + ",".join(backend_legal_ops) + (
+        (" extra-library=" + _completely_unsupported_in_progress_extra_library)
+        if (_completely_unsupported_in_progress_extra_library is not None)
+        else ""
+    ) + "}"
     run_pipeline_with_repro_report(
         mb.module,
         f"builtin.module(torchscript-module-to-torch-backend-pipeline{option_string})",

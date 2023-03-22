@@ -14,6 +14,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
+#include "llvm/Support/MemoryBuffer.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -55,8 +56,12 @@ shapeFunctionArgsBuilder(OpBuilder &b, Location loc,
 }
 
 namespace {
-class ReifyShapeCalculationsPass
+struct ReifyShapeCalculationsPass
     : public ReifyShapeCalculationsBase<ReifyShapeCalculationsPass> {
+  ReifyShapeCalculationsPass() = default;
+  ReifyShapeCalculationsPass(StringRef extraLibrary) {
+    this->extraLibrary = extraLibrary.str();
+  }
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ModuleOp module = getOperation();
@@ -66,6 +71,12 @@ class ReifyShapeCalculationsPass
     // O(#ops in the program) ideally.
     OwningOpRef<ModuleOp> library =
         parseSourceString<ModuleOp>(getAbstractInterpLibrary(), context);
+    if (!extraLibrary.empty())
+      if (failed(mlir::torch::Torch::loadExtraLibrary(extraLibrary, library))) {
+        emitError(module->getLoc(),
+                  "Failed to load extra-library file at " + extraLibrary);
+        return signalPassFailure();
+      }
 
     // Walk all the operations, and if we have a shape function, wrap the op
     // in a `torch.shape.calculate` op.
@@ -84,6 +95,6 @@ class ReifyShapeCalculationsPass
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::Torch::createReifyShapeCalculationsPass() {
-  return std::make_unique<ReifyShapeCalculationsPass>();
+mlir::torch::Torch::createReifyShapeCalculationsPass(StringRef extraLibrary) {
+  return std::make_unique<ReifyShapeCalculationsPass>(extraLibrary);
 }

@@ -151,7 +151,13 @@ def InlineGlobalSlots : Pass<"torch-inline-global-slots", "ModuleOp"> {
 
 def ReduceOpVariants : Pass<"torch-reduce-op-variants", "func::FuncOp"> {
   let summary = "Reduces variants of ops to a smaller set of ops.";
-  let constructor = "mlir::torch::Torch::createReduceOpVariantsPass()";
+  let constructor = [{
+    mlir::torch::Torch::createReduceOpVariantsPass(/*extraLibrary=*/"")
+  }];
+  let options = [
+    Option<"extraLibrary", "extra-library", "std::string", /*default=*/"",
+           "MLIR module for verifying custom op value semantics">,
+  ];
   let description = [{
     Replaces ops with other ops to reduce the number of variants that
     need to be handled elsewhere in the code.
@@ -240,7 +246,13 @@ def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "func::FuncOp"> {
 
 def ReifyShapeCalculations : Pass<"torch-reify-shape-calculations", "ModuleOp"> {
   let summary = "Reify shape calculations.";
-  let constructor = "mlir::torch::Torch::createReifyShapeCalculationsPass()";
+  let constructor = [{
+    mlir::torch::Torch::createReifyShapeCalculationsPass(/*extraLibrary=*/"")
+  }];
+  let options = [
+    Option<"extraLibrary", "extra-library", "std::string", /*default=*/"",
+           "MLIR module for splicing into the shape library">,
+  ];
   let description = [{
   }];
 }
@@ -255,7 +267,13 @@ def SimplifyShapeCalculations : Pass<"torch-simplify-shape-calculations", "func:
 
 def ReifyDtypeCalculations : Pass<"torch-reify-dtype-calculations", "ModuleOp"> {
   let summary = "Reify dtype calculations.";
-  let constructor = "mlir::torch::Torch::createReifyDtypeCalculationsPass()";
+  let constructor = [{
+    mlir::torch::Torch::createReifyDtypeCalculationsPass(/*extraLibrary=*/"")
+  }];
+  let options = [
+    Option<"extraLibrary", "extra-library", "std::string", /*default=*/"",
+           "MLIR module for splicing into the dtype library">,
+  ];
   let description = [{
   }];
 }
@@ -291,7 +309,7 @@ def LowerToBackendContract
   let summary = "Perform simplifications until the backend contract is satisfied.";
   let constructor = [{
     mlir::torch::Torch::createLowerToBackendContractPass(
-      /*maxIterations=*/10, /*decompose=*/true, /*backendLegalOps=*/{})
+      /*maxIterations=*/10, /*decompose=*/true, /*backendLegalOps=*/{}, /*extraLibrary=*/"")
   }];
   let description = [{
     This pass performs the bulk of the lowering of the program's computations
@@ -335,7 +353,9 @@ def LowerToBackendContract
     Option<"decompose", "decompose", "bool", /*default=*/"true",
            "Decompose ops.">,
     ListOption<"backendLegalOps", "backend-legal-ops", "std::string",
-               "List of ops to be considered legal for the backend.">
+               "List of ops to be considered legal for the backend, such as 'aten.foo'.">,
+    Option<"extraLibrary", "extra-library", "std::string", /*default=*/"",
+           "MLIR module for splicing into the abstract interpretation library">,
 
   ];
   // TODO: Debug why this is needed, even though the input program has func.func

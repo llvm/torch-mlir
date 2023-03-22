@@ -61,13 +61,23 @@ dtypeFunctionArgsBuilder(OpBuilder &b, Location loc,
 }
 
 namespace {
-class ReifyDtypeCalculationsPass
+struct ReifyDtypeCalculationsPass
     : public ReifyDtypeCalculationsBase<ReifyDtypeCalculationsPass> {
+  ReifyDtypeCalculationsPass() = default;
+  ReifyDtypeCalculationsPass(StringRef extraLibrary) {
+    this->extraLibrary = extraLibrary.str();
+  }
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ModuleOp module = getOperation();
     OwningOpRef<ModuleOp> library =
         parseSourceString<ModuleOp>(getAbstractInterpLibrary(), context);
+    if (!extraLibrary.empty())
+      if (failed(mlir::torch::Torch::loadExtraLibrary(extraLibrary, library))) {
+        emitError(module->getLoc(),
+                  "Failed to load extra-library file at " + extraLibrary);
+        return signalPassFailure();
+      }
 
     // Walk all the operations, and if we have a dtype function, wrap the op
     // in a `torch.dtype.calculate` op.
@@ -86,6 +96,6 @@ class ReifyDtypeCalculationsPass
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-Torch::createReifyDtypeCalculationsPass() {
-  return std::make_unique<ReifyDtypeCalculationsPass>();
+Torch::createReifyDtypeCalculationsPass(StringRef extraLibrary) {
+  return std::make_unique<ReifyDtypeCalculationsPass>(extraLibrary);
 }
