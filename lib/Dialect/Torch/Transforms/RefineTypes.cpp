@@ -684,51 +684,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  // Promote 2nd and 3rd operands.
-  if (isa<AtenWhereSelfOp, AtenBaddbmmOp>(op)) {
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultType(
-        op->getContext(), {&operands[1]->getValue(), &operands[2]->getValue()},
-        getRankIsNonZeroArray(op->getOperands().slice(1, 2)));
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
-  // Promote 2nd and 3rd operands.
-  if (isa<AtenWhereScalarOp>(op)) {
-    Value lhsScalar = op->getOperand(1);
-    Value rhsScalar = op->getOperand(2);
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getDefaultDtypeForTorchScalar(getPromotedResultScalarType(
-        {lhsScalar.getType(), rhsScalar.getType()}));
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
-  // Promote 2nd and 3rd operands.
-  if (isa<AtenWhereScalarOtherOp>(op)) {
-    auto lhs = operands[1]->getValue();
-    Value scalar = op->getOperand(2);
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultDType(&lhs, scalar.getType());
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
-  // Promote 2nd and 3rd operands.
-  if (isa<AtenWhereScalarSelfOp>(op)) {
-    auto rhs = operands[2]->getValue();
-    Value scalar = op->getOperand(1);
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultDType(&rhs, scalar.getType());
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
   // 2 results take dtype from first operand.
   if (isa<AtenNllLossForwardOp>(op)) {
     auto self = operands[0]->getValue();

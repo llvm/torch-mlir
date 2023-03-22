@@ -2007,6 +2007,67 @@ def aten〇remainder〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: U
     dtypes = [self_dtype, get_dtype_of_scalar(other)]
     return promote_dtypes(ranks, dtypes)
 
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1, 1), (1, 1, 1), (1, 1, 1)], error_types={torch.bool, torch.float16}) +
+    [ErrorInvocation(TensorOfShape(
+        1, 1, 1, dtype=torch.float64), TensorOfShape(1, 1, 1, dtype=torch.int16), TensorOfShape(1, 1, 1, dtype=torch.int32)),
+    ErrorInvocation(
+        TensorOfShape(1, 1, 1, dtype=torch.float64), TensorOfShape(1, 1, 1, dtype=torch.int64), TensorOfShape(1, 1, 1, dtype=torch.float16)),
+    ErrorInvocation(
+        TensorOfShape(1, 1, 1, dtype=torch.float64), TensorOfShape(1, 1, 1, dtype=torch.float16), TensorOfShape(1, 1, 1, dtype=torch.int64)),
+    ErrorInvocation(
+        TensorOfShape(1, 1, 1, dtype=torch.float64), TensorOfShape(1, 1, 1, dtype=torch.bfloat16), TensorOfShape(1, 1, 1, dtype=torch.float16))])
+def aten〇baddbmm〡dtype(self_rank_dtype: Tuple[int, int], batch1_rank_dtype: Tuple[int, int], batch2_rank_dtype: Tuple[int, int], beta: Union[int, float] = 1, alpha: Union[int, float] = 1) -> int:
+    batch1_rank, batch1_dtype = batch1_rank_dtype
+    batch2_rank, batch2_dtype = batch2_rank_dtype
+    assert batch1_dtype not in [torch.bool, torch.float16]
+    assert batch2_dtype not in [torch.bool, torch.float16]
+    assert batch1_dtype == batch2_dtype
+    ranks: List[Optional[int]] = [batch1_rank, batch2_rank]
+    dtypes = [batch1_dtype, batch2_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function([
+    Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.int16), NonZeroDTensorWithDtype(torch.int32)),
+    Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.int64), NonZeroDTensorWithDtype(torch.float16)),
+    Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.float16), NonZeroDTensorWithDtype(torch.int64)),
+    Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.bfloat16), NonZeroDTensorWithDtype(torch.float16))])
+def aten〇where〇self〡dtype(condition_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    other_rank, other_dtype = other_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, other_rank]
+    dtypes = [self_dtype, other_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function([Invocation(NonZeroDTensorWithDtype(torch.bool), 0, 0),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), 0, 0.0),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), 0.0, 0),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), 0.0, 0.0)])
+def aten〇where〇Scalar〡dtype(condition_rank_dtype: Tuple[int, int], self: Union[int, float], other: Union[int, float]) -> int:
+    if is_integer_dtype(get_dtype_of_scalar(self)) and is_integer_dtype(get_dtype_of_scalar(other)):
+        return torch.int64
+    return torch.float32
+
+@check_dtype_function([Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.int16), 0),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.int64), 0.0),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.float16), 0),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.float64), 0.0)])
+def aten〇where〇ScalarOther〡dtype(condition_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], other: Union[int, float]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, None]
+    dtypes = [self_dtype, get_dtype_of_scalar(other)]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function([Invocation(NonZeroDTensorWithDtype(torch.bool), 0, NonZeroDTensorWithDtype(torch.int16)),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), 0.0, NonZeroDTensorWithDtype(torch.int64)),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), 0, NonZeroDTensorWithDtype(torch.float16)),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), 0.0, NonZeroDTensorWithDtype(torch.float64))])
+def aten〇where〇ScalarSelf〡dtype(condition_rank_dtype: Tuple[int, int], self: Union[int, float], other_rank_dtype: Tuple[int, int]) -> int:
+    other_rank, other_dtype = other_rank_dtype
+    ranks: List[Optional[int]] = [None, other_rank]
+    dtypes = [get_dtype_of_scalar(self), other_dtype]
+    return promote_dtypes(ranks, dtypes)
+
 # ==============================================================================
 # Main
 # ==============================================================================
