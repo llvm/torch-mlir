@@ -259,10 +259,14 @@ def InsertSkip : Pass<"torch-insert-skip", "func::FuncOp"> {
 def InsertConv : Pass<"torch-insert-conv", "func::FuncOp"> {
   let summary = "Insert equivalent convolutions";
   let constructor = [{
-    mlir::torch::Torch::createInsertConvPass()
+    mlir::torch::Torch::createInsertConvPass(/*number=*/1)
   }];
   let description = [{
   }];
+  let options = [
+    Option<"number", "number", "int", /*default=*/"1",
+           "number of convs to add">
+  ];
 }
 
 def ObfuscateRNN : Pass<"torch-obfuscate-rnn", "func::FuncOp"> {

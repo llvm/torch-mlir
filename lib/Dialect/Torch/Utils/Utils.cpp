@@ -11,6 +11,8 @@
 #include "mlir/IR/BuiltinDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include <cmath>
+#include <cstring>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -257,108 +259,177 @@ SmallVector<int64_t> Torch::makeShapeTorchCompatible(ArrayRef<int64_t> shape) {
   return updatedShape;
 }
 
-void Torch::insertConv(MLIRContext *context,
-                       SmallPtrSet<Operation *, 16> opWorklist) {
-  // insert invariant convolutions for every op in opWorklist, with different
-  // pad and dilation
+using namespace std;
 
-  IRRewriter rewriter(context);
-  Operation *op = *opWorklist.begin();
-  rewriter.setInsertionPoint(op);
-  // reusable ops
-  Location loc = op->getLoc();
-  Value int0 =
-      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
-  Value int1 =
-      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-  Value constFalse = rewriter.create<ConstantBoolOp>(loc, false);
-  Value listInt1_1 = rewriter.create<PrimListConstructOp>(
-      loc, ListType::get(IntType::get(context)), ValueRange({int1, int1}));
-  Value listInt = rewriter.create<PrimListConstructOp>(
-      loc, ListType::get(IntType::get(context)), ValueRange({}));
-
-  for (auto originOp : opWorklist) {
-    // select a random place to insert
-    rewriter.setInsertionPointAfter(originOp);
-    // copy originOp, for convinience of replace use of op
-    Operation *op = rewriter.clone(*originOp);
-    Location loc = op->getLoc();
-
-    // create unsqueeze if dimansion less than 4, such as : (1,84) -> (1,1,1,84)
-    Value rst = op->getResult(0);
-    std::vector<long> shape =
-        rst.getType().cast<ValueTensorType>().getSizes().vec();
-    int squeezeTime = 4 - shape.size();
-    if (squeezeTime < 0) {
-      continue;
+// 矩阵乘法
+float *mul(float A[], float B[], int N) {
+  float *C = new float[N * N]{};
+  for (int i = 0; i < N; i++) {
+    for (int j = 0; j < N; j++) {
+      for (int k = 0; k < N; k++) {
+        C[i * N + j] += A[i * N + k] * B[k * N + j];
+      }
     }
-    for (int i = 0; i < squeezeTime; i++) {
-      shape.insert(shape.begin(), 1);
-      rst = rewriter.create<AtenUnsqueezeOp>(
-          loc,
-          ValueTensorType::get(context, llvm::ArrayRef(shape),
-                               rewriter.getF32Type()),
-          rst, int0);
-    }
-    // create unit tensor as convolution kernel
-    // new kernel size is: ChannelSz  x ChannelSz  x kernelSz x kernelSz
-    int ChannelSz = shape[1];
-    int kernelSz = (1 + std::rand() % 5) * 2 + 1;
-    shape[0] = ChannelSz;
-    shape[2] = shape[3] = kernelSz;
-    std::vector<float> unitWeightVec(
-        ChannelSz * ChannelSz * kernelSz * kernelSz, 0);
-    for (int i = 0; i < ChannelSz; i++) {
-      // unitWeightVec[i][i][kernelSz/2][kernelSz/2] = 1
-      unitWeightVec[((i * ChannelSz + i) * kernelSz + kernelSz / 2) * kernelSz +
-                    kernelSz / 2] = 1;
-    }
-    auto resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
-                                                 rewriter.getF32Type());
-    auto dense = DenseElementsAttr::get(
-        RankedTensorType::get(llvm::ArrayRef(shape), rewriter.getF32Type()),
-        llvm::ArrayRef(unitWeightVec));
-    Value unitWeight =
-        rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
-    // create zero bias
-    shape.erase(shape.begin() + 1, shape.end());
-    std::vector<float> zeroBiasVec(shape[0], 0);
-    resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
-                                            rewriter.getF32Type());
-    dense = DenseElementsAttr::get(
-        RankedTensorType::get(llvm::ArrayRef(shape), rewriter.getF32Type()),
-        llvm::ArrayRef(zeroBiasVec));
-    Value zeroBias =
-        rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
-    // create other oprands for conv
-    int dilNum = 1 + std::rand() % 5;
-    int padNum = (kernelSz - 1) * dilNum / 2;
-    Value intPad =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(padNum));
-    Value intDil =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dilNum));
-    Value listIntPad_Pad = rewriter.create<PrimListConstructOp>(
-        loc, ListType::get(IntType::get(context)),
-        ValueRange({intPad, intPad}));
-    Value listIntDil_Dil = rewriter.create<PrimListConstructOp>(
-        loc, ListType::get(IntType::get(context)),
-        ValueRange({intDil, intDil}));
-    // create conv
-    rst = rewriter.create<AtenConvolutionOp>(
-        loc, rst.getType(), rst, unitWeight, zeroBias, listInt1_1,
-        listIntPad_Pad, listIntDil_Dil, constFalse, listInt, int1);
-    // create relu
-    rst = rewriter.create<AtenReluOp>(loc, rst.getType(), rst);
-    // create squeeze
-    for (int i = 0; i < squeezeTime; i++) {
-      shape = rst.getType().cast<ValueTensorType>().getSizes().vec();
-      shape.erase(shape.begin());
-      rst = rewriter.create<AtenSqueezeDimOp>(
-          loc,
-          ValueTensorType::get(context, llvm::ArrayRef(shape),
-                               rewriter.getF32Type()),
-          rst, int0);
-    }
-    rewriter.replaceOp(originOp, rst);
   }
+
+  // 若绝对值小于10^-10,则置为0（这是我自己定的）
+  for (int i = 0; i < N * N; i++) {
+    if (abs(C[i]) < pow(10, -10)) {
+      C[i] = 0;
+    }
+  }
+
+  return C;
+}
+
+// LUP分解
+void LUP_Descomposition(float A[], float L[], float U[], int P[], int N) {
+  int row = 0;
+  for (int i = 0; i < N; i++) {
+    P[i] = i;
+  }
+  for (int i = 0; i < N - 1; i++) {
+    float p = 0.0;
+    for (int j = i; j < N; j++) {
+      if (abs(A[j * N + i]) > p) {
+        p = abs(A[j * N + i]);
+        row = j;
+      }
+    }
+    if (0 == p) {
+      llvm::errs() << "矩阵奇异，无法计算逆\n";
+      return;
+    }
+
+    // 交换P[i]和P[row]
+    int tmp = P[i];
+    P[i] = P[row];
+    P[row] = tmp;
+
+    float tmp2 = 0.0;
+    for (int j = 0; j < N; j++) {
+      // 交换A[i][j]和 A[row][j]
+      tmp2 = A[i * N + j];
+      A[i * N + j] = A[row * N + j];
+      A[row * N + j] = tmp2;
+    }
+
+    // 以下同LU分解
+    float u = A[i * N + i], l = 0.0;
+    for (int j = i + 1; j < N; j++) {
+      l = A[j * N + i] / u;
+      A[j * N + i] = l;
+      for (int k = i + 1; k < N; k++) {
+        A[j * N + k] = A[j * N + k] - A[i * N + k] * l;
+      }
+    }
+  }
+
+  // 构造L和U
+  for (int i = 0; i < N; i++) {
+    for (int j = 0; j <= i; j++) {
+      if (i != j) {
+        L[i * N + j] = A[i * N + j];
+      } else {
+        L[i * N + j] = 1;
+      }
+    }
+    for (int k = i; k < N; k++) {
+      U[i * N + k] = A[i * N + k];
+    }
+  }
+}
+
+// LUP求解方程
+float *LUP_Solve(float L[], float U[], int P[], float b[], int N) {
+  float *x = new float[N]();
+  float *y = new float[N]();
+
+  // 正向替换
+  for (int i = 0; i < N; i++) {
+    y[i] = b[P[i]];
+    for (int j = 0; j < i; j++) {
+      y[i] = y[i] - L[i * N + j] * y[j];
+    }
+  }
+  // 反向替换
+  for (int i = N - 1; i >= 0; i--) {
+    x[i] = y[i];
+    for (int j = N - 1; j > i; j--) {
+      x[i] = x[i] - U[i * N + j] * x[j];
+    }
+    x[i] /= U[i * N + i];
+  }
+  return x;
+}
+
+/*****************矩阵原地转置BEGIN********************/
+
+/* 后继 */
+int getNext(int i, int m, int n) { return (i % n) * m + i / n; }
+
+/* 前驱 */
+int getPre(int i, int m, int n) { return (i % m) * n + i / m; }
+
+/* 处理以下标i为起点的环 */
+void movedata(float *mtx, int i, int m, int n) {
+  float temp = mtx[i]; // 暂存
+  int cur = i;         // 当前下标
+  int pre = getPre(cur, m, n);
+  while (pre != i) {
+    mtx[cur] = mtx[pre];
+    cur = pre;
+    pre = getPre(cur, m, n);
+  }
+  mtx[cur] = temp;
+}
+
+/* 转置，即循环处理所有环 */
+void transpose(float *mtx, int m, int n) {
+  for (int i = 0; i < m * n; ++i) {
+    int next = getNext(i, m, n);
+    while (
+        next >
+        i) // 若存在后继小于i说明重复,就不进行下去了（只有不重复时进入while循环）
+      next = getNext(next, m, n);
+    if (next == i) // 处理当前环
+      movedata(mtx, i, m, n);
+  }
+}
+/*****************矩阵原地转置END********************/
+
+// LUP求逆(将每列b求出的各列x进行组装)
+float *LUP_solve_inverse(float A[], int N) {
+  // todo: 内存泄漏，先不管
+  // 创建矩阵A的副本，注意不能直接用A计算，因为LUP分解算法已将其改变
+  float *A_mirror = new float[N * N]();
+  float *inv_A = new float[N * N]();  // 最终的逆矩阵（还需要转置）
+  float *inv_A_each = new float[N](); // 矩阵逆的各列
+  // float *B    =new float[N*N]();
+  float *b = new float[N](); // b阵为B阵的列矩阵分量
+
+  for (int i = 0; i < N; i++) {
+    float *L = new float[N * N]();
+    float *U = new float[N * N]();
+    int *P = new int[N]();
+
+    // 构造单位阵的每一列
+    for (int i = 0; i < N; i++) {
+      b[i] = 0;
+    }
+    b[i] = 1;
+
+    // 每次都需要重新将A复制一份
+    for (int i = 0; i < N * N; i++) {
+      A_mirror[i] = A[i];
+    }
+
+    LUP_Descomposition(A_mirror, L, U, P, N);
+
+    inv_A_each = LUP_Solve(L, U, P, b, N);
+    memcpy(inv_A + i * N, inv_A_each, N * sizeof(float)); // 将各列拼接起来
+  }
+  transpose(inv_A, N, N); // 由于现在根据每列b算出的x按行存储，因此需转置
+
+  return inv_A;
 }
