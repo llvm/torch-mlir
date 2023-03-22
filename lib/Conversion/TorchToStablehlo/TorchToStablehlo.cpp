@@ -65,7 +65,7 @@ public:
         typeConverter, patterns, target, options);
     torch_to_stablehlo::populateViewLikeOpPatternsAndLegality(
         typeConverter, patterns, target, options);
-    torch_to_stablehlo::populateGatherOpPatternsAndLegality(
+    torch_to_stablehlo::populateGatherScatterOpPatternsAndLegality(
         typeConverter, patterns, target, options);
     torch_to_stablehlo::populateReductionOpPatternsAndLegality(
         typeConverter, patterns, target, options);

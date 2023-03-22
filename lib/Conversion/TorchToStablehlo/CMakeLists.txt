@@ -2,7 +2,7 @@ add_mlir_conversion_library(TorchMLIRTorchToStablehlo
   TorchToStablehlo.cpp
   StablehloLegalizeUtils.cpp
   Basic.cpp
-  Gather.cpp
+  GatherScatter.cpp
   Linear.cpp
   ViewLike.cpp
   Reduction.cpp

@@ -307,6 +307,23 @@ class SliceScatterZeroDimModule(torch.nn.Module):
 def SliceScatterZeroDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(6, 8), tu.rand(1, 8))
 
+class SliceScatterNegativeEndModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, src):
+        return torch.ops.aten.slice_scatter(x, src, dim = 0, start = 3, end = -1, step = 1)
+
+
+@register_test_case(module_factory=lambda: SliceScatterNegativeEndModule())
+def SliceScatterNegativeEndModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 8), tu.rand(2, 8))
 
 class SliceScatterNegativeDimModule(torch.nn.Module):
 

@@ -96,6 +96,75 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
                                           sliceSizesTensor, dimsAttr)
       .getResult();
 }
+
+template <typename OpTy, typename OpAdaptor>
+LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
+                                           ConversionPatternRewriter &rewriter,
+                                           SmallVector<Value> &resultShape,
+                                           SmallVector<Value> &offsets,
+                                           SmallVector<Value> &strides) {
+  Location loc = op.getLoc();
+  auto input = adaptor.getSelf();
+  RankedTensorType inputType =
+      input.getType().template cast<RankedTensorType>();
+
+  Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+  Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+
+  int64_t dim;
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+    return op->emitError("unimplemented: dim is not constant");
+
+  int64_t inputRank = inputType.getRank();
+  dim = toPositiveDim(dim, inputRank);
+  if (!isValidDim(dim, inputRank))
+    return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+
+  SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
+  Value dimSize = inputShape[dim];
+
+  Value torchTypeStart = op.getStart();
+  Value torchTypeEnd = op.getEnd();
+  Value builtinTypeStart = adaptor.getStart();
+  Value builtinTypeEnd = adaptor.getEnd();
+
+  if (torchTypeStart.getType().isa<OptionalType>() ||
+      torchTypeEnd.getType().isa<OptionalType>())
+    return rewriter.notifyMatchFailure(op, "unimplemented optional type arg");
+
+  int64_t step;
+  if (!matchPattern(op.getStep(), m_TorchConstantInt(&step))) {
+    if (!op.getStep().getType().template isa<Torch::NoneType>())
+      return op->emitError("unimplemented: step is not constant");
+    step = 1;
+  }
+
+  Value start = toPositiveValidDim(rewriter, loc, torchTypeStart,
+                                   builtinTypeStart, zero, dimSize);
+  Value end = toPositiveValidDim(rewriter, loc, torchTypeEnd, builtinTypeEnd,
+                                 dimSize, dimSize);
+
+  // end >= start ? end : start
+  Value endSgeStart = rewriter.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::sge, end, start);
+  end = rewriter.create<arith::SelectOp>(loc, endSgeStart, end, start);
+  Value stepIndex = rewriter.create<arith::ConstantIndexOp>(loc, step);
+
+  // Slice logic: resultSize = floordiv(end - start + step - 1,  step)
+  resultShape = getTensorSizes(rewriter, loc, input);
+  Value len = rewriter.create<arith::SubIOp>(loc, end, start);
+  Value resultSize = rewriter.create<arith::AddIOp>(loc, len, stepIndex);
+  resultSize = rewriter.create<arith::SubIOp>(loc, resultSize, one);
+  resultSize = rewriter.create<arith::FloorDivSIOp>(loc, resultSize, stepIndex);
+  resultShape[dim] = resultSize;
+
+  strides.resize(inputType.getRank(), one);
+  offsets.resize(inputType.getRank(), zero);
+
+  offsets[dim] = start;
+  strides[dim] = rewriter.create<arith::MulIOp>(loc, strides[dim], stepIndex);
+  return success();
+}
 } // namespace
 
 // Ref:
@@ -258,9 +327,54 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
   return success();
 }
 
-void mlir::torch::torch_to_stablehlo::populateGatherOpPatternsAndLegality(
-    TypeConverter &typeConverter, RewritePatternSet &patterns,
-    ConversionTarget &target, const TorchToStablehloOptions &options) {
+// AtenSliceScatterOp
+template <>
+LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
+    AtenSliceScatterOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+    return failure();
+
+  Location loc = op.getLoc();
+  TypeConverter *typeConverter = getTypeConverter();
+
+  auto input = adaptor.getSelf();
+
+  RankedTensorType resultType =
+      typeConverter->convertType(op->getResult(0).getType())
+          .cast<RankedTensorType>();
+
+  SmallVector<Value> resultShape;
+  SmallVector<Value> offsets;
+  SmallVector<Value> strides;
+  if (failed(prepareArgumentsForSlicingOp<AtenSliceScatterOp,
+                                          AtenSliceScatterOpAdaptor>(
+          op, adaptor, rewriter, resultShape, offsets, strides))) {
+    return failure();
+  }
+
+  Value src = adaptor.getSrc();
+  auto srcType = src.getType().cast<RankedTensorType>();
+  int64_t srcRank = srcType.getRank();
+  SmallVector<int64_t> srcAbstractSizes(srcRank, kUnknownSize);
+  auto abstractSrcType = RankedTensorType::get(
+      makeShapeLLVMCompatible(srcAbstractSizes), srcType.getElementType());
+  Value abstractSrc =
+      rewriter.create<tensor::CastOp>(loc, abstractSrcType, src);
+
+  Value result = rewriter.create<tensor::InsertSliceOp>(
+      loc, abstractSrc, input, offsets, resultShape, strides);
+
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
+
+  return success();
+}
+
+void mlir::torch::torch_to_stablehlo::
+    populateGatherScatterOpPatternsAndLegality(
+        TypeConverter &typeConverter, RewritePatternSet &patterns,
+        ConversionTarget &target, const TorchToStablehloOptions &options) {
   MLIRContext *context = patterns.getContext();
 
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \
@@ -269,5 +383,6 @@ void mlir::torch::torch_to_stablehlo::populateGatherOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenEmbeddingOp);
   INSERT_ATENOP_PATTERN(AtenIndexSelectOp);
   INSERT_ATENOP_PATTERN(AtenGatherOp);
+  INSERT_ATENOP_PATTERN(AtenSliceScatterOp);
 #undef INSERT_ATENOP_PATTERN
 }
