@@ -267,6 +267,23 @@ class JitOperator:
         return self._get_function_signature(
             "decomposition", parameter_decl_builder, ret_decl_builder)
 
+    def get_has_value_semantics_function_signature(self):
+        """Gets the Python function signature for this op's has_value_semantics function.
+
+        While this is technically debug-only output, it is useful to copy-paste
+        it from the debug dump into the library definitions, as many
+        ops have extra default arguments and stuff that are tedious to write out
+        right.
+        """
+        def parameter_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
+            return ""
+
+        def ret_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
+            return "None"
+
+        return self._get_function_signature(
+            "has_value_semantics", parameter_decl_builder, ret_decl_builder)
+
     def __repr__(self):
         f = io.StringIO()
         emitter = TextEmitter(f)
