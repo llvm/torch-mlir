@@ -728,8 +728,7 @@ TOSA_PASS_SET = {
     "ConstantPadNdPartialStaticModule_basic",
     "ConstantPadNdStaticModule_basic",
     "PadModule_basic",
-    "PadWithNoneValModule_basic"
-    "ElementwiseRemainderScalarModule_Bool_basic",
+    "PadWithNoneValModule_basic",
     "ElementwiseRemainderScalarModule_Float_basic",
     "ElementwiseRemainderScalarModule_Int_Float_basic",
     "ElementwiseRemainderScalarModule_Int_basic"
