@@ -729,6 +729,10 @@ TOSA_PASS_SET = {
     "ConstantPadNdStaticModule_basic",
     "PadModule_basic",
     "PadWithNoneValModule_basic"
+    "ElementwiseRemainderScalarModule_Bool_basic",
+    "ElementwiseRemainderScalarModule_Float_basic",
+    "ElementwiseRemainderScalarModule_Int_Float_basic",
+    "ElementwiseRemainderScalarModule_Int_basic"
 }
 
 LTC_XFAIL_SET = {
