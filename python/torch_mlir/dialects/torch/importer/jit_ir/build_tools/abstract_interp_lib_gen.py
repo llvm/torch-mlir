@@ -1794,6 +1794,280 @@ def aten〇convolution〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dt
     dtypes = [input_dtype, weight_dtype]
     return promote_dtypes(ranks, dtypes)
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(
+    num_of_tensors=2,
+    error_types={torch.bool, torch.bfloat16, torch.float16, torch.float32, torch.float64,
+                 torch.complex64, torch.complex128}) +
+    _check_tensors_with_the_same_dtype(
+    num_of_tensors=1,
+    error_types={torch.bool, torch.bfloat16, torch.float16, torch.float32, torch.float64,
+                 torch.complex64, torch.complex128}))
+def aten〇bincount〡dtype(self_rank_dtype: Tuple[int, int], weights_rank_dtype: Optional[Tuple[int, int]] = None, minlength: int = 0) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert is_integer_dtype(self_dtype) and self_dtype != torch.bool
+    if weights_rank_dtype is None:
+        return torch.int64
+    return torch.float64
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1), (1, 1)], error_types={torch.bool, torch.float16}) +
+    # Different width
+    [ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
+                     TensorOfShape(3, 4, dtype=torch.float64),
+                     TensorOfShape(4, 3, dtype=torch.float32)),
+     # Different type
+     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
+                     TensorOfShape(3, 4, dtype=torch.float32),
+                     TensorOfShape(4, 3, dtype=torch.int32)),
+     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.int32),
+                     TensorOfShape(3, 4, dtype=torch.float32),
+                     TensorOfShape(4, 3, dtype=torch.float32))])
+def aten〇addmm〡dtype(self_rank_dtype: Tuple[int, int], mat1_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[int, int], beta: Union[int, float] = 1, alpha: Union[int, float] = 1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    mat1_rank, mat1_dtype = mat1_rank_dtype
+    mat2_rank, mat2_dtype = mat2_rank_dtype
+
+    assert self_dtype not in [torch.bool, torch.float16]
+    assert mat1_dtype not in [torch.bool, torch.float16]
+    assert mat2_dtype not in [torch.bool, torch.float16]
+    assert mat1_dtype == mat2_dtype
+    assert self_dtype == mat2_dtype
+    ranks: List[Optional[int]] = [self_rank, mat1_rank, mat2_rank]
+    dtypes = [self_dtype, mat1_dtype, mat2_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1), (1, 1)], error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.float16}) +
+    # Different width
+    [ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
+                     TensorOfShape(3, 4, dtype=torch.float64),
+                     TensorOfShape(4, 3, dtype=torch.float32)),
+     # Different type
+     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
+                     TensorOfShape(3, 4, dtype=torch.float32),
+                     TensorOfShape(4, 3, dtype=torch.int32)),
+     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.int32),
+                     TensorOfShape(3, 4, dtype=torch.float32),
+                     TensorOfShape(4, 3, dtype=torch.float32))])
+def aten〇lerp〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], end_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    end_rank, end_dtype = end_rank_dtype
+    weight_rank, weight_dtype = weight_rank_dtype
+
+    assert self_dtype not in [torch.bool, torch.float16] and not is_integer_dtype(self_dtype)
+    assert end_dtype not in [torch.bool, torch.float16] and not is_integer_dtype(end_dtype)
+    assert weight_dtype not in [torch.bool, torch.float16] and not is_integer_dtype(weight_dtype)
+    assert end_dtype == weight_dtype
+    ranks: List[Optional[int]] = [self_rank, end_rank, weight_rank]
+    dtypes = [self_dtype, end_dtype, weight_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1), (1, 1)], error_types={torch.bool, torch.float16}) +
+    # Different width
+    [ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
+                     TensorOfShape(3, 4, dtype=torch.float64),
+                     TensorOfShape(4, 3, dtype=torch.float32)),
+     # Different type
+     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
+                     TensorOfShape(3, 4, dtype=torch.float32),
+                     TensorOfShape(4, 3, dtype=torch.int32)),
+     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.int32),
+                     TensorOfShape(3, 4, dtype=torch.float32),
+                     TensorOfShape(4, 3, dtype=torch.float32))])
+def aten〇addcmul〡dtype(self_rank_dtype: Tuple[int, int], tensor1_rank_dtype: Tuple[int, int], tensor2_rank_dtype: Tuple[int, int], value: Union[int, float] = 1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    tensor1_rank, tensor1_dtype = tensor1_rank_dtype
+    tensor2_rank, tensor2_dtype = tensor2_rank_dtype
+
+    assert self_dtype not in [torch.bool, torch.float16]
+    assert tensor1_dtype not in [torch.bool, torch.float16]
+    assert tensor2_dtype not in [torch.bool, torch.float16]
+    assert tensor1_dtype == tensor2_dtype
+    assert self_dtype == tensor2_dtype
+    ranks: List[Optional[int]] = [self_rank, tensor1_rank, tensor2_rank]
+    dtypes = [self_dtype, tensor1_dtype, tensor2_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1), (1, 1)], error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.float16}) +
+    # Different width
+    [ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
+                     TensorOfShape(3, 4, dtype=torch.float64),
+                     TensorOfShape(4, 3, dtype=torch.float32)),
+     # Different type
+     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.float32),
+                     TensorOfShape(3, 4, dtype=torch.float32),
+                     TensorOfShape(4, 3, dtype=torch.int32)),
+     ErrorInvocation(TensorOfShape(3, 3, dtype=torch.int32),
+                     TensorOfShape(3, 4, dtype=torch.float32),
+                     TensorOfShape(4, 3, dtype=torch.float32))])
+def aten〇addcdiv〡dtype(self_rank_dtype: Tuple[int, int], tensor1_rank_dtype: Tuple[int, int], tensor2_rank_dtype: Tuple[int, int], value: Union[int, float] = 1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    tensor1_rank, tensor1_dtype = tensor1_rank_dtype
+    tensor2_rank, tensor2_dtype = tensor2_rank_dtype
+
+    assert self_dtype not in [torch.bool, torch.float16] and not is_integer_dtype(self_dtype)
+    assert tensor1_dtype not in [torch.bool, torch.float16] and not is_integer_dtype(tensor1_dtype)
+    assert tensor2_dtype not in [torch.bool, torch.float16] and not is_integer_dtype(tensor2_dtype)
+    assert tensor1_dtype == tensor2_dtype
+    assert self_dtype == tensor2_dtype
+    ranks: List[Optional[int]] = [self_rank, tensor1_rank, tensor2_rank]
+    dtypes = [self_dtype, tensor1_dtype, tensor2_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, other=1) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, other=1.0))
+def aten〇add〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float], alpha: Union[int, float] = 1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, None]
+    dtypes = [self_dtype, get_dtype_of_scalar(other)]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}, other=1) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}, other=1.0))
+def aten〇sub〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float], alpha: Union[int, float] = 1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert self_dtype != torch.bool
+    ranks: List[Optional[int]] = [self_rank, None]
+    dtypes = [self_dtype, get_dtype_of_scalar(other)]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, other=1) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, other=1.0))
+def aten〇mul〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, None]
+    dtypes = [self_dtype, get_dtype_of_scalar(other)]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, other=1) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, other=1.0))
+def aten〇div〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, None]
+    dtypes = [self_dtype, get_dtype_of_scalar(other)]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    if is_integer_dtype(promoted_dtype):
+        return torch.float32
+    return promoted_dtype
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1.0))
+def aten〇fmod〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert not is_complex_dtype(self_dtype)
+    ranks: List[Optional[int]] = [self_rank, None]
+    dtypes = [self_dtype, get_dtype_of_scalar(other)]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1.0))
+def aten〇floor_divide〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert not is_complex_dtype(self_dtype)
+    ranks: List[Optional[int]] = [self_rank, None]
+    dtypes = [self_dtype, get_dtype_of_scalar(other)]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, exponent=1) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, exponent=1.0))
+def aten〇pow〇Tensor_Scalar〡dtype(self_rank_dtype: Tuple[int, int], exponent: Union[int, float]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, None]
+    dtypes = [self_dtype, get_dtype_of_scalar(exponent)]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(
+        num_of_tensors=1,
+        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.float16, torch.complex64, torch.complex128},
+        negative_slope=1) +
+    _check_tensors_with_the_same_dtype(
+        num_of_tensors=1,
+        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.float16, torch.complex64, torch.complex128},
+        negative_slope=1.0))
+def aten〇leaky_relu〡dtype(self_rank_dtype: Tuple[int, int], negative_slope: Union[int, float] = 0.01) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert not is_complex_dtype(self_dtype) and not is_integer_dtype(self_dtype) and self_dtype != torch.float16
+    ranks: List[Optional[int]] = [self_rank, None]
+    dtypes = [self_dtype, get_dtype_of_scalar(negative_slope)]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1.0))
+def aten〇remainder〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert not is_complex_dtype(self_dtype)
+    ranks: List[Optional[int]] = [self_rank, None]
+    dtypes = [self_dtype, get_dtype_of_scalar(other)]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1, 1), (1, 1, 1), (1, 1, 1)], error_types={torch.bool, torch.float16}) +
+    [ErrorInvocation(TensorOfShape(
+        1, 1, 1, dtype=torch.float64), TensorOfShape(1, 1, 1, dtype=torch.int16), TensorOfShape(1, 1, 1, dtype=torch.int32)),
+    ErrorInvocation(
+        TensorOfShape(1, 1, 1, dtype=torch.float64), TensorOfShape(1, 1, 1, dtype=torch.int64), TensorOfShape(1, 1, 1, dtype=torch.float16)),
+    ErrorInvocation(
+        TensorOfShape(1, 1, 1, dtype=torch.float64), TensorOfShape(1, 1, 1, dtype=torch.float16), TensorOfShape(1, 1, 1, dtype=torch.int64)),
+    ErrorInvocation(
+        TensorOfShape(1, 1, 1, dtype=torch.float64), TensorOfShape(1, 1, 1, dtype=torch.bfloat16), TensorOfShape(1, 1, 1, dtype=torch.float16))])
+def aten〇baddbmm〡dtype(self_rank_dtype: Tuple[int, int], batch1_rank_dtype: Tuple[int, int], batch2_rank_dtype: Tuple[int, int], beta: Union[int, float] = 1, alpha: Union[int, float] = 1) -> int:
+    batch1_rank, batch1_dtype = batch1_rank_dtype
+    batch2_rank, batch2_dtype = batch2_rank_dtype
+    assert batch1_dtype not in [torch.bool, torch.float16]
+    assert batch2_dtype not in [torch.bool, torch.float16]
+    assert batch1_dtype == batch2_dtype
+    ranks: List[Optional[int]] = [batch1_rank, batch2_rank]
+    dtypes = [batch1_dtype, batch2_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function([
+    Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.int16), NonZeroDTensorWithDtype(torch.int32)),
+    Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.int64), NonZeroDTensorWithDtype(torch.float16)),
+    Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.float16), NonZeroDTensorWithDtype(torch.int64)),
+    Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.bfloat16), NonZeroDTensorWithDtype(torch.float16))])
+def aten〇where〇self〡dtype(condition_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    other_rank, other_dtype = other_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, other_rank]
+    dtypes = [self_dtype, other_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function([Invocation(NonZeroDTensorWithDtype(torch.bool), 0, 0),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), 0, 0.0),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), 0.0, 0),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), 0.0, 0.0)])
+def aten〇where〇Scalar〡dtype(condition_rank_dtype: Tuple[int, int], self: Union[int, float], other: Union[int, float]) -> int:
+    if is_integer_dtype(get_dtype_of_scalar(self)) and is_integer_dtype(get_dtype_of_scalar(other)):
+        return torch.int64
+    return torch.float32
+
+@check_dtype_function([Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.int16), 0),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.int64), 0.0),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.float16), 0),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.float64), 0.0)])
+def aten〇where〇ScalarOther〡dtype(condition_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], other: Union[int, float]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, None]
+    dtypes = [self_dtype, get_dtype_of_scalar(other)]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function([Invocation(NonZeroDTensorWithDtype(torch.bool), 0, NonZeroDTensorWithDtype(torch.int16)),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), 0.0, NonZeroDTensorWithDtype(torch.int64)),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), 0, NonZeroDTensorWithDtype(torch.float16)),
+                       Invocation(NonZeroDTensorWithDtype(torch.bool), 0.0, NonZeroDTensorWithDtype(torch.float64))])
+def aten〇where〇ScalarSelf〡dtype(condition_rank_dtype: Tuple[int, int], self: Union[int, float], other_rank_dtype: Tuple[int, int]) -> int:
+    other_rank, other_dtype = other_rank_dtype
+    ranks: List[Optional[int]] = [None, other_rank]
+    dtypes = [get_dtype_of_scalar(self), other_dtype]
+    return promote_dtypes(ranks, dtypes)
+
 # ==============================================================================
 # Main
 # ==============================================================================

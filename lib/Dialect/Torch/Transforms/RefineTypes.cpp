@@ -662,16 +662,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
-  // Dtype is always si64.
-  if (isa<AtenBincountOp>(op)) {
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype =
-        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
   // Dtype is always float32, except for bfloat16, float64 and nullptr after
   // promotion and assuming possible-zero rank.
   if (isa<AtenAtan2Op>(op)) {
@@ -689,77 +679,8 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  // Promote three dtypes.
-  if (isa<AtenAddmmOp, AtenLerpTensorOp, AtenAddcmulOp, AtenAddcdivOp>(op)) {
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
-        op->getContext(), {&operands[0]->getValue(), &operands[1]->getValue(),
-                           &operands[2]->getValue()});
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
   if (auto linear = llvm::dyn_cast<AtenLinearOp>(op)) {
     visitAtenLinearOp(linear, operands);
-    return;
-  }
-
-  // Promote LHS with scalar RHS.
-  if (isa<AtenAddScalarOp, AtenSubScalarOp, AtenMulScalarOp, AtenDivScalarOp,
-          AtenFmodScalarOp, AtenFloorDivideScalarOp, AtenPowTensorScalarOp,
-          AtenLeakyReluOp, AtenRemainderScalarOp>(op)) {
-    auto lhs = operands[0]->getValue();
-    Value scalar = op->getOperand(1);
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultDType(&lhs, scalar.getType());
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
-  // Promote 2nd and 3rd operands.
-  if (isa<AtenWhereSelfOp, AtenBaddbmmOp>(op)) {
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultType(
-        op->getContext(), {&operands[1]->getValue(), &operands[2]->getValue()},
-        getRankIsNonZeroArray(op->getOperands().slice(1, 2)));
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
-  // Promote 2nd and 3rd operands.
-  if (isa<AtenWhereScalarOp>(op)) {
-    Value lhsScalar = op->getOperand(1);
-    Value rhsScalar = op->getOperand(2);
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getDefaultDtypeForTorchScalar(getPromotedResultScalarType(
-        {lhsScalar.getType(), rhsScalar.getType()}));
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
-  // Promote 2nd and 3rd operands.
-  if (isa<AtenWhereScalarOtherOp>(op)) {
-    auto lhs = operands[1]->getValue();
-    Value scalar = op->getOperand(2);
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultDType(&lhs, scalar.getType());
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
-  // Promote 2nd and 3rd operands.
-  if (isa<AtenWhereScalarSelfOp>(op)) {
-    auto rhs = operands[2]->getValue();
-    Value scalar = op->getOperand(1);
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultDType(&rhs, scalar.getType());
-    incorporateKnowledge(op->getResult(0), knowledge);
     return;
   }
 
