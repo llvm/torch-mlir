@@ -14,6 +14,7 @@ import torch.jit._shape_functions as upstream_shape_functions
 from .testing_framework import Invocation, ErrorInvocation, TensorOfShape, LongTensorOfShape, NonZeroDTensorWithDtype, ZeroDTensorWithDtype, check_shape_function, check_dtype_function
 from .library_generator import generate_library, not_present_in_registry, promote_dtypes, get_dtype_of_scalar
 
+# TODO: upstream this
 def _embedding_bag_helper(weight: List[int], indices: List[int], offsets: List[int], include_last_offset: bool, mode: int):
     assert len(weight) == 2
     assert len(indices) == 1
@@ -343,17 +344,6 @@ def aten〇std〇dim〡shape(self: List[int], dim: Optional[List[int]], unbiased
 def aten〇std〇correction〡shape(self: List[int], dim: Optional[List[int]] = None, correction: Optional[float] = None, keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
 
-def _reduce_along_dim(self: List[int], dim: int, keepdim: bool):
-    dim = upstream_shape_functions.maybe_wrap_dim(dim, len(self))
-    out: List[int] = []
-    for i, self_dim in enumerate(self):
-        if i == dim:
-            if keepdim:
-                out.append(1)
-        else:
-            out.append(self_dim)
-    return out
-
 @check_shape_function([
     Invocation(TensorOfShape(2, 3, 4)), # Basic case.
     Invocation(TensorOfShape(2, 3, 4), dim=0), # Test explicit `dim`.
@@ -364,15 +354,13 @@ def _reduce_along_dim(self: List[int], dim: int, keepdim: bool):
     ErrorInvocation(TensorOfShape(2, 3, 4), dim=3), # `dim` out of bounds.
 ])
 def aten〇argmax〡shape(self: List[int], dim: Optional[int] = None, keepdim: bool = False) -> List[int]:
-    if dim is None:
-        return []
-    return _reduce_along_dim(self, dim, keepdim)
+    return upstream_shape_functions.argmax(self, dim, keepdim)
 
 def aten〇any〇dim〡shape(self: List[int], dim: int, keepdim: bool = False) -> List[int]:
-    return _reduce_along_dim(self, dim, keepdim)
+    return upstream_shape_functions.argmax(self, dim, keepdim)
 
 def aten〇max〇dim〡shape(self: List[int], dim: int, keepdim: bool = False) -> Tuple[List[int], List[int]]:
-    reduced_shape = _reduce_along_dim(self, dim, keepdim)
+    reduced_shape = upstream_shape_functions.argmax(self, dim, keepdim)
     return reduced_shape, reduced_shape
 
 def aten〇amax〡shape(self: List[int], dim: List[int] = (), keepdim: bool = False) -> List[int]:
@@ -393,6 +381,7 @@ def aten〇transpose〇int〡shape(self: List[int], dim0: int, dim1: int) -> Lis
 def aten〇t〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.transpose(self, 0, 1)
 
+# TODO: upstream this
 def aten〇numpy_T〡shape(self: List[int]) -> List[int]:
     result_shape: List[int] = []
     for i in self:
@@ -419,22 +408,15 @@ def aten〇addmm〡shape(self: List[int], mat1: List[int], mat2: List[int], beta
     ErrorInvocation(TensorOfShape(2, 3, 4), TensorOfShape(2, 4)), # RHS is not rank 3.
 ])
 def aten〇bmm〡shape(self: List[int], mat2: List[int]) -> List[int]:
-    assert len(self) == 3, "bmm only supports 3D tensors"
-    assert len(mat2) == 3, "bmm only supports 3D tensors"
-    assert self[0] == mat2[0], "mismatching batch dimension"
-    assert self[2] == mat2[1], "mismatching contracting dimension"
-    return [self[0], self[1], mat2[2]]
+    return upstream_shape_functions.bmm(self, mat2)
 
 def aten〇baddbmm〡shape(self: List[int], batch1: List[int], batch2: List[int], beta: float = 1, alpha: float = 1) -> List[int]:
-    assert len(batch1) == 3, "baddbmm only supports 3D tensors"
-    assert len(batch2) == 3, "baddbmm only supports 3D tensors"
-    assert batch1[0] == batch2[0], "mismatching batch dimension"
-    assert batch1[2] == batch2[1], "mismatching contracting dimension"
-    return [batch1[0], batch1[1], batch2[2]]
+    return upstream_shape_functions.bmm(batch1, batch2)
 
 def aten〇embedding〡shape(weight: List[int], indices: List[int], padding_idx: int = -1, scale_grad_by_freq: bool = False, sparse: bool = False) -> List[int]:
     return upstream_shape_functions.embedding(weight, indices, padding_idx, scale_grad_by_freq, sparse)
 
+# TODO: upstream this
 def aten〇repeat〡shape(self: List[int], repeats: List[int]) -> List[int]:
     assert len(repeats) >= len(self)
     ndim = len(repeats)
@@ -801,12 +783,7 @@ def aten〇addcdiv〡shape(self: List[int], tensor1: List[int], tensor2: List[in
     ErrorInvocation(TensorOfShape(2, 3), 2, dim=100), # `dim` out of bounds.
 ])
 def aten〇topk〡shape(self: List[int], k: int, dim: int = -1, largest: bool = True, sorted: bool = True) -> Tuple[List[int], List[int]]:
-    assert k <= self[dim], f"k ({k}) is too big for dimension {dim} of size {self[dim]}"
-    # All lists which represent tensor shapes are expected to be the result
-    # of a fresh invocation of `AtenSizeOp`, which allocates a new, unaliased
-    # list. So in-place mutations are ok.
-    self[dim] = k
-    return self, self
+    return upstream_shape_functions.topk(self, k, dim)
 
 def aten〇conv2d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), groups: int = 1) -> List[int]:
     return upstream_shape_functions.conv2d(input, weight, bias, stride, padding, dilation, groups)
@@ -867,13 +844,7 @@ def aten〇convolution_backward_overrideable〡shape(grad_output: List[int], inp
     return upstream_shape_functions.conv_backwards(grad_output, input, weight, None)
 
 def aten〇batch_norm〡shape(input: List[int], weight: Optional[List[int]], bias: Optional[List[int]], running_mean: Optional[List[int]], running_var: Optional[List[int]], training: bool, momentum: float, eps: float, cudnn_enabled: bool) -> List[int]:
-    # Torch's symbolic shape analysis is a bit looser about optional
-    # arguments than we are, so their batch_norm helper function works
-    # even though the `weight` is not `Optional`.
-    # Upstream is working to make this more consistent.
-    # For now, since this function is so trivial, just write it ourselves.
-    #return upstream_shape_functions.batch_norm(input, weight, bias, running_mean, running_var, training, momentum, eps, cudnn_enabled)
-    return input
+    return upstream_shape_functions.batch_norm(input, weight, bias, running_mean, running_var, training, momentum, eps, cudnn_enabled)
 
 def aten〇slice〇Tensor〡shape(self: List[int], dim: int = 0, start: Optional[int] = None, end: Optional[int] = None, step: int = 1) -> List[int]:
     return upstream_shape_functions.slice(self, dim, start, end, step)
@@ -918,24 +889,12 @@ def aten〇_embedding_bag〡shape(weight: List[int], indices: List[int], offsets
     ErrorInvocation(TensorOfShape(2, 3), LongTensorOfShape(7), None, 1, -100), # Mismatched batch dimension.
 ])
 def aten〇nll_loss_forward〡shape(self: List[int], target: List[int], weight: Optional[List[int]], reduction: int, ignore_index: int) -> Tuple[List[int], List[int]]:
-    # This is taken shamelessly from the meta function in LossNLL.cpp
-    self_dim = len(self)
-    target_dim = len(target)
-    assert 0 < self_dim <= 2
-    assert target_dim <= 1
-    no_batch_dim = self_dim == 1 and target_dim == 0
-    assert no_batch_dim or (self[0] == target[0])
-    n_classes = self[-1]
-    scalar_shape: List[int] = []
-    assert weight is None or (len(weight) == 1 and weight[0] == n_classes)
-    if reduction == 0 and self_dim == 2:
-        return [self[0]], scalar_shape
-    else:
-        return scalar_shape, scalar_shape
+    return upstream_shape_functions.nll_loss_forward(self, target, weight, reduction)
 
 def aten〇nll_loss_backward〡shape(grad_output: List[int], self: List[int], target: List[int], weight: Optional[List[int]], reduction: int, ignore_index: int, total_weight: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+# TODO: upstream this
 def aten〇mse_loss〡shape(self: List[int], target: List[int], reduction: int = 1) -> List[int]:
     if reduction == 0:
         return upstream_shape_functions.unary(self)
@@ -945,14 +904,7 @@ def aten〇mse_loss〡shape(self: List[int], target: List[int], reduction: int =
     Invocation(TensorOfShape(2, 5, 2, 2, 3), [2, 2, 3], None, None, 1e-6), # Basic case.
 ])
 def aten〇native_layer_norm〡shape(input: List[int], normalized_shape: List[int], weight: Optional[List[int]], bias: Optional[List[int]], eps: float) -> Tuple[List[int], List[int], List[int]]:
-    reduction_shape: List[int] = []
-    num_unreduced_dimensions = len(input) - len(normalized_shape)
-    assert num_unreduced_dimensions >= 0
-    for i in range(num_unreduced_dimensions):
-        reduction_shape.append(input[i])
-    for i in range(num_unreduced_dimensions, len(input)):
-        reduction_shape.append(1)
-    return input, reduction_shape, reduction_shape
+    return upstream_shape_functions.native_layer_norm(input, normalized_shape)
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), None, None, None, None, True, 1e-4, 1e-6), # Training basic case.
@@ -962,9 +914,7 @@ def aten〇native_layer_norm〡shape(input: List[int], normalized_shape: List[in
     ErrorInvocation(TensorOfShape(2), None, None, None, None, True, 1e-4, 1e-6) # Dimensionality too low.
 ])
 def aten〇native_batch_norm〡shape(input: List[int], weight: Optional[List[int]], bias: Optional[List[int]], running_mean: Optional[List[int]], running_var: Optional[List[int]], training: bool, momentum: float, eps: float) -> Tuple[List[int], List[int], List[int]]:
-    if training:
-        return input, [input[1]], [input[1]]
-    return input, [0], [0]
+    return upstream_shape_functions.native_batch_norm(input, weight, bias, running_mean, running_var, training)
 
 # TODO: This should be upstreamed.
 # See https://github.com/pytorch/pytorch/pull/76889 for an example.
@@ -990,6 +940,7 @@ def aten〇constant_pad_nd〡shape(self: List[int], pad: List[int], value: float
 def aten〇pad〡shape(self: List[int], pad: List[int], mode: str = "constant", value: Optional[float] = None) -> List[int]:
     return pad_shape_fn(self, pad)
 
+# TODO: upstream this
 def index_tensor_like(self: List[int], indices: List[Optional[List[int]]]) -> List[int]:
     assert len(indices) <= len(self), "More indices than dimensions to index"
     broadcasted_shape: List[int] = []
