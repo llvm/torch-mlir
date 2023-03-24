@@ -2566,6 +2566,51 @@ def aten〇native_batch_norm〡dtype(input_rank_dtype: Tuple[int, int], weight_r
         result_dtype = torch.float32
     return input_dtype, input_dtype, result_dtype
 
+@check_dtype_function([Invocation(end=0, dtype=None), # No floats
+                       Invocation(end=0.0, dtype=None), # One float
+                       ErrorInvocation(end=0, dtype=torch.complex64), # Dtype specified
+                       Invocation(end=0, dtype=torch.float16), # Dtype specified
+                       Invocation(end=0, dtype=torch.int16)]) # Dtype specified
+def aten〇arange〡dtype(end: Union[int, float], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    if dtype is not None:
+        assert not is_complex_dtype(dtype)
+        return dtype
+    if is_float_dtype(get_dtype_of_scalar(end)):
+        return torch.float32
+    return torch.int64
+
+@check_dtype_function([Invocation(start=0, end=10, dtype=None), # No floats
+                       Invocation(start=0.0, end=10, dtype=None), # One float
+                       Invocation(start=0, end=10.0, dtype=None), # One float
+                       ErrorInvocation(start=0, end=10, dtype=torch.complex64), # Dtype specified
+                       Invocation(start=0, end=10, dtype=torch.float16), # Dtype specified
+                       Invocation(start=0, end=10, dtype=torch.int16)]) # Dtype specified
+def aten〇arange〇start〡dtype(start: Union[int, float], end: Union[int, float], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    if dtype is not None:
+        assert not is_complex_dtype(dtype)
+        return dtype
+    if is_float_dtype(get_dtype_of_scalar(start)) or \
+       is_float_dtype(get_dtype_of_scalar(end)):
+        return torch.float32
+    return torch.int64
+
+@check_dtype_function([Invocation(start=0, end=10, step=1, dtype=None), # No floats
+                       Invocation(start=0.0, end=10, step=1, dtype=None), # One float
+                       Invocation(start=0, end=10.0, step=1, dtype=None), # One float
+                       Invocation(start=0, end=10, step=1.0, dtype=None), # One float
+                       ErrorInvocation(start=0, end=10, step=1, dtype=torch.complex64), # Dtype specified
+                       Invocation(start=0, end=10, step=1, dtype=torch.float16), # Dtype specified
+                       Invocation(start=0, end=10, step=1, dtype=torch.int16)]) # Dtype specified
+def aten〇arange〇start_step〡dtype(start: Union[int, float], end: Union[int, float], step: Union[int, float] = 1, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    if dtype is not None:
+        assert not is_complex_dtype(dtype)
+        return dtype
+    if is_float_dtype(get_dtype_of_scalar(start)) or \
+       is_float_dtype(get_dtype_of_scalar(end)) or \
+       is_float_dtype(get_dtype_of_scalar(step)):
+        return torch.float32
+    return torch.int64
+
 # ==============================================================================
 # Main
 # ==============================================================================
