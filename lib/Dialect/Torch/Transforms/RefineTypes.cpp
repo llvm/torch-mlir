@@ -536,22 +536,6 @@ static Type getPromotedResultScalarType(ArrayRef<Type> scalarTypes) {
   return *result;
 }
 
-// Returns most generic type Type() if the tensor dtype is unknown.
-static Type getPromotedResultDType(ValueKnowledge *tensor, Type scalarType) {
-  if (!tensor->dtype)
-    return Type();
-  torch_upstream::ResultTypeState state = {};
-  // No need to check if rank is zero for tensor because scalar uses
-  // wrappedResult which is a lower priority than both dimResult and zeroResult.
-  state = updateResultTypeState(tensor, /*rankIsNonZero=*/std::nullopt, state,
-                                /*skipRankCheck=*/true);
-  state =
-      updateResultTypeState(getDefaultDtypeForTorchScalar(scalarType), state);
-  FailureOr<Type> result =
-      getTypeForScalarType(scalarType.getContext(), result_type(state));
-  return failed(result) ? Type() : *result;
-}
-
 static SmallVector<std::optional<bool>>
 getRankIsNonZeroArray(ValueRange values) {
   SmallVector<std::optional<bool>> rankIsNonZero;
@@ -681,40 +665,6 @@ void TypeAnalysis::visitOperation(Operation *op,
 
   if (auto linear = llvm::dyn_cast<AtenLinearOp>(op)) {
     visitAtenLinearOp(linear, operands);
-    return;
-  }
-
-  // 2 results take dtype from first operand.
-  if (isa<AtenNllLossForwardOp>(op)) {
-    auto self = operands[0]->getValue();
-    auto result0Knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    result0Knowledge.dtype = self.dtype;
-    auto result1Knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    result1Knowledge.dtype = self.dtype;
-    incorporateKnowledge(op->getResult(0), result0Knowledge);
-    incorporateKnowledge(op->getResult(1), result1Knowledge);
-    return;
-  }
-
-  // 3 results take dtype from first operand.
-  if (isa<AtenNativeLayerNormOp, AtenNativeBatchNormOp,
-          AtenConvolutionBackwardOp, AtenConvolutionBackwardOverrideableOp>(
-          op)) {
-    auto self = operands[0]->getValue();
-    auto result0Knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    result0Knowledge.dtype = self.dtype;
-    auto result1Knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    result1Knowledge.dtype = self.dtype;
-    auto result2Knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    result2Knowledge.dtype = self.dtype;
-    incorporateKnowledge(op->getResult(0), result0Knowledge);
-    incorporateKnowledge(op->getResult(1), result1Knowledge);
-    incorporateKnowledge(op->getResult(2), result1Knowledge);
     return;
   }
 
