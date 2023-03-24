@@ -172,6 +172,32 @@ func.func @torch.aten.sqrt(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[
 
 // -----
 
+// CHECK-LABEL:  func.func @torch.aten.ceil(
+// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+// CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
+// CHECK:         %[[T1:.*]] = tcp.ceil %[[T0]] : tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         %[[T2:.*]] = torch_c.from_builtin_tensor %[[T1]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
+// CHECK:         return %[[T2]] : !torch.vtensor<[?,?],f32>
+func.func @torch.aten.ceil(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %0 = torch.aten.ceil %arg0 : !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.floor(
+// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+// CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
+// CHECK:         %[[T1:.*]] = tcp.floor %[[T0]] : tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         %[[T2:.*]] = torch_c.from_builtin_tensor %[[T1]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
+// CHECK:         return %[[T2]] : !torch.vtensor<[?,?],f32>
+func.func @torch.aten.floor(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %0 = torch.aten.floor %arg0 : !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.batch_norm(
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,4,?,?],f32>) -> !torch.vtensor<[?,4,?,?],f32> {
 // CHECK:              %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,4,?,?],f32> -> tensor<?x4x?x?xf32>

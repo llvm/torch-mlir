@@ -467,6 +467,8 @@ TCP_PASS_SET = {
     "DropoutEvalIntModule_basic",
     "ElementwiseAddModule_basic",
     "ElementwiseSqrtModule_basic",
+    "ElementwiseCeilModule_basic",
+    "ElementwiseFloorModule_basic",
     "ElementwiseBinaryModule_basic",
     "ElementwiseClampModule_basic",
     "ElementwiseClampMaxModule_basic",
