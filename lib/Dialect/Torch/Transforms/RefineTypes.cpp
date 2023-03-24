@@ -429,12 +429,6 @@ private:
 
   void visitAtenLinearOp(AtenLinearOp op,
                          ArrayRef<const ValueState *> operands);
-  void visitAtenArangeStartStepOp(AtenArangeStartStepOp op);
-  void visitAtenArangeStartOp(AtenArangeStartOp op);
-  void visitAtenArangeOp(AtenArangeOp op);
-  void visitAtenArangeLikeOpHelper(Operation *op, std::optional<Value> start,
-                                   Value end, std::optional<Value> step,
-                                   Value dtype);
   void visitReductionAlongAllDimsOp(Operation *op, Type dtype,
                                     ArrayRef<const ValueState *> operands);
   void visitReductionAlongDimIntListOp(Operation *op, Value dim, Value keepdim,
@@ -646,19 +640,6 @@ void TypeAnalysis::visitOperation(Operation *op,
         IntegerType::get(op->getContext(), 64, IntegerType::Signed);
     incorporateKnowledge(op->getResult(0), result0Knowledge);
     incorporateKnowledge(op->getResult(1), result1Knowledge);
-    return;
-  }
-
-  if (auto arange = dyn_cast<AtenArangeOp>(op)) {
-    visitAtenArangeOp(arange);
-    return;
-  }
-  if (auto arangeStart = dyn_cast<AtenArangeStartOp>(op)) {
-    visitAtenArangeStartOp(arangeStart);
-    return;
-  }
-  if (auto arangeStartStep = dyn_cast<AtenArangeStartStepOp>(op)) {
-    visitAtenArangeStartStepOp(arangeStartStep);
     return;
   }
 
@@ -1019,49 +1000,6 @@ void TypeAnalysis::visitAtenEmbeddingBagOp(Operation *op) {
     incorporateKnowledge(op->getResult(i), resultIntKnowledge);
   }
   return;
-}
-
-// Arange like ops returns a 1-D tensor of size ceil(end - start).
-void TypeAnalysis::visitAtenArangeLikeOpHelper(Operation *op,
-                                               std::optional<Value> start,
-                                               Value end,
-                                               std::optional<Value> step,
-                                               Value dtype) {
-  auto knowledge =
-      ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-  int64_t dtypeInt;
-  if (matchPattern(dtype, m_TorchConstantInt(&dtypeInt))) {
-    knowledge.dtype = getTypeForDTypeInteger(op->getContext(), dtypeInt);
-  } else if (dtype.getType().isa<Torch::NoneType>()) {
-    // From torch/_torch_docs.py:
-    // If `dtype` is not given, infer the data type from the other input
-    // arguments. If any of `start`, `end`, or `step` are floating-point, the
-    // `dtype` is inferred to be the default dtype, see
-    // `torch.get_default_dtype`. Otherwise, the `dtype` is inferred to
-    // be `torch.int64`
-    if ((start.has_value() && (*start).getType().isa<Torch::FloatType>()) ||
-        end.getType().isa<Torch::FloatType>() ||
-        (step.has_value() && (*step).getType().isa<Torch::FloatType>())) {
-      // TODO: Should get the dtype from torch.get_default_dtype().
-      // For now, use float32 which is the initial default dtype.
-      knowledge.dtype = Float32Type::get(op->getContext());
-    } else
-      knowledge.dtype =
-          IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-  }
-  incorporateKnowledge(op->getResult(0), knowledge);
-}
-
-void TypeAnalysis::visitAtenArangeStartStepOp(AtenArangeStartStepOp op) {
-  visitAtenArangeLikeOpHelper(op, op.getStart(), op.getEnd(), op.getStep(), op.getDtype());
-}
-
-void TypeAnalysis::visitAtenArangeStartOp(AtenArangeStartOp op) {
-  visitAtenArangeLikeOpHelper(op, op.getStart(), op.getEnd(), {}, op.getDtype());
-}
-
-void TypeAnalysis::visitAtenArangeOp(AtenArangeOp op) {
-  visitAtenArangeLikeOpHelper(op, {}, op.getEnd(), {}, op.getDtype());
 }
 
 void TypeAnalysis::visitReductionAlongAllDimsOp(
