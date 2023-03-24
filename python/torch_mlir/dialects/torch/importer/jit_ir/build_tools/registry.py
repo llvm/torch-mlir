@@ -86,7 +86,7 @@ def _pytype_to_dtype_fn_pytype(pytype: str) -> str:
     """
     # Dtype functions only care about the rank and dtype of tensors.
     if "Tensor" in pytype:
-        return pytype.replace("Tensor", "int")
+        return pytype.replace("Tensor", "Tuple[int, int]")
     return _pytype_to_fn_pytype_common(pytype)
 
 def _pytype_to_decomposition_fn_pytype(pytype: str) -> str:
@@ -232,8 +232,7 @@ class JitOperator:
             default = _get_default_value(arg)
             parameter_name = _rename_python_keyword_parameter_name(arg["name"])
             if "Tensor" in arg["pytype"]:
-                return ", ".join([f"{parameter_name}_rank: {pytype}{default}",
-                                  f"{parameter_name}_dtype: {pytype}{default}"])
+                return f"{parameter_name}_rank_dtype: {pytype}{default}"
             return f"{parameter_name}: {pytype}{default}"
 
         def ret_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
@@ -241,7 +240,7 @@ class JitOperator:
             # results of type `number`. Here we handle this case because
             # `_pytype_to_dtype_fn_pytype` will replace `number` with
             # `Union[int, float]`.
-            if arg["pytype"] == "number":
+            if arg["pytype"] in ["number", "Tensor"]:
                 return "int"
             return _pytype_to_dtype_fn_pytype(arg["pytype"])
 

@@ -128,32 +128,36 @@ static FloatAttr getF64FloatAttr(MLIRContext *context, double value) {
   return FloatAttr::get(Float64Type::get(context), value);
 }
 
-static Value getScalarValue(Value input, Location loc,
-                            PatternRewriter &rewriter) {
+static Value getScalarIntValue(Value input, Location loc,
+                               PatternRewriter &rewriter) {
   auto inputType = input.getType();
   if (inputType.isa<Torch::IntType>()) {
     return input;
   }
-  Value scalar = nullptr;
+
+  auto inputTensorType = inputType.dyn_cast<BaseTensorType>();
+  if (!inputTensorType)
+    return nullptr;
+
+  Type inputDtype = inputTensorType.getOptionalDtype();
+  if (!inputDtype || !inputDtype.isInteger(64))
+    return nullptr;
+
+  std::optional<unsigned> inputRank = getTensorRank(input);
+  if (!inputRank || *inputRank != 0)
+    return nullptr;
+
   if (auto valueTensorLiteralOp = input.getDefiningOp<ValueTensorLiteralOp>()) {
-    std::optional<unsigned> tensorRank =
-        getTensorRank(valueTensorLiteralOp.getResult());
-    if (valueTensorLiteralOp && tensorRank && *tensorRank == 0) {
-      auto tensorType =
-          valueTensorLiteralOp.getValue().getType().cast<RankedTensorType>();
-      if (tensorType.getElementType().isa<mlir::IntegerType>()) {
-        auto val = valueTensorLiteralOp.getValue()
-                       .cast<DenseElementsAttr>()
-                       .getSplatValue<int64_t>();
-        scalar = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(val));
-      }
-    }
+    auto val = valueTensorLiteralOp.getValue()
+                   .cast<DenseElementsAttr>()
+                   .getSplatValue<int64_t>();
+    return rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(val));
   } else if (auto primNumToTensorScalarOp =
                  input.getDefiningOp<PrimNumToTensorScalarOp>()) {
-    scalar = primNumToTensorScalarOp.getA();
+    return primNumToTensorScalarOp.getA();
   }
-  return scalar;
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -386,7 +390,7 @@ void PrimIfOp::getSuccessorRegions(std::optional<unsigned> index,
   // If the condition is constant, we can give a more precise answer.
   if (auto condAttr = operands.front().dyn_cast_or_null<IntegerAttr>()) {
     Region *executedRegion =
-        condAttr.getValue().isOneValue() ? &getThenRegion() : &getElseRegion();
+        condAttr.getValue().isOne() ? &getThenRegion() : &getElseRegion();
     regions.push_back(RegionSuccessor(executedRegion));
     return;
   }
@@ -405,7 +409,7 @@ static void replaceOpWithRegion(PatternRewriter &rewriter, Operation *op,
   Block *block = &region.front();
   Operation *terminator = block->getTerminator();
   ValueRange results = terminator->getOperands();
-  rewriter.mergeBlockBefore(block, op, blockArgs);
+  rewriter.inlineBlockBefore(block, op, blockArgs);
   rewriter.replaceOp(op, results);
   rewriter.eraseOp(terminator);
 }
@@ -869,22 +873,25 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
   if (op->getNumOperands() < 2) {
     return failure();
   }
-  auto lhs = getScalarValue(op->getOperand(0), loc, rewriter);
-  auto rhs = getScalarValue(op->getOperand(1), loc, rewriter);
+  auto lhs = getScalarIntValue(op->getOperand(0), loc, rewriter);
+  auto rhs = getScalarIntValue(op->getOperand(1), loc, rewriter);
   auto outType = op->getResult(0).getType();
 
   if (!lhs || !rhs) {
     return rewriter.notifyMatchFailure(
         op, "only int scalar lhs or rhs is supported");
   }
-  if (isa<AtenSubTensorOp, AtenSubScalarOp, AtenAddTensorOp, AtenAddScalarOp>(
-          op)) {
-    Value alpha = getScalarValue(op->getOperand(2), loc, rewriter);
+  if (isa<AtenSubTensorOp, AtenSubScalarOp, AtenRsubScalarOp, AtenAddTensorOp,
+          AtenAddScalarOp>(op)) {
+    Value alpha = getScalarIntValue(op->getOperand(2), loc, rewriter);
     if (!alpha) {
       return rewriter.notifyMatchFailure(op,
                                          "only int scalar alpha is supported");
     }
-    rhs = rewriter.create<AtenMulIntOp>(loc, rhs, alpha);
+    if (isa<AtenRsubScalarOp>(op))
+      lhs = rewriter.create<AtenMulIntOp>(loc, lhs, alpha);
+    else
+      rhs = rewriter.create<AtenMulIntOp>(loc, rhs, alpha);
   }
 
   if (isa<AtenDivTensorModeOp>(op)) {
@@ -937,6 +944,8 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
     result = rewriter.create<AtenAddIntOp>(loc, lhs, rhs);
   } else if (isa<AtenSubScalarOp, AtenSubTensorOp>(op)) {
     result = rewriter.create<AtenSubIntOp>(loc, lhs, rhs);
+  } else if (isa<AtenRsubScalarOp>(op)) {
+    result = rewriter.create<AtenSubIntOp>(loc, rhs, lhs);
   } else if (isa<AtenMulScalarOp, AtenMulTensorOp>(op)) {
     result = rewriter.create<AtenMulIntOp>(loc, lhs, rhs);
   }
@@ -985,6 +994,16 @@ void AtenSubScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenRSubScalarOp
+//===----------------------------------------------------------------------===//
+void AtenRsubScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                   MLIRContext *context) {
+  patterns.add(+[](AtenRsubScalarOp op, PatternRewriter &rewriter) {
+    return rewrite0DBinaryTensorOp(op, rewriter);
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenMulTensorOp
 //===----------------------------------------------------------------------===//
 void AtenMulTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
@@ -1011,6 +1030,23 @@ void AtenDivTensorModeOp::getCanonicalizationPatterns(
     RewritePatternSet &patterns, MLIRContext *context) {
   patterns.add(+[](AtenDivTensorModeOp op, PatternRewriter &rewriter) {
     return rewrite0DBinaryTensorOp(op, rewriter);
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenScalarImplicitOp
+//===----------------------------------------------------------------------===//
+void AtenScalarImplicitOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenScalarImplicitOp op, PatternRewriter &rewriter) {
+    Location loc = op.getLoc();
+    Value a = op.getA();
+    auto outType = op.getResult().getType();
+    Value scalarValue = getScalarIntValue(a, loc, rewriter);
+    if (!scalarValue)
+      return failure();
+    rewriter.replaceOpWithNewOp<Torch::DerefineOp>(op, outType, scalarValue);
+    return success();
   });
 }
 
@@ -2128,6 +2164,17 @@ OpFoldResult AtenSubIntOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenCatOp::fold(FoldAdaptor adaptor) {
+  auto list = getOperand(0).getDefiningOp<PrimListConstructOp>();
+  if (!list || !list->hasOneUse() || list.getElements().size() != 1)
+    return nullptr;
+  return list.getElements()[0];
+}
+
+//===----------------------------------------------------------------------===//
+// AtenStackOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenStackOp::fold(FoldAdaptor adaptor) {
   auto list = getOperand(0).getDefiningOp<PrimListConstructOp>();
   if (!list || !list->hasOneUse() || list.getElements().size() != 1)
     return nullptr;

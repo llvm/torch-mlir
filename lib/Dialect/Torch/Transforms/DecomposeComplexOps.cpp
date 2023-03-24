@@ -195,8 +195,8 @@ static FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter,
   } else {
     unsqueezedShape.resize(unsqueezedRank, kUnknownSize);
   }
-  Type unsqueezedType =
-      inputType.getWithSizesAndDtype(unsqueezedShape, inputType.getDtype());
+  Type unsqueezedType = inputType.getWithSizesAndDtype(
+      unsqueezedShape, inputType.getOptionalDtype());
   Value unsqueezed = rewriter.create<AtenUnsqueezeOp>(
       op->getLoc(), unsqueezedType, input, dim);
   return unsqueezed;
@@ -1050,6 +1050,50 @@ public:
       rewriter.replaceOpWithNewOp<AtenTransposeIntOp>(op, op.getType(), lhs,
                                                       zero, one);
     }
+    return success();
+  }
+};
+} // namespace
+
+// Decompose `aten.stack` into `aten.unsqueeze` and `aten.cat`.
+namespace {
+class DecomposeAtenStackOp : public OpRewritePattern<AtenStackOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenStackOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<Value> tensors;
+    if (!getListConstructElements(op.getTensors(), tensors)) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: the tensor list is not from list construct");
+    }
+    // Ensure all tensors have known sizes
+    for (Value tensor : tensors) {
+      BaseTensorType tensorType = tensor.getType().cast<BaseTensorType>();
+      if (!tensorType.hasSizes()) {
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: one tensor does not have known sizes");
+      }
+    }
+
+    SmallVector<Value> unsqueezedTensors;
+    for (Value tensor : tensors) {
+      auto unsqueezedInfo = unsqueezeTensor(rewriter, op, tensor, op.getDim());
+      if (failed(unsqueezedInfo)) {
+        return rewriter.notifyMatchFailure(
+            op, "cannot generate unsqueeze tensor op");
+      }
+      unsqueezedTensors.push_back(*unsqueezedInfo);
+    }
+
+    Type listElemType =
+        op.getType().cast<BaseTensorType>().getWithSizesAndDtype(
+            /*optionalSizes=*/std::nullopt, /*optionalDtype=*/nullptr);
+    Type listType = Torch::ListType::get(listElemType);
+    Value unsqueezedTensorList = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), listType, unsqueezedTensors);
+    rewriter.replaceOpWithNewOp<AtenCatOp>(op, op.getType(),
+                                           unsqueezedTensorList, op.getDim());
     return success();
   }
 };
@@ -3873,6 +3917,7 @@ public:
         DecomposeConstantTensorAllocLikeOp<AtenOnesLikeOp, 1>>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeConstantTensorAllocLikeOp<AtenZerosLikeOp, 0>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenStackOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRollOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenExpandOp>(patterns);

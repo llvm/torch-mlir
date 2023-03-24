@@ -48,7 +48,7 @@ TM_PYTHON_VERSIONS="${TM_PYTHON_VERSIONS:-cp38-cp38 cp310-cp310 cp311-cp311}"
 # Location to store Release wheels
 TM_OUTPUT_DIR="${TM_OUTPUT_DIR:-${this_dir}/wheelhouse}"
 # What "packages to build"
-TM_PACKAGES="${TM_PACKAGES:-torch-mlir}"
+TM_PACKAGES="${TM_PACKAGES:-torch-mlir torch-mlir-core}"
 # Use pre-built Pytorch
 TM_USE_PYTORCH_BINARY="${TM_USE_PYTORCH_BINARY:-ON}"
 # Skip running tests if you want quick iteration
@@ -80,6 +80,11 @@ function run_on_host() {
   mkdir -p "${TM_OUTPUT_DIR}"
   case "$package" in
     torch-mlir)
+      TM_CURRENT_DOCKER_IMAGE=${TM_RELEASE_DOCKER_IMAGE}
+      export USERID=0
+      export GROUPID=0
+      ;;
+    torch-mlir-core)
       TM_CURRENT_DOCKER_IMAGE=${TM_RELEASE_DOCKER_IMAGE}
       export USERID=0
       export GROUPID=0
@@ -158,6 +163,12 @@ function run_in_docker() {
           #run_audit_wheel torch_mlir "$python_version"
 
           clean_build torch_mlir "$python_version"
+          ;;
+        torch-mlir-core)
+          clean_wheels torch_mlir_core "$python_version"
+          build_torch_mlir_core
+          run_audit_wheel torch_mlir_core "$python_version"
+          clean_build torch_mlir_core "$python_version"
           ;;
         out-of-tree)
           setup_venv "$python_version"
@@ -375,6 +386,15 @@ function run_audit_wheel() {
   echo ":::: Auditwheel $generic_wheel"
   auditwheel repair -w /wheelhouse "$generic_wheel"
   rm "$generic_wheel"
+}
+
+function build_torch_mlir_core() {
+  python -m pip install --no-cache-dir -r /main_checkout/torch-mlir/build-requirements.txt
+  CMAKE_GENERATOR=Ninja \
+  TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
+  TORCH_MLIR_ENABLE_JIT_IR_IMPORTER=0 \
+  TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS=1 \
+  python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir
 }
 
 function clean_wheels() {

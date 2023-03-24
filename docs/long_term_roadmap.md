@@ -246,3 +246,16 @@ for current LTC-based toolchains onto TorchDynamo. This migration will improve
 the end-user experience since TorchDynamo is more seamless, but it is a
 end-user-impacting migration nonetheless and we will want to phase it
 appropriately with the community.
+
+### End-to-end (E2E) testing
+
+Torch-MLIR currently maintains its own test suite with
+[hundreds of end-to-end tests](https://github.com/llvm/torch-mlir/tree/main/python/torch_mlir_e2e_test/test_suite)
+that verify the correctness and completeness of our op lowerings.
+These tests are tedious to write, and also sometimes hit corners
+of PyTorch's API that aren't usually reachable by user code.
+PyTorch already has an [end-to-end op test suite](https://github.com/pytorch/pytorch/blob/ead51864622467acd6835b6da86a166c1a32aa55/torch/testing/_internal/common_methods_invocations.py#L1)
+and we should just plug into it. Here is [an example](https://github.com/pytorch/pytorch/blob/ead51864622467acd6835b6da86a166c1a32aa55/test/test_proxy_tensor.py#L1573) of doing so.
+Even better, it would be great if TorchDynamo/PyTorch 2.0
+directly provided a way to plug into this.
+

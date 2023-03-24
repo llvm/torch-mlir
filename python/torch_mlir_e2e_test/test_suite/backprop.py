@@ -58,6 +58,28 @@ def TanhBackward_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class HardtanhBackwardModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, grad_out, input):
+        return torch.ops.aten.hardtanh_backward(grad_out, input, min_val=0.2, max_val=0.5)
+
+
+@register_test_case(module_factory=lambda: HardtanhBackwardModule())
+def HardtanhBackward_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 20), tu.rand(10, 20))
+
+# ==============================================================================
+
+
 class ConvolutionBackwardModule2D(torch.nn.Module):
 
     def __init__(self):

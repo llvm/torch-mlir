@@ -318,7 +318,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::maximum : (Tensor, Tensor) -> (Tensor)")
     emit("aten::minimum : (Tensor, Tensor) -> (Tensor)")
     emit("aten::mish : (Tensor) -> (Tensor)")
-    emit("aten::rsub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)")
+    emit("aten::rsub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)", has_canonicalizer=True)
     emit("aten::gelu : (Tensor, str) -> (Tensor)")
     emit("aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)")
     emit("aten::pow.Tensor_Tensor : (Tensor, Tensor) -> (Tensor)")
@@ -489,7 +489,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::resize_ : (Tensor, int[], int?) -> (Tensor)")
     emit("aten::select.int : (Tensor, int, int) -> (Tensor)")
     emit("aten::size.int : (Tensor, int) -> (int)", has_folder=True)
-    emit("aten::stack : (Tensor[], int) -> (Tensor)")
     emit("aten::sum : (Tensor, int?) -> (Tensor)")
     emit("aten::sum.dim_IntList : (Tensor, int[]?, bool, int?) -> (Tensor)")
     emit("aten::max : (Tensor) -> (Tensor)")
@@ -563,6 +562,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     # List ops.
     emit("aten::cat : (Tensor[], int) -> (Tensor)", has_folder=True)
+    emit("aten::stack : (Tensor[], int) -> (Tensor)", has_folder=True)
     emit("aten::append.t : (t[], t) -> (t[])")
     emit("aten::add.t : (t[], t[]) -> (t[])", has_canonicalizer=True)
     emit("aten::eq.int_list : (int[], int[]) -> (bool)", has_folder=True)
@@ -641,11 +641,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::eq.device : (Device, Device) -> (bool)")
     emit("aten::ceil.float : (float) -> (int)", has_folder=True)
     emit("aten::narrow : (Tensor, int, int, int) -> (Tensor)")
-    emit("aten::ScalarImplicit : (Tensor) -> (Scalar)")
+    emit("aten::ScalarImplicit : (Tensor) -> (Scalar)", has_canonicalizer=True)
 
     # backprop ops
     emit("aten::_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)")
     emit("aten::tanh_backward : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::hardtanh_backward : (Tensor, Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::gelu_backward : (Tensor, Tensor, str) -> (Tensor)")
     emit("aten::_log_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)")
     emit("aten::native_layer_norm_backward : (Tensor, Tensor, int[], Tensor, Tensor, Tensor?, Tensor?, bool[]) -> (Tensor, Tensor, Tensor)")

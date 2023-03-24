@@ -112,24 +112,6 @@ static torch_upstream::TypeKind getTypeKind(Type type) {
   return torch_upstream::TypeKind::AnyType;
 }
 
-/// Returns the dtype that assumes information from both `lhs` and `rhs`.
-/// Returns `std::nullopt` if the types are contradictory. Note this can only
-/// be used on the `dtype` from tensors and can't be used on other types like
-/// scalar types.
-static std::optional<Type> meetElementTypes(Type lhs, Type rhs) {
-  auto isNullOrBuiltIn = [](Type type) { return !type || isBuiltInType(type); };
-  (void)isNullOrBuiltIn;
-  assert(isNullOrBuiltIn(lhs) && "`lhs` must be a builtin type");
-  assert(isNullOrBuiltIn(rhs) && "`rhs` must be a builtin type");
-
-  if (!lhs)
-    return rhs;
-  if (!rhs)
-    return lhs;
-  if (lhs == rhs)
-    return lhs;
-  return std::nullopt;
-}
 
 enum class OptionalKnowledge {
   unKnown,
@@ -476,7 +458,8 @@ private:
   void visitAtenToDtypeLikeOp(OpTy op, ArrayRef<const ValueState *> operands);
   template <typename OpTy>
   void visitTypeConversionOp(OpTy op, ArrayRef<const ValueState *> operands);
-  void visitAtenCatOp(AtenCatOp op, ArrayRef<const ValueState *> operands);
+  template <typename OpTy>
+  void visitAtenCatLikeOp(OpTy op, ArrayRef<const ValueState *> operands);
 
   template <typename OpTy>
   void visitAtenSoftmaxLikeOp(OpTy op, ArrayRef<const ValueState *> operands);
@@ -653,9 +636,10 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenDetachOp, AtenMaskedFill_ScalarOp, AtenCopyOp, AtenCumsumOp,
           AtenLayerNormOp, AtenClampOp, AtenClampMinOp, AtenClampMaxOp,
           AtenNegOp, AtenFloorOp, Aten_SoftmaxBackwardDataOp, AtenDropoutOp,
-          AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp,
-          AtenAbsOp, AtenThresholdOp, AtenSquareOp, AtenUniformOp,
-          AtenBernoulliOp, AtenBernoulli_FloatOp, AtenBernoulliTensorOp,
+          AtenTanhBackwardOp, AtenHardtanhBackwardOp,
+          Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp, AtenAbsOp,
+          AtenThresholdOp, AtenSquareOp, AtenUniformOp, AtenBernoulliOp,
+          AtenBernoulli_FloatOp, AtenBernoulliTensorOp,
           ValsemVariantAtenBernoulliFloatOp, AtenBernoulliTensorOp,
           AtenBernoulliPOp, AtenFillScalarOp, AtenHardsigmoidOp, AtenCloneOp,
           AtenHardswishOp, AtenSiluOp, AtenHardtanhOp, AtenMaskedSelectOp,
@@ -730,9 +714,8 @@ void TypeAnalysis::visitOperation(Operation *op,
 
   // Promote the two dtypes assuming non-zero rank.
   if (isa<AtenMmOp, AtenBmmOp, AtenMatmulOp, AtenConv2dOp, AtenConvolutionOp,
-          Aten_ConvolutionOp, Aten_ConvolutionDeprecatedOp, AtenMvOp,
-          AtenConvolutionOverrideableOp, AtenConvTranspose2dInputOp,
-          AtenMseLossOp>(op)) {
+          Aten_ConvolutionOp, AtenMvOp, AtenConvolutionOverrideableOp,
+          AtenConvTranspose2dInputOp, AtenMseLossOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
@@ -909,6 +892,13 @@ void TypeAnalysis::visitOperation(Operation *op,
 
   if (auto sum = dyn_cast<AtenSumOp>(op)) {
     Type defaultDtype = operands[0]->getValue().dtype;
+    if (!defaultDtype) {
+      incorporateKnowledge(
+          sum.getResult(),
+          ValueKnowledge::getTensorPessimisticValueState(op->getContext()));
+      return;
+    }
+
     // If the input dtype is bool, the result type should be i64.
     if (defaultDtype.isInteger(1))
       defaultDtype =
@@ -1088,7 +1078,10 @@ void TypeAnalysis::visitOperation(Operation *op,
   }
 
   if (auto cat = dyn_cast<AtenCatOp>(op)) {
-    visitAtenCatOp(cat, operands);
+    visitAtenCatLikeOp<AtenCatOp>(cat, operands);
+    return;
+  } else if (auto stack = dyn_cast<AtenStackOp>(op)) {
+    visitAtenCatLikeOp<AtenStackOp>(stack, operands);
     return;
   }
 
@@ -1434,30 +1427,26 @@ void TypeAnalysis::visitTypeConversionOp(
 // `torch.aten.cat` concatenates the given sequence of seq tensors in the given
 // dimension. The output has the same sizes as the input for all dimensions
 // except the given dimension.
-void TypeAnalysis::visitAtenCatOp(AtenCatOp op,
-                                  ArrayRef<const ValueState *> operands) {
+template <typename OpTy>
+void TypeAnalysis::visitAtenCatLikeOp(OpTy op,
+                                      ArrayRef<const ValueState *> operands) {
   auto tensorList = op.getTensors();
   auto knowledge =
       ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-  auto listConstruct = tensorList.getDefiningOp<PrimListConstructOp>();
+  auto listConstruct = tensorList.template getDefiningOp<PrimListConstructOp>();
   if (!listConstruct) {
     incorporateKnowledge(op.getResult(), knowledge);
     return;
   }
 
-  auto tensors = llvm::to_vector<4>(
-      llvm::map_range(listConstruct.getElements(), [&](Value v) -> ValueKnowledge {
-        return getLatticeElement(v)->getValue();
+  SmallVector<ValueKnowledge*> tensors = llvm::to_vector(
+      llvm::map_range(listConstruct.getElements(), [&](Value v) -> ValueKnowledge* {
+        return &getLatticeElement(v)->getValue();
       }));
-  for (auto tensor : tensors) {
-    auto newDtype = meetElementTypes(knowledge.dtype, tensor.dtype);
-    if (!newDtype.has_value()) {
-      incorporateKnowledge(op.getResult(), knowledge);
-      return;
-    }
-    knowledge.dtype = newDtype.value();
-  }
-  incorporateKnowledge(op.getResult(), knowledge);
+
+  knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
+      op->getContext(), tensors);
+  incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 void TypeAnalysis::visitNumToTensorOp(PrimNumToTensorScalarOp op) {
@@ -1532,12 +1521,16 @@ static Type getMostRefinedStaticType(Value v, DataFlowSolver &solver) {
     if (!latticeElement)
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
+    if (!knowledge.isInitialized)
+      return nullptr;
     return getRefinedTensorType(tensorType, knowledge);
   } else if (auto optionalType = v.getType().dyn_cast<OptionalType>()) {
     const ValueState *latticeElement = solver.lookupState<ValueState>(v);
     if (!latticeElement)
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
+    if (!knowledge.isInitialized)
+      return nullptr;
     if (knowledge.optional == OptionalKnowledge::isNone)
       return Torch::NoneType::get(v.getContext());
     else if (knowledge.optional == OptionalKnowledge::notNone) {
@@ -1552,6 +1545,8 @@ static Type getMostRefinedStaticType(Value v, DataFlowSolver &solver) {
     if (!latticeElement)
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
+    if (!knowledge.isInitialized)
+      return nullptr;
     if (knowledge.kind == torch_upstream::TypeKind::IntType)
       return Torch::IntType::get(v.getContext());
     if (knowledge.kind == torch_upstream::TypeKind::FloatType)

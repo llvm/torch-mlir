@@ -12,7 +12,8 @@
 // CHECK:             %[[SIZE:.*]] = torch.aten.size %[[ARG]] : !torch.vtensor -> !torch.list<int>
 // CHECK:             %[[RANK:.*]] = torch.aten.len.t %[[SIZE]] : !torch.list<int> -> !torch.int
 // CHECK:             %[[DTYPE:.*]] = torch.prim.dtype %[[ARG]] : !torch.vtensor -> !torch.int
-// CHECK:             %[[RESULT_DTYPE:.*]] = func.call @__torch_mlir_dtype_fn.aten.expm1(%[[RANK]], %[[DTYPE]]) : (!torch.int, !torch.int) -> !torch.int
+// CHECK:             %[[RANK_DTYPE:.*]] = torch.prim.TupleConstruct %[[RANK]], %[[DTYPE]] : !torch.int, !torch.int -> !torch.tuple<int, int>
+// CHECK:             %[[RESULT_DTYPE:.*]] = func.call @__torch_mlir_dtype_fn.aten.expm1(%[[RANK_DTYPE]]) : (!torch.tuple<int, int>) -> !torch.int
 // CHECK:             torch.dtype.calculate.yield.dtypes %[[RESULT_DTYPE]] : !torch.int
 // CHECK:           } : !torch.vtensor
 // CHECK:           return %[[RESULT:.*]] : !torch.vtensor
@@ -38,6 +39,21 @@ func.func @op_with_dtype_promotion(%arg0: !torch.vtensor, %arg1: !torch.vtensor)
 
 // -----
 
+// CHECK-LABEL:   func.func private @__torch_mlir_dtype_fn.aten._convolution.deprecated(
+
+// CHECK-LABEL:   func.func @op_with_optional_tensor_arg$none(
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:             %[[OPTIONAL_TUPLE:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<tuple<int, int>>
+// CHECK:             {{.*}} = func.call @__torch_mlir_dtype_fn.aten._convolution.deprecated({{.*}}, %[[OPTIONAL_TUPLE]], {{.*}}) : ({{.*}}, !torch.optional<tuple<int, int>>, {{.*}}) -> !torch.int
+func.func @op_with_optional_tensor_arg$none(%input: !torch.vtensor, %weight: !torch.vtensor, %stride: !torch.list<int>, %padding: !torch.list<int>, %dilation: !torch.list<int>, %transposed: !torch.bool, %output_padding: !torch.list<int>, %groups: !torch.int) -> !torch.vtensor {
+  %bias_none = torch.constant.none
+  %false = torch.constant.bool false
+  %0 = torch.aten._convolution.deprecated %input, %weight, %bias_none, %stride, %padding, %dilation, %transposed, %output_padding, %groups, %false, %false, %false : !torch.vtensor, !torch.vtensor, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor
+  return %0 : !torch.vtensor
+}
+
+// -----
+
 // CHECK-LABEL:   func.func private @__torch_mlir_dtype_fn.aten.floor_divide(
 
 // CHECK-LABEL:   func.func @turn_tensors_into_rank_and_dtype_args(
@@ -46,10 +62,12 @@ func.func @op_with_dtype_promotion(%arg0: !torch.vtensor, %arg1: !torch.vtensor)
 // CHECK:             %[[SIZE0:.*]] = torch.aten.size %[[ARG0]] : !torch.vtensor -> !torch.list<int>
 // CHECK:             %[[RANK0:.*]] = torch.aten.len.t %[[SIZE0]] : !torch.list<int> -> !torch.int
 // CHECK:             %[[DTYPE0:.*]] = torch.prim.dtype %[[ARG0]] : !torch.vtensor -> !torch.int
+// CHECK:             %[[RANK_DTYPE0:.*]] = torch.prim.TupleConstruct %[[RANK0]], %[[DTYPE0]] : !torch.int, !torch.int -> !torch.tuple<int, int>
 // CHECK:             %[[SIZE1:.*]] = torch.aten.size %[[ARG1]] : !torch.vtensor -> !torch.list<int>
 // CHECK:             %[[RANK1:.*]] = torch.aten.len.t %[[SIZE1]] : !torch.list<int> -> !torch.int
 // CHECK:             %[[DTYPE1:.*]] = torch.prim.dtype %[[ARG1]] : !torch.vtensor -> !torch.int
-// CHECK:             {{.*}} = func.call @__torch_mlir_dtype_fn.aten.floor_divide(%[[RANK0]], %[[DTYPE0]], %[[RANK1]], %[[DTYPE1]]) : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.int
+// CHECK:             %[[RANK_DTYPE1:.*]] = torch.prim.TupleConstruct %[[RANK1]], %[[DTYPE1]] : !torch.int, !torch.int -> !torch.tuple<int, int>
+// CHECK:             {{.*}} = func.call @__torch_mlir_dtype_fn.aten.floor_divide(%[[RANK_DTYPE0]], %[[RANK_DTYPE1]]) : (!torch.tuple<int, int>, !torch.tuple<int, int>) -> !torch.int
 func.func @turn_tensors_into_rank_and_dtype_args(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch.vtensor {
   %0 = torch.aten.floor_divide %arg0, %arg1 : !torch.vtensor, !torch.vtensor -> !torch.vtensor
   return %0 : !torch.vtensor

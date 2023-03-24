@@ -33,31 +33,6 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
-static Value toPositiveValidDim(ConversionPatternRewriter &rewriter,
-                                Location loc, Value torchOptionalInt,
-                                Value builtinInt, Value defaultValue,
-                                Value dimSize) {
-  if (torchOptionalInt.getType().isa<Torch::NoneType>())
-    return defaultValue;
-  auto dimSizeAsInt = castIndexToInt64(rewriter, loc, dimSize);
-  Value positiveDim =
-      toPositiveDimDynamic(rewriter, loc, builtinInt, dimSizeAsInt);
-  // positveDim < 0 ? 0 : positiveDim
-  Value cst0 = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getZeroAttr(dimSizeAsInt.getType()));
-  Value predDimSltZero = rewriter.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::slt, positiveDim, cst0);
-  Value atLeastZero =
-      rewriter.create<arith::SelectOp>(loc, predDimSltZero, cst0, positiveDim);
-  // atLeastZero > dimSizeAsInt ? dimSizeAsInt : atLeastZero
-  Value sgtDimSize = rewriter.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::sgt, atLeastZero, dimSizeAsInt);
-  Value boundedByDimSize = rewriter.create<arith::SelectOp>(
-      loc, sgtDimSize, dimSizeAsInt, atLeastZero);
-
-  return castIntToIndex(rewriter, loc, boundedByDimSize);
-}
-
 template <typename OpTy, typename OpAdaptor>
 LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
                                            ConversionPatternRewriter &rewriter,
@@ -1117,6 +1092,18 @@ public:
 
     RankedTensorType newResultType =
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+
+    auto outElemType = newResultType.getElementType();
+    auto dtypePromoteBody = [&](OpBuilder &builder, Location loc,
+                        ValueRange payloadArgs) {
+      Value elem = convertScalarToDtype(builder, loc, payloadArgs[0], outElemType);
+      builder.create<linalg::YieldOp>(loc, elem);
+    };
+    for (size_t i = 0; i < tensors.size(); ++i) {
+      tensors[i] = torch_to_linalg::createElementwiseLinalgGeneric(
+          rewriter, loc, {tensors[i]}, outElemType, dtypePromoteBody);
+    }
+
     int rank = newResultType.getRank();
     SmallVector<Value> offsets, sizes, strides;
     sizes.reserve(rank);

@@ -165,9 +165,9 @@ ComputationPtr TorchMlirLoweringContext::Build() {
     mlirCreateVerifyBackendContractNoDecompositions()
   );
 
-  MlirLogicalResult result = mlirPassManagerRun(
+  MlirLogicalResult result = mlirPassManagerRunOnOp(
     pass_manager,
-    module_op
+    mlirModuleGetOperation(module_op)
   );
 
   if (mlirLogicalResultIsFailure(result)) {

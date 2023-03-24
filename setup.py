@@ -146,7 +146,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 
 setup(
-    name="torch-mlir",
+    name="torch-mlir" if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else "torch-mlir-core",
     version=f"{PACKAGE_VERSION}",
     author="Sean Silva",
     author_email="silvasean@google.com",
@@ -161,7 +161,7 @@ setup(
     },
     ext_modules=[
         CMakeExtension("torch_mlir._mlir_libs._jit_ir_importer"),
-    ] if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else [CMakeExtension("_")],
+    ] if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else [CMakeExtension("torch_mlir._mlir_libs._torchMlir")],
     install_requires=["numpy", ] + (
         [f"torch=={torch.__version__}".split("+", 1)[0], ] if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else []),
     zip_safe=False,

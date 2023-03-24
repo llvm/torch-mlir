@@ -61,6 +61,11 @@ function run() {
           build_torch_mlir torch_mlir "$python_version"
           run_audit_wheel torch_mlir "$python_version"
           ;;
+        torch-mlir-core)
+          clean_wheels torch_mlir_core "$python_version"
+          build_torch_mlir_core torch_mlir_core "$python_version"
+          run_audit_wheel torch_mlir_core "$python_version"
+          ;;
         *)
           echo "Unrecognized package '$package'"
           exit 1
@@ -84,6 +89,25 @@ function build_torch_mlir() {
   MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET \
   CMAKE_OSX_ARCHITECTURES=$CMAKE_OSX_ARCHITECTURES \
   python"${python_version}" -m pip wheel -v -w "$output_dir" "$repo_root" --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+  deactivate
+  rm -rf "$output_dir"/build_venv
+}
+
+function build_torch_mlir_core() {
+  local wheel_basename="$1"
+  local python_version="$2"
+  rm -rf "$output_dir"/build_venv
+  python"${python_version}" -m venv "$output_dir"/build_venv
+  source "$output_dir"/build_venv/bin/activate
+  python"${python_version}" -m pip install -U pip delocate
+  python"${python_version}" -m pip install -r "$repo_root"/build-requirements.txt
+  CMAKE_GENERATOR=Ninja \
+  TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
+  MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET \
+  CMAKE_OSX_ARCHITECTURES=$CMAKE_OSX_ARCHITECTURES \
+  TORCH_MLIR_ENABLE_JIT_IR_IMPORTER=0 \
+  TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS=1 \
+  python"${python_version}" -m pip wheel -v -w "$output_dir" "$repo_root"
   deactivate
   rm -rf "$output_dir"/build_venv
 }

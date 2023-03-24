@@ -429,6 +429,29 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value cdfExt = b.create<arith::AddFOp>(loc, dinputInputAlpha, cdf);
     return b.create<arith::MulFOp>(loc, payloadArgs[0], cdfExt);
   }
+  if (auto hardtanhBackward = dyn_cast<AtenHardtanhBackwardOp>(op)) {
+    AtenHardtanhBackwardOp::Adaptor adaptor(operands);
+    if (!hardtanhBackward.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      hardtanhBackward.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Value gradOutput = payloadArgs[0];
+    Type elementType = gradOutput.getType();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[1], elementType);
+    Value constantZero =
+        b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 0.0));
+    Value min = convertScalarToDtype(b, loc, adaptor.getMinVal(), elementType);
+    Value max = convertScalarToDtype(b, loc, adaptor.getMaxVal(), elementType);
+    Value lesser =
+        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT, self, min);
+    Value greater =
+        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT, self, max);
+    Value cmp = b.create<arith::OrIOp>(loc, lesser, greater);
+    return b.create<arith::SelectOp>(loc, cmp, constantZero, gradOutput);
+  }
   if (auto add = dyn_cast<AtenAddTensorOp>(op)) {
     AtenAddTensorOp::Adaptor adaptor(operands);
     Type dtype = converter->convertType(add.getType())
@@ -1042,7 +1065,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value allOnesVal = b.create<arith::ConstantOp>(
         loc, b.getIntegerAttr(
                  elementType,
-                 APSInt::getAllOnesValue(elementType.getIntOrFloatBitWidth())));
+                 APSInt::getAllOnes(elementType.getIntOrFloatBitWidth())));
     return b.create<arith::XOrIOp>(loc, payloadArgs[0], allOnesVal);
   }
 
@@ -1092,8 +1115,8 @@ public:
              AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp,
              AtenCeilOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
              AtenLtTensorOp, AtenLeTensorOp, AtenSubScalarOp, AtenAddScalarOp,
-             AtenThresholdOp, AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp,
-             AtenCosOp, AtenNeScalarOp, AtenNegOp,
+             AtenThresholdOp, AtenThresholdBackwardOp, AtenHardtanhBackwardOp,
+             AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenNegOp,
              AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
              AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenBitwiseNotOp,
              AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp>(op))
@@ -1571,7 +1594,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp,
       AtenWhereSelfOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
       AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
-      AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
+      AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
       AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
       AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenRemainderScalarOp,
       AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp>();

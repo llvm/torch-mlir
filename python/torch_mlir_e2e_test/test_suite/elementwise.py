@@ -774,6 +774,26 @@ class RsubIntModule_noalpha(torch.nn.Module):
 def RsubIntModule_noalpha_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, high=100))
 
+# ==============================================================================
+
+
+class RsubInt0d_NumToTensor_Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        x = torch.ops.prim.NumToTensor(5)
+        return torch.rsub(x, 2)
+
+
+@register_test_case(module_factory=lambda: RsubInt0d_NumToTensor_Module())
+def RsubInt0d_NumToTensor_Module_basic(module, tu: TestUtils):
+    module.forward()
 
 # ==============================================================================
 
@@ -1914,6 +1934,52 @@ class ElementwiseAddScalarFloatModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseAddScalarFloatModule())
 def ElementwiseAddScalarFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseAddScalar_NumToTensorFloat_Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        x = torch.ops.prim.NumToTensor(5.0)
+        return torch.add(x, 3)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAddScalar_NumToTensorFloat_Module())
+def ElementwiseAddScalar_NumToTensorFloat_Module_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class ElementwiseAddScalar_TensorLiteralInt32_Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.x = torch.tensor(2, dtype=torch.int32)
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.add(self.x, 3)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAddScalar_TensorLiteralInt32_Module())
+def ElementwiseAddScalar_TensorLiteralInt32_Module_basic(module, tu: TestUtils):
+    module.forward()
 
 
 # ==============================================================================

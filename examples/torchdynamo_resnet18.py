@@ -91,4 +91,4 @@ resnet18 = models.resnet18(pretrained=True)
 resnet18.train(False)
 dynamo_callable = dynamo.optimize(refbackend_torchdynamo_backend)(resnet18)
 
-predictions(resnet18.forward, lambda x: dynamo_callable(torch.from_numpy(x)).numpy(), img, labels)
+predictions(resnet18.forward, lambda x: dynamo_callable(torch.from_numpy(x)).detach().numpy(), img, labels)

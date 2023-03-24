@@ -14,6 +14,16 @@ jobs:
   build_linux:
     name: Manylinux Build
     runs-on: a100
+    strategy:
+      matrix:
+        package: [ torch-mlir, torch-mlir-core ]
+        py_version: [ cp38-cp38, cp310-cp310, cp311-cp311 ]
+        exclude:
+          - package: torch-mlir-core
+            py_version: cp38-cp38
+          - package: torch-mlir-core
+            py_version: cp310-cp310
+
     steps:
 
     - name: Prepare workspace
@@ -35,7 +45,7 @@ jobs:
         python -m pip install wheel
         TM_PACKAGE_VERSION=${{ github.event.inputs.python_package_version }}
         printf "TORCH_MLIR_PYTHON_PACKAGE_VERSION=%s\n" $TM_PACKAGE_VERSION > ./torch_mlir_package_version
-        ./build_tools/python_deploy/build_linux_packages.sh
+        TM_PYTHON_VERSIONS=${{ matrix.py_version }} TM_PACKAGES=${{ matrix.package }} ./build_tools/python_deploy/build_linux_packages.sh
               
     # If we were given a release_id, then upload the package we just built
     # to the github releases page.
@@ -63,7 +73,7 @@ jobs:
       run: mkdir dist
     - name: Copy releases to publish to dist directory
       if: github.event.inputs.release_id != ''
-      run: cp build_tools/python_deploy/wheelhouse/torch_mlir-*.whl dist/
+      run: cp build_tools/python_deploy/wheelhouse/torch_mlir*.whl dist/
 
     # Wheels must be published from a linux environment.
     #
@@ -77,6 +87,9 @@ jobs:
   build_macos:
     name: MacOS Build
     runs-on: macos-latest
+    strategy:
+      matrix:
+        package: [ torch-mlir, torch-mlir-core ]
     steps:
     - name: Get torch-mlir
       uses: actions/checkout@v3
@@ -92,7 +105,7 @@ jobs:
         TM_PACKAGE_VERSION=${{ github.event.inputs.python_package_version }}
         printf "TORCH_MLIR_PYTHON_PACKAGE_VERSION=%s\n" $TM_PACKAGE_VERSION > ./torch_mlir_package_version
         sudo ./build_tools/python_deploy/install_macos_deps.sh
-        TORCH_MLIR_PYTHON_VERSIONS="3.11" ./build_tools/python_deploy/build_macos_packages.sh
+        packages=${{ matrix.package }} TORCH_MLIR_PYTHON_VERSIONS="3.11" ./build_tools/python_deploy/build_macos_packages.sh
 
     # If we were given a release_id, then upload the package we just built
     # to the github releases page.
@@ -120,7 +133,7 @@ jobs:
       run: mkdir dist
     - name: Copy releases to publish to dist directory
       if: github.event.inputs.release_id != ''
-      run: cp build_tools/python_deploy/wheelhouse/torch_mlir-*.whl dist/
+      run: cp build_tools/python_deploy/wheelhouse/torch_mlir*.whl dist/
 
     # Wheels must be published from a linux environment.
     #
@@ -134,6 +147,9 @@ jobs:
   build_windows:
     name: Windows Build
     runs-on: windows-latest
+    strategy:
+      matrix:
+        package: [ torch-mlir, torch-mlir-core ]
     steps:
     - name: Get torch-mlir
       uses: actions/checkout@v3
@@ -149,6 +165,14 @@ jobs:
     - name: Build Python wheels and smoke test.
       shell: pwsh
       run: |
+        if ( "${{ matrix.package }}" -eq "torch-mlir-core" )
+        {
+          $env:TORCH_MLIR_ENABLE_JIT_IR_IMPORTER='0'
+          $env:TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS='1'
+        } else {
+          $env:TORCH_MLIR_ENABLE_JIT_IR_IMPORTER='1'
+          $env:TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS='0'
+        }
         $env:TORCH_MLIR_PYTHON_PACKAGE_VERSION = '${{ github.event.inputs.python_package_version }}'
         ./build_tools/python_deploy/build_windows.ps1
 
@@ -179,7 +203,7 @@ jobs:
       continue-on-error: true
     - name: Copy releases to publish to dist directory
       if: github.event.inputs.release_id != ''
-      run: cp ./wheelhouse/torch_mlir-*.whl dist/
+      run: cp ./wheelhouse/torch_mlir*.whl dist/
 
     # Wheels must be published from a linux environment.
     #

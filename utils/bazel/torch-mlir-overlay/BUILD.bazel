@@ -451,6 +451,7 @@ cc_library(
         "@llvm-project//mlir:Dialect",
         "@mlir-hlo//:mlir_hlo",
         "@mlir-hlo//:transforms_passes",
+        "@mlir-hlo//stablehlo:register",
     ],
 )
 
