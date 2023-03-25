@@ -18,6 +18,6 @@ class AddmmModule(torch.nn.Module):
 example_args = 3 * [torch_mlir.TensorPlaceholder([-1, -1], torch.float32)]
 
 print(torch_mlir.compile(AddmmModule(), example_args,
-      output_type="torch", backend_legal_ops=["torch.aten.addmm"]))
+      output_type="torch", backend_legal_ops=["aten.addmm"]))
 # CHECK-LABEL: @forward
 # CHECK: torch.aten.addmm

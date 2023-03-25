@@ -8,18 +8,25 @@
 //===----------------------------------------------------------------------===//
 
 #include "ReifyAbstractInterpCalculationsUtils.h"
+#include "mlir/Parser/Parser.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/SourceMgr.h"
 
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
-static std::string getLibraryFunctionPrefix(LibraryFunctionKind libFuncKind) {
+std::string
+mlir::torch::Torch::getLibraryFunctionPrefix(LibraryFunctionKind libFuncKind) {
   if (libFuncKind == LibraryFunctionKind::ShapeFunction)
     return "__torch_mlir_shape_fn.";
   else if (libFuncKind == LibraryFunctionKind::DtypeFunction)
     return "__torch_mlir_dtype_fn.";
+  else if (libFuncKind == LibraryFunctionKind::HasValueSemantics)
+    return "__torch_mlir_has_value_semantics_fn.";
   llvm_unreachable(
       "`getLibraryFunctionPrefix` called with an unsupported `CalculateOp`");
 }
@@ -73,6 +80,8 @@ LogicalResult Torch::wrapWithCalculateOpIfLibraryFunctionAvailable(
   // looking them up in the library.
   if (name.startswith("valsem."))
     name = name.drop_front(strlen("valsem."));
+  if (isa<OperatorOp>(op))
+    name = cast<OperatorOp>(op)->getAttr("name").cast<StringAttr>().getValue();
   std::string libFuncName =
       (getLibraryFunctionPrefix(libFuncKind) + Twine(name)).str();
   auto libFunc = library.lookupSymbol<func::FuncOp>(libFuncName);
@@ -287,4 +296,40 @@ FailureOr<Value> Torch::adjustFunctionArg(
 
   // Pass the operand as-is.
   return operand;
+}
+
+LogicalResult
+mlir::torch::Torch::loadExtraLibrary(const std::string &filename,
+                                     OwningOpRef<ModuleOp> &moduleToAppendTo) {
+  auto ctx = moduleToAppendTo->getContext();
+  assert(ctx && "Module should be fully initialized.");
+
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> fileOrErr =
+      llvm::MemoryBuffer::getFileOrSTDIN(filename);
+  if (std::error_code ec = fileOrErr.getError()) {
+    llvm::errs() << "Could not open input file: " << ec.message() << "\n";
+    return failure();
+  }
+
+  llvm::SourceMgr sourceMgr;
+  sourceMgr.AddNewSourceBuffer(std::move(*fileOrErr), llvm::SMLoc());
+  OwningOpRef<ModuleOp> module_ =
+      mlir::parseSourceFile<mlir::ModuleOp>(sourceMgr, ctx);
+  if (!module_) {
+    llvm::errs() << "Error can't load file " << filename << "\n";
+    return failure();
+  }
+
+  assert((moduleToAppendTo->getBodyRegion().empty() ||
+          moduleToAppendTo->getBodyRegion().hasOneBlock()) &&
+         "Module should have at most one block.");
+  if (moduleToAppendTo->getBodyRegion().empty()) {
+    moduleToAppendTo = std::move(module_);
+  } else {
+    Block *block = moduleToAppendTo->getBody(0);
+    block->getOperations().splice(block->end(),
+                                  module_->getBody(0)->getOperations());
+  }
+
+  return success();
 }

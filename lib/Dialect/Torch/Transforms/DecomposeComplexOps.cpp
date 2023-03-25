@@ -3890,7 +3890,7 @@ private:
     // on `Operation *` are not allowed, since there is no way of telling if
     // that pattern will match on an op in the `legalOpsSet` or not.
     assert(opName && "All decomposition patterns must target a single op");
-    if (!legalOpsSet.contains(opName->getStringRef()))
+    if (!legalOpsSet.contains(opName->getStringRef().ltrim(kTorchOpPrefix)))
       patterns.add<DecomposePattern>(context);
   }
 

@@ -25,7 +25,7 @@ void mlir::torch::registerTorchPasses() {
       "torch-simplification-pipeline",
       "Pipeline simplifying computations in the program.",
       mlir::torch::Torch::createTorchSimplificationPipeline);
-  mlir::PassPipelineRegistration<>(
+  mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
       "torch-shape-refinement-pipeline", "Pipeline refining shapes of tensors.",
       mlir::torch::Torch::createTorchShapeRefinementPipeline);
 }
@@ -66,7 +66,8 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   // Perform the bulk of lowering to the backend contract.
   // See the pass documentation for more information.
   pm.addPass(createLowerToBackendContractPass(
-      options.maxIterations, options.decompose, options.backendLegalOps));
+      options.maxIterations, options.decompose, options.backendLegalOps,
+      options.extraLibrary));
 }
 
 // A simplification pipeline to establish the invariants of the backend
@@ -108,7 +109,8 @@ void mlir::torch::Torch::createTorchSimplificationPipeline(
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   pm.addNestedPass<func::FuncOp>(createRecomposeComplexOps());
   // Reduce variants of ops to a smaller set of primitives.
-  pm.addNestedPass<func::FuncOp>(createReduceOpVariantsPass());
+  pm.addNestedPass<func::FuncOp>(
+      createReduceOpVariantsPass(options.extraLibrary));
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   // Remove dead global slots.
   pm.addPass(createSymbolDCEPass());
@@ -121,8 +123,8 @@ void mlir::torch::Torch::createTorchSimplificationPipeline(
   // This should be run before RefineTypes (which primarily does dtype
   // inference), because Torch type promotion rules actually depend on the shape
   // of the operand.
-  createTorchShapeRefinementPipeline(pm);
-  createTorchDtypeRefinementPipeline(pm);
+  createTorchShapeRefinementPipeline(pm, options);
+  createTorchDtypeRefinementPipeline(pm, options);
   // Refine types in the program, which mainly means inferring dtypes of ops.
   pm.addNestedPass<func::FuncOp>(Torch::createRefineTypesPass());
   // Propagate to ABI return types the shape/dtype information discovered by
@@ -141,13 +143,15 @@ void mlir::torch::Torch::createTorchSimplificationPipeline(
 
 static void createRefinementPipeline(
     mlir::OpPassManager &pm,
-    llvm::function_ref<std::unique_ptr<mlir::OperationPass<mlir::ModuleOp>>()>
+    llvm::function_ref<
+        std::unique_ptr<mlir::OperationPass<mlir::ModuleOp>>(llvm::StringRef)>
         reifyCalculationsPass,
     llvm::function_ref<
         std::unique_ptr<mlir::OperationPass<mlir::func::FuncOp>>()>
-        simplifyCalculationsPass) {
+        simplifyCalculationsPass,
+    const mlir::torch::Torch::TorchLoweringPipelineOptions &options) {
   // Reify the library functions for each op that is present in the library.
-  pm.addPass(reifyCalculationsPass());
+  pm.addPass(reifyCalculationsPass(options.extraLibrary));
 
   // Inline the library functions to enable analysis and transformation.
   // TODO: Only inline library functions (this will currently inline
@@ -168,12 +172,14 @@ static void createRefinementPipeline(
       mlir::torch::Torch::createDropAbstractInterpCalculationsPass());
 }
 
-void mlir::torch::Torch::createTorchShapeRefinementPipeline(OpPassManager &pm) {
+void mlir::torch::Torch::createTorchShapeRefinementPipeline(
+    OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
   createRefinementPipeline(pm, Torch::createReifyShapeCalculationsPass,
-                           Torch::createSimplifyShapeCalculationsPass);
+                           Torch::createSimplifyShapeCalculationsPass, options);
 }
 
-void mlir::torch::Torch::createTorchDtypeRefinementPipeline(OpPassManager &pm) {
+void mlir::torch::Torch::createTorchDtypeRefinementPipeline(
+    OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
   createRefinementPipeline(pm, Torch::createReifyDtypeCalculationsPass,
-                           Torch::createSimplifyDtypeCalculationsPass);
+                           Torch::createSimplifyDtypeCalculationsPass, options);
 }

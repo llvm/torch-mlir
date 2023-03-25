@@ -12,6 +12,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
+#include "ReifyAbstractInterpCalculationsUtils.h"
 #include "llvm/ADT/StringExtras.h"
 
 using namespace mlir;
@@ -52,17 +53,39 @@ static Type getContainerOrTensorTypeWithValueSemantics(Type type) {
   }
 }
 
+static bool
+operatorOpHasValueSemantics(OperatorOp opOp,
+                            std::optional<SymbolTable> extraLibrary) {
+  if (!extraLibrary.has_value())
+    return false;
+  auto opName = opOp->getAttr("name").cast<StringAttr>().getValue();
+  std::string libFuncName = (mlir::torch::Torch::getLibraryFunctionPrefix(
+                                 LibraryFunctionKind::HasValueSemantics) +
+                             Twine(opName))
+                                .str();
+  auto libFunc = extraLibrary->lookup<func::FuncOp>(libFuncName);
+  return bool(libFunc);
+}
+
 namespace {
 // Convert value semantic ops operating on mutable arrays to instead operate on
 // immutable tensors.
 class ConvertHasValueSemanticsOpsToValueTensors : public RewritePattern {
 public:
-  ConvertHasValueSemanticsOpsToValueTensors(MLIRContext *context)
-      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, context) {}
+  ConvertHasValueSemanticsOpsToValueTensors(MLIRContext *context,
+                                            const std::optional<SymbolTable>& extraLibrary)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, context) {
+    this->extraLibrary = extraLibrary;
+  }
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
-    if (!op->hasTrait<Torch::OpTrait::HasValueSemantics>())
+    if (isa<OperatorOp>(op)) {
+      if (!operatorOpHasValueSemantics(cast<OperatorOp>(op), extraLibrary)) {
+        return rewriter.notifyMatchFailure(op, "does not have value semantics");
+      }
+    } else if (!op->hasTrait<Torch::OpTrait::HasValueSemantics>()) {
       return rewriter.notifyMatchFailure(op, "does not have value semantics");
+    }
 
     rewriter.startRootUpdate(op);
     // Convert all operands.
@@ -160,6 +183,8 @@ public:
     rewriter.finalizeRootUpdate(op);
     return success();
   }
+private:
+  std::optional<SymbolTable> extraLibrary;
 };
 } // namespace
 
@@ -241,11 +266,30 @@ reduceNonValueTensorLiteralOpToValueTensorLiteralOp(NonValueTensorLiteralOp op,
 }
 
 namespace {
-class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
+struct ReduceOpVariantsPass
+    : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
+  ReduceOpVariantsPass() = default;
+  ReduceOpVariantsPass(StringRef extraLibrary) {
+    this->extraLibrary = extraLibrary.str();
+  }
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
-    patterns.add<ConvertHasValueSemanticsOpsToValueTensors>(context);
+    OwningOpRef<ModuleOp> extraLibraryModule =
+        ModuleOp::create(UnknownLoc::get(context));
+    std::optional<SymbolTable> extraLibraryModuleSymTable = std::nullopt;
+    if (!extraLibrary.empty()) {
+      if (failed(loadExtraLibrary(extraLibrary, extraLibraryModule))) {
+        emitError(getOperation()->getLoc(),
+                  "Failed to load extra-library file at " + extraLibrary);
+        return signalPassFailure();
+      }
+
+      extraLibraryModuleSymTable =
+          SymbolTable(extraLibraryModule->getOperation());
+    }
+    patterns.add<ConvertHasValueSemanticsOpsToValueTensors>(
+        context, extraLibraryModuleSymTable);
     patterns.add<ReduceTrailingUnderscoreInplaceVariant>(context);
     patterns.add(reduceNonValueTensorLiteralOpToValueTensorLiteralOp);
     patterns.add<ReduceNonValueSemanticOps>(context);
@@ -253,8 +297,12 @@ class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
     ConversionTarget target(*context);
     target.addIllegalOp<NonValueTensorLiteralOp>();
     target.addIllegalOp<AtenBernoulli_FloatOp>();
-    target.markUnknownOpDynamicallyLegal([](Operation *op) {
-      if (op->hasTrait<Torch::OpTrait::HasValueSemantics>()) {
+    target.markUnknownOpDynamicallyLegal([&extraLibraryModuleSymTable](
+                                             Operation *op) {
+      if (op->hasTrait<Torch::OpTrait::HasValueSemantics>() ||
+          (isa<OperatorOp>(op) &&
+           operatorOpHasValueSemantics(cast<OperatorOp>(op),
+                                       extraLibraryModuleSymTable))) {
         auto hasValueSemantics = [](Type t) {
           // TODO: Make this an allowlist based on a closed torch dialect
           // type system.
@@ -281,6 +329,6 @@ class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createReduceOpVariantsPass() {
-  return std::make_unique<ReduceOpVariantsPass>();
+mlir::torch::Torch::createReduceOpVariantsPass(StringRef extraLibrary) {
+  return std::make_unique<ReduceOpVariantsPass>(extraLibrary);
 }
