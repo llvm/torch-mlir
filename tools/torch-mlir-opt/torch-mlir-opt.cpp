@@ -18,6 +18,10 @@
 
 using namespace mlir;
 
+namespace test {
+void registerTestTorchDialectExtension(DialectRegistry &);
+} // namespace test
+
 int main(int argc, char **argv) {
   registerAllPasses();
   mlir::torch::registerAllPasses();
@@ -28,7 +32,12 @@ int main(int argc, char **argv) {
   
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
   mlir::stablehlo::registerAllDialects(registry);
-#endif  
+#endif
+
+#ifdef TORCH_MLIR_INCLUDE_TESTS
+  ::test::registerTestTorchDialectExtension(registry);
+#endif
+
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "MLIR modular optimizer driver\n", registry,
                         /*preloadDialectsInContext=*/false));

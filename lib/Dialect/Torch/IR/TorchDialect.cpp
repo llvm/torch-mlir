@@ -275,3 +275,17 @@ Type NnModuleType::parse(AsmParser &odsParser) {
     return Type();
   return get(odsParser.getContext(), className);
 }
+
+//===----------------------------------------------------------------------===//
+// TorchDialectExtension
+//===----------------------------------------------------------------------===//
+
+void mlir::torch::Torch::TorchDialect::reportDuplicateOpRegistration(
+    StringRef opName) {
+  std::string buffer;
+  llvm::raw_string_ostream msg(buffer);
+  msg << "extensible dialect operation '" << opName
+      << "' is already registered with a mismatching TypeID";
+  msg.flush();
+  llvm::report_fatal_error(StringRef(buffer));
+}

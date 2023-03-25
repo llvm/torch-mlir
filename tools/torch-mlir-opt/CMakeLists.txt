@@ -8,6 +8,10 @@ COMPONENT torch-mlir-opt)
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 
+option(TORCH_MLIR_INCLUDE_TESTS "Generate build targets for unit tests." ON)
+set(test_libs MLIRTestTorchDialectExtension)
+add_definitions(-DTORCH_MLIR_INCLUDE_TESTS)
+
 target_link_libraries(torch-mlir-opt PRIVATE
   MLIROptLib
   TorchMLIRInitAll
@@ -15,4 +19,5 @@ target_link_libraries(torch-mlir-opt PRIVATE
   TorchMLIRTorchPasses
   ${dialect_libs}
   ${conversion_libs}
+  ${test_libs}
 )

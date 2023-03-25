@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "UtilsForODSGenerated.h"
+#include "torch-mlir/Dialect/Torch/IR/UtilsForODSGenerated.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"

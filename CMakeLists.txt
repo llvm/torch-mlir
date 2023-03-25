@@ -211,4 +211,37 @@ else()
   add_custom_target(TorchMLIRPythonModules)
 endif()
 
+
 add_subdirectory(test)
+
+if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+  install(DIRECTORY include/torch-mlir include/torch-mlir-c
+          DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+          COMPONENT torch-mlir-headers
+          FILES_MATCHING
+          PATTERN "*.def"
+          PATTERN "*.h"
+          PATTERN "*.inc"
+          PATTERN "*.td"
+          PATTERN "LICENSE.TXT"
+          )
+
+  install(DIRECTORY ${TORCH_MLIR_BINARY_DIR}/include/torch-mlir
+          DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+          COMPONENT torch-mlir-headers
+          FILES_MATCHING
+          PATTERN "*.def"
+          PATTERN "*.h"
+          PATTERN "*.gen"
+          PATTERN "*.inc"
+          PATTERN "*.td"
+          PATTERN "CMakeFiles" EXCLUDE
+          PATTERN "config.h" EXCLUDE
+          )
+
+  if (NOT LLVM_ENABLE_IDE)
+    add_llvm_install_targets(install-torch-mlir-headers
+            DEPENDS torch-mlir-headers
+            COMPONENT torch-mlir-headers)
+  endif()
+endif()
