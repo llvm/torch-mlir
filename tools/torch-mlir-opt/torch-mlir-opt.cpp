@@ -21,6 +21,10 @@
 
 using namespace mlir;
 
+namespace test {
+void registerTestTorchDialectExtension(DialectRegistry &);
+} // namespace test
+
 int main(int argc, char **argv) {
   registerAllPasses();
   mlir::torch::registerAllPasses();
