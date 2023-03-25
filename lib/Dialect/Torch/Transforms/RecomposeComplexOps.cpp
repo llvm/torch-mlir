@@ -9,10 +9,13 @@
 
 #include "PassDetail.h"
 
+#include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include <climits>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -33,8 +36,30 @@ public:
     int64_t dim;
     if (!matchPattern(sliceOp.getDim(), m_TorchConstantInt(&dim)))
       return failure();
+
+    // TODO Comparing directly to INT64_MAX/INT64_MIN seems fragile.
+    // This is a potential general way of implementing the clamping in terms of other torch ops.
+    // https://github.com/llvm/torch-mlir/pull/2005
+    //
+    // def to_valid_dim(dim, max_dim):
+    //  dim = torch.ops.prim.min(dim, max_dim)
+    //  dim = torch.ops.prim.max(dim, -max_dim)
+    //  is_neg = torch.ops.aten.lt(dim, 0)
+    //  is_neg_int = torch.ops.aten.Int.bool(is_neg)
+    //  return (dim + max_dim) * is_neg_int + dim * (1 - is_neg_int)
+    //
+    // dim_size = torch.ops.aten.size.int(slice, slice.get_dim())
+    // start = to_valid_dim(slice.get_start(), dim_size)
+    // end = to_valid_dim(slice.get_end(), dim_size)
     int64_t end;
-    if (!matchPattern(sliceOp.getEnd(), m_TorchConstantInt(&end)))
+    if (sliceOp.getEnd().getType().isa<Torch::NoneType>())
+      end = INT64_MAX;
+    else if (!matchPattern(sliceOp.getEnd(), m_TorchConstantInt(&end)))
+      return failure();
+    int64_t start;
+    if (sliceOp.getStart().getType().isa<Torch::NoneType>())
+      start = INT64_MIN;
+    else if (!matchPattern(sliceOp.getStart(), m_TorchConstantInt(&start)))
       return failure();
 
     Value newEnd = sliceOp.getEnd();
@@ -42,6 +67,20 @@ public:
       Value dimSize = rewriter.create<AtenSizeIntOp>(
           op.getLoc(), sliceOp.getSelf(), sliceOp.getDim());
       newEnd =
+          rewriter.create<AtenAddIntOp>(op.getLoc(), dimSize, sliceOp.getEnd());
+    } else if (end == INT64_MAX) {
+      newEnd = rewriter.create<AtenSizeIntOp>(op.getLoc(), sliceOp.getSelf(),
+                                              sliceOp.getDim());
+    }
+
+    Value newStart = sliceOp.getStart();
+    if (start == INT64_MIN) {
+      newStart = rewriter.create<ConstantIntOp>(op.getLoc(),
+                                                rewriter.getI64IntegerAttr(0));
+    } else if (start < 0) {
+      Value dimSize = rewriter.create<AtenSizeIntOp>(
+          op.getLoc(), sliceOp.getSelf(), sliceOp.getDim());
+      newStart =
           rewriter.create<AtenAddIntOp>(op.getLoc(), dimSize, sliceOp.getEnd());
     }
 
@@ -51,12 +90,12 @@ public:
     // Create IndexPut_Op
     BaseTensorType tensorType = op->getResultTypes()[0].cast<BaseTensorType>();
     Value range = rewriter.create<AtenArangeStartStepOp>(
-        op.getLoc(), tensorType, sliceOp.getStart(), newEnd, sliceOp.getStep(),
+        op.getLoc(), tensorType, newStart, newEnd, sliceOp.getStep(),
         /*dtype=*/noneVal, /*layout=*/noneVal, /*device=*/noneVal,
         /*pin_memory=*/noneVal);
 
     SmallVector<Value> indicesVector;
-    for (auto i = 0; i < dim - 1; i++)
+    for (auto i = 0; i < dim; i++)
       indicesVector.push_back(noneVal);
     indicesVector.push_back(range);
     Value indices = rewriter.create<PrimListConstructOp>(
@@ -105,7 +144,7 @@ public:
 
     // Create indicesVector for IndexPut_Op by TorchNone and indexTensor
     BaseTensorType tensorType = op->getResultTypes()[0].cast<BaseTensorType>();
-    SmallVector<Value> indicesVector(dim - 1, noneVal);
+    SmallVector<Value> indicesVector(dim, noneVal);
     indicesVector.push_back(indexTensor);
 
     Value indices = rewriter.create<PrimListConstructOp>(

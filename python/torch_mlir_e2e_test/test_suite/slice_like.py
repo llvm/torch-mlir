@@ -523,6 +523,28 @@ def SliceCopy_Module_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class SliceCopy2DStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 4], torch.int64, True),
+        ([1, 3], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        xslice = torch.ops.aten.slice(x, 1, 1, 4, 1)
+        xslice.copy_(y)
+        return x
+
+
+@register_test_case(module_factory=lambda: SliceCopy2DStaticModule())
+def SliceCopy2DStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(1, 4, high=4), tu.randint(1, 3, high=1))
+
+# ==============================================================================
+
 class SliceCopyNegative_Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
