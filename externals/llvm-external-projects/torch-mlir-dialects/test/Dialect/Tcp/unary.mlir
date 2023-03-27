@@ -106,3 +106,69 @@ func.func @test_floor_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
   %0 = tcp.floor %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @test_sin_f32(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:         %[[SIN:.*]] = tcp.sin %[[ARG]] : tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         return %[[SIN]] : tensor<?x?xf32>
+func.func @test_sin_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.sin %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_cos_f32(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:         %[[COS:.*]] = tcp.cos %[[ARG]] : tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         return %[[COS]] : tensor<?x?xf32>
+func.func @test_cos_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.cos %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_abs_f32(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:         %[[ABS:.*]] = tcp.abs %[[ARG]] : tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         return %[[ABS]] : tensor<?x?xf32>
+func.func @test_abs_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.abs %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_log_f32(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:         %[[LOG:.*]] = tcp.log %[[ARG]] : tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         return %[[LOG]] : tensor<?x?xf32>
+func.func @test_log_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.log %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_neg_f32(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:         %[[NEG:.*]] = tcp.neg %[[ARG]] : tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         return %[[NEG]] : tensor<?x?xf32>
+func.func @test_neg_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.neg %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_reciprocal_f32(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:         %[[REC:.*]] = tcp.reciprocal %[[ARG]] : tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         return %[[REC]] : tensor<?x?xf32>
+func.func @test_reciprocal_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.reciprocal %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}

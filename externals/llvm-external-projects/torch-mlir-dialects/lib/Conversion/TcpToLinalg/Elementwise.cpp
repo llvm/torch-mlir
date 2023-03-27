@@ -118,6 +118,32 @@ createLinalgPayloadForElementwiseOp(Operation *op,
     return {b.create<math::FloorOp>(loc, payloadArgs[0])};
   }
 
+  if (isa<SinOp>(op)) {
+    return {b.create<math::SinOp>(loc, payloadArgs[0])};
+  }
+
+  if (isa<CosOp>(op)) {
+    return {b.create<math::CosOp>(loc, payloadArgs[0])};
+  }
+
+  if (isa<AbsOp>(op)) {
+    return {b.create<math::AbsFOp>(loc, payloadArgs[0])};
+  }
+
+  if (isa<LogOp>(op)) {
+    return {b.create<math::LogOp>(loc, payloadArgs[0])};
+  }
+
+  if (isa<NegOp>(op)) {
+    return {b.create<arith::NegFOp>(loc, payloadArgs[0])};
+  }
+
+  if (isa<ReciprocalOp>(op)) {
+    auto elemType = resultTensorType.getElementType();
+    auto one = b.create<arith::ConstantOp>(loc, FloatAttr::get(elemType, 1));
+    return {b.create<arith::DivFOp>(loc, one, payloadArgs[0])};
+  }
+
   if (isa<AddOp>(op)) {
     if (elemType.isa<mlir::FloatType>())
       return {b.create<arith::AddFOp>(loc, payloadArgs[0], payloadArgs[1])};
@@ -212,4 +238,10 @@ void mlir::TcpToLinalg::populateElementwisePatternsAndLegality(
   patterns.add<ConvertElementwiseOp<SqrtOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<CeilOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<FloorOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<SinOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<CosOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<AbsOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<LogOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<NegOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<ReciprocalOp>>(typeConverter, context);
 }

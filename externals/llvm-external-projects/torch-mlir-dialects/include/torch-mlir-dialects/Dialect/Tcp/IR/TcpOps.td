@@ -377,4 +377,112 @@ def Tcp_FloorOp : Tcp_UnaryElementwiseOp<"floor"> {
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
 }
 
+def Tcp_CosOp : Tcp_UnaryElementwiseOp<"cos"> {
+  let summary = "Computes cosine of input, elementwise";
+
+  let description = [{
+    Computes elementwise cosine of the input tensor.
+  }];
+
+  let arguments = (ins
+    Tcp_FloatOrComplexTensor:$in
+  );
+
+  let results = (outs
+    Tcp_FloatOrComplexTensor:$out
+  );
+
+  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
+}
+
+def Tcp_SinOp : Tcp_UnaryElementwiseOp<"sin"> {
+  let summary = "Computes sine of input, elementwise";
+
+  let description = [{
+    Computes elementwise sine of the input tensor.
+  }];
+
+  let arguments = (ins
+    Tcp_FloatOrComplexTensor:$in
+  );
+
+  let results = (outs
+    Tcp_FloatOrComplexTensor:$out
+  );
+
+  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
+}
+
+def Tcp_AbsOp : Tcp_UnaryElementwiseOp<"abs"> {
+  let summary = "Computes absolute of input, elementwise";
+
+  let description = [{
+    Computes elementwise absolute value of the input tensor.
+  }];
+
+  let arguments = (ins
+    Tcp_FloatOrComplexTensor:$in
+  );
+
+  let results = (outs
+    Tcp_FloatOrComplexTensor:$out
+  );
+
+  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
+}
+
+def Tcp_LogOp : Tcp_UnaryElementwiseOp<"log"> {
+  let summary = "Computes natural logarithm of input, elementwise";
+
+  let description = [{
+    Computes elementwise natural logarithm value of the input tensor.
+  }];
+
+  let arguments = (ins
+    Tcp_FloatOrComplexTensor:$in
+  );
+
+  let results = (outs
+    Tcp_FloatOrComplexTensor:$out
+  );
+
+  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
+}
+
+def Tcp_NegOp : Tcp_UnaryElementwiseOp<"neg"> {
+  let summary = "Computes the negation of input, elementwise";
+
+  let description = [{
+    Computes elementwise negation value of the input tensor.
+  }];
+
+  let arguments = (ins
+    Tcp_FloatOrComplexTensor:$in
+  );
+
+  let results = (outs
+    Tcp_FloatOrComplexTensor:$out
+  );
+
+  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
+}
+
+def Tcp_ReciprocalOp : Tcp_UnaryElementwiseOp<"reciprocal"> {
+  let summary = "Computes the reciprocal of input, elementwise";
+
+  let description = [{
+    Computes elementwise reciprocal value of the input tensor.
+  }];
+
+  let arguments = (ins
+    Tcp_FloatOrComplexTensor:$in
+  );
+
+  let results = (outs
+    Tcp_FloatOrComplexTensor:$out
+  );
+
+  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
+}
+
 #endif // TORCH_MLIR_DIALECT_TCP_OPS
