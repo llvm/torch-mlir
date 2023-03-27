@@ -259,3 +259,6 @@ and we should just plug into it. Here is [an example](https://github.com/pytorch
 Even better, it would be great if TorchDynamo/PyTorch 2.0
 directly provided a way to plug into this.
 
+Additionally, we can leverage the [`pytorch-jit-paritybench`](https://github.com/jansel/pytorch-jit-paritybench)
+to verify our end-to-end correctness on real models.
+
