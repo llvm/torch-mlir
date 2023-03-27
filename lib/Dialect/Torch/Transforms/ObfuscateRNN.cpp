@@ -26,20 +26,10 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
-static Value createTensor(IRRewriter &rewriter, Location loc,
-                          MLIRContext *context, std::vector<long> shape,
-                          std::vector<float> weight) {
-  auto resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
-                                               rewriter.getF32Type());
-  auto dense = DenseElementsAttr::get(
-      RankedTensorType::get(llvm::ArrayRef(shape), rewriter.getF32Type()),
-      llvm::ArrayRef(weight));
-  return rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
-}
-
 static SmallPtrSet<Operation *, 16> getRNNHidenLayers(Operation *f) {
   // return pointer set of AtenMmOp which represent hidden layer of RNN
-  // todo: is this useful?
+  // todo: is this useful? If RNN is simple, no need to use it, if RNN is
+  // complecated, this logic is unable to recignoize hidden layer at present
 
   llvm::SmallPtrSet<Operation *, 16> opWorklist, filteredOpWorklist;
   f->walk([&](Operation *op) {
@@ -75,19 +65,6 @@ static SmallPtrSet<Operation *, 16> getRNNHidenLayers(Operation *f) {
     }
   }
   return filteredOpWorklist;
-}
-
-static SmallPtrSet<Operation *, 16> getPositiveLayers(Operation *f) {
-  // get ops which output is positive
-  llvm::SmallPtrSet<Operation *, 16> opWorklist;
-  f->walk([&](Operation *op) {
-    if (isa<AtenReluOp, AtenSigmoidOp>(op)) {
-      if (op->getResult(0).getType().isa<ValueTensorType>()) {
-        opWorklist.insert(op);
-      }
-    }
-  });
-  return opWorklist;
 }
 
 static void maskSplit(MLIRContext *context,
@@ -202,11 +179,9 @@ static void insertConvRNN(MLIRContext *context,
   IRRewriter rewriter(context);
   Operation *op = *opWorklist.begin();
   rewriter.setInsertionPoint(op);
+  Location loc = op->getLoc();
 
   // reusable ops
-  Location loc = op->getLoc();
-  Value int0 =
-      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
   Value int1 =
       rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
   Value constFalse = rewriter.create<ConstantBoolOp>(loc, false);
@@ -216,12 +191,15 @@ static void insertConvRNN(MLIRContext *context,
       loc, ListType::get(IntType::get(context)), ValueRange({}));
   std::vector<long> shapeOrigin =
       op->getResult(0).getType().cast<ValueTensorType>().getSizes().vec();
+  std::vector<long> shapeNew(4 - shapeOrigin.size(), 1); // change dim to 4
+  shapeNew.insert(shapeNew.end(), shapeOrigin.begin(), shapeOrigin.end());
   int ChannelSz = 1;
+  bool needReshape = true;
   if (shapeOrigin.size() == 4) {
     ChannelSz = shapeOrigin[1];
+    needReshape = false;
   }
   int kernelSz = (1 + std::rand() % 5) * 2 + 1;
-  int squeezeTime = 4 - shapeOrigin.size();
   std::vector<long> shapeKernel{ChannelSz, ChannelSz, kernelSz, kernelSz};
   int dilNum = 1 + std::rand() % 5;
   int padNum = (kernelSz - 1) * dilNum / 2;
@@ -239,6 +217,27 @@ static void insertConvRNN(MLIRContext *context,
   float C = 1 / A;
   float B = (std::rand() % 100);
   float D = -B * C;
+  // create convolution kernel and bias
+  // new kernel size is: ChannelSz  x ChannelSz  x kernelSz x kernelSz
+  std::vector<float> weightVec(ChannelSz * ChannelSz * kernelSz * kernelSz, 0);
+  for (int i = 0; i < ChannelSz; i++) {
+    // weightVec[i][i][kernelSz/2][kernelSz/2] = A
+    weightVec[((i * ChannelSz + i) * kernelSz + kernelSz / 2) * kernelSz +
+              kernelSz / 2] = A;
+  }
+  Value weightA = createTensor(rewriter, loc, context, shapeKernel, weightVec);
+  std::vector<long> shapeBias{ChannelSz};
+  std::vector<float> biasVec(shapeBias[0], B);
+  Value biasB = createTensor(rewriter, loc, context, shapeBias, biasVec);
+  // second conv kernel
+  for (int i = 0; i < ChannelSz; i++) {
+    weightVec[((i * ChannelSz + i) * kernelSz + kernelSz / 2) * kernelSz +
+              kernelSz / 2] = C;
+  }
+  Value weightC = createTensor(rewriter, loc, context, shapeKernel, weightVec);
+  // create bias
+  biasVec.assign(biasVec.size(), D);
+  Value biasD = createTensor(rewriter, loc, context, shapeBias, biasVec);
 
   for (auto op : opWorklist) {
     // select a random place to insert
@@ -246,64 +245,22 @@ static void insertConvRNN(MLIRContext *context,
     // copy op, for convinience of replace use of op
     Operation *newOp = rewriter.clone(*op);
     Location loc = newOp->getLoc();
-
-    // create unsqueeze if dimansion less than 4, such as : (1,84) -> (1,1,1,84)
     Value rst = newOp->getResult(0);
-    for (int i = 0; i < squeezeTime; i++) {
-      shapeOrigin.insert(shapeOrigin.begin(), 1);
-      rst = rewriter.create<AtenUnsqueezeOp>(
-          loc,
-          ValueTensorType::get(context, llvm::ArrayRef(shapeOrigin),
-                               rewriter.getF32Type()),
-          rst, int0);
-    }
-
-    // create convolution kernel
-    // new kernel size is: ChannelSz  x ChannelSz  x kernelSz x kernelSz
-    std::vector<float> weightVec(ChannelSz * ChannelSz * kernelSz * kernelSz,
-                                 0);
-    for (int i = 0; i < ChannelSz; i++) {
-      // weightVec[i][i][kernelSz/2][kernelSz/2] = A
-      weightVec[((i * ChannelSz + i) * kernelSz + kernelSz / 2) * kernelSz +
-                kernelSz / 2] = A;
-    }
-    Value weight = createTensor(rewriter, loc, context, shapeKernel, weightVec);
-    // create bias
-    std::vector<long> shapeBias{ChannelSz};
-    std::vector<float> biasVec(shapeBias[0], B);
-    Value bias = createTensor(rewriter, loc, context, shapeBias, biasVec);
-    // create conv
+    // reshape if dimansion less than 4, such as : (1,84) -> (1,1,1,84)
+    if (needReshape)
+      rst = createReshape(rewriter, loc, context, shapeNew, rst);
+    // create 2 convolution layer
     rst = rewriter.create<AtenConvolutionOp>(
-        loc, rst.getType(), rst, weight, bias, listInt1_1, listIntPad_Pad,
+        loc, rst.getType(), rst, weightA, biasB, listInt1_1, listIntPad_Pad,
         listIntDil_Dil, constFalse, listInt, int1);
-    // create relu
     rst = rewriter.create<AtenReluOp>(loc, rst.getType(), rst);
-
-    // second conv
-    for (int i = 0; i < ChannelSz; i++) {
-      weightVec[((i * ChannelSz + i) * kernelSz + kernelSz / 2) * kernelSz +
-                kernelSz / 2] = C;
-    }
-    weight = createTensor(rewriter, loc, context, shapeKernel, weightVec);
-    // create bias
-    biasVec.assign(biasVec.size(), D);
-    bias = createTensor(rewriter, loc, context, shapeBias, biasVec);
-    // create conv
     rst = rewriter.create<AtenConvolutionOp>(
-        loc, rst.getType(), rst, weight, bias, listInt1_1, listIntPad_Pad,
+        loc, rst.getType(), rst, weightC, biasD, listInt1_1, listIntPad_Pad,
         listIntDil_Dil, constFalse, listInt, int1);
-    // create relu
     rst = rewriter.create<AtenReluOp>(loc, rst.getType(), rst);
-
-    // create squeeze
-    for (int i = 0; i < squeezeTime; i++) {
-      shapeOrigin.erase(shapeOrigin.begin());
-      rst = rewriter.create<AtenSqueezeDimOp>(
-          loc,
-          ValueTensorType::get(context, llvm::ArrayRef(shapeOrigin),
-                               rewriter.getF32Type()),
-          rst, int0);
-    }
+    // reshape back to origin shape
+    if (needReshape)
+      rst = createReshape(rewriter, loc, context, shapeOrigin, rst);
     rewriter.replaceOp(op, rst);
   }
 }
@@ -321,10 +278,23 @@ static void insertLinearRNN(MLIRContext *context,
   // create reusable ops
   Value int1 = rewriter.create<ConstantIntOp>(op->getLoc(),
                                               rewriter.getI64IntegerAttr(1));
-  std::vector<long> shapeWeight =
+  std::vector<long> shapeOrigin =
       op->getResult(0).getType().cast<ValueTensorType>().getSizes().vec();
-  int N = shapeWeight[1];
-  shapeWeight[0] = N;
+  std::vector<long> shapeNew;
+  bool needReshape = true;
+  if (shapeOrigin.size() == 2) {
+    needReshape = false;
+    shapeNew = shapeOrigin;
+  } else {
+    int mul = 1;
+    for (unsigned long i = 0; i < shapeOrigin.size() - 1; ++i) {
+      mul *= shapeOrigin[i];
+    }
+    shapeNew.push_back(mul);
+    shapeNew.push_back(shapeOrigin[shapeOrigin.size() - 1]);
+  }
+  int N = shapeNew[1];
+  std::vector<long> shapeWeight{N, N};
   std::vector<long> shapeBias = {N};
 
   // generate A, B, C, D, satisfy (xA+B)C+D == x
@@ -366,6 +336,9 @@ static void insertLinearRNN(MLIRContext *context,
     Location loc = newOp->getLoc();
     Value rst = newOp->getResult(0);
 
+    // reshape if dimansion more than 4, such as : (1,2,3,4) -> (6,4)
+    if (needReshape)
+      rst = createReshape(rewriter, loc, context, shapeNew, rst);
     // create 2 linear layer
     rst = rewriter.create<AtenMmOp>(loc, rst.getType(), rst, weightA);
     rst =
@@ -375,6 +348,9 @@ static void insertLinearRNN(MLIRContext *context,
     rst =
         rewriter.create<AtenAddTensorOp>(loc, rst.getType(), rst, biasD, int1);
     rst = rewriter.create<AtenReluOp>(loc, rst.getType(), rst);
+    // reshape back
+    if (needReshape)
+      rst = createReshape(rewriter, loc, context, shapeOrigin, rst);
 
     rewriter.replaceOp(op, rst);
   }

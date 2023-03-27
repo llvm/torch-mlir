@@ -145,14 +145,8 @@ public:
     this->number = number;
   }
   void runOnOperation() override {
-    llvm::SmallPtrSet<Operation *, 16> opWorklist;
-    getOperation()->walk([&](Operation *op) {
-      if (isa<AtenReluOp, AtenSigmoidOp>(op)) {
-        if (op->getResult(0).getType().isa<ValueTensorType>()) {
-          opWorklist.insert(op);
-        }
-      }
-    });
+    auto f = getOperation();
+    llvm::SmallPtrSet<Operation *, 16> opWorklist = getPositiveLayers(f);
 
     if (opWorklist.empty()) {
       llvm::errs() << "Not run InsertConv\n";

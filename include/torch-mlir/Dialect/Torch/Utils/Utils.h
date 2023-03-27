@@ -75,9 +75,15 @@ int64_t getNumberOfElements(RankedTensorType inputType);
 
 SmallVector<int64_t> makeShapeLLVMCompatible(ArrayRef<int64_t> shape);
 SmallVector<int64_t> makeShapeTorchCompatible(ArrayRef<int64_t> shape);
+
+float *LUP_solve_inverse(float A[], int N);
+Value createTensor(IRRewriter &rewriter, Location loc, MLIRContext *context,
+                   std::vector<long> shape, std::vector<float> weight);
+Value createReshape(IRRewriter &rewriter, Location loc, MLIRContext *context,
+                    std::vector<long> shape, Value originVal);
+SmallPtrSet<Operation *, 16> getPositiveLayers(Operation *f);
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
-float *LUP_solve_inverse(float A[], int N);
 
 #endif // TORCHMLIR_DIALECT_TORCH_UTILS_H

@@ -261,6 +261,7 @@ SmallVector<int64_t> Torch::makeShapeTorchCompatible(ArrayRef<int64_t> shape) {
 
 using namespace std;
 
+namespace {
 // 矩阵乘法
 float *mul(float A[], float B[], int N) {
   float *C = new float[N * N]{};
@@ -396,10 +397,10 @@ void transpose(float *mtx, int m, int n) {
       movedata(mtx, i, m, n);
   }
 }
-/*****************矩阵原地转置END********************/
+} // namespace
 
 // LUP求逆(将每列b求出的各列x进行组装)
-float *LUP_solve_inverse(float A[], int N) {
+float *Torch::LUP_solve_inverse(float A[], int N) {
   // todo: 内存泄漏，先不管
   // 创建矩阵A的副本，注意不能直接用A计算，因为LUP分解算法已将其改变
   float *A_mirror = new float[N * N]();
@@ -432,4 +433,48 @@ float *LUP_solve_inverse(float A[], int N) {
   transpose(inv_A, N, N); // 由于现在根据每列b算出的x按行存储，因此需转置
 
   return inv_A;
+}
+
+Value Torch::createTensor(IRRewriter &rewriter, Location loc,
+                          MLIRContext *context, std::vector<long> shape,
+                          std::vector<float> weight) {
+  auto resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
+                                               rewriter.getF32Type());
+  auto dense = DenseElementsAttr::get(
+      RankedTensorType::get(llvm::ArrayRef(shape), rewriter.getF32Type()),
+      llvm::ArrayRef(weight));
+  return rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
+}
+
+Value Torch::createReshape(IRRewriter &rewriter, Location loc,
+                           MLIRContext *context, std::vector<long> shape,
+                           Value originVal) {
+  // reshape originVal to according shape
+  std::vector<Value> values;
+  for (auto i : shape) {
+    values.push_back(
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i)));
+  }
+  Value listShape = rewriter.create<PrimListConstructOp>(
+      loc, ListType::get(IntType::get(context)), ValueRange(values));
+  Type resultType = ValueTensorType::get(context, llvm::ArrayRef(shape),
+                                         rewriter.getF32Type());
+  // return rewriter.create<AtenReshapeOp>(loc, resultType, originVal,
+  // listShape);
+  return rewriter.create<AtenViewOp>(loc, resultType, originVal, listShape);
+  // todo: figure out why AtenReshapeOp can't lower to lin-on-tensor while
+  // AtenViewOp can
+}
+
+llvm::SmallPtrSet<Operation *, 16> Torch::getPositiveLayers(Operation *f) {
+  // get ops which output is positive
+  llvm::SmallPtrSet<Operation *, 16> opWorklist;
+  f->walk([&](Operation *op) {
+    if (isa<AtenReluOp, AtenSigmoidOp>(op)) {
+      if (op->getResult(0).getType().isa<ValueTensorType>()) {
+        opWorklist.insert(op);
+      }
+    }
+  });
+  return opWorklist;
 }
