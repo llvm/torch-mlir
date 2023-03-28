@@ -18,6 +18,10 @@ if(TORCH_MLIR_DIALECTS_ENABLE_TCP)
   list(APPEND LIBS TorchMLIRTcpDialect)
 endif()
 
+if(TORCH_MLIR_ENABLE_STABLEHLO)
+  list(APPEND LIBS StablehloOps)
+endif()
+
 add_llvm_tool(torch-mlir-dialects-opt
   torch-mlir-dialects-opt.cpp
 

@@ -19,6 +19,7 @@ config.llvm_shlib_ext = "@SHLIBEXT@"
 config.llvm_exe_ext = "@EXEEXT@"
 config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
 config.python_executable = sys.executable
+config.enable_stablehlo = @TORCH_MLIR_ENABLE_STABLEHLO@
 config.enable_tcp = @TORCH_MLIR_DIALECTS_ENABLE_TCP@
 
 import lit.llvm

@@ -13,6 +13,28 @@
 include "mlir/Pass/PassBase.td"
 
 #ifdef TORCH_MLIR_DIALECTS_ENABLE_TCP
+
+#ifdef TORCH_MLIR_ENABLE_STABLEHLO
+
+//===----------------------------------------------------------------------===//
+// StablehloToTcp
+//===----------------------------------------------------------------------===//
+
+def ConvertStablehloToTcp
+      : Pass<"convert-stablehlo-to-tcp", "func::FuncOp"> {
+  let summary = "Lower StableHLO to TCP";
+  let description = [{
+    Pass that converts StableHLO operations to equivalent operations in TCP.
+  }];
+
+  let constructor = "mlir::tcp::createConvertStablehloToTcpPass()";
+  let dependentDialects = [
+    "mlir::tcp::TcpDialect",
+  ];
+}
+
+#endif // TORCH_MLIR_ENABLE_STABLEHLO
+
 //===----------------------------------------------------------------------===//
 // TcpToLinalg
 //===----------------------------------------------------------------------===//

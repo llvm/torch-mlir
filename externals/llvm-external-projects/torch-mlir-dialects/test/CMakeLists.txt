@@ -1,4 +1,7 @@
-llvm_canonicalize_cmake_booleans(TORCH_MLIR_DIALECTS_ENABLE_TCP)
+llvm_canonicalize_cmake_booleans(
+  TORCH_MLIR_DIALECTS_ENABLE_TCP
+  TORCH_MLIR_ENABLE_STABLEHLO
+)
 
 # lit needs to find the tools, and the location differs for in-tree and out-of-tree builds.
 get_target_property(TORCH_MLIR_DIALECTS_TOOLS_DIR torch-mlir-dialects-opt RUNTIME_OUTPUT_DIRECTORY)
