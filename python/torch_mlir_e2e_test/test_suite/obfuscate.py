@@ -71,6 +71,13 @@ def ObfuscateLeNet_4(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 28, 28))
 
 
+@register_test_case(
+    module_factory=lambda: LeNet(), passes="func.func(torch-insert-linear)"
+)
+def ObfuscateLeNet_5(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 28, 28))
+
+
 # error case
 # @register_test_case(module_factory=lambda: LeNet(), passes="func.func(torch-insert-skip), func.func(torch-widen-conv-layer)")
 # def LeNet_5(module, tu: TestUtils):
@@ -165,7 +172,7 @@ def ObfuscateRNN_8(module, tu: TestUtils):
 
 @register_test_case(
     module_factory=lambda: RNN_scratch(),
-    passes="func.func(torch-obfuscate-rnn{obfuscation=insertLinear})",
+    passes="func.func(torch-insert-linear{net=RNN})",
 )
 def ObfuscateRNN_9(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 10))

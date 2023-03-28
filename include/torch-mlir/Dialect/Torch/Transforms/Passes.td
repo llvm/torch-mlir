@@ -269,6 +269,19 @@ def InsertConv : Pass<"torch-insert-conv", "func::FuncOp"> {
   ];
 }
 
+def InsertLinear : Pass<"torch-insert-linear", "func::FuncOp"> {
+  let summary = "Insert equivalent linears";
+  let constructor = [{
+    mlir::torch::Torch::createInsertLinearPass(/*net=*/"")
+  }];
+  let description = [{
+  }];
+  let options = [
+    Option<"net", "net", "std::string", /*default=*/"",
+           "specify net to apply, options avaliable: RNN">
+  ];
+}
+
 def ObfuscateRNN : Pass<"torch-obfuscate-rnn", "func::FuncOp"> {
   let summary = "Insert obfuscate in RNN cell";
   let constructor = [{

@@ -104,6 +104,8 @@ std::unique_ptr<OperationPass<func::FuncOp>> createInsertSkipPass();
 
 std::unique_ptr<OperationPass<func::FuncOp>> createInsertConvPass(std::string net);
 
+std::unique_ptr<OperationPass<func::FuncOp>> createInsertLinearPass(std::string net);
+
 std::unique_ptr<OperationPass<func::FuncOp>> createObfuscateRNNPass(std::string obfuscation, int splitNumber);
 
 std::unique_ptr<OperationPass<ModuleOp>> createPreprocessShapeLibraryPass();
