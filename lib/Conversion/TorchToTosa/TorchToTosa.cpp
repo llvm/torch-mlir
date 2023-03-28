@@ -4197,9 +4197,16 @@ public:
 
     // FIXME: Handle layout, device and pin_memory. Assume dtype has been
     // processed to set output type correctly?
-    if (!op.getLayout().getType().template isa<Torch::NoneType>())
-      return rewriter.notifyMatchFailure(op,
-                                         "Only default layout is supported");
+    // The layout arg should be either `none` or `0` i.e. strided.
+    if (!op.getLayout().getType().template isa<Torch::NoneType>()) {
+      int64_t tensorLayout;
+      if (!matchPattern(op.getLayout(), m_TorchConstantInt(&tensorLayout)))
+        return rewriter.notifyMatchFailure(
+            op, "The layout arg should be either `none` or `0` i.e. strided.");
+      else if (tensorLayout != torch_upstream::Layout::Strided)
+        return rewriter.notifyMatchFailure(
+            op, "The layout arg should be either `none` or `0` i.e. strided.");
+    }
 
     bool pinMemory;
     if (!op.getPinMemory().getType().template isa<Torch::NoneType>() &&
