@@ -369,7 +369,6 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenWhereScalarOtherOp>();
   target.addIllegalOp<AtenWhereScalarSelfOp>();
   target.addIllegalOp<AtenMaskedFillScalarOp>();
-  target.addIllegalOp<AtenConvolutionBackwardOverrideableOp>();
   target.addIllegalOp<AtenSizeOp>();
   target.addIllegalOp<AtenReshapeOp>();
   target.addIllegalOp<Aten_SoftmaxBackwardDataOp>();
@@ -395,7 +394,6 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenLayerNormOp>();
   target.addIllegalOp<AtenNativeLayerNormOp>();
   target.addIllegalOp<AtenNativeBatchNormOp>();
-  target.addIllegalOp<AtenConvolutionOverrideableOp>();
   target.addIllegalOp<Aten_ConvolutionOp, Aten_ConvolutionDeprecatedOp>();
   target.addIllegalOp<AtenConvolutionBackwardOp>();
   target.addIllegalOp<AtenConv2dOp>();

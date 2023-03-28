@@ -714,8 +714,8 @@ void TypeAnalysis::visitOperation(Operation *op,
 
   // Promote the two dtypes assuming non-zero rank.
   if (isa<AtenMmOp, AtenBmmOp, AtenMatmulOp, AtenConv2dOp, AtenConvolutionOp,
-          Aten_ConvolutionOp, AtenMvOp, AtenConvolutionOverrideableOp,
-          AtenConvTranspose2dInputOp, AtenMseLossOp>(op)) {
+          Aten_ConvolutionOp, AtenMvOp, AtenConvTranspose2dInputOp,
+          AtenMseLossOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
@@ -845,8 +845,7 @@ void TypeAnalysis::visitOperation(Operation *op,
 
   // 3 results take dtype from first operand.
   if (isa<AtenNativeLayerNormOp, AtenNativeBatchNormOp,
-          AtenConvolutionBackwardOp, AtenConvolutionBackwardOverrideableOp>(
-          op)) {
+          AtenConvolutionBackwardOp>(op)) {
     auto self = operands[0]->getValue();
     auto result0Knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());

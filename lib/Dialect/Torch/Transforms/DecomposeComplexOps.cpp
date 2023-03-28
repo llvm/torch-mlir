@@ -1453,24 +1453,6 @@ public:
 };
 
 } // namespace
-// Decompose aten.convolution_overrideable to aten.convolution op.
-namespace {
-class DecomposeAtenConvolutionOverrideableOp
-    : public OpRewritePattern<AtenConvolutionOverrideableOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenConvolutionOverrideableOp op,
-                                PatternRewriter &rewriter) const override {
-
-    rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
-        op, op->getResultTypes(), op.getInput(), op.getWeight(), op.getBias(),
-        op.getStride(), op.getPadding(), op.getDilation(), op.getTransposed(),
-        op.getOutputPadding(), op.getGroups());
-
-    return success();
-  }
-};
-} // namespace
 
 // Decompose aten._convolution-like to aten.convolution
 namespace {
@@ -1528,27 +1510,6 @@ public:
         op, op->getResultTypes(), op.getInput(), op.getWeight(), op.getBias(),
         op.getStride(), op.getPadding(), op.getDilation(), /*transposed=*/cstTrue,
         op.getOutputPadding(), op.getGroups());
-    return success();
-  }
-};
-} // namespace
-
-// Decompose aten.convolution_backward_overrideable to aten.convolution_backward
-// op.
-namespace {
-class DecomposeAtenConvolutionBackwardOverrideableOp
-    : public OpRewritePattern<AtenConvolutionBackwardOverrideableOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenConvolutionBackwardOverrideableOp op,
-                                PatternRewriter &rewriter) const override {
-
-    Value none = rewriter.create<ConstantNoneOp>(op->getLoc());
-    rewriter.replaceOpWithNewOp<AtenConvolutionBackwardOp>(
-        op, op.getResultTypes(), op.getGradOutput(), op.getInput(), op.getWeight(),
-        none, op.getStride(), op.getPadding(), op.getDilation(), op.getTransposed(),
-        op.getOutputPadding(), op.getGroups(), op.getOutputMask());
-
     return success();
   }
 };
@@ -3926,8 +3887,6 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarOtherOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarSelfOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMaskedFillScalarOp>(patterns);
-    addPatternIfTargetOpIsIllegal<
-        DecomposeAtenConvolutionBackwardOverrideableOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSizeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_SoftmaxBackwardDataOp>(
@@ -3949,8 +3908,6 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLayerNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeLayerNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeBatchNormOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenConvolutionOverrideableOp>(
-        patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAten_ConvolutionLikeOp<Aten_ConvolutionOp>>(patterns);
     addPatternIfTargetOpIsIllegal<
