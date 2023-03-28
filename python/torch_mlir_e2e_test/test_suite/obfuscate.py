@@ -158,7 +158,7 @@ def ObfuscateRNN_7(module, tu: TestUtils):
 
 @register_test_case(
     module_factory=lambda: RNN_scratch(),
-    passes="func.func(torch-obfuscate-rnn{obfuscation=insertConv})",
+    passes="func.func(torch-insert-conv{net=RNN})",
 )
 def ObfuscateRNN_8(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 10))
