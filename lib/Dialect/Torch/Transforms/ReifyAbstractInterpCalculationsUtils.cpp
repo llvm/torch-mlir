@@ -187,6 +187,16 @@ FailureOr<Value> Torch::adjustFunctionArg(
     return b.create<DerefineOp>(loc, desiredType, operand).getResult();
   }
 
+  // To keep things simple in shape functions, `Scalar` inputs are considered
+  // `float`s. This is safe since output shape of torch ops never depends on the
+  // dtype of input scalars. However, this also means we sometimes have to
+  // manually turn `Scalar`s into `float`s when inserting the shape functions
+  // into the IR.
+  if (operandType.isa<Torch::NumberType>() &&
+      desiredType.isa<Torch::FloatType>()) {
+    return b.create<AtenFloatScalarOp>(loc, desiredType, operand).getResult();
+  }
+
   // If the operand type is statically !torch.optional, then we need to do
   // different things for the None and non-None cases.
   // For the None case, we just need to derefine it to the desired type.
