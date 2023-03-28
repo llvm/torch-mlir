@@ -421,11 +421,11 @@ def Tcp_AbsOp : Tcp_UnaryElementwiseOp<"abs"> {
   }];
 
   let arguments = (ins
-    Tcp_FloatOrComplexTensor:$in
+    Tcp_FloatOrIntTensor:$in
   );
 
   let results = (outs
-    Tcp_FloatOrComplexTensor:$out
+    Tcp_FloatOrIntTensor:$out
   );
 
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
@@ -454,24 +454,6 @@ def Tcp_NegOp : Tcp_UnaryElementwiseOp<"neg"> {
 
   let description = [{
     Computes elementwise negation value of the input tensor.
-  }];
-
-  let arguments = (ins
-    Tcp_FloatOrComplexTensor:$in
-  );
-
-  let results = (outs
-    Tcp_FloatOrComplexTensor:$out
-  );
-
-  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
-}
-
-def Tcp_ReciprocalOp : Tcp_UnaryElementwiseOp<"reciprocal"> {
-  let summary = "Computes the reciprocal of input, elementwise";
-
-  let description = [{
-    Computes elementwise reciprocal value of the input tensor.
   }];
 
   let arguments = (ins

@@ -127,7 +127,13 @@ createLinalgPayloadForElementwiseOp(Operation *op,
   }
 
   if (isa<AbsOp>(op)) {
-    return {b.create<math::AbsFOp>(loc, payloadArgs[0])};
+    if (elemType.isa<mlir::FloatType>())
+      return {b.create<math::AbsFOp>(loc, payloadArgs[0])};
+    else if (elemType.isa<mlir::IntegerType>())
+      return {b.create<math::AbsIOp>(loc, payloadArgs[0])};
+    else
+      llvm_unreachable(
+          "unsupported element type in createLinalgPayloadForElementwiseOp");
   }
 
   if (isa<LogOp>(op)) {
@@ -136,12 +142,6 @@ createLinalgPayloadForElementwiseOp(Operation *op,
 
   if (isa<NegOp>(op)) {
     return {b.create<arith::NegFOp>(loc, payloadArgs[0])};
-  }
-
-  if (isa<ReciprocalOp>(op)) {
-    auto elemType = resultTensorType.getElementType();
-    auto one = b.create<arith::ConstantOp>(loc, FloatAttr::get(elemType, 1));
-    return {b.create<arith::DivFOp>(loc, one, payloadArgs[0])};
   }
 
   if (isa<AddOp>(op)) {
@@ -243,5 +243,4 @@ void mlir::TcpToLinalg::populateElementwisePatternsAndLegality(
   patterns.add<ConvertElementwiseOp<AbsOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<LogOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<NegOp>>(typeConverter, context);
-  patterns.add<ConvertElementwiseOp<ReciprocalOp>>(typeConverter, context);
 }

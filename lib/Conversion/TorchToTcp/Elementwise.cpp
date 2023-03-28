@@ -335,6 +335,28 @@ public:
   }
 };
 
+class ConvertAtenAbsOp : public OpConversionPattern<AtenAbsOp> {
+public:
+  using OpConversionPattern<AtenAbsOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(AtenAbsOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = adaptor.getSelf();
+    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
+    if (!inputType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+    auto elementType = inputType.getElementType();
+    if (!elementType.isIntOrFloat())
+      return rewriter.notifyMatchFailure(
+          op, "Abs input tensor must have integer or floating-point datatype");
+
+    rewriter.replaceOpWithNewOp<tcp::AbsOp>(op, inputType, input);
+    return success();
+  }
+};
+
 template <typename AtenOpT, typename TcpOpT>
 class ConvertAtenTemplatedUnaryOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -391,10 +413,8 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
   target.addIllegalOp<AtenTanhOp>();
   target.addIllegalOp<AtenSinOp>();
   target.addIllegalOp<AtenCosOp>();
-  target.addIllegalOp<AtenAbsOp>();
   target.addIllegalOp<AtenLogOp>();
   target.addIllegalOp<AtenNegOp>();
-  target.addIllegalOp<AtenReciprocalOp>();
   patterns.add<ConvertAtenTemplatedUnaryOp<AtenFloorOp, tcp::FloorOp>>(
       typeConverter, context);
   patterns.add<ConvertAtenTemplatedUnaryOp<AtenCeilOp, tcp::CeilOp>>(
@@ -409,15 +429,13 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
       typeConverter, context);
   patterns.add<ConvertAtenTemplatedUnaryOp<AtenCosOp, tcp::CosOp>>(
       typeConverter, context);
-  patterns.add<ConvertAtenTemplatedUnaryOp<AtenAbsOp, tcp::AbsOp>>(
-      typeConverter, context);
   patterns.add<ConvertAtenTemplatedUnaryOp<AtenLogOp, tcp::LogOp>>(
       typeConverter, context);
   patterns.add<ConvertAtenTemplatedUnaryOp<AtenNegOp, tcp::NegOp>>(
       typeConverter, context);
-  patterns
-      .add<ConvertAtenTemplatedUnaryOp<AtenReciprocalOp, tcp::ReciprocalOp>>(
-          typeConverter, context);
+
+  target.addIllegalOp<AtenAbsOp>();
+  patterns.add<ConvertAtenAbsOp>(typeConverter, context);
 
   target.addIllegalOp<AtenBatchNormOp>();
   patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);

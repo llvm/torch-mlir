@@ -504,7 +504,6 @@ TCP_PASS_SET = {
     "ElementwiseAbsModule_basic",
     "ElementwiseLogModule_basic",
     "ElementwiseNegModule_basic",
-    "ElementwiseReciprocalModule_basic",
     "ElementwiseBinaryModule_basic",
     "ElementwiseClampModule_basic",
     "ElementwiseClampMaxModule_basic",
