@@ -244,6 +244,29 @@ def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "func::FuncOp"> {
   }];
 }
 
+def RecomposeComplexOps : Pass<"torch-recompose-complex-ops", "func::FuncOp"> {
+  let summary = "Recompose torch operations that have been decomposed by TorchScript";
+  let constructor = "mlir::torch::Torch::createRecomposeComplexOpsPass()";
+  let description = [{
+    There are certain ops that TorchScript will split into multiple ops that
+    prevent optimizations in Torch-MLIR from taking place. In this pass such
+    sequences of ops are identified and combined into a higher level op,
+    preserving the original behavior, while allowing new optimizations to happen.
+
+    An example is the handling of the indexing operation in PyTorch. The following
+
+    ```
+    input_tensor[1:2, :] = 7
+    ```
+
+    will get split into a series of `slice` ops to get the sub-tensor, then an
+    in-place copy to overwrite the sub-tensor with the value 7. This type of
+    pattern prevents the `MaximizeValueSemantics` pass from succeeding. So,
+    using `RecomposeComplexOps`, the series of slices + copy is identified
+    and turned into a single `index_put` operation.
+  }];
+}
+
 def ReifyShapeCalculations : Pass<"torch-reify-shape-calculations", "ModuleOp"> {
   let summary = "Reify shape calculations.";
   let constructor = [{

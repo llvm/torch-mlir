@@ -74,10 +74,9 @@ public:
 } // namespace
 
 namespace {
-class RecomposeComplexOps
-    : public DecomposeComplexOpsBase<RecomposeComplexOps> {
+class RecomposeComplexOpsPass
+    : public RecomposeComplexOpsBase<RecomposeComplexOpsPass> {
 public:
-  RecomposeComplexOps() = default;
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
@@ -98,6 +97,6 @@ public:
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createRecomposeComplexOps() {
-  return std::make_unique<RecomposeComplexOps>();
+mlir::torch::Torch::createRecomposeComplexOpsPass() {
+  return std::make_unique<RecomposeComplexOpsPass>();
 }
