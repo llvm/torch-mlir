@@ -1031,7 +1031,7 @@ cc_library(
     ],
     defines = [
         "TORCH_MLIR_DIALECTS_ENABLE_TCP",
-        "TORCH_MLIR_ENABLE_STABLEHLO"
+        "TORCH_MLIR_ENABLE_STABLEHLO",
     ],
     strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
     deps = [
