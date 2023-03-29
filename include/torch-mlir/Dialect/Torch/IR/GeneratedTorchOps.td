@@ -4343,37 +4343,6 @@ def Torch_AtenConvolutionOp : Torch_Op<"aten.convolution", [
   }];
 }
 
-def Torch_AtenConvolutionOverrideableOp : Torch_Op<"aten.convolution_overrideable", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::convolution_overrideable : (Tensor, Tensor, Tensor?, int[], int[], int[], bool, int[], int) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$input,
-    AnyTorchTensorType:$weight,
-    AnyTorchOptionalTensorType:$bias,
-    AnyTorchListOfTorchIntType:$stride,
-    AnyTorchListOfTorchIntType:$padding,
-    AnyTorchListOfTorchIntType:$dilation,
-    Torch_BoolType:$transposed,
-    AnyTorchListOfTorchIntType:$output_padding,
-    Torch_IntType:$groups
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenConvolutionOverrideableOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 9, 1);
-    }
-    void AtenConvolutionOverrideableOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 9, 1);
-    }
-  }];
-}
-
 def Torch_Aten_ConvolutionOp : Torch_Op<"aten._convolution", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -4499,40 +4468,6 @@ def Torch_AtenConvolutionBackwardOp : Torch_Op<"aten.convolution_backward", [
     }
     void AtenConvolutionBackwardOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 11, 3);
-    }
-  }];
-}
-
-def Torch_AtenConvolutionBackwardOverrideableOp : Torch_Op<"aten.convolution_backward_overrideable", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::convolution_backward_overrideable : (Tensor, Tensor, Tensor, int[], int[], int[], bool, int[], int, bool[]) -> (Tensor, Tensor, Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$grad_output,
-    AnyTorchTensorType:$input,
-    AnyTorchTensorType:$weight,
-    AnyTorchListOfTorchIntType:$stride,
-    AnyTorchListOfTorchIntType:$padding,
-    AnyTorchListOfTorchIntType:$dilation,
-    Torch_BoolType:$transposed,
-    AnyTorchListOfTorchIntType:$output_padding,
-    Torch_IntType:$groups,
-    AnyTorchListOfTorchBoolType:$output_mask
-  );
-  let results = (outs
-    AnyTorchTensorType:$grad_input,
-    AnyTorchTensorType:$grad_weight,
-    AnyTorchTensorType:$grad_bias
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenConvolutionBackwardOverrideableOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 10, 3);
-    }
-    void AtenConvolutionBackwardOverrideableOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 10, 3);
     }
   }];
 }
