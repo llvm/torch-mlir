@@ -1,5 +1,6 @@
 import os
 import tempfile
+from typing import List, Tuple
 
 import torch
 import torch.utils.cpp_extension
@@ -18,6 +19,18 @@ goofy_lib = torch.library.Library("goofy", "DEF")
 goofy_lib.define("identity(Tensor t) -> Tensor")
 goofy_lib.impl("identity", identity)
 
+def goofy〇identity〡shape(t: List[int]) -> List[int]:
+    return t
+
+def goofy〇identity〡dtype(t_rank_dtype: Tuple[int, int]) -> int:
+    t_rank, t_dtype = t_rank_dtype
+    return t_dtype
+
+def goofy〇identity〡has_value_semantics() -> None:
+    return
+
+extra_library = [
+    goofy〇identity〡shape, goofy〇identity〡dtype, goofy〇identity〡has_value_semantics]
 
 class CustomOpExampleModule(torch.nn.Module):
     def __init__(self):
@@ -38,26 +51,12 @@ class CustomOpExampleModule(torch.nn.Module):
 mod = CustomOpExampleModule()
 mod.eval()
 
-abstract_interp_src = """\
-func.func @__torch_mlir_shape_fn.goofy.identity(%arg0: !torch.list<int>) -> !torch.list<int> {
-  return %arg0 : !torch.list<int>
-}
-func.func @__torch_mlir_dtype_fn.goofy.identity(%arg0 : !torch.tuple<int, int>) -> !torch.int {
-  %0:2 = torch.prim.TupleUnpack %arg0 : !torch.tuple<int, int> -> !torch.int, !torch.int
-  return %0#1 : !torch.int
-}
-func.func @__torch_mlir_has_value_semantics_fn.goofy.identity() { return }
-"""
-
-with open("/tmp/custom_op_shape_dtype_fn.mlir", "w") as tmp:
-    tmp.write(abstract_interp_src)
-
 module = torch_mlir.compile(
     mod,
     torch.ones(3, 4),
     output_type="torch",
     backend_legal_ops=["goofy.identity"],
-    _completely_unsupported_in_progress_extra_library="/tmp/custom_op_shape_dtype_fn.mlir",
+    extra_library=extra_library,
 )
 
 print(module)
