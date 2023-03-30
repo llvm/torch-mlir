@@ -252,6 +252,33 @@ func.func @abs(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
 
 // CHECK: #[[MAP:.*]] = affine_map<(d0, d1) -> (d0, d1)>
 
+// CHECK-LABEL: func.func @abs(
+// CHECK-SAME:                %[[ARG:.*]]: tensor<?x?xi32>) -> tensor<?x?xi32> {
+// CHECK:         %[[CONST0:.*]] = arith.constant 0 : index
+// CHECK:         %[[DIM0:.*]] = tensor.dim %[[ARG]], %[[CONST0]] : tensor<?x?xi32>
+// CHECK:         %[[CONST1:.*]] = arith.constant 1 : index
+// CHECK:         %[[DIM1:.*]] = tensor.dim %[[ARG]], %[[CONST1]] : tensor<?x?xi32>
+// CHECK:         %[[EMPTY_TENSOR:.*]] = tensor.empty(%[[DIM0]], %[[DIM1]]) : tensor<?x?xi32>
+// CHECK:         %[[GENERIC:.*]] = linalg.generic {
+// CHECK-SAME:                        indexing_maps = [#[[MAP]], #[[MAP]]],
+// CHECK-SAME:                        iterator_types = ["parallel", "parallel"]}
+// CHECK-SAME:                        ins(%[[ARG]] :  tensor<?x?xi32>)
+// CHECK-SAME:                        outs(%[[EMPTY_TENSOR]] : tensor<?x?xi32>) {
+// CHECK:         ^bb0(%[[BBARG0:.*]]: i32, %{{.*}}: i32):
+// CHECK:           %[[CEIL:.*]] = math.absi %[[BBARG0]] : i32
+// CHECK:           linalg.yield %[[CEIL]] : i32
+// CHECK:         } -> tensor<?x?xi32>
+// CHECK:         return %[[GENERIC]] : tensor<?x?xi32>
+// CHECK:       }
+func.func @abs(%arg0 : tensor<?x?xi32>) -> tensor<?x?xi32> {
+  %0 = tcp.abs %arg0 : tensor<?x?xi32> -> tensor<?x?xi32>
+  return %0 : tensor<?x?xi32>
+}
+
+// -----
+
+// CHECK: #[[MAP:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+
 // CHECK-LABEL: func.func @log(
 // CHECK-SAME:                %[[ARG:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32> {
 // CHECK:         %[[CONST0:.*]] = arith.constant 0 : index

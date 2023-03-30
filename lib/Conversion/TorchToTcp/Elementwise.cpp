@@ -358,7 +358,7 @@ public:
 };
 
 template <typename AtenOpT, typename TcpOpT>
-class ConvertAtenTemplatedUnaryOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenUnaryOp : public OpConversionPattern<AtenOpT> {
 public:
   using OpConversionPattern<AtenOpT>::OpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
@@ -372,9 +372,8 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Only Ranked Tensor types are supported in TCP");
     if (!inputType.getElementType().isa<mlir::FloatType>())
-      return rewriter.notifyMatchFailure(op,
-                                         "Templated unary op's input tensor "
-                                         "must have floating-point datatype");
+      return rewriter.notifyMatchFailure(
+          op, "Input tensor must have floating-point datatype");
 
     rewriter.replaceOpWithNewOp<TcpOpT>(op, inputType, input);
     return success();
@@ -415,24 +414,24 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
   target.addIllegalOp<AtenCosOp>();
   target.addIllegalOp<AtenLogOp>();
   target.addIllegalOp<AtenNegOp>();
-  patterns.add<ConvertAtenTemplatedUnaryOp<AtenFloorOp, tcp::FloorOp>>(
-      typeConverter, context);
-  patterns.add<ConvertAtenTemplatedUnaryOp<AtenCeilOp, tcp::CeilOp>>(
-      typeConverter, context);
-  patterns.add<ConvertAtenTemplatedUnaryOp<AtenSqrtOp, tcp::SqrtOp>>(
-      typeConverter, context);
-  patterns.add<ConvertAtenTemplatedUnaryOp<AtenSigmoidOp, tcp::SigmoidOp>>(
-      typeConverter, context);
-  patterns.add<ConvertAtenTemplatedUnaryOp<AtenTanhOp, tcp::TanhOp>>(
-      typeConverter, context);
-  patterns.add<ConvertAtenTemplatedUnaryOp<AtenSinOp, tcp::SinOp>>(
-      typeConverter, context);
-  patterns.add<ConvertAtenTemplatedUnaryOp<AtenCosOp, tcp::CosOp>>(
-      typeConverter, context);
-  patterns.add<ConvertAtenTemplatedUnaryOp<AtenLogOp, tcp::LogOp>>(
-      typeConverter, context);
-  patterns.add<ConvertAtenTemplatedUnaryOp<AtenNegOp, tcp::NegOp>>(
-      typeConverter, context);
+  patterns.add<ConvertAtenUnaryOp<AtenFloorOp, tcp::FloorOp>>(typeConverter,
+                                                              context);
+  patterns.add<ConvertAtenUnaryOp<AtenCeilOp, tcp::CeilOp>>(typeConverter,
+                                                            context);
+  patterns.add<ConvertAtenUnaryOp<AtenSqrtOp, tcp::SqrtOp>>(typeConverter,
+                                                            context);
+  patterns.add<ConvertAtenUnaryOp<AtenSigmoidOp, tcp::SigmoidOp>>(typeConverter,
+                                                                  context);
+  patterns.add<ConvertAtenUnaryOp<AtenTanhOp, tcp::TanhOp>>(typeConverter,
+                                                            context);
+  patterns.add<ConvertAtenUnaryOp<AtenSinOp, tcp::SinOp>>(typeConverter,
+                                                          context);
+  patterns.add<ConvertAtenUnaryOp<AtenCosOp, tcp::CosOp>>(typeConverter,
+                                                          context);
+  patterns.add<ConvertAtenUnaryOp<AtenLogOp, tcp::LogOp>>(typeConverter,
+                                                          context);
+  patterns.add<ConvertAtenUnaryOp<AtenNegOp, tcp::NegOp>>(typeConverter,
+                                                          context);
 
   target.addIllegalOp<AtenAbsOp>();
   patterns.add<ConvertAtenAbsOp>(typeConverter, context);

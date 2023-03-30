@@ -142,6 +142,17 @@ func.func @test_abs_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
 
 // -----
 
+// CHECK-LABEL: func.func @test_abs_i32(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xi32>) -> tensor<?x?xi32>
+// CHECK:         %[[ABS:.*]] = tcp.abs %[[ARG]] : tensor<?x?xi32> -> tensor<?x?xi32>
+// CHECK:         return %[[ABS]] : tensor<?x?xi32>
+func.func @test_abs_i32(%arg0 : tensor<?x?xi32>) -> tensor<?x?xi32> {
+  %0 = tcp.abs %arg0 : tensor<?x?xi32> -> tensor<?x?xi32>
+  return %0 : tensor<?x?xi32>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_log_f32(
 // CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
 // CHECK:         %[[LOG:.*]] = tcp.log %[[ARG]] : tensor<?x?xf32> -> tensor<?x?xf32>
