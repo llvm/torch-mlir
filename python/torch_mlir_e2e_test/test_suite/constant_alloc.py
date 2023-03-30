@@ -685,6 +685,24 @@ def NewZerosModuleFalsePinMemory_basic(module, tu: TestUtils):
     module.forward(tu.randint(2, 3, high=10))
 
 
+class NewZerosStaticModuleLayoutStrided(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 4], torch.int64, True),
+    ])
+    def forward(self, a):
+        return a.new_zeros(a.shape)
+
+
+@register_test_case(module_factory=lambda: NewZerosStaticModuleLayoutStrided())
+def NewZerosStaticModuleLayoutStrided_basic(module, tu: TestUtils):
+    module.forward(tu.randint(1, 4, high=10))
+
 # ==============================================================================
 
 
