@@ -241,111 +241,6 @@ public:
   }
 };
 
-class ConvertAtenTanhOp : public OpConversionPattern<AtenTanhOp> {
-public:
-  using OpConversionPattern<AtenTanhOp>::OpConversionPattern;
-
-  LogicalResult
-  matchAndRewrite(AtenTanhOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Value input = adaptor.getSelf();
-    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
-    if (!inputType)
-      return rewriter.notifyMatchFailure(
-          op, "Only Ranked Tensor types are supported in TCP");
-    if (!inputType.getElementType().isa<mlir::FloatType>())
-      return rewriter.notifyMatchFailure(
-          op, "Tanh input tensor must have floating-point datatype");
-
-    rewriter.replaceOpWithNewOp<tcp::TanhOp>(op, inputType, input);
-    return success();
-  }
-};
-
-class ConvertAtenSigmoidOp : public OpConversionPattern<AtenSigmoidOp> {
-public:
-  using OpConversionPattern<AtenSigmoidOp>::OpConversionPattern;
-
-  LogicalResult
-  matchAndRewrite(AtenSigmoidOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Value input = adaptor.getSelf();
-    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
-    if (!inputType)
-      return rewriter.notifyMatchFailure(
-          op, "Only Ranked Tensor types are supported in TCP");
-    if (!inputType.getElementType().isa<mlir::FloatType>())
-      return rewriter.notifyMatchFailure(
-          op, "Sigmoid input tensor must have floating-point datatype");
-
-    rewriter.replaceOpWithNewOp<tcp::SigmoidOp>(op, inputType, input);
-    return success();
-  }
-};
-
-class ConvertAtenSqrtOp : public OpConversionPattern<AtenSqrtOp> {
-public:
-  using OpConversionPattern<AtenSqrtOp>::OpConversionPattern;
-
-  LogicalResult
-  matchAndRewrite(AtenSqrtOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Value input = adaptor.getSelf();
-    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
-    if (!inputType)
-      return rewriter.notifyMatchFailure(
-          op, "Only Ranked Tensor types are supported in TCP");
-    if (!inputType.getElementType().isa<mlir::FloatType>())
-      return rewriter.notifyMatchFailure(
-          op, "Sqrt input tensor must have floating-point datatype");
-
-    rewriter.replaceOpWithNewOp<tcp::SqrtOp>(op, inputType, input);
-    return success();
-  }
-};
-
-class ConvertAtenCeilOp : public OpConversionPattern<AtenCeilOp> {
-public:
-  using OpConversionPattern<AtenCeilOp>::OpConversionPattern;
-
-  LogicalResult
-  matchAndRewrite(AtenCeilOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Value input = adaptor.getSelf();
-    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
-    if (!inputType)
-      return rewriter.notifyMatchFailure(
-          op, "Only Ranked Tensor types are supported in TCP");
-    if (!inputType.getElementType().isa<mlir::FloatType>())
-      return rewriter.notifyMatchFailure(
-          op, "Ceil input tensor must have floating-point datatype");
-
-    rewriter.replaceOpWithNewOp<tcp::CeilOp>(op, inputType, input);
-    return success();
-  }
-};
-
-class ConvertAtenFloorOp : public OpConversionPattern<AtenFloorOp> {
-public:
-  using OpConversionPattern<AtenFloorOp>::OpConversionPattern;
-
-  LogicalResult
-  matchAndRewrite(AtenFloorOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Value input = adaptor.getSelf();
-    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
-    if (!inputType)
-      return rewriter.notifyMatchFailure(
-          op, "Only Ranked Tensor types are supported in TCP");
-    if (!inputType.getElementType().isa<mlir::FloatType>())
-      return rewriter.notifyMatchFailure(
-          op, "Floor input tensor must have floating-point datatype");
-
-    rewriter.replaceOpWithNewOp<tcp::FloorOp>(op, inputType, input);
-    return success();
-  }
-};
-
 class ConvertAtenClampOp : public OpConversionPattern<AtenClampOp> {
 public:
   using OpConversionPattern<AtenClampOp>::OpConversionPattern;
@@ -440,6 +335,51 @@ public:
   }
 };
 
+class ConvertAtenAbsOp : public OpConversionPattern<AtenAbsOp> {
+public:
+  using OpConversionPattern<AtenAbsOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(AtenAbsOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = adaptor.getSelf();
+    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
+    if (!inputType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+    auto elementType = inputType.getElementType();
+    if (!elementType.isIntOrFloat())
+      return rewriter.notifyMatchFailure(
+          op, "Abs input tensor must have integer or floating-point datatype");
+
+    rewriter.replaceOpWithNewOp<tcp::AbsOp>(op, inputType, input);
+    return success();
+  }
+};
+
+template <typename AtenOpT, typename TcpOpT>
+class ConvertAtenUnaryOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = adaptor.getSelf();
+    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
+    if (!inputType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+    if (!inputType.getElementType().isa<mlir::FloatType>())
+      return rewriter.notifyMatchFailure(
+          op, "Input tensor must have floating-point datatype");
+
+    rewriter.replaceOpWithNewOp<TcpOpT>(op, inputType, input);
+    return success();
+  }
+};
+
 } // namespace
 
 void torch_to_tcp::populateElementwisePatternsAndLegality(
@@ -447,15 +387,10 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
     ConversionTarget &target) {
   MLIRContext *context = patterns.getContext();
 
-  target.addIllegalOp<AtenTanhOp>();
-  patterns.add<ConvertAtenTanhOp>(typeConverter, context);
   target.addIllegalOp<AtenClampOp>();
   patterns.add<ConvertAtenClampOp>(typeConverter, context);
   target.addIllegalOp<AtenReluOp>();
   patterns.add<ConvertAtenReluOp>(typeConverter, context);
-
-  target.addIllegalOp<AtenSigmoidOp>();
-  patterns.add<ConvertAtenSigmoidOp>(typeConverter, context);
 
   target.addIllegalOp<AtenAddTensorOp>();
   target.addIllegalOp<AtenSubTensorOp>();
@@ -470,14 +405,36 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
   target.addIllegalOp<AtenDivTensorOp>();
   patterns.add<ConvertAtenDivOp>(typeConverter, context);
 
-  target.addIllegalOp<AtenSqrtOp>();
-  patterns.add<ConvertAtenSqrtOp>(typeConverter, context);
-
   target.addIllegalOp<AtenCeilOp>();
-  patterns.add<ConvertAtenCeilOp>(typeConverter, context);
-
   target.addIllegalOp<AtenFloorOp>();
-  patterns.add<ConvertAtenFloorOp>(typeConverter, context);
+  target.addIllegalOp<AtenSqrtOp>();
+  target.addIllegalOp<AtenSigmoidOp>();
+  target.addIllegalOp<AtenTanhOp>();
+  target.addIllegalOp<AtenSinOp>();
+  target.addIllegalOp<AtenCosOp>();
+  target.addIllegalOp<AtenLogOp>();
+  target.addIllegalOp<AtenNegOp>();
+  patterns.add<ConvertAtenUnaryOp<AtenFloorOp, tcp::FloorOp>>(typeConverter,
+                                                              context);
+  patterns.add<ConvertAtenUnaryOp<AtenCeilOp, tcp::CeilOp>>(typeConverter,
+                                                            context);
+  patterns.add<ConvertAtenUnaryOp<AtenSqrtOp, tcp::SqrtOp>>(typeConverter,
+                                                            context);
+  patterns.add<ConvertAtenUnaryOp<AtenSigmoidOp, tcp::SigmoidOp>>(typeConverter,
+                                                                  context);
+  patterns.add<ConvertAtenUnaryOp<AtenTanhOp, tcp::TanhOp>>(typeConverter,
+                                                            context);
+  patterns.add<ConvertAtenUnaryOp<AtenSinOp, tcp::SinOp>>(typeConverter,
+                                                          context);
+  patterns.add<ConvertAtenUnaryOp<AtenCosOp, tcp::CosOp>>(typeConverter,
+                                                          context);
+  patterns.add<ConvertAtenUnaryOp<AtenLogOp, tcp::LogOp>>(typeConverter,
+                                                          context);
+  patterns.add<ConvertAtenUnaryOp<AtenNegOp, tcp::NegOp>>(typeConverter,
+                                                          context);
+
+  target.addIllegalOp<AtenAbsOp>();
+  patterns.add<ConvertAtenAbsOp>(typeConverter, context);
 
   target.addIllegalOp<AtenBatchNormOp>();
   patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
