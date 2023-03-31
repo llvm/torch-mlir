@@ -28,10 +28,22 @@ using namespace mlir::torch::TorchConversion;
 static constexpr StringRef getSeedGobalVarName() { return "global_seed"; }
 
 // Declare a tensor<i64> global variable for the seed.
-static void createGlobalVariableForSeed(OpBuilder &b, ModuleOp module) {
-  b.setInsertionPointToStart(module.getBody());
+static LogicalResult getOrCreateGlobalVariableForSeed(OpBuilder &b,
+                                                      ModuleOp module) {
+  auto globalSeedSymbol =
+      SymbolTable::lookupSymbolIn(module, getSeedGobalVarName());
+
   Type elemTy = b.getI64Type();
   auto tensorType = RankedTensorType::get({}, elemTy);
+
+  if (globalSeedSymbol) {
+    auto globalSeed = dyn_cast<ml_program::GlobalOp>(globalSeedSymbol);
+    if (!globalSeed || globalSeed.getType() != tensorType)
+      return module.emitError("Unexpected type for global seed.");
+    return success();
+  }
+
+  b.setInsertionPointToStart(module.getBody());
   b.create<ml_program::GlobalOp>(
       UnknownLoc::get(b.getContext()),
       /*sym_name=*/getSeedGobalVarName(),
@@ -39,6 +51,8 @@ static void createGlobalVariableForSeed(OpBuilder &b, ModuleOp module) {
       /*is_mutable=*/true,
       /*value=*/DenseIntElementsAttr::get(tensorType, {APInt(64, 0)}),
       /*sym_visibility=*/b.getStringAttr("private"));
+
+  return success();
 }
 
 namespace {
@@ -104,22 +118,27 @@ public:
     typeConverter.addConversion([](Type type) { return type; });
     TorchConversion::setupBackendTypeConversion(target, typeConverter);
 
-    auto module = getOperation()->getParentOfType<ModuleOp>();
+    auto module = getOperation();
     OpBuilder b(module.getBodyRegion());
-    createGlobalVariableForSeed(b, module);
+    if (failed(getOrCreateGlobalVariableForSeed(b, module)))
+      signalPassFailure();
 
     RewritePatternSet patterns(context);
     target.addIllegalOp<GetNextSeedOp>();
     patterns.add<ConvertGetNextSeedOp>(typeConverter, context);
 
-    if (failed(applyPartialConversion(getOperation(), target,
-                                      std::move(patterns))))
-      return signalPassFailure();
+    FrozenRewritePatternSet frozenPatterns(std::move(patterns));
+
+    getOperation()->walk(
+        [this, &target, &frozenPatterns](func::FuncOp function) {
+          if (failed(applyPartialConversion(function, target, frozenPatterns)))
+            return signalPassFailure();
+        });
   }
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
+std::unique_ptr<OperationPass<ModuleOp>>
 mlir::torch::createConvertTorchConversionToMLProgramPass() {
   return std::make_unique<ConvertTorchConversionToMLProgram>();
 }

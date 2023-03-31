@@ -10,12 +10,12 @@
 #ifndef TORCHMLIR_CONVERSION_TORCHCONVERSIONTOMLPROGRAM_TORCHCONVERSIONTOMLPROGRAM_H
 #define TORCHMLIR_CONVERSION_TORCHCONVERSIONTOMLPROGRAM_TORCHCONVERSIONTOMLPROGRAM_H
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
 namespace torch {
-std::unique_ptr<OperationPass<func::FuncOp>>
+std::unique_ptr<OperationPass<ModuleOp>>
 createConvertTorchConversionToMLProgramPass();
 }
 } // namespace mlir
