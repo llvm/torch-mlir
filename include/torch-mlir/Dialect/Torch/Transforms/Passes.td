@@ -282,6 +282,36 @@ def InsertLinear : Pass<"torch-insert-linear", "func::FuncOp"> {
   ];
 }
 
+def ValueSplit : Pass<"torch-value-split", "func::FuncOp"> {
+  let summary = "split layer by value";
+  let constructor = [{
+    mlir::torch::Torch::createValueSplitPass(/*net=*/"", /*splitNumber=*/2)
+  }];
+  let description = [{
+  }];
+  let options = [
+    Option<"net", "net", "std::string", /*default=*/"",
+           "specify net to apply, options avaliable: RNN">,
+    Option<"number", "number", "int", /*default=*/"2",
+           "split numbers">
+  ];
+}
+
+def MaskSplit : Pass<"torch-mask-split", "func::FuncOp"> {
+  let summary = "split layer by mask";
+  let constructor = [{
+    mlir::torch::Torch::createMaskSplitPass(/*net=*/"", /*splitNumber=*/2)
+  }];
+  let description = [{
+  }];
+  let options = [
+    Option<"net", "net", "std::string", /*default=*/"",
+           "specify net to apply, options avaliable: RNN">,
+    Option<"number", "number", "int", /*default=*/"2",
+           "split numbers">
+  ];
+}
+
 def ObfuscateRNN : Pass<"torch-obfuscate-rnn", "func::FuncOp"> {
   let summary = "Insert obfuscate in RNN cell";
   let constructor = [{

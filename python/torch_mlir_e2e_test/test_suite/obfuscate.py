@@ -46,35 +46,52 @@ class LeNet(nn.Module):
 @register_test_case(
     module_factory=lambda: LeNet(), passes="func.func(torch-insert-skip)"
 )
-def ObfuscateLeNet_1(module, tu: TestUtils):
+def ObfuscateLeNet_insertSplit(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 28, 28))
 
 
 @register_test_case(
     module_factory=lambda: LeNet(), passes="func.func(torch-widen-conv-layer)"
 )
-def ObfuscateLeNet_2(module, tu: TestUtils):
+def ObfuscateLeNet_widenConv(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 28, 28))
 
 
 @register_test_case(
     module_factory=lambda: LeNet(), passes="func.func(torch-insert-conv)"
 )
-def ObfuscateLeNet_3(module, tu: TestUtils):
+def ObfuscateLeNet_insertConv(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 28, 28))
 
 
 @register_test_case(
-    module_factory=lambda: LeNet(), passes="func.func(torch-widen-conv-layer), func.func(torch-insert-conv)"
+    module_factory=lambda: LeNet(),
+    passes="func.func(torch-widen-conv-layer), func.func(torch-insert-conv)",
 )
-def ObfuscateLeNet_4(module, tu: TestUtils):
+def ObfuscateLeNet_widenInsertConv(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 28, 28))
 
 
 @register_test_case(
     module_factory=lambda: LeNet(), passes="func.func(torch-insert-linear)"
 )
-def ObfuscateLeNet_5(module, tu: TestUtils):
+def ObfuscateLeNet_insertLinear(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 28, 28))
+
+
+@register_test_case(
+    module_factory=lambda: LeNet(),
+    passes="func.func(torch-value-split{number=3})",
+)
+def ObfuscateLeNet_valueSplit(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 28, 28))
+
+
+@register_test_case(
+    module_factory=lambda: LeNet(),
+    passes="func.func(torch-mask-split{number=3})",
+)
+def ObfuscateLeNet_maskSplit(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 28, 28))
 
 
@@ -113,66 +130,40 @@ class RNN_scratch(nn.Module):
 
 
 @register_test_case(
-    module_factory=lambda: RNN_scratch(), passes="func.func(torch-insert-skip)"
+    module_factory=lambda: RNN_scratch(),
+    passes="func.func(torch-value-split{net=RNN number=5})",
 )
-def ObfuscateRNN_1(module, tu: TestUtils):
-    module.forward(tu.rand(3, 1, 10))
-
-
-@register_test_case(
-    module_factory=lambda: RNN_scratch(), passes="func.func(torch-widen-conv-layer)"
-)
-def ObfuscateRNN_2(module, tu: TestUtils):
-    module.forward(tu.rand(3, 1, 10))
-
-
-@register_test_case(
-    module_factory=lambda: RNN_scratch(), passes="func.func(torch-insert-conv)"
-)
-def ObfuscateRNN_3(module, tu: TestUtils):
+def ObfuscateRNN_valueSplit(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 10))
 
 
 @register_test_case(
     module_factory=lambda: RNN_scratch(),
-    passes="func.func(torch-obfuscate-rnn{obfuscation=valueSplit})",
+    passes="func.func(torch-value-split{net=RNN}), func.func(torch-value-split{net=RNN})",
 )
-def ObfuscateRNN_4(module, tu: TestUtils):
+def ObfuscateRNN_2valueSplit(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 10))
 
 
 @register_test_case(
     module_factory=lambda: RNN_scratch(),
-    passes="func.func(torch-obfuscate-rnn{obfuscation=maskSplit})",
+    passes="func.func(torch-mask-split{net=RNN number=5})",
 )
-def ObfuscateRNN_5(module, tu: TestUtils):
+def ObfuscateRNN_maskSplit(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 10))
 
-
-@register_test_case(
-    module_factory=lambda: RNN_scratch(),
-    passes="func.func(torch-obfuscate-rnn{obfuscation=valueSplit}), func.func(torch-obfuscate-rnn{obfuscation=valueSplit})",
-)
-def ObfuscateRNN_6(module, tu: TestUtils):
-    module.forward(tu.rand(3, 1, 10))
-
-@register_test_case(
-    module_factory=lambda: RNN_scratch(),
-    passes="func.func(torch-obfuscate-rnn{obfuscation=valueSplit splitNumber=5})",
-)
-def ObfuscateRNN_7(module, tu: TestUtils):
-    module.forward(tu.rand(3, 1, 10))
 
 @register_test_case(
     module_factory=lambda: RNN_scratch(),
     passes="func.func(torch-insert-conv{net=RNN})",
 )
-def ObfuscateRNN_8(module, tu: TestUtils):
+def ObfuscateRNN_insertConv(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 10))
+
 
 @register_test_case(
     module_factory=lambda: RNN_scratch(),
     passes="func.func(torch-insert-linear{net=RNN})",
 )
-def ObfuscateRNN_9(module, tu: TestUtils):
+def ObfuscateRNN_insertLinear(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 10))
