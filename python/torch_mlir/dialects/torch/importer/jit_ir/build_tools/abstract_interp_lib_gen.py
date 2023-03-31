@@ -2232,6 +2232,36 @@ def aten〇native_batch_norm〡dtype(input_rank_dtype: Tuple[int, int], weight_r
     assert is_float_dtype(input_dtype)
     return input_dtype, input_dtype, input_dtype
 
+@check_dtype_function([
+    Invocation(TensorOfShape(2, 3, 4, dtype=torch.float32), dim=0, half_to_float=False)])
+def aten〇_softmax〡dtype(self_rank_dtype: Tuple[int, int], dim: int, half_to_float: bool) -> int:
+    return self_rank_dtype[1]
+
+@check_dtype_function([
+    Invocation(TensorOfShape(2, 3, 4, dtype=torch.float32), dim=0, dtype=None)])
+def aten〇softmax〇int〡dtype(self_rank_dtype: Tuple[int, int], dim: int, dtype: Optional[int] = None) -> int:
+    return self_rank_dtype[1] if dtype is None else int(dtype)
+
+@check_dtype_function([
+    Invocation(TensorOfShape(2, 3, 4, dtype=torch.float32), dim=0, half_to_float=False)])
+def aten〇_log_softmax〡dtype(self_rank_dtype: Tuple[int, int], dim: int, half_to_float: bool) -> int:
+    return self_rank_dtype[1]
+
+@check_dtype_function([
+    Invocation(TensorOfShape(2, 3, 4, dtype=torch.float32), dim=0, dtype=None)])
+def aten〇log_softmax〇int〡dtype(self_rank_dtype: Tuple[int, int], dim: int, dtype: Optional[int] = None) -> int:
+    return self_rank_dtype[1] if dtype is None else int(dtype)
+
+@check_dtype_function([
+    Invocation(TensorOfShape(2, 3, 4, dtype=torch.float32), TensorOfShape(2, 3, 4, dtype=torch.float32), dim=0, input_dtype=torch.float32)])
+def aten〇_log_softmax_backward_data〡dtype(grad_output_rank_dtype: Tuple[int, int], output_rank_dtype: Tuple[int, int], dim: int, input_dtype: int) -> int:
+    return grad_output_rank_dtype[1]
+
+@check_dtype_function([
+    Invocation(TensorOfShape(2, 3, 4, dtype=torch.float32), TensorOfShape(2, 3, 4, dtype=torch.float32), dim=0, input_dtype=torch.float32)])
+def aten〇_softmax_backward_data〡dtype(grad_output_rank_dtype: Tuple[int, int], output_rank_dtype: Tuple[int, int], dim: int, input_dtype: int) -> int:
+    return grad_output_rank_dtype[1]
+
 # ==============================================================================
 # Main
 # ==============================================================================

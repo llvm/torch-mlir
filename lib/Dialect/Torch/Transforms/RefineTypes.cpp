@@ -461,11 +461,6 @@ private:
   template <typename OpTy>
   void visitAtenCatLikeOp(OpTy op, ArrayRef<const ValueState *> operands);
 
-  template <typename OpTy>
-  void visitAtenSoftmaxLikeOp(OpTy op, ArrayRef<const ValueState *> operands);
-  template <typename OpTy>
-  void visitAten_SoftmaxLikeOp(OpTy op, ArrayRef<const ValueState *> operands);
-
   void visitNumToTensorOp(PrimNumToTensorScalarOp op);
   void visitBinaryScalarOp(Operation *op,
                            ArrayRef<const ValueState *> operands);
@@ -619,19 +614,17 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenBitwiseNotOp, AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp,
           AtenDetachOp, AtenMaskedFill_ScalarOp, AtenCopyOp, AtenCumsumOp,
           AtenLayerNormOp, AtenClampOp, AtenClampMinOp, AtenClampMaxOp,
-          AtenNegOp, AtenFloorOp, Aten_SoftmaxBackwardDataOp, AtenDropoutOp,
-          AtenTanhBackwardOp, AtenHardtanhBackwardOp,
-          Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp, AtenAbsOp,
-          AtenThresholdOp, AtenSquareOp, AtenUniformOp, AtenBernoulliOp,
-          AtenBernoulli_FloatOp, AtenBernoulliTensorOp,
-          ValsemVariantAtenBernoulliFloatOp, AtenBernoulliTensorOp,
-          AtenBernoulliPOp, AtenFillScalarOp, AtenHardsigmoidOp, AtenCloneOp,
-          AtenHardswishOp, AtenSiluOp, AtenHardtanhOp, AtenMaskedSelectOp,
-          AtenMaxPool2dOp, AtenAvgPool2dOp, AtenAdaptiveAvgPool2dOp,
-          AtenFlattenUsingIntsOp, AtenSqueezeOp, AtenSqueezeDimOp,
-          AtenUnsqueezeOp, AtenViewOp, Aten_UnsafeViewOp, AtenReshapeOp,
-          Aten_ReshapeAliasOp, AtenResize_Op, AtenTransposeIntOp, AtenTOp,
-          AtenPermuteOp, AtenIndexSelectOp, AtenSelectIntOp,
+          AtenNegOp, AtenFloorOp, AtenDropoutOp, AtenTanhBackwardOp,
+          AtenHardtanhBackwardOp, AtenAddIntOp, AtenAbsOp, AtenThresholdOp,
+          AtenSquareOp, AtenUniformOp, AtenBernoulliOp, AtenBernoulli_FloatOp,
+          AtenBernoulliTensorOp, ValsemVariantAtenBernoulliFloatOp,
+          AtenBernoulliTensorOp, AtenBernoulliPOp, AtenFillScalarOp,
+          AtenHardsigmoidOp, AtenCloneOp, AtenHardswishOp, AtenSiluOp,
+          AtenHardtanhOp, AtenMaskedSelectOp, AtenMaxPool2dOp, AtenAvgPool2dOp,
+          AtenAdaptiveAvgPool2dOp, AtenFlattenUsingIntsOp, AtenSqueezeOp,
+          AtenSqueezeDimOp, AtenUnsqueezeOp, AtenViewOp, Aten_UnsafeViewOp,
+          AtenReshapeOp, Aten_ReshapeAliasOp, AtenResize_Op, AtenTransposeIntOp,
+          AtenTOp, AtenPermuteOp, AtenIndexSelectOp, AtenSelectIntOp,
           AtenSelectScatterOp, AtenNarrowOp, AtenSliceTensorOp,
           AtenScatterReduceTwoOp, AtenSliceScatterOp, AtenGatherOp,
           AtenExpandOp, AtenExpandAsOp, AtenBroadcastToOp, AtenRepeatOp,
@@ -902,21 +895,6 @@ void TypeAnalysis::visitOperation(Operation *op,
   
   if (isa<Aten_EmbeddingBagOp, AtenEmbeddingBagPaddingIdxOp>(op)) {
     visitAtenEmbeddingBagOp(op);
-    return;
-  }
-
-  if (auto softmaxIntOp = dyn_cast<AtenSoftmaxIntOp>(op)) {
-    visitAtenSoftmaxLikeOp(softmaxIntOp, operands);
-    return;
-  }
-  if (auto _softmaxOp = dyn_cast<Aten_SoftmaxOp>(op)) {
-    visitAten_SoftmaxLikeOp(_softmaxOp, operands);
-    return;
-  } else if (auto _logSoftmaxOp = dyn_cast<Aten_LogSoftmaxOp>(op)) {
-    visitAten_SoftmaxLikeOp(_logSoftmaxOp, operands);
-    return;
-  } else if (auto logSoftmaxIntOp = dyn_cast<AtenLogSoftmaxIntOp>(op)) {
-    visitAtenSoftmaxLikeOp(logSoftmaxIntOp, operands);
     return;
   }
 
@@ -1259,33 +1237,6 @@ void TypeAnalysis::visitNumToTensorOp(PrimNumToTensorScalarOp op) {
   // `NumToTensor` falls in the latter case.
   Type type = op.getA().getType();
   knowledge.dtype = getBuiltInTypeForTorchScalar(type);
-  incorporateKnowledge(op.getResult(), knowledge);
-}
-
-// Common template for softmax like ops, eg., log_softmax.
-template <typename OpTy>
-void TypeAnalysis::visitAtenSoftmaxLikeOp(
-    OpTy op, ArrayRef<const ValueState *> operands) {
-  auto input = operands[0]->getValue();
-  auto dtype = op.getDtype();
-  ValueKnowledge knowledge =
-      ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-  fillInDTypeGivenDTypeIntAndInputDType(knowledge, dtype, input.dtype);
-  incorporateKnowledge(op.getResult(), knowledge);
-}
-
-// Common template for softmax like ops, eg., log_softmax.(underscore variant)
-template <typename OpTy>
-void TypeAnalysis::visitAten_SoftmaxLikeOp(
-    OpTy op, ArrayRef<const ValueState *> operands) {
-  auto input = operands[0]->getValue();
-  ValueKnowledge knowledge =
-      ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-  bool halfToFloat;
-  if (matchPattern(op.getHalfToFloat(), m_TorchConstantBool(&halfToFloat))) {
-    knowledge.dtype =
-        halfToFloat ? Float32Type::get(op->getContext()) : input.dtype;
-  }
   incorporateKnowledge(op.getResult(), knowledge);
 }
 
