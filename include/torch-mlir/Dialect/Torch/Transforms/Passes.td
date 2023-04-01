@@ -256,6 +256,33 @@ def InsertSkip : Pass<"torch-insert-skip", "func::FuncOp"> {
   }];
 }
 
+def InsertRNN : Pass<"torch-insert-RNN", "func::FuncOp"> {
+  let summary = "Insert a RNN into the network";
+  let constructor = [{
+    mlir::torch::Torch::createInsertRNNPass()
+  }];
+  let description = [{
+  }];
+}
+
+def InsertRNNWithZeros : Pass<"torch-insert-RNNWithZeros", "func::FuncOp"> {
+  let summary = "Insert a RNNWithZeros into the network";
+  let constructor = [{
+    mlir::torch::Torch::createInsertRNNWithZerosPass()
+  }];
+  let description = [{
+  }];
+}
+
+def InsertMaxpool : Pass<"torch-insert-Maxpool", "func::FuncOp"> {
+  let summary = "Insert a Maxpool into the network";
+  let constructor = [{
+    mlir::torch::Torch::createInsertMaxpoolPass()
+  }];
+  let description = [{
+  }];
+}
+
 def InsertConv : Pass<"torch-insert-conv", "func::FuncOp"> {
   let summary = "Insert equivalent convolutions";
   let constructor = [{

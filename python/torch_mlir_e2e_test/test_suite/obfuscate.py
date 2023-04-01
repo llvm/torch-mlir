@@ -94,6 +94,24 @@ def ObfuscateLeNet_valueSplit(module, tu: TestUtils):
 def ObfuscateLeNet_maskSplit(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 28, 28))
 
+@register_test_case(
+    module_factory=lambda: LeNet(), passes="func.func(torch-insert-RNN)"
+)
+def ObfuscateLeNet_insertRNN(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 28, 28))
+
+@register_test_case(
+    module_factory=lambda: LeNet(), passes="func.func(torch-insert-RNNWithZeros)"
+)
+def ObfuscateLeNet_insertRNNWithZeros(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 28, 28))
+
+@register_test_case(
+    module_factory=lambda: LeNet(), passes="func.func(torch-insert-Maxpool)"
+)
+def ObfuscateLeNet_insertMaxpool(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 28, 28))
+
 
 # error case
 # @register_test_case(module_factory=lambda: LeNet(), passes="func.func(torch-insert-skip), func.func(torch-widen-conv-layer)")
