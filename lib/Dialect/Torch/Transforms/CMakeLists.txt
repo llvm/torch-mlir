@@ -8,6 +8,9 @@ add_mlir_library(TorchMLIRTorchPasses
   ValueSplit.cpp
   MaskSplit.cpp
   ObfuscateRNN.cpp
+  InsertRNN.cpp
+  InsertRNNWithZeros.cpp
+  InsertMaxpool.cpp
   DropAbstractInterpCalculations.cpp
   EraseModuleInitializer.cpp
   Passes.cpp
