@@ -613,39 +613,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  // Take dtype from first operand.
-  if (isa<CopyToValueTensorOp, CopyToNonValueTensorOp, AtenBatchNormOp,
-          AtenReluOp, AtenRelu6Op, AtenGeluOp, AtenCeilOp, AtenGeluBackwardOp,
-          AtenBitwiseNotOp, AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp,
-          AtenDetachOp, AtenMaskedFill_ScalarOp, AtenCopyOp, AtenCumsumOp,
-          AtenLayerNormOp, AtenClampOp, AtenClampMinOp, AtenClampMaxOp,
-          AtenNegOp, AtenFloorOp, Aten_SoftmaxBackwardDataOp, AtenDropoutOp,
-          AtenTanhBackwardOp, AtenHardtanhBackwardOp,
-          Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp, AtenAbsOp,
-          AtenThresholdOp, AtenSquareOp, AtenUniformOp, AtenBernoulliOp,
-          AtenBernoulli_FloatOp, AtenBernoulliTensorOp,
-          ValsemVariantAtenBernoulliFloatOp, AtenBernoulliTensorOp,
-          AtenBernoulliPOp, AtenFillScalarOp, AtenHardsigmoidOp, AtenCloneOp,
-          AtenHardswishOp, AtenSiluOp, AtenHardtanhOp, AtenMaskedSelectOp,
-          AtenMaxPool2dOp, AtenAvgPool2dOp, AtenAdaptiveAvgPool2dOp,
-          AtenFlattenUsingIntsOp, AtenSqueezeOp, AtenSqueezeDimOp,
-          AtenUnsqueezeOp, AtenViewOp, Aten_UnsafeViewOp, AtenReshapeOp,
-          Aten_ReshapeAliasOp, AtenResize_Op, AtenTransposeIntOp, AtenTOp,
-          AtenPermuteOp, AtenIndexSelectOp, AtenSelectIntOp,
-          AtenSelectScatterOp, AtenNarrowOp, AtenSliceTensorOp,
-          AtenScatterReduceTwoOp, AtenSliceScatterOp, AtenGatherOp,
-          AtenExpandOp, AtenExpandAsOp, AtenBroadcastToOp, AtenRepeatOp,
-          AtenConstantPadNdOp, AtenPadOp, AtenZero_Op, AtenIndexTensorOp,
-          Aten_IndexPutImplOp, AtenIndexPutOp, AtenCopyOp, AtenZeroOp,
-          AtenIndexPutHackedTwinOp, AtenPreluOp, AtenMaskedFillScalarOp,
-          AtenFlipOp, PrimAbsScalarOp, AtenNumpyTOp, AtenTriuOp,
-          AtenMaskedFillTensorOp, AtenRollOp, AtenPowTensorTensorOp,
-          AtenLiftFreshCopyOp, AtenIndexTensorHackedTwinOp,
-          AtenUpsampleNearest2dOp, AtenMishOp, AtenRoundOp, AtenFillTensorOp,
-          AtenUpsampleNearest2dBackwardOp, AtenLeakyReluBackwardOp>(op)) {
-    return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
-  }
-
   // Dtype is always float32, except for bfloat16, float64 and nullptr after
   // promotion and assuming possible-zero rank.
   if (isa<AtenAtan2Op>(op)) {
@@ -1365,8 +1332,7 @@ static Type getMostRefinedStaticType(Value v, DataFlowSolver &solver) {
 // the right thing forthose ops.
 //
 static bool allowsTypeRefinementOrIsSafeToRefine(Operation *op) {
-  return op->hasTrait<mlir::torch::Torch::OpTrait::AllowsTypeRefinement>() ||
-         isa<CopyToNonValueTensorOp, CopyToValueTensorOp>(op);
+  return op->hasTrait<mlir::torch::Torch::OpTrait::AllowsTypeRefinement>();
 }
 
 // Some operations have extra verification logic regarding the relationship

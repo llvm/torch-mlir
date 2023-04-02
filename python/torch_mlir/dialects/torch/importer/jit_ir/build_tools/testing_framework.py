@@ -86,7 +86,7 @@ def _recursively_transform_tensor_args(
         o: Any,
         tensor_transformer: Callable[[TensorOfShape], Any]) -> Any:
     """Replace `TensorOfShape` with the result of `tensor_transformer`"""
-    if o is None or isinstance(o, (float, int)):
+    if o is None or isinstance(o, (float, int, str)):
         return o
     if isinstance(o, TensorOfShape):
         return tensor_transformer(o)
