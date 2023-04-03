@@ -24,6 +24,16 @@ def is_complex_dtype(dtype: int) -> bool:
 def is_float_dtype(dtype: int) -> bool:
     return dtype in [torch.float16, torch.bfloat16, torch.float32, torch.float64]
 
+def get_priority_of_dtype(dtype: int) -> int:
+    sorted_types = [
+        torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64,
+        torch.bfloat16, torch.float16, torch.float32, torch.float64,
+        torch.complex64, torch.complex128]
+    for i in range(len(sorted_types)):
+        if sorted_types[i] == dtype:
+            return i
+    assert False, "Cannot determine priority of dtype"
+
 def get_dtype_of_scalar(scalar: Union[int, float]) -> int:
     # This is hacky. `NumToTensor` is the only PyTorch op for scalars
     # that when `jit.script`ed converts a float scalar to a tensor
