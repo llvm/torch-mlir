@@ -859,6 +859,13 @@ def aten〇batch_norm〡shape(input: List[int], weight: Optional[List[int]], bia
 def aten〇slice〇Tensor〡shape(self: List[int], dim: int = 0, start: Optional[int] = None, end: Optional[int] = None, step: int = 1) -> List[int]:
     return upstream_shape_functions.slice(self, dim, start, end, step)
 
+def aten〇sort〡shape(self: List[int], dim: int = -1, descending: bool = False) -> Tuple[List[int], List[int]]:
+    return self, self
+
+def aten〇sort〡dtype(self_rank_dtype: Tuple[int, int], dim: int = -1, descending: bool = False) -> Tuple[int, int]:
+    _, input_dtype = self_rank_dtype
+    return input_dtype, torch.long
+
 def aten〇narrow〡shape(self: List[int], dim: int, start: int, length: int) -> List[int]:
     return upstream_shape_functions.slice(self, dim, start, start + length, 1)
 
