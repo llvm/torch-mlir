@@ -461,6 +461,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenIndexTensorHackedTwinOp>();
   target.addIllegalOp<AtenMseLossOp>();
   target.addIllegalOp<AtenRandintLowOp>();
+  target.addIllegalOp<AtenRandintOp>();
   target.addIllegalOp<AtenVarMeanCorrectionOp>();
   target.addIllegalOp<PrimsConvertElementTypeOp>();
   target.addIllegalOp<PrimsVarOp>();
