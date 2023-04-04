@@ -3815,6 +3815,28 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenRandintOp : public OpRewritePattern<AtenRandintOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRandintOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    Type resultType = op.getType();
+
+    Value low = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    
+    rewriter.replaceOpWithNewOp<AtenRandintLowOp>(
+        op, resultType, low, op.getHigh(), op.getSize(), op.getDtype(), op.getLayout(),
+        op.getDevice(), op.getPinMemory());
+    
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.varMean.correction` op into `aten.var.correction` and
 // `aten.mean.dim` op.
 class DecomposeAtenVarMeanCorrectionOp
@@ -4287,6 +4309,7 @@ public:
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMseLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNormScalarOptDimOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRandintOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintLowOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanCorrectionOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposePrimsConvertElementTypeOp>(patterns);

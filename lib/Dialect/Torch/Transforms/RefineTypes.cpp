@@ -1157,6 +1157,17 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
+  if (auto randInt = dyn_cast<AtenRandintOp>(op)) {
+    auto knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    Type defaultDtype =
+        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+    knowledge.dtype =
+        getDtypeOrDefault(op->getContext(), randInt.getDtype(), defaultDtype);
+    incorporateKnowledge(randInt.getResult(), knowledge);
+    return;
+  }
+
   if (isa<AtenVarMeanCorrectionOp, AtenVarMeanOp>(op)) {
     auto input = operands[0]->getValue();
     auto knowledge =

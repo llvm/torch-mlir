@@ -329,6 +329,65 @@ def RandIntLowDtypeModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class RandIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        a = torch.ops.aten.randint(high=1000, size=[1024, 1024])
+        mean = torch.mean(a.to(torch.float32))
+        return mean
+
+
+@register_test_case(module_factory=lambda: RandIntModule())
+def RandIntModule_basic(module, tu: TestUtils):
+    module.forward()
+
+# ==============================================================================
+
+class RandIntDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        a = torch.ops.aten.randint(high=1000, size=[128, 256, 512], dtype=torch.float64)
+        mean = torch.mean(a.to(torch.float32))
+        return mean
+
+
+@register_test_case(module_factory=lambda: RandIntDtypeModule())
+def RandIntDtypeModule_basic(module, tu: TestUtils):
+    module.forward()
+
+# ==============================================================================
+
+class RandIntPinMemoryModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        a = torch.ops.aten.randint(high=1000, size=[128, 256, 512], pin_memory=False)
+        mean = torch.mean(a.to(torch.float32))
+        return mean
+
+
+@register_test_case(module_factory=lambda: RandIntPinMemoryModule())
+def RandIntPinMemoryModule_basic(module, tu: TestUtils):
+    module.forward()
+
+# ==============================================================================
 
 class RandnModule(torch.nn.Module):
 
