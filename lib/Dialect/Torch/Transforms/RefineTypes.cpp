@@ -467,8 +467,6 @@ private:
   void visitAten_SoftmaxLikeOp(OpTy op, ArrayRef<const ValueState *> operands);
 
   void visitNumToTensorOp(PrimNumToTensorScalarOp op);
-  void visitBinaryScalarOp(Operation *op,
-                           ArrayRef<const ValueState *> operands);
   void visitAtenScalarImplicitOp(AtenScalarImplicitOp op,
                                  ArrayRef<const ValueState *> operands);
   void visitAtenEmbeddingBagOp(Operation *op);
@@ -621,17 +619,16 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenLayerNormOp, AtenClampOp, AtenClampMinOp, AtenClampMaxOp,
           AtenNegOp, AtenFloorOp, Aten_SoftmaxBackwardDataOp, AtenDropoutOp,
           AtenTanhBackwardOp, AtenHardtanhBackwardOp,
-          Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp, AtenAbsOp,
-          AtenThresholdOp, AtenSquareOp, AtenUniformOp, AtenBernoulliOp,
-          AtenBernoulli_FloatOp, AtenBernoulliTensorOp,
-          ValsemVariantAtenBernoulliFloatOp, AtenBernoulliTensorOp,
-          AtenBernoulliPOp, AtenFillScalarOp, AtenHardsigmoidOp, AtenCloneOp,
-          AtenHardswishOp, AtenSiluOp, AtenHardtanhOp, AtenMaskedSelectOp,
-          AtenMaxPool2dOp, AtenAvgPool2dOp, AtenAdaptiveAvgPool2dOp,
-          AtenFlattenUsingIntsOp, AtenSqueezeOp, AtenSqueezeDimOp,
-          AtenUnsqueezeOp, AtenViewOp, Aten_UnsafeViewOp, AtenReshapeOp,
-          Aten_ReshapeAliasOp, AtenResize_Op, AtenTransposeIntOp, AtenTOp,
-          AtenPermuteOp, AtenIndexSelectOp, AtenSelectIntOp,
+          Aten_LogSoftmaxBackwardDataOp, AtenAbsOp, AtenThresholdOp,
+          AtenSquareOp, AtenUniformOp, AtenBernoulliOp, AtenBernoulli_FloatOp,
+          AtenBernoulliTensorOp, ValsemVariantAtenBernoulliFloatOp,
+          AtenBernoulliTensorOp, AtenBernoulliPOp, AtenFillScalarOp,
+          AtenHardsigmoidOp, AtenCloneOp, AtenHardswishOp, AtenSiluOp,
+          AtenHardtanhOp, AtenMaskedSelectOp, AtenMaxPool2dOp, AtenAvgPool2dOp,
+          AtenAdaptiveAvgPool2dOp, AtenFlattenUsingIntsOp, AtenSqueezeOp,
+          AtenSqueezeDimOp, AtenUnsqueezeOp, AtenViewOp, Aten_UnsafeViewOp,
+          AtenReshapeOp, Aten_ReshapeAliasOp, AtenResize_Op, AtenTransposeIntOp,
+          AtenTOp, AtenPermuteOp, AtenIndexSelectOp, AtenSelectIntOp,
           AtenSelectScatterOp, AtenNarrowOp, AtenSliceTensorOp,
           AtenScatterReduceTwoOp, AtenSliceScatterOp, AtenGatherOp,
           AtenExpandOp, AtenExpandAsOp, AtenBroadcastToOp, AtenRepeatOp,
@@ -925,11 +922,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  if (isa<AtenAddIntOp, AtenSubIntOp, AtenMulIntOp, AtenAddOp>(op)) {
-    visitBinaryScalarOp(op, operands);
-    return;
-  }
-
   if (auto scalarImplicit = dyn_cast<AtenScalarImplicitOp>(op)) {
     visitAtenScalarImplicitOp(scalarImplicit, operands);
     return;
@@ -1134,16 +1126,6 @@ void TypeAnalysis::visitScalarToTensorConversionOp(OpTy op) {
   Value dtype = op.getDtype();
   fillInDTypeGivenDTypeAndDataType(knowledge, dtype, t.getType());
   incorporateKnowledge(op.getResult(), knowledge);
-}
-
-void TypeAnalysis::visitBinaryScalarOp(Operation *op,
-                                       ArrayRef<const ValueState *> operands) {
-  auto knowledge =
-      ValueKnowledge::getScalarPessimisticValueState(op->getContext());
-  Type resultType = getPromotedResultScalarType(
-      {op->getOperand(0).getType(), op->getOperand(1).getType()});
-  knowledge.setScalarType(resultType);
-  incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 void TypeAnalysis::visitAtenTensorOp(AtenTensorOp op) {
