@@ -1387,6 +1387,11 @@ def aten〇fft_fft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = 
     else:
         assert False, "Unsupported dtype"
 
+@check_dtype_function([
+    Invocation(5, 3)])
+def aten〇sub〇int〡dtype(a: int, b: int) -> int:
+    return torch.int64
+
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0.0) +
     _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0))
@@ -1557,6 +1562,11 @@ def aten〇mse_loss〡dtype(self_rank_dtype: Tuple[int, int], target_rank_dtype:
     promoted_dtype = promote_dtypes(ranks, dtypes)
     assert not is_integer_dtype(promoted_dtype)
     return promoted_dtype
+
+@check_dtype_function([
+    Invocation(5, 10)])
+def aten〇mul〇int〡dtype(a: int, b: int) -> int:
+    return torch.int64
 
 @check_dtype_function(_check_two_tensor_op())
 def aten〇mul〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
@@ -1823,6 +1833,22 @@ def aten〇addcdiv〡dtype(self_rank_dtype: Tuple[int, int], tensor1_rank_dtype:
     if is_integer_dtype(result):
         return torch.float32
     return result
+
+@check_dtype_function([
+    Invocation(5, 10),
+    Invocation(2.0, -1.0),
+    Invocation(1, float(10.0)),
+    Invocation(float(1.0), 10)])
+def aten〇add〡dtype(a: Union[int, float], b: Union[int, float]) -> int:
+    if get_dtype_of_scalar(a) != get_dtype_of_scalar(b):
+        return torch.float64
+    else:
+        return get_dtype_of_scalar(a)
+
+@check_dtype_function([
+    Invocation(5, 10)])
+def aten〇add〇int〡dtype(a: int, b: int) -> int:
+    return torch.int64
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, other=1) +
                       _check_tensors_with_the_same_dtype(num_of_tensors=1, other=1.0))
