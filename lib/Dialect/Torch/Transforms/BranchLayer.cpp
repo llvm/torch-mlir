@@ -25,105 +25,130 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
-static void branchLayer(MLIRContext *context, Operation *f) {
-  // this demo branch the colored layer and insert a
-  // convolution into the left branch.
+#include "macroDef.h"
 
+// this demo branch the colored layer and insert a
+// convolution into the left branch.
+static void branchLayer(MLIRContext *context, Operation *f, int layer, int branch) {
+  // input test
+  input_assert(branch < 2,"branch > 1 \n")
+  input_assert(layer < 1,"layer > 0 \n")
+  // get convolution operations
   llvm::SmallPtrSet<Operation *, 16> opWorklist;
-  f->walk([&](Operation *op) {
-    if (isa<AtenConvolutionOp>(op)) {
-      opWorklist.insert(op);
-    }
-  });
-  if (opWorklist.empty()) {
-    llvm::errs() << "Not run InsertSkip\n";
-    return;
-  }
-  auto it = opWorklist.begin(); it++;
+  int convLayer = layer;
+  f->walk(getConvOp(opWorklist, convLayer));
+  // input test: layer
+  input_assert(convLayer > 0, "layer <= max_layer(%d) \n", (layer-convLayer))
 
+  auto it = opWorklist.begin();
   AtenConvolutionOp convOp = llvm::dyn_cast<AtenConvolutionOp>(*it);
+  const int dim = 1;
+
+  Value oldInput = convOp.getOperand(0);
+  auto inputShape = oldInput.getShape();
+  int inputChannels = inputShape[dim];
+  // branch test: channels
+  llvm_assert(inputChannels < 2, 
+        "error: input_channels(%d) <= 1 \n", inputChannels)
+  llvm_assert(inputChannels % branch != 0, 
+        "error: input_channels(%d) %% branch(%d) != 0 \n", inputChannels, branch)
+ 
   IRRewriter rewriter(context);
   rewriter.setInsertionPoint(convOp);
   Location loc = convOp.getLoc();
 
-  Value convResult = convOp.getOperand(0);
   Value oldKernel = convOp.getOperand(1);
   Value oldBias = convOp.getOperand(2);
-  auto resultShape = convResult.getType().cast<ValueTensorType>().getSizes().vec();
 
-  // ******************************slice tensor******************************
-  const int dim = 1;
-  auto halfShape = resultShape; halfShape[dim] = resultShape[dim]/2;
-  int halfLen = resultShape[dim]/2, wholeLen = resultShape[dim];
-  auto newTensorType = ValueTensorType::get(context, llvm::ArrayRef(halfShape), rewriter.getF32Type());
-
-  Value start1 = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
-  Value end1 = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(halfLen));  
-  Value start2 = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(halfLen));
-  Value end2 = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(wholeLen)); 
-  Value step = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-  Value kernelDim = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim));
-
-  Value newResult1 = rewriter.create<AtenSliceTensorOp>(loc, newTensorType,
-                  convResult, kernelDim, start1, end1, step);
-  Value newResult2 = rewriter.create<AtenSliceTensorOp>(loc, newTensorType,
-                  convResult, kernelDim, start2, end2, step);
-
-  // ******************************handle tensor1******************************
-  // 添加(in_channels,in_channels,1,1)的卷积核，单位矩阵
-  auto newShape1 = halfShape;
-  newShape1[0] = newShape1[1] = halfShape[dim];
-  newShape1[2] = newShape1[3] = 1;
-  // kernel
-  int kernelSize1 = newShape1[0] * newShape1[1] * newShape1[2] * newShape1[3];
-  std::vector<float> kernelVec1(kernelSize1, 0);
-  for (int i = 0; i < newShape1[1]; i++) {
-    kernelVec1[i*newShape1[1] + i] = 1.0;
+  // ******************************slice tensors******************************
+  int sliceChannels = inputChannels / branch;
+  std::vector<int> branchChannel(branch, sliceChannels);
+  std::vector<Value> branchTensorOp(branch);
+  //get shape and type
+  auto branchShape = inputShape;
+  branchShape[dim] = sliceChannels;
+  auto branchTensorType = getTensorType(context, branchShape, rewriter);
+  // get slice tensor
+  int curChannel = 0;
+  Value startOp;
+  Value endOp = createIntOp(rewriter, loc, curChannel);
+  Value stepOp = createIntOp(rewriter, loc, 1);
+  Value dimOp = createIntOp(rewriter, loc, dim);
+  for (int i = 0; i < branch; i++) {
+    startOp = endOp;
+    curChannel += branchChannel[dim];
+    endOp = createIntOp(rewriter, loc, curChannel);
+    branchTensorOp[i] = rewriter.create<AtenSliceTensorOp>(
+          loc, branchTensorType, oldInput, dimOp, startOp, endOp, stepOp);
   }
-  auto tensorType1 = ValueTensorType::get(context, llvm::ArrayRef(newShape1), rewriter.getF32Type());                                
-  auto dense1 = DenseElementsAttr::get(
-    RankedTensorType::get(llvm::ArrayRef(newShape1), rewriter.getF32Type()), llvm::ArrayRef(kernelVec1));
-  Value kernel1 = rewriter.create<ValueTensorLiteralOp>(loc, tensorType1, dense1);
-  // bias
-  newShape1.erase(newShape1.begin() + 1, newShape1.end());
-  std::vector<float> zeroBiasVec1(newShape1[0], 0);
-  tensorType1 = ValueTensorType::get(context, llvm::ArrayRef(newShape1), rewriter.getF32Type());
-  dense1 = DenseElementsAttr::get(
-    RankedTensorType::get(llvm::ArrayRef(newShape1), rewriter.getF32Type()), llvm::ArrayRef(zeroBiasVec1));
-  Value bias1 = rewriter.create<ValueTensorLiteralOp>(loc, tensorType1, dense1);
-  // conv
-  newResult1 = rewriter.create<AtenConvolutionOp>(
-      loc, newResult1.getType(), newResult1, kernel1, bias1, 
-      convOp.getOperand(3), convOp.getOperand(4), convOp.getOperand(5), 
-      convOp.getOperand(6), convOp.getOperand(7), convOp.getOperand(8));
+
+  //****************************one kernel and zero bias*******************************
+  // new kernel shape: (in_channels,in_channels,1,1)
+  auto newShape = branchShape;
+  newShape[0] = newShape[1];
+  newShape[2] = newShape[3] = 1;
+  int kernelSize = getKernelSize(newShape);
+  // new kernel data
+  std::vector<float> oneKernelVec(kernelSize, 0);
+  for (int i = 0; i < newShape[1]; i++) {
+    oneKernelVec[i*newShape[1] + i] = 1.0;
+  }
+  // new kernel
+  auto kernelTensorType = getTensorType(context, newShape, rewriter);
+  auto kernelDense = getDense(newShape, rewriter, oneKernelVec);
+  auto oneKernel = createTensorOp(rewriter, loc, kernelTensorType, kernelDense);
+
+  // zero bias
+  getBiasShape(newShape);
+  std::vector<float> zeroBiasVec(newShape[0], 0);
+  auto biasTensorType = getTensorType(context, newShape, rewriter);
+  auto biasDense = getDense(newShape, rewriter, zeroBiasVec);
+  auto zeroBias = createTensorOp(rewriter, loc, biasTensorType, biasDense);
+
+  // ******************************handle branch tensor******************************
+  // handle way: 0 -> nop, 1 -> insertSeparaConv 
+  int handleWay;  
+  srand(time(0));
+  for (int i = 0; i < branch; i++) {
+    handleWay = rand() % 2;
+    if (handleWay == 0) continue;
+    // insert a separable convolution
+    branchTensorOp[i] = rewriter.create<AtenConvolutionOp>(
+        loc, branchTensorType, branchTensorOp[i], oneKernel, zeroBias, 
+        convParam_3to8(convOp));
+  }
+
+  // ******************************cat branch tensors****************************** 
+  auto catTensorList = rewriter.create<PrimListConstructOp>(
+          loc, ListType::get(branchTensorType), ValueRange(branchTensorOp));
+  auto catTensorType = getTensorType(context, inputShape, rewriter);
+  auto catTensorOp = rewriter.create<AtenCatOp>(loc, catTensorType, catTensorList, dimOp);
   
-  // ******************************cat tensors******************************
-  Value catTensors = rewriter.create<PrimListConstructOp>(
-        loc, ListType::get(newTensorType), ValueRange({newResult1, newResult2}));
-  newTensorType = ValueTensorType::get(context, llvm::ArrayRef(resultShape), rewriter.getF32Type());
-  Value catKernelOp = rewriter.create<AtenCatOp>(loc, newTensorType, catTensors, kernelDim);
-  
-  // ******************************replace op******************************
+  // ******************************replace******************************
   Value newConv = rewriter.create<AtenConvolutionOp>(
-      loc, convOp.getType(), catKernelOp, oldKernel, oldBias, convOp.getOperand(3),
-      convOp.getOperand(4), convOp.getOperand(5), convOp.getOperand(6),
-      convOp.getOperand(7), convOp.getOperand(8));
+      loc, convOp.getType(), catTensorOp, oldKernel, oldBias, convParam_3to8(convOp));
   rewriter.replaceOp(convOp, newConv);
 }
 
+#include "macroUndef.h"
+
 namespace {
-class BranchLayerPass : public BranchLayerBase<BranchLayerPass> {
-public:
+  class BranchLayerPass : public BranchLayerBase<BranchLayerPass> {
+  public:
   BranchLayerPass() = default;
+  BranchLayerPass(int layer, int branch) { 
+    this->layer = layer; 
+    this->branch = branch; 
+  }
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     auto f = getOperation();
-    branchLayer(context, f);
+    branchLayer(context, f, this->layer, this->branch);
   }
-};
+  };
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createBranchLayerPass() {
-  return std::make_unique<BranchLayerPass>();
+mlir::torch::Torch::createBranchLayerPass(int layer, int branch) {
+  return std::make_unique<BranchLayerPass>(layer, branch);
 }

@@ -35,19 +35,11 @@ print(net)
 
 
 module = torch_mlir.compile(net, torch.ones(1, 1, 28, 28), output_type="torch")
-'''
 torch_mlir.compiler_utils.run_pipeline_with_repro_report(
     module,
-    "builtin.module(func.func(torch-branch-layer))",
+    "builtin.module(func.func(torch-branch-layer{layer=2 branch=3}))",
     "BranchLayer",
 )
-'''
-torch_mlir.compiler_utils.run_pipeline_with_repro_report(
-    module,
-    "builtin.module(func.func(torch-insert-sepra-conv-layer))",
-    "InsertSepraConv",
-)
-#'''
 #print(module.operation.get_asm(large_elements_limit=10))
 #'''
 print("================")

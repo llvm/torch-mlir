@@ -241,19 +241,51 @@ def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "func::FuncOp"> {
 def WidenConvLayer : Pass<"torch-widen-conv-layer", "func::FuncOp"> {
   let summary = "widen convolution operations";
   let constructor = [{
-    mlir::torch::Torch::createWidenConvLayerPass()
+    mlir::torch::Torch::createWidenConvLayerPass(/*layer=*/1,/*number=*/1)
   }];
   let description = [{
   }];
+  let options = [
+    Option<"layer", "layer", "int", "1", "layer to widen.">,
+    Option<"number", "number", "int", "1", "number of new channels to widen.">
+  ];
 }
 
 def InsertSkip : Pass<"torch-insert-skip", "func::FuncOp"> {
   let summary = "Insert a skip with a convolution";
   let constructor = [{
-    mlir::torch::Torch::createInsertSkipPass()
+    mlir::torch::Torch::createInsertSkipPass(/*layer=*/1)
   }];
   let description = [{
   }];
+  let options = [
+    Option<"layer", "layer", "int", "1", "layer to widen.">
+  ];
+}
+
+def InsertSepraConv : Pass<"torch-insert-sepra-conv-layer", "func::FuncOp"> {
+  let summary = "insert a separable convolution";
+  let constructor = [{
+    mlir::torch::Torch::createInsertSepraConvPass(/*layer=*/1)
+  }];
+  let description = [{
+  }];
+  let options = [
+    Option<"layer", "layer", "int", "1", "layer to widen.">
+  ];
+}
+
+def BranchLayer : Pass<"torch-branch-layer", "func::FuncOp"> {
+  let summary = "Branch the colored layer and insert a convolution into the left branch";
+  let constructor = [{
+    mlir::torch::Torch::createBranchLayerPass(/*layer=*/1,/*branch=*/2)
+  }];
+  let description = [{
+  }];
+  let options = [
+    Option<"layer", "layer", "int", "1", "layer to widen.">,
+    Option<"branch", "branch", "int", "2", "number of branch.">
+  ];
 }
 
 def InsertRNN : Pass<"torch-insert-RNN", "func::FuncOp"> {

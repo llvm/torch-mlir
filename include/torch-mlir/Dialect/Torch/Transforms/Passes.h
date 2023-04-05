@@ -98,9 +98,13 @@ std::unique_ptr<OperationPass<ModuleOp>> createRefinePublicReturnPass();
 std::unique_ptr<OperationPass<func::FuncOp>>
 createDecomposeComplexOpsPass(ArrayRef<std::string> legalOps);
 
-std::unique_ptr<OperationPass<func::FuncOp>> createWidenConvLayerPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createWidenConvLayerPass(int layer, int number);
 
-std::unique_ptr<OperationPass<func::FuncOp>> createInsertSkipPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createInsertSkipPass(int layer);
+
+std::unique_ptr<OperationPass<func::FuncOp>> createBranchLayerPass(int layer, int branch);
+
+std::unique_ptr<OperationPass<func::FuncOp>> createInsertSepraConvPass(int layer);
 
 std::unique_ptr<OperationPass<func::FuncOp>> createInsertConvPass(std::string net);
 

@@ -24,87 +24,80 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
-static void insertSkip(MLIRContext *context, Operation *f) {
-  // this demo insert a skip for the second convolution
-
+#include "macroDef.h"
+// this demo insert a skip for the second convolution
+static void insertSkip(MLIRContext *context, Operation *f, int layer) {
+  // input test
+  input_assert(layer < 1,"layer > 0 \n")
+  // get convolution operations
   llvm::SmallPtrSet<Operation *, 16> opWorklist;
-  f->walk([&](Operation *op) {
-    if (isa<AtenConvolutionOp>(op)) {
-      opWorklist.insert(op);
-    }
-  });
-
-  if (opWorklist.empty()) {
-    llvm::errs() << "Not run InsertSkip\n";
-    return;
-  }
+  int convLayer = layer;
+  f->walk(getConvOp(opWorklist, convLayer));
+  // input test
+  input_assert(convLayer > 0, "layer <= max_layer(%d) \n", (layer-convLayer))
 
   auto it = opWorklist.begin();
-  it++;
   AtenConvolutionOp convOp = llvm::dyn_cast<AtenConvolutionOp>(*it);
   IRRewriter rewriter(context);
   rewriter.setInsertionPoint(convOp);
   Location loc = convOp.getLoc();
 
-  // create a new conv with zero kernel and bias, to make sure output is the
-  // same as input
+  Value oldInput = convOp.getOperand(0);
   Value oldKernel = convOp.getOperand(1);
   Value oldBias = convOp.getOperand(2);
-  // kernel
-  // shape: (new channels, old channels, height, width)
-  auto shape = oldKernel.getType().cast<ValueTensorType>().getSizes().vec();
+
+  //*************************zero kernel****************************
+  // kernel shape: out_channels, in_channels, height, width
+  auto shape = oldKernel.getShape();
   shape[0] = shape[1];
-  shape[2] = shape[3] = 1; // 1x1 conv kernel
-  std::vector<float> zeroKernelVec(shape[0] * shape[1], 0);
-  auto resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
-                                               rewriter.getF32Type());
-  auto dense = DenseElementsAttr::get(
-      RankedTensorType::get(llvm::ArrayRef(shape), rewriter.getF32Type()),
-      llvm::ArrayRef(zeroKernelVec));
-  Value zeroKernel =
-      rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
-  // bias
-  shape.erase(shape.begin() + 1, shape.end());
+  shape[2] = shape[3] = 1;
+  int kernelSize = getKernelSize(shape);
+  std::vector<float> zeroKernelVec(kernelSize, 0);
+  // zero kernel
+  auto kernelTensorType = getTensorType(context, shape, rewriter);
+  auto kernelDense = getDense(shape, rewriter, zeroKernelVec);
+  Value zeroKernel = createTensorOp(rewriter, loc, kernelTensorType, kernelDense);
+  
+  //*************************zero bias****************************
+  // zero bias
+  getBiasShape(shape);
   std::vector<float> zeroBiasVec(shape[0], 0);
-  resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape),
-                                          rewriter.getF32Type());
-  dense = DenseElementsAttr::get(
-      RankedTensorType::get(llvm::ArrayRef(shape), rewriter.getF32Type()),
-      llvm::ArrayRef(zeroBiasVec));
-  Value zeroBias =
-      rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
+  auto biasTensorType = getTensorType(context, shape, rewriter);
+  auto biasDense = getDense(shape, rewriter, zeroBiasVec);
+  auto zeroBias = createTensorOp(rewriter, loc, biasTensorType, biasDense);
+  
+  //*************************insert skip****************************
   // zero conv
   Value zeroConv = rewriter.create<AtenConvolutionOp>(
-      loc, convOp.getOperand(0).getType(), convOp.getOperand(0), zeroKernel,
-      zeroBias, convOp.getOperand(3), convOp.getOperand(4),
-      convOp.getOperand(5), convOp.getOperand(6), convOp.getOperand(7),
-      convOp.getOperand(8));
-  // add
-  Value int1 =
-      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+      loc, oldInput.getType(), oldInput, zeroKernel, zeroBias, convParam_3to8(convOp));
+  // add zero conv
+  Value int1 = createIntOp(rewriter, loc, 1);
   Value skip = rewriter.create<AtenAddTensorOp>(
-      loc, zeroConv.getType(), convOp.getOperand(0), zeroConv, int1);
-  // new conv
+      loc, zeroConv.getType(), oldInput, zeroConv, int1);
+  // replace old conv
   Value newConv = rewriter.create<AtenConvolutionOp>(
-      loc, convOp.getType(), skip, oldKernel, oldBias, convOp.getOperand(3),
-      convOp.getOperand(4), convOp.getOperand(5), convOp.getOperand(6),
-      convOp.getOperand(7), convOp.getOperand(8));
+      loc, convOp.getType(), skip, oldKernel, oldBias, convParam_3to8(convOp));
   rewriter.replaceOp(convOp, newConv);
 }
 
+#include "macroUndef.h"
+
 namespace {
-class InsertSkipPass : public InsertSkipBase<InsertSkipPass> {
-public:
-  InsertSkipPass() = default;
-  void runOnOperation() override {
-    MLIRContext *context = &getContext();
-    auto f = getOperation();
-    insertSkip(context, f);
-  }
-};
+  class InsertSkipPass : public InsertSkipBase<InsertSkipPass> {
+  public:
+    InsertSkipPass() = default;
+    InsertSkipPass(int layer) {
+      this->layer = layer;
+    }
+    void runOnOperation() override {
+      MLIRContext *context = &getContext();
+      auto f = getOperation();
+      insertSkip(context, f, this->layer);
+    }
+  };
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createInsertSkipPass() {
-  return std::make_unique<InsertSkipPass>();
+mlir::torch::Torch::createInsertSkipPass(int layer) {
+  return std::make_unique<InsertSkipPass>(layer);
 }

@@ -7,6 +7,8 @@ add_mlir_library(TorchMLIRTorchPasses
   InsertLinear.cpp
   ValueSplit.cpp
   MaskSplit.cpp
+  BranchLayer.cpp
+  InsertSepraConv.cpp
   ObfuscateRNN.cpp
   InsertRNN.cpp
   InsertRNNWithZeros.cpp
