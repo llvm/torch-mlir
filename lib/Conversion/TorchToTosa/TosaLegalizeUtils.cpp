@@ -235,6 +235,7 @@ static LogicalResult checkValidityOfCast(Type src, Type dest) {
       (src.isF32() && dest.isF64()) ||
       (src.isF64() && dest.isF32()) ||
       (src.isF32() && dest.isInteger(8)) ||
+      (src.isF32() && dest.isInteger(64)) ||
       (src.isF32() && dest.isInteger(1))) {
     return success();
   }
