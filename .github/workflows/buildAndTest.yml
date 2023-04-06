@@ -51,13 +51,18 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+    
+    - name: Prepare workspace
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
+      run: |
+        # Clear the workspace directory so that we don't run into errors about
+        # existing lock files.
+        sudo rm -rf $GITHUB_WORKSPACE/*
+    
     - name: Checkout torch-mlir
       uses: actions/checkout@v3
-
-    # We fetch the submodules sequentially to prevent multiple threads from
-    # trampling the index.lock file.
-    - name: Fetch submodules
-      run: git submodule update --init --force --depth=1 --jobs 1
+      with:
+        submodules: 'true'
 
     - name: Fetch PyTorch commit hash
       if: ${{ matrix.os-arch != 'windows-x86_64' }}
