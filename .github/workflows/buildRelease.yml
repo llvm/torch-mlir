@@ -25,12 +25,17 @@ jobs:
             py_version: cp310-cp310
 
     steps:
+
+    - name: Prepare workspace
+      run: |
+        # Clear the workspace directory so that we don't run into errors about
+        # existing lock files.
+        sudo rm -rf $GITHUB_WORKSPACE/*
+
     - name: Get torch-mlir
       uses: actions/checkout@v3
-    # We fetch the submodules sequentially to prevent multiple threads from
-    # trampling the index.lock file.
-    - name: Fetch submodules
-      run: git submodule update --init --force --depth=1 --jobs 1
+      with:
+        submodules: 'true'
     - uses: ./.github/actions/setup-build
       with:
         cache-suffix: 'release'
@@ -88,10 +93,8 @@ jobs:
     steps:
     - name: Get torch-mlir
       uses: actions/checkout@v3
-    # We fetch the submodules sequentially to prevent multiple threads from
-    # trampling the index.lock file.
-    - name: Fetch submodules
-      run: git submodule update --init --force --depth=1 --jobs 1
+      with:
+        submodules: 'true'
     - uses: ./.github/actions/setup-build
       with:
         cache-suffix: 'release'
@@ -150,10 +153,8 @@ jobs:
     steps:
     - name: Get torch-mlir
       uses: actions/checkout@v3
-    # We fetch the submodules sequentially to prevent multiple threads from
-    # trampling the index.lock file.
-    - name: Fetch submodules
-      run: git submodule update --init --force --depth=1 --jobs 1
+      with:
+        submodules: 'true'
     - uses: ./.github/actions/setup-build
       with:
         cache-suffix: 'release'
