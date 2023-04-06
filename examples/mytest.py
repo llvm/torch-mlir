@@ -37,11 +37,11 @@ print(net)
 module = torch_mlir.compile(net, torch.ones(1, 1, 28, 28), output_type="torch")
 torch_mlir.compiler_utils.run_pipeline_with_repro_report(
     module,
-    "builtin.module(func.func(torch-branch-layer{layer=2 branch=3}))",
+    "builtin.module(func.func(torch-branch-layer{layer=2 branch=4}))",
     "BranchLayer",
 )
 #print(module.operation.get_asm(large_elements_limit=10))
-#'''
+#exit(0)
 print("================")
 print("after lower to linalg")
 print("================")
@@ -78,6 +78,4 @@ print(out2_origin)
 print("diffs:")
 print(out1 - out1_origin)
 print(out2 - out2_origin)
-#'''
-
 

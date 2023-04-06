@@ -50,8 +50,8 @@ static void branchLayer(MLIRContext *context, Operation *f, int layer, int branc
   // branch test: channels
   llvm_assert(inputChannels < 2, 
         "error: input_channels(%d) <= 1 \n", inputChannels)
-  llvm_assert(inputChannels % branch != 0, 
-        "error: input_channels(%d) %% branch(%d) != 0 \n", inputChannels, branch)
+  llvm_assert(inputChannels <= branch, 
+        "error: input_channels(%d) <= branch(%d) \n", inputChannels, branch)
  
   IRRewriter rewriter(context);
   rewriter.setInsertionPoint(convOp);
@@ -60,70 +60,87 @@ static void branchLayer(MLIRContext *context, Operation *f, int layer, int branc
   Value oldKernel = convOp.getOperand(1);
   Value oldBias = convOp.getOperand(2);
 
+  // ******************************slice randomly******************************
+  std::vector<int> branchChannel(branch);
+  //current channels, current branch, min channels, spare channels
+  int tempVar[4] = {inputChannels, branch, 0, 0}; 
+  srand(time(0));
+  for (int i = 0; i < branch; i++) {
+    tempVar[2] = tempVar[0] / tempVar[1];
+    tempVar[3] = tempVar[0] % tempVar[1];
+    branchChannel[i] = tempVar[2] + rand() % (tempVar[3]+1);
+    tempVar[0] -= branchChannel[i];
+    tempVar[1] -= 1;
+  }
+
   // ******************************slice tensors******************************
-  int sliceChannels = inputChannels / branch;
-  std::vector<int> branchChannel(branch, sliceChannels);
+  std::vector<decltype(inputShape)> branchShape(branch);
   std::vector<Value> branchTensorOp(branch);
-  //get shape and type
-  auto branchShape = inputShape;
-  branchShape[dim] = sliceChannels;
-  auto branchTensorType = getTensorType(context, branchShape, rewriter);
-  // get slice tensor
-  int curChannel = 0;
+  ValueTensorType branchTensorType;
+
+  int curChannel = 0;  // current channel
   Value startOp;
   Value endOp = createIntOp(rewriter, loc, curChannel);
   Value stepOp = createIntOp(rewriter, loc, 1);
   Value dimOp = createIntOp(rewriter, loc, dim);
+  
   for (int i = 0; i < branch; i++) {
+    // update shape and type
+    branchShape[i] = inputShape;
+    branchShape[i][dim] = branchChannel[i];
+    branchTensorType = getTensorType(context, branchShape[i], rewriter);
+    // update slice tensor
     startOp = endOp;
-    curChannel += branchChannel[dim];
+    curChannel += branchChannel[i];
     endOp = createIntOp(rewriter, loc, curChannel);
     branchTensorOp[i] = rewriter.create<AtenSliceTensorOp>(
           loc, branchTensorType, oldInput, dimOp, startOp, endOp, stepOp);
   }
 
-  //****************************one kernel and zero bias*******************************
-  // new kernel shape: (in_channels,in_channels,1,1)
-  auto newShape = branchShape;
-  newShape[0] = newShape[1];
-  newShape[2] = newShape[3] = 1;
-  int kernelSize = getKernelSize(newShape);
-  // new kernel data
-  std::vector<float> oneKernelVec(kernelSize, 0);
-  for (int i = 0; i < newShape[1]; i++) {
-    oneKernelVec[i*newShape[1] + i] = 1.0;
-  }
-  // new kernel
-  auto kernelTensorType = getTensorType(context, newShape, rewriter);
-  auto kernelDense = getDense(newShape, rewriter, oneKernelVec);
-  auto oneKernel = createTensorOp(rewriter, loc, kernelTensorType, kernelDense);
-
-  // zero bias
-  getBiasShape(newShape);
-  std::vector<float> zeroBiasVec(newShape[0], 0);
-  auto biasTensorType = getTensorType(context, newShape, rewriter);
-  auto biasDense = getDense(newShape, rewriter, zeroBiasVec);
-  auto zeroBias = createTensorOp(rewriter, loc, biasTensorType, biasDense);
-
   // ******************************handle branch tensor******************************
-  // handle way: 0 -> nop, 1 -> insertSeparaConv 
-  int handleWay;  
+  int handleWay;  // 0: nop, 1: insertSeparaConv 
   srand(time(0));
   for (int i = 0; i < branch; i++) {
     handleWay = rand() % 2;
     if (handleWay == 0) continue;
-    // insert a separable convolution
+    // *****************insert a separable convolution******************************
+    
+    //*************************one kernel****************************
+    // new kernel shape: (in_channels,in_channels,1,1)
+    auto newShape = branchShape[i];
+    newShape[0] = newShape[1];
+    newShape[2] = newShape[3] = 1;
+    int kernelSize = getKernelSize(newShape);
+    // new kernel data
+    std::vector<float> oneKernelVec(kernelSize, 0);
+    for (int i = 0; i < newShape[1]; i++) {
+      oneKernelVec[i * newShape[1] + i] = 1.0;
+    }
+    // new kernel
+    auto kernelTensorType = getTensorType(context, newShape, rewriter);
+    auto kernelDense = getDense(newShape, rewriter, oneKernelVec);
+    auto oneKernel = createTensorOp(rewriter, loc, kernelTensorType, kernelDense);
+
+    //*************************zero bias****************************
+    // zero bias
+    getBiasShape(newShape);
+    std::vector<float> zeroBiasVec(newShape[0], 0);
+    auto biasTensorType = getTensorType(context, newShape, rewriter);
+    auto biasDense = getDense(newShape, rewriter, zeroBiasVec);
+    auto zeroBias = createTensorOp(rewriter, loc, biasTensorType, biasDense);
+    // insert new conv
     branchTensorOp[i] = rewriter.create<AtenConvolutionOp>(
-        loc, branchTensorType, branchTensorOp[i], oneKernel, zeroBias, 
-        convParam_3to8(convOp));
+        loc, branchTensorOp[i].getType(), branchTensorOp[i], 
+        oneKernel, zeroBias, convParam_3to8(convOp));
   }
 
   // ******************************cat branch tensors****************************** 
+  auto vtensorType = ValueTensorType::getWithLeastStaticInformation(context);
   auto catTensorList = rewriter.create<PrimListConstructOp>(
-          loc, ListType::get(branchTensorType), ValueRange(branchTensorOp));
+      loc, ListType::get(vtensorType), ValueRange(branchTensorOp));
   auto catTensorType = getTensorType(context, inputShape, rewriter);
   auto catTensorOp = rewriter.create<AtenCatOp>(loc, catTensorType, catTensorList, dimOp);
-  
+
   // ******************************replace******************************
   Value newConv = rewriter.create<AtenConvolutionOp>(
       loc, convOp.getType(), catTensorOp, oldKernel, oldBias, convParam_3to8(convOp));
