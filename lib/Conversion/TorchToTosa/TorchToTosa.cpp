@@ -3171,8 +3171,10 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
   int64_t end;
   if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end)))
     return rewriter.notifyMatchFailure(op, "end must be a Scalar constant");
+  // support for end < 0
+  end = toPositiveDim(end, selfType.getShape()[dim]);
 
-  // FIXME: add support for start/end < 0 and end < start
+  // FIXME: add support for start < 0 and end < start
   if (end < start)
     return rewriter.notifyMatchFailure(op,
                                        "Currently unsupported: end < start");
