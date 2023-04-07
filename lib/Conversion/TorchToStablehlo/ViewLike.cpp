@@ -268,6 +268,10 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return rewriter.notifyMatchFailure(
         op, "only constant dim is currently supported");
+  int64_t inputRank = selfTy.getRank();
+  dim = toPositiveDim(dim, inputRank);
+  if (!isValidDim(dim, inputRank))
+    return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
   auto getOptionalVal = [&](Value val) -> std::optional<Value> {
     if (val.getType().isa<Torch::NoneType>()) {
@@ -343,17 +347,20 @@ LogicalResult ConvertAtenOp<AtenSqueezeDimOp>::matchAndRewrite(
   auto selfTy = self.getType().cast<RankedTensorType>();
   if (!selfTy)
     return op.emitError("only ranked tensor types are supported");
-  int64_t dim;
-  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
-    return rewriter.notifyMatchFailure(
-        op, "only constant dim is currently supported");
 
   auto rank = selfTy.getRank();
   if (rank == 0)
     return rewriter.notifyMatchFailure(
         op, "the rank of tensor must be greater than 0");
 
+  int64_t dim;
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(
+        op, "only constant dim is currently supported");
   dim = toPositiveDim(dim, rank);
+  if (!isValidDim(dim, rank))
+    return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+
   if (selfTy.getShape()[dim] != 1) {
     if (selfTy.getShape()[dim] == ShapedType::kDynamic)
       return rewriter.notifyMatchFailure(
@@ -396,6 +403,10 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
   int64_t dim;
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return op->emitError("dim must be a Scalar constant");
+  int64_t inputRank = adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
+  dim = toPositiveDim(dim, inputRank + 1);
+  if (!isValidDim(dim, inputRank + 1))
+    return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
   auto unsqzTensorInfo = hlo::unsqueezeTensor(rewriter, op, adaptor.getSelf(),
                                               {dim}, options.dimSizeIndexBits);

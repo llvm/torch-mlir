@@ -31,6 +31,25 @@ def IndexSelectSingleIdxModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 5, 6), torch.tensor([2]))
 
 
+class IndexSelectNegativeDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4, 5, 6], torch.float32, True),
+        ([1], torch.int64, True),
+    ])
+
+    def forward(self, input, indices):
+        return torch.index_select(input, -1, indices)
+
+@register_test_case(module_factory=lambda: IndexSelectNegativeDimModule())
+def IndexSelectNegativeDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6), torch.tensor([2]))
+
+
 class IndexSelectTwoIdxModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

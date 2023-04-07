@@ -744,6 +744,29 @@ def GatherModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class GatherNegativeDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, tensor, indices):
+        return torch.gather(tensor, -1, indices)
+
+
+@register_test_case(module_factory=lambda: GatherNegativeDimModule())
+def GatherNegativeDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4), torch.tensor([[[1, 2, 3], [1, 2, 3]]]))
+
+
+# ==============================================================================
+
+
 class GatherRandomIndexModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
