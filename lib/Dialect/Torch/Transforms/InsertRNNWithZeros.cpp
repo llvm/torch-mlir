@@ -26,7 +26,7 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
-static void insertRNNWithZeros(MLIRContext *context, Operation *f){
+static void insertRNNWithZeros(MLIRContext *context, Operation *f, std::string activationFunc, int number){
     // this demo insert a RNN into the network
     // 纯粹增加了一个RNN循环层,最后通过残差连接达到传播原tensor的目的
     llvm::SmallPtrSet<Operation *, 16> opWorklist;
@@ -50,12 +50,16 @@ static void insertRNNWithZeros(MLIRContext *context, Operation *f){
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
     Value int1 =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value float0 = 
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0));
     Value float1 = 
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1));
+    Value negative_slope = 
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.01));
     Value rst = reluOp.getOperand();
     auto shape = reluOp.getOperand().getType().cast<ValueTensorType>().getSizes().vec();
     // create related parameters
-    int cycles = shape[0]; // RNN层数
+    int cycles = number; // RNN层数
 
     // hidden
     auto shape_hidden = shape;
@@ -125,11 +129,11 @@ static void insertRNNWithZeros(MLIRContext *context, Operation *f){
     Value zeroCat = 
         rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
     
-    Value relu_hidden;
+    Value slice_relu;
     Value slice;
     
     for(int i = 0;i < cycles;i++){
-        if(cycles > 1){ // 若RNN层数大于1,则需要进行slice操作
+        if(shape[0] > 1){ // 若RNN层数大于1,则需要进行slice操作
             // slice
             Value int_num1 =
                 rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i));
@@ -156,7 +160,7 @@ static void insertRNNWithZeros(MLIRContext *context, Operation *f){
             listTensor = 
             rewriter.create<PrimListConstructOp>(
                 loc, ListType::get(ValueTensorType::get(context, llvm::ArrayRef(shape_hidden), 
-                rewriter.getF32Type())), ValueRange({squeeze_dim, relu_hidden})
+                rewriter.getF32Type())), ValueRange({squeeze_dim, slice_relu})
             );
         }
 
@@ -177,9 +181,37 @@ static void insertRNNWithZeros(MLIRContext *context, Operation *f){
         Value add_hidden = rewriter.create<AtenAddTensorOp>(
             loc, matmul_hidden.getType(), matmul_hidden, valueAdd, float1);
 
-        // relu
-        relu_hidden = rewriter.create<AtenReluOp>(
-            loc, add_hidden.getType(), add_hidden);
+        // random activation
+        Value random_hidden;
+        if(activationFunc == "relu" || activationFunc == ""){
+            random_hidden = rewriter.create<AtenReluOp>(
+                loc, add_hidden.getType(), add_hidden);
+        }
+        else if(activationFunc == "sigmoid"){
+            random_hidden = rewriter.create<AtenSigmoidOp>(
+                loc, add_hidden.getType(), add_hidden);
+        }
+        else if(activationFunc == "tanh"){
+            random_hidden = rewriter.create<AtenTanhOp>(
+                loc, add_hidden.getType(), add_hidden);
+        }
+        else if(activationFunc == "leakyRelu"){
+            random_hidden = rewriter.create<AtenLeakyReluOp>(
+                loc, add_hidden.getType(), add_hidden, negative_slope);
+        }
+        
+        // slice_relu
+        Value int_start = 
+            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+
+        Value int_end = 
+            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(shape[2]));
+
+        Value int_dim = 
+            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+
+        slice_relu = rewriter.create<AtenSliceTensorOp>(
+            loc, zeroHidden.getType(), random_hidden, int_dim, int_start, int_end, int1);
         
         if(i == cycles - 1){ // 最后一次for循环对output进行修改
             // 以下三步对output进行linear操作
@@ -225,7 +257,7 @@ static void insertRNNWithZeros(MLIRContext *context, Operation *f){
 
     // 利用残差进行相加
     Value add_rst = rewriter.create<AtenAddTensorOp>(
-        loc, reluOp.getOperand().getType(), rst, slice, float1);
+        loc, reluOp.getOperand().getType(), rst, slice, float0);
    
     //relu
     rewriter.replaceOpWithNewOp<AtenReluOp>(
@@ -236,15 +268,20 @@ namespace {
 class InsertRNNWithZerosPass : public InsertRNNWithZerosBase<InsertRNNWithZerosPass> {
 public:
     InsertRNNWithZerosPass() = default;
+    InsertRNNWithZerosPass(std::string activationFunc, int number){
+        this->activationFunc = activationFunc;
+        this->number = number;
+    }
     void runOnOperation() override {
         MLIRContext *context = &getContext();
         auto f = getOperation();
-        insertRNNWithZeros(context, f);
+        insertRNNWithZeros(context, f, activationFunc, number);
     }
 };
 } //namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createInsertRNNWithZerosPass() {
-  return std::make_unique<InsertRNNWithZerosPass>();
+mlir::torch::Torch::createInsertRNNWithZerosPass(std::string activationFunc, int number) {
+  return std::make_unique<InsertRNNWithZerosPass>(activationFunc, number);
 }
+

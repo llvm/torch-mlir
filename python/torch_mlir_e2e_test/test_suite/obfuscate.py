@@ -95,13 +95,13 @@ def ObfuscateLeNet_maskSplit(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 28, 28))
 
 @register_test_case(
-    module_factory=lambda: LeNet(), passes="func.func(torch-insert-RNN)"
+    module_factory=lambda: LeNet(), passes="func.func(torch-insert-RNN{number=3})"
 )
 def ObfuscateLeNet_insertRNN(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 28, 28))
 
 @register_test_case(
-    module_factory=lambda: LeNet(), passes="func.func(torch-insert-RNNWithZeros)"
+    module_factory=lambda: LeNet(), passes="func.func(torch-insert-RNNWithZeros{activationFunc=sigmoid number=3})"
 )
 def ObfuscateLeNet_insertRNNWithZeros(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 28, 28))
@@ -110,6 +110,12 @@ def ObfuscateLeNet_insertRNNWithZeros(module, tu: TestUtils):
     module_factory=lambda: LeNet(), passes="func.func(torch-insert-Maxpool)"
 )
 def ObfuscateLeNet_insertMaxpool(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 28, 28))
+
+@register_test_case(
+    module_factory=lambda: LeNet(), passes="func.func(torch-insert-Inception)"
+)
+def ObfuscateLeNet_insertInception(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 28, 28))
 
 

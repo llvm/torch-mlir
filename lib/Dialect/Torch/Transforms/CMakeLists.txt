@@ -11,6 +11,7 @@ add_mlir_library(TorchMLIRTorchPasses
   InsertRNN.cpp
   InsertRNNWithZeros.cpp
   InsertMaxpool.cpp
+  InsertInception.cpp
   DropAbstractInterpCalculations.cpp
   EraseModuleInitializer.cpp
   Passes.cpp

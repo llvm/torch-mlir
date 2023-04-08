@@ -27,7 +27,7 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
-static void insertRNN(MLIRContext *context, Operation* f){
+static void insertRNN(MLIRContext *context, Operation* f, int number){
     // this demo insert a insert an RNN after Relu
     // 此RNN保证输入等于输出
 
@@ -44,7 +44,7 @@ static void insertRNN(MLIRContext *context, Operation* f){
     Location loc = viewOp.getLoc();
     Value rst = viewOp.getOperand(0);
     auto shape = viewOp.getOperand(0).getType().cast<ValueTensorType>().getSizes().vec();
-    int cycles = shape[0]; // RNN层数
+    int cycles = number; // RNN层数
     // create a RNN to make sure output is the same as input
     Value int0 = 
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
@@ -78,9 +78,10 @@ static void insertRNN(MLIRContext *context, Operation* f){
         rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
 
     Value slice;
-    Value relu_hidden;
+    Value slice_relu;
+
     for(int i = 0;i < cycles;i++){
-        if(cycles > 1){
+        if(shape[0] > 1){
             // slice
             Value int_num1 =
                 rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i));
@@ -107,7 +108,7 @@ static void insertRNN(MLIRContext *context, Operation* f){
             listTensor = 
             rewriter.create<PrimListConstructOp>(
                 loc, ListType::get(ValueTensorType::get(context, llvm::ArrayRef(shape_hidden), 
-                rewriter.getF32Type())), ValueRange({squeeze_dim, relu_hidden})
+                rewriter.getF32Type())), ValueRange({squeeze_dim, slice_relu})
             );
         }
         // cat
@@ -175,8 +176,20 @@ static void insertRNN(MLIRContext *context, Operation* f){
             loc, matmul_1.getType(), matmul_1, valueAdd, float1
         );
         // relu
-        relu_hidden = rewriter.create<AtenReluOp>(
+        Value relu_hidden = rewriter.create<AtenReluOp>(
             loc, add_1.getType(), add_1);
+        // slice_relu
+        Value int_start = 
+            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+
+        Value int_end = 
+            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(shape[2]));
+
+        Value int_dim = 
+            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+
+        slice_relu = rewriter.create<AtenSliceTensorOp>(
+            loc, zeroHidden.getType(), relu_hidden, int_dim, int_start, int_end, int1);
         
         if(i == cycles - 1){ // 最后一次for循环对output进行修改
             // transpose
@@ -236,7 +249,9 @@ static void insertRNN(MLIRContext *context, Operation* f){
                 ValueTensorType::get(context, llvm::ArrayRef(shape_unsqueeze),
                                     rewriter.getF32Type()),
                 relu_2, int0);
+            
 
+            // slice
             Value int_start = 
                 rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
 
@@ -260,16 +275,19 @@ namespace {
 class InsertRNNPass : public InsertRNNBase<InsertRNNPass> {
 public:
     InsertRNNPass() = default;
+    InsertRNNPass(int number){
+        this->number = number;
+    }
     void runOnOperation() override {
         MLIRContext *context = &getContext();
         auto f = getOperation();
-        insertRNN(context, f);
+        insertRNN(context, f, number);
     }
 };
 } //namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createInsertRNNPass() {
-  return std::make_unique<InsertRNNPass>();
+mlir::torch::Torch::createInsertRNNPass(int number) {
+  return std::make_unique<InsertRNNPass>(number);
 }
 
