@@ -99,9 +99,9 @@ TORCHDYNAMO_XFAIL_SET = {
     "PrimsSqueezeModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
 
-    # ERROR: Lowering for op `prims.view_of` missing.
-    "SqueezeDimModule_identity",
-    "SqueezeModule_broadcast",
+    # ERROR: RuntimeError: Found a custom (non-ATen) operator that either mutates or its inputs: prims::view_of.. Getting these operators to work with functionalization requires some extra work. For mutable ops you need to register a corresponding out-of-place variant of the op, and you also need to register a Functionalization kernel that performs some boilerplate, telling functionalization to map from the mutable op to the out-of-place op. See a more complete example of how to do this at https://gist.github.com/bdhirsh/7dadbf6296f8f7d1abcf4c482f438aaa.
+    "PrimsViewOfModule_basic",
+    "PrimsViewOfZeroRankModule_basic",
 }
 
 STABLEHLO_PASS_SET = {
@@ -491,6 +491,8 @@ STABLEHLO_PASS_SET = {
     "MoveDimIntModule_basic",
     "MoveDimIntNegativeIndexModule_basic",
     "ConvolutionBackwardModule2DStatic_basic",
+    "PrimsViewOfModule_basic",
+    "PrimsViewOfZeroRankModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -753,6 +755,8 @@ TOSA_PASS_SET = {
     "MoveDimIntNegativeIndexModule_basic",
     "ElementwiseRemainderScalarModule_Int_basic",
     "MoveDimIntModule_basic",
+    "PrimsViewOfModule_basic",
+    "PrimsViewOfZeroRankModule_basic",
 }
 
 LTC_XFAIL_SET = {
@@ -929,4 +933,6 @@ LTC_XFAIL_SET = {
     "AtenFloatScalarModule_basic",
     "PrimsSqueezeModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
+    "PrimsViewOfModule_basic",
+    "PrimsViewOfZeroRankModule_basic",
 }

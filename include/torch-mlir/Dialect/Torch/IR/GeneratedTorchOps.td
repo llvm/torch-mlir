@@ -11279,6 +11279,29 @@ def Torch_PrimsSqueezeOp : Torch_Op<"prims.squeeze", [
   }];
 }
 
+def Torch_PrimsViewOfOp : Torch_Op<"prims.view_of", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `prims::view_of : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$a
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult PrimsViewOfOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void PrimsViewOfOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_QuantizedLinearOp : Torch_Op<"quantized.linear", [
     HasValueSemantics,
     AllowsTypeRefinement,
