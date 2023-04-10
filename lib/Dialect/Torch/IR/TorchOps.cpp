@@ -813,6 +813,15 @@ OpFoldResult AtenViewOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// PrimsViewOfOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult PrimsViewOfOp::fold(FoldAdaptor adaptor) {
+  // Always fold the op with its only input operand.
+  return getOperand();
+}
+
+//===----------------------------------------------------------------------===//
 // AtenDimOp
 //===----------------------------------------------------------------------===//
 

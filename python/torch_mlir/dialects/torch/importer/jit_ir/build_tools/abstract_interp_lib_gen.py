@@ -749,6 +749,13 @@ def aten〇squeeze〇dim〡shape(self: List[int], dim: int) -> List[int]:
 def prims〇squeeze〡shape(a: List[int], dimensions: List[int]) -> List[int]:
     return upstream_shape_functions.squeeze_dims(a, dimensions)
 
+def prims〇view_of〡shape(a: List[int]) -> List[int]:
+    return a
+
+def prims〇view_of〡dtype(a_rank_dtype: Tuple[int, int]) -> int:
+    _, a_dtype = a_rank_dtype
+    return a_dtype
+
 def prim〇NumToTensor〇Scalar〡shape(a: float) -> List[int]:
     return []
 
