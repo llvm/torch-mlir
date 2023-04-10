@@ -20,6 +20,7 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
@@ -661,14 +662,19 @@ public:
     if (llvm::any_of(outputAssociations, [](ReassociationIndices indices) {
           return indices.size() > 1;
         })) {
-
-      collapsedInput = rewriter
-                           .create<tensor::ExpandShapeOp>(
-                               loc, adjustedResultType,
-                               expandedInput.has_value() ? expandedInput.value()
-                                                         : castedInput,
-                               outputAssociations)
-                           .getResult();
+      Value src =
+          expandedInput.has_value() ? expandedInput.value() : castedInput;
+      auto reassociation =
+          getReassociationIndicesForReshape(src.getType(), adjustedResultType);
+      if (!reassociation) {
+          reassociation = outputAssociations;
+      }
+      collapsedInput =
+          rewriter
+              .create<tensor::ExpandShapeOp>(
+                  loc, adjustedResultType, src,
+                  getReassociationIndicesAttribute(rewriter, *reassociation))
+              .getResult();
     }
 
     Value result = collapsedInput.has_value() ? collapsedInput.value()
