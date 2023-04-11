@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 
 #include "../PassDetail.h"
@@ -473,21 +474,21 @@ public:
     SmallVector<int64_t> weightShapeInt(rank);
     std::copy(weightShape.begin(), weightShape.end(), weightShapeInt.begin());
 
-    // 1. [IC, OC, H, W, ...] => [G, IC//G, OC, H, W, ...]
+    // 1. [H, W, ..., OC, IC] => [H, W, ..., OC, G, IC//G]
     Value GValue = rewriter.create<mlir::arith::ConstantOp>(
         op->getLoc(), rewriter.getI64IntegerAttr(groups));
     Value ICDivGValue = rewriter.create<mlir::arith::DivSIOp>(
-        op->getLoc(), weightShapeVec[0], GValue);
+        op->getLoc(), weightShapeVec[rank - 1], GValue);
     Value OCMulGValue = rewriter.create<mlir::arith::MulIOp>(
-        op->getLoc(), weightShapeVec[1], GValue);
-    weightShapeVec[0] = ICDivGValue;
-    weightShapeVec.insert(weightShapeVec.begin(), GValue);
+        op->getLoc(), weightShapeVec[rank - 2], GValue);
+    weightShapeVec[rank - 1] = ICDivGValue;
+    weightShapeVec.insert(weightShapeVec.end() - 1, GValue);
 
-    if (weightShapeInt[0] == ShapedType::kDynamic) {
-      weightShapeInt.insert(weightShapeInt.begin(), groups);
+    if (weightShapeInt[rank - 1] == ShapedType::kDynamic) {
+      weightShapeInt.insert(weightShapeInt.end() - 1, groups);
     } else {
-      weightShapeInt[0] /= groups;
-      weightShapeInt.insert(weightShapeInt.begin(), groups);
+      weightShapeInt[rank - 1] /= groups;
+      weightShapeInt.insert(weightShapeInt.end() - 1, groups);
     }
     Value weightShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
         op->getLoc(), weightShapeVec);
@@ -495,21 +496,21 @@ public:
         op->getLoc(), RankedTensorType::get(weightShapeInt, weightElemTy),
         weight, weightShapeTensor);
 
-    // 2. [G, IC//G, OC, H, W, ...] => [IC//G, G, OC, H, W, ...]
+    // 2. [H, W, ..., OC, G, IC//G] => [H, W, ..., G, OC, IC//G]
     std::vector<int64_t> transposeDims(rank + 1);
     for (int64_t i = 0; i <= rank; i++)
       transposeDims[i] = i;
-    std::swap(transposeDims[1], transposeDims[0]);
+    std::swap(transposeDims[rank - 1], transposeDims[rank - 2]);
     weight = rewriter.create<stablehlo::TransposeOp>(
         op->getLoc(), weight, rewriter.getI64TensorAttr(transposeDims));
 
-    // 3. [IC//G, G, OC, H, W, ...] => [IC//G, G*OC, H, W, ...]
-    weightShapeInt.erase(weightShapeInt.begin());
-    if (weightShapeInt[1] != ShapedType::kDynamic) {
-      weightShapeInt[1] *= groups;
+    // 3. [H, W, ..., G, OC, IC//G] => [H, W, ..., G*OC, IC//G]
+    weightShapeInt.erase(weightShapeInt.end() - 2);
+    if (weightShapeInt[weightShapeInt.size() - 2] != ShapedType::kDynamic) {
+      weightShapeInt[weightShapeInt.size() - 2] *= groups;
     }
-    weightShapeVec.erase(weightShapeVec.begin());
-    weightShapeVec[1] = OCMulGValue;
+    weightShapeVec.erase(weightShapeVec.end() - 2);
+    weightShapeVec[weightShapeVec.size() - 2] = OCMulGValue;
     weightShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
         op->getLoc(), weightShapeVec);
     weight = rewriter.create<stablehlo::DynamicReshapeOp>(
@@ -561,7 +562,8 @@ public:
     for (int i = 0; i < nSpatialDims; ++i) {
       int64_t padInt = dilation[i] * (weightShape[i + 2] - 1) - padding[i];
       stablehloPaddingVec[i * 2] = padInt;
-      stablehloPaddingVec[i * 2 + 1] = padInt + outputPadding[i];
+      stablehloPaddingVec[i * 2 + 1] =
+          padInt + outputPadding[outputPadding.size() - i - 1];
     }
     DenseIntElementsAttr stablehloPadding = DenseIntElementsAttr::get(
         RankedTensorType::get({nSpatialDims, 2}, rewriter.getI64Type()),
