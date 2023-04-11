@@ -14,15 +14,23 @@ from torch_mlir.passmanager import PassManager
 
 from .registry import Registry
 
+def all_integer_dtypes() -> List[int]:
+    return [torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64]
+
 def is_integer_dtype(dtype: int) -> bool:
-    return dtype in [torch.bool, torch.uint8, torch.int8,
-                     torch.int16, torch.int32, torch.int64]
+    return dtype in all_integer_dtypes()
+
+def all_complex_dtypes() -> List[int]:
+    return [torch.complex64, torch.complex128]
 
 def is_complex_dtype(dtype: int) -> bool:
-    return dtype in [torch.complex64, torch.complex128]
+    return dtype in all_complex_dtypes()
+
+def all_float_dtypes() -> List[int]:
+    return [torch.float16, torch.bfloat16, torch.float32, torch.float64]
 
 def is_float_dtype(dtype: int) -> bool:
-    return dtype in [torch.float16, torch.bfloat16, torch.float32, torch.float64]
+    return dtype in all_float_dtypes()
 
 def get_priority_of_dtype(dtype: int) -> int:
     sorted_types = [

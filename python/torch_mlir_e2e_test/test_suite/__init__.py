@@ -8,9 +8,6 @@
 # to the backend contract.
 COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "QuantizedMLP_basic",
-    "ResNet18Module_basic",
-    "ResNet18StaticModule_basic",
-    "MobilenetV3Module_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
 }
 
