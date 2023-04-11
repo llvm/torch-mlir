@@ -16,12 +16,14 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
+#include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
+#include <numeric>
+#include <sys/_types/_size_t.h>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -524,8 +526,8 @@ public:
                               Value weight, ArrayRef<int64_t> stride,
                               ArrayRef<int64_t> padding,
                               ArrayRef<int64_t> dilation,
-                              ArrayRef<int64_t> outputPadding, int64_t groups,
-                              bool needHandleOutputPadding) const {
+                              ArrayRef<int64_t> outputPadding,
+                              int64_t groups) const {
     auto inputTy = input.getType().cast<RankedTensorType>();
     auto weightTy = weight.getType().cast<RankedTensorType>();
     auto weightShape = weightTy.getShape();
@@ -534,17 +536,24 @@ public:
     auto nSpatialDims = nDims - 2;
     auto convOutTy = outType;
 
-    if (needHandleOutputPadding) {
-      SmallVector<int64_t> outShape(nDims);
-      auto finalOutShape = outType.getShape();
-      std::copy(finalOutShape.begin(), finalOutShape.end(), outShape.begin());
-      for (int i = 2; i < nDims; ++i) {
-        if (finalOutShape[i] == ShapedType::kDynamic)
-          continue;
-        outShape[i] = finalOutShape[i] - outputPadding[i - 2];
-      }
-      convOutTy = RankedTensorType::get(outShape, outType.getElementType());
+    // Transpose weight
+    SmallVector<int64_t> perm(nDims);
+    SmallVector<int64_t> transposeShape(nDims);
+    for (int i = 0; i < nDims; i++) {
+      if (i < 2)
+        perm[i] = nDims - 2 + i;
+      else
+        perm[i] = nDims - i - 1;
+      transposeShape[i] = weightShape[perm[i]];
     }
+    auto transposeTy =
+        RankedTensorType::get(transposeShape, weightTy.getElementType());
+    DenseIntElementsAttr permAttr = DenseIntElementsAttr::get(
+        RankedTensorType::get({nDims}, rewriter.getI64Type()), perm);
+    auto transposeOp = rewriter.create<stablehlo::TransposeOp>(
+        op->getLoc(), transposeTy, weight, permAttr);
+    auto reverseOp = rewriter.create<stablehlo::ReverseOp>(
+        op->getLoc(), transposeOp, rewriter.getI64TensorAttr({0, 1}));
 
     // Prepare for transposed convolution
     SmallVector<int64_t> stablehloStrideVec(nSpatialDims, 1);
@@ -554,7 +563,7 @@ public:
     for (int i = 0; i < nSpatialDims; ++i) {
       int64_t padInt = dilation[i] * (weightShape[i + 2] - 1) - padding[i];
       stablehloPaddingVec[i * 2] = padInt;
-      stablehloPaddingVec[i * 2 + 1] = padInt;
+      stablehloPaddingVec[i * 2 + 1] = padInt + outputPadding[i];
     }
     DenseIntElementsAttr stablehloPadding = DenseIntElementsAttr::get(
         RankedTensorType::get({nSpatialDims, 2}, rewriter.getI64Type()),
@@ -573,58 +582,35 @@ public:
     ArrayAttr precisionConfig;
 
     SmallVector<int64_t> spatialDims;
+    SmallVector<int64_t> transposedSpatialDims;
     for (int i = 0; i < nSpatialDims; ++i) {
       spatialDims.push_back(i + 2);
+      transposedSpatialDims.push_back(i);
     }
+
     stablehlo::ConvDimensionNumbersAttr dimensionNumbers =
         stablehlo::ConvDimensionNumbersAttr::get(
             /*context=*/rewriter.getContext(), /*inputBatchDimension=*/0,
             /*inputFeatureDimension=*/1,
             /*inputSpatialDimensions=*/spatialDims,
-            /*kernelInputFeatureDimension=*/0,
-            /*kernelOutputFeatureDimension=*/1,
-            /*kernelSpatialDimensions=*/spatialDims,
+            /*kernelInputFeatureDimension=*/nDims - 1,
+            /*kernelOutputFeatureDimension=*/nDims - 2,
+            /*kernelSpatialDimensions=*/transposedSpatialDims,
             /*outputBatchDimension=*/0, /*outputFeatureDimension=*/1,
             /*outputSpatialDimensions=*/spatialDims);
 
-    // Reverse and transpose weight
-    weight = rewriter.create<stablehlo::ReverseOp>(
-        op->getLoc(), weight, rewriter.getI64TensorAttr(spatialDims));
+    Value weightInput = reverseOp.getResult();
     if (groups != 1) {
-      weight = reshapeConvWeight(rewriter, op, weight, groups);
+      weightInput = reshapeConvWeight(rewriter, op, reverseOp, groups);
     }
 
     // Create transposed convolution
     auto transposedConvOp = rewriter.create<stablehlo::ConvolutionOp>(
-        op->getLoc(), convOutTy, input, weight, stablehloStride,
+        op->getLoc(), convOutTy, input, weightInput, stablehloStride,
         stablehloPadding, stablehloLhsDilation, stablehloRhsDilation,
         windowReversal, dimensionNumbers, static_cast<uint64_t>(groups), 1,
         precisionConfig);
-
-    // Handle output padding
-    if (!needHandleOutputPadding) {
-      return transposedConvOp.getResult();
-    }
-    SmallVector<int64_t> edgePaddingLowVec(nDims, 0);
-    SmallVector<int64_t> edgePaddingHighVec(nDims, 0);
-    SmallVector<int64_t> interiorPaddingVec(nDims, 0);
-    std::copy(outputPadding.begin(), outputPadding.end(),
-              edgePaddingHighVec.begin() + 2);
-    Value paddingValue =
-        hlo::getConstTensor<float>(rewriter, op, {0.0}, {}).value();
-    paddingValue = hlo::promoteType(rewriter, paddingValue, inputTy);
-    mlir::DenseIntElementsAttr edgePaddingLow =
-        rewriter.getI64VectorAttr(edgePaddingLowVec);
-    mlir::DenseIntElementsAttr edgePaddingHigh =
-        rewriter.getI64VectorAttr(edgePaddingHighVec);
-    mlir::DenseIntElementsAttr interiorPadding =
-        rewriter.getI64VectorAttr(interiorPaddingVec);
-
-    auto paddedOutput = rewriter.create<stablehlo::PadOp>(
-        op->getLoc(), outType, transposedConvOp, paddingValue, edgePaddingLow,
-        edgePaddingHigh, interiorPadding);
-
-    return paddedOutput.getResult();
+    return transposedConvOp.getResult();
   }
 
   Value convertNormalConv(AtenConvolutionOp op,
@@ -763,9 +749,9 @@ public:
 
     Value stablehloConvResult;
     if (transposed) {
-      stablehloConvResult = convertTransposedConv(
-          op, rewriter, outTy, input, weight, stride, padding, dilation,
-          outputPadding, groups, needHandleOutputPadding);
+      stablehloConvResult =
+          convertTransposedConv(op, rewriter, outTy, input, weight, stride,
+                                padding, dilation, outputPadding, groups);
     } else {
       stablehloConvResult =
           convertNormalConv(op, rewriter, outTy, input, weight, stride, padding,

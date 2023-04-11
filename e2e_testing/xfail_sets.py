@@ -491,6 +491,7 @@ STABLEHLO_PASS_SET = {
     "MoveDimIntModule_basic",
     "MoveDimIntNegativeIndexModule_basic",
     "ConvolutionBackwardModule2DStatic_basic",
+    "ConvolutionBackwardModule2DStrided_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
