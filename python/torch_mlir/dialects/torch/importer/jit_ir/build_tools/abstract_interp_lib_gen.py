@@ -356,6 +356,12 @@ def aten〇std〇correction〡shape(self: List[int], dim: Optional[List[int]] = 
 def aten〇argmax〡shape(self: List[int], dim: Optional[int] = None, keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.argmax(self, dim, keepdim)
 
+# TODO: The result shape when num_classes=-1 depends on the runtime values of the input tensor,
+# making it impossible to add support for it using the current design of the shape library.
+def aten〇one_hot〡shape(self: List[int], num_classes: int = -1) -> List[int]:
+    assert num_classes != -1, "getting num_classes from tensor contents is not supported"
+    return self + [num_classes]
+
 def aten〇any〇dim〡shape(self: List[int], dim: int, keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.argmax(self, dim, keepdim)
 
@@ -748,6 +754,13 @@ def aten〇squeeze〇dim〡shape(self: List[int], dim: int) -> List[int]:
 
 def prims〇squeeze〡shape(a: List[int], dimensions: List[int]) -> List[int]:
     return upstream_shape_functions.squeeze_dims(a, dimensions)
+
+def prims〇view_of〡shape(a: List[int]) -> List[int]:
+    return a
+
+def prims〇view_of〡dtype(a_rank_dtype: Tuple[int, int]) -> int:
+    _, a_dtype = a_rank_dtype
+    return a_dtype
 
 def prim〇NumToTensor〇Scalar〡shape(a: float) -> List[int]:
     return []

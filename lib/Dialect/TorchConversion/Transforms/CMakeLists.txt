@@ -1,16 +1,22 @@
-set(LinkedLibs  MLIRIR
-                MLIRPass
-                MLIRFuncTransforms
-                TorchMLIRTorchConversionDialect
-                TorchMLIRTorchDialect
-                TorchMLIRTorchPasses
-                TorchMLIRTorchToLinalg
-                TorchMLIRTorchToTMTensor
-                TorchMLIRTorchToArith
-                TorchMLIRTorchToSCF
-                TorchMLIRTorchConversionToMLProgram
-                MLIRMemRefTransforms)
-                
+set(LinkedLibs
+  MLIRFuncTransforms
+  MLIRIR
+  MLIRLinalgTransforms
+  MLIRMemRefTransforms
+  MLIRPass
+  MLIRTosaTransforms
+  MLIRVectorTransforms
+  TorchMLIRTorchConversionDialect
+  TorchMLIRTorchConversionToMLProgram
+  TorchMLIRTorchDialect
+  TorchMLIRTorchPasses
+  TorchMLIRTorchToArith
+  TorchMLIRTorchToLinalg
+  TorchMLIRTorchToSCF
+  TorchMLIRTorchToTMTensor
+  TorchMLIRTorchToTosa
+  )
+
 if(TORCH_MLIR_ENABLE_STABLEHLO)
   list(APPEND LinkedLibs ChloPasses)
 endif()

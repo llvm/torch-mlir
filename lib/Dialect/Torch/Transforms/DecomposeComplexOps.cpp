@@ -4166,6 +4166,65 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
+  using OpRewritePattern<AtenOneHotOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenOneHotOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto context = op.getContext();
+
+    Value input = op.getSelf();
+    auto inputType = input.getType().cast<BaseTensorType>();
+    if (!inputType.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "input tensor should have known sizes.");
+    int64_t inputRank = inputType.getSizes().size();
+    int64_t numClasses;
+    if (!matchPattern(op.getNumClasses(), m_TorchConstantInt(&numClasses)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: num_classes must be constant");
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value falseValue = rewriter.create<ConstantBoolOp>(loc, false);
+
+    // arange tensor
+    auto si64Type = IntegerType::get(context, 64, IntegerType::Signed);
+    auto arangeType =
+        ValueTensorType::get(context, llvm::ArrayRef(numClasses), si64Type);
+    Value arangeTensor = rewriter.create<AtenArangeOp>(
+        loc, arangeType, op.getNumClasses(), /*dtype=*/none, /*layout=*/none,
+        /*device=*/none, /*pin_memory=*/none);
+
+    // unsqueeze input
+    llvm::SmallVector<int64_t> unsqueezeShape(inputType.getSizes());
+    unsqueezeShape.push_back(1);
+    auto unsqueezeType =
+        ValueTensorType::get(context, unsqueezeShape, si64Type);
+    Value unsqueezeTensor = rewriter.create<AtenUnsqueezeOp>(
+        loc, unsqueezeType, input,
+        rewriter.create<ConstantIntOp>(loc,
+                                       rewriter.getI64IntegerAttr(inputRank)));
+
+    // compare
+    auto eqType = ValueTensorType::get(
+        context, op.getType().cast<BaseTensorType>().getSizes(),
+        IntegerType::get(context, 1));
+    Value eqTensor = rewriter.create<AtenEqTensorOp>(
+        loc, eqType, unsqueezeTensor, arangeTensor);
+
+    // convert to si64
+    Value si64TypeValue =
+        Torch::getDtypeIntValueForType(rewriter, loc, si64Type);
+    Value result = rewriter.create<AtenToDtypeOp>(
+        loc, op.getType(), eqTensor, si64TypeValue, /*non_blocking=*/falseValue,
+        /*copy=*/falseValue, /*memory_format=*/none);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -4325,6 +4384,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenBucketizeTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposePrimsSqueezeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMovedimIntOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenOneHotOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
