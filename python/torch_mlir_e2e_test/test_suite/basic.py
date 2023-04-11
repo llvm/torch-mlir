@@ -3564,3 +3564,22 @@ class PrimsViewOfZeroRankModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: PrimsViewOfZeroRankModule())
 def PrimsViewOfZeroRankModule_basic(module, tu: TestUtils):
     module.forward(tu.rand())
+
+
+# ==============================================================================
+
+
+class OneHotModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([None, ([-1], torch.long, True)])
+    def forward(self, x):
+        return torch.nn.functional.one_hot(x, num_classes=5)
+
+
+@register_test_case(module_factory=lambda: OneHotModule())
+def OneHotModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(10, high=5))
