@@ -1929,3 +1929,11 @@ func.func @torch.aten.ScalarImplicit$canonicalize_literal_0d() -> !torch.number 
     %1 = torch.aten.ScalarImplicit %0 : !torch.vtensor<[],si64> -> !torch.number
     return %1 : !torch.number
 }
+
+// CHECK-LABEL:   func.func @torch.prims.view_of$fold(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[3,4,2],f32>) -> !torch.vtensor<[3,4,2],f32> {
+// CHECK-NEXT:      return %[[ARG]] : !torch.vtensor<[3,4,2],f32>
+func.func @torch.prims.view_of$fold(%arg0: !torch.vtensor<[3,4,2],f32>) -> !torch.vtensor<[3,4,2],f32> {
+  %0 = torch.prims.view_of %arg0 : !torch.vtensor<[3,4,2],f32> -> !torch.vtensor<[3,4,2],f32>
+  return %0 : !torch.vtensor<[3,4,2],f32>
+}

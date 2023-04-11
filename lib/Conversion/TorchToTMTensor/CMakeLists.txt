@@ -17,6 +17,7 @@ TorchToTMTensor.cpp
   MLIRMathDialect
   TorchMLIRTorchDialect
   TorchMLIRTMTensorDialect
+  TorchMLIRTorchUtils
 )
 
 torch_mlir_target_includes(TorchMLIRTorchToTMTensor)
