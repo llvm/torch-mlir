@@ -86,9 +86,25 @@ bool Torch::isValidSubtype(Type subtype, Type type) {
       return false;
     }
 
+    // `type` must not have more static shape information than `subtype`.
+    auto isSubsizes = [](BaseTensorType type, BaseTensorType subtype) -> bool {
+      auto typeSizes = type.getSizes();
+      auto subtypeSizes = subtype.getSizes();
+      if (typeSizes.size() != subtypeSizes.size()) {
+        return false;
+      }
+      for (auto t : llvm::zip(typeSizes, subtypeSizes)) {
+        if (std::get<0>(t) != Torch::kUnknownSize &&
+            std::get<0>(t) != std::get<1>(t)) {
+          return false;
+        }
+      }
+      return true;
+    };
+
     if (typeTensorType.hasSizes() &&
         (!subtypeTensorType.hasSizes() ||
-         typeTensorType.getSizes() != subtypeTensorType.getSizes())) {
+         !isSubsizes(typeTensorType, subtypeTensorType))) {
       return false;
     }
 
