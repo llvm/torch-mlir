@@ -118,7 +118,7 @@ std::unique_ptr<OperationPass<func::FuncOp>> createInsertRNNWithZerosPass(std::s
 
 std::unique_ptr<OperationPass<func::FuncOp>> createInsertMaxpoolPass();
 
-std::unique_ptr<OperationPass<func::FuncOp>> createInsertInceptionPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createInsertInceptionPass(int number);
 
 std::unique_ptr<OperationPass<ModuleOp>> createPreprocessShapeLibraryPass();
 

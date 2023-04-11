@@ -33,17 +33,17 @@ static void insertRNN(MLIRContext *context, Operation* f, int number){
 
     llvm::SmallPtrSet<Operation *, 16> opWorklist;
     f->walk([&](Operation *op){
-        if(isa<AtenViewOp>(op)){
+        if(isa<AtenMaxPool2dOp>(op)){
             opWorklist.insert(op);
         }
     });
     auto it = opWorklist.begin();
-    AtenViewOp viewOp = llvm::dyn_cast<AtenViewOp>(*it);
+    AtenMaxPool2dOp maxpool2dOp = llvm::dyn_cast<AtenMaxPool2dOp>(*it);
     IRRewriter rewriter(context);
-    rewriter.setInsertionPoint(viewOp);
-    Location loc = viewOp.getLoc();
-    Value rst = viewOp.getOperand(0);
-    auto shape = viewOp.getOperand(0).getType().cast<ValueTensorType>().getSizes().vec();
+    rewriter.setInsertionPoint(maxpool2dOp);
+    Location loc = maxpool2dOp.getLoc();
+    Value rst = maxpool2dOp.getOperand(0);
+    auto shape = maxpool2dOp.getOperand(0).getType().cast<ValueTensorType>().getSizes().vec();
     int cycles = number; // RNN层数
     // create a RNN to make sure output is the same as input
     Value int0 = 
@@ -54,6 +54,7 @@ static void insertRNN(MLIRContext *context, Operation* f, int number){
     // hidden
     auto shape_hidden = shape;
     shape_hidden.erase(shape_hidden.begin(), shape_hidden.begin()+1);
+    shape_hidden[0] = shape[0] * shape[1];
     int size_hidden = shape_hidden[0] * shape_hidden[1] * shape_hidden[2];
     std::vector<float> zeroHiddenVec(size_hidden, 0);
     auto resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape_hidden),
@@ -76,25 +77,146 @@ static void insertRNN(MLIRContext *context, Operation* f, int number){
         llvm::ArrayRef(zeroSliceVec));
     Value zeroSlice = 
         rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
+    
+    // reshape
+    Value int_shape_0 = 
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value int_shape_1 = 
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(shape[0] * shape[1]));
+    Value int_shape_2 = 
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(shape[2]));
+    Value int_shape_3 = 
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(shape[3]));
+    Value list_reshape = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)), 
+        ValueRange({int_shape_0, int_shape_1, int_shape_2, int_shape_3}));
+    
+    // view
+    auto shape_view = shape;
+    shape_view[0] = 1;
+    shape_view[1] = shape[0] * shape[1];
+    int size_view = shape_view[0] * shape_view[1] * shape_view[2] * shape_view[3];
+    std::vector<float> zeroViewVec(size_view, 0);
+    resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape_view),
+                                                 rewriter.getF32Type());
+    dense = DenseElementsAttr::get(
+        RankedTensorType::get(llvm::ArrayRef(shape_view), rewriter.getF32Type()),
+        llvm::ArrayRef(zeroViewVec));
+    Value zeroView = 
+        rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
+    Value view = rewriter.create<AtenViewOp>(
+        loc, zeroView.getType(), rst, list_reshape);
+    
+    Value cat_extra;
+    std::vector<Value> values(cycles);
+    values[0] = view;
+    if(cycles > 1){
+        for(int i = 0; i < cycles - 1; i++){
+            values[i + 1] = view;
+        }
+        // PrimListConstructOp
+        Value list_extra = rewriter.create<PrimListConstructOp>(
+            loc, ListType::get(ValueTensorType::get(context, shape_view, 
+            rewriter.getF32Type())), ValueRange(values));
+        // cat
+        auto shape_cat = shape;
+        shape_cat[0] = shape_view[0] * cycles;
+        int size_cat = shape_cat[0] * shape_cat[1] * shape_cat[2] * shape_cat[3];
+        std::vector<float> zeroCatVec(size_cat);
+        resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape_cat),
+                                                    rewriter.getF32Type());
+        dense = DenseElementsAttr::get(
+            RankedTensorType::get(llvm::ArrayRef(shape_cat), rewriter.getF32Type()),
+            llvm::ArrayRef(zeroCatVec));
+        Value zeroCat = 
+            rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
+        cat_extra = rewriter.create<AtenCatOp>(
+            loc, zeroCat.getType(), list_extra, int0);
+    }
+    // cat_type
+    auto shape_cat = shape;
+    shape_cat.erase(shape_cat.begin(), shape_cat.begin()+1);
+    shape_cat[1] = shape[2] * 2;
+    int size_cat = shape_cat[0] * shape_cat[1] * shape_cat[2];
+    std::vector<float> zeroCatVec(size_cat);
+    resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape_cat),
+                                                rewriter.getF32Type());
+    dense = DenseElementsAttr::get(
+        RankedTensorType::get(llvm::ArrayRef(shape_cat), rewriter.getF32Type()),
+        llvm::ArrayRef(zeroCatVec));
+    Value zeroCat = 
+        rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
+    
+    // transpose_hidden
+    auto shape_transpose = shape;
+    shape_transpose.erase(shape_transpose.begin(), shape_transpose.begin()+2);
+    shape_transpose[0] = shape_transpose[1] = shape[2];
+    int size_transpose = shape_transpose[0] * shape_transpose[1];
+    std::vector<float> valueTransposeVec(size_transpose);
+    for (int i = 0; i < shape_transpose[0]; i++) {
+        for (int j = 0; j < shape_transpose[1]; j++) {
+            if (i == j) {
+                valueTransposeVec[i * shape_transpose[1] + j] = 1.0f;
+            } else {
+                valueTransposeVec[i * shape_transpose[1] + j] = 0.0f;
+            }
+        }
+    }
+    resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape_transpose),
+                                                rewriter.getF32Type());
+    dense = DenseElementsAttr::get(
+        RankedTensorType::get(llvm::ArrayRef(shape_transpose), rewriter.getF32Type()),
+        llvm::ArrayRef(valueTransposeVec));
+    Value valueTranspose = 
+        rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
+    
+    // add_hidden
+    Value float1 = 
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1));
+    auto shape_add = shape;
+    shape_add.erase(shape_add.begin() + 1, shape_add.end());
+    shape_add[0] = shape[3];
+    std::vector<float> valueAddVec(shape_add[0], 0);
+
+    resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape_add),
+                                                rewriter.getF32Type());
+    dense = DenseElementsAttr::get(
+        RankedTensorType::get(llvm::ArrayRef(shape_add), rewriter.getF32Type()),
+        llvm::ArrayRef(valueAddVec));
+    Value valueAdd = 
+        rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
+    
+    Value int_start = 
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+
+    Value int_end = 
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(shape[2]));
+
+    Value int_dim = 
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
 
     Value slice;
     Value slice_relu;
+    Value input;
 
     for(int i = 0;i < cycles;i++){
-        if(shape[0] > 1){
+        if(cycles > 1){
             // slice
             Value int_num1 =
                 rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i));
             Value int_num2 =
                 rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i+1));
-            rst = rewriter.create<AtenSliceTensorOp>(
-                loc, zeroSlice.getType(), rst, int0, int_num1, int_num2, int1);
+            input = rewriter.create<AtenSliceTensorOp>(
+                loc, zeroSlice.getType(), cat_extra, int0, int_num1, int_num2, int1);
+        }
+        else{
+            input = rst;
         }
     
         // squeeze
         Value squeeze_dim = 
             rewriter.create<AtenSqueezeDimOp>(
-                loc, zeroHidden.getType(), rst, int0);
+                loc, zeroHidden.getType(), input, int0);
         // PrimListconstruct
         Value listTensor;
         if(i == 0){
@@ -112,43 +234,10 @@ static void insertRNN(MLIRContext *context, Operation* f, int number){
             );
         }
         // cat
-        auto shape_cat = shape;
-        shape_cat.erase(shape_cat.begin(), shape_cat.begin()+1);
-        shape_cat[1] = shape[2] * 2;
-        int size_cat = shape_cat[0] * shape_cat[1] * shape_cat[2];
-        std::vector<float> zeroCatVec(size_cat);
-        resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape_cat),
-                                                    rewriter.getF32Type());
-        dense = DenseElementsAttr::get(
-            RankedTensorType::get(llvm::ArrayRef(shape_cat), rewriter.getF32Type()),
-            llvm::ArrayRef(zeroCatVec));
-        Value zeroCat = 
-            rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
         Value cat = rewriter.create<AtenCatOp>(
             loc, zeroCat.getType(), listTensor, int1);
 
         // transpose
-        auto shape_transpose = shape;
-        shape_transpose.erase(shape_transpose.begin(), shape_transpose.begin()+2);
-        shape_transpose[0] = shape_transpose[1] = shape[2];
-        int size_transpose = shape_transpose[0] * shape_transpose[1];
-        std::vector<float> valueTransposeVec(size_transpose);
-        for (int i = 0; i < shape_transpose[0]; i++) {
-            for (int j = 0; j < shape_transpose[1]; j++) {
-                if (i == j) {
-                    valueTransposeVec[i * shape_transpose[1] + j] = 1.0f;
-                } else {
-                    valueTransposeVec[i * shape_transpose[1] + j] = 0.0f;
-                }
-            }
-        }
-        resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape_transpose),
-                                                    rewriter.getF32Type());
-        dense = DenseElementsAttr::get(
-            RankedTensorType::get(llvm::ArrayRef(shape_transpose), rewriter.getF32Type()),
-            llvm::ArrayRef(valueTransposeVec));
-        Value valueTranspose = 
-            rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
         Value intTranspose_1 = rewriter.create<AtenTransposeIntOp>(
             loc, valueTranspose.getType(), valueTranspose, int0, int1);
 
@@ -157,37 +246,15 @@ static void insertRNN(MLIRContext *context, Operation* f, int number){
             loc, cat.getType(), cat, intTranspose_1
         );
 
-        // add(没问题)
-        Value float1 = 
-            rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1));
-        auto shape_add = shape;
-        shape_add.erase(shape_add.begin() + 1, shape_add.end());
-        shape_add[0] = shape[3];
-        std::vector<float> valueAddVec(shape_add[0], 0);
-
-        resultTensorType = ValueTensorType::get(context, llvm::ArrayRef(shape_add),
-                                                    rewriter.getF32Type());
-        dense = DenseElementsAttr::get(
-            RankedTensorType::get(llvm::ArrayRef(shape_add), rewriter.getF32Type()),
-            llvm::ArrayRef(valueAddVec));
-        Value valueAdd = 
-            rewriter.create<ValueTensorLiteralOp>(loc, resultTensorType, dense);
+        // add
         Value add_1 = rewriter.create<AtenAddTensorOp>(
             loc, matmul_1.getType(), matmul_1, valueAdd, float1
         );
         // relu
         Value relu_hidden = rewriter.create<AtenReluOp>(
             loc, add_1.getType(), add_1);
+        
         // slice_relu
-        Value int_start = 
-            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
-
-        Value int_end = 
-            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(shape[2]));
-
-        Value int_dim = 
-            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-
         slice_relu = rewriter.create<AtenSliceTensorOp>(
             loc, zeroHidden.getType(), relu_hidden, int_dim, int_start, int_end, int1);
         
@@ -262,12 +329,14 @@ static void insertRNN(MLIRContext *context, Operation* f, int number){
                 rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2));
 
             slice = rewriter.create<AtenSliceTensorOp>(
-                loc, viewOp.getOperand(0).getType(), unsqueeze, int_dim, int_start, int_end, int1);
+                loc, maxpool2dOp.getOperand(0).getType(), unsqueeze, int_dim, int_start, int_end, int1);
         }
     }
     
-    rewriter.replaceOpWithNewOp<AtenViewOp>(
-         viewOp, viewOp.getType(), slice, viewOp.getOperand(1));
+    rewriter.replaceOpWithNewOp<AtenMaxPool2dOp>(
+         maxpool2dOp, maxpool2dOp.getType(), slice, maxpool2dOp.getOperand(1), 
+         maxpool2dOp.getOperand(2), maxpool2dOp.getOperand(3),
+         maxpool2dOp.getOperand(4), maxpool2dOp.getOperand(5));
 }
 
 
