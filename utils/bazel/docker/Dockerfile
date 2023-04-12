@@ -31,7 +31,8 @@ COPY requirements.txt /opt/app/requirements.txt
 COPY build-requirements.txt /opt/app/build-requirements.txt
 COPY test-requirements.txt  /opt/app/test-requirements.txt
 COPY torchvision-requirements.txt  /opt/app/torchvision-requirements.txt
-COPY pytorch-requirements.txt /opt/app/pytorch-requirements.txt
+COPY pytorch-nightly-requirements.txt /opt/app/pytorch-nightly-requirements.txt
+COPY pytorch-stable-requirements.txt /opt/app/pytorch-stable-requirements.txt
 WORKDIR /opt/app
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install --upgrade --ignore-installed -r requirements.txt

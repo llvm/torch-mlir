@@ -1,5 +1,5 @@
 -f build-requirements.txt
--f pytorch-requirements.txt
+-f pytorch-nightly-requirements.txt
 
 # Packaging requirements.
 packaging
