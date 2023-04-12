@@ -49,15 +49,17 @@ class TCP_QuantizedType<string n, list<int> params, bit signed>
 // Quantized Integer Types.
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
-// Name    Symmetry   Grouping                Sign
+// Name    Symmetry           Sign
 //===----------------------------------------------------------------------===//
-// uint8 : asymmetric per tensor ,            unsigned
-// int8  : symmetric  per tensor/per channel, signed
-// int16 : symmetric  per tensor,             signed
+// q8ua  : asymmetric         unsigned
+// q8sa  : asymmetric         signed
+// q8ss  : symmetric          signed
+// q16ss : symmetric          signed
 //===----------------------------------------------------------------------===//
-def TCP_QuantizedInt	: AnyTypeOf<[ TCP_QuantizedType<"uint8", [8], 0>,
-                                     TCP_QuantizedType<"int8", [8, 0], 1>,
-                                     TCP_QuantizedType<"int16", [16, 0], 1>]>;
+def TCP_QuantizedInt	: AnyTypeOf<[ TCP_QuantizedType<"q8ua", [8], 0>,
+                                     TCP_QuantizedType<"q8sa", [8], 1>,
+                                     TCP_QuantizedType<"q8ss", [8, 0], 1>,
+                                     TCP_QuantizedType<"q16ss", [16, 0], 1>]>;
 
 def Tcp_Scalar : AnyTypeOf<[AnyFloat, AnySignlessInteger, AnyComplex, TCP_QuantizedInt]>;
 def Tcp_Tensor : RankedTensorOf<[Tcp_Scalar]>;
