@@ -48,6 +48,7 @@ int main(int argc, char **argv) {
       mlir::torch::TMTensor::TMTensorDialect,
 #ifdef TORCH_MLIR_DIALECTS_ENABLE_TCP
       mlir::tcp::TcpDialect,
+      mlir::quant::QuantizationDialect,
 #endif // TORCH_MLIR_DIALECTS_ENABLE_TCP
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
       mlir::stablehlo::StablehloDialect,
@@ -55,8 +56,7 @@ int main(int argc, char **argv) {
       // Upstream dialects
       mlir::arith::ArithDialect, mlir::linalg::LinalgDialect,
       mlir::func::FuncDialect, mlir::memref::MemRefDialect,
-      mlir::scf::SCFDialect, mlir::tensor::TensorDialect,
-      mlir::quant::QuantizationDialect>();
+      mlir::scf::SCFDialect, mlir::tensor::TensorDialect>();
 
   mlir::torch_mlir_dialects::registerConversionPasses();
 
