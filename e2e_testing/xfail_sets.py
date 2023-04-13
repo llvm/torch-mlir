@@ -492,6 +492,7 @@ STABLEHLO_PASS_SET = {
     "MoveDimIntModule_basic",
     "MoveDimIntNegativeIndexModule_basic",
     "ConvolutionBackwardModule2DStatic_basic",
+    "ConvolutionBackwardModule2DStrided_basic",
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
 }
