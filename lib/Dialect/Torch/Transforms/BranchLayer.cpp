@@ -147,8 +147,6 @@ static void branchLayer(MLIRContext *context, Operation *f, int layer, int branc
   rewriter.replaceOp(convOp, newConv);
 }
 
-#include "macroUndef.h"
-
 namespace {
   class BranchLayerPass : public BranchLayerBase<BranchLayerPass> {
   public:

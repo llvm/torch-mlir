@@ -148,8 +148,6 @@ static void widenConvLayer(MLIRContext *context, Operation *f,int layer, int num
   rewriter.replaceValueTensorOp(oldKernelOp, kernelTensorType, kernelDense);
 }
 
-#include "macroUndef.h"
-
 
 namespace {
   class WidenConvLayerPass : public WidenConvLayerBase<WidenConvLayerPass> {

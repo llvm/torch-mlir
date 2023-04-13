@@ -95,7 +95,6 @@ static void insertSepraConv(MLIRContext *context, Operation *f, int layer) {
   rewriter.replaceOp(convOp, newConv);
 }
 
-#include "macroUndef.h"
 
 namespace {
   class InsertSepraConvPass : public InsertSepraConvBase<InsertSepraConvPass> {
