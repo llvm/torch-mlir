@@ -3565,6 +3565,32 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenLeTensorOp>::matchAndRewrite(
+    AtenLeTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+  auto otherType = adaptor.getOther().getType().dyn_cast<TensorType>();
+  if (!otherType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types condition are currently supported");
+
+  auto outType = getTypeConverter()->convertType(op.getType());
+
+  auto greaterOp = rewriter.create<tosa::GreaterOp>(
+      op.getLoc(), outType, adaptor.getSelf(), adaptor.getOther());
+
+  rewriter.replaceOpWithNewOp<tosa::LogicalNotOp>(op, outType,
+                                                  greaterOp.getOutput());
+
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
     AtenClampOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -4646,6 +4672,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenGatherOp);
     INSERT_ATENOP_PATTERN(AtenIndexTensorOp);
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
+    INSERT_ATENOP_PATTERN(AtenLeTensorOp);
     INSERT_ATENOP_PATTERN(AtenClampOp);
     INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
     INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
