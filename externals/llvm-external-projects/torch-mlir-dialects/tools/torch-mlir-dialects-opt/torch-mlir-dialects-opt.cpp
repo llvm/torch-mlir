@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Quant/QuantOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -54,7 +55,8 @@ int main(int argc, char **argv) {
       // Upstream dialects
       mlir::arith::ArithDialect, mlir::linalg::LinalgDialect,
       mlir::func::FuncDialect, mlir::memref::MemRefDialect,
-      mlir::scf::SCFDialect, mlir::tensor::TensorDialect>();
+      mlir::scf::SCFDialect, mlir::tensor::TensorDialect,
+      mlir::quant::QuantizationDialect>();
 
   mlir::torch_mlir_dialects::registerConversionPasses();
 

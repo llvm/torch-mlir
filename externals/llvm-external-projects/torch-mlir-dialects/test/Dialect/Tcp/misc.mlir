@@ -252,3 +252,20 @@ func.func @test_concat(%arg0: tensor<1x5xf32>, %arg1: tensor<5x5xf32>) -> tensor
   %0 = tcp.concat %arg0, %arg1 attributes {axis = 0 : i64} : tensor<1x5xf32>, tensor<5x5xf32> -> tensor<4x5xf32>
   return %0 : tensor<4x5xf32>
 }
+
+// -----
+// CHECK-LABEL:   func.func @test_per_tensor_quant_type
+// CHECK: tensor<?x?x!quant.uniform<i8:f32, 7.843100e-02:-12>>, tensor<?x?x!quant.uniform<i8:f32, 7.843100e-02:-12>> -> tensor<?x?x!quant.uniform<i8:f32, 7.843100e-02:-12>>
+func.func @test_per_tensor_quant_type(%0 : tensor<?x?x!quant.uniform<i8:f32, 0.078431:-12>>) -> tensor<?x?x!quant.uniform<i8:f32, 0.078431:-12>> {
+  %1 = tcp.add %0, %0 : tensor<?x?x!quant.uniform<i8:f32, 0.078431:-12>>, tensor<?x?x!quant.uniform<i8:f32, 0.078431:-12>> -> tensor<?x?x!quant.uniform<i8:f32, 0.078431:-12>>
+  return %1 : tensor<?x?x!quant.uniform<i8:f32, 0.078431:-12>>
+}
+
+// -----
+// CHECK-LABEL:   func.func @test_per_axis_quant_type
+// CHECK: tensor<3x?x?x!quant.uniform<i8<-127:127>:f32:0, {1.000000e-01,1.000000e-01,1.000000e-01}>>, tensor<3x?x?x!quant.uniform<i8<-127:127>:f32:0, {1.000000e-01,1.000000e-01,1.000000e-01}>> 
+// CHECK: -> tensor<3x?x?x!quant.uniform<i8<-127:127>:f32:0, {1.000000e-01,1.000000e-01,1.000000e-01}>>
+func.func @test_per_axis_quant_type(%0 : tensor<3x?x?x!quant.uniform<i8<-127:127>:f32:0, {0.1,0.1,0.1}>>) -> tensor<3x?x?x!quant.uniform<i8<-127:127>:f32:0, {0.1,0.1,0.1}>> {
+  %1 = tcp.add %0, %0 : tensor<3x?x?x!quant.uniform<i8<-127:127>:f32:0, {0.1,0.1,0.1}>>, tensor<3x?x?x!quant.uniform<i8<-127:127>:f32:0, {0.1,0.1,0.1}>> -> tensor<3x?x?x!quant.uniform<i8<-127:127>:f32:0, {0.1,0.1,0.1}>>
+  return %1 : tensor<3x?x?x!quant.uniform<i8<-127:127>:f32:0, {0.1,0.1,0.1}>>
+}
