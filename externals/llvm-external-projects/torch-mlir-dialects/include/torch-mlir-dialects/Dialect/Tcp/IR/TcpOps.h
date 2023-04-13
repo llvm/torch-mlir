@@ -11,6 +11,7 @@
 #define TORCH_MLIR_DIALECTS_DIALECT_TCP_IR_TCPOPS_H_
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Quant/QuantTypes.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"

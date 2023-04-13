@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Quant/QuantOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -47,6 +48,7 @@ int main(int argc, char **argv) {
       mlir::torch::TMTensor::TMTensorDialect,
 #ifdef TORCH_MLIR_DIALECTS_ENABLE_TCP
       mlir::tcp::TcpDialect,
+      mlir::quant::QuantizationDialect,
 #endif // TORCH_MLIR_DIALECTS_ENABLE_TCP
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
       mlir::stablehlo::StablehloDialect,

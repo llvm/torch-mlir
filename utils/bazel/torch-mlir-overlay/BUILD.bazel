@@ -833,6 +833,7 @@ cc_binary(
         ":TorchMLIRTorchPasses",
         "@llvm-project//mlir:AllPassesAndDialects",
         "@llvm-project//mlir:MlirOptLib",
+        "@llvm-project//mlir:QuantOps",
     ],
 )
 
@@ -900,6 +901,7 @@ cc_library(
         "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:DialectUtils",
         "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:QuantOps",
     ],
 )
 
