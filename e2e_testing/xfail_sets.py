@@ -27,10 +27,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "ConvolutionBackwardModule2DPadded_basic",
     "ConvolutionBackwardModule2D_basic",
 
-    # error: 'tensor.expand_shape' op expected dimension 0 of collapsed type to be dynamic since one or more of the corresponding dimensions in the expanded type is dynamic
-    # https://github.com/llvm/torch-mlir/issues/1859
-    "ConvolutionModule2DGroups_basic",
-
     # RuntimeError: Index tensor must have the same number of dimensions as self tensor
     # RuntimeError: Failed running call_function aten.nll_loss_backward(...
     # https://github.com/pytorch/pytorch/issues/89630
