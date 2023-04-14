@@ -26,47 +26,6 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
-static SmallPtrSet<Operation *, 16> getRNNHidenLayers(Operation *f) {
-  // return pointer set of AtenMmOp which represent hidden layer of RNN
-  // todo: is this useful? If RNN is simple, no need to use it, if RNN is
-  // complecated, this logic is unable to recignoize hidden layer at present
-
-  llvm::SmallPtrSet<Operation *, 16> opWorklist, filteredOpWorklist;
-  f->walk([&](Operation *op) {
-    if (isa<AtenMmOp>(op)) {
-      opWorklist.insert(op);
-    }
-  });
-
-  // filter duplicate recurrent part
-  auto it = opWorklist.begin();
-  auto oldShape =
-      (*it)->getResult(0).getType().cast<ValueTensorType>().getSizes().vec();
-  auto oldIt = it;
-  bool flag = false;
-  for (it++; it != opWorklist.end(); it++) {
-    auto shape =
-        (*it)->getResult(0).getType().cast<ValueTensorType>().getSizes().vec();
-    if (flag) {
-      if (shape == oldShape) {
-        filteredOpWorklist.insert(*it);
-      } else {
-        break;
-      }
-    } else {
-      if (shape == oldShape) {
-        flag = true;
-        filteredOpWorklist.insert(*oldIt);
-        filteredOpWorklist.insert(*it);
-      } else {
-        oldShape = shape;
-        oldIt = it;
-      }
-    }
-  }
-  return filteredOpWorklist;
-}
-
 static void maskSplit(MLIRContext *context,
                       SmallPtrSet<Operation *, 16> opWorklist,
                       int splitNumber) {

@@ -259,19 +259,29 @@ def InsertSkip : Pass<"torch-insert-skip", "func::FuncOp"> {
 def InsertRNN : Pass<"torch-insert-RNN", "func::FuncOp"> {
   let summary = "Insert a RNN into the network";
   let constructor = [{
-    mlir::torch::Torch::createInsertRNNPass()
+    mlir::torch::Torch::createInsertRNNPass(/*NumberOfRNN=*/5)
   }];
   let description = [{
   }];
+  let options = [
+    Option<"number", "number", "int", /*default=*/"5",
+           "RNN numbers">
+  ];
 }
 
 def InsertRNNWithZeros : Pass<"torch-insert-RNNWithZeros", "func::FuncOp"> {
   let summary = "Insert a RNNWithZeros into the network";
   let constructor = [{
-    mlir::torch::Torch::createInsertRNNWithZerosPass()
+    mlir::torch::Torch::createInsertRNNWithZerosPass(/*activationFunc=*/"", /*NumberOfRNN=*/5)
   }];
   let description = [{
   }];
+  let options = [
+    Option<"activationFunc", "activationFunc", "std::string", /*default=*/"",
+           "specify activationFunc to apply">,
+    Option<"number", "number", "int", /*default=*/"5",
+           "RNN numbers">
+  ];
 }
 
 def InsertMaxpool : Pass<"torch-insert-Maxpool", "func::FuncOp"> {
@@ -281,6 +291,19 @@ def InsertMaxpool : Pass<"torch-insert-Maxpool", "func::FuncOp"> {
   }];
   let description = [{
   }];
+}
+
+def InsertInception : Pass<"torch-insert-Inception", "func::FuncOp"> {
+  let summary = "Insert a Inception into the network";
+  let constructor = [{
+    mlir::torch::Torch::createInsertInceptionPass(/*NumberOfBranch=*/5)
+  }];
+  let description = [{
+  }];
+  let options = [
+    Option<"number", "number", "int", /*default=*/"5",
+           "Branch numbers">
+  ];
 }
 
 def InsertConv : Pass<"torch-insert-conv", "func::FuncOp"> {
