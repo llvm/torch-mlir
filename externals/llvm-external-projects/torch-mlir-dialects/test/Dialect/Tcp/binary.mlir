@@ -91,3 +91,4 @@ func.func @test_atan2_f32(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>) -> t
   %0 = tcp.atan2 %arg0, %arg1 : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
+
