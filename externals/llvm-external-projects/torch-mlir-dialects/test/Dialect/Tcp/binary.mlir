@@ -81,3 +81,13 @@ func.func @test_divf(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>) -> tensor
   %0 = tcp.divf %arg0, %arg1 : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
+
+// CHECK-LABEL: func.func @test_atan2_f32(
+// CHECK-SAME:          %[[ARG0:.*]]: tensor<?x?xf32>,
+// CHECK-SAME:          %[[ARG1:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:         %[[ATAN2:.*]] = tcp.atan2 %[[ARG0]], %[[ARG1]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         return %[[ATAN2]] : tensor<?x?xf32>
+func.func @test_atan2_f32(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = tcp.atan2 %arg0, %arg1 : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}

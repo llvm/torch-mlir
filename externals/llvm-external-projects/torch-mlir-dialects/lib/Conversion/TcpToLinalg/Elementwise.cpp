@@ -144,6 +144,10 @@ createLinalgPayloadForElementwiseOp(Operation *op,
     return {b.create<arith::NegFOp>(loc, payloadArgs[0])};
   }
 
+  if (isa<AtanOp>(op)) {
+    return {b.create<math::AtanOp>(loc, payloadArgs[0])};
+  }
+
   if (isa<AddOp>(op)) {
     if (elemType.isa<mlir::FloatType>())
       return {b.create<arith::AddFOp>(loc, payloadArgs[0], payloadArgs[1])};
@@ -177,6 +181,14 @@ createLinalgPayloadForElementwiseOp(Operation *op,
   if (isa<DivFOp>(op)) {
     if (elemType.isa<mlir::FloatType>())
       return {b.create<arith::DivFOp>(loc, payloadArgs[0], payloadArgs[1])};
+    else
+      llvm_unreachable(
+          "unsupported element type in createLinalgPayloadForElementwiseOp");
+  }
+
+  if (isa<Atan2Op>(op)) {
+    if (elemType.isa<mlir::FloatType>())
+      return {b.create<math::Atan2Op>(loc, payloadArgs[0], payloadArgs[1])};
     else
       llvm_unreachable(
           "unsupported element type in createLinalgPayloadForElementwiseOp");
@@ -243,4 +255,6 @@ void mlir::TcpToLinalg::populateElementwisePatternsAndLegality(
   patterns.add<ConvertElementwiseOp<AbsOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<LogOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<NegOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<AtanOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<Atan2Op>>(typeConverter, context);
 }
