@@ -414,3 +414,4 @@ func.func @torch.aten.atan2$rank0(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torc
   %0 = torch.aten.atan2 %arg0, %arg1 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[],f32> -> !torch.vtensor<[?,?],f32>
   return %0 : !torch.vtensor<[?,?],f32>
 }
+
