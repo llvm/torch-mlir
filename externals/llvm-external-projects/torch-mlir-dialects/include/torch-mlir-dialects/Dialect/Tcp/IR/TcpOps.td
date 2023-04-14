@@ -467,24 +467,6 @@ def Tcp_NegOp : Tcp_UnaryElementwiseOp<"neg"> {
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
 }
 
-def Tcp_AtanOp : Tcp_UnaryElementwiseOp<"atan"> {
-  let summary = "Computes the arcus tangent value of input, elementwise";
-
-  let description = [{
-    Computes elementwise arcus tangent value of the input tensor.
-  }];
-
-  let arguments = (ins
-    Tcp_FloatOrComplexTensor:$in
-  );
-
-  let results = (outs
-    Tcp_FloatOrComplexTensor:$out
-  );
-
-  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
-}
-
 def Tcp_Atan2Op : Tcp_BinaryElementwiseOp<"atan2", [SameOperandsAndResultElementType]> {
   let summary = "2-argument arcus tangent of the given values";
 

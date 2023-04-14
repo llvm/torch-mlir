@@ -29,12 +29,6 @@ using namespace mlir::torch::Torch;
 
 namespace {
 
-bool matchAtanOp(OperatorOp operatorOp) {
-  if (operatorOp.getName().str() == "aten.atan")
-    return true;
-  return false;
-}
-
 bool skipMultiplyAlpha(Value alphaValue) {
   double doubleValue;
   auto isFloat = matchPattern(alphaValue, m_TorchConstantFloat(&doubleValue));
@@ -388,31 +382,6 @@ public:
   }
 };
 
-class ConvertOperatorAtanOp : public OpConversionPattern<OperatorOp> {
-public:
-  using OpConversionPattern<OperatorOp>::OpConversionPattern;
-  using OpAdaptor = typename OperatorOp::Adaptor;
-
-  LogicalResult
-  matchAndRewrite(OperatorOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    if (!matchAtanOp(op))
-      return failure();
-
-    Value input = *adaptor.getOperands().begin();
-    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
-    if (!inputType)
-      return rewriter.notifyMatchFailure(
-          op, "Only Ranked Tensor types are supported in TCP");
-    if (!inputType.getElementType().isa<mlir::FloatType>())
-      return rewriter.notifyMatchFailure(
-          op, "Input tensor must have floating-point datatype");
-
-    rewriter.replaceOpWithNewOp<tcp::AtanOp>(op, inputType, input);
-    return success();
-  }
-};
-
 class ConvertAtenAtan2Op : public OpConversionPattern<AtenAtan2Op> {
 public:
   using OpConversionPattern<AtenAtan2Op>::OpConversionPattern;
@@ -506,10 +475,6 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
 
   target.addIllegalOp<AtenBatchNormOp>();
   patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
-
-  target.addDynamicallyLegalOp<OperatorOp>(
-      [](OperatorOp operatorOp) { return !matchAtanOp(operatorOp); });
-  patterns.add<ConvertOperatorAtanOp>(typeConverter, context);
 
   target.addIllegalOp<AtenAtan2Op>();
   patterns.add<ConvertAtenAtan2Op>(typeConverter, context);

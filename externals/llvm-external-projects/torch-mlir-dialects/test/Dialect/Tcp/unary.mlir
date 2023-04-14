@@ -172,14 +172,3 @@ func.func @test_neg_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
   %0 = tcp.neg %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
-
-// -----
-
-// CHECK-LABEL: func.func @test_atan_f32(
-// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32>
-// CHECK:         %[[ATAN:.*]] = tcp.atan %[[ARG]] : tensor<?x?xf32> -> tensor<?x?xf32>
-// CHECK:         return %[[ATAN]] : tensor<?x?xf32>
-func.func @test_atan_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
-  %0 = tcp.atan %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
-  return %0 : tensor<?x?xf32>
-}
