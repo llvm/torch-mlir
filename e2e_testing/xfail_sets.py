@@ -748,6 +748,7 @@ TOSA_PASS_SET = {
     "FullLikeModuleInt2DStatic_basic",
     "FullModuleInt3D_basic",
     "FullModuleFloat2D_basic",
+    "ElementwiseAbsModule_basic",
     "RepeatModule_basic",
     "ConstantPad2dStaticModule_basic",
     "ConstantPadNdModule_basic",
