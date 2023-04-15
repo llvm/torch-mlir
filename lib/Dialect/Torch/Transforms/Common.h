@@ -193,8 +193,8 @@ public:
   }
 };
 
-// **********************************macro for
-// pass******************************** handle param
+// *********************macro for pass********************************
+// handle param
 #define type_param(type, param) type param
 #define notype_param(type, param) param
 #define this_param(type, param) this->param

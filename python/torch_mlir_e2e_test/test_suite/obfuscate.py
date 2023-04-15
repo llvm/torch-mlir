@@ -60,8 +60,7 @@ def ObfuscateLeNet_widenConv(module, tu: TestUtils):
 
 
 @register_test_case(
-    module_factory=lambda: LeNet(), 
-    passes="func.func(torch-insert-conv)"
+    module_factory=lambda: LeNet(), passes="func.func(torch-insert-conv)"
 )
 def ObfuscateLeNet_insertConv(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 28, 28))
