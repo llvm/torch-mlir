@@ -45,4 +45,4 @@ static void InsertSkip(MLIRContext *context, Operation *f, int layer) {
   rewrite.replaceConvOp(skip);
 }
 
-use_pass(InsertSkip, 1, int, layer)
+use_pass(InsertSkip, 1, int, layer);

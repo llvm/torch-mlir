@@ -104,4 +104,4 @@ static void BranchLayer(MLIRContext *context, Operation *f, int layer,
   rewrite.replaceConvOp(catOp);
 }
 
-use_pass(BranchLayer, 2, int, layer, int, branch)
+use_pass(BranchLayer, 2, int, layer, int, branch);

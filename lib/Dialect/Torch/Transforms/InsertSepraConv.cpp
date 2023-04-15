@@ -42,4 +42,4 @@ static void InsertSepraConv(MLIRContext *context, Operation *f, int layer) {
   rewrite.replaceConvOp(oneConv);
 }
 
-use_pass(InsertSepraConv, 1, int, layer)
+use_pass(InsertSepraConv, 1, int, layer);

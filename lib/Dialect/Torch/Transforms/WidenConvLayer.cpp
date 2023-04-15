@@ -122,4 +122,4 @@ static void WidenConvLayer(MLIRContext *context, Operation *f, int layer,
   rewrite.replaceTensorOp(oldKernelTensor, shape, newKernelVec);
 }
 
-use_pass(WidenConvLayer, 2, int, layer, int, number)
+use_pass(WidenConvLayer, 2, int, layer, int, number);
