@@ -9,14 +9,15 @@
 
 #include "Common.h"
 
-// this demo insert a skip for the second convolution
+// insert a skip for convolution
 static void InsertSkip(MLIRContext *context, Operation *f, int layer) {
   // input test
-  input_assert(layer < 1,"layer > 0 \n")
+  input_assert(layer < 1, "layer > 0 \n");
   // get operations that you need
   OpList oplist;
   bool is_get = getConvOp(oplist, f, layer);
-  if (!is_get) return;
+  if (!is_get)
+    return;
   // get convolution operations
   auto it = oplist.begin();
   AtenConvolutionOp convOp = llvm::dyn_cast<AtenConvolutionOp>(*it);
@@ -38,10 +39,10 @@ static void InsertSkip(MLIRContext *context, Operation *f, int layer) {
   // add zero conv
   // Value float0 = rewrite.createFloatOp(0);
   Value int1 = rewrite.createIntOp(1);
-  Value skip = rewrite.createAddTensorOp(zeroConv.getType(), oldInput, zeroConv, int1);
+  Value skip =
+      rewrite.createAddTensorOp(zeroConv.getType(), oldInput, zeroConv, int1);
   // replace old conv
   rewrite.replaceConvOp(skip);
 }
 
 use_pass(InsertSkip, 1, int, layer)
-

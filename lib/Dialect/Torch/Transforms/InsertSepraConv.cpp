@@ -9,14 +9,15 @@
 
 #include "Common.h"
 
-// this demo insert a separable convolution
+// insert a separable convolution
 static void InsertSepraConv(MLIRContext *context, Operation *f, int layer) {
   // input test
-  input_assert(layer < 1,"layer > 0 \n")
+  input_assert(layer < 1, "layer > 0 \n");
   // get operations that you need
   OpList oplist;
   bool is_get = getConvOp(oplist, f, layer);
-  if (!is_get) return;
+  if (!is_get)
+    return;
   // get convolution operations
   auto it = oplist.begin();
   AtenConvolutionOp convOp = llvm::dyn_cast<AtenConvolutionOp>(*it);
