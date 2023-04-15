@@ -7,54 +7,30 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
-#include "mlir/IR/BuiltinDialect.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
-#include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
-#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/StringSet.h"
-
-
-using namespace mlir;
-using namespace mlir::torch;
-using namespace mlir::torch::Torch;
-
-#include "macroDef.h"
+#include "Common.h"
 
 // widen convolution layer
 // this demo widen two convolution by adding three channels
 // randomly copy channel to new channels
-static void widenConvLayer(MLIRContext *context, Operation *f,int layer, int number) {
+static void WidenConvLayer(MLIRContext *context, Operation *f,int layer, int number) {
   //input test
   input_assert(layer < 1,"layer > 0 \n")
   input_assert(number < 1,"number > 0 \n")
   // get operations between first two convolution(include convolutions)
-  llvm::SmallPtrSet<Operation *, 16> opWorklist;
-  int convLayer = layer;
-  f->walk(getMiddleOps(opWorklist,convLayer));
-  //input test
-  input_assert(convLayer > -1, "layer < max_layer(%d) \n", (layer-convLayer))
-
-  auto it = opWorklist.begin();
+  OpList oplist;
+  bool is_get = getConvMiddleOps(oplist, f, layer);
+  if (!is_get) return;
+  // get the first convolution
+  auto it = oplist.begin();
   AtenConvolutionOp convOp = llvm::dyn_cast<AtenConvolutionOp>(*it);
-  IRRewriter rewriter(context);
-  rewriter.setInsertionPoint(convOp);
-
-  //******************************widen conv1*****************************
-  Value oldKernel = convOp.getOperand(1);
-  Value oldBias = convOp.getOperand(2);
-  auto oldKernelOp = oldKernel.getDefiningOp<ValueTensorLiteralOp>();
-  auto oldBiasOp = oldBias.getDefiningOp<ValueTensorLiteralOp>();
-
-  //******************************get random channels*****************************
-  // kernel shape: out_channels, in_channels, height, width
-  auto shape = oldKernel.getShape();
+  // init rewrite
+  RewriteOp rewrite(context, convOp);
+  // get tensor
+  auto oldKernelTensor = rewrite.getKernelTensor();
+  auto oldBiasTensor = rewrite.getBiasTensor();
+  
+  // get random channels to copy
+  auto shape = rewrite.getKernelShape();
   std::vector<int> randomChannel(number);   //index of channel to copy
   std::vector<int> copyNumber(shape[0], 1); //number of copying every channel 
   srand(time(0));
@@ -64,69 +40,64 @@ static void widenConvLayer(MLIRContext *context, Operation *f,int layer, int num
     copyNumber[index] += 1;
   }
 
-  //******************************widen kernel of conv1*****************************
+  // widen kernel of the first convolution
   int channelSize = getChannelSize(shape);
   std::vector<float> kernelVec;
-  copyValueTensor(kernelVec, oldKernelOp)
-  // copy kernel
+  copyTensor(kernelVec, oldKernelTensor);
+  // copy kernel channel
   shape[0] = shape[0] + number;
   for (auto channel : randomChannel) {
     auto begin = channel * channelSize;
-    pushBackVec(kernelVec, kernelVec, begin, channelSize);
+    pushBackVec(kernelVec, begin, channelSize);
   }
-  // create a constant tensor of float type
-  auto kernelTensorType = getTensorType(context, shape, rewriter);
-  auto kernelDense = getDense(shape, rewriter, kernelVec);
-  rewriter.replaceValueTensorOp(oldKernelOp, kernelTensorType, kernelDense);
+  // replace old kernel tensor
+  rewrite.replaceTensorOp(oldKernelTensor, shape, kernelVec);
 
-  //******************************widen bias of conv1*****************************
-  shape = oldBias.getShape();
+  // widen bias of the first convolution
+  shape = rewrite.getBiasShape();
   std::vector<float> biasVec;
-  copyValueTensor(biasVec, oldBiasOp)
+  copyTensor(biasVec, oldBiasTensor);
   // copy bias
   shape[0] = shape[0] + number;
   for (auto channel : randomChannel) {
     biasVec.push_back(biasVec[channel]);
   }
-  // create a constant tensor of float type
-  auto biasTensorType = getTensorType(context, shape,rewriter);
-  auto biasDense = getDense(shape, rewriter, biasVec);
-  rewriter.replaceValueTensorOp(oldBiasOp, biasTensorType, biasDense);
+  // replace old bias tensor
+  rewrite.replaceTensorOp(oldBiasTensor, shape, biasVec);
 
-  //******************************widen middle ops*****************************
-  for (; it != opWorklist.end(); it = std::next(it)) {
-    // the last op is the second conv, which don't need change result shape
-    if (std::next(it) == opWorklist.end()) break;
+  // widen middle operations between first two convolution(not include the second conv)
+  for (; it != oplist.end(); it = std::next(it)) {
+    if (std::next(it) == oplist.end()) break;
     auto op = *it;
     auto opResult = op->getResult(0);
     auto tensorType = opResult.getType().dyn_cast<ValueTensorType>();
     if (tensorType) {
-      shape = opResult.getShape();
+      shape = getShape(opResult);
       shape[1] += number;
-      auto resultTensorType = getTensorType(context, shape, rewriter);
+      auto resultTensorType = rewrite.getValueTensorType(shape);
       opResult.setType(resultTensorType);
     }
   }
 
-  //******************************widen conv2*****************************
-  //only widen kernel, no need to widen bias
+  // widen kernel of the second convolution, only widen kernel, no need to widen bias
+
+  // get kernel information
   convOp = llvm::dyn_cast<AtenConvolutionOp>(*it);
-  oldKernel = convOp.getOperand(1);
-  oldKernelOp = oldKernel.getDefiningOp<ValueTensorLiteralOp>();
+  rewrite.setConvOp(convOp);
+  oldKernelTensor = rewrite.getKernelTensor();
  
-  //******************************widen kernel of conv2*****************************
+  // widen kernel of the first convolution
   kernelVec.clear();
-  copyValueTensor(kernelVec, oldKernelOp)
-  // kernel shape: out_channels, in_channels, height, width
-  shape = oldKernel.getShape();
+  copyTensor(kernelVec, oldKernelTensor);
+  shape = rewrite.getKernelShape();
   channelSize = getChannelSize(shape);
   // copy kernel
   int hwSize = shape[2] * shape[3];
   std::vector<float> newKernelVec;
-
+  // update and copy in_channels data for every out_channels 
   for (int i = 0; i < shape[0]; i++) {
     auto base = i * channelSize; 
-    // update in_channel data
+    // update
     for (int j = 0; j < shape[1]; j++) {
       if (copyNumber[j] == 1) continue;
       for (int k = 0; k < hwSize; k++) {
@@ -134,7 +105,7 @@ static void widenConvLayer(MLIRContext *context, Operation *f,int layer, int num
         kernelVec[index] /= copyNumber[j];
       }
     }
-    //copy in_channel data
+    //copy
     pushBackVec(newKernelVec, kernelVec, base, channelSize);
     for (auto channel : randomChannel) {
       auto begin = base + channel * hwSize;
@@ -142,31 +113,8 @@ static void widenConvLayer(MLIRContext *context, Operation *f,int layer, int num
     }
   }
   shape[1] = shape[1] + number;
-  // create a constant tensor of float type
-  kernelTensorType = getTensorType(context, shape, rewriter);
-  kernelDense = getDense(shape, rewriter, newKernelVec);
-  rewriter.replaceValueTensorOp(oldKernelOp, kernelTensorType, kernelDense);
+  // replace old kernel tensor
+  rewrite.replaceTensorOp(oldKernelTensor, shape, newKernelVec);
 }
 
-
-namespace {
-  class WidenConvLayerPass : public WidenConvLayerBase<WidenConvLayerPass> {
-  public:
-    WidenConvLayerPass() = default;
-    WidenConvLayerPass(int layer, int number) { 
-      this->layer = layer; 
-      this->number = number; 
-    }
-    void runOnOperation() override {
-      MLIRContext *context = &getContext();
-      auto f = getOperation();
-      widenConvLayer(context, f, this->layer, this->number);
-    }
-  };
-} // namespace
-
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createWidenConvLayerPass(int layer, int number) {
-  return std::make_unique<WidenConvLayerPass>(layer, number);
-}
-
+use_pass(WidenConvLayer, 2, int, layer, int, number)
