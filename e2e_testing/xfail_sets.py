@@ -905,6 +905,8 @@ TOSA_PASS_SET = {
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
     "DetachModule_basic",
+    "TensorsConcatStaticModule_basic",
+    "TensorsConcatNegativeDimStaticModule_basic",
 }
 
 LTC_XFAIL_SET = {
