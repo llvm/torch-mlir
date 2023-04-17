@@ -267,31 +267,31 @@ function _check_file_not_changed_by() {
 
 function test_in_tree() {
   echo ":::: Test in-tree"
-  cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all || true
+  cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all || true # TODO remove - here to see all potential failures
 
   cd /main_checkout/torch-mlir/
   export PYTHONPATH="/main_checkout/torch-mlir/build/tools/torch-mlir/python_packages/torch_mlir"
 
   echo ":::: Check that update_abstract_interp_lib.sh has been run"
-  _check_file_not_changed_by ./build_tools/update_abstract_interp_lib.sh lib/Dialect/Torch/Transforms/AbstractInterpLibrary.cpp || true
+  _check_file_not_changed_by ./build_tools/update_abstract_interp_lib.sh lib/Dialect/Torch/Transforms/AbstractInterpLibrary.cpp || true # TODO remove - here to see all potential failures
 
   echo ":::: Check that update_torch_ods.sh has been run"
-  _check_file_not_changed_by ./build_tools/update_torch_ods.sh include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td || true
+  _check_file_not_changed_by ./build_tools/update_torch_ods.sh include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td || true # TODO remove - here to see all potential failures
 
   echo ":::: Run Linalg e2e integration tests"
-  python -m e2e_testing.main --config=linalg -v || true
+  python -m e2e_testing.main --config=linalg -v || true # TODO remove - here to see all potential failures
 
   echo ":::: Run StableHLO e2e integration tests"
-  python -m e2e_testing.main --config=stablehlo -v || true
+  python -m e2e_testing.main --config=stablehlo -v || true # TODO remove - here to see all potential failures
 
   echo ":::: Run TOSA e2e integration tests"
-  python -m e2e_testing.main --config=tosa -v || true
+  python -m e2e_testing.main --config=tosa -v || true # TODO remove - here to see all potential failures
 
   echo ":::: Run Lazy Tensor Core e2e integration tests"
-  python -m e2e_testing.main --config=lazy_tensor_core -v || true
+  python -m e2e_testing.main --config=lazy_tensor_core -v || true # TODO remove - here to see all potential failures
 
   echo ":::: Run TorchDynamo e2e integration tests"
-  python -m e2e_testing.main --config=torchdynamo -v || true
+  python -m e2e_testing.main --config=torchdynamo -v || true # TODO remove - here to see all potential failures
 }
 
 function setup_venv() {
