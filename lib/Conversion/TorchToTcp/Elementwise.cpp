@@ -20,8 +20,6 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
-#include <iostream>
-
 using namespace mlir;
 using namespace mlir::tcp;
 using namespace mlir::torch;
