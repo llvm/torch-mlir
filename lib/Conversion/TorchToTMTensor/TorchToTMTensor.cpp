@@ -242,6 +242,60 @@ static Value createTMTensorScanOp(
   return scanOp->getResult(0);
 }
 
+// Utility function to create a TMTensor::SortOp.
+static FailureOr<SmallVector<Value>>
+createTMTensorSortOp(PatternRewriter &rewriter, Location sortOpLoc,
+                     llvm::ArrayRef<Value> operands,
+                     llvm::ArrayRef<Type> elementTypes, int64_t dimension,
+                     bool isStable, bool isDescending) {
+  // Step 1. Create TMTensor::SortOp structure.
+  SmallVector<Type> sortResultTypes;
+  for (Value val : operands) {
+    sortResultTypes.push_back(val.getType());
+  }
+  ValueRange inputs;
+  auto sortOp = rewriter.create<TMTensor::SortOp>(
+      sortOpLoc, sortResultTypes, inputs, operands,
+      rewriter.getI64IntegerAttr(dimension));
+
+  // Step 2. Add two arguments for each element type in the SortOp's block.
+  Region *body = &sortOp.getRegion();
+  Block *block = rewriter.createBlock(body);
+  Location loc = body->getLoc();
+  for (Type elementType : elementTypes) {
+    block->addArguments({elementType, elementType},
+                        SmallVector<Location, 2>(2, loc));
+  }
+
+  // Step 3. Create comparison op which will be used as the sorting predicate.
+  Value compareOp;
+  if (auto intType = elementTypes[0].dyn_cast<mlir::IntegerType>()) {
+    // Case for using arith::CmpIOp.
+    arith::CmpIPredicate ge = arith::CmpIPredicate::sge;
+    arith::CmpIPredicate le = arith::CmpIPredicate::sle;
+    if (intType.isUnsignedInteger()) {
+      ge = arith::CmpIPredicate::uge;
+      le = arith::CmpIPredicate::ule;
+    }
+    arith::CmpIPredicate predicate = isDescending ? ge : le;
+    compareOp = rewriter.create<arith::CmpIOp>(
+        loc, predicate, block->getArgument(0), block->getArgument(1));
+  } else if (elementTypes[0].isa<mlir::FloatType>()) {
+    // Case for using arith::CmpFOp.
+    arith::CmpFPredicate predicate =
+        isDescending ? arith::CmpFPredicate::OGE : arith::CmpFPredicate::OLE;
+    compareOp = rewriter.create<arith::CmpFOp>(
+        loc, predicate, block->getArgument(0), block->getArgument(1));
+  } else {
+    return rewriter.notifyMatchFailure(
+        sortOpLoc, "Only Integer and Floating element type expected.");
+  }
+
+  // Step 4. Create yield op for yielding the sorting predicate.
+  rewriter.create<TMTensor::YieldOp>(loc, compareOp);
+  return SmallVector<Value>(sortOp.getResults());
+}
+
 namespace {
 // aten::bincount op counts the frequency of each value in a 1-d input tensor of
 // non-negative ints.
@@ -1298,6 +1352,93 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenSortOp : public OpConversionPattern<AtenSortOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenSortOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+
+    // Step 1. Fetch Input to sort.
+    Value inputTensor = adaptor.getSelf();
+    auto inputType = inputTensor.getType().cast<RankedTensorType>();
+    unsigned inputRank = inputType.getRank();
+
+    // Step 2. Fetch dimension to perform sort in.
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only constant dim value is supported");
+    dim = toPositiveDim(dim, inputRank);
+    if (!isValidDim(dim, inputRank)) {
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+    }
+
+    // Step 3. Fetch the order of sorting.
+    bool descending;
+    if (!matchPattern(op.getDescending(), m_TorchConstantBool(&descending)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only constant descending value is supported");
+
+    // Step 4. Form a RankedTensorType with same shape as that of the input's
+    //         but with elemental type i64.
+    RankedTensorType indicesType =
+        RankedTensorType::get(inputType.getShape(), rewriter.getI64Type());
+
+    // Step 5. Generate indices tensor.
+    SmallVector<Value> dynDims;
+    for (unsigned i = 0; i < inputType.getRank(); i++) {
+      if (inputType.isDynamicDim(i)) {
+        dynDims.push_back(rewriter.create<tensor::DimOp>(loc, inputTensor, i));
+      }
+    }
+    Value initEmptyTensor = rewriter.create<tensor::EmptyOp>(
+        loc, inputType.getShape(), rewriter.getI64Type(), dynDims);
+
+    SmallVector<AffineMap> indexingMaps = {
+        AffineMap::getMultiDimIdentityMap(inputRank, op.getContext())};
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
+    Value indicesTensor =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, initEmptyTensor.getType(), ValueRange{}, initEmptyTensor,
+                indexingMaps, iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value index = b.create<linalg::IndexOp>(loc, dim);
+                  index = castIndexToInt64(b, loc, index);
+                  b.create<linalg::YieldOp>(loc, index);
+                })
+            .getResult(0);
+
+    // Step 6. Create TMTensor::SortOp.
+    SmallVector<Value> operands;
+    operands.push_back(inputTensor);
+    operands.push_back(indicesTensor);
+    SmallVector<Type> elementTypes;
+    elementTypes.push_back(inputType.getElementType());
+    elementTypes.push_back(indicesType.getElementType());
+
+    // The default value for aten.sort op's `stable` parameter is `false`.
+    // Refer: https://pytorch.org/docs/stable/generated/torch.sort.html
+    FailureOr<SmallVector<Value>> sortOpValues =
+        createTMTensorSortOp(rewriter, loc, operands, elementTypes,
+                             /*dimension=*/dim, /*isStable=*/false,
+                             /*isDescending=*/descending);
+    if (failed(sortOpValues))
+      return rewriter.notifyMatchFailure(
+          loc, "Only Integer and Floating element type expected.");
+
+    auto sortOpVal = *sortOpValues;
+    rewriter.replaceOp(op, sortOpVal);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenCumsumOp : public OpConversionPattern<AtenCumsumOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -1391,6 +1532,8 @@ public:
                                                             context);
     target.addIllegalOp<AtenScatterReduceTwoOp>();
     patterns.add<ConvertAtenScatterReduceTwoOp>(typeConverter, context);
+    target.addIllegalOp<AtenSortOp>();
+    patterns.add<ConvertAtenSortOp>(typeConverter, context);
     target.addIllegalOp<AtenCumsumOp>();
     patterns.add<ConvertAtenCumsumOp>(typeConverter, context);
 

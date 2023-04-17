@@ -72,6 +72,7 @@ jobs:
       uses: actions/checkout@v3
       with:
         submodules: 'true'
+        fetch-depth: 0
 
     - name: Fetch PyTorch commit hash
       if: ${{ matrix.os-arch != 'windows-x86_64' }}

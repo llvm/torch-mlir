@@ -1146,6 +1146,8 @@ OpFoldResult AtenSizeIntOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   ArrayRef<int64_t> sizes = type->getSizes();
   dim = toPositiveDim(dim, sizes.size());
+  if (!isValidDim(dim, sizes.size()))
+    return nullptr;
   return IntegerAttr::get(IntegerType::get(getContext(), 64), sizes[dim]);
 }
 

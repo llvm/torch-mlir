@@ -79,6 +79,10 @@ public:
     int64_t dim;
     if (!matchPattern(dimValue, m_TorchConstantInt(&dim)))
       return op.emitError("unimplemented: dim is not constant");
+    int64_t inputRank = adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
+    dim = toPositiveDim(dim, inputRank);
+    if (!isValidDim(dim, inputRank))
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
     Value indices = adaptor.getIndex();
     Value self = adaptor.getSelf();
@@ -476,6 +480,9 @@ public:
     int64_t dimInt;
     if (!matchPattern(op.getDim(), m_TorchConstantInt(&dimInt)))
       return op->emitError("unimplemented: dim is not constant");
+    dimInt = toPositiveDim(dimInt, inputRank);
+    if (!isValidDim(dimInt, inputRank))
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
     SmallVector<Value> resultShape = getTensorSizes(rewriter, loc, input);
     resultShape[dimInt] = getTensorSizes(rewriter, loc, indices)[0];

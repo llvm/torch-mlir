@@ -1188,6 +1188,22 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
+  // aten.sort produces two Tensor outputs. The first one is the sorted Tensor
+  // which will have the dtype same as that of the input Tensor, while the last
+  // Tensor comprises of sorted item's indices corresponding to the input
+  // Tensor.
+  if (auto sortOp = dyn_cast<AtenSortOp>(op)) {
+    auto input = operands[0]->getValue();
+    auto knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    knowledge.dtype = input.dtype;
+    incorporateKnowledge(op->getResult(0), knowledge);
+    Type i64Type = IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+    knowledge.dtype = i64Type;
+    incorporateKnowledge(op->getResult(1), knowledge);
+    return;
+  }
+
   if (auto randnGenerator = dyn_cast<AtenRandnGeneratorOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());

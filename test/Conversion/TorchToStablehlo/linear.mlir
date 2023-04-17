@@ -360,11 +360,12 @@ func.func @torch.aten.convolution$bias(%arg0: !torch.vtensor<[?,?,?,?],f32>, %ar
 // CHECK:           %[[T_2:.*]] = torch_c.to_i64 %int1
 // CHECK:           %[[T_3:.*]] = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_4:.*]] = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[T_5:.*]] = stablehlo.reverse %[[T_1]], dims = [2, 3] : tensor<2x4x3x3xf32>
-// CHECK:           %[[T_6:.*]] = stablehlo.convolution(%[[T_0]], %[[T_5]])
-// CHECK{LITERAL}:                   dim_numbers = [b, f, 0, 1]x[i, o, 0, 1]->[b, f, 0, 1], window = {stride = [1, 1], pad = [[2, 2], [2, 2]], lhs_dilate = [1, 1], rhs_dilate = [1, 1]} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x2x7x7xf32>, tensor<2x4x3x3xf32>) -> tensor<1x4x9x9xf32>
-// CHECK:           %[[T_7:.*]] = torch_c.from_builtin_tensor %[[T_6]] : tensor<1x4x9x9xf32> -> !torch.vtensor<[1,4,9,9],f32>
-// CHECK:           return %[[T_7]] : !torch.vtensor<[1,4,9,9],f32>
+// CHECK:           %[[T_5:.*]] = stablehlo.transpose %[[T_1]], dims = [2, 3, 1, 0] : (tensor<2x4x3x3xf32>) -> tensor<3x3x4x2xf32>
+// CHECK:           %[[T_6:.*]] = stablehlo.reverse %[[T_5]], dims = [0, 1] : tensor<3x3x4x2xf32>
+// CHECK:           %[[T_7:.*]] = stablehlo.convolution(%[[T_0]], %[[T_6]])
+// CHECK{LITERAL}:                   dim_numbers = [b, f, 0, 1]x[0, 1, o, i]->[b, f, 0, 1], window = {stride = [1, 1], pad = [[2, 2], [2, 2]], lhs_dilate = [1, 1], rhs_dilate = [1, 1]} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x2x7x7xf32>, tensor<3x3x4x2xf32>) -> tensor<1x4x9x9xf32>
+// CHECK:           %[[T_8:.*]] = torch_c.from_builtin_tensor %[[T_7]] : tensor<1x4x9x9xf32> -> !torch.vtensor<[1,4,9,9],f32>
+// CHECK:           return %[[T_8]] : !torch.vtensor<[1,4,9,9],f32>
 func.func @torch.aten.convolution$transposed_basic(%arg0: !torch.vtensor<[1,2,7,7],f32>, %arg1: !torch.vtensor<[2,4,3,3],f32>) -> !torch.vtensor<[1,4,9,9],f32> {
   %true = torch.constant.bool true
   %none = torch.constant.none
@@ -392,11 +393,12 @@ func.func @torch.aten.convolution$transposed_basic(%arg0: !torch.vtensor<[1,2,7,
 // CHECK:           %[[T_3:.*]] = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_4:.*]] = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_5:.*]] = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[T_6:.*]] = stablehlo.reverse %1, dims = [2, 3] : tensor<2x4x3x3xf32>
-// CHECK:           %[[T_7:.*]] = stablehlo.convolution(%[[T_0]], %[[T_6]])
-// CHECK{LITERAL}:         dim_numbers = [b, f, 0, 1]x[i, o, 0, 1]->[b, f, 0, 1], window = {stride = [1, 1], pad = [[2, 2], [2, 2]], lhs_dilate = [2, 2], rhs_dilate = [1, 1]} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x2x7x7xf32>, tensor<2x4x3x3xf32>) -> tensor<1x4x15x15xf32>
-// CHECK:           %[[T_8:.*]] = torch_c.from_builtin_tensor %[[T_7]] : tensor<1x4x15x15xf32> -> !torch.vtensor<[1,4,15,15],f32>
-// CHECK:           return %[[T_8]] : !torch.vtensor<[1,4,15,15],f32>
+// CHECK:           %[[T_6:.*]] = stablehlo.transpose %[[T_1]], dims = [2, 3, 1, 0] : (tensor<2x4x3x3xf32>) -> tensor<3x3x4x2xf32>
+// CHECK:           %[[T_7:.*]] = stablehlo.reverse %[[T_6]], dims = [0, 1] : tensor<3x3x4x2xf32>
+// CHECK:           %[[T_8:.*]] = stablehlo.convolution(%[[T_0]], %[[T_7]])
+// CHECK{LITERAL}:         dim_numbers = [b, f, 0, 1]x[0, 1, o, i]->[b, f, 0, 1], window = {stride = [1, 1], pad = [[2, 2], [2, 2]], lhs_dilate = [2, 2], rhs_dilate = [1, 1]} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x2x7x7xf32>, tensor<3x3x4x2xf32>) -> tensor<1x4x15x15xf32>
+// CHECK:           %[[T_9:.*]] = torch_c.from_builtin_tensor %[[T_8]] : tensor<1x4x15x15xf32> -> !torch.vtensor<[1,4,15,15],f32>
+// CHECK:           return %[[T_9]] : !torch.vtensor<[1,4,15,15],f32>
 func.func @torch.aten.convolution$transposed_stride(%arg0: !torch.vtensor<[1,2,7,7],f32>, %arg1: !torch.vtensor<[2,4,3,3],f32>) -> !torch.vtensor<[1,4,15,15],f32> {
   %true = torch.constant.bool true
   %none = torch.constant.none
@@ -426,13 +428,12 @@ func.func @torch.aten.convolution$transposed_stride(%arg0: !torch.vtensor<[1,2,7
 // CHECK:           %[[T_3:.*]] = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_4:.*]] = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_5:.*]] = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[T_6:.*]] = stablehlo.reverse %[[T_1]], dims = [2, 3] : tensor<2x4x3x3xf32>
-// CHECK:           %[[T_7:.*]] = stablehlo.convolution(%[[T_0]], %[[T_6]])
-// CHECK{LITERAL}:           dim_numbers = [b, f, 0, 1]x[i, o, 0, 1]->[b, f, 0, 1], window = {stride = [1, 1], pad = [[2, 2], [2, 2]], lhs_dilate = [2, 2], rhs_dilate = [1, 1]} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x2x7x7xf32>, tensor<2x4x3x3xf32>) -> tensor<1x4x15x15xf32>
-// CHECK:           %[[T_8:.*]] = stablehlo.constant dense<0.000000e+00> : tensor<f32>
-// CHECK:           %[[T_9:.*]] = stablehlo.pad %[[T_7]], %[[T_8]], low = [0, 0, 0, 0], high = [0, 0, 1, 1], interior = [0, 0, 0, 0] : (tensor<1x4x15x15xf32>, tensor<f32>) -> tensor<1x4x16x16xf32>
-// CHECK:           %[[T_10:.*]] = torch_c.from_builtin_tensor %[[T_9:.*]] : tensor<1x4x16x16xf32> -> !torch.vtensor<[1,4,16,16],f32>
-// CHECK:           return %[[T_10]] : !torch.vtensor<[1,4,16,16],f32>
+// CHECK:           %[[T_6:.*]] = stablehlo.transpose %[[T_1]], dims = [2, 3, 1, 0] : (tensor<2x4x3x3xf32>) -> tensor<3x3x4x2xf32>
+// CHECK:           %[[T_7:.*]] = stablehlo.reverse %[[T_6]], dims = [0, 1] : tensor<3x3x4x2xf32>
+// CHECK:           %[[T_8:.*]] = stablehlo.convolution(%[[T_0]], %[[T_7]])
+// CHECK{LITERAL}:           dim_numbers = [b, f, 0, 1]x[0, 1, o, i]->[b, f, 0, 1], window = {stride = [1, 1], pad = [[2, 3], [2, 3]], lhs_dilate = [2, 2], rhs_dilate = [1, 1]} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x2x7x7xf32>, tensor<3x3x4x2xf32>) -> tensor<1x4x16x16xf32>
+// CHECK:           %[[T_9:.*]] = torch_c.from_builtin_tensor %[[T_8:.*]] : tensor<1x4x16x16xf32> -> !torch.vtensor<[1,4,16,16],f32>
+// CHECK:           return %[[T_9]] : !torch.vtensor<[1,4,16,16],f32>
 func.func @torch.aten.convolution$transposed_outputpadding(%arg0: !torch.vtensor<[1,2,7,7],f32>, %arg1: !torch.vtensor<[2,4,3,3],f32>) -> !torch.vtensor<[1,4,16,16],f32> {
   %true = torch.constant.bool true
   %none = torch.constant.none
@@ -462,31 +463,32 @@ func.func @torch.aten.convolution$transposed_outputpadding(%arg0: !torch.vtensor
 // CHECK:           %[[T_3:.*]] = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_4:.*]] = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_5:.*]] = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[T_6:.*]] = stablehlo.reverse %1, dims = [2, 3] : tensor<2x2x3x3xf32>
-// CHECK:           %[[IDX_0:.*]] = arith.constant 0 : index
-// CHECK:           %[[T_7:.*]] = tensor.dim %[[T_6]], %[[IDX_0]] : tensor<2x2x3x3xf32>
-// CHECK:           %[[T_8:.*]] = arith.index_cast %[[T_7]] : index to i64
-// CHECK:           %[[IDX_1:.*]] = arith.constant 1 : index
-// CHECK:           %[[T_9:.*]] = tensor.dim %[[T_6]], %[[IDX_1]] : tensor<2x2x3x3xf32>
-// CHECK:           %[[T_10:.*]] = arith.index_cast %[[T_9]] : index to i64
-// CHECK:           %[[IDX_2:.*]] = arith.constant 2 : index
-// CHECK:           %[[T_11:.*]] = tensor.dim %[[T_6]], %[[IDX_2]] : tensor<2x2x3x3xf32>
-// CHECK:           %[[T_12:.*]] = arith.index_cast %[[T_11]] : index to i64
-// CHECK:           %[[IDX_3:.*]] = arith.constant 3 : index
-// CHECK:           %[[T_13:.*]] = tensor.dim %[[T_6]], %[[IDX_3]] : tensor<2x2x3x3xf32>
-// CHECK:           %[[T_14:.*]] = arith.index_cast %[[T_13]] : index to i64
-// CHECK:           %[[T_24:.*]] = arith.constant 2 : i64
-// CHECK:           %[[T_15:.*]] = arith.divsi %[[T_8]], %[[T_24]] : i64
-// CHECK:           %[[T_16:.*]] = arith.muli %[[T_10]], %[[T_24]] : i64
-// CHECK:           %[[T_17:.*]] = tensor.from_elements %[[T_24]], %[[T_15]], %[[T_10]], %[[T_12]], %[[T_14]] : tensor<5xi64>
-// CHECK:           %[[T_18:.*]] = stablehlo.dynamic_reshape %[[T_6]], %[[T_17]] : (tensor<2x2x3x3xf32>, tensor<5xi64>) -> tensor<2x1x2x3x3xf32>
-// CHECK:           %[[T_19:.*]] = stablehlo.transpose %[[T_18]], dims = [1, 0, 2, 3, 4] : (tensor<2x1x2x3x3xf32>) -> tensor<1x2x2x3x3xf32>
-// CHECK:           %[[T_20:.*]] = tensor.from_elements %[[T_15]], %[[T_16]], %[[T_12]], %[[T_14]] : tensor<4xi64>
-// CHECK:           %[[T_21:.*]] = stablehlo.dynamic_reshape %[[T_19]], %[[T_20]] : (tensor<1x2x2x3x3xf32>, tensor<4xi64>) -> tensor<1x4x3x3xf32>
-// CHECK:           %[[T_22:.*]] = stablehlo.convolution(%[[T_0]], %[[T_21]])
-// CHECK{LITERAL}:           dim_numbers = [b, f, 0, 1]x[i, o, 0, 1]->[b, f, 0, 1], window = {stride = [1, 1], pad = [[2, 2], [2, 2]], lhs_dilate = [2, 2], rhs_dilate = [1, 1]} {batch_group_count = 1 : i64, feature_group_count = 2 : i64} : (tensor<1x2x7x7xf32>, tensor<1x4x3x3xf32>) -> tensor<1x4x15x15xf32>
-// CHECK:           %[[T_23:.*]] = torch_c.from_builtin_tensor %[[T_22]] : tensor<1x4x15x15xf32> -> !torch.vtensor<[1,4,15,15],f32>
-// CHECK:           return %[[T_23]] : !torch.vtensor<[1,4,15,15],f32>
+// CHECK:           %[[T_6:.*]] = stablehlo.transpose %[[T_1]], dims = [2, 3, 1, 0] : (tensor<2x2x3x3xf32>) -> tensor<3x3x2x2xf32>
+// CHECK:           %[[T_7:.*]] = stablehlo.reverse %6, dims = [0, 1] : tensor<3x3x2x2xf32>
+// CHECK:           %c0 = arith.constant 0 : index
+// CHECK:           %dim = tensor.dim %[[T_7]], %c0 : tensor<3x3x2x2xf32>
+// CHECK:           %[[T_8:.*]] = arith.index_cast %dim : index to i64
+// CHECK:           %c1 = arith.constant 1 : index
+// CHECK:           %dim_0 = tensor.dim %[[T_7]], %c1 : tensor<3x3x2x2xf32>
+// CHECK:           %[[T_9:.*]] = arith.index_cast %dim_0 : index to i64
+// CHECK:           %c2 = arith.constant 2 : index
+// CHECK:           %dim_1 = tensor.dim %[[T_7]], %c2 : tensor<3x3x2x2xf32>
+// CHECK:           %[[T_10:.*]] = arith.index_cast %dim_1 : index to i64
+// CHECK:           %c3 = arith.constant 3 : index
+// CHECK:           %dim_2 = tensor.dim %[[T_7]], %c3 : tensor<3x3x2x2xf32>
+// CHECK:           %[[T_11:.*]] = arith.index_cast %dim_2 : index to i64
+// CHECK:           %c2_i64 = arith.constant 2 : i64
+// CHECK:           %[[T_12:.*]] = arith.divsi %[[T_11]], %c2_i64 : i64
+// CHECK:           %[[T_13:.*]] = arith.muli %[[T_10]], %c2_i64 : i64
+// CHECK:           %from_elements = tensor.from_elements %[[T_8]], %[[T_9]], %[[T_10]], %c2_i64, %[[T_12]] : tensor<5xi64>
+// CHECK:           %[[T_14:.*]] = stablehlo.dynamic_reshape %[[T_7]], %from_elements : (tensor<3x3x2x2xf32>, tensor<5xi64>) -> tensor<3x3x2x2x1xf32>
+// CHECK:           %[[T_15:.*]] = stablehlo.transpose %[[T_14]], dims = [0, 1, 3, 2, 4] : (tensor<3x3x2x2x1xf32>) -> tensor<3x3x2x2x1xf32>
+// CHECK:           %from_elements_3 = tensor.from_elements %[[T_8]], %[[T_9]], %[[T_13]], %[[T_12]] : tensor<4xi64>
+// CHECK:           %[[T_16:.*]] = stablehlo.dynamic_reshape %[[T_15]], %from_elements_3 : (tensor<3x3x2x2x1xf32>, tensor<4xi64>) -> tensor<3x3x4x1xf32>
+// CHECK:           %[[T_17:.*]] = stablehlo.convolution(%[[T_0]], %[[T_16]]) 
+// CHECK{LITERAL}:          dim_numbers = [b, f, 0, 1]x[0, 1, o, i]->[b, f, 0, 1], window = {stride = [1, 1], pad = [[2, 2], [2, 2]], lhs_dilate = [2, 2], rhs_dilate = [1, 1]} {batch_group_count = 1 : i64, feature_group_count = 2 : i64} : (tensor<1x2x7x7xf32>, tensor<3x3x4x1xf32>) -> tensor<1x4x15x15xf32>
+// CHECK:           %[[T_18:.*]] = torch_c.from_builtin_tensor %[[T_17]] : tensor<1x4x15x15xf32> -> !torch.vtensor<[1,4,15,15],f32>
+// CHECK:           return %[[T_18]] : !torch.vtensor<[1,4,15,15],f32>
 func.func @torch.aten.convolution$transposed_groups(%arg0: !torch.vtensor<[1,2,7,7],f32>, %arg1: !torch.vtensor<[2,2,3,3],f32>) -> !torch.vtensor<[1,4,15,15],f32> {
   %true = torch.constant.bool true
   %none = torch.constant.none

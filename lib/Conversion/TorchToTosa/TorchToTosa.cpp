@@ -717,6 +717,12 @@ class ConvertAtenMultipleDimsReductionOp
       return rewriter.notifyMatchFailure(op,
                                          "non-const dim parameter unsupported");
     int64_t N = reduceDims.size();
+    int64_t inputRank = adaptor.getSelf().getType().template cast<RankedTensorType>().getRank();
+    for (unsigned i=0; i<N; i++) {
+      reduceDims[i] = toPositiveDim(reduceDims[i], inputRank);
+      if (!isValidDim(reduceDims[i], inputRank))
+        return rewriter.notifyMatchFailure(op, "reduce dim is statically invalid");
+    }
     auto reduceDimsType = RankedTensorType::get({N}, rewriter.getI64Type());
     reduceDimsAttr =
         DenseIntElementsAttr::get(reduceDimsType, llvm::ArrayRef(reduceDims));
@@ -747,6 +753,10 @@ class ConvertAtenOneDimReductionOp
     if (!matchPattern(op.getDim(), m_TorchConstantInt(&reduceDim)))
       return rewriter.notifyMatchFailure(op,
                                          "non-const dim parameter unsupported");
+    int64_t inputRank = adaptor.getSelf().getType().template cast<RankedTensorType>().getRank();
+    reduceDim = toPositiveDim(reduceDim, inputRank);
+    if (!isValidDim(reduceDim, inputRank))
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
     auto reduceDimsType = RankedTensorType::get({1}, rewriter.getI64Type());
     reduceDimsAttr =
         DenseIntElementsAttr::get(reduceDimsType, llvm::ArrayRef({reduceDim}));
@@ -806,6 +816,11 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&reduceDim))) {
     // NoneType indicates reduce on all dims
     reduceDim = -1;
+  } else {
+    int64_t inputRank = selfTy.getRank();
+    reduceDim = toPositiveDim(reduceDim, inputRank);
+    if (!isValidDim(reduceDim, inputRank))
+      return rewriter.notifyMatchFailure(op, "reduce dim is statically invalid");
   }
 
   bool keepDim = false;
@@ -3544,6 +3559,22 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenAbsOp>::matchAndRewrite(
+    AtenAbsOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // Not a tensor type.
+  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+
+  auto outType = getTypeConverter()->convertType(op.getType());
+  rewriter.replaceOpWithNewOp<tosa::AbsOp>(op, outType, adaptor.getSelf());
+
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
     AtenWhereSelfOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -3562,6 +3593,32 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
   rewriter.replaceOpWithNewOp<tosa::SelectOp>(
       op, outType, adaptor.getCondition(), adaptor.getSelf(),
       adaptor.getOther());
+
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenLeTensorOp>::matchAndRewrite(
+    AtenLeTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+  auto otherType = adaptor.getOther().getType().dyn_cast<TensorType>();
+  if (!otherType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types condition are currently supported");
+
+  auto outType = getTypeConverter()->convertType(op.getType());
+
+  auto greaterOp = rewriter.create<tosa::GreaterOp>(
+      op.getLoc(), outType, adaptor.getSelf(), adaptor.getOther());
+
+  rewriter.replaceOpWithNewOp<tosa::LogicalNotOp>(op, outType,
+                                                  greaterOp.getOutput());
 
   return success();
 }
@@ -4647,7 +4704,9 @@ public:
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
     INSERT_ATENOP_PATTERN(AtenGatherOp);
     INSERT_ATENOP_PATTERN(AtenIndexTensorOp);
+    INSERT_ATENOP_PATTERN(AtenAbsOp);
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
+    INSERT_ATENOP_PATTERN(AtenLeTensorOp);
     INSERT_ATENOP_PATTERN(AtenClampOp);
     INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
     INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);

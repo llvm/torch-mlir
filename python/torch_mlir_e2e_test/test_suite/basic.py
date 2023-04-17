@@ -744,6 +744,29 @@ def GatherModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class GatherNegativeDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, tensor, indices):
+        return torch.gather(tensor, -1, indices)
+
+
+@register_test_case(module_factory=lambda: GatherNegativeDimModule())
+def GatherNegativeDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4), torch.tensor([[[1, 2, 3], [1, 2, 3]]]))
+
+
+# ==============================================================================
+
+
 class GatherRandomIndexModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -3382,6 +3405,100 @@ class SortIntListReverse(torch.nn.Module):
 @register_test_case(module_factory=lambda: SortIntListReverse())
 def SortIntListReverse_basic(module, tu: TestUtils):
     module.forward()
+
+# ==============================================================================
+
+
+class SortTensor(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True)
+    ])
+    def forward(self, input):
+        return torch.sort(input)
+
+
+@register_test_case(module_factory=lambda: SortTensor())
+def SortTensor_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+class SortTensorInteger(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True)
+    ])
+    def forward(self, input):
+        return torch.sort(input)
+
+
+@register_test_case(module_factory=lambda: SortTensorInteger())
+def SortTensorInteger_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 3))
+
+
+class SortTensorDescending(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True)
+    ])
+    def forward(self, input):
+        return torch.sort(input, descending=True)
+
+
+@register_test_case(module_factory=lambda: SortTensorDescending())
+def SortTensorDescending_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+class SortTensorSpecificDimension(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True)
+    ])
+    def forward(self, input):
+        return torch.sort(input, dim=1)
+
+
+@register_test_case(module_factory=lambda: SortTensorSpecificDimension())
+def SortTensorSpecificDimension_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+class SortTensorNegativeDimension(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True)
+    ])
+    def forward(self, input):
+        return torch.sort(input, dim=-1)
+
+
+@register_test_case(module_factory=lambda: SortTensorNegativeDimension())
+def SortTensorNegativeDimension_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
 
 # ==============================================================================
 

@@ -228,6 +228,10 @@ LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return rewriter.notifyMatchFailure(
         op, "only constant dim is currently supported");
+  int64_t inputRank = selfTy.getRank();
+  dim = toPositiveDim(dim, inputRank);
+  if (!isValidDim(dim, inputRank))
+    return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
   Value output = gatherTensorAlongSingleAxis(
       rewriter, op, self, adaptor.getIndex(), dim, options.dimSizeIndexBits);
