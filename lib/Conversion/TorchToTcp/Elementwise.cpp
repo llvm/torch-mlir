@@ -380,6 +380,41 @@ public:
   }
 };
 
+class ConvertAtenAtan2Op : public OpConversionPattern<AtenAtan2Op> {
+public:
+  using OpConversionPattern<AtenAtan2Op>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(AtenAtan2Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value lhs = adaptor.getSelf();
+    RankedTensorType lhsType = lhs.getType().dyn_cast<RankedTensorType>();
+
+    Value rhs = adaptor.getOther();
+    RankedTensorType rhsType = rhs.getType().dyn_cast<RankedTensorType>();
+
+    RankedTensorType resultType =
+        OpConversionPattern<AtenAtan2Op>::getTypeConverter()
+            ->convertType(op.getType())
+            .cast<RankedTensorType>();
+
+    if (!lhsType || !rhsType || !resultType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+
+    if (!lhsType.getElementType().isa<mlir::FloatType>() ||
+        !rhsType.getElementType().isa<mlir::FloatType>())
+      return rewriter.notifyMatchFailure(
+          op, "Input tensors must have floating-point datatype");
+
+    lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, lhs, rhs);
+    rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, rhs, lhs);
+
+    rewriter.replaceOpWithNewOp<tcp::Atan2Op>(op, resultType, lhs, rhs);
+    return success();
+  }
+};
+
 } // namespace
 
 void torch_to_tcp::populateElementwisePatternsAndLegality(
@@ -438,4 +473,7 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
 
   target.addIllegalOp<AtenBatchNormOp>();
   patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
+
+  target.addIllegalOp<AtenAtan2Op>();
+  patterns.add<ConvertAtenAtan2Op>(typeConverter, context);
 }

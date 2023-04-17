@@ -182,6 +182,14 @@ createLinalgPayloadForElementwiseOp(Operation *op,
           "unsupported element type in createLinalgPayloadForElementwiseOp");
   }
 
+  if (isa<Atan2Op>(op)) {
+    if (elemType.isa<mlir::FloatType>())
+      return {b.create<math::Atan2Op>(loc, payloadArgs[0], payloadArgs[1])};
+    else
+      llvm_unreachable(
+          "unsupported element type in createLinalgPayloadForElementwiseOp");
+  }
+
   return op->emitError(
       "unimplemented lowering in createLinalgPayloadForElementwiseOp");
 }
@@ -243,4 +251,5 @@ void mlir::TcpToLinalg::populateElementwisePatternsAndLegality(
   patterns.add<ConvertElementwiseOp<AbsOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<LogOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<NegOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<Atan2Op>>(typeConverter, context);
 }

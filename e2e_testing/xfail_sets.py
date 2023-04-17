@@ -496,6 +496,7 @@ TCP_PASS_SET = {
     "DropoutEvalFloatModule_basic",
     "DropoutEvalIntModule_basic",
     "ElementwiseAddModule_basic",
+    "ElementwiseAtan2TensorFloatModule_basic",
     "ElementwiseSqrtModule_basic",
     "ElementwiseCeilModule_basic",
     "ElementwiseFloorModule_basic",

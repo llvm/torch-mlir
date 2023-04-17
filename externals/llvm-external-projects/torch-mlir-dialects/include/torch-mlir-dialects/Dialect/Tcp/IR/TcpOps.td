@@ -467,4 +467,24 @@ def Tcp_NegOp : Tcp_UnaryElementwiseOp<"neg"> {
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
 }
 
+def Tcp_Atan2Op : Tcp_BinaryElementwiseOp<"atan2", [SameOperandsAndResultElementType]> {
+  let summary = "2-argument arcus tangent of the given values";
+
+  let description = [{
+    It is a generalization of the 1-argument arcus tangent which returns the angle 
+    on the basis of the ratio in1 / in2, elementwise.
+  }];
+
+  let arguments = (ins
+    Tcp_FloatOrComplexTensor:$in1,
+    Tcp_FloatOrComplexTensor:$in2
+  );
+
+  let results = (outs
+    Tcp_FloatOrComplexTensor:$out
+  );
+
+  let assemblyFormat = "$in1 `,` $in2 attr-dict `:` type($in1) `,` type($in2) `->` type($out)";
+}
+
 #endif // TORCH_MLIR_DIALECT_TCP_OPS
