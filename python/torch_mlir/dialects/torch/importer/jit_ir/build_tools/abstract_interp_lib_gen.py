@@ -2611,6 +2611,129 @@ def aten〇arange〇start_step〡dtype(start: Union[int, float], end: Union[int,
         return torch.float32
     return torch.int64
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
+def aten〇sum〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[int] = None) -> int:
+    if dtype is not None:
+        return dtype
+    self_rank, self_dtype = self_rank_dtype
+    if is_integer_dtype(self_dtype):
+        return torch.int64
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=None) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=None, dtype=torch.float32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=None, dtype=torch.int32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=None, dtype=torch.complex64))
+def aten〇sum〇dim_IntList〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[List[int]], keepdim: bool = False, dtype: Optional[int] = None) -> int:
+    return aten〇sum〡dtype(self_rank_dtype, dtype)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(
+        num_of_tensors=1,
+        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64}, dim=None) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=None, dtype=torch.float32) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=None, dtype=torch.complex64) +
+    [ErrorInvocation(NonZeroDTensorWithDtype(torch.float32), dim=None, dtype=torch.int32)])
+def aten〇mean〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[List[int]], keepdim: bool = False, dtype: Optional[int] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    result = aten〇sum〡dtype(self_rank_dtype, dtype)
+    assert not is_integer_dtype(result)
+    return result
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇argmax〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[int] = None, keepdim: bool = False) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return torch.int64
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0))
+def aten〇any〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: int, keepdim: bool = False) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if self_dtype == torch.uint8:
+        return self_dtype
+    return torch.bool
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇max〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇amax〡dtype(self_rank_dtype: Tuple[int, int], dim: List[int] = (), keepdim: bool = False) -> int:
+    return aten〇max〡dtype(self_rank_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0))
+def aten〇max〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: int, keepdim: bool = False) -> Tuple[int, int]:
+    return aten〇max〡dtype(self_rank_dtype), torch.int64
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(
+        num_of_tensors=1,
+        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64}) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float32) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64) +
+    [ErrorInvocation(NonZeroDTensorWithDtype(torch.float32), dtype=torch.int32)])
+def aten〇mean〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[int] = None) -> int:
+    return aten〇mean〇dim〡dtype(self_rank_dtype, dim=None, dtype=dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇std〡dtype(self_rank_dtype: Tuple[int, int], unbiased: bool = True) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if self_dtype == torch.complex64:
+        return torch.float32
+    if self_dtype == torch.complex128:
+        return torch.float64
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=None))
+def aten〇std〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[List[int]], unbiased: bool = True, keepdim: bool = False) -> int:
+    return aten〇std〡dtype(self_rank_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇std〇correction〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[List[int]] = None, correction: Optional[Union[int, float]] = None, keepdim: bool = False) -> int:
+    return aten〇std〡dtype(self_rank_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇var〡dtype(self_rank_dtype: Tuple[int, int], unbiased: bool = True) -> int:
+    return aten〇std〡dtype(self_rank_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=None))
+def aten〇var〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[List[int]], unbiased: bool = True, keepdim: bool = False) -> int:
+    return aten〇std〡dtype(self_rank_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇var〇correction〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[List[int]] = None, correction: Optional[Union[int, float]] = None, keepdim: bool = False) -> int:
+    return aten〇std〡dtype(self_rank_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dims=[], correction=0.0))
+def prims〇var〡dtype(inp_rank_dtype: Tuple[int, int], dims: Optional[List[int]], correction: float, output_dtype: Optional[int] = None) -> int:
+    return aten〇std〡dtype(inp_rank_dtype)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(
+        num_of_tensors=1,
+        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64}) +
+    _check_tensors_with_the_same_dtype(
+        num_of_tensors=1,
+        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.complex64, torch.complex128}, dtype=torch.float64) +
+    _check_tensors_with_the_same_dtype(
+        num_of_tensors=1,
+        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.bfloat16, torch.float16, torch.float32, torch.float64}, dtype=torch.complex128) +
+    [ErrorInvocation(NonZeroDTensorWithDtype(torch.float32), dtype=torch.int32)])
+def aten〇linalg_vector_norm〡dtype(self_rank_dtype: Tuple[int, int], ord: Union[int, float] = 2, dim: Optional[List[int]] = None, keepdim: bool = False, dtype: Optional[int] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert not is_integer_dtype(self_dtype)
+    if dtype is not None:
+        assert not is_integer_dtype(dtype)
+        if is_complex_dtype(self_dtype):
+            assert is_complex_dtype(dtype)
+            return aten〇std〡dtype((self_rank, dtype))
+        assert not is_complex_dtype(dtype)
+        return dtype
+    return aten〇std〡dtype(self_rank_dtype)
+
 # ==============================================================================
 # Main
 # ==============================================================================

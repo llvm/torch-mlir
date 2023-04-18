@@ -643,91 +643,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  if (auto sum = dyn_cast<AtenSumOp>(op)) {
-    Type defaultDtype = operands[0]->getValue().dtype;
-    // If the input dtype is bool, the result type should be i64.
-    if (defaultDtype.isInteger(1))
-      defaultDtype =
-          IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-    Type dtype = getDtypeOrDefault(sum.getContext(), sum.getDtype(), defaultDtype);
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = dtype;
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-  if (auto sumDimIntList = dyn_cast<AtenSumDimIntListOp>(op)) {
-    Type defaultDtype = operands[0]->getValue().dtype;
-    if (!defaultDtype) {
-      incorporateKnowledge(
-          sumDimIntList.getResult(),
-          ValueKnowledge::getTensorPessimisticValueState(op->getContext()));
-      return;
-    }
-    // If the input dtype is bool, the result type should be i64.
-    if (defaultDtype.isInteger(1))
-      defaultDtype =
-          IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-    Type dtype = getDtypeOrDefault(sumDimIntList.getContext(),
-                                   sumDimIntList.getDtype(), defaultDtype);
-    visitReductionAlongDimIntListOp(sumDimIntList, sumDimIntList.getDim(),
-                                    sumDimIntList.getKeepdim(), dtype, operands);
-    return;
-  }
-  if (auto meanDim = dyn_cast<AtenMeanDimOp>(op)) {
-    Type defaultDtype = operands[0]->getValue().dtype;
-    Type dtype =
-        getDtypeOrDefault(meanDim.getContext(), meanDim.getDtype(), defaultDtype);
-    visitReductionAlongDimIntListOp(meanDim, meanDim.getDim(), meanDim.getKeepdim(),
-                                    dtype, operands);
-    return;
-  }
-  if (auto argmax = dyn_cast<AtenArgmaxOp>(op)) {
-    Value dim = argmax.getDim();
-    Type dtype = IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-    if (dim.getType().isa<Torch::NoneType>()) {
-      visitReductionAlongAllDimsOp(op, dtype, operands);
-      return;
-    }
-    if (dim.getType().isa<Torch::IntType>()) {
-      visitReductionAlongDimIntOp(argmax, argmax.getDim(), argmax.getKeepdim(), dtype,
-                                  operands);
-      return;
-    }
-  }
-  if (auto anyDim = dyn_cast<AtenAnyDimOp>(op)) {
-    Type dtype = operands[0]->getValue().dtype;
-    visitReductionAlongDimIntOp(anyDim, anyDim.getDim(), anyDim.getKeepdim(), dtype,
-                                operands);
-    return;
-  }
-  if (auto maxDim = dyn_cast<AtenMaxDimOp>(op)) {
-    Type firstResDtype = operands[0]->getValue().dtype;
-    Type secondResDtype =
-        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-    visitReductionAlongDimIntOp(maxDim, maxDim.getDim(), maxDim.getKeepdim(),
-                                firstResDtype, operands);
-    visitReductionAlongDimIntOp(maxDim, maxDim.getDim(), maxDim.getKeepdim(),
-                                secondResDtype, operands, /*resNum=*/1);
-    return;
-  }
-  if (auto mean = dyn_cast<AtenMeanOp>(op)) {
-    Type defaultDtype = operands[0]->getValue().dtype;
-    Type dtype =
-        getDtypeOrDefault(mean.getContext(), mean.getDtype(), defaultDtype);
-    visitReductionAlongAllDimsOp(mean, dtype, operands);
-    return;
-  } else if (isa<AtenMaxOp, AtenAmaxOp>(op)) {
-    Type dtype = operands[0]->getValue().dtype;
-    visitReductionAlongAllDimsOp(op, dtype, operands);
-    return;
-  } else if (isa<AtenStdOp, AtenStdDimOp, AtenStdCorrectionOp, AtenVarOp,
-                 AtenVarDimOp, AtenVarCorrectionOp, PrimsVarOp>(op)) {
-    auto input = operands[0]->getValue();
-    visitReductionAlongAllDimsOp(op, input.dtype, operands);
-    return;
-  }
-
   if (auto tensorFloat = dyn_cast<AtenTensorFloatOp>(op)) {
     visitScalarToTensorConversionOp<AtenTensorFloatOp>(tensorFloat);
     return;
@@ -880,15 +795,6 @@ void TypeAnalysis::visitOperation(Operation *op,
 
   if (auto scalarImplicit = dyn_cast<AtenScalarImplicitOp>(op)) {
     visitAtenScalarImplicitOp(scalarImplicit, operands);
-    return;
-  }
-
-  if (auto vectorNorm = dyn_cast<AtenLinalgVectorNormOp>(op)) {
-    Type defaultDtype = operands[0]->getValue().dtype;
-    Type dtype = getDtypeOrDefault(vectorNorm.getContext(), vectorNorm.getDtype(),
-                                   defaultDtype);
-    visitReductionAlongDimIntListOp(vectorNorm, vectorNorm.getDim(),
-                                    vectorNorm.getKeepdim(), dtype, operands);
     return;
   }
 

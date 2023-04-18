@@ -182,7 +182,7 @@ FailureOr<Value> Torch::adjustFunctionArg(
   // If the operand is NoneType, then we just need to derefine it to the
   // optional type in the function signature.
   if (operandType.isa<Torch::NoneType>()) {
-    assert(desiredType.isa<Torch::OptionalType>() &&
+    assert(!desiredType.isa<Torch::NoneType>() &&
            "Don't expect library functions to have NoneType parameters");
     return b.create<DerefineOp>(loc, desiredType, operand).getResult();
   }

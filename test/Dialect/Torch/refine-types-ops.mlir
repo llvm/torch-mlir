@@ -4,58 +4,6 @@
 // function (i.e. new code called from visitOperation).
 
 // -----
-// CHECK-LABEL:   func.func @aten.arange.start$int64_dtype(
-// CHECK-SAME:                    %[[START:.*]]: !torch.int,
-// CHECK-SAME:                    %[[END:.*]]: !torch.int) -> !torch.vtensor {
-// CHECK:           %[[NONE:.*]] = torch.constant.none
-// CHECK:           %[[T:.*]] = torch.aten.arange.start
-// CHECK-SAME:         %[[START]], %[[END]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] :
-// CHECK-SAME:         !torch.int, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none
-// CHECK-SAME:         -> !torch.vtensor<*,si64>
-// CHECK:           %[[RET:.*]] = torch.tensor_static_info_cast %[[T]] : !torch.vtensor<*,si64> to !torch.vtensor
-// CHECK:           return %[[RET]] : !torch.vtensor
-func.func @aten.arange.start$int64_dtype(%start: !torch.int, %end: !torch.int) -> !torch.vtensor {
-  %none = torch.constant.none
-  %ret = torch.aten.arange.start %start, %end, %none, %none, %none, %none: !torch.int, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor
-  return %ret : !torch.vtensor
-}
-
-// -----
-// CHECK-LABEL:   func.func @aten.arange.start$float32_dtype(
-// CHECK-SAME:                    %[[START:.*]]: !torch.float,
-// CHECK-SAME:                    %[[END:.*]]: !torch.int) -> !torch.vtensor {
-// CHECK:           %[[NONE:.*]] = torch.constant.none
-// CHECK:           %[[T:.*]] = torch.aten.arange.start
-// CHECK-SAME:         %[[START]], %[[END]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] :
-// CHECK-SAME:         !torch.float, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none
-// CHECK-SAME:         -> !torch.vtensor<*,f32>
-// CHECK:           %[[RET:.*]] = torch.tensor_static_info_cast %[[T]] : !torch.vtensor<*,f32> to !torch.vtensor
-// CHECK:           return %[[RET]] : !torch.vtensor
-func.func @aten.arange.start$float32_dtype(%start: !torch.float, %end: !torch.int) -> !torch.vtensor {
-  %none = torch.constant.none
-  %ret = torch.aten.arange.start %start, %end, %none, %none, %none, %none: !torch.float, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor
-  return %ret : !torch.vtensor
-}
-
-// -----
-// CHECK-LABEL:   func.func @aten.arange.start$specified_dtype(
-// CHECK-SAME:                                                    %[[END:.*]]: !torch.int) -> !torch.vtensor {
-// CHECK:           %[[CST6:.*]] = torch.constant.int 6
-// CHECK:           %[[NONE:.*]] = torch.constant.none
-// CHECK:           %[[T:.*]] = torch.aten.arange
-// CHECK-SAME:         %[[END]], %[[CST6]], %[[NONE]], %[[NONE]], %[[NONE]] :
-// CHECK-SAME:         !torch.int, !torch.int, !torch.none, !torch.none, !torch.none
-// CHECK-SAME:         -> !torch.vtensor<*,f32>
-// CHECK:           %[[RET:.*]] = torch.tensor_static_info_cast %[[T]] : !torch.vtensor<*,f32> to !torch.vtensor
-// CHECK:           return %[[RET]] : !torch.vtensor
-func.func @aten.arange.start$specified_dtype(%end: !torch.int) -> !torch.vtensor {
-  %int6 = torch.constant.int 6
-  %none = torch.constant.none
-  %ret = torch.aten.arange %end, %int6, %none, %none, %none: !torch.int, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor
-  return %ret : !torch.vtensor
-}
-
-// -----
 // CHECK-LABEL:   func.func @torch.aten.linear(
 // CHECK-SAME:                            %[[ARG0:.*]]: !torch.vtensor<[?,3],f32>,
 // CHECK-SAME:                            %[[ARG1:.*]]: !torch.vtensor<[5,3],f32>,
@@ -66,30 +14,6 @@ func.func @aten.arange.start$specified_dtype(%end: !torch.int) -> !torch.vtensor
 func.func @torch.aten.linear(%arg0: !torch.vtensor<[?,3],f32>, %arg1: !torch.vtensor<[5,3],f32>, %arg2: !torch.vtensor<[5],f32>) -> !torch.vtensor {
   %1 = torch.aten.linear %arg0, %arg1, %arg2 : !torch.vtensor<[?,3],f32>, !torch.vtensor<[5,3],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor
   return %1 : !torch.vtensor
-}
-
-// -----
-// CHECK-LABEL:   func.func @aten.sum.dim_IntList(
-// CHECK-SAME:                                       %[[T:.*]]: !torch.vtensor<*,si64>) -> !torch.vtensor {
-// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:           %[[NONE:.*]] = torch.constant.none
-// CHECK:           %[[INT0:.*]] = torch.constant.int 0
-// CHECK:           %[[INT_NEG1:.*]] = torch.constant.int -1
-// CHECK:           %[[DIMLIST:.*]] = torch.prim.ListConstruct %[[INT0]], %[[INT_NEG1]]
-// CHECK-SAME:        : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[RET:.*]] = torch.aten.sum.dim_IntList %[[T]], %[[DIMLIST]], %[[FALSE]], %[[NONE]]
-// CHECK-SAME:        : !torch.vtensor<*,si64>, !torch.list<int>, !torch.bool, !torch.none
-// CHECK-SAME:        -> !torch.vtensor<*,si64>
-// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.vtensor<*,si64> to !torch.vtensor
-// CHECK:           return %[[CAST]] : !torch.vtensor
-func.func @aten.sum.dim_IntList(%t: !torch.vtensor<*,si64>) -> !torch.vtensor {
-  %false = torch.constant.bool false
-  %none = torch.constant.none
-  %int0 = torch.constant.int 0
-  %int-1 = torch.constant.int -1
-  %dimList = torch.prim.ListConstruct %int0, %int-1 : (!torch.int, !torch.int) -> !torch.list<int>
-  %ret = torch.aten.sum.dim_IntList %t, %dimList, %false, %none : !torch.vtensor<*,si64>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor
-  return %ret : !torch.vtensor
 }
 
 // -----
