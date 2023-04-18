@@ -93,9 +93,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
     # ERROR: assert isinstance(e, FakeTensor)
     "RsubInt0d_NumToTensor_Module_basic",
-
-    # Dtype function transition failures
-    "MobilenetV3Module_basic",
 }
 
 STABLEHLO_PASS_SET = {
