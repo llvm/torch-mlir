@@ -471,7 +471,6 @@ private:
                            ArrayRef<const ValueState *> operands);
   void visitAtenScalarImplicitOp(AtenScalarImplicitOp op,
                                  ArrayRef<const ValueState *> operands);
-  void visitAtenEmbeddingBagOp(Operation *op);
 };
 } // namespace
 
@@ -859,19 +858,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  if (auto embedding = dyn_cast<AtenEmbeddingOp>(op)) {
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = operands[0]->getValue().dtype;
-    incorporateKnowledge(embedding.getResult(), knowledge);
-    return;
-  }
-  
-  if (isa<Aten_EmbeddingBagOp, AtenEmbeddingBagPaddingIdxOp>(op)) {
-    visitAtenEmbeddingBagOp(op);
-    return;
-  }
-
   if (auto softmaxIntOp = dyn_cast<AtenSoftmaxIntOp>(op)) {
     visitAtenSoftmaxLikeOp(softmaxIntOp, operands);
     return;
@@ -1002,23 +988,6 @@ void TypeAnalysis::visitAtenLinearOp(AtenLinearOp op,
     break;
   }
   incorporateKnowledge(op->getResult(0), knowledge);
-}
-
-void TypeAnalysis::visitAtenEmbeddingBagOp(Operation *op) {
-  auto resultFloatKnowledge =
-      ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-  resultFloatKnowledge.dtype = Float32Type::get(op->getContext());
-
-  incorporateKnowledge(op->getResult(0), resultFloatKnowledge);
-  auto resultIntKnowledge =
-      ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-  resultIntKnowledge.dtype =
-      IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-
-  for (int64_t i = 1, e = op->getNumResults(); i < e; i++) {
-    incorporateKnowledge(op->getResult(i), resultIntKnowledge);
-  }
-  return;
 }
 
 // Arange like ops returns a 1-D tensor of size ceil(end - start).

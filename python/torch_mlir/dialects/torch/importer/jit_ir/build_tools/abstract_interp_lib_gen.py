@@ -2430,6 +2430,23 @@ def aten〇remainder〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: U
     dtypes = [self_dtype, get_dtype_of_scalar(other)]
     return promote_dtypes(ranks, dtypes)
 
+def aten〇embedding〡dtype(weight_rank_dtype: Tuple[int, int], indices_rank_dtype: Tuple[int, int], padding_idx: int = -1, scale_grad_by_freq: bool = False, sparse: bool = False) -> int:
+    return _get_dtype_of_floating_point_op(weight_rank_dtype[1])
+
+@check_dtype_function(
+    [Invocation(TensorOfShape(100, 10, dtype=torch.float32), TensorOfShape(18, dtype=torch.int64), TensorOfShape(7, dtype=torch.int64), False, 0, False, None, False, None)]
+)
+def aten〇embedding_bag〇padding_idx〡dtype(weight_rank_dtype: Tuple[int, int], indices_rank_dtype: Tuple[int, int], offsets_rank_dtype: Tuple[int, int], scale_grad_by_freq: bool, mode: int, sparse: bool, per_sample_weights_rank_dtype: Optional[Tuple[int, int]], include_last_offset: bool, padding_idx: Optional[int]) -> Tuple[int, int, int, int]:
+    weight_dtype = weight_rank_dtype[1]
+    return (weight_dtype, torch.int64, torch.int64, torch.int64)
+
+@check_dtype_function(
+    [Invocation(TensorOfShape(100, 10, dtype=torch.float32), TensorOfShape(18, dtype=torch.int64), TensorOfShape(7, dtype=torch.int64), False, 0, False, None, False, None)]
+)
+def aten〇_embedding_bag〡dtype(weight_rank_dtype: Tuple[int, int], indices_rank_dtype: Tuple[int, int], offsets_rank_dtype: Tuple[int, int], scale_grad_by_freq: bool = False, mode: int = 0, sparse: bool = False, per_sample_weights_rank_dtype: Optional[Tuple[int, int]] = None, include_last_offset: bool = False, padding_idx: int = -1) -> Tuple[int, int, int, int]:
+    weight_dtype = weight_rank_dtype[1]
+    return (weight_dtype, torch.int64, torch.int64, torch.int64)
+
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1, 1), (1, 1, 1), (1, 1, 1)]) +
     [Invocation(TensorOfShape(
