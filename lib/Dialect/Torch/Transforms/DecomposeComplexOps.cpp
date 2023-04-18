@@ -3923,8 +3923,14 @@ public:
   LogicalResult matchAndRewrite(AtenRandnGeneratorOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    Type resultType = op.getType();
+    auto resultType = op.getType().cast<BaseTensorType>();
 
+    if (!resultType.hasDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "expected result type to have a dtype");
+    }
+
+    Value dtype = getDtypeIntValueForType(rewriter, loc, resultType.getDtype());
     Value none = rewriter.create<ConstantNoneOp>(loc);
     Value low = rewriter.create<Torch::ConstantFloatOp>(
         loc, rewriter.getF64FloatAttr((double)0.0));
@@ -3936,11 +3942,13 @@ public:
         loc, rewriter.getF64FloatAttr((double)(2.0 * 3.14159)));
 
     Value emptyTensorA = rewriter.create<AtenEmptyMemoryFormatOp>(
-        loc, resultType, op.getSize(), /*dtype=*/none, /*layout=*/op.getLayout(),
+        loc, resultType, op.getSize(), /*dtype=*/dtype,
+        /*layout=*/op.getLayout(),
         /*device=*/op.getDevice(), /*pin_memory=*/op.getPinMemory(),
         /*memory_format=*/none);
     Value emptyTensorB = rewriter.create<AtenEmptyMemoryFormatOp>(
-        loc, resultType, op.getSize(), /*dtype=*/none, /*layout=*/op.getLayout(),
+        loc, resultType, op.getSize(), /*dtype=*/dtype,
+        /*layout=*/op.getLayout(),
         /*device=*/op.getDevice(), /*pin_memory=*/op.getPinMemory(),
         /*memory_format=*/none);
 
