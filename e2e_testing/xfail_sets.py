@@ -201,6 +201,10 @@ TORCHDYNAMO_XFAIL_SET = {
     'IsFloatingPointInt_False',
     'TorchPrimLoopForLikeModule_basic',
     'TorchPrimLoopWhileLikeModule_basic',
+
+    # Complex ops
+    "AtenComplexImagModule_basic",
+    "AtenComplexRealModule_basic",
 }
 
 # See https://github.com/llvm/torch-mlir/issues/2050
@@ -1090,4 +1094,6 @@ LTC_XFAIL_SET = {
     "OneHotModule_basic",
     "VarMeanDimModule_basic",
     "VarMeanDimBiasedModule_basic",
+    "AtenComplexImagModule_basic",
+    "AtenComplexRealModule_basic",
 }

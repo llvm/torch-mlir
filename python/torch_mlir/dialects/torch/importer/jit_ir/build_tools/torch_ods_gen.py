@@ -328,6 +328,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::floor_divide : (Tensor, Tensor) -> (Tensor)")
     emit("aten::softplus : (Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::prelu : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::real : (Tensor) -> (Tensor)")
+    emit("aten::imag : (Tensor) -> (Tensor)")
+    emit("aten::view_as_complex : (Tensor) -> (Tensor)")
 
     # Random number generation
     emit_with_mutating_variants("aten::uniform : (Tensor, float, float, Generator?) -> (Tensor)")
