@@ -3806,3 +3806,85 @@ class AtenTopKSmallestModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenTopKSmallestModule())
 def AtenTopKSmallestModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 40, 50))
+
+
+# ==============================================================================
+
+class AtenComplexImagModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1,-1], torch.float32, True),
+    ])
+    def forward(self, x):
+        x = torch.view_as_complex(x)
+        return x.imag
+
+
+@register_test_case(module_factory=lambda: AtenComplexImagModule())
+def AtenComplexImagModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5,2))
+
+
+class AtenComplexRealModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1,-1], torch.float32, True),
+    ])
+    def forward(self, x):
+        x = torch.view_as_complex(x)
+        return x.real
+
+
+@register_test_case(module_factory=lambda: AtenComplexRealModule())
+def AtenComplexRealModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5,2))
+
+# ==============================================================================
+
+class AtenComplex64Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 2], torch.complex64, True),
+    ])
+    def forward(self, x):
+        return x
+
+
+@register_test_case(module_factory=lambda: AtenComplex64Module())
+def AtenComplex64Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 2).to(torch.complex64))
+
+# ==============================================================================
+
+class AtenComplex128Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 2], torch.complex128, True),
+    ])
+    def forward(self, x):
+        return x
+
+
+@register_test_case(module_factory=lambda: AtenComplex128Module())
+def AtenComplex128Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 2).to(torch.complex128))
