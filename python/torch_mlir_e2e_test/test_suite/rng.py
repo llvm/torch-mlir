@@ -459,6 +459,30 @@ def RandnGeneratorModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+
+class RandnGeneratorF64Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        a = torch.ops.aten.randn([4, 512, 1024], generator=None, dtype=torch.float64)
+        std = torch.std(a)
+        return std
+
+
+@register_test_case(module_factory=lambda: RandnGeneratorF64Module())
+def RandnGeneratorF64Module_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
 class RandnLikeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
