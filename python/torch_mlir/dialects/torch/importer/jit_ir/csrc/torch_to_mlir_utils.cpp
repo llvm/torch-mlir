@@ -324,7 +324,6 @@ MlirAttribute torch_mlir::convertTensorToMlirElementsAttr(at::Tensor tensor,
   }
 
   // Import DenseElementsAttr data.
-  // TODO: Support bool tensors.
   // TODO: More import formats in C-API.
   auto numElements = tensor.numel();
   auto tensor_cpu = tensor.cpu().contiguous();
@@ -346,10 +345,15 @@ MlirAttribute torch_mlir::convertTensorToMlirElementsAttr(at::Tensor tensor,
     return mlirDenseElementsAttrDoubleGet(
         shapedType, numElements, static_cast<const double *>(tensorData));
     break;
-  case ScalarType::Bool:
+  case ScalarType::Bool: {
+    // TODO: The signature of `mlirDenseElementsAttrBoolGet` should be changed
+    // upstream to take in a `const bool *` rather than a `const int *` to avoid
+    // the unnecessary copying into an array four times as large.
+    const int8_t *elements = static_cast<const int8_t *>(tensorData);
+    std::vector<int> tensorDataVector(elements, elements + numElements);
     return mlirDenseElementsAttrBoolGet(shapedType, numElements,
-                                        static_cast<const int *>(tensorData));
-    break;
+                                        tensorDataVector.data());
+  } break;
   case ScalarType::QInt8:
     return mlirDenseElementsAttrInt8Get(
         shapedType, numElements, static_cast<const int8_t *>(tensorData));

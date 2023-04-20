@@ -101,6 +101,7 @@ TORCHDYNAMO_XFAIL_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "ConstantBoolParameterModule_basic",
     "MaskedFillScalarIntValueStaticModule_basic",
     "MaskedFillScalarFloatValueStaticModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
@@ -499,6 +500,7 @@ STABLEHLO_PASS_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "ConstantBoolParameterModule_basic",
     "ElementwiseCloneContiguousModule_basic",
     "ElementwiseCloneChannelsLastMemoryFormatModule_basic",
     "ElementwiseCloneModule_basic",
