@@ -546,6 +546,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::view_copy : (Tensor, int[]) -> (Tensor)")
     emit("aten::view_copy.dtype : (Tensor, int) -> (Tensor)")
     emit("aten::unfold_copy : (Tensor, int, int, int) -> (Tensor)")
+    emit("aten::scatter.src : (Tensor, int, Tensor, Tensor) -> (Tensor)")
     emit("aten::select_scatter : (Tensor, Tensor, int, int) -> (Tensor)")
     emit("aten::slice_scatter : (Tensor, Tensor, int, int?, int?, int) -> (Tensor)")
     emit("aten::diagonal_scatter : (Tensor, Tensor, int, int, int) -> (Tensor)")
