@@ -20,7 +20,10 @@ class TestModule(torch.nn.Module):
         self.ones_i64 = torch.ones(1, dtype=torch.int64)
         self.ones_f32 = torch.ones(1, dtype=torch.float32)
         self.ones_f64 = torch.ones(1, dtype=torch.float64)
-        self.ones_bool = torch.ones(1, dtype=torch.bool)
+        # Because bools turn anything that is non-zero into `True`, it is
+        # important to check a series of `True`s and `False`s to make sure the
+        # actual values are being imported rather than just garbage.
+        self.bool_ = torch.tensor([True, False, True, False, True, False], dtype=torch.bool)
         self.ones_bf16 = torch.ones(1, dtype=torch.bfloat16)
         self.ones_f16 = torch.ones(1, dtype=torch.half)
         self.ones_ui8 = torch.ones(1, dtype=torch.uint8)
@@ -35,7 +38,7 @@ class TestModule(torch.nn.Module):
 # CHECK: %[[ONES_I64:.*]] = torch.tensor.literal(dense<1> : tensor<1xsi64>) : !torch.tensor<[1],si64>
 # CHECK: %[[ONES_F32:.*]] = torch.tensor.literal(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor<[1],f32>
 # CHECK: %[[ONES_F64:.*]] = torch.tensor.literal(dense<1.000000e+00> : tensor<1xf64>) : !torch.tensor<[1],f64>
-# CHECK: %[[ONES_BOOL:.*]] = torch.tensor.literal(dense<true> : tensor<1xi1>) : !torch.tensor<[1],i1>
+# CHECK: %[[BOOL_:.*]] = torch.tensor.literal(dense<[true, false, true, false, true, false]> : tensor<6xi1>) : !torch.tensor<[6],i1>
 # CHECK: %[[ONES_BF16:.*]] = torch.tensor.literal(dense<1.000000e+00> : tensor<1xbf16>) : !torch.tensor<[1],bf16>
 # CHECK: %[[ONES_F16:.*]] = torch.tensor.literal(dense<1.000000e+00> : tensor<1xf16>) : !torch.tensor<[1],f16>
 # CHECK: %[[ONES_UI8:.*]] = torch.tensor.literal(dense<1> : tensor<1xui8>) : !torch.tensor<[1],ui8>
@@ -53,7 +56,7 @@ class TestModule(torch.nn.Module):
 # CHECK:   torch.slot "ones_i64", %[[ONES_I64]] : !torch.tensor<[1],si64>
 # CHECK:   torch.slot "ones_f32", %[[ONES_F32]] : !torch.tensor<[1],f32>
 # CHECK:   torch.slot "ones_f64", %[[ONES_F64]] : !torch.tensor<[1],f64>
-# CHECK:   torch.slot "ones_bool", %[[ONES_BOOL]] : !torch.tensor<[1],i1>
+# CHECK:   torch.slot "bool_", %[[BOOL_]] : !torch.tensor<[6],i1>
 # CHECK:   torch.slot "ones_bf16", %[[ONES_BF16]] : !torch.tensor<[1],bf16>
 # CHECK:   torch.slot "ones_f16", %[[ONES_F16]] : !torch.tensor<[1],f16>
 # CHECK:   torch.slot "ones_ui8", %[[ONES_UI8]] : !torch.tensor<[1],ui8>

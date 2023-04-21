@@ -3700,3 +3700,26 @@ class OneHotModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: OneHotModule())
 def OneHotModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(10, high=5))
+
+
+# ==============================================================================
+
+
+class ConstantBoolParameterModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.bool_tensor = torch.tensor(
+            [True, False, True, False], dtype=torch.bool)
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return self.bool_tensor
+
+
+@register_test_case(module_factory=lambda: ConstantBoolParameterModule())
+def ConstantBoolParameterModule_basic(module, tu: TestUtils):
+    module.forward()
