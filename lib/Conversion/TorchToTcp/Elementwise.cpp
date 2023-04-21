@@ -495,6 +495,80 @@ public:
   }
 };
 
+template <typename AtenOpT, int fillVal>
+class ConvertAtenZerosOnesLikePatternOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = adaptor.getSelf();
+    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
+                       ->convertType(op.getType())
+                       .template dyn_cast<RankedTensorType>();
+
+    if (!outType) {
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+    }
+
+    Type outElemTy = outType.getElementType();
+    if (!outElemTy.isIntOrFloat()) {
+      return rewriter.notifyMatchFailure(
+          op, "Output tensors must have integer or floating-point datatype");
+    }
+
+    // TODO: Make sure this is a valid condition for layout parameter
+    int64_t memoryLayout;
+    if (!op.getLayout().getType().template isa<Torch::NoneType>() &&
+        (!matchPattern(op.getLayout(), m_TorchConstantInt(&memoryLayout)) ||
+         memoryLayout != 0)) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Only default layout is supported");
+    }
+
+    bool pinMemory;
+    if (!op.getPinMemory().getType().template isa<Torch::NoneType>() &&
+        (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
+         pinMemory)) {
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported pin_memory, should be either None or false");
+    }
+
+    if (!op.getMemoryFormat().getType().template isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "Only default memory format is supported");
+
+    Value constOp;
+    if (outElemTy.isInteger(64)) {
+      constOp = *torch_to_tcp::getConstTensor<int64_t>(
+          rewriter, op, llvm::ArrayRef(static_cast<int64_t>(fillVal)), {});
+    } else if (outElemTy.isInteger(32)) {
+      constOp = *torch_to_tcp::getConstTensor<int32_t>(
+          rewriter, op, llvm::ArrayRef(static_cast<int32_t>(fillVal)), {});
+    } else if (outElemTy.isInteger(8)) {
+      constOp = *torch_to_tcp::getConstTensor<int8_t>(
+          rewriter, op, llvm::ArrayRef(static_cast<int8_t>(fillVal)), {});
+    } else if (outElemTy.isF32()) {
+      constOp = *torch_to_tcp::getConstTensor<float>(
+          rewriter, op, llvm::ArrayRef(static_cast<float>(fillVal)), {});
+    } else if (outElemTy.isF64()) {
+      constOp = *torch_to_tcp::getConstTensor<double>(
+          rewriter, op, llvm::ArrayRef(static_cast<double>(fillVal)), {});
+    } else {
+      return rewriter.notifyMatchFailure(op, "Unsupported output type");
+    }
+
+    Value resultOp = torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
+        rewriter, constOp, input);
+
+    rewriter.replaceOp(op, resultOp);
+
+    return success();
+  }
+};
+
 } // namespace
 
 void torch_to_tcp::populateElementwisePatternsAndLegality(
@@ -566,4 +640,11 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
   target.addIllegalOp<AtenOnesOp>();
   patterns.add<ConvertAtenZerosOnesPatternOp<AtenOnesOp, 1>>(typeConverter,
                                                              context);
+
+  target.addIllegalOp<AtenZerosLikeOp>();
+  patterns.add<ConvertAtenZerosOnesLikePatternOp<AtenZerosLikeOp, 0>>(
+      typeConverter, context);
+  target.addIllegalOp<AtenOnesLikeOp>();
+  patterns.add<ConvertAtenZerosOnesLikePatternOp<AtenOnesLikeOp, 1>>(
+      typeConverter, context);
 }
