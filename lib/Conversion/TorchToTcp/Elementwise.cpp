@@ -489,9 +489,6 @@ public:
       return rewriter.notifyMatchFailure(op, "Unsupported output type");
     }
 
-    // auto constOp = torch_to_tcp::getConstTensor<int32_t>(
-    // rewriter, op, values, shape);
-
     rewriter.replaceOp(op, (*constOp));
 
     return success();
