@@ -168,6 +168,11 @@ torch_to_tcp::getConstTensor(PatternRewriter &rewriter, Operation *op,
 }
 
 template std::optional<Value>
+torch_to_tcp::getConstTensor<int8_t>(PatternRewriter &, Operation *,
+                                     ArrayRef<int8_t> vec,
+                                     ArrayRef<int64_t> shape);
+
+template std::optional<Value>
 torch_to_tcp::getConstTensor<int32_t>(PatternRewriter &, Operation *,
                                       ArrayRef<int32_t> vec,
                                       ArrayRef<int64_t> shape);

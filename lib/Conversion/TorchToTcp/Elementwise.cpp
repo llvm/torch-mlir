@@ -20,6 +20,8 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
+#include <iostream>
+
 using namespace mlir;
 using namespace mlir::tcp;
 using namespace mlir::torch;
@@ -415,6 +417,89 @@ public:
   }
 };
 
+template <typename AtenOpT, int fillVal>
+class ConvertAtenZerosOnesPatternOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
+                       ->convertType(op.getType())
+                       .template dyn_cast<RankedTensorType>();
+
+    if (!outType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+
+    Type outElemTy = outType.getElementType();
+    if (!outElemTy.isIntOrFloat())
+      return rewriter.notifyMatchFailure(
+          op, "Output tensors must have integer or floating-point datatype");
+
+    if (!op.getLayout().getType().template isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(op,
+                                         "Only default layout is supported");
+
+    bool pinMemory;
+    if (!op.getPinMemory().getType().template isa<Torch::NoneType>() &&
+        (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
+         pinMemory)) {
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported pin_memory, should be either None or false");
+    }
+
+    SmallVector<int64_t> shape;
+    if (!matchPattern(op.getSize(), m_TorchListOfConstantInts(shape))) {
+      return rewriter.notifyMatchFailure(
+          op, "Shape must be a list of Scalar constants");
+    }
+
+    int64_t size = 1;
+    for (auto s : shape)
+      size *= s;
+
+    std::optional<Value> constOp;
+
+    if (outElemTy.isInteger(64)) {
+      SmallVector<int64_t> values(size, static_cast<int64_t>(fillVal));
+      constOp =
+          torch_to_tcp::getConstTensor<int64_t>(rewriter, op, values, shape)
+              .value();
+    } else if (outElemTy.isInteger(32)) {
+      SmallVector<int32_t> values(size, static_cast<int32_t>(fillVal));
+      constOp =
+          torch_to_tcp::getConstTensor<int32_t>(rewriter, op, values, shape)
+              .value();
+    } else if (outElemTy.isInteger(8)) {
+      SmallVector<int8_t> values(size, static_cast<int8_t>(fillVal));
+      constOp =
+          torch_to_tcp::getConstTensor<int8_t>(rewriter, op, values, shape)
+              .value();
+    } else if (outElemTy.isF32()) {
+      SmallVector<float> values(size, static_cast<float>(fillVal));
+      constOp = torch_to_tcp::getConstTensor<float>(rewriter, op, values, shape)
+                    .value();
+    } else if (outElemTy.isF64()) {
+      SmallVector<double> values(size, static_cast<double>(fillVal));
+      constOp =
+          torch_to_tcp::getConstTensor<double>(rewriter, op, values, shape)
+              .value();
+    } else {
+      return rewriter.notifyMatchFailure(op, "Unsupported output type");
+    }
+
+    // auto constOp = torch_to_tcp::getConstTensor<int32_t>(
+    // rewriter, op, values, shape);
+
+    rewriter.replaceOp(op, (*constOp));
+
+    return success();
+  }
+};
+
 } // namespace
 
 void torch_to_tcp::populateElementwisePatternsAndLegality(
@@ -479,4 +564,11 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
 
   target.addIllegalOp<AtenAtan2Op>();
   patterns.add<ConvertAtenAtan2Op>(typeConverter, context);
+
+  target.addIllegalOp<AtenZerosOp>();
+  patterns.add<ConvertAtenZerosOnesPatternOp<AtenZerosOp, 0>>(typeConverter,
+                                                              context);
+  target.addIllegalOp<AtenOnesOp>();
+  patterns.add<ConvertAtenZerosOnesPatternOp<AtenOnesOp, 1>>(typeConverter,
+                                                             context);
 }

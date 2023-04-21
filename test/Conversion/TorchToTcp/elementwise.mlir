@@ -426,4 +426,111 @@ func.func @torch.aten.atan2$rank0(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torc
 func.func @torch.aten.atan(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
   %0 = torch.aten.atan %arg0 : !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
   return %0 : !torch.vtensor<[?,?],f32>
+
+// -----
+
+// CHECK-LABEL:  @torch.aten.ones_f32()
+// CHECK-SAME:    -> !torch.vtensor<[2,3],f32> {
+// CHECK:         %[[T1:.*]] = tcp.const {value = dense<1.000000e+00> : tensor<2x3xf32>} : tensor<2x3xf32>
+// CHECK:         %[[T2:.*]] = torch_c.from_builtin_tensor %[[T1]] : tensor<2x3xf32> -> !torch.vtensor<[2,3],f32>
+// CHECK:         return %[[T2]] : !torch.vtensor<[2,3],f32>
+func.func @torch.aten.ones_f32() -> !torch.vtensor<[2,3],f32> {
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %0 = torch.prim.ListConstruct %int2, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %cpu = torch.constant.device "cpu"
+  %1 = torch.aten.ones %0, %none, %none, %cpu, %false : !torch.list<int>, !torch.none, !torch.none, !torch.Device, !torch.bool -> !torch.vtensor<[2,3],f32>
+  return %1 : !torch.vtensor<[2,3],f32>
+}
+
+// -----
+
+// CHECK-LABEL:  @torch.aten.ones_si32()
+// CHECK-SAME:    -> !torch.vtensor<[2,3],si32> {
+// CHECK:         %[[T1:.*]] = tcp.const {value = dense<1> : tensor<2x3xi32>} : tensor<2x3xi32>
+// CHECK:         %[[T2:.*]] = torch_c.from_builtin_tensor %[[T1]] : tensor<2x3xi32> -> !torch.vtensor<[2,3],si32>
+// CHECK:         return %[[T2]] : !torch.vtensor<[2,3],si32>
+func.func @torch.aten.ones_si32() -> !torch.vtensor<[2,3],si32> {
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %0 = torch.prim.ListConstruct %int2, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %cpu = torch.constant.device "cpu"
+  %1 = torch.aten.ones %0, %none, %none, %cpu, %false : !torch.list<int>, !torch.none, !torch.none, !torch.Device, !torch.bool -> !torch.vtensor<[2,3],si32>
+  return %1 : !torch.vtensor<[2,3],si32>
+}
+
+// -----
+
+// CHECK-LABEL:  @torch.aten.ones_ui8()
+// CHECK-SAME:    -> !torch.vtensor<[2,3],ui8> {
+// CHECK:         %[[T1:.*]] = tcp.const {value = dense<1> : tensor<2x3xi8>} : tensor<2x3xi8>
+// CHECK:         %[[T2:.*]] = torch_c.from_builtin_tensor %[[T1]] : tensor<2x3xi8> -> !torch.vtensor<[2,3],ui8>
+// CHECK:         return %[[T2]] : !torch.vtensor<[2,3],ui8>
+func.func @torch.aten.ones_ui8() -> !torch.vtensor<[2,3],ui8> {
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %0 = torch.prim.ListConstruct %int2, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %cpu = torch.constant.device "cpu"
+  %1 = torch.aten.ones %0, %none, %none, %cpu, %false : !torch.list<int>, !torch.none, !torch.none, !torch.Device, !torch.bool -> !torch.vtensor<[2,3],ui8>
+  return %1 : !torch.vtensor<[2,3],ui8>
+}
+
+// -----
+
+// CHECK-LABEL:  @torch.aten.zeros_f32()
+// CHECK-SAME:    -> !torch.vtensor<[2,3],f32> {
+// CHECK:         %[[T1:.*]] = tcp.const {value = dense<0.000000e+00> : tensor<2x3xf32>} : tensor<2x3xf32>
+// CHECK:         %[[T2:.*]] = torch_c.from_builtin_tensor %[[T1]] : tensor<2x3xf32> -> !torch.vtensor<[2,3],f32>
+// CHECK:         return %[[T2]] : !torch.vtensor<[2,3],f32>
+func.func @torch.aten.zeros_f32() -> !torch.vtensor<[2,3],f32> {
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %0 = torch.prim.ListConstruct %int2, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %cpu = torch.constant.device "cpu"
+  %1 = torch.aten.zeros %0, %none, %none, %cpu, %false : !torch.list<int>, !torch.none, !torch.none, !torch.Device, !torch.bool -> !torch.vtensor<[2,3],f32>
+  return %1 : !torch.vtensor<[2,3],f32>
+}
+
+// -----
+
+// CHECK-LABEL:  @torch.aten.zeros_si32()
+// CHECK-SAME:    -> !torch.vtensor<[2,3],si32> {
+// CHECK:         %[[T1:.*]] = tcp.const {value = dense<0> : tensor<2x3xi32>} : tensor<2x3xi32>
+// CHECK:         %[[T2:.*]] = torch_c.from_builtin_tensor %[[T1]] : tensor<2x3xi32> -> !torch.vtensor<[2,3],si32>
+// CHECK:         return %[[T2]] : !torch.vtensor<[2,3],si32>
+func.func @torch.aten.zeros_si32() -> !torch.vtensor<[2,3],si32> {
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %0 = torch.prim.ListConstruct %int2, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %cpu = torch.constant.device "cpu"
+  %1 = torch.aten.zeros %0, %none, %none, %cpu, %false : !torch.list<int>, !torch.none, !torch.none, !torch.Device, !torch.bool -> !torch.vtensor<[2,3],si32>
+  return %1 : !torch.vtensor<[2,3],si32>
+}
+
+// -----
+
+// CHECK-LABEL:  @torch.aten.zeros_ui8()
+// CHECK-SAME:    -> !torch.vtensor<[2,3],ui8> {
+// CHECK:         %[[T1:.*]] = tcp.const {value = dense<0> : tensor<2x3xi8>} : tensor<2x3xi8>
+// CHECK:         %[[T2:.*]] = torch_c.from_builtin_tensor %[[T1]] : tensor<2x3xi8> -> !torch.vtensor<[2,3],ui8>
+// CHECK:         return %[[T2]] : !torch.vtensor<[2,3],ui8>
+func.func @torch.aten.zeros_ui8() -> !torch.vtensor<[2,3],ui8> {
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %0 = torch.prim.ListConstruct %int2, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %cpu = torch.constant.device "cpu"
+  %1 = torch.aten.zeros %0, %none, %none, %cpu, %false : !torch.list<int>, !torch.none, !torch.none, !torch.Device, !torch.bool -> !torch.vtensor<[2,3],ui8>
+  return %1 : !torch.vtensor<[2,3],ui8>
 }
