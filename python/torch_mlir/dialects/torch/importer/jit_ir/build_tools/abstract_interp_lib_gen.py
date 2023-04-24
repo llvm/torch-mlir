@@ -2887,6 +2887,45 @@ def aten〇_to_copy〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[in
     self_rank, self_dtype = self_rank_dtype
     return self_dtype if dtype is None else dtype
 
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float16) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
+def aten〇to〇dtype〡dtype(self_rank_dtype: Tuple[int, int], dtype: int, non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> int:
+    return dtype
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float16) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
+def nvprims〇convert_element_type〡dtype(a_rank_dtype: Tuple[int, int], dtype: int) -> int:
+    return dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float16) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
+def aten〇to〇dtype_layout〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype if dtype is None else dtype
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, device="meta", dtype=torch.float16) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, device="meta", dtype=torch.int32) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, device="meta", dtype=torch.complex64))
+def aten〇to〇device〡dtype(self_rank_dtype: Tuple[int, int], device: device, dtype: int, non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> int:
+    return dtype
+
+@check_dtype_function(_check_two_tensor_op())
+def aten〇to〇other〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int], non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> int:
+    other_rank, other_dtype = other_rank_dtype
+    return other_dtype
+
+@check_dtype_function(_check_two_tensor_op())
+def aten〇type_as〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    other_rank, other_dtype = other_rank_dtype
+    return other_dtype
+
 # ==============================================================================
 # Main
 # ==============================================================================

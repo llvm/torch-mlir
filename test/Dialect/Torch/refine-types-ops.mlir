@@ -17,18 +17,6 @@ func.func @torch.aten.linear(%arg0: !torch.vtensor<[?,3],f32>, %arg1: !torch.vte
 }
 
 // -----
-// CHECK-LABEL:   func.func @torch.aten.type_as(
-// CHECK-SAME:                                     %[[INPUT:.*]]: !torch.tensor<[?],si64>,
-// CHECK-SAME:                                     %[[OTHER:.*]]: !torch.tensor<[?,2],f32>) -> !torch.tensor {
-// CHECK:           %[[RET:.*]] = torch.aten.type_as %[[INPUT]], %[[OTHER]] : !torch.tensor<[?],si64>, !torch.tensor<[?,2],f32> -> !torch.tensor<*,f32>
-// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<*,f32> to !torch.tensor
-// CHECK:           return %[[CAST]] : !torch.tensor
-func.func @torch.aten.type_as(%self: !torch.tensor<[?], si64>, %other: !torch.tensor<[?,2],f32>) -> !torch.tensor {
-  %ret = torch.aten.type_as %self, %other : !torch.tensor<[?], si64>, !torch.tensor<[?,2],f32> -> !torch.tensor
-  return %ret: !torch.tensor
-}
-
-// -----
 // CHECK-LABEL:   func.func @torch.aten.cat(
 // CHECK-SAME:                                 %[[T1:.*]]: !torch.tensor<[?,1,4],f32>,
 // CHECK-SAME:                                 %[[T2:.*]]: !torch.tensor<[2,3,4],f32>) -> !torch.tensor {
@@ -124,23 +112,6 @@ func.func @torch.aten.softmax.int$specified_dtype(%t: !torch.tensor<[2,3],f32>, 
   %int4 = torch.constant.int 4
   %ret = torch.aten.softmax.int %t, %dim, %int4: !torch.tensor<[2,3],f32>, !torch.int, !torch.int -> !torch.tensor
   return %ret : !torch.tensor
-}
-
-// -----
-// CHECK-LABEL: func.func @torch.aten.to.dtype(
-// CHECK-SAME:                            %[[ARG:.*]]: !torch.tensor<[?,?],f32>) -> !torch.tensor
-// CHECK:           %[[TODTYPE:.*]] = torch.aten.to.dtype
-// CHECK-SAME:          %[[ARG]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} :
-// CHECK-SAME:          !torch.tensor<[?,?],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none
-// CHECK-SAME:          -> !torch.tensor<*,si64>
-// CHECK-NEXT:      %[[RES:.*]] = torch.tensor_static_info_cast %[[TODTYPE]] : !torch.tensor<*,si64> to !torch.tensor
-// CHECK-NEXT:      return %[[RES]] : !torch.tensor
-func.func @torch.aten.to.dtype(%arg0: !torch.tensor<[?,?],f32>) -> !torch.tensor{
-  %none = torch.constant.none
-  %false = torch.constant.bool false
-  %int4 = torch.constant.int 4
-  %0 = torch.aten.to.dtype %arg0, %int4, %false, %false, %none : !torch.tensor<[?,?],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.tensor
-  return %0 : !torch.tensor
 }
 
 // -----
