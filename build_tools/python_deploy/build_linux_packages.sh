@@ -288,7 +288,7 @@ function test_in_tree() {
   python -m e2e_testing.main --config=lazy_tensor_core -v
 
   echo ":::: Run TorchDynamo e2e integration tests"
-  python -m e2e_testing.main --config=torchdynamo -v --crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed RandnDtypeDeviceModule_basic RandnLikeModule_basic
+  python -m e2e_testing.main --config=torchdynamo -v
 }
 
 function setup_venv() {
