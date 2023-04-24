@@ -636,6 +636,7 @@ STABLEHLO_PASS_SET = {
     "ConvolutionBackwardModule2DStrided_basic",
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
+    "UnbindIntListUnpack_Module_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -914,6 +915,7 @@ TOSA_PASS_SET = {
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
     "DetachModule_basic",
+    "UnbindIntListUnpack_Module_basic",
 }
 
 LTC_XFAIL_SET = {

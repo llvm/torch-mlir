@@ -542,3 +542,23 @@ class SliceCopyNegative_Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: SliceCopyNegative_Module())
 def SliceCopyNegative_Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 4, 4), tu.rand(4, 4, 4))
+
+
+# ==============================================================================
+
+class UnbindIntListUnpack_Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        unbind_0, unbind_1 = torch.unbind(x, 0)
+        return torch.ops.aten.sub(unbind_0, unbind_1)
+
+@register_test_case(module_factory=lambda: UnbindIntListUnpack_Module())
+def UnbindIntListUnpack_Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4))

@@ -582,6 +582,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::any.bool : (bool[]) -> (bool)")
     emit("aten::sort.int : (int[], bool) -> ()", has_canonicalizer=True)
     emit("aten::sort : (Tensor, int, bool) -> (Tensor, Tensor)")
+    emit("aten::unbind.int : (Tensor, int) -> (Tensor[])", has_canonicalizer=True)
 
     # Str ops.
     emit("aten::add.str : (str, str) -> (str)")
