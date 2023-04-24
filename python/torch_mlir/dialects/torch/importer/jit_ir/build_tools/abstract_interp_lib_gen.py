@@ -2761,6 +2761,132 @@ def aten〇tensor〇bool〡dtype(t: bool, dtype: Optional[int] = None, device: O
         return torch.bool
     return dtype
 
+@check_dtype_function([Invocation([1]),
+                       Invocation([1], dtype=torch.int32),
+                       Invocation([1], dtype=torch.float16),
+                       Invocation([1], dtype=torch.complex64)])
+def aten〇zeros〡dtype(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    return torch.float32 if dtype is None else dtype
+
+@check_dtype_function([Invocation([1]),
+                       Invocation([1], dtype=torch.int32),
+                       Invocation([1], dtype=torch.float16),
+                       Invocation([1], dtype=torch.complex64)])
+def aten〇ones〡dtype(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    return torch.float32 if dtype is None else dtype
+
+@check_dtype_function([Invocation([1]),
+                       Invocation([1], dtype=torch.int32),
+                       Invocation([1], dtype=torch.float16),
+                       Invocation([1], dtype=torch.complex64)])
+def aten〇empty〇memory_format〡dtype(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> int:
+    return torch.float32 if dtype is None else dtype
+
+@check_dtype_function([Invocation([1], 0.0),
+                       Invocation([1], 0),
+                       Invocation([1], 0.0, dtype=torch.int32),
+                       Invocation([1], 0.0, dtype=torch.float16),
+                       Invocation([1], 0.0, dtype=torch.complex64)])
+def aten〇full〡dtype(size: List[int], fill_value: Union[int, float], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    if dtype is not None:
+        return dtype
+    fill_value_dtype = get_dtype_of_scalar(fill_value)
+    if is_float_dtype(fill_value_dtype):
+        return torch.float32
+    return fill_value_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float16) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
+def aten〇zeros_like〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype if dtype is None else dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float16) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
+def aten〇ones_like〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype if dtype is None else dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float16) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
+def aten〇empty_like〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype if dtype is None else dtype
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, fill_value=0.0) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, fill_value=0) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, fill_value=0.0, dtype=torch.float16) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, fill_value=0.0, dtype=torch.int32) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, fill_value=0.0, dtype=torch.complex64))
+def aten〇full_like〡dtype(self_rank_dtype: Tuple[int, int], fill_value: Union[int, float], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype if dtype is None else dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1]) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1], dtype=torch.float16) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1], dtype=torch.int32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1], dtype=torch.complex64))
+def aten〇new_zeros〡dtype(self_rank_dtype: Tuple[int, int], size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype if dtype is None else dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1]) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1], dtype=torch.float16) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1], dtype=torch.int32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1], dtype=torch.complex64))
+def aten〇new_ones〡dtype(self_rank_dtype: Tuple[int, int], size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype if dtype is None else dtype
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1]) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1], dtype=torch.float16) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1], dtype=torch.int32) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1], dtype=torch.complex64))
+def aten〇new_empty〡dtype(self_rank_dtype: Tuple[int, int], size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype if dtype is None else dtype
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1], stride=[1]) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1], stride=[1], dtype=torch.float16) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1], stride=[1], dtype=torch.int32) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1], stride=[1], dtype=torch.complex64))
+def aten〇new_empty_strided〡dtype(self_rank_dtype: Tuple[int, int], size: List[int], stride: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype if dtype is None else dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float16) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
+def aten〇rand_like〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype if dtype is None else dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float16) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
+def aten〇randn_like〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype if dtype is None else dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float16) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
+def aten〇_to_copy〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, non_blocking: bool = False, memory_format: Optional[int] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype if dtype is None else dtype
+
 # ==============================================================================
 # Main
 # ==============================================================================

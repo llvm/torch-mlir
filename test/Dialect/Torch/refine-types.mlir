@@ -40,27 +40,6 @@ func.func @forward(%arg0: !torch.bool, %arg1: !torch.tensor) {
 
 // -----
 
-// CHECK-LABEL:   func.func @torch.aten.zeros_like(
-// CHECK-SAME:        %[[arg:.*]]: !torch.vtensor) {
-// CHECK:           %[[INT6:.*]] = torch.constant.int 6
-// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:           %[[INT1:.*]] = torch.constant.int 1
-// CHECK:           %[[INT0:.*]] = torch.constant.int 0
-// CHECK:           %[[CPU:.*]] = torch.constant.device "cpu"
-// CHECK:           %[[ZEROS:.*]] = torch.aten.zeros_like %[[arg]], %[[INT6]], %[[INT0]], %[[CPU]], %[[FALSE]], %[[INT1]] : !torch.vtensor, !torch.int, !torch.int, !torch.Device, !torch.bool, !torch.int -> !torch.vtensor<*,f32>
-// CHECK:           return
-func.func @torch.aten.zeros_like(%arg: !torch.vtensor) {
-  %int6 = torch.constant.int 6
-  %false = torch.constant.bool false
-  %int1 = torch.constant.int 1
-  %int0 = torch.constant.int 0
-  %cpu = torch.constant.device "cpu"
-  %2 = torch.aten.zeros_like %arg, %int6, %int0, %cpu, %false, %int1 : !torch.vtensor, !torch.int, !torch.int, !torch.Device, !torch.bool, !torch.int -> !torch.vtensor
-  return
-}
-
-// -----
-
 // The data-flow analysis does not always propagate information to the entire graph.
 // This results in some lattice elements being uninitialized, which must be properly
 // handled when using the lattice elements to rewrite the graph.

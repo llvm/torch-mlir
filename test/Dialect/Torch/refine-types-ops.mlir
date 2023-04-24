@@ -17,23 +17,6 @@ func.func @torch.aten.linear(%arg0: !torch.vtensor<[?,3],f32>, %arg1: !torch.vte
 }
 
 // -----
-// CHECK-LABEL:   func.func @torch.aten.zeros(
-// CHECK-SAME:        %[[DIM0:.*]]: !torch.int) -> !torch.tensor {
-// CHECK:           %[[NONE:.*]] = torch.constant.none
-// CHECK:           %[[INT2:.*]] = torch.constant.int 2
-// CHECK:           %[[SIZES:.*]] = torch.prim.ListConstruct %[[DIM0]], %[[INT2]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[ZEROS:.*]] = torch.aten.zeros %[[SIZES]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.tensor<*,f32>
-// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[ZEROS]] : !torch.tensor<*,f32> to !torch.tensor
-// CHECK:           return %[[CAST]] : !torch.tensor
-func.func @torch.aten.zeros(%dim0: !torch.int) -> !torch.tensor {
-  %none = torch.constant.none
-  %int2 = torch.constant.int 2
-  %sizesList = torch.prim.ListConstruct %dim0, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
-  %ret = torch.aten.zeros %sizesList, %none, %none, %none, %none : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.tensor
-  return %ret : !torch.tensor
-}
-
-// -----
 // CHECK-LABEL:   func.func @torch.aten.type_as(
 // CHECK-SAME:                                     %[[INPUT:.*]]: !torch.tensor<[?],si64>,
 // CHECK-SAME:                                     %[[OTHER:.*]]: !torch.tensor<[?,2],f32>) -> !torch.tensor {

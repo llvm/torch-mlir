@@ -648,56 +648,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  if (auto zeros = dyn_cast<AtenZerosOp>(op)) {
-    visitConstantTensorAllocOp<AtenZerosOp>(zeros, /*dataType=*/{});
-    return;
-  } else if (auto ones = dyn_cast<AtenOnesOp>(op)) {
-    visitConstantTensorAllocOp<AtenOnesOp>(ones, /*dataType=*/{});
-    return;
-  } else if (auto emptyMemoryFormat = dyn_cast<AtenEmptyMemoryFormatOp>(op)) {
-    visitConstantTensorAllocOp<AtenEmptyMemoryFormatOp>(emptyMemoryFormat,
-                                                        /*dataType=*/{});
-    return;
-  } else if (auto full = dyn_cast<AtenFullOp>(op)) {
-    visitConstantTensorAllocOp<AtenFullOp>(
-        full, /*dataType=*/full.getFillValue().getType());
-    return;
-  } else if (auto zerosLike = dyn_cast<AtenZerosLikeOp>(op)) {
-    visitConstantTensorAllocLikeOp<AtenZerosLikeOp>(zerosLike, operands);
-    return;
-  } else if (auto onesLike = dyn_cast<AtenOnesLikeOp>(op)) {
-    visitConstantTensorAllocLikeOp<AtenOnesLikeOp>(onesLike, operands);
-    return;
-  } else if (auto emptyLike = dyn_cast<AtenEmptyLikeOp>(op)) {
-    visitConstantTensorAllocLikeOp<AtenEmptyLikeOp>(emptyLike, operands);
-    return;
-  } else if (auto fullLike = dyn_cast<AtenFullLikeOp>(op)) {
-    visitConstantTensorAllocLikeOp<AtenFullLikeOp>(fullLike, operands);
-    return;
-  } else if (auto newZeros = dyn_cast<AtenNewZerosOp>(op)) {
-    visitConstantTensorNewLikeOp<AtenNewZerosOp>(newZeros, operands);
-    return;
-  } else if (auto newOnes = dyn_cast<AtenNewOnesOp>(op)) {
-    visitConstantTensorNewLikeOp<AtenNewOnesOp>(newOnes, operands);
-    return;
-  } else if (auto newEmpty = dyn_cast<AtenNewEmptyOp>(op)) {
-    visitConstantTensorNewLikeOp<AtenNewEmptyOp>(newEmpty, operands);
-    return;
-  } else if (auto newEmptyStrided = dyn_cast<AtenNewEmptyStridedOp>(op)) {
-    visitConstantTensorNewLikeOp<AtenNewEmptyStridedOp>(newEmptyStrided,
-                                                        operands);
-    return;
-  } else if (auto randLike = dyn_cast<AtenRandLikeOp>(op)) {
-    visitConstantTensorAllocLikeOp<AtenRandLikeOp>(randLike, operands);
-    return;
-  } else if (auto randLike = dyn_cast<AtenRandnLikeOp>(op)) {
-    visitConstantTensorAllocLikeOp<AtenRandnLikeOp>(randLike, operands);
-    return;
-  } else if (auto toCopy = dyn_cast<Aten_ToCopyOp>(op)) {
-    visitConstantTensorAllocLikeOp<Aten_ToCopyOp>(toCopy, operands);
-    return;
-  }
-
   if (auto toDtype = dyn_cast<AtenToDtypeOp>(op)) {
     visitAtenToDtypeLikeOp<AtenToDtypeOp>(toDtype, operands);
     return;
