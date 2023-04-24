@@ -643,17 +643,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  if (auto tensorFloat = dyn_cast<AtenTensorFloatOp>(op)) {
-    visitScalarToTensorConversionOp<AtenTensorFloatOp>(tensorFloat);
-    return;
-  } else if (auto tensorInt = dyn_cast<AtenTensorIntOp>(op)) {
-    visitScalarToTensorConversionOp<AtenTensorIntOp>(tensorInt);
-    return;
-  } else if (auto tensorBool = dyn_cast<AtenTensorBoolOp>(op)) {
-    visitScalarToTensorConversionOp<AtenTensorBoolOp>(tensorBool);
-    return;
-  }
-
   if (auto tensor = dyn_cast<AtenTensorOp>(op)) {
     visitAtenTensorOp(tensor);
     return;

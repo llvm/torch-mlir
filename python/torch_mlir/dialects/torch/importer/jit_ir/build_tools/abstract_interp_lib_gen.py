@@ -2734,6 +2734,33 @@ def aten〇linalg_vector_norm〡dtype(self_rank_dtype: Tuple[int, int], ord: Uni
         return dtype
     return aten〇std〡dtype(self_rank_dtype)
 
+@check_dtype_function([Invocation(0.0),
+                       Invocation(0.0, dtype=torch.int32),
+                       Invocation(0.0, dtype=torch.float16),
+                       Invocation(0.0, dtype=torch.complex64)])
+def aten〇tensor〇float〡dtype(t: float, dtype: Optional[int] = None, device: Optional[device] = None, requires_grad: bool = False) -> int:
+    if dtype is None:
+        return torch.float32
+    return dtype
+
+@check_dtype_function([Invocation(0),
+                       Invocation(0, dtype=torch.int32),
+                       Invocation(0, dtype=torch.float16),
+                       Invocation(0, dtype=torch.complex64)])
+def aten〇tensor〇int〡dtype(t: int, dtype: Optional[int] = None, device: Optional[device] = None, requires_grad: bool = False) -> int:
+    if dtype is None:
+        return torch.int64
+    return dtype
+
+@check_dtype_function([Invocation(True),
+                       Invocation(True, dtype=torch.int32),
+                       Invocation(True, dtype=torch.float16),
+                       Invocation(True, dtype=torch.complex64)])
+def aten〇tensor〇bool〡dtype(t: bool, dtype: Optional[int] = None, device: Optional[device] = None, requires_grad: bool = False) -> int:
+    if dtype is None:
+        return torch.bool
+    return dtype
+
 # ==============================================================================
 # Main
 # ==============================================================================

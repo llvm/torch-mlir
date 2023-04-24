@@ -116,38 +116,6 @@ func.func @torch.aten.embedding(%weight: !torch.tensor<[104,512],f32>, %indices:
 }
 
 // -----
-// CHECK-LABEL:   func.func @torch.aten.tensor.float(
-// CHECK-SAME:                                          %[[t:.*]]: !torch.float) -> !torch.tensor {
-// CHECK:           %[[NONE:.*]] = torch.constant.none
-// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:           %[[RET:.*]] = torch.aten.tensor.float %[[t]], %[[NONE]], %[[NONE]], %[[FALSE]] : !torch.float, !torch.none, !torch.none, !torch.bool -> !torch.tensor<*,f32>
-// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<*,f32> to !torch.tensor
-// CHECK:           return %[[CAST]] : !torch.tensor
-func.func @torch.aten.tensor.float(%t: !torch.float) -> !torch.tensor {
-  %none = torch.constant.none
-  %false = torch.constant.bool false
-  %ret = torch.aten.tensor.float %t, %none, %none, %false : !torch.float, !torch.none, !torch.none, !torch.bool -> !torch.tensor
-  return %ret : !torch.tensor
-}
-
-// -----
-// CHECK-LABEL:   func.func @torch.aten.tensor.float$specified_dtype(
-// CHECK-SAME:                                          %[[t:.*]]: !torch.float) -> !torch.tensor {
-// CHECK:           %[[NONE:.*]] = torch.constant.none
-// CHECK:           %[[CST11:.*]] = torch.constant.int 11
-// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:           %[[RET:.*]] = torch.aten.tensor.float %[[t]], %[[CST11]], %[[NONE]], %[[FALSE]] : !torch.float, !torch.int, !torch.none, !torch.bool -> !torch.tensor<*,i1>
-// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<*,i1> to !torch.tensor
-// CHECK:           return %[[CAST]] : !torch.tensor
-func.func @torch.aten.tensor.float$specified_dtype(%t: !torch.float) -> !torch.tensor {
-  %none = torch.constant.none
-  %int11 = torch.constant.int 11
-  %false = torch.constant.bool false
-  %ret = torch.aten.tensor.float %t, %int11, %none, %false : !torch.float, !torch.int, !torch.none, !torch.bool -> !torch.tensor
-  return %ret : !torch.tensor
-}
-
-// -----
 // CHECK-LABEL:   func.func @torch.aten.softmax.int(
 // CHECK-SAME:                                 %[[T:.*]]: !torch.tensor<[2,3],f32>,
 // CHECK-SAME:                                 %[[DIM:.*]]: !torch.int) -> !torch.tensor {
