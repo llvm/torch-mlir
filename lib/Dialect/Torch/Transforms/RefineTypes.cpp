@@ -648,35 +648,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  if (auto toDtype = dyn_cast<AtenToDtypeOp>(op)) {
-    visitAtenToDtypeLikeOp<AtenToDtypeOp>(toDtype, operands);
-    return;
-  }
-
-  if (auto primsConvertElementType = dyn_cast<PrimsConvertElementTypeOp>(op)) {
-    visitAtenToDtypeLikeOp<PrimsConvertElementTypeOp>(primsConvertElementType,
-                                                      operands);
-    return;
-  }
-
-  if (auto toDtypeLayout = dyn_cast<AtenToDtypeLayoutOp>(op)) {
-    visitAtenToDtypeLikeOp<AtenToDtypeLayoutOp>(toDtypeLayout, operands);
-    return;
-  }
-
-  if (auto toDtype = dyn_cast<AtenToDeviceOp>(op)) {
-    visitAtenToDtypeLikeOp<AtenToDeviceOp>(toDtype, operands);
-    return;
-  }
-
-  if (auto toOther = dyn_cast<AtenToOtherOp>(op)) {
-    visitTypeConversionOp<AtenToOtherOp>(toOther, operands);
-    return;
-  } else if (auto typeAs = dyn_cast<AtenTypeAsOp>(op)) {
-    visitTypeConversionOp<AtenTypeAsOp>(typeAs, operands);
-    return;
-  }
-
   if (auto cat = dyn_cast<AtenCatOp>(op)) {
     visitAtenCatLikeOp<AtenCatOp>(cat, operands);
     return;
