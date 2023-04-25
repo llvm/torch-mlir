@@ -56,7 +56,7 @@ using namespace mlir::torch::TMTensor;
 // that these patterns become mostly mechanical associations of
 // "aten.foo -> linalg.foo".
 
-static Attribute getNumericLimit(PatternRewriter &rewriter, Type elementType,
+static TypedAttr getNumericLimit(PatternRewriter &rewriter, Type elementType,
                                  bool getMin = true) {
   auto bitWidth = elementType.getIntOrFloatBitWidth();
   if (llvm::isa<mlir::IntegerType>(elementType)) {
@@ -1184,7 +1184,7 @@ public:
     if (reduceEnum == torch_upstream::ReductionType::MEAN) {
       SmallVector<Value> selfShape =
           getTensorSizes(rewriter, loc, adaptor.getSelf());
-      Attribute initAttr;
+      TypedAttr initAttr;
       if (llvm::isa<mlir::FloatType>(srcType.getElementType())) {
         initAttr = rewriter.getFloatAttr(srcType.getElementType(), 1);
       } else if (llvm::isa<mlir::IntegerType>(srcType.getElementType())) {
@@ -1220,13 +1220,13 @@ public:
       } else if (reduceEnum == torch_upstream::ReductionType::MAX) {
         // Set the values in the input tensor to the smallest element of that
         // type
-        auto minAttr = getNumericLimit(rewriter, srcType.getElementType(),
+        TypedAttr minAttr = getNumericLimit(rewriter, srcType.getElementType(),
                                        /*getMin=*/true);
         normalizationValue = rewriter.create<arith::ConstantOp>(loc, minAttr);
       } else if (reduceEnum == torch_upstream::ReductionType::MIN) {
         // Set the values in the input tensor to the largest element of that
         // type
-        auto maxAttr = getNumericLimit(rewriter, srcType.getElementType(),
+        TypedAttr maxAttr = getNumericLimit(rewriter, srcType.getElementType(),
                                        /*getMin=*/false);
         normalizationValue = rewriter.create<arith::ConstantOp>(loc, maxAttr);
       }

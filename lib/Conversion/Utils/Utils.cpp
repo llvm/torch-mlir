@@ -197,7 +197,7 @@ Value getTensorSize(OpBuilder &b, Location loc, Value tensor) {
 
 // Creates a constant of type `elemType` with value `val`.
 Value getConstant(OpBuilder &b, Location loc, int64_t val, Type elemType) {
-  Attribute attr = {};
+  TypedAttr attr = {};
   if (elemType.isa<mlir::FloatType>())
     attr = b.getFloatAttr(elemType, val);
   if (elemType.isa<mlir::IndexType>())

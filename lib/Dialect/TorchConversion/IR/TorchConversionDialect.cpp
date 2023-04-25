@@ -73,5 +73,5 @@ Operation *TorchConversionDialect::materializeConstant(OpBuilder &builder,
                                                  value.cast<IntegerAttr>());
   }
 
-  return builder.create<arith::ConstantOp>(loc, value, type);
+  return arith::ConstantOp::materialize(builder, value, type, loc);
 }

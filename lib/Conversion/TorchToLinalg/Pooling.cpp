@@ -80,7 +80,7 @@ static LogicalResult createPoolingOp(
     highPaddingIncludingNC[2] += strideInts[0];
     highPaddingIncludingNC[3] += strideInts[1];
   }
-  Value initValue = rewriter.create<arith::ConstantOp>(loc, initValueAttr);
+  Value initValue = rewriter.create<arith::ConstantOp>(loc, cast<TypedAttr>(initValueAttr));
   paddedInput = torch_to_linalg::getPaddedTensor(
       op, rewriter, self, lowPaddingIncludingNC, highPaddingIncludingNC,
       initValue);
@@ -154,7 +154,7 @@ public:
       return rewriter.notifyMatchFailure(op, "invalid pooling parameters");
 
     Type elementType = self.getType().cast<RankedTensorType>().getElementType();
-    auto smallestFPValueAttr = rewriter.getFloatAttr(
+    TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
         elementType,
         APFloat::getLargest(
             elementType.cast<mlir::FloatType>().getFloatSemantics(),

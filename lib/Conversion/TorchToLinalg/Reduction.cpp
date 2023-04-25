@@ -277,7 +277,7 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     Value result = payloadArgs[1];
     Value self = convertScalarToDtype(b, loc, elem, resultElementType);
     auto abs = b.create<math::AbsFOp>(loc, self);
-    Attribute twoAttr = b.getFloatAttr(resultElementType, 2.0);
+    TypedAttr twoAttr = b.getFloatAttr(resultElementType, 2.0);
     auto ord = b.create<arith::ConstantOp>(loc, twoAttr);
     auto pow = b.create<math::PowFOp>(loc, abs, ord);
     return b.create<arith::AddFOp>(loc, pow, result);
@@ -403,7 +403,7 @@ private:
       return rewriter.notifyMatchFailure(op, "unimplemented: ord = +/- inf");
 
     // Raise each summed value to the inverse of the order of the norm.
-    Attribute oneAttr = rewriter.getFloatAttr(elemType, 1.0);
+    TypedAttr oneAttr = rewriter.getFloatAttr(elemType, 1.0);
     auto oneValue = rewriter.create<arith::ConstantOp>(loc, oneAttr);
     auto inverseOrdValue =
         rewriter.create<arith::DivFOp>(loc, oneValue, ordValue);
