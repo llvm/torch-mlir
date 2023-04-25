@@ -9388,7 +9388,6 @@ def Torch_AtenUnbindIntOp : Torch_Op<"aten.unbind.int", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
-  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenAddStrOp : Torch_Op<"aten.add.str", [
