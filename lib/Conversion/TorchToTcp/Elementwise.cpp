@@ -449,47 +449,30 @@ public:
           op, "Unsupported pin_memory, should be either None or false");
     }
 
-    SmallVector<int64_t> shape;
-    if (!matchPattern(op.getSize(), m_TorchListOfConstantInts(shape))) {
-      return rewriter.notifyMatchFailure(
-          op, "Shape must be a list of Scalar constants");
-    }
-
-    int64_t size = 1;
-    for (auto s : shape)
-      size *= s;
-
-    std::optional<Value> constOp;
-
+    Value constOp;
     if (outElemTy.isInteger(64)) {
-      SmallVector<int64_t> values(size, static_cast<int64_t>(fillVal));
-      constOp =
-          torch_to_tcp::getConstTensor<int64_t>(rewriter, op, values, shape)
-              .value();
+      constOp = *torch_to_tcp::getConstTensor<int64_t>(
+          rewriter, op, llvm::ArrayRef(static_cast<int64_t>(fillVal)), {});
     } else if (outElemTy.isInteger(32)) {
-      SmallVector<int32_t> values(size, static_cast<int32_t>(fillVal));
-      constOp =
-          torch_to_tcp::getConstTensor<int32_t>(rewriter, op, values, shape)
-              .value();
+      constOp = *torch_to_tcp::getConstTensor<int32_t>(
+          rewriter, op, llvm::ArrayRef(static_cast<int32_t>(fillVal)), {});
     } else if (outElemTy.isInteger(8)) {
-      SmallVector<int8_t> values(size, static_cast<int8_t>(fillVal));
-      constOp =
-          torch_to_tcp::getConstTensor<int8_t>(rewriter, op, values, shape)
-              .value();
+      constOp = *torch_to_tcp::getConstTensor<int8_t>(
+          rewriter, op, llvm::ArrayRef(static_cast<int8_t>(fillVal)), {});
     } else if (outElemTy.isF32()) {
-      SmallVector<float> values(size, static_cast<float>(fillVal));
-      constOp = torch_to_tcp::getConstTensor<float>(rewriter, op, values, shape)
-                    .value();
+      constOp = *torch_to_tcp::getConstTensor<float>(
+          rewriter, op, llvm::ArrayRef(static_cast<float>(fillVal)), {});
     } else if (outElemTy.isF64()) {
-      SmallVector<double> values(size, static_cast<double>(fillVal));
-      constOp =
-          torch_to_tcp::getConstTensor<double>(rewriter, op, values, shape)
-              .value();
+      constOp = *torch_to_tcp::getConstTensor<double>(
+          rewriter, op, llvm::ArrayRef(static_cast<double>(fillVal)), {});
     } else {
       return rewriter.notifyMatchFailure(op, "Unsupported output type");
     }
 
-    rewriter.replaceOp(op, (*constOp));
+    Value resultOp = torch_to_tcp::broadcast0DOr1DFromPrimList(
+        rewriter, constOp, op.getSize());
+
+    rewriter.replaceOp(op, resultOp);
 
     return success();
   }

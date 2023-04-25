@@ -13,9 +13,15 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpDialect.h"
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
+#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 
 using namespace mlir;
 using namespace mlir::tcp;
+using namespace mlir::torch;
+using namespace mlir::torch::Torch;
 
 // The parameter input is expected to be of RankedTensorType.
 Value torch_to_tcp::broadcastRankInLeadingDims(
@@ -129,6 +135,72 @@ Value torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
   result = rewriter.create<tcp::BroadcastOp>(result.getDefiningOp()->getLoc(),
                                              target.getType(), result, dimSizes,
                                              axesAttr);
+
+  return result;
+}
+
+SmallVector<int64_t> torch_to_tcp::getShapeFromPrimList(Operation *primListOp) {
+  auto listConstruct = dyn_cast<Torch::PrimListConstructOp>(primListOp);
+  assert(listConstruct && "Target must come from PrimListConstructOp");
+  SmallVector<int64_t> resultShape;
+  for (Value value : listConstruct.getElements()) {
+    int64_t num;
+    if (matchPattern(value, m_TorchConstantInt(&num)))
+      resultShape.push_back(num);
+    else
+      resultShape.push_back(ShapedType::kDynamic);
+  }
+  return resultShape;
+}
+
+Value torch_to_tcp::broadcast0DOr1DFromPrimList(
+    ConversionPatternRewriter &rewriter, Value input, Value target,
+    int64_t axisInOutput) {
+  RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+  auto inputRank = inputType.getRank();
+  RankedTensorType targetType = input.getType().cast<RankedTensorType>();
+  Operation *primListOp = target.getDefiningOp();
+  auto listConstruct = dyn_cast<Torch::PrimListConstructOp>(primListOp);
+  assert(listConstruct && "Target must come from PrimListConstructOp");
+
+  int64_t targetRank = 0;
+  SmallVector<Value> dimSizes;
+  for (Value value : listConstruct.getElements()) {
+    targetRank++;
+    Value newDimSize = rewriter.create<torch::TorchConversion::ToI64Op>(
+        input.getDefiningOp()->getLoc(), value);
+    dimSizes.push_back(rewriter.create<arith::IndexCastOp>(
+        input.getDefiningOp()->getLoc(), rewriter.getIndexType(), newDimSize));
+  }
+
+  SmallVector<ReassociationExprs> reassociationMap(inputRank);
+  SmallVector<int64_t> expandShape(targetRank, 1);
+  SmallVector<int64_t> resultShape = getShapeFromPrimList(listConstruct);
+
+  if (inputRank == 1) {
+    for (int64_t axis = 0; axis < targetRank; ++axis)
+      reassociationMap[0].push_back(rewriter.getAffineDimExpr(axis));
+    resultShape[axisInOutput] = inputType.getShape()[0];
+    expandShape[axisInOutput] = inputType.getShape()[0];
+  }
+
+  Value result = input;
+  auto resultType =
+      targetType.cloneWith(ArrayRef(expandShape), targetType.getElementType());
+  result = rewriter.create<tensor::ExpandShapeOp>(
+      result.getDefiningOp()->getLoc(), resultType, input, reassociationMap);
+
+  SmallVector<int64_t> axes;
+  for (int64_t axis = 0; axis < targetRank; ++axis) {
+    if (inputRank == 0 || axis != axisInOutput) {
+      axes.push_back(axis);
+    }
+  }
+  auto axesAttr = rewriter.getI64ArrayAttr(axes);
+  resultType =
+      targetType.cloneWith(ArrayRef(resultShape), targetType.getElementType());
+  result = rewriter.create<tcp::BroadcastOp>(
+      result.getDefiningOp()->getLoc(), resultType, result, dimSizes, axesAttr);
 
   return result;
 }
