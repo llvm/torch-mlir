@@ -799,7 +799,8 @@ OpFoldResult AtenToDtypeLayoutOp::fold(FoldAdaptor adaptor) {
 
 void AtenToDtypeLayoutOp::getCanonicalizationPatterns(
     RewritePatternSet &patterns, MLIRContext *context) {
-  // `to.dtype_layout` -> `to.device/to.dtype` if layout is none
+  // `to.dtype_layout` -> `to.device/to.dtype` if layout is none and pin memory
+  // is false
   patterns.add(+[](AtenToDtypeLayoutOp op, PatternRewriter &rewriter) {
     // The pin_memory arg should be either constant `False` or `none`.
     if (!op.getPinMemory().getType().isa<Torch::NoneType>()) {
@@ -819,13 +820,14 @@ void AtenToDtypeLayoutOp::getCanonicalizationPatterns(
         return failure();
     }
 
-    // The device arg is not `none`.
     if (op.getDevice().getType().isa<Torch::NoneType>()) {
+      // The device arg is `none`. Rewrite to to.dtype.
       AtenToDtypeOp toDtype = rewriter.create<AtenToDtypeOp>(
           op.getLoc(), op.getType(), op.getSelf(), op.getDtype(),
           op.getNonBlocking(), op.getCopy(), op.getMemoryFormat());
       rewriter.replaceOp(op, toDtype->getResults());
     } else {
+      // The device arg is not `none`. Rewrite to to.device.
       AtenToDeviceOp toDevice = rewriter.create<AtenToDeviceOp>(
           op.getLoc(), op.getType(), op.getSelf(), op.getDevice(),
           op.getDtype(), op.getNonBlocking(), op.getCopy(),
