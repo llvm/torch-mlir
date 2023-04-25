@@ -797,6 +797,46 @@ OpFoldResult AtenToDtypeLayoutOp::fold(FoldAdaptor adaptor) {
   return getOperand(0);
 }
 
+void AtenToDtypeLayoutOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  // `to.dtype_layout` -> `to.device/to.dtype` if layout is none
+  patterns.add(+[](AtenToDtypeLayoutOp op, PatternRewriter &rewriter) {
+    // The pin_memory arg should be either constant `False` or `none`.
+    if (!op.getPinMemory().getType().isa<Torch::NoneType>()) {
+      bool pinMemory;
+      if (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)))
+        return failure();
+      else if (pinMemory)
+        return failure();
+    }
+
+    // The layout arg should be either `none` or `0` i.e. strided.
+    if (!op.getLayout().getType().isa<Torch::NoneType>()) {
+      int64_t tensorLayout;
+      if (!matchPattern(op.getLayout(), m_TorchConstantInt(&tensorLayout)))
+        return failure();
+      else if (tensorLayout != torch_upstream::Layout::Strided)
+        return failure();
+    }
+
+    // The device arg is not `none`.
+    if (op.getDevice().getType().isa<Torch::NoneType>()) {
+      AtenToDtypeOp toDtype = rewriter.create<AtenToDtypeOp>(
+          op.getLoc(), op.getType(), op.getSelf(), op.getDtype(),
+          op.getNonBlocking(), op.getCopy(), op.getMemoryFormat());
+      rewriter.replaceOp(op, toDtype->getResults());
+    } else {
+      AtenToDeviceOp toDevice = rewriter.create<AtenToDeviceOp>(
+          op.getLoc(), op.getType(), op.getSelf(), op.getDevice(),
+          op.getDtype(), op.getNonBlocking(), op.getCopy(),
+          op.getMemoryFormat());
+      rewriter.replaceOp(op, toDevice->getResults());
+    }
+
+    return success();
+  });
+}
+
 //===----------------------------------------------------------------------===//
 // AtenViewOp
 //===----------------------------------------------------------------------===//
