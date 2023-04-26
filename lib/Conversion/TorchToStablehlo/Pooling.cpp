@@ -56,7 +56,7 @@ static Value createInitialValueForAtenPoolingOp(Operation *op, Type elementTy,
   if (isa<AtenMaxPool2dOp, AtenMaxPool2dWithIndicesOp>(op)) {
     if (elementTy.isa<mlir::FloatType>()) {
       auto constAttr = DenseElementsAttr::get(
-          constType, {APFloat::getLargest(
+          constType, {APFloat::getInf(
                          elementTy.cast<mlir::FloatType>().getFloatSemantics(),
                          /*negative=*/true)});
       return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
