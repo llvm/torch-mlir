@@ -332,6 +332,14 @@ def aten〇var_mean〇correction〡shape(self: List[int], dim: Optional[List[int
     out = upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
     return out, out
 
+def aten〇var_mean〇dim〡shape(self: List[int], dim: Optional[List[int]], unbiased: bool = True, keepdim: bool = False) -> Tuple[List[int], List[int]]:
+    out = upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
+    return out, out
+
+def aten〇var_mean〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[List[int]], unbiased: bool = True, keepdim: bool = False) -> Tuple[int, int]:
+    _, self_dtype = self_rank_dtype
+    return self_dtype, self_dtype
+
 def aten〇var_mean〡shape(self: List[int], unbiased: bool = True) -> Tuple[List[int], List[int]]:
     return [], []
 
