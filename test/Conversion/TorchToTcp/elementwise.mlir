@@ -726,3 +726,4 @@ func.func @torch.aten.ones_like_ui8(%arg0: !torch.vtensor<[?,?],ui8>) -> !torch.
 %0 = torch.aten.ones_like %arg0, %int3, %int0, %cuda3A0, %false, %none : !torch.vtensor<[?,?],ui8>, !torch.int, !torch.int, !torch.Device, !torch.bool, !torch.none -> !torch.vtensor<[?,?],ui8>
 return %0 : !torch.vtensor<[?,?],ui8>
 }
+
