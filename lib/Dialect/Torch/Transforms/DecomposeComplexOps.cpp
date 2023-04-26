@@ -4299,6 +4299,28 @@ class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
 } // namespace
 
 namespace {
+// Decompose `aten.var_mean.dim` op into `aten.var.dim` and
+// `aten.mean.dim` op.
+class DecomposeAtenVarMeanDimOp : public OpRewritePattern<AtenVarMeanDimOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenVarMeanDimOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value noneVal = rewriter.create<ConstantNoneOp>(loc);
+    Value var = rewriter.create<AtenVarDimOp>(loc, op.getType(0), op.getSelf(),
+                                              op.getDim(), op.getUnbiased(),
+                                              op.getKeepdim());
+    Value mean = rewriter.create<AtenMeanDimOp>(
+        loc, op.getType(0), op.getSelf(), op.getDim(), op.getKeepdim(),
+        /*dtype=*/noneVal);
+    rewriter.replaceOp(op, {var, mean});
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -4460,6 +4482,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenMovedimIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenOneHotOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCrossEntropyLossOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

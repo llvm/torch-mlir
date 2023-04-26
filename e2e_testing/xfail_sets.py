@@ -944,4 +944,6 @@ LTC_XFAIL_SET = {
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
     "OneHotModule_basic",
+    "VarMeanDimModule_basic",
+    "VarMeanDimBiasedModule_basic",
 }

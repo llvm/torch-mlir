@@ -5385,6 +5385,33 @@ def Torch_AtenVarMeanOp : Torch_Op<"aten.var_mean", [
   }];
 }
 
+def Torch_AtenVarMeanDimOp : Torch_Op<"aten.var_mean.dim", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::var_mean.dim : (Tensor, int[]?, bool, bool) -> (Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchOptionalListOfTorchIntType:$dim,
+    Torch_BoolType:$unbiased,
+    Torch_BoolType:$keepdim
+  );
+  let results = (outs
+    AnyTorchTensorType:$result0,
+    AnyTorchTensorType:$result1
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenVarMeanDimOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 2);
+    }
+    void AtenVarMeanDimOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 2);
+    }
+  }];
+}
+
 def Torch_AtenNllLoss2dForwardOp : Torch_Op<"aten.nll_loss2d_forward", [
     AllowsTypeRefinement,
     HasValueSemantics,
