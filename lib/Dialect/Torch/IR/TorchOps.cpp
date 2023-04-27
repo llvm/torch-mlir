@@ -2341,6 +2341,20 @@ OpFoldResult PrimDtypeOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// PrimDeviceOp
+//===----------------------------------------------------------------------===//
+
+void PrimDeviceOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                               MLIRContext *context) {
+  patterns.add(+[](PrimDeviceOp op, PatternRewriter &rewriter) {
+    // Device information isn't relevant to torch-mlir, just replace it with
+    // "cpu".
+    rewriter.replaceOpWithNewOp<Torch::ConstantDeviceOp>(op, "cpu");
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenIntTensorOp
 //===----------------------------------------------------------------------===//
 
