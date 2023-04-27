@@ -2956,6 +2956,26 @@ def aten〇randn〇generator〡dtype(size: List[int], generator: Any, dtype: Opt
     assert not is_integer_dtype(dtype)
     return dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types=all_integer_dtypes()))
+def aten〇var_mean〇correction〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[List[int]] = None, correction: Optional[Union[int, float]] = None, keepdim: bool = False) -> Tuple[int, int]:
+    self_rank, self_dtype = self_rank_dtype
+    assert not is_integer_dtype(self_dtype)
+    if self_dtype == torch.complex64:
+        return torch.float32, self_dtype
+    if self_dtype == torch.complex128:
+        return torch.float64, self_dtype
+    return self_dtype, self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types=all_integer_dtypes()))
+def aten〇var_mean〡dtype(self_rank_dtype: Tuple[int, int], unbiased: bool = True) -> Tuple[int, int]:
+    self_rank, self_dtype = self_rank_dtype
+    assert not is_integer_dtype(self_dtype)
+    if self_dtype == torch.complex64:
+        return torch.float32, self_dtype
+    if self_dtype == torch.complex128:
+        return torch.float64, self_dtype
+    return self_dtype, self_dtype
+
 # ==============================================================================
 # Main
 # ==============================================================================

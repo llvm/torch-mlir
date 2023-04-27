@@ -698,16 +698,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  if (isa<AtenVarMeanCorrectionOp, AtenVarMeanOp>(op)) {
-    auto input = operands[0]->getValue();
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = input.dtype;
-    incorporateKnowledge(op->getResult(0), knowledge);
-    incorporateKnowledge(op->getResult(1), knowledge);
-    return;
-  }
-
   if (auto bucketize = dyn_cast<AtenBucketizeTensorOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
