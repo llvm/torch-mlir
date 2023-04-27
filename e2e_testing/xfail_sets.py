@@ -500,6 +500,7 @@ STABLEHLO_PASS_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "MaxPool2dEmptyStrideStaticModule_basic",
     "ConstantBoolParameterModule_basic",
     "ElementwiseCloneContiguousModule_basic",
     "ElementwiseCloneChannelsLastMemoryFormatModule_basic",
