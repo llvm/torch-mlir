@@ -258,6 +258,15 @@ def check_shape_function(invocations: List[Invocation]):
         return f
     return decorator
 
+@torch.jit.script
+def _convert_dtype_to_int(dtype: torch.dtype) -> int:
+    """Convert a PyTorch `dtype` into its underlying `int` representation.
+
+    This works because in TorchScript there is no special type for `dtypes`;
+    they are simply `int`s.
+    """
+    return dtype
+
 def check_dtype_function(invocations: List[Invocation]):
     """Decorator that automatically tests a dtype function.
 
@@ -281,7 +290,12 @@ def check_dtype_function(invocations: List[Invocation]):
                     golden_dtype = torch.tensor([]).to(type(golden_result)).dtype
                 else:
                     raise ValueError(f"Unhandled return type {type(golden_result)}")
-                if result_dtype != golden_dtype:
+                # Some dtype funtions have default `dtype` parameters, which are
+                # represented as `int` values in the registry. In order to
+                # support returning the default `int` value, the comparisons of
+                # the result and golden dtypes are done using their underlying
+                # `int` representation.
+                if _convert_dtype_to_int(result_dtype) != _convert_dtype_to_int(golden_dtype):
                     _report(f, invocation, f"Expected result dtype {golden_dtype}, got {result_dtype}")
         return f
     return decorator

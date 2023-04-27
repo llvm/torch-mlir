@@ -2926,6 +2926,36 @@ def aten〇type_as〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: T
     other_rank, other_dtype = other_rank_dtype
     return other_dtype
 
+@check_dtype_function([Invocation(low=0, high=10, size=[1]),
+                       Invocation(low=0, high=10, size=[1], dtype=torch.float32),
+                       Invocation(low=0, high=10, size=[1], dtype=torch.int32),
+                       ErrorInvocation(low=0, high=10, size=[1], dtype=torch.complex64)])
+def aten〇randint〇low〡dtype(low: int, high: int, size: List[int], dtype: Optional[int] = 4, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    if dtype is None:
+        return torch.int64
+    assert not is_complex_dtype(dtype)
+    return dtype
+
+@check_dtype_function([Invocation(size=[1]),
+                       Invocation(size=[1], dtype=torch.float32),
+                       ErrorInvocation(size=[1], dtype=torch.int32),
+                       Invocation(size=[1], dtype=torch.complex64)])
+def aten〇randn〡dtype(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    if dtype is None:
+        return torch.float32
+    assert not is_integer_dtype(dtype)
+    return dtype
+
+@check_dtype_function([Invocation(size=[1], generator=None),
+                       Invocation(size=[1], generator=None, dtype=torch.float32),
+                       ErrorInvocation(size=[1], generator=None, dtype=torch.int32),
+                       Invocation(size=[1], generator=None, dtype=torch.complex64)])
+def aten〇randn〇generator〡dtype(size: List[int], generator: Any, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    if dtype is None:
+        return torch.float32
+    assert not is_integer_dtype(dtype)
+    return dtype
+
 # ==============================================================================
 # Main
 # ==============================================================================
