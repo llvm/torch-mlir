@@ -933,6 +933,51 @@ def ElementwiseMishModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAtanTensorFloatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.atan(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAtanTensorFloatModule())
+def ElementwiseAtanTensorFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseAtanTensorIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.atan(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAtanTensorIntModule())
+def ElementwiseAtanTensorIntModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, low=1, high=10).type(torch.int32))
+
+
+# ==============================================================================
+
+
 class ElementwiseAtan2TensorFloatModule(torch.nn.Module):
 
     def __init__(self):
