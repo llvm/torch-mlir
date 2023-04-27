@@ -627,6 +627,7 @@ STABLEHLO_PASS_SET = {
     "ConvolutionBackwardModule2DStrided_basic",
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
+    "TensorsConcatStaticModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
