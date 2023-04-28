@@ -46,6 +46,9 @@ def _embedding_bag_helper(weight: List[int], indices: List[int], offsets: List[i
 def aten〇triu〡shape(self: List[int], diagonal: int = 0) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇atan〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇tanh〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
