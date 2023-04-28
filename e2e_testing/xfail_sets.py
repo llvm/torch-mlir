@@ -98,6 +98,147 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: RuntimeError: Found a custom (non-ATen) operator that either mutates or its inputs: prims::view_of.. Getting these operators to work with functionalization requires some extra work. For mutable ops you need to register a corresponding out-of-place variant of the op, and you also need to register a Functionalization kernel that performs some boilerplate, telling functionalization to map from the mutable op to the out-of-place op. See a more complete example of how to do this at https://gist.github.com/bdhirsh/7dadbf6296f8f7d1abcf4c482f438aaa.
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
+
+    # See https://github.com/llvm/torch-mlir/pull/2040 and corresponding upstream issue
+    # https://github.com/pytorch/pytorch/issues/99752.
+    # torch._dynamo.exc.Unsupported: call_function BuiltinVariable(bool) [TensorVariable()] {}
+    'TensorToBoolZeroRank_basic',
+    'TensorToBool_basic',
+
+    # torch._dynamo.exc.Unsupported: call_function BuiltinVariable(float) [TensorVariable()] {}
+    'AtenSubFloatModule_basic',
+    'BoolFloatFalseModule_basic',
+    'BoolFloatTrueModule_basic',
+    'CeilFloatModule_basic',
+    'DivFloatModule_basic',
+    'GeFloatIntModule_basic',
+    'GeFloatModule_basic',
+    'GtFloatIntModule_basic',
+    'NeFloatIntModule_basic',
+    'SubFloatModule_basic',
+    'TensorToFloatZeroRank_basic',
+    'TensorToFloat_basic',
+
+    # torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
+    'AddIntModule_basic',
+    'AtenIntTensorCharDtypeModule_basic',
+    'BoolIntFalseModule_basic',
+    'BoolIntTrueModule_basic',
+    'DivIntModule_basic',
+    'EqIntModule_basic',
+    'GeIntModule_basic',
+    'GtIntModule_basic',
+    'MulIntModule_basic',
+    'NeIntModule_basic',
+    'SqrtIntModule_basic',
+    'SubIntModule_basic',
+    'TensorToIntZeroRank_basic',
+    'TensorToInt_basic',
+    'UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic',
+    'ViewCollapseDynamicWithAtenSizeIntModule_basic',
+
+    # torch._dynamo.exc.Unsupported: call_method ListVariable() sort [] {'reverse': ConstantVariable(bool)}
+    'SortIntListReverse_basic',
+
+    # torch._dynamo.exc.Unsupported: call_method ListVariable() sort [] {}
+    'SortIntList_basic',
+
+    # torch._dynamo.exc.Unsupported: data dependent operator: aten._local_scalar_dense.default
+    'AtenFloatScalarModule_basic',
+    'AtenIntBoolOpModule_basic',
+    'OneHotModule_basic',
+    'QuantizedMLP_basic',
+    'ScalarImplicitFloatModule_basic',
+    'ScalarImplicitIntModule_basic',
+
+    # torch._dynamo.exc.Unsupported: dynamic shape operator: aten.bincount.default
+    'BincountMinlengthModule_basic',
+    'BincountModule_basic',
+    'BincountStaticSizeModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor bool call_function aten.Bool
+    'BoolFloatConstantModule_basic',
+    'BoolIntConstantModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor bool call_function aten.__contains__
+    'ContainsIntList_False',
+    'ContainsIntList_True',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor bool call_function aten.all
+    'AllBoolFalseModule_basic',
+    'AllBoolTrueModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor bool call_function aten.any
+    'AnyBoolFalseModule_basic',
+    'AnyBoolTrueModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor float call_function aten.sqrt
+    'SqrtIntConstantModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function aten.Int
+    'AtenIntBoolOpConstFalseModule_basic',
+    'AtenIntBoolOpConstTrueModule_basic',
+    'IntFloatModule_basic',
+    'PowIntFloatModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function aten.len
+    'LenStrModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function aten.numel
+    'NumelModule_basic',
+    'NumelZeroRankModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function prim.max
+    'PrimMaxIntModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function prim.min
+    'PrimMinIntModule_basic',
+
+    # empty graph
+    'IsFloatingPointFloat_True',
+    'IsFloatingPointInt_False',
+    'TorchPrimLoopForLikeModule_basic',
+    'TorchPrimLoopWhileLikeModule_basic',
+}
+
+# See https://github.com/llvm/torch-mlir/issues/2050
+TORCHDYNAMO_CRASHING_SET = {
+    "ElementwiseCloneChannelsLastMemoryFormatModule_basic",
+    "ElementwiseCloneContiguousModule_basic"
+    "ElementwiseCloneModule_basic"
+    "ExpandAsFloatModule_basic"
+    "ExpandAsFloatModule_basic",
+    "ExpandAsIntModule_basic"
+    "ExpandAsIntModule_basic",
+    "ExpandModule_basic"
+    "ExpandModule_basic",
+    "MoveDimIntModule_basic"
+    "MoveDimIntModule_basic",
+    "MoveDimIntNegativeIndexModule_basic"
+    "MoveDimIntNegativeIndexModule_basic",
+    "NarrowVerticalTest2_basic"
+    "NarrowVerticalTest_basic"
+    "NumpyTRank2Module_basic"
+    "NumpyTRank2Module_basic",
+    "NumpyTRankNDynamicModule_basic"
+    "NumpyTRankNDynamicModule_basic",
+    "NumpyTRankNStaticModule_basic"
+    "NumpyTRankNStaticModule_basic",
+    "PermuteModule_basic"
+    "PermuteModule_basic",
+    "PermuteNegativeIndexModule_basic"
+    "PermuteNegativeIndexModule_basic",
+    "SelectIntNegativeDimAndIndexStaticModule_basic"
+    "SelectIntNegativeDimAndIndexStaticModule_basic",
+    "SliceModule_basic"
+    "SliceNegIdxModule_basic"
+    "SliceOutOfLowerBoundStartIndexModule_basic"
+    "SliceSizeTwoStepModule_basic"
+    "SliceStaticModule_basic"
+    "TModuleRank2_basic"
+    "ToCopyModule_basic"
+    "TransposeIntModule_basic"
+    "TransposeIntNegDimsModule_basic"
 }
 
 STABLEHLO_PASS_SET = {
