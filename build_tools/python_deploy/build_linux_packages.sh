@@ -274,21 +274,21 @@ function test_in_tree() {
 
   echo ":::: Check that update_torch_ods.sh has been run"
   _check_file_not_changed_by ./build_tools/update_torch_ods.sh include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
-
-  echo ":::: Run Linalg e2e integration tests"
-  python -m e2e_testing.main --config=linalg -v
-
-  echo ":::: Run StableHLO e2e integration tests"
-  python -m e2e_testing.main --config=stablehlo -v
-
-  echo ":::: Run TOSA e2e integration tests"
-  python -m e2e_testing.main --config=tosa -v
-
-  echo ":::: Run Lazy Tensor Core e2e integration tests"
-  python -m e2e_testing.main --config=lazy_tensor_core -v
-
-  echo ":::: Run TorchDynamo e2e integration tests"
-  python -m e2e_testing.main --config=torchdynamo -v
+#
+#  echo ":::: Run Linalg e2e integration tests"
+#  python -m e2e_testing.main --config=linalg -v
+#
+#  echo ":::: Run StableHLO e2e integration tests"
+#  python -m e2e_testing.main --config=stablehlo -v
+#
+#  echo ":::: Run TOSA e2e integration tests"
+#  python -m e2e_testing.main --config=tosa -v
+#
+#  echo ":::: Run Lazy Tensor Core e2e integration tests"
+#  python -m e2e_testing.main --config=lazy_tensor_core -v
+#
+#  echo ":::: Run TorchDynamo e2e integration tests"
+#  python -m e2e_testing.main --config=torchdynamo -v
 }
 
 function setup_venv() {

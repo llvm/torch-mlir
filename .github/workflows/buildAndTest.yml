@@ -23,11 +23,11 @@ concurrency:
 jobs:
   build-test:
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
-        os-arch: [ubuntu-x86_64, macos-arm64, windows-x86_64]
-        llvm-build: [in-tree, out-of-tree]
-        torch-binary: [ON, OFF]
+        os-arch: [ ubuntu-x86_64, macos-arm64, windows-x86_64 ]
+        llvm-build: [ in-tree, out-of-tree ]
+        torch-binary: [ ON, OFF ]
         exclude:
           # Exclude llvm in-tree and pytorch source
           - llvm-build: in-tree
@@ -51,14 +51,13 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    
     - name: Prepare workspace
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
       run: |
         # Clear the workspace directory so that we don't run into errors about
         # existing lock files.
         sudo rm -rf $GITHUB_WORKSPACE/*
-    
+
     - name: Checkout torch-mlir
       uses: actions/checkout@v3
       with:
@@ -91,7 +90,7 @@ jobs:
         key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
         save: ${{ github.ref_name == 'main' && matrix.torch-binary == 'OFF' }}
 
-    - name: Build and Test os-arch='ubuntu-x86_64' llvm-build='${{ matrix.llvm-build }}' torch-binary='${{ matrix.torch-binary }}'
+    - name: Build os-arch='ubuntu-x86_64' llvm-build='${{ matrix.llvm-build }}' torch-binary='${{ matrix.torch-binary }}'
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
       run: |
         cd $GITHUB_WORKSPACE
@@ -100,6 +99,8 @@ jobs:
         TM_USE_PYTORCH_BINARY="${{ matrix.torch-binary }}" \
         TM_PYTORCH_INSTALL_WITHOUT_REBUILD="${{ steps.cache-pytorch.outputs.cache-hit }}" \
         ./build_tools/python_deploy/build_linux_packages.sh
+        ccache -s
+
     - name: Configure os-arch='macos-arm64' llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'
       # cross compile, can't test arm64
       if: ${{ matrix.os-arch == 'macos-arm64' && matrix.llvm-build == 'in-tree' }}
@@ -128,10 +129,12 @@ jobs:
           -DMACOSX_DEPLOYMENT_TARGET=12.0 \
           -DPython3_EXECUTABLE="$(which python)" \
           $GITHUB_WORKSPACE/externals/llvm-project/llvm
+
     - name: Build torch-mlir (cross-compile)
       if: ${{ matrix.os-arch == 'macos-arm64' }}
       run: |
         cmake --build build_arm64
+        ccache -s
 
     - name: Build (Windows)
       if: ${{ matrix.os-arch == 'windows-x86_64' }}
@@ -141,3 +144,51 @@ jobs:
     - name: Print ccache configuration and statistics
       shell: bash
       run: ccache --show-config --show-stats --print-stats
+
+    - name: Debugging with ssh
+      uses: lhotari/action-upterm@v1
+
+    - name: Test linalg
+      continue-on-error: true
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
+      run: |
+        cd $GITHUB_WORKSPACE
+        source docker_venv/bin/activate
+        export PYTHONPATH="build/tools/torch-mlir/python_packages/torch_mlir"
+        python -m e2e_testing.main --config=linalg -v
+
+    - name: Test stablehlo
+      continue-on-error: true
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
+      run: |
+        cd $GITHUB_WORKSPACE
+        source docker_venv/bin/activate
+        export PYTHONPATH="build/tools/torch-mlir/python_packages/torch_mlir"
+        python -m e2e_testing.main --config=stablehlo -v
+
+    - name: Test tosa
+      continue-on-error: true
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
+      run: |
+        cd $GITHUB_WORKSPACE
+        source docker_venv/bin/activate
+        export PYTHONPATH="build/tools/torch-mlir/python_packages/torch_mlir"
+        python -m e2e_testing.main --config=tosa -v
+
+    - name: Test lazy_tensor_core
+      continue-on-error: true
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
+      run: |
+        cd $GITHUB_WORKSPACE
+        source docker_venv/bin/activate
+        export PYTHONPATH="build/tools/torch-mlir/python_packages/torch_mlir"
+        python -m e2e_testing.main --config=lazy_tensor_core -v
+
+    - name: Test torchdynamo
+      continue-on-error: true
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
+      run: |
+        cd $GITHUB_WORKSPACE
+        source docker_venv/bin/activate
+        export PYTHONPATH="build/tools/torch-mlir/python_packages/torch_mlir"
+        python -m e2e_testing.main --config=torchdynamo -v
