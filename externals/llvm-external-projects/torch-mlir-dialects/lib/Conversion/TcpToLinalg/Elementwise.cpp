@@ -144,6 +144,10 @@ createLinalgPayloadForElementwiseOp(Operation *op,
     return {b.create<arith::NegFOp>(loc, payloadArgs[0])};
   }
 
+  if (isa<AtanOp>(op)) {
+    return {b.create<math::AtanOp>(loc, payloadArgs[0])};
+  }
+
   if (isa<AddOp>(op)) {
     if (elemType.isa<mlir::FloatType>())
       return {b.create<arith::AddFOp>(loc, payloadArgs[0], payloadArgs[1])};
@@ -251,5 +255,6 @@ void mlir::TcpToLinalg::populateElementwisePatternsAndLegality(
   patterns.add<ConvertElementwiseOp<AbsOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<LogOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<NegOp>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<AtanOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<Atan2Op>>(typeConverter, context);
 }
