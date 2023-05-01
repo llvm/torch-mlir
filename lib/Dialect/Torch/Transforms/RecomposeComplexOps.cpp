@@ -121,6 +121,37 @@ public:
     return success();
   }
 };
+
+class RecomposeUnbindListUnpack : public OpRewritePattern<PrimListUnpackOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimListUnpackOp op,
+                                PatternRewriter &rewriter) const override {
+    // recompose AtenUnbindOp + PrimListUnpackOp to select.int + squeeze ops
+    auto unbind = dyn_cast<AtenUnbindIntOp>(op.getOperand().getDefiningOp());
+    if (!unbind)
+      return failure();
+    if (!unbind->hasOneUse())
+      return failure();
+    Value dim = unbind.getDim();
+    Value input = unbind.getSelf();
+    SmallVector<Value> slices;
+    for (int i = 0; i < op.getNumResults(); i++) {
+      // rewrite to slice op
+      auto resultTy = op.getResult(i).getType();
+      auto index = rewriter.create<Torch::ConstantIntOp>(
+          op->getLoc(), rewriter.getI64IntegerAttr(i));
+      auto newSelect = rewriter.create<AtenSelectIntOp>(op->getLoc(), resultTy,
+                                                        input, dim, index);
+      auto squeeze = rewriter.create<AtenSqueezeDimOp>(op->getLoc(), resultTy,
+                                                       newSelect, dim);
+      slices.push_back(squeeze);
+    }
+    rewriter.replaceOp(op, slices);
+    unbind.erase();
+    return success();
+  }
+};
 } // namespace
 
 namespace {
@@ -134,6 +165,7 @@ public:
     // pattern.add calls go here
     patterns.add<RecomposeSliceCopy_>(context);
     patterns.add<RecomposeSelectFill_>(context);
+    patterns.add<RecomposeUnbindListUnpack>(context);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

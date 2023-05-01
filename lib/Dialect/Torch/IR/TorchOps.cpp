@@ -15,7 +15,6 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
-#include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/BitVector.h"
@@ -2024,36 +2023,6 @@ void PrimListUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       return failure();
 
     rewriter.replaceOp(op, listConstruct.getElements());
-    return success();
-  });
-
-  patterns.add(+[](PrimListUnpackOp op, PatternRewriter &rewriter) {
-    // decompose AtenUnbindOp + PrimListUnpackOp to slice.tensor ops
-    if (!isa<AtenUnbindIntOp>(op.getOperand().getDefiningOp()))
-      return failure();
-    AtenUnbindIntOp unbind = cast<AtenUnbindIntOp>(op.getOperand().getDefiningOp());
-    if (!unbind->hasOneUse())
-      return failure();
-    Value dim = unbind.getOperand(1);
-    Value input = unbind.getOperand(0);
-    SmallVector<Value> slices;
-    auto step = rewriter.create<Torch::ConstantIntOp>(
-        op->getLoc(), rewriter.getI64IntegerAttr(1));
-    for (int i = 0; i < op.getNumResults(); i++) {
-      // rewrite to slice op
-      auto resultTy = op.getResult(i).getType();
-      auto start = rewriter.create<Torch::ConstantIntOp>(
-          op->getLoc(), rewriter.getI64IntegerAttr(i));
-      auto end = rewriter.create<Torch::ConstantIntOp>(
-          op->getLoc(), rewriter.getI64IntegerAttr(i + 1));
-      auto newSlice = rewriter.create<AtenSliceTensorOp>(
-          op->getLoc(), resultTy, input, dim, start, end, step);
-      auto squeeze = rewriter.create<AtenSqueezeDimOp>(op->getLoc(), resultTy,
-                                                       newSlice, dim);
-      slices.push_back(squeeze);
-    }
-    rewriter.replaceOp(op, slices);
-    unbind.erase();
     return success();
   });
 }
