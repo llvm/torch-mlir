@@ -9,6 +9,7 @@
 
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
@@ -54,14 +55,14 @@ void TorchConversionDialect::initialize() {
   addInterfaces<TorchConversionInlinerInterface>();
 }
 
-
 //===----------------------------------------------------------------------===//
 // Constant materializer.
 //===----------------------------------------------------------------------===//
 
 Operation *TorchConversionDialect::materializeConstant(OpBuilder &builder,
-                                             Attribute value, Type type,
-                                             Location loc) {
+                                                       Attribute value,
+                                                       Type type,
+                                                       Location loc) {
   if (auto integerType = type.dyn_cast<Torch::IntType>())
     return builder.create<Torch::ConstantIntOp>(loc, value.cast<IntegerAttr>());
 

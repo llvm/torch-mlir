@@ -18,6 +18,24 @@ func.func @torch_c.to_i64() -> i64 {
   return %0 : i64
 }
 
+// CHECK-LABEL:   func.func @torch_c.to_i64$si64() -> i64 {
+// CHECK:     %[[C1_I64:.*]] = arith.constant 1 : i64
+// CHECK:     return %[[C1_I64]] : i64
+func.func @torch_c.to_i64$si64() -> i64 {
+  %int1 = "torch.constant.int"() {value = 1 : si64} : () -> !torch.int
+  %0 = torch_c.to_i64 %int1
+  return %0 : i64
+}
+
+// CHECK-LABEL:   func.func @torch_c.to_i64$ui64() -> i64 {
+// CHECK:     %[[C1_I64:.*]] = arith.constant 1 : i64
+// CHECK:     return %[[C1_I64]] : i64
+func.func @torch_c.to_i64$ui64() -> i64 {
+  %int1 = "torch.constant.int"() {value = 1 : ui64} : () -> !torch.int
+  %0 = torch_c.to_i64 %int1
+  return %0 : i64
+}
+
 // CHECK-LABEL:   func.func @torch_c.from_i64$to_i64() -> i64 {
 // CHECK:     %[[C5_I64:.*]] = arith.constant 5 : i64
 // CHECK:     return %[[C5_I64]] : i64

@@ -91,7 +91,20 @@ OpFoldResult FromI64Op::fold(FoldAdaptor adaptor) {
 OpFoldResult ToI64Op::fold(FoldAdaptor adaptor) {
   auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::IntegerAttr>();
   if (attr) {
-    return attr;
+    Attribute foldResult = attr;
+    if (attr.getType().isSignedInteger()) {
+      // convert sint type to i64 type
+      foldResult =
+          IntegerAttr::get(IntegerType::get(getContext(), 64), attr.getSInt());
+    } else if (attr.getType().isUnsignedInteger()) {
+      // convert uint to i64 type
+      foldResult = IntegerAttr::get(IntegerType::get(getContext(), 64),
+                                    static_cast<int64_t>(attr.getUInt()));
+    } else {
+      foldResult =
+          IntegerAttr::get(IntegerType::get(getContext(), 64), attr.getInt());
+    }
+    return foldResult;
   } else {
     return nullptr;
   }
