@@ -449,6 +449,7 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
   target.addIllegalOp<AtenCosOp>();
   target.addIllegalOp<AtenLogOp>();
   target.addIllegalOp<AtenNegOp>();
+  target.addIllegalOp<AtenAtanOp>();
   patterns.add<ConvertAtenUnaryOp<AtenFloorOp, tcp::FloorOp>>(typeConverter,
                                                               context);
   patterns.add<ConvertAtenUnaryOp<AtenCeilOp, tcp::CeilOp>>(typeConverter,
@@ -467,6 +468,8 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
                                                           context);
   patterns.add<ConvertAtenUnaryOp<AtenNegOp, tcp::NegOp>>(typeConverter,
                                                           context);
+  patterns.add<ConvertAtenUnaryOp<AtenAtanOp, tcp::AtanOp>>(typeConverter,
+                                                            context);
 
   target.addIllegalOp<AtenAbsOp>();
   patterns.add<ConvertAtenAbsOp>(typeConverter, context);
