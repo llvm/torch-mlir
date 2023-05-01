@@ -93,10 +93,11 @@ def main():
         config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend())
         xfail_set = all_test_unique_names - TOSA_PASS_SET
         crashing_set = set()
-    if args.config == 'tcp':
+    elif args.config == 'tcp':
         config = TcpBackendTestConfig(LinalgOnTensorsTcpBackend())
         xfail_set = all_test_unique_names - TCP_PASS_SET
-    if args.config == "stablehlo":
+        crashing_set = set()
+    elif args.config == "stablehlo":
         config = StablehloBackendTestConfig(LinalgOnTensorsStablehloBackend())
         xfail_set = all_test_unique_names - STABLEHLO_PASS_SET
         crashing_set = set()
