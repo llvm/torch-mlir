@@ -27,10 +27,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "ConvolutionBackwardModule2DPadded_basic",
     "ConvolutionBackwardModule2D_basic",
 
-    # error: 'tensor.expand_shape' op expected dimension 0 of collapsed type to be dynamic since one or more of the corresponding dimensions in the expanded type is dynamic
-    # https://github.com/llvm/torch-mlir/issues/1859
-    "ConvolutionModule2DGroups_basic",
-
     # RuntimeError: Index tensor must have the same number of dimensions as self tensor
     # RuntimeError: Failed running call_function aten.nll_loss_backward(...
     # https://github.com/pytorch/pytorch/issues/89630
@@ -65,6 +61,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "IndexPutImpl1DIntNonAccumulateModule_basic",
     "IndexPutImpl2DFloatAccumulateModule_basic",
     "IndexPutImpl2DFloatNonAccumulateModule_basic",
+    "IndexPutImpl2DIndexModule_basic",
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
 
@@ -93,9 +90,159 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
     # ERROR: assert isinstance(e, FakeTensor)
     "RsubInt0d_NumToTensor_Module_basic",
+
+    # ERROR: RuntimeError: Found a custom (non-ATen) operator that either mutates or its inputs: prims::squeeze.. Getting these operators to work with functionalization requires some extra work. For mutable ops you need to register a corresponding out-of-place variant of the op, and you also need to register a Functionalization kernel that performs some boilerplate, telling functionalization to map from the mutable op to the out-of-place op. See a more complete example of how to do this at https://gist.github.com/bdhirsh/7dadbf6296f8f7d1abcf4c482f438aaa.
+    "PrimsSqueezeModule_basic",
+    "PrimsSqueezeEmptyDimensionsModule_basic",
+
+    # ERROR: RuntimeError: Found a custom (non-ATen) operator that either mutates or its inputs: prims::view_of.. Getting these operators to work with functionalization requires some extra work. For mutable ops you need to register a corresponding out-of-place variant of the op, and you also need to register a Functionalization kernel that performs some boilerplate, telling functionalization to map from the mutable op to the out-of-place op. See a more complete example of how to do this at https://gist.github.com/bdhirsh/7dadbf6296f8f7d1abcf4c482f438aaa.
+    "PrimsViewOfModule_basic",
+    "PrimsViewOfZeroRankModule_basic",
+
+    # See https://github.com/llvm/torch-mlir/pull/2040 and corresponding upstream issue
+    # https://github.com/pytorch/pytorch/issues/99752.
+    # torch._dynamo.exc.Unsupported: call_function BuiltinVariable(bool) [TensorVariable()] {}
+    'TensorToBoolZeroRank_basic',
+    'TensorToBool_basic',
+
+    # torch._dynamo.exc.Unsupported: call_function BuiltinVariable(float) [TensorVariable()] {}
+    'AtenSubFloatModule_basic',
+    'BoolFloatFalseModule_basic',
+    'BoolFloatTrueModule_basic',
+    'CeilFloatModule_basic',
+    'DivFloatModule_basic',
+    'GeFloatIntModule_basic',
+    'GeFloatModule_basic',
+    'GtFloatIntModule_basic',
+    'NeFloatIntModule_basic',
+    'SubFloatModule_basic',
+    'TensorToFloatZeroRank_basic',
+    'TensorToFloat_basic',
+
+    # torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
+    'AddIntModule_basic',
+    'AtenIntTensorCharDtypeModule_basic',
+    'BoolIntFalseModule_basic',
+    'BoolIntTrueModule_basic',
+    'DivIntModule_basic',
+    'EqIntModule_basic',
+    'GeIntModule_basic',
+    'GtIntModule_basic',
+    'MulIntModule_basic',
+    'NeIntModule_basic',
+    'SqrtIntModule_basic',
+    'SubIntModule_basic',
+    'TensorToIntZeroRank_basic',
+    'TensorToInt_basic',
+    'UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic',
+    'ViewCollapseDynamicWithAtenSizeIntModule_basic',
+
+    # torch._dynamo.exc.Unsupported: call_method ListVariable() sort [] {'reverse': ConstantVariable(bool)}
+    'SortIntListReverse_basic',
+
+    # torch._dynamo.exc.Unsupported: call_method ListVariable() sort [] {}
+    'SortIntList_basic',
+
+    # torch._dynamo.exc.Unsupported: data dependent operator: aten._local_scalar_dense.default
+    'AtenFloatScalarModule_basic',
+    'AtenIntBoolOpModule_basic',
+    'OneHotModule_basic',
+    'QuantizedMLP_basic',
+    'ScalarImplicitFloatModule_basic',
+    'ScalarImplicitIntModule_basic',
+
+    # torch._dynamo.exc.Unsupported: dynamic shape operator: aten.bincount.default
+    'BincountMinlengthModule_basic',
+    'BincountModule_basic',
+    'BincountStaticSizeModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor bool call_function aten.Bool
+    'BoolFloatConstantModule_basic',
+    'BoolIntConstantModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor bool call_function aten.__contains__
+    'ContainsIntList_False',
+    'ContainsIntList_True',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor bool call_function aten.all
+    'AllBoolFalseModule_basic',
+    'AllBoolTrueModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor bool call_function aten.any
+    'AnyBoolFalseModule_basic',
+    'AnyBoolTrueModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor float call_function aten.sqrt
+    'SqrtIntConstantModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function aten.Int
+    'AtenIntBoolOpConstFalseModule_basic',
+    'AtenIntBoolOpConstTrueModule_basic',
+    'IntFloatModule_basic',
+    'PowIntFloatModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function aten.len
+    'LenStrModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function aten.numel
+    'NumelModule_basic',
+    'NumelZeroRankModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function prim.max
+    'PrimMaxIntModule_basic',
+
+    # torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function prim.min
+    'PrimMinIntModule_basic',
+
+    # empty graph
+    'IsFloatingPointFloat_True',
+    'IsFloatingPointInt_False',
+    'TorchPrimLoopForLikeModule_basic',
+    'TorchPrimLoopWhileLikeModule_basic',
+}
+
+# See https://github.com/llvm/torch-mlir/issues/2050
+TORCHDYNAMO_CRASHING_SET = {
+    "ElementwiseCloneChannelsLastMemoryFormatModule_basic",
+    "ElementwiseCloneContiguousModule_basic"
+    "ElementwiseCloneModule_basic"
+    "ExpandAsFloatModule_basic"
+    "ExpandAsFloatModule_basic",
+    "ExpandAsIntModule_basic"
+    "ExpandAsIntModule_basic",
+    "ExpandModule_basic"
+    "ExpandModule_basic",
+    "MoveDimIntModule_basic"
+    "MoveDimIntModule_basic",
+    "MoveDimIntNegativeIndexModule_basic"
+    "MoveDimIntNegativeIndexModule_basic",
+    "NarrowVerticalTest2_basic"
+    "NarrowVerticalTest_basic"
+    "NumpyTRank2Module_basic"
+    "NumpyTRank2Module_basic",
+    "NumpyTRankNDynamicModule_basic"
+    "NumpyTRankNDynamicModule_basic",
+    "NumpyTRankNStaticModule_basic"
+    "NumpyTRankNStaticModule_basic",
+    "PermuteModule_basic"
+    "PermuteModule_basic",
+    "PermuteNegativeIndexModule_basic"
+    "PermuteNegativeIndexModule_basic",
+    "SelectIntNegativeDimAndIndexStaticModule_basic"
+    "SelectIntNegativeDimAndIndexStaticModule_basic",
+    "SliceModule_basic"
+    "SliceNegIdxModule_basic"
+    "SliceOutOfLowerBoundStartIndexModule_basic"
+    "SliceSizeTwoStepModule_basic"
+    "SliceStaticModule_basic"
+    "TModuleRank2_basic"
+    "ToCopyModule_basic"
+    "TransposeIntModule_basic"
+    "TransposeIntNegDimsModule_basic"
 }
 
 STABLEHLO_PASS_SET = {
+    "ConstantBoolParameterModule_basic",
     "MaskedFillScalarIntValueStaticModule_basic",
     "MaskedFillScalarFloatValueStaticModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
@@ -124,6 +271,7 @@ STABLEHLO_PASS_SET = {
     "BucketizeTensorStaticModule_basic",
     "CumsumStaticModule_basic",
     "CumsumStaticNegativeDimModule_basic",
+    "DetachModule_basic",
     "ElementwiseAtenLogicalAndOpPromoteBroadcastStaticShapeModule_basic",
     "ElementwiseAtenLogicalNotOpModule_basic",
     "ElementwiseAtenLogicalNotOpPromoteModule_basic",
@@ -222,6 +370,7 @@ STABLEHLO_PASS_SET = {
     "GatherModule_basic",
     "Gather2DInputModdule_basic",
     "GatherRandomIndexModule_basic",
+    "GatherNegativeDimModule_basic",
     "GeluBackwardModule_basic",
     "HardswishModule_basic",
     "HardswishRandomModule_basic",
@@ -234,6 +383,7 @@ STABLEHLO_PASS_SET = {
     "IndexSelectTwoIdxModule_basic",
     "IndexSelectWholeDimensionModule_basic",
     "IndexSelectWholeTensorModule_basic",
+    "IndexSelectNegativeDimModule_basic",
     "LayerNormLastDimModule_basic",
     "LayerNormModule_basic",
     "LayerNormNormalizeOverAllDimsModule_basic",
@@ -255,6 +405,7 @@ STABLEHLO_PASS_SET = {
     "Mv_basic",
     "NativeLayerNormModule4D_basic",
     "NativeLayerNormModule_basic",
+    "OneHotModule_basic",
     "PrimsConvertElementTypeModule_basic",
     "ReduceFrobeniusNormKeepDimModule_basic",
     "ReduceSumDimIntListElementTypeBoolModule_basic",
@@ -397,6 +548,7 @@ STABLEHLO_PASS_SET = {
     "NewOnesModuleFloat2D_basic",
     "NewOnesModuleFloat3D_basic",
     "NewOnesModuleFalsePinMemory_basic",
+    "NewZerosStaticModuleLayoutStrided_basic",
     "DropoutEvalIntModule_basic",
     "DropoutEvalFloatModule_basic",
     "ContiguousModule_basic",
@@ -476,6 +628,14 @@ STABLEHLO_PASS_SET = {
     "AtenRoundIntModule_basic",
     "TestF16Return_basic",
     "_LogSoftmaxModuleStable_basic",
+    "PrimsSqueezeModule_basic",
+    "PrimsSqueezeEmptyDimensionsModule_basic",
+    "MoveDimIntModule_basic",
+    "MoveDimIntNegativeIndexModule_basic",
+    "ConvolutionBackwardModule2DStatic_basic",
+    "ConvolutionBackwardModule2DStrided_basic",
+    "PrimsViewOfModule_basic",
+    "PrimsViewOfZeroRankModule_basic",
 }
 
 TCP_PASS_SET = {
@@ -533,6 +693,8 @@ TCP_PASS_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "MaxPool2dEmptyStrideStaticModule_basic",
+    "ConstantBoolParameterModule_basic",
     "ElementwiseCloneContiguousModule_basic",
     "ElementwiseCloneChannelsLastMemoryFormatModule_basic",
     "ElementwiseCloneModule_basic",
@@ -725,6 +887,7 @@ TOSA_PASS_SET = {
     "MaskedFillTensorIntValueStaticModule_basic",
     "ElementwiseAddScalarInt64Module_basic",
     "TensorLiteralModule_basic",
+    "NewZerosStaticModuleLayoutStrided_basic",
     "TensorOpaqueLiteralModule_basic",
     "TypePromotionDifferentCategoryModule_basic",
     "TypePromotionSameCategoryDifferentWidthModule_basic",
@@ -733,6 +896,12 @@ TOSA_PASS_SET = {
     "GatherStaticModule_basic",
     "IndexTensorStaticModule_basic",
     "IndexTensorMultiIndexStaticModule_basic",
+    "ElementwiseWhereScalarModule_basic",
+    "FullLikeModuleFloat3DStatic_basic",
+    "FullModuleDefaultDtype_basic",
+    "FullModuleFloat3D_basic",
+    "MaskedFillScalarDefaultModule_basic",
+    "NumToTensorFloatModule_basic",
     "LiftFreshCopyModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
     "ReduceSumDimIntListFloatModule_basic",
@@ -771,9 +940,14 @@ TOSA_PASS_SET = {
     "HardsigmoidRandomModule_basic",
     "HardswishModule_basic",
     "HardswishRandomModule_basic",
+    "BucketizeTensorStaticFloatModule_basic",
+    "BucketizeTensorStaticModule_basic",
+    "ElementwiseLeFloatTensorModule_basic",
+    "ElementwiseLeIntTensorModule_basic",
     "FullLikeModuleInt2DStatic_basic",
     "FullModuleInt3D_basic",
     "FullModuleFloat2D_basic",
+    "ElementwiseAbsModule_basic",
     "RepeatModule_basic",
     "ConstantPad2dStaticModule_basic",
     "ConstantPadNdModule_basic",
@@ -783,7 +957,15 @@ TOSA_PASS_SET = {
     "PadWithNoneValModule_basic",
     "ElementwiseRemainderScalarModule_Float_basic",
     "ElementwiseRemainderScalarModule_Int_Float_basic",
-    "ElementwiseRemainderScalarModule_Int_basic"
+    "ElementwiseRemainderScalarModule_Int_basic",
+    "PrimsSqueezeEmptyDimensionsModule_basic",
+    "MoveDimIntModule_basic",
+    "MoveDimIntNegativeIndexModule_basic",
+    "ElementwiseRemainderScalarModule_Int_basic",
+    "MoveDimIntModule_basic",
+    "PrimsViewOfModule_basic",
+    "PrimsViewOfZeroRankModule_basic",
+    "DetachModule_basic",
 }
 
 LTC_XFAIL_SET = {
@@ -850,8 +1032,10 @@ LTC_XFAIL_SET = {
     "IndexPutImpl1DIntNonAccumulateModule_basic",
     "IndexPutImpl2DFloatAccumulateModule_basic",
     "IndexPutImpl2DFloatNonAccumulateModule_basic",
+    "IndexPutImpl2DIndexModule_basic",
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
+    "IndexPutImplIndexWithNoneModule_basic",
     "IndexTensorModule3dInput_basic",
     "IndexTensorModule_basic",
     "IndexTensorStaticModule_basic",
@@ -919,24 +1103,17 @@ LTC_XFAIL_SET = {
     "VarMeanCorrectionModule_basic",
     "VarMeanCorrectionNoneModule_basic",
     "PrimsConvertElementTypeModule_basic",
-    "CopyModule_basic",
-    "CopyWithDifferentDTypesAndSizesModule_basic",
-    "CopyWithDifferentDTypesModule_basic",
-    "CopyWithDifferentSizesModule_basic",
     "ElementwisePreluModule_basic",
     "VarMeanBiasedModule_basic",
     "VarMeanUnbiasedModule_basic",
     "RandnLikeModule_basic",
     "RandnLikeDtypeModule_basic",
-    "NewEmptyStridedModuleDefaultDtype_basic",
     "BernoulliFloatModule_basic",
     "BernoulliModule_basic",
     "BernoulliPModule_basic",
     "DropoutTrainModule_basic",
     "StdCorrectionKeepDimModule_basic",
     "StdCorrectionNoneModule_basic",
-    "SliceCopy_Module_basic",
-    "SliceCopyNegative_Module_basic",
     "VarBiasedModule_basic",
     "VarCorrectionAllDimReduceModule_basic",
     "VarCorrectionEmptyDimModule_basic",
@@ -955,5 +1132,12 @@ LTC_XFAIL_SET = {
     "VarDimSingleDimModule_basic",
     "VarDimUnbiasedModule_basic",
     "VarUnbiasedModule_basic",
-    "AtenFloatScalarModule_basic"
+    "AtenFloatScalarModule_basic",
+    "PrimsSqueezeModule_basic",
+    "PrimsSqueezeEmptyDimensionsModule_basic",
+    "PrimsViewOfModule_basic",
+    "PrimsViewOfZeroRankModule_basic",
+    "OneHotModule_basic",
+    "VarMeanDimModule_basic",
+    "VarMeanDimBiasedModule_basic",
 }

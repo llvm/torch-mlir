@@ -11,7 +11,6 @@
 
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
-#include "StablehloLegalizeUtils.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -21,6 +20,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
+#include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -228,6 +228,10 @@ LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return rewriter.notifyMatchFailure(
         op, "only constant dim is currently supported");
+  int64_t inputRank = selfTy.getRank();
+  dim = toPositiveDim(dim, inputRank);
+  if (!isValidDim(dim, inputRank))
+    return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
   Value output = gatherTensorAlongSingleAxis(
       rewriter, op, self, adaptor.getIndex(), dim, options.dimSizeIndexBits);

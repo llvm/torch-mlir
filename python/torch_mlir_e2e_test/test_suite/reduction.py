@@ -843,3 +843,42 @@ class MseLossSumReductionWithDifferentElemTypeModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: MseLossSumReductionWithDifferentElemTypeModule())
 def MseLossSumReductionWithDifferentElemTypeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4), tu.rand(2, 4).to(torch.float64))
+
+# ==============================================================================
+
+class CrossEntropyLossModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1 , -1], torch.float32, True),
+        ([-1, ], torch.int64, True),
+    ])
+
+    def forward(self, input, target):
+        return torch.ops.aten.cross_entropy_loss(input, target)
+
+@register_test_case(module_factory=lambda: CrossEntropyLossModule())
+def CrossEntropyLossModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(8, 2), tu.randint(8, high=2))
+
+
+class CrossEntropyLossNoReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1 , -1], torch.float32, True),
+        ([-1, ], torch.int64, True),
+    ])
+
+    def forward(self, input, target):
+        return torch.ops.aten.cross_entropy_loss(input, target, reduction=0)
+
+@register_test_case(module_factory=lambda: CrossEntropyLossNoReductionModule())
+def CrossEntropyLossNoReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(8, 2), tu.randint(8, high=2))

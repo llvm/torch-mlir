@@ -92,6 +92,14 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
 Value toPositiveValidDim(ConversionPatternRewriter &rewriter, Location loc,
                          Value torchOptionalInt, Value builtinInt,
                          Value defaultValue, Value dimSize);
+
+// Checks whether the `inputA` and `inputB` are broadcast compatible or not. If
+// yes, then computes the final broadcast shape.
+void computeBroadcastShape(ConversionPatternRewriter &rewriter, Location loc,
+                           Value inputA, Value inputB,
+                           SmallVector<int64_t> &resultShape,
+                           SmallVector<Value> &resultShapeValue);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

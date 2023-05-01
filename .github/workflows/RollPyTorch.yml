@@ -79,6 +79,7 @@ jobs:
         TORCH_MLIR_SRC_PYTORCH_BRANCH="${{ env.PT_HASH }}" \
         TORCH_MLIR_SRC_PYTORCH_RELEASE="${{ env.PT_RELEASE }}" \
         TM_UPDATE_ODS_AND_ABSTRACT_INTERP_LIB="ON" \
+        TM_PYTHON_VERSIONS="cp311-cp311" \
         ./build_tools/python_deploy/build_linux_packages.sh
 
     - name: Post issue comment on build failure

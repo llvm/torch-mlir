@@ -12,9 +12,10 @@ add_mlir_conversion_library(TorchMLIRTorchConversionToMLProgram
 
   LINK_LIBS PUBLIC
   MLIRIR
-  MLIRPass
   MLIRLinalgDialect
+  MLIRMLProgramDialect
   MLIRMathDialect
+  MLIRPass
   TorchMLIRTorchDialect
 )
 

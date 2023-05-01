@@ -583,6 +583,31 @@ class ConvolutionModule2DTransposeStridedStatic(torch.nn.Module):
 def ConvolutionModule2DTransposeStridedStatic_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 2, 5, 6), tu.rand(2, 5, 2, 2))
 
+class ConvolutionModule2DTransposeNonUnitOutputPadding(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.convolution(inputVec,
+                                          weight,
+                                          bias=None,
+                                          stride=[2, 2],
+                                          padding=[1, 1],
+                                          dilation=[1, 1],
+                                          transposed=True,
+                                          output_padding=[1, 1],
+                                          groups=1)
+
+@register_test_case(module_factory=lambda: ConvolutionModule2DTransposeNonUnitOutputPadding())
+def ConvolutionModule2DTransposeNonUnitOutputPadding_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 4, 4), tu.rand(2, 2, 3, 3))
+
 
 class Conv_Transpose2dModule(torch.nn.Module):
 

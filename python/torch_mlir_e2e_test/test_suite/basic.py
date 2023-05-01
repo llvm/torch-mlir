@@ -744,6 +744,29 @@ def GatherModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class GatherNegativeDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, tensor, indices):
+        return torch.gather(tensor, -1, indices)
+
+
+@register_test_case(module_factory=lambda: GatherNegativeDimModule())
+def GatherNegativeDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4), torch.tensor([[[1, 2, 3], [1, 2, 3]]]))
+
+
+# ==============================================================================
+
+
 class GatherRandomIndexModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1386,6 +1409,27 @@ class PrimMinIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: PrimMinIntModule())
 def PrimMinIntModule_basic(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+class PrimMaxIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.prim.max(a.size(0), a.size(1))
+
+
+@register_test_case(module_factory=lambda: PrimMaxIntModule())
+def PrimMaxIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 5))
 
 
 # ==============================================================================
@@ -3364,6 +3408,100 @@ def SortIntListReverse_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+
+class SortTensor(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True)
+    ])
+    def forward(self, input):
+        return torch.sort(input)
+
+
+@register_test_case(module_factory=lambda: SortTensor())
+def SortTensor_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+class SortTensorInteger(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True)
+    ])
+    def forward(self, input):
+        return torch.sort(input)
+
+
+@register_test_case(module_factory=lambda: SortTensorInteger())
+def SortTensorInteger_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 3))
+
+
+class SortTensorDescending(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True)
+    ])
+    def forward(self, input):
+        return torch.sort(input, descending=True)
+
+
+@register_test_case(module_factory=lambda: SortTensorDescending())
+def SortTensorDescending_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+class SortTensorSpecificDimension(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True)
+    ])
+    def forward(self, input):
+        return torch.sort(input, dim=1)
+
+
+@register_test_case(module_factory=lambda: SortTensorSpecificDimension())
+def SortTensorSpecificDimension_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+class SortTensorNegativeDimension(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True)
+    ])
+    def forward(self, input):
+        return torch.sort(input, dim=-1)
+
+
+@register_test_case(module_factory=lambda: SortTensorNegativeDimension())
+def SortTensorNegativeDimension_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
 class BucketizeTensorModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -3470,3 +3608,118 @@ class AtenFloatScalarModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenFloatScalarModule())
 def AtenFloatScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(high=5))
+
+
+# ==============================================================================
+
+
+class MoveDimIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1, -1, -1], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.movedim(x, source=1, destination=2) #0, 2, 1
+
+
+@register_test_case(module_factory=lambda: MoveDimIntModule())
+def MoveDimIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 2, 1))
+
+
+# ==============================================================================
+
+
+class MoveDimIntNegativeIndexModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1, -1], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.movedim(x, source=-1, destination=1)
+
+
+@register_test_case(module_factory=lambda: MoveDimIntNegativeIndexModule())
+def MoveDimIntNegativeIndexModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 2))
+
+
+# ==============================================================================
+
+
+class PrimsViewOfModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1, -1], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.prims.view_of(x)
+
+
+@register_test_case(module_factory=lambda: PrimsViewOfModule())
+def PrimsViewOfModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 2))
+
+
+class PrimsViewOfZeroRankModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.prims.view_of(x)
+
+
+@register_test_case(module_factory=lambda: PrimsViewOfZeroRankModule())
+def PrimsViewOfZeroRankModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand())
+
+
+# ==============================================================================
+
+
+class OneHotModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([None, ([-1], torch.long, True)])
+    def forward(self, x):
+        return torch.nn.functional.one_hot(x, num_classes=5)
+
+
+@register_test_case(module_factory=lambda: OneHotModule())
+def OneHotModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(10, high=5))
+
+
+# ==============================================================================
+
+
+class ConstantBoolParameterModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.bool_tensor = torch.tensor(
+            [True, False, True, False], dtype=torch.bool)
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return self.bool_tensor
+
+
+@register_test_case(module_factory=lambda: ConstantBoolParameterModule())
+def ConstantBoolParameterModule_basic(module, tu: TestUtils):
+    module.forward()

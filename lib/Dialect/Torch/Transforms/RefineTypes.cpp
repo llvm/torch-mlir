@@ -658,15 +658,16 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenMaskedFillTensorOp, AtenRollOp, AtenPowTensorTensorOp,
           AtenLiftFreshCopyOp, AtenIndexTensorHackedTwinOp,
           AtenUpsampleNearest2dOp, AtenMishOp, AtenRoundOp, AtenFillTensorOp,
-          AtenUpsampleNearest2dBackwardOp, AtenLeakyReluBackwardOp>(op)) {
+          AtenUpsampleNearest2dBackwardOp, AtenLeakyReluBackwardOp,
+          PrimsSqueezeOp, AtenOneHotOp, AtenCrossEntropyLossOp>(op)) {
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
   // Dtype is always float32, except for bfloat16, float16, float64 and nullptr.
-  if (isa<AtenTanhOp, AtenExpOp, AtenSinOp, AtenCosOp, AtenSigmoidOp,
-          AtenReciprocalOp, AtenLogOp, AtenSqrtOp, AtenLog2Op, AtenLog1pOp,
-          AtenRsqrtOp, AtenErfOp, AtenSoftplusOp, AtenFrobeniusNormDimOp,
-          PrimsSqrtOp>(op)) {
+  if (isa<AtenAtanOp, AtenTanhOp, AtenExpOp, AtenSinOp, AtenCosOp,
+          AtenSigmoidOp, AtenReciprocalOp, AtenLogOp, AtenSqrtOp, AtenLog2Op,
+          AtenLog1pOp, AtenRsqrtOp, AtenErfOp, AtenSoftplusOp,
+          AtenFrobeniusNormDimOp, PrimsSqrtOp>(op)) {
     ValueKnowledge knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     Type dtype = operands[0]->getValue().dtype;
@@ -714,8 +715,8 @@ void TypeAnalysis::visitOperation(Operation *op,
 
   // Promote the two dtypes assuming non-zero rank.
   if (isa<AtenMmOp, AtenBmmOp, AtenMatmulOp, AtenConv2dOp, AtenConvolutionOp,
-          Aten_ConvolutionOp, AtenMvOp, AtenConvolutionOverrideableOp,
-          AtenConvTranspose2dInputOp, AtenMseLossOp>(op)) {
+          Aten_ConvolutionOp, AtenMvOp, AtenConvTranspose2dInputOp,
+          AtenMseLossOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
@@ -845,8 +846,7 @@ void TypeAnalysis::visitOperation(Operation *op,
 
   // 3 results take dtype from first operand.
   if (isa<AtenNativeLayerNormOp, AtenNativeBatchNormOp,
-          AtenConvolutionBackwardOp, AtenConvolutionBackwardOverrideableOp>(
-          op)) {
+          AtenConvolutionBackwardOp>(op)) {
     auto self = operands[0]->getValue();
     auto result0Knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
@@ -1101,7 +1101,7 @@ void TypeAnalysis::visitOperation(Operation *op,
     incorporateKnowledge(embedding.getResult(), knowledge);
     return;
   }
-  
+
   if (isa<Aten_EmbeddingBagOp, AtenEmbeddingBagPaddingIdxOp>(op)) {
     visitAtenEmbeddingBagOp(op);
     return;
@@ -1157,6 +1157,17 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
+  if (auto randInt = dyn_cast<AtenRandintOp>(op)) {
+    auto knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    Type defaultDtype =
+        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+    knowledge.dtype =
+        getDtypeOrDefault(op->getContext(), randInt.getDtype(), defaultDtype);
+    incorporateKnowledge(randInt.getResult(), knowledge);
+    return;
+  }
+
   if (isa<AtenVarMeanCorrectionOp, AtenVarMeanOp>(op)) {
     auto input = operands[0]->getValue();
     auto knowledge =
@@ -1174,6 +1185,22 @@ void TypeAnalysis::visitOperation(Operation *op,
     knowledge.dtype =
         getDtypeOrDefault(op->getContext(), randn.getDtype(), defaultDtype);
     incorporateKnowledge(randn.getResult(), knowledge);
+    return;
+  }
+
+  // aten.sort produces two Tensor outputs. The first one is the sorted Tensor
+  // which will have the dtype same as that of the input Tensor, while the last
+  // Tensor comprises of sorted item's indices corresponding to the input
+  // Tensor.
+  if (auto sortOp = dyn_cast<AtenSortOp>(op)) {
+    auto input = operands[0]->getValue();
+    auto knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    knowledge.dtype = input.dtype;
+    incorporateKnowledge(op->getResult(0), knowledge);
+    Type i64Type = IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+    knowledge.dtype = i64Type;
+    incorporateKnowledge(op->getResult(1), knowledge);
     return;
   }
 

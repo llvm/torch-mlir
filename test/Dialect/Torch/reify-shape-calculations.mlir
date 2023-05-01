@@ -231,3 +231,14 @@ func.func @adjust_shape_function_arg$list(%arg0: !torch.vtensor, %arg1: !torch.v
   %1 = torch.aten.index.Tensor %arg0, %0 : !torch.vtensor, !torch.list<vtensor> -> !torch.vtensor
   return %1 : !torch.vtensor
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @adjust_shape_function_arg$number(
+// CHECK:             %[[FLOAT:.*]] = torch.aten.Float.Scalar {{.*}} : !torch.number -> !torch.float
+// CHECK:             %[[VAL_9:.*]] = func.call @__torch_mlir_shape_fn.aten.arange(%[[FLOAT]], {{.*}}) : (!torch.float, {{.*}}
+func.func @adjust_shape_function_arg$number(%arg0: !torch.number) -> !torch.vtensor {
+  %none = torch.constant.none
+  %1 = torch.aten.arange %arg0, %none, %none, %none, %none : !torch.number, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor
+  return %1 : !torch.vtensor
+}

@@ -813,6 +813,15 @@ OpFoldResult AtenViewOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// PrimsViewOfOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult PrimsViewOfOp::fold(FoldAdaptor adaptor) {
+  // Always fold the op with its only input operand.
+  return getOperand();
+}
+
+//===----------------------------------------------------------------------===//
 // AtenDimOp
 //===----------------------------------------------------------------------===//
 
@@ -1137,6 +1146,8 @@ OpFoldResult AtenSizeIntOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   ArrayRef<int64_t> sizes = type->getSizes();
   dim = toPositiveDim(dim, sizes.size());
+  if (!isValidDim(dim, sizes.size()))
+    return nullptr;
   return IntegerAttr::get(IntegerType::get(getContext(), 64), sizes[dim]);
 }
 
@@ -1256,6 +1267,12 @@ static OpFoldResult intComparatorFoldHelper(OpTy op,
 
   return nullptr;
 }
+
+//===----------------------------------------------------------------------===//
+// AtenDetachOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenDetachOp::fold(FoldAdaptor adaptor) { return getSelf(); }
 
 //===----------------------------------------------------------------------===//
 // AtenNeIntOp

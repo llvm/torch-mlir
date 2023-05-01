@@ -2,7 +2,6 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
-
 from typing import List
 
 import numpy
@@ -23,6 +22,7 @@ def _returns_empty_tuple(fx_graph: torch.fx.GraphModule) -> bool:
             if node_arg != ():
                 return False
     return True
+
 
 @make_simple_dynamo_backend
 def _refbackend_torchdynamo_backend(fx_graph: torch.fx.GraphModule,
@@ -45,11 +45,8 @@ def _refbackend_torchdynamo_backend(fx_graph: torch.fx.GraphModule,
     # Torch-MLIR does not support returning an empty tuple. The reason is
     # that both returning an empty tuple and returning `None` results in MLIR
     # functions that have as a return type `()`. In other words, there is no
-    # way of differentiating between the two. Moreover, since Torch-MLIR treats
-    # inputs as having value semantics, graphs that return nothing are no-ops to
-    # Torch-MLIR.
-    if _returns_empty_tuple(fx_graph):
-        return fx_graph
+    # way of differentiating between the two.
+    assert not _returns_empty_tuple(fx_graph), "encountered graph that does not return anything"
 
     mlir_module = torch_mlir.compile(
         fx_graph, example_inputs, output_type="linalg-on-tensors")
@@ -92,7 +89,8 @@ class TorchDynamoTestConfig(TestConfig):
         result: Trace = []
         for item in trace:
             f = lambda method, *inputs: method(*inputs)
-            dynamo_f = dynamo.optimize(_refbackend_torchdynamo_backend)(f)
+            torch._dynamo.reset()
+            dynamo_f = dynamo.optimize(_refbackend_torchdynamo_backend, nopython=True)(f)
             output = dynamo_f(item_symbol_that_clones_inputs, *item.inputs)
             result.append(
                 TraceItem(symbol=item.symbol,

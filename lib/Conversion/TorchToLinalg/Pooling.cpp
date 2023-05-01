@@ -47,8 +47,22 @@ checkAndGetPoolingParameters(OpTy op, ConversionPatternRewriter &rewriter,
   }
   kernelSizeIntValues = getTypeConvertedValues(
       rewriter, op.getLoc(), typeConverter, kernelSizeTorchInt);
+
   if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts)))
     return rewriter.notifyMatchFailure(op, "only support constant int strides");
+  // If `stride` is not specified by the user, it is assigned the value of empty
+  // list during import. For such a case, the stride value is the kernel size.
+  // See:
+  // https://pytorch.org/docs/stable/generated/torch.nn.MaxPool2d.html#torch.nn.MaxPool2d
+  if (strideInts.empty()) {
+    if (!matchPattern(op.getKernelSize(),
+                      m_TorchListOfConstantInts(strideInts))) {
+      return rewriter.notifyMatchFailure(
+          op, "if stride is the empty list, kernel_size must be a list of "
+              "constant ints");
+    }
+  }
+
   if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(paddingInts)))
     return rewriter.notifyMatchFailure(op,
                                        "only support constant int paddings");
@@ -80,7 +94,7 @@ static LogicalResult createPoolingOp(
     highPaddingIncludingNC[2] += strideInts[0];
     highPaddingIncludingNC[3] += strideInts[1];
   }
-  Value initValue = rewriter.create<arith::ConstantOp>(loc, initValueAttr);
+  Value initValue = rewriter.create<arith::ConstantOp>(loc, cast<TypedAttr>(initValueAttr));
   paddedInput = torch_to_linalg::getPaddedTensor(
       op, rewriter, self, lowPaddingIncludingNC, highPaddingIncludingNC,
       initValue);
@@ -154,7 +168,7 @@ public:
       return rewriter.notifyMatchFailure(op, "invalid pooling parameters");
 
     Type elementType = self.getType().cast<RankedTensorType>().getElementType();
-    auto smallestFPValueAttr = rewriter.getFloatAttr(
+    TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
         elementType,
         APFloat::getLargest(
             elementType.cast<mlir::FloatType>().getFloatSemantics(),

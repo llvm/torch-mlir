@@ -11,7 +11,6 @@
 
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
-#include "StablehloLegalizeUtils.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -23,6 +22,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
+#include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 #include "utils/hlo_utils.h"
 #include <iostream>
 #include <numeric>
@@ -577,6 +577,8 @@ LogicalResult ConvertAtenOp<AtenSizeIntOp>::matchAndRewrite(
   int64_t dimInt;
   if (matchPattern(op.getDim(), m_TorchConstantInt(&dimInt))) {
     dimInt = toPositiveDim(dimInt, selfType.getRank());
+    if (!isValidDim(dimInt, selfType.getRank()))
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
     dim = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), dimInt);
   } else {
     Value inputRank = rewriter.create<arith::ConstantOp>(
@@ -1189,6 +1191,9 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op,
                                        "only constant dim param is supported");
   }
+  dim = toPositiveDim(dim, outType.getRank());
+  if (!isValidDim(dim, outType.getRank()))
+    return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
   SmallVector<Value> torchTensors;
   if (!getListConstructElements(op.getTensors(), torchTensors)) {
@@ -1203,9 +1208,8 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
     v = hlo::promoteType(rewriter, v, outType);
   }
 
-  size_t posDim = toPositiveDim(dim, outType.getRank());
   rewriter.replaceOpWithNewOp<stablehlo::ConcatenateOp>(
-      op, outType, ValueRange(builtinTensors), posDim);
+      op, outType, ValueRange(builtinTensors), dim);
   return success();
 }
 

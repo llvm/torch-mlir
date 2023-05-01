@@ -717,6 +717,12 @@ class ConvertAtenMultipleDimsReductionOp
       return rewriter.notifyMatchFailure(op,
                                          "non-const dim parameter unsupported");
     int64_t N = reduceDims.size();
+    int64_t inputRank = adaptor.getSelf().getType().template cast<RankedTensorType>().getRank();
+    for (unsigned i=0; i<N; i++) {
+      reduceDims[i] = toPositiveDim(reduceDims[i], inputRank);
+      if (!isValidDim(reduceDims[i], inputRank))
+        return rewriter.notifyMatchFailure(op, "reduce dim is statically invalid");
+    }
     auto reduceDimsType = RankedTensorType::get({N}, rewriter.getI64Type());
     reduceDimsAttr =
         DenseIntElementsAttr::get(reduceDimsType, llvm::ArrayRef(reduceDims));
@@ -747,6 +753,10 @@ class ConvertAtenOneDimReductionOp
     if (!matchPattern(op.getDim(), m_TorchConstantInt(&reduceDim)))
       return rewriter.notifyMatchFailure(op,
                                          "non-const dim parameter unsupported");
+    int64_t inputRank = adaptor.getSelf().getType().template cast<RankedTensorType>().getRank();
+    reduceDim = toPositiveDim(reduceDim, inputRank);
+    if (!isValidDim(reduceDim, inputRank))
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
     auto reduceDimsType = RankedTensorType::get({1}, rewriter.getI64Type());
     reduceDimsAttr =
         DenseIntElementsAttr::get(reduceDimsType, llvm::ArrayRef({reduceDim}));
@@ -806,6 +816,11 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&reduceDim))) {
     // NoneType indicates reduce on all dims
     reduceDim = -1;
+  } else {
+    int64_t inputRank = selfTy.getRank();
+    reduceDim = toPositiveDim(reduceDim, inputRank);
+    if (!isValidDim(reduceDim, inputRank))
+      return rewriter.notifyMatchFailure(op, "reduce dim is statically invalid");
   }
 
   bool keepDim = false;
@@ -3171,8 +3186,10 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
   int64_t end;
   if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end)))
     return rewriter.notifyMatchFailure(op, "end must be a Scalar constant");
+  // support for end < 0
+  end = toPositiveDim(end, selfType.getShape()[dim]);
 
-  // FIXME: add support for start/end < 0 and end < start
+  // FIXME: add support for start < 0 and end < start
   if (end < start)
     return rewriter.notifyMatchFailure(op,
                                        "Currently unsupported: end < start");
@@ -3542,6 +3559,22 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenAbsOp>::matchAndRewrite(
+    AtenAbsOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // Not a tensor type.
+  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+
+  auto outType = getTypeConverter()->convertType(op.getType());
+  rewriter.replaceOpWithNewOp<tosa::AbsOp>(op, outType, adaptor.getSelf());
+
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
     AtenWhereSelfOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -3560,6 +3593,32 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
   rewriter.replaceOpWithNewOp<tosa::SelectOp>(
       op, outType, adaptor.getCondition(), adaptor.getSelf(),
       adaptor.getOther());
+
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenLeTensorOp>::matchAndRewrite(
+    AtenLeTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+  auto otherType = adaptor.getOther().getType().dyn_cast<TensorType>();
+  if (!otherType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types condition are currently supported");
+
+  auto outType = getTypeConverter()->convertType(op.getType());
+
+  auto greaterOp = rewriter.create<tosa::GreaterOp>(
+      op.getLoc(), outType, adaptor.getSelf(), adaptor.getOther());
+
+  rewriter.replaceOpWithNewOp<tosa::LogicalNotOp>(op, outType,
+                                                  greaterOp.getOutput());
 
   return success();
 }
@@ -3659,13 +3718,21 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
   // Only supports integer operand type, because for the floating point operand
   // type result tensor has to be of type `f64` which is not supported in the
   // tosa.
-  int64_t initValue;
-  if (!matchPattern(op.getA(), m_TorchConstantInt(&initValue)))
-    return rewriter.notifyMatchFailure(
-        op, "unimplemented: input should be a torch constant int");
+  double doubleValue;
+  auto isDouble = matchPattern(op.getA(), m_TorchConstantFloat(&doubleValue));
+  int64_t intValue;
+  auto isInt = matchPattern(op.getA(), m_TorchConstantInt(&intValue));
+  if (!isDouble && !isInt)
+    return rewriter.notifyMatchFailure(op,
+                                       "Unable to extract the scalar constant");
 
-  DenseElementsAttr constAttr = DenseElementsAttr::get(resultType, {initValue});
-  rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, resultType, constAttr);
+  auto outElemTy = resultType.getElementType();
+  if (outElemTy.isa<mlir::IntegerType>()) {
+    rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, resultType, DenseElementsAttr::get(resultType, {intValue}));
+  } else if (outElemTy.isF64()) {
+    rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, resultType, DenseElementsAttr::get(resultType, {doubleValue}));
+  }
+
   return success();
 }
 
@@ -4084,9 +4151,17 @@ static LogicalResult getOutputTypeAndPoolingParameters(
                     m_TorchListOfConstantInts(kernelSizeInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const kernel_size for pooling op unsupported");
+
   if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const stride for pooling op unsupported");
+  // If `stride` is not specified by the user, it is assigned the value of empty
+  // list during import. For such a case, the stride value is the kernel size.
+  // See:
+  // https://pytorch.org/docs/stable/generated/torch.nn.MaxPool2d.html#torch.nn.MaxPool2d
+  if (strideInts.empty())
+    strideInts.assign(kernelSizeInts);
+
   if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(paddingInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const padding factor for pooling op unsupported");
@@ -4197,9 +4272,16 @@ public:
 
     // FIXME: Handle layout, device and pin_memory. Assume dtype has been
     // processed to set output type correctly?
-    if (!op.getLayout().getType().template isa<Torch::NoneType>())
-      return rewriter.notifyMatchFailure(op,
-                                         "Only default layout is supported");
+    // The layout arg should be either `none` or `0` i.e. strided.
+    if (!op.getLayout().getType().template isa<Torch::NoneType>()) {
+      int64_t tensorLayout;
+      if (!matchPattern(op.getLayout(), m_TorchConstantInt(&tensorLayout)))
+        return rewriter.notifyMatchFailure(
+            op, "The layout arg should be either `none` or `0` i.e. strided.");
+      else if (tensorLayout != torch_upstream::Layout::Strided)
+        return rewriter.notifyMatchFailure(
+            op, "The layout arg should be either `none` or `0` i.e. strided.");
+    }
 
     bool pinMemory;
     if (!op.getPinMemory().getType().template isa<Torch::NoneType>() &&
@@ -4638,7 +4720,9 @@ public:
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
     INSERT_ATENOP_PATTERN(AtenGatherOp);
     INSERT_ATENOP_PATTERN(AtenIndexTensorOp);
+    INSERT_ATENOP_PATTERN(AtenAbsOp);
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
+    INSERT_ATENOP_PATTERN(AtenLeTensorOp);
     INSERT_ATENOP_PATTERN(AtenClampOp);
     INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
     INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);

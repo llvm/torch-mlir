@@ -56,5 +56,12 @@ std::vector<torch::lazy::Shape> compute_shape_bucketize(
   return {Shape(dtype, self.sizes().vec())};
 }
 
+std::vector<torch::lazy::Shape> compute_shape_copy(
+  const at::Tensor& self,
+  const at::Tensor& src,
+  bool non_blocking) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
 } // namespace lazy
 } // namespace torch
