@@ -53,7 +53,7 @@ runs:
       mkdir -p ${{ github.workspace }}/.ccache
       ccache --set-config "cache_dir=${{ github.workspace }}/.ccache"
       ccache --set-config "compression=true"
-      ccache --set-config "max_size=300M"
+      ccache --set-config "max_size=6G"
       ccache --zero-stats
     shell: bash
 
