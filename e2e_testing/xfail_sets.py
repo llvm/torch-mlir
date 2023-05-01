@@ -688,6 +688,10 @@ TCP_PASS_SET = {
     "TypeAsSameModule_basic",
     "UnsafeView1DFoldModule_basic",
     "View1DFoldModule_basic",
+    "DetachModule_basic",
+    "PrimsSqueezeEmptyDimensionsModule_basic",
+    "PrimsViewOfModule_basic",
+    "PrimsViewOfZeroRankModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
