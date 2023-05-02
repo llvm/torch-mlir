@@ -11,7 +11,7 @@ from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
 
 mb = ModuleBuilder()
 
-# CHECK: module attributes {torch.debug_module_name = "TestModule"}
+# CHECK: module attributes {torch.debug_module_name = "TestModule", torch_mlir.default_dtype = "torch.float32"}
 class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

@@ -132,12 +132,25 @@ Torch::getTorchTypeForScalarType(MLIRContext *context,
   }
 }
 
-Type Torch::getDefaultDtypeForTorchScalar(Type type) {
+Type Torch::getDefaultDtypeForTorchScalar(Operation *op, Type type) {
   MLIRContext *context = type.getContext();
   if (type.isa<Torch::FloatType>()) {
-    // For now, use float32 which is the initial default dtype returned by
-    // `torch.get_default_dtype`.
-    return Float32Type::get(context);
+    auto module = op->getParentOfType<ModuleOp>();
+    auto default_dtype =
+        module->getAttr("torch_mlir.default_dtype").cast<StringAttr>().str();
+
+    Type dtype;
+    if (default_dtype == "torch.float16") {
+      dtype = Float16Type::get(context);
+    } else if (default_dtype == "torch.float32") {
+      dtype = Float32Type::get(context);
+    } else if (default_dtype == "torch.float64") {
+      dtype = Float64Type::get(context);
+    } else {
+      llvm_unreachable("Unsupported default dtype");
+    }
+
+    return dtype;
   }
   if (type.isa<Torch::IntType>())
     return IntegerType::get(context, 64, IntegerType::Signed);

@@ -416,7 +416,8 @@ private:
   // Get the MLIR type of the tensor dtype given the dtype integer value and
   // data type of torch type. When DType is None the type is inferred from the
   // data type.
-  void fillInDTypeGivenDTypeAndDataType(ValueKnowledge &knowledge, Value dtype,
+  void fillInDTypeGivenDTypeAndDataType(Operation *op,
+                                        ValueKnowledge &knowledge, Value dtype,
                                         Type dataType);
 
   /// Incorporates `knowledge` into the lattice state of `v`.
@@ -537,7 +538,8 @@ static Type getPromotedResultScalarType(ArrayRef<Type> scalarTypes) {
 }
 
 // Returns most generic type Type() if the tensor dtype is unknown.
-static Type getPromotedResultDType(ValueKnowledge *tensor, Type scalarType) {
+static Type getPromotedResultDType(Operation *op, ValueKnowledge *tensor,
+                                   Type scalarType) {
   if (!tensor->dtype)
     return Type();
   torch_upstream::ResultTypeState state = {};
@@ -545,8 +547,8 @@ static Type getPromotedResultDType(ValueKnowledge *tensor, Type scalarType) {
   // wrappedResult which is a lower priority than both dimResult and zeroResult.
   state = updateResultTypeState(tensor, /*rankIsNonZero=*/std::nullopt, state,
                                 /*skipRankCheck=*/true);
-  state =
-      updateResultTypeState(getDefaultDtypeForTorchScalar(scalarType), state);
+  state = updateResultTypeState(getDefaultDtypeForTorchScalar(op, scalarType),
+                                state);
   FailureOr<Type> result =
       getTypeForScalarType(scalarType.getContext(), result_type(state));
   return failed(result) ? Type() : *result;
@@ -610,12 +612,13 @@ void TypeAnalysis::fillInDTypeGivenDTypeIntAndInputDType(
     knowledge.dtype = getLatticeElement(primDtypeOp.getA())->getValue().dtype;
 }
 
-void TypeAnalysis::fillInDTypeGivenDTypeAndDataType(ValueKnowledge &knowledge,
+void TypeAnalysis::fillInDTypeGivenDTypeAndDataType(Operation *op,
+                                                    ValueKnowledge &knowledge,
                                                     Value dtype,
                                                     Type dataType) {
   assert(isa<TorchDialect>(dataType.getDialect()) &&
          "`dataType` must be a torch type");
-  Type dtypeForDataType = getDefaultDtypeForTorchScalar(dataType);
+  Type dtypeForDataType = getDefaultDtypeForTorchScalar(op, dataType);
   fillInDTypeGivenDTypeIntAndInputDType(knowledge, dtype, dtypeForDataType);
 }
 
@@ -780,7 +783,7 @@ void TypeAnalysis::visitOperation(Operation *op,
     Value scalar = op->getOperand(1);
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultDType(&lhs, scalar.getType());
+    knowledge.dtype = getPromotedResultDType(op, &lhs, scalar.getType());
     incorporateKnowledge(op->getResult(0), knowledge);
     return;
   }
@@ -802,8 +805,9 @@ void TypeAnalysis::visitOperation(Operation *op,
     Value rhsScalar = op->getOperand(2);
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getDefaultDtypeForTorchScalar(getPromotedResultScalarType(
-        {lhsScalar.getType(), rhsScalar.getType()}));
+    knowledge.dtype = getDefaultDtypeForTorchScalar(
+        op, getPromotedResultScalarType(
+                {lhsScalar.getType(), rhsScalar.getType()}));
     incorporateKnowledge(op->getResult(0), knowledge);
     return;
   }
@@ -814,7 +818,7 @@ void TypeAnalysis::visitOperation(Operation *op,
     Value scalar = op->getOperand(2);
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultDType(&lhs, scalar.getType());
+    knowledge.dtype = getPromotedResultDType(op, &lhs, scalar.getType());
     incorporateKnowledge(op->getResult(0), knowledge);
     return;
   }
@@ -825,7 +829,7 @@ void TypeAnalysis::visitOperation(Operation *op,
     Value scalar = op->getOperand(1);
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = getPromotedResultDType(&rhs, scalar.getType());
+    knowledge.dtype = getPromotedResultDType(op, &rhs, scalar.getType());
     incorporateKnowledge(op->getResult(0), knowledge);
     return;
   }
@@ -1361,7 +1365,7 @@ void TypeAnalysis::visitScalarToTensorConversionOp(OpTy op) {
       ValueKnowledge::getTensorPessimisticValueState(op.getContext());
   Value t = op.getT();
   Value dtype = op.getDtype();
-  fillInDTypeGivenDTypeAndDataType(knowledge, dtype, t.getType());
+  fillInDTypeGivenDTypeAndDataType(op, knowledge, dtype, t.getType());
   incorporateKnowledge(op.getResult(), knowledge);
 }
 
@@ -1390,7 +1394,7 @@ void TypeAnalysis::visitAtenTensorOp(AtenTensorOp op) {
     incorporateKnowledge(op.getResult(), knowledge);
     return;
   }
-  fillInDTypeGivenDTypeAndDataType(knowledge, dtype, type);
+  fillInDTypeGivenDTypeAndDataType(op, knowledge, dtype, type);
   incorporateKnowledge(op.getResult(), knowledge);
 }
 
@@ -1401,7 +1405,8 @@ void TypeAnalysis::visitConstantTensorAllocOp(OpTy op,
       ValueKnowledge::getTensorPessimisticValueState(op->getContext());
   if (!dataType)
     dataType = Torch::FloatType::get(op->getContext());
-  fillInDTypeGivenDTypeAndDataType(knowledge, op.getDtype(), dataType.value());
+  fillInDTypeGivenDTypeAndDataType(op, knowledge, op.getDtype(),
+                                   dataType.value());
   incorporateKnowledge(op.getResult(), knowledge);
 }
 

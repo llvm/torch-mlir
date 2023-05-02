@@ -43,7 +43,7 @@ FailureOr<Type> getTorchTypeForScalarType(MLIRContext *context,
 // operation (such as AtenMulScalarOp, AtenAddScalarOp etc)
 // If the data is floating-point, the `dtype` is inferred to be the
 // default dtype, see `torch.get_default_dtype`.
-Type getDefaultDtypeForTorchScalar(Type type);
+Type getDefaultDtypeForTorchScalar(Operation *op, Type type);
 
 // This is the type rule used for deciding builtin type for:
 // 1. The dtype of the result tensor when converting a Scalar into a Tensor like

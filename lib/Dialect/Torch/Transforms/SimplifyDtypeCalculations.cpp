@@ -138,7 +138,7 @@ public:
         }
         Type builtinType = isScalarOnlyOp
                                ? getBuiltInTypeForTorchScalar(*torchType)
-                               : getDefaultDtypeForTorchScalar(*torchType);
+                               : getDefaultDtypeForTorchScalar(op, *torchType);
         scalarType = getScalarTypeForType(builtinType);
         state.wrappedResult =
             promote_skip_undefined(state.wrappedResult, scalarType);
