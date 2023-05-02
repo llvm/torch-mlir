@@ -1291,6 +1291,29 @@ def ElementwisePowTensorModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwisePowTensorStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.float32, True),
+        ([1, 1], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return torch.pow(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwisePowTensorStaticModule())
+def ElementwisePowTensorStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4), tu.rand(1, 1))
+
+
+# ==============================================================================
+
+
 class ElementwisePowTensorBroadcastModule(torch.nn.Module):
 
     def __init__(self):
@@ -1308,6 +1331,29 @@ class ElementwisePowTensorBroadcastModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwisePowTensorBroadcastModule())
 def ElementwisePowTensorBroadcastModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1), tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwisePowTensorBroadcastStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 1], torch.float32, True),
+        ([3, 4], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return torch.pow(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwisePowTensorBroadcastStaticModule())
+def ElementwisePowTensorBroadcastStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1), tu.rand(3, 4))
 
 

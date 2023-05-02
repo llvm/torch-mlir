@@ -276,6 +276,8 @@ STABLEHLO_PASS_SET = {
     "ElementwiseClampMinModule_basic",
     "ElementwiseClampMaxModule_basic",
     "ElementwisePowModule_basic",
+    "ElementwisePowTensorStaticModule_basic",
+    "ElementwisePowTensorBroadcastStaticModule_basic",
     "ElementwiseExpModule_basic",
     "ElementwiseFlattenBroadcastModule_basic",
     "ElementwiseLeakyReluModule_basic",
