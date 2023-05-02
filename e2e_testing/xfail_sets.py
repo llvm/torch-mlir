@@ -36,10 +36,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "NllLossModuleBackward1DSum_basic",
     "NllLossModuleBackward1DWeight_basic",
     "NllLossModuleBackward1D_basic",
-    # TypeError: uniform() missing 2 required keyword-only arguments: 'dtype' and 'device'
-    # RuntimeError: Failed running call_function aten.uniform(...
-    # https://github.com/pytorch/torchdynamo/issues/1954
-    "UniformNoCorrelationModule_basic",
 
     #### Torch-MLIR internal compiler errors
 
@@ -50,10 +46,6 @@ TORCHDYNAMO_XFAIL_SET = {
     # %6:4 = torch.operator "aten._embedding_bag_forward_only"(%1, %3, %5, %false, %int0, %false, %none, %false, %int-1) : (!torch.tensor<*,f32>, !torch.tensor<*,si64>, !torch.tensor<*,si64>, !torch.bool, !torch.int, !torch.bool, !torch.none, !torch.bool, !torch.int) -> (!torch.tensor, !torch.tensor, !torch.tensor, !torch.tensor)
     # See also: https://github.com/pytorch/torchdynamo/issues/327
     "AtenEmbeddingBagSumExample_basic",
-    # %1 = torch.operator "aten.scalar_tensor"(%float8.000000e00, %int6, %int0, %cpu, %none) : (!torch.float, !torch.int, !torch.int, !torch.Device, !torch.none) -> !torch.tensor
-    "ElementwiseWhereScalarModule_basic",
-    "ElementwiseWhereScalarOtherModule_basic",
-    "ElementwiseWhereScalarSelfModule_basic",
     # %7 = torch.operator "aten._index_put_impl_.hacked_twin"(%1, %6, %5, %true, %false) : (!torch.tensor<*,f32>, !torch.list<tensor>, !torch.tensor<*,f32>, !torch.bool, !torch.bool) -> !torch.tensor
     "IndexPutImpl1DFloatAccumulateModule_basic",
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
