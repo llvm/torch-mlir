@@ -474,6 +474,7 @@ STABLEHLO_PASS_SET = {
     "RsubIntModule_basic",
     "RsubIntModule_noalpha_basic",
     "RsubInt0d_NumToTensor_Module_basic",
+    "ScalarTensorModule_basic",
     "SelectScattertModule_basic",
     "SelectScattertStaticModule_basic",
     "SliceStaticModule_basic",
@@ -903,6 +904,7 @@ TOSA_PASS_SET = {
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
     "DetachModule_basic",
+    "ScalarTensorModule_basic",
 }
 
 LTC_XFAIL_SET = {

@@ -3723,3 +3723,24 @@ class ConstantBoolParameterModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ConstantBoolParameterModule())
 def ConstantBoolParameterModule_basic(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+
+class ScalarTensorModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.scalar_tensor(1.0, dtype=torch.float32)
+
+
+@register_test_case(module_factory=lambda: ScalarTensorModule())
+def ScalarTensorModule_basic(module, tu: TestUtils):
+    module.forward()
