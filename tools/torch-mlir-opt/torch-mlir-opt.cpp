@@ -28,8 +28,7 @@ int main(int argc, char **argv) {
   
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
   mlir::stablehlo::registerAllDialects(registry);
-#endif  
-  return mlir::asMainReturnCode(
-      mlir::MlirOptMain(argc, argv, "MLIR modular optimizer driver\n", registry,
-                        /*preloadDialectsInContext=*/false));
+#endif
+  return mlir::asMainReturnCode(mlir::MlirOptMain(
+      argc, argv, "MLIR modular optimizer driver\n", registry));
 }

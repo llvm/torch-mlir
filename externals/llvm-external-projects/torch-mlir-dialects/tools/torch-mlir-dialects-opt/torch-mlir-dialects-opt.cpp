@@ -43,7 +43,6 @@ int main(int argc, char **argv) {
       mlir::func::FuncDialect, mlir::memref::MemRefDialect,
       mlir::scf::SCFDialect, mlir::tensor::TensorDialect>();
 
-  return mlir::asMainReturnCode(
-      mlir::MlirOptMain(argc, argv, "MLIR modular optimizer driver\n", registry,
-                        /*preloadDialectsInContext=*/false));
+  return mlir::asMainReturnCode(mlir::MlirOptMain(
+      argc, argv, "MLIR modular optimizer driver\n", registry));
 }
