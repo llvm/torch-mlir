@@ -1546,6 +1546,11 @@ def aten〇max_pool2d〡dtype(self_rank_dtype: Tuple[int, int], kernel_size: Lis
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7)], kernel_size=[2, 2]))
+def aten〇max_pool2d_with_indices〡dtype(self_rank_dtype: Tuple[int, int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), ceil_mode: bool = False) -> Tuple[int, int]:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype, torch.int64
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇mish〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -2975,6 +2980,53 @@ def aten〇var_mean〡dtype(self_rank_dtype: Tuple[int, int], unbiased: bool = T
     if self_dtype == torch.complex128:
         return torch.float64, self_dtype
     return self_dtype, self_dtype
+
+@check_dtype_function(_check_two_tensor_op())
+def aten〇atan2〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    other_rank, other_dtype = other_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, other_rank]
+    dtypes = [self_dtype, other_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    if is_integer_dtype(promoted_dtype):
+        return torch.float32
+    return promoted_dtype
+
+@check_dtype_function(_check_two_tensor_op())
+def aten〇linear〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None) -> int:
+    input_rank, input_dtype = input_rank_dtype
+    weight_rank, weight_dtype = weight_rank_dtype
+    return input_dtype
+
+@check_dtype_function(
+    [Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32)]),
+     Invocation([NonZeroDTensorWithDtype(torch.float16), NonZeroDTensorWithDtype(torch.float64)]),
+     Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32),
+                 NonZeroDTensorWithDtype(torch.complex64)])])
+def aten〇cat〡dtype(tensors_rank_dtype: List[Tuple[int, int]], dim: int = 0) -> int:
+    ranks: List[Optional[int]] = []
+    dtypes: List[int] = []
+    assert len(tensors_rank_dtype) != 0
+    for tensor_rank_dtype in tensors_rank_dtype:
+        tensor_rank, tensor_dtype = tensor_rank_dtype
+        ranks.append(tensor_rank)
+        dtypes.append(tensor_dtype)
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇_shape_as_tensor〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    return torch.int64
+
+# Does not work on meta backend
+#@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[()]))
+def aten〇ScalarImplicit〡dtype(a_rank_dtype: Tuple[int, int]) -> int:
+    a_rank, a_dtype = a_rank_dtype
+    return a_dtype
+
+@check_dtype_function([Invocation(0), Invocation(0.0)])
+def prim〇NumToTensor〇Scalar〡dtype(a: Union[int, float]) -> int:
+    return get_dtype_of_scalar(a)
+
 
 # ==============================================================================
 # Main

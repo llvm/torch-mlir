@@ -520,21 +520,6 @@ static Type getPromotedResultScalarType(ArrayRef<Type> scalarTypes) {
   return *result;
 }
 
-static SmallVector<std::optional<bool>>
-getRankIsNonZeroArray(ValueRange values) {
-  SmallVector<std::optional<bool>> rankIsNonZero;
-  for (Value v : values) {
-    if (auto tensorType = v.getType().dyn_cast<BaseTensorType>()) {
-      if (tensorType.hasSizes()) {
-        rankIsNonZero.push_back(tensorType.getSizes().size() != 0);
-      } else {
-        rankIsNonZero.push_back(std::nullopt);
-      }
-    }
-  }
-  return rankIsNonZero;
-}
-
 // Normally, tensor dimensions need to be known at compile time to do type
 // promotion. `skipRankCheck`, when equal to true, can be used to indicate
 // special cases that tensor operands are guaranteed to be not zero dimension
@@ -597,64 +582,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  // Dtype is always float32, except for bfloat16, float64 and nullptr after
-  // promotion and assuming possible-zero rank.
-  if (isa<AtenAtan2Op>(op)) {
-    ValueKnowledge knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    Type promotedDtype = getPromotedResultType(
-        op->getContext(), {&operands[0]->getValue(), &operands[1]->getValue()},
-        getRankIsNonZeroArray(op->getOperands()));
-    if (promotedDtype) {
-      knowledge.dtype = Float32Type::get(op->getContext());
-      if (promotedDtype.isa<BFloat16Type, Float64Type>())
-        knowledge.dtype = promotedDtype;
-    }
-    incorporateKnowledge(op->getResult(0), knowledge);
-    return;
-  }
-
-  if (auto linear = llvm::dyn_cast<AtenLinearOp>(op)) {
-    visitAtenLinearOp(linear, operands);
-    return;
-  }
-
-  if (isa<AtenMaxPool2dWithIndicesOp>(op)) {
-    auto self = operands[0]->getValue();
-    auto result0Knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    result0Knowledge.dtype = self.dtype;
-    auto result1Knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    result1Knowledge.dtype =
-        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-    incorporateKnowledge(op->getResult(0), result0Knowledge);
-    incorporateKnowledge(op->getResult(1), result1Knowledge);
-    return;
-  }
-
-  if (auto tensor = dyn_cast<AtenTensorOp>(op)) {
-    visitAtenTensorOp(tensor);
-    return;
-  }
-
-  if (auto cat = dyn_cast<AtenCatOp>(op)) {
-    visitAtenCatLikeOp<AtenCatOp>(cat, operands);
-    return;
-  } else if (auto stack = dyn_cast<AtenStackOp>(op)) {
-    visitAtenCatLikeOp<AtenStackOp>(stack, operands);
-    return;
-  }
-
-  if (auto shapeAsTensor = dyn_cast<Aten_ShapeAsTensorOp>(op)) {
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype =
-        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-    incorporateKnowledge(shapeAsTensor.getResult(), knowledge);
-    return;
-  }
-
   if (auto embedding = dyn_cast<AtenEmbeddingOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
@@ -680,11 +607,6 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   } else if (auto logSoftmaxIntOp = dyn_cast<AtenLogSoftmaxIntOp>(op)) {
     visitAtenSoftmaxLikeOp(logSoftmaxIntOp, operands);
-    return;
-  }
-
-  if (auto numToTensorOp = dyn_cast<PrimNumToTensorScalarOp>(op)) {
-    visitNumToTensorOp(numToTensorOp);
     return;
   }
 
