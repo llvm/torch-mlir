@@ -33,13 +33,34 @@ def is_float_dtype(dtype: int) -> bool:
     return dtype in all_float_dtypes()
 
 def get_priority_of_dtype(dtype: int) -> int:
-    sorted_types = [
-        torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64,
-        torch.bfloat16, torch.float16, torch.float32, torch.float64,
-        torch.complex64, torch.complex128]
-    for i in range(len(sorted_types)):
-        if sorted_types[i] == dtype:
-            return i
+    # If a loop is used to iterate over a list of sorted dtypes, TorchScript
+    # produces a loop with INT64_MAX max trip count, which causes problems
+    # during the loop unrolling that takes place when simplifying the dtype
+    # functions. Therefore, here we result to `if`s.
+    if dtype == torch.bool:
+        return 0
+    if dtype == torch.uint8:
+        return 1
+    if dtype == torch.int8:
+        return 2
+    if dtype == torch.int16:
+        return 3
+    if dtype == torch.int32:
+        return 4
+    if dtype == torch.int64:
+        return 5
+    if dtype == torch.bfloat16:
+        return 6
+    if dtype == torch.float16:
+        return 7
+    if dtype == torch.float32:
+        return 8
+    if dtype == torch.float64:
+        return 9
+    if dtype == torch.complex64:
+        return 10
+    if dtype == torch.complex128:
+        return 11
     assert False, "Cannot determine priority of dtype"
 
 def get_dtype_of_scalar(scalar: Union[int, float]) -> int:
