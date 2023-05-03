@@ -11185,6 +11185,7 @@ def Torch_PrimDeviceOp : Torch_Op<"prim.device", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_PrimDtypeOp : Torch_Op<"prim.dtype", [
