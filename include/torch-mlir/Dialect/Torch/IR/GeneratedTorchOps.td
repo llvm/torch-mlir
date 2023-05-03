@@ -7506,6 +7506,7 @@ def Torch_AtenToDtypeLayoutOp : Torch_Op<"aten.to.dtype_layout", [
     }
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenToOtherOp : Torch_Op<"aten.to.other", [
@@ -11212,6 +11213,7 @@ def Torch_PrimDeviceOp : Torch_Op<"prim.device", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_PrimDtypeOp : Torch_Op<"prim.dtype", [

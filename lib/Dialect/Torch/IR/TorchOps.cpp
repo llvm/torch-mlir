@@ -797,6 +797,48 @@ OpFoldResult AtenToDtypeLayoutOp::fold(FoldAdaptor adaptor) {
   return getOperand(0);
 }
 
+void AtenToDtypeLayoutOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  // `to.dtype_layout` -> `to.device/to.dtype` if layout is none and pin memory
+  // is false
+  patterns.add(+[](AtenToDtypeLayoutOp op, PatternRewriter &rewriter) {
+    // The pin_memory arg should be either constant `False` or `none`.
+    if (!op.getPinMemory().getType().isa<Torch::NoneType>()) {
+      bool pinMemory;
+      if (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)))
+        return failure();
+      else if (pinMemory)
+        return failure();
+    }
+
+    // The layout arg should be either `none` or `0` i.e. strided.
+    if (!op.getLayout().getType().isa<Torch::NoneType>()) {
+      int64_t tensorLayout;
+      if (!matchPattern(op.getLayout(), m_TorchConstantInt(&tensorLayout)))
+        return failure();
+      else if (tensorLayout != torch_upstream::Layout::Strided)
+        return failure();
+    }
+
+    if (op.getDevice().getType().isa<Torch::NoneType>()) {
+      // The device arg is `none`. Rewrite to to.dtype.
+      AtenToDtypeOp toDtype = rewriter.create<AtenToDtypeOp>(
+          op.getLoc(), op.getType(), op.getSelf(), op.getDtype(),
+          op.getNonBlocking(), op.getCopy(), op.getMemoryFormat());
+      rewriter.replaceOp(op, toDtype->getResults());
+    } else {
+      // The device arg is not `none`. Rewrite to to.device.
+      AtenToDeviceOp toDevice = rewriter.create<AtenToDeviceOp>(
+          op.getLoc(), op.getType(), op.getSelf(), op.getDevice(),
+          op.getDtype(), op.getNonBlocking(), op.getCopy(),
+          op.getMemoryFormat());
+      rewriter.replaceOp(op, toDevice->getResults());
+    }
+
+    return success();
+  });
+}
+
 //===----------------------------------------------------------------------===//
 // AtenViewOp
 //===----------------------------------------------------------------------===//
@@ -2338,6 +2380,20 @@ OpFoldResult PrimDtypeOp::fold(FoldAdaptor adaptor) {
     return getI64IntegerAttr(getContext(), static_cast<int64_t>(scalarType));
   }
   return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// PrimDeviceOp
+//===----------------------------------------------------------------------===//
+
+void PrimDeviceOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                               MLIRContext *context) {
+  patterns.add(+[](PrimDeviceOp op, PatternRewriter &rewriter) {
+    // Device information isn't relevant to torch-mlir, just replace it with
+    // "cpu".
+    rewriter.replaceOpWithNewOp<Torch::ConstantDeviceOp>(op, "cpu");
+    return success();
+  });
 }
 
 //===----------------------------------------------------------------------===//
