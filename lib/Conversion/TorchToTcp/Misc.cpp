@@ -140,27 +140,24 @@ public:
     }
 
     Value constOp;
-    if (outElemTy.isInteger(64)) {
-      constOp = *torch_to_tcp::getConstTensor<int64_t>(
-          rewriter, op, llvm::ArrayRef(static_cast<int64_t>(fillVal)), {});
-    } else if (outElemTy.isInteger(32)) {
-      constOp = *torch_to_tcp::getConstTensor<int32_t>(
-          rewriter, op, llvm::ArrayRef(static_cast<int32_t>(fillVal)), {});
-    } else if (outElemTy.isInteger(8)) {
-      constOp = *torch_to_tcp::getConstTensor<int8_t>(
-          rewriter, op, llvm::ArrayRef(static_cast<int8_t>(fillVal)), {});
-    } else if (outElemTy.isF32()) {
-      constOp = *torch_to_tcp::getConstTensor<float>(
-          rewriter, op, llvm::ArrayRef(static_cast<float>(fillVal)), {});
-    } else if (outElemTy.isF64()) {
-      constOp = *torch_to_tcp::getConstTensor<double>(
-          rewriter, op, llvm::ArrayRef(static_cast<double>(fillVal)), {});
-    } else {
+    if (!torch_to_tcp::getConstTensorWithType(rewriter, op, constOp, outElemTy,
+                                              fillVal)) {
       return rewriter.notifyMatchFailure(op, "Unsupported output type");
     }
 
+    Operation *primListOp = op.getSize().getDefiningOp();
+    auto listConstruct = dyn_cast<Torch::PrimListConstructOp>(primListOp);
+    if (!listConstruct) {
+      return rewriter.notifyMatchFailure(
+          op, "Size must come from PrimListConstructOp");
+    }
+    SmallVector<Value> primListVal;
+    for (Value value : listConstruct.getElements()) {
+      primListVal.push_back(value);
+    }
+
     Value resultOp = torch_to_tcp::broadcast0DOr1DFromPrimList(
-        rewriter, constOp, op.getSize());
+        rewriter, constOp, primListVal);
 
     rewriter.replaceOp(op, resultOp);
 
@@ -192,7 +189,7 @@ public:
           op, "Output tensors must have integer or floating-point datatype");
     }
 
-    // TODO: Make sure this is a valid condition for layout parameter
+    // TODO: Check the attribute for input vtensor
     int64_t memoryLayout;
     if (!op.getLayout().getType().template isa<Torch::NoneType>() &&
         (!matchPattern(op.getLayout(), m_TorchConstantInt(&memoryLayout)) ||
@@ -214,27 +211,14 @@ public:
           op, "Only default memory format is supported");
 
     Value constOp;
-    if (outElemTy.isInteger(64)) {
-      constOp = *torch_to_tcp::getConstTensor<int64_t>(
-          rewriter, op, llvm::ArrayRef(static_cast<int64_t>(fillVal)), {});
-    } else if (outElemTy.isInteger(32)) {
-      constOp = *torch_to_tcp::getConstTensor<int32_t>(
-          rewriter, op, llvm::ArrayRef(static_cast<int32_t>(fillVal)), {});
-    } else if (outElemTy.isInteger(8)) {
-      constOp = *torch_to_tcp::getConstTensor<int8_t>(
-          rewriter, op, llvm::ArrayRef(static_cast<int8_t>(fillVal)), {});
-    } else if (outElemTy.isF32()) {
-      constOp = *torch_to_tcp::getConstTensor<float>(
-          rewriter, op, llvm::ArrayRef(static_cast<float>(fillVal)), {});
-    } else if (outElemTy.isF64()) {
-      constOp = *torch_to_tcp::getConstTensor<double>(
-          rewriter, op, llvm::ArrayRef(static_cast<double>(fillVal)), {});
-    } else {
+    if (!torch_to_tcp::getConstTensorWithType(rewriter, op, constOp, outElemTy,
+                                              fillVal)) {
       return rewriter.notifyMatchFailure(op, "Unsupported output type");
     }
 
     Value resultOp = torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
-        rewriter, constOp, input);
+        rewriter, constOp, input, /*axisInOutput=*/0,
+        /*useInputAsResultType=*/true);
 
     rewriter.replaceOp(op, resultOp);
 

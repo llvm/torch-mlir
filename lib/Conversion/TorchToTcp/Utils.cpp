@@ -85,7 +85,7 @@ Value torch_to_tcp::broadcastInLeadingDimsToMatchShape(
 
 Value torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
     ConversionPatternRewriter &rewriter, Value input, Value target,
-    int64_t axisInOutput) {
+    int64_t axisInOutput, bool useInputAsResultType) {
   RankedTensorType inputType = input.getType().cast<RankedTensorType>();
   RankedTensorType targetType = target.getType().cast<RankedTensorType>();
 
@@ -111,8 +111,13 @@ Value torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
       reassociationMap[0].push_back(rewriter.getAffineDimExpr(axis));
     resultShape[axisInOutput] = inputType.getShape()[0];
   }
-  auto resultType =
-      targetType.cloneWith(ArrayRef(resultShape), targetType.getElementType());
+  Type resultType;
+  if (useInputAsResultType)
+    resultType =
+        inputType.cloneWith(ArrayRef(resultShape), inputType.getElementType());
+  else
+    resultType = targetType.cloneWith(ArrayRef(resultShape),
+                                      targetType.getElementType());
   result = rewriter.create<tensor::ExpandShapeOp>(
       result.getDefiningOp()->getLoc(), resultType, input, reassociationMap);
 
@@ -132,18 +137,24 @@ Value torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
     }
   }
   auto axesAttr = rewriter.getI64ArrayAttr(axes);
-  result = rewriter.create<tcp::BroadcastOp>(result.getDefiningOp()->getLoc(),
-                                             target.getType(), result, dimSizes,
-                                             axesAttr);
+  if (useInputAsResultType) {
+    resultType =
+        inputType.cloneWith(targetType.getShape(), inputType.getElementType());
+    result = rewriter.create<tcp::BroadcastOp>(result.getDefiningOp()->getLoc(),
+                                               resultType, result, dimSizes,
+                                               axesAttr);
+  } else
+    result = rewriter.create<tcp::BroadcastOp>(result.getDefiningOp()->getLoc(),
+                                               target.getType(), result,
+                                               dimSizes, axesAttr);
 
   return result;
 }
 
-SmallVector<int64_t> torch_to_tcp::getShapeFromPrimList(Operation *primListOp) {
-  auto listConstruct = dyn_cast<Torch::PrimListConstructOp>(primListOp);
-  assert(listConstruct && "Target must come from PrimListConstructOp");
+SmallVector<int64_t>
+torch_to_tcp::getShapeFromPrimList(ArrayRef<Value> listVal) {
   SmallVector<int64_t> resultShape;
-  for (Value value : listConstruct.getElements()) {
+  for (Value value : listVal) {
     int64_t num;
     if (matchPattern(value, m_TorchConstantInt(&num)))
       resultShape.push_back(num);
@@ -154,18 +165,15 @@ SmallVector<int64_t> torch_to_tcp::getShapeFromPrimList(Operation *primListOp) {
 }
 
 Value torch_to_tcp::broadcast0DOr1DFromPrimList(
-    ConversionPatternRewriter &rewriter, Value input, Value target,
+    ConversionPatternRewriter &rewriter, Value input, ArrayRef<Value> listVal,
     int64_t axisInOutput) {
   RankedTensorType inputType = input.getType().cast<RankedTensorType>();
   auto inputRank = inputType.getRank();
   RankedTensorType targetType = input.getType().cast<RankedTensorType>();
-  Operation *primListOp = target.getDefiningOp();
-  auto listConstruct = dyn_cast<Torch::PrimListConstructOp>(primListOp);
-  assert(listConstruct && "Target must come from PrimListConstructOp");
 
   int64_t targetRank = 0;
   SmallVector<Value> dimSizes;
-  for (Value value : listConstruct.getElements()) {
+  for (Value value : listVal) {
     targetRank++;
     Value newDimSize = rewriter.create<torch::TorchConversion::ToI64Op>(
         input.getDefiningOp()->getLoc(), value);
@@ -175,7 +183,7 @@ Value torch_to_tcp::broadcast0DOr1DFromPrimList(
 
   SmallVector<ReassociationExprs> reassociationMap(inputRank);
   SmallVector<int64_t> expandShape(targetRank, 1);
-  SmallVector<int64_t> resultShape = getShapeFromPrimList(listConstruct);
+  SmallVector<int64_t> resultShape = getShapeFromPrimList(listVal);
 
   if (inputRank == 1) {
     for (int64_t axis = 0; axis < targetRank; ++axis)
@@ -286,4 +294,28 @@ torch_to_tcp::getConstTensor<APInt>(PatternRewriter &rewriter, Operation *op,
 
   return torch_to_tcp::impl::getConstTensorUtil<APInt>(rewriter, op, vec, shape,
                                                        constType);
+}
+
+bool torch_to_tcp::getConstTensorWithType(ConversionPatternRewriter &rewriter,
+                                          Operation *op, Value &constOp,
+                                          Type resultType, int fillVal) {
+  if (resultType.isInteger(64)) {
+    constOp = *torch_to_tcp::getConstTensor<int64_t>(
+        rewriter, op, llvm::ArrayRef(static_cast<int64_t>(fillVal)), {});
+  } else if (resultType.isInteger(32)) {
+    constOp = *torch_to_tcp::getConstTensor<int32_t>(
+        rewriter, op, llvm::ArrayRef(static_cast<int32_t>(fillVal)), {});
+  } else if (resultType.isInteger(8)) {
+    constOp = *torch_to_tcp::getConstTensor<int8_t>(
+        rewriter, op, llvm::ArrayRef(static_cast<int8_t>(fillVal)), {});
+  } else if (resultType.isF32()) {
+    constOp = *torch_to_tcp::getConstTensor<float>(
+        rewriter, op, llvm::ArrayRef(static_cast<float>(fillVal)), {});
+  } else if (resultType.isF64()) {
+    constOp = *torch_to_tcp::getConstTensor<double>(
+        rewriter, op, llvm::ArrayRef(static_cast<double>(fillVal)), {});
+  } else {
+    return false;
+  }
+  return true;
 }

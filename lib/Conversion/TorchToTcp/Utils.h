@@ -47,19 +47,25 @@ Value broadcastInLeadingDimsToMatchShape(ConversionPatternRewriter &rewriter,
 //      [1, C, 1, 1] -> [N, C, H, W]
 Value broadcast0DOr1DToNDAndMatchShape(ConversionPatternRewriter &rewriter,
                                        Value input, Value target,
-                                       int64_t axisInOutput = 0);
+                                       int64_t axisInOutput = 0,
+                                       bool useInputAsResultType = false);
 
 Value broadcast0DOr1DFromPrimList(ConversionPatternRewriter &rewriter,
-                                  Value input, Value target,
+                                  Value input, ArrayRef<Value> listVal,
                                   int64_t axisInOutput = 0);
 // Helper function to construct the shape info from a PrimListConstructOp.
 // default is ShapedType::kDynamic if the element is not a constant
-SmallVector<int64_t> getShapeFromPrimList(Operation *primListOp);
+SmallVector<int64_t> getShapeFromPrimList(ArrayRef<Value> listVal);
 
 // Utility function to create a tcp.const op with given content and shape.
 template <typename T>
 std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
                                     ArrayRef<T> vec, ArrayRef<int64_t> shape);
+
+// Utility function to create a tcp.const op with given type info.
+bool getConstTensorWithType(ConversionPatternRewriter &rewriter, Operation *op,
+                            Value &constOp, Type resultType, int fillVal);
+
 namespace impl {
 template <typename T>
 std::optional<Value>

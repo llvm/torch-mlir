@@ -688,6 +688,7 @@ TCP_PASS_SET = {
     "NewZerosModuleFloat3D_basic",
     "NewZerosModuleInt2D_basic",
     "NewZerosModuleInt3D_basic",
+    "NewZerosStaticModuleLayoutStrided_basic",
     "OnesModuleCPUDevice_basic",
     "OnesModuleDefaultDtype_basic",
     "OnesModuleFalsePinMemory_basic",
