@@ -506,6 +506,7 @@ STABLEHLO_PASS_SET = {
     "MmModule_basic",
     "MmModule_chained",
     "MaxPool2dStaticModule_basic",
+    "NewEmptyStridedModuleDefaultDtype_basic",
     "PermuteModule_basic",
     "PermuteNegativeIndexModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
