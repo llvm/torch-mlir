@@ -1713,7 +1713,10 @@ ParseResult ConstantIntOp::parse(OpAsmParser &parser, OperationState &result) {
 
 void ConstantIntOp::print(OpAsmPrinter &p) {
   p << " ";
-  p << getValue().getSExtValue();
+  if (getValueAttr().getType().isUnsignedInteger())
+    p << getValue().getZExtValue();
+  else
+    p << getValue().getSExtValue();
   p.printOptionalAttrDict((*this)->getAttrs(), {"value"});
 }
 

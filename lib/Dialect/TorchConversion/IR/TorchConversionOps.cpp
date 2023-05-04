@@ -98,8 +98,15 @@ OpFoldResult ToI64Op::fold(FoldAdaptor adaptor) {
           IntegerAttr::get(IntegerType::get(getContext(), 64), attr.getSInt());
     } else if (attr.getType().isUnsignedInteger()) {
       // convert uint to i64 type
-      foldResult = IntegerAttr::get(IntegerType::get(getContext(), 64),
-                                    static_cast<int64_t>(attr.getUInt()));
+      uint64_t uint = attr.getUInt();
+      int64_t intVal = 0;
+      if (uint > (uint64_t)std::numeric_limits<int64_t>::max()) {
+        // overflow
+        return nullptr;
+      } else {
+        intVal = static_cast<int64_t>(attr.getUInt());
+      }
+      foldResult = IntegerAttr::get(IntegerType::get(getContext(), 64), intVal);
     } else {
       foldResult =
           IntegerAttr::get(IntegerType::get(getContext(), 64), attr.getInt());

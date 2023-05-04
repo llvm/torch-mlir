@@ -36,6 +36,17 @@ func.func @torch_c.to_i64$ui64() -> i64 {
   return %0 : i64
 }
 
+// CHECK-LABEL:   func.func @torch_c.to_i64$ui64max() -> i64 {
+// CHECK:     %[[C_UI64:.*]] = torch.constant.int 18446744073709551615
+// CHECK:     %[[V0:.*]] = torch_c.to_i64 %[[C_UI64]]
+// CHECK:     return %[[V0]] : i64
+func.func @torch_c.to_i64$ui64max() -> i64 {
+  %uintMax = "torch.constant.int"() {value = 18446744073709551615 : ui64} : () -> !torch.int
+  %0 = torch_c.to_i64 %uintMax
+  return %0 : i64
+}
+
+
 // CHECK-LABEL:   func.func @torch_c.from_i64$to_i64() -> i64 {
 // CHECK:     %[[C5_I64:.*]] = arith.constant 5 : i64
 // CHECK:     return %[[C5_I64]] : i64
