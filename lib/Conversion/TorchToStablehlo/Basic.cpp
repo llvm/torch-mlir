@@ -1382,6 +1382,29 @@ LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenPowTensorTensorOp>::matchAndRewrite(
+    AtenPowTensorTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value lhs = adaptor.getSelf();
+  auto lhsTy = lhs.getType().cast<TensorType>();
+  Value rhs = adaptor.getExponent();
+  auto rhsTy = rhs.getType().cast<TensorType>();
+
+  if (!lhsTy || !rhsTy)
+    return op.emitError("only Tensor types supported");
+
+  auto outTy =
+      this->getTypeConverter()->convertType(op.getType()).cast<TensorType>();
+
+  lhs = hlo::promoteType(rewriter, lhs, outTy);
+  rhs = hlo::promoteType(rewriter, rhs, outTy);
+
+  rewriter.replaceOpWithNewOp<chlo::BroadcastPowOp>(op, outTy, lhs, rhs,
+                                                    /*broadcast_attr*/ nullptr);
+  return success();
+}
+
 // RuntimeAssertOp
 namespace {
 class ConvertRuntimeAssertOp : public OpConversionPattern<RuntimeAssertOp> {
@@ -1525,6 +1548,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenSizeIntOp);
   INSERT_ATENOP_PATTERN(AtenToDtypeOp);
   INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
+  INSERT_ATENOP_PATTERN(AtenPowTensorTensorOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, StablehloOp)                   \
