@@ -85,16 +85,6 @@ static Type getTypeForDTypeInteger(MLIRContext *context, int64_t dtypeInt) {
   return failed(result) ? Type() : *result;
 }
 
-static Type getDtypeOrDefault(MLIRContext *context, Value optionalDtype,
-                              Type defaultDtype) {
-  int64_t dtypeInt;
-  if (matchPattern(optionalDtype, m_TorchConstantInt(&dtypeInt)))
-    return getTypeForDTypeInteger(context, dtypeInt);
-  else if (optionalDtype.getType().isa<Torch::NoneType>())
-    return defaultDtype;
-  return Type();
-}
-
 // Get the kind enum for `ValueKnowledge.kind`.
 static torch_upstream::TypeKind getTypeKind(Type type) {
   if (type.isa<NumberType>())
@@ -705,47 +695,6 @@ void TypeAnalysis::visitOperation(Operation *op,
 
   if (auto scalarImplicit = dyn_cast<AtenScalarImplicitOp>(op)) {
     visitAtenScalarImplicitOp(scalarImplicit, operands);
-    return;
-  }
-
-  if (auto randIntLow = dyn_cast<AtenRandintLowOp>(op)) {
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    Type defaultDtype =
-        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-    knowledge.dtype =
-        getDtypeOrDefault(op->getContext(), randIntLow.getDtype(), defaultDtype);
-    incorporateKnowledge(randIntLow.getResult(), knowledge);
-    return;
-  }
-
-  if (isa<AtenVarMeanCorrectionOp, AtenVarMeanOp>(op)) {
-    auto input = operands[0]->getValue();
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    knowledge.dtype = input.dtype;
-    incorporateKnowledge(op->getResult(0), knowledge);
-    incorporateKnowledge(op->getResult(1), knowledge);
-    return;
-  }
-
-  if (auto randn = dyn_cast<AtenRandnOp>(op)) {
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    Type defaultDtype = Float32Type::get(op->getContext());
-    knowledge.dtype =
-        getDtypeOrDefault(op->getContext(), randn.getDtype(), defaultDtype);
-    incorporateKnowledge(randn.getResult(), knowledge);
-    return;
-  }
-
-  if (auto randnGenerator = dyn_cast<AtenRandnGeneratorOp>(op)) {
-    auto knowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    Type defaultDtype = Float32Type::get(op->getContext());
-    knowledge.dtype = getDtypeOrDefault(op->getContext(),
-                                        randnGenerator.getDtype(), defaultDtype);
-    incorporateKnowledge(randnGenerator.getResult(), knowledge);
     return;
   }
 
