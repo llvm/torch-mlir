@@ -4514,9 +4514,9 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op,
                                        "unimplemented: dim is not constant");
   }
-  if (dim < 0) {
-    return rewriter.notifyMatchFailure(op,
-                                       "unimplemented: negative dimension is not supported" );  
+  dim = toPositiveDim(dim, outType.getRank());
+  if (!isValidDim(dim, outType.getRank())) {
+    return rewriter.notifyMatchFailure(op, "dim is statically invalid");
   }
   auto tensorList = op.getTensors();
   SmallVector<Value> tensorsTorchType;
