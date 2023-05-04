@@ -502,7 +502,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::max.dim : (Tensor, int, bool) -> (Tensor, Tensor)")
     emit("aten::amax : (Tensor, int[], bool) -> (Tensor)")
     emit("aten::to.dtype : (Tensor, int, bool, bool, int?) -> (Tensor)", has_folder=True)
-    emit("aten::to.dtype_layout : (Tensor, int?, int?, Device?, bool?, bool, bool, int?) -> (Tensor)", has_folder=True)
+    emit("aten::to.dtype_layout : (Tensor, int?, int?, Device?, bool?, bool, bool, int?) -> (Tensor)", has_folder=True, has_canonicalizer = True)
     emit("aten::to.other : (Tensor, Tensor, bool, bool, int?) -> (Tensor)")
     emit("aten::to.prim_Device : (Tensor, Device?, int?, bool, bool) -> (Tensor)")
     emit("aten::to.device : (Tensor, Device, int, bool, bool, int?) -> (Tensor)")
@@ -671,7 +671,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     emit("prim::layout : (Tensor) -> (int)")
     emit("prim::TupleIndex : (Any, int) -> (Any)", has_canonicalizer=True)
-    emit("prim::device : (Tensor) -> (Device)")
+    emit("prim::device : (Tensor) -> (Device)", has_canonicalizer=True)
     emit("prim::dtype : (Tensor) -> (int)", has_folder=True)
     emit("prim::TupleUnpack : (Any) -> (...)", has_canonicalizer=True)
     emit("prim::NumToTensor.Scalar : (Scalar) -> (Tensor)")

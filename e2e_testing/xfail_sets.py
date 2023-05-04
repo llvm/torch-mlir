@@ -204,41 +204,30 @@ TORCHDYNAMO_XFAIL_SET = {
 # See https://github.com/llvm/torch-mlir/issues/2050
 TORCHDYNAMO_CRASHING_SET = {
     "ElementwiseCloneChannelsLastMemoryFormatModule_basic",
-    "ElementwiseCloneContiguousModule_basic"
-    "ElementwiseCloneModule_basic"
-    "ExpandAsFloatModule_basic"
+    "ElementwiseCloneContiguousModule_basic",
+    "ElementwiseCloneModule_basic",
     "ExpandAsFloatModule_basic",
-    "ExpandAsIntModule_basic"
     "ExpandAsIntModule_basic",
-    "ExpandModule_basic"
     "ExpandModule_basic",
-    "MoveDimIntModule_basic"
     "MoveDimIntModule_basic",
-    "MoveDimIntNegativeIndexModule_basic"
     "MoveDimIntNegativeIndexModule_basic",
-    "NarrowVerticalTest2_basic"
-    "NarrowVerticalTest_basic"
-    "NumpyTRank2Module_basic"
+    "NarrowVerticalTest2_basic",
+    "NarrowVerticalTest_basic",
     "NumpyTRank2Module_basic",
-    "NumpyTRankNDynamicModule_basic"
     "NumpyTRankNDynamicModule_basic",
-    "NumpyTRankNStaticModule_basic"
     "NumpyTRankNStaticModule_basic",
-    "PermuteModule_basic"
     "PermuteModule_basic",
-    "PermuteNegativeIndexModule_basic"
     "PermuteNegativeIndexModule_basic",
-    "SelectIntNegativeDimAndIndexStaticModule_basic"
     "SelectIntNegativeDimAndIndexStaticModule_basic",
-    "SliceModule_basic"
-    "SliceNegIdxModule_basic"
-    "SliceOutOfLowerBoundStartIndexModule_basic"
-    "SliceSizeTwoStepModule_basic"
-    "SliceStaticModule_basic"
-    "TModuleRank2_basic"
-    "ToCopyModule_basic"
-    "TransposeIntModule_basic"
-    "TransposeIntNegDimsModule_basic"
+    "SliceModule_basic",
+    "SliceNegIdxModule_basic",
+    "SliceOutOfLowerBoundStartIndexModule_basic",
+    "SliceSizeTwoStepModule_basic",
+    "SliceStaticModule_basic",
+    "TModuleRank2_basic",
+    "ToCopyModule_basic",
+    "TransposeIntModule_basic",
+    "TransposeIntNegDimsModule_basic",
 }
 
 STABLEHLO_PASS_SET = {
@@ -287,6 +276,8 @@ STABLEHLO_PASS_SET = {
     "ElementwiseClampMinModule_basic",
     "ElementwiseClampMaxModule_basic",
     "ElementwisePowModule_basic",
+    "ElementwisePowTensorStaticModule_basic",
+    "ElementwisePowTensorBroadcastStaticModule_basic",
     "ElementwiseExpModule_basic",
     "ElementwiseFlattenBroadcastModule_basic",
     "ElementwiseLeakyReluModule_basic",
