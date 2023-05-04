@@ -84,6 +84,43 @@ public:
   }
 };
 
+template <typename AtenOpT, typename TcpOpT>
+class ConvertAtenAddSubScalarOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value lhs = adaptor.getSelf();
+    RankedTensorType lhsType = lhs.getType().dyn_cast<RankedTensorType>();
+
+    RankedTensorType resultType =
+        OpConversionPattern<AtenOpT>::getTypeConverter()
+            ->convertType(op.getType())
+            .template cast<RankedTensorType>();
+    // Type outElemTy = resultType.getElementType();
+
+    if (!lhsType || !resultType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+
+    Value rhs = torch_to_tcp::scalarToTCPTensor(rewriter, op, resultType.getElementType(), adaptor.getOther());
+
+    rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, rhs, lhs);
+    lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, lhs, rhs);
+
+    if (!skipMultiplyAlpha(op.getAlpha()))
+      return rewriter.notifyMatchFailure(
+          op, "torch ops with alpha != 1 is not yet supported in "
+              "Torch to TCP conversion");
+
+    rewriter.replaceOpWithNewOp<TcpOpT>(op, resultType, lhs, rhs);
+    return success();
+  }
+};
+
 class ConvertAtenMulOp : public OpConversionPattern<AtenMulTensorOp> {
 public:
   using OpConversionPattern<AtenMulTensorOp>::OpConversionPattern;
@@ -544,6 +581,10 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
   patterns.add<ConvertAtenAddSubOp<AtenAddTensorOp, tcp::AddOp>>(typeConverter,
                                                                  context);
   patterns.add<ConvertAtenAddSubOp<AtenSubTensorOp, tcp::SubOp>>(typeConverter,
+                                                                 context);
+
+  target.addIllegalOp<AtenAddScalarOp>();
+  patterns.add<ConvertAtenAddSubScalarOp<AtenAddScalarOp, tcp::AddOp>>(typeConverter,
                                                                  context);
 
   target.addIllegalOp<AtenMulTensorOp>();

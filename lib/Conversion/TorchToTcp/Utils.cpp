@@ -204,6 +204,10 @@ Value torch_to_tcp::broadcast0DOr1DFromShape(
   return result;
 }
 
+Value torch_to_tcp::scalarToTCPTensor(ConversionPatternRewriter &rewriter, Operation *op, Type targetType, Value scalarValue) {
+  return rewriter.create<tensor::FromElementsOp>(op->getLoc(), targetType, ArrayRef<Value>{scalarValue});
+}
+
 // TODO: Add unit tests for all getConstTensor* functions below
 template <typename T>
 std::optional<Value>
