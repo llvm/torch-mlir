@@ -20,6 +20,11 @@ namespace lazy {
 // TODO(henrytu): Upstream these shape inference functions to PyTorch in the future.
 
 std::vector<torch::lazy::Shape>
+compute_shape_add(const at::Tensor& self, const at::Scalar& other, const at::Scalar& alpha) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
+std::vector<torch::lazy::Shape>
 compute_shape_div(const at::Tensor& self, const at::Scalar& other) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
@@ -124,6 +129,14 @@ std::vector<torch::lazy::Shape> compute_shape_native_group_norm_backward(
       std::vector<int64_t>{num_features});
 
   return shapes;
+}
+
+std::vector<torch::lazy::Shape> compute_shape_uniform(
+  const at::Tensor & self,
+  double from,
+  double to,
+  c10::optional<at::Generator> generator) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
 } // namespace lazy
