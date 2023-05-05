@@ -241,8 +241,8 @@ public:
   LogicalResult
   matchAndRewrite(Torch::ConstantIntOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    // note: arith.constant only accept singless integer, so convert singed to
-    // singless
+    // note: arith.constant only accept signless integer, so convert signed to
+    // signless
     rewriter.replaceOpWithNewOp<arith::ConstantOp>(
         op, rewriter.getIntegerAttr(rewriter.getI64Type(),
                                     op.getValueAttr().getValue()));

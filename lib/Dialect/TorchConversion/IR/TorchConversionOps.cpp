@@ -91,26 +91,10 @@ OpFoldResult FromI64Op::fold(FoldAdaptor adaptor) {
 OpFoldResult ToI64Op::fold(FoldAdaptor adaptor) {
   auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::IntegerAttr>();
   if (attr) {
-    Attribute foldResult = attr;
-    if (attr.getType().isSignedInteger()) {
-      // convert sint type to i64 type
-      foldResult =
-          IntegerAttr::get(IntegerType::get(getContext(), 64), attr.getSInt());
-    } else if (attr.getType().isUnsignedInteger()) {
-      // convert uint to i64 type
-      uint64_t uint = attr.getUInt();
-      int64_t intVal = 0;
-      if (uint > (uint64_t)std::numeric_limits<int64_t>::max()) {
-        // overflow
-        return nullptr;
-      } else {
-        intVal = static_cast<int64_t>(attr.getUInt());
-      }
-      foldResult = IntegerAttr::get(IntegerType::get(getContext(), 64), intVal);
-    } else {
-      foldResult =
-          IntegerAttr::get(IntegerType::get(getContext(), 64), attr.getInt());
-    }
+    // note: arith.constant only accept signless integer, so convert signed to
+    // signless
+    Attribute foldResult =
+        IntegerAttr::get(IntegerType::get(getContext(), 64), attr.getValue());
     return foldResult;
   } else {
     return nullptr;

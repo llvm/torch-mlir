@@ -1713,15 +1713,19 @@ ParseResult ConstantIntOp::parse(OpAsmParser &parser, OperationState &result) {
 
 void ConstantIntOp::print(OpAsmPrinter &p) {
   p << " ";
-  if (getValueAttr().getType().isUnsignedInteger())
-    p << getValue().getZExtValue();
-  else
-    p << getValue().getSExtValue();
+  p << getValue().getSExtValue();
   p.printOptionalAttrDict((*this)->getAttrs(), {"value"});
 }
 
 OpFoldResult Torch::ConstantIntOp::fold(FoldAdaptor adaptor) {
   return getValueAttr();
+}
+
+LogicalResult ConstantIntOp::verify() {
+  Type valTy = getValueAttr().getType();
+  if (!valTy.isSignedInteger() && !valTy.isSignlessInteger())
+    return emitOpError("ConstantIntOp only accept signed integer value");
+  return success();
 }
 
 void Torch::ConstantIntOp::getAsmResultNames(

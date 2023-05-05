@@ -728,6 +728,7 @@ def Torch_ConstantIntOp : Torch_Op<"constant.int", [
   // Indicate that the operation has a custom parser and printer method.
   let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def Torch_ConstantFloatOp : Torch_Op<"constant.float", [
