@@ -542,3 +542,73 @@ class SliceCopyNegative_Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: SliceCopyNegative_Module())
 def SliceCopyNegative_Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 4, 4), tu.rand(4, 4, 4))
+
+# ==============================================================================
+
+
+class TensorsSplitTensorModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True)
+    ])
+    def forward(self, x):
+        s0, s1, s2 = torch.ops.aten.split(x, 2, dim=0)
+        return s1
+
+
+@register_test_case(module_factory=lambda: TensorsSplitTensorModule())
+def TensorsSplitTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 10, 12))
+
+# ==============================================================================
+
+
+class TensorsSplitTensorLastSmallerModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True)
+    ])
+    def forward(self, x):
+        s0, s1, s2 = torch.ops.aten.split(x, 3, dim=0)
+        return s2
+
+
+@register_test_case(module_factory=lambda: TensorsSplitTensorLastSmallerModule())
+def TensorsSplitTensorLastSmallerModule_basic(module, tu: TestUtils):
+    # Splitting the first dimension with 8 elements into chunks of 3
+    # will leave the last result to have 2 elements in that dimension.
+    module.forward(tu.rand(8, 10, 12))
+
+# ==============================================================================
+
+
+class TensorsSplitTensorNegativeDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True)
+    ])
+    def forward(self, x):
+        s0, s1, s2 = torch.ops.aten.split(x, 2, -1)
+        return s1
+
+
+@register_test_case(module_factory=lambda: TensorsSplitTensorNegativeDimModule())
+def TensorsSplitTensorNegativeDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 12, 6))
+
+# ==============================================================================
