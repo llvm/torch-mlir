@@ -47,12 +47,13 @@ Value broadcastInLeadingDimsToMatchShape(ConversionPatternRewriter &rewriter,
 //      [1, C, 1, 1] -> [N, C, H, W]
 Value broadcast0DOr1DToNDAndMatchShape(ConversionPatternRewriter &rewriter,
                                        Value input, Value target,
-                                       int64_t axisInOutput = 0,
-                                       bool useInputAsResultType = false);
+                                       Type resultType,
+                                       int64_t axisInOutput = 0);
 
-Value broadcast0DOr1DFromPrimList(ConversionPatternRewriter &rewriter,
-                                  Value input, ArrayRef<Value> listVal,
-                                  int64_t axisInOutput = 0);
+Value broadcast0DOr1DFromShape(ConversionPatternRewriter &rewriter, Value input,
+                               ArrayRef<Value> targetVal,
+                               SmallVector<int64_t> resultShape,
+                               int64_t axisInOutput = 0);
 // Helper function to construct the shape info from a PrimListConstructOp.
 // default is ShapedType::kDynamic if the element is not a constant
 SmallVector<int64_t> getShapeFromPrimList(ArrayRef<Value> listVal);

@@ -28,6 +28,33 @@ using namespace mlir::torch::Torch;
 
 namespace {
 
+template <typename AtenOpT>
+bool checkZerosOnesOpAttributes(AtenOpT op, RankedTensorType outType) {
+  // check output type
+  if (!outType)
+    return false;
+  if (!outType.getElementType().isIntOrFloat())
+    return false;
+
+  // check default layout
+  int64_t memoryLayout;
+  if (!op.getLayout().getType().template isa<Torch::NoneType>() &&
+      (!matchPattern(op.getLayout(), m_TorchConstantInt(&memoryLayout)) ||
+       memoryLayout != 0)) {
+    return false;
+  }
+
+  // check default pin_memory
+  bool pinMemory;
+  if (!op.getPinMemory().getType().template isa<Torch::NoneType>() &&
+      (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
+       pinMemory)) {
+    return false;
+  }
+
+  return true;
+}
+
 class ConvertAtenBroadcastToOp : public OpConversionPattern<AtenBroadcastToOp> {
 public:
   using OpConversionPattern<AtenBroadcastToOp>::OpConversionPattern;
@@ -117,32 +144,16 @@ public:
     auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
                        ->convertType(op.getType())
                        .template dyn_cast<RankedTensorType>();
-
-    if (!outType)
-      return rewriter.notifyMatchFailure(
-          op, "Only Ranked Tensor types are supported in TCP");
-
     Type outElemTy = outType.getElementType();
-    if (!outElemTy.isIntOrFloat())
-      return rewriter.notifyMatchFailure(
-          op, "Output tensors must have integer or floating-point datatype");
 
-    if (!op.getLayout().getType().template isa<Torch::NoneType>())
-      return rewriter.notifyMatchFailure(op,
-                                         "Only default layout is supported");
-
-    bool pinMemory;
-    if (!op.getPinMemory().getType().template isa<Torch::NoneType>() &&
-        (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
-         pinMemory)) {
-      return rewriter.notifyMatchFailure(
-          op, "Unsupported pin_memory, should be either None or false");
+    if (!checkZerosOnesOpAttributes<AtenOpT>(op, outType)) {
+      return rewriter.notifyMatchFailure(op, "Attribute checks failed");
     }
 
     Value constOp;
     if (!torch_to_tcp::getConstTensorWithType(rewriter, op, constOp, outElemTy,
                                               fillVal)) {
-      return rewriter.notifyMatchFailure(op, "Unsupported output type");
+      return rewriter.notifyMatchFailure(op, "Unsupported output element type");
     }
 
     Operation *primListOp = op.getSize().getDefiningOp();
@@ -156,8 +167,10 @@ public:
       primListVal.push_back(value);
     }
 
-    Value resultOp = torch_to_tcp::broadcast0DOr1DFromPrimList(
-        rewriter, constOp, primListVal);
+    SmallVector<int64_t> resultShape =
+        torch_to_tcp::getShapeFromPrimList(primListVal);
+    Value resultOp = torch_to_tcp::broadcast0DOr1DFromShape(
+        rewriter, constOp, primListVal, resultShape);
 
     rewriter.replaceOp(op, resultOp);
 
@@ -177,48 +190,26 @@ public:
     auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
                        ->convertType(op.getType())
                        .template dyn_cast<RankedTensorType>();
-
-    if (!outType) {
-      return rewriter.notifyMatchFailure(
-          op, "Only Ranked Tensor types are supported in TCP");
-    }
-
     Type outElemTy = outType.getElementType();
-    if (!outElemTy.isIntOrFloat()) {
-      return rewriter.notifyMatchFailure(
-          op, "Output tensors must have integer or floating-point datatype");
-    }
 
     // TODO: Check the attribute for input vtensor
-    int64_t memoryLayout;
-    if (!op.getLayout().getType().template isa<Torch::NoneType>() &&
-        (!matchPattern(op.getLayout(), m_TorchConstantInt(&memoryLayout)) ||
-         memoryLayout != 0)) {
-      return rewriter.notifyMatchFailure(op,
-                                         "Only default layout is supported");
-    }
-
-    bool pinMemory;
-    if (!op.getPinMemory().getType().template isa<Torch::NoneType>() &&
-        (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
-         pinMemory)) {
-      return rewriter.notifyMatchFailure(
-          op, "Unsupported pin_memory, should be either None or false");
-    }
-
     if (!op.getMemoryFormat().getType().template isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(
           op, "Only default memory format is supported");
 
+    if (!checkZerosOnesOpAttributes<AtenOpT>(op, outType)) {
+      return rewriter.notifyMatchFailure(op, "Attribute checks failed");
+    }
+
     Value constOp;
     if (!torch_to_tcp::getConstTensorWithType(rewriter, op, constOp, outElemTy,
                                               fillVal)) {
-      return rewriter.notifyMatchFailure(op, "Unsupported output type");
+      return rewriter.notifyMatchFailure(op, "Unsupported output element type");
     }
 
     Value resultOp = torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
-        rewriter, constOp, input, /*axisInOutput=*/0,
-        /*useInputAsResultType=*/true);
+        rewriter, constOp, input,
+        constOp.getType().cast<RankedTensorType>().getElementType());
 
     rewriter.replaceOp(op, resultOp);
 

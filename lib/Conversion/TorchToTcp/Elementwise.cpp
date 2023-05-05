@@ -175,16 +175,18 @@ public:
     // vectors. `axisInOutput = 1` allows [C] -> [1, C, 1, 1] expansion
     // followed by a broadcast.
     runningMean = torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
-        rewriter, runningMean, input, /*axisInOutput=*/1);
+        rewriter, runningMean, input, inputType.getElementType(),
+        /*axisInOutput=*/1);
     runningVar = torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
-        rewriter, runningVar, input, /*axisInOutput=*/1);
-    weight =
-        torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(rewriter, weight, input,
-                                                       /*axisInOutput=*/1);
-    bias = torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(rewriter, bias, input,
-                                                          /*axisInOutput=*/1);
-    epsVal =
-        torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(rewriter, epsVal, input);
+        rewriter, runningVar, input, inputType.getElementType(),
+        /*axisInOutput=*/1);
+    weight = torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
+        rewriter, weight, input, inputType.getElementType(),
+        /*axisInOutput=*/1);
+    bias = torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
+        rewriter, bias, input, inputType.getElementType(), /*axisInOutput=*/1);
+    epsVal = torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
+        rewriter, epsVal, input, inputType.getElementType());
 
     Value op1SubInputMean = rewriter.create<tcp::SubOp>(op.getLoc(), resultType,
                                                         input, runningMean);
