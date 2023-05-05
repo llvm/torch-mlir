@@ -72,3 +72,51 @@ func.func @test_propagate_attrs(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>
   }) { "test_attr" } : () -> tensor<?x?xf32>
    return %10 : tensor<?x?xf32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @test_const(
+// CHECK-SAME:          %[[ARG0:.*]]: tensor<5xi32>) -> tensor<5xi32>
+// CHECK:          %[[GROUP:.*]] = tcp.isolated_group %[[ARG0]] {
+// CHECK:            ^bb0(%[[ARG2:.*]]: tensor<5xi32>):
+// CHECK:              %[[CONST:.*]] = tcp.const
+// CHECK:              %[[ADD:.*]] = tcp.add %[[ARG2]], %[[CONST]] : tensor<5xi32>, tensor<5xi32> -> tensor<5xi32>
+// CHECK:              %[[MUL:.*]] = tcp.mul %[[ADD]], %[[CONST]] : tensor<5xi32>, tensor<5xi32> -> tensor<5xi32>
+// CHECK:              tcp.yield %[[MUL]] : tensor<5xi32>
+// CHECK:          } : tensor<5xi32> -> tensor<5xi32>
+// CHECK:          return %[[GROUP]] : tensor<5xi32>
+// CHECK:        }
+func.func @test_const(%arg0 : tensor<5xi32>) -> tensor<5xi32> {
+  %10 = "tcp.group" () ({
+    ^bb0() :
+      %1 = tcp.const {value = dense<[3, 6, 10, 15, 23]> : tensor<5xi32>} : tensor<5xi32>
+      %2 = tcp.add %arg0, %1 : tensor<5xi32>, tensor<5xi32> -> tensor<5xi32>
+      %3 = tcp.mul %2, %1 : tensor<5xi32>, tensor<5xi32> -> tensor<5xi32>
+      tcp.yield %3 : tensor<5xi32>
+  }) : () -> tensor<5xi32>
+   return %10 : tensor<5xi32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_inputs_with_multiple_uses(
+// CHECK-SAME:          %[[ARG0:.*]]: tensor<5xi32>) -> tensor<5xi32>
+// CHECK:          %[[GROUP:.*]] = tcp.isolated_group %[[ARG0]] {
+// CHECK:            ^bb0(%[[ARG2:.*]]: tensor<5xi32>):
+// CHECK:              %[[CONST:.*]] = tcp.const
+// CHECK:              %[[ADD:.*]] = tcp.add %[[ARG2]], %[[CONST]] : tensor<5xi32>, tensor<5xi32> -> tensor<5xi32>
+// CHECK:              %[[MUL:.*]] = tcp.mul %[[ADD]], %[[ARG2]] : tensor<5xi32>, tensor<5xi32> -> tensor<5xi32>
+// CHECK:              tcp.yield %[[MUL]] : tensor<5xi32>
+// CHECK:          } : tensor<5xi32> -> tensor<5xi32>
+// CHECK:          return %[[GROUP]] : tensor<5xi32>
+// CHECK:        }
+func.func @test_inputs_with_multiple_uses(%arg0 : tensor<5xi32>) -> tensor<5xi32> {
+  %10 = "tcp.group" () ({
+    ^bb0() :
+      %1 = tcp.const {value = dense<[3, 6, 10, 15, 23]> : tensor<5xi32>} : tensor<5xi32>
+      %2 = tcp.add %arg0, %1 : tensor<5xi32>, tensor<5xi32> -> tensor<5xi32>
+      %3 = tcp.mul %2, %arg0 : tensor<5xi32>, tensor<5xi32> -> tensor<5xi32>
+      tcp.yield %3 : tensor<5xi32>
+  }) : () -> tensor<5xi32>
+   return %10 : tensor<5xi32>
+}
