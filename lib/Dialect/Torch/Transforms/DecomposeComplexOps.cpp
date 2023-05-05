@@ -1372,6 +1372,9 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     auto resType = op.getType().cast<BaseTensorType>();
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
     Value selfTensor = createRank0Tensor(rewriter, loc, resType, op.getSelf());
     Value otherTensor = createRank0Tensor(rewriter, loc, resType, op.getOther());
     rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resType, op.getCondition(),
@@ -1391,6 +1394,9 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     auto resType = op.getType().cast<BaseTensorType>();
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
     Value otherTensor = createRank0Tensor(rewriter, loc, resType, op.getOther());
     rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resType, op.getCondition(),
                                                  op.getSelf(), otherTensor);
@@ -1409,6 +1415,9 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     auto resType = op.getType().cast<BaseTensorType>();
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
     Value selfTensor = createRank0Tensor(rewriter, loc, resType, op.getSelf());
     rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resType, op.getCondition(),
                                                  selfTensor, op.getOther());
@@ -1427,6 +1436,9 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     auto resType = op.getType().cast<BaseTensorType>();
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
     Value mask = op.getMask();
     Value value = createRank0Tensor(rewriter, loc, resType, op.getValue());
     rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resType, mask,
