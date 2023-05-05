@@ -106,7 +106,8 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Only Ranked Tensor types are supported in TCP");
 
-    Value rhs = torch_to_tcp::scalarToTCPTensor(rewriter, op, resultType.getElementType(), adaptor.getOther());
+    RankedTensorType tensorResultType = RankedTensorType::get({}, resultType.getElementType());
+    Value rhs = torch_to_tcp::scalarToTCPTensor(rewriter, op, tensorResultType, adaptor.getOther());
 
     rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, rhs, lhs);
     lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, lhs, rhs);
