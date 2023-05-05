@@ -28,6 +28,33 @@ using namespace mlir::torch::Torch;
 
 namespace {
 
+template <typename AtenOpT>
+bool checkZerosOnesOpAttributes(AtenOpT op, RankedTensorType outType) {
+  // check output type
+  if (!outType)
+    return false;
+  if (!outType.getElementType().isIntOrFloat())
+    return false;
+
+  // check default layout
+  int64_t memoryLayout;
+  if (!op.getLayout().getType().template isa<Torch::NoneType>() &&
+      (!matchPattern(op.getLayout(), m_TorchConstantInt(&memoryLayout)) ||
+       memoryLayout != 0)) {
+    return false;
+  }
+
+  // check default pin_memory
+  bool pinMemory;
+  if (!op.getPinMemory().getType().template isa<Torch::NoneType>() &&
+      (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
+       pinMemory)) {
+    return false;
+  }
+
+  return true;
+}
+
 class ConvertAtenBroadcastToOp : public OpConversionPattern<AtenBroadcastToOp> {
 public:
   using OpConversionPattern<AtenBroadcastToOp>::OpConversionPattern;
@@ -105,6 +132,91 @@ public:
   }
 };
 
+template <typename AtenOpT, int fillVal>
+class ConvertAtenZerosOnesPatternOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
+                       ->convertType(op.getType())
+                       .template dyn_cast<RankedTensorType>();
+    Type outElemTy = outType.getElementType();
+
+    if (!checkZerosOnesOpAttributes<AtenOpT>(op, outType)) {
+      return rewriter.notifyMatchFailure(op, "Attribute checks failed");
+    }
+
+    Value constOp;
+    if (!torch_to_tcp::getConstTensorWithType(rewriter, op, constOp, outElemTy,
+                                              fillVal)) {
+      return rewriter.notifyMatchFailure(op, "Unsupported output element type");
+    }
+
+    Operation *primListOp = op.getSize().getDefiningOp();
+    auto listConstruct = dyn_cast<Torch::PrimListConstructOp>(primListOp);
+    if (!listConstruct) {
+      return rewriter.notifyMatchFailure(
+          op, "Size must come from PrimListConstructOp");
+    }
+    SmallVector<Value> primListVal;
+    for (Value value : listConstruct.getElements()) {
+      primListVal.push_back(value);
+    }
+
+    SmallVector<int64_t> resultShape =
+        torch_to_tcp::getShapeFromPrimList(primListVal);
+    Value resultOp = torch_to_tcp::broadcast0DOr1DFromShape(
+        rewriter, constOp, primListVal, resultShape);
+
+    rewriter.replaceOp(op, resultOp);
+
+    return success();
+  }
+};
+
+template <typename AtenOpT, int fillVal>
+class ConvertAtenZerosOnesLikePatternOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = adaptor.getSelf();
+    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
+                       ->convertType(op.getType())
+                       .template dyn_cast<RankedTensorType>();
+    Type outElemTy = outType.getElementType();
+
+    // TODO: Check the attribute for input vtensor
+    if (!op.getMemoryFormat().getType().template isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "Only default memory format is supported");
+
+    if (!checkZerosOnesOpAttributes<AtenOpT>(op, outType)) {
+      return rewriter.notifyMatchFailure(op, "Attribute checks failed");
+    }
+
+    Value constOp;
+    if (!torch_to_tcp::getConstTensorWithType(rewriter, op, constOp, outElemTy,
+                                              fillVal)) {
+      return rewriter.notifyMatchFailure(op, "Unsupported output element type");
+    }
+
+    Value resultOp = torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
+        rewriter, constOp, input,
+        constOp.getType().cast<RankedTensorType>().getElementType());
+
+    rewriter.replaceOp(op, resultOp);
+
+    return success();
+  }
+};
+
 } // namespace
 
 void torch_to_tcp::populateMiscPatternsAndLegality(TypeConverter &typeConverter,
@@ -117,4 +229,18 @@ void torch_to_tcp::populateMiscPatternsAndLegality(TypeConverter &typeConverter,
 
   target.addIllegalOp<ValueTensorLiteralOp>();
   patterns.add<ConvertValueTensorLiteralOp>(typeConverter, context);
+
+  target.addIllegalOp<AtenZerosOp>();
+  patterns.add<ConvertAtenZerosOnesPatternOp<AtenZerosOp, 0>>(typeConverter,
+                                                              context);
+  target.addIllegalOp<AtenOnesOp>();
+  patterns.add<ConvertAtenZerosOnesPatternOp<AtenOnesOp, 1>>(typeConverter,
+                                                             context);
+
+  target.addIllegalOp<AtenZerosLikeOp>();
+  patterns.add<ConvertAtenZerosOnesLikePatternOp<AtenZerosLikeOp, 0>>(
+      typeConverter, context);
+  target.addIllegalOp<AtenOnesLikeOp>();
+  patterns.add<ConvertAtenZerosOnesLikePatternOp<AtenOnesLikeOp, 1>>(
+      typeConverter, context);
 }
