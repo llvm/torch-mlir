@@ -822,6 +822,10 @@ def aten〇addcdiv〡shape(self: List[int], tensor1: List[int], tensor2: List[in
 def aten〇topk〡shape(self: List[int], k: int, dim: int = -1, largest: bool = True, sorted: bool = True) -> Tuple[List[int], List[int]]:
     return upstream_shape_functions.topk(self, k, dim)
 
+def aten〇topk〡dtype(self_rank_dtype: Tuple[int, int], k: int, dim: int = -1, largest: bool = True, sorted: bool = True) -> Tuple[int, int]:
+    _, self_dtype = self_rank_dtype
+    return self_dtype, torch.int64
+
 def aten〇conv2d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), groups: int = 1) -> List[int]:
     return upstream_shape_functions.conv2d(input, weight, bias, stride, padding, dilation, groups)
 
