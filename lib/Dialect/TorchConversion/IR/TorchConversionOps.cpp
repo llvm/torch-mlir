@@ -93,9 +93,8 @@ OpFoldResult ToI64Op::fold(FoldAdaptor adaptor) {
   if (attr) {
     // note: arith.constant only accept signless integer, so convert signed to
     // signless
-    Attribute foldResult =
-        IntegerAttr::get(IntegerType::get(getContext(), 64), attr.getValue());
-    return foldResult;
+    return IntegerAttr::get(IntegerType::get(getContext(), 64),
+                            attr.getValue());
   } else {
     return nullptr;
   }
