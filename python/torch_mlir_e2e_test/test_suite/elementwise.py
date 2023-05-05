@@ -239,7 +239,7 @@ class ElementwiseWhereScalarOtherStaticModule(torch.nn.Module):
         ([4, 5], torch.float64, True),
     ])
     def forward(self, a, b):
-        return torch.where(a > 0.5, b, 8.0)
+        return torch.where(a > 0.5, b, 8)
 
 
 @register_test_case(module_factory=lambda: ElementwiseWhereScalarOtherStaticModule())
