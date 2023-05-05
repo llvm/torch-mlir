@@ -227,6 +227,29 @@ def ElementwiseWhereScalarOtherModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseWhereScalarOtherStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4, 5], torch.float64, True),
+        ([4, 5], torch.float64, True),
+    ])
+    def forward(self, a, b):
+        return torch.where(a > 0.5, b, 8.0)
+
+
+@register_test_case(module_factory=lambda: ElementwiseWhereScalarOtherStaticModule())
+def ElementwiseWhereScalarOtherStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).double(), tu.rand(4, 5).double())
+
+
+# ==============================================================================
+
+
 class ElementwiseWhereScalarSelfModule(torch.nn.Module):
 
     def __init__(self):
@@ -244,6 +267,28 @@ class ElementwiseWhereScalarSelfModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseWhereScalarSelfModule())
 def ElementwiseWhereScalarSelfModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).double(), tu.rand(4, 5).double())
+
+# ==============================================================================
+
+
+class ElementwiseWhereScalarSelfStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4, 5], torch.float64, True),
+        ([4, 5], torch.float64, True),
+    ])
+    def forward(self, a, b):
+        return torch.where(a > 0.5, 4.0, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseWhereScalarSelfStaticModule())
+def ElementwiseWhereScalarSelfStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5).double(), tu.rand(4, 5).double())
 
 

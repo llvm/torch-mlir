@@ -267,6 +267,8 @@ STABLEHLO_PASS_SET = {
     "ElementwiseAtenLogicalOrOpPromoteBroadcastStaticShapeModule_basic",
     "ElementwiseAtenLogicalXorOpPromoteBroadcastStaticShapeModule_basic",
     "ElementwiseAtenWhereSelfModule_basic",
+    "ElementwiseWhereScalarOtherStaticModule_basic",
+    "ElementwiseWhereScalarSelfStaticModule_basic",
     "ElementwiseBitwiseAndStaticShapeModule_basic",
     "ElementwiseBitwiseNotInt64Module_basic",
     "ElementwiseBitwiseNotInt32Module_basic",
