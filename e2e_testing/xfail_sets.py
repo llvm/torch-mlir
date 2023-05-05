@@ -54,6 +54,8 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseWhereScalarModule_basic",
     "ElementwiseWhereScalarOtherModule_basic",
     "ElementwiseWhereScalarSelfModule_basic",
+    "ElementwiseWhereScalarOtherStaticModule_basic",
+    "ElementwiseWhereScalarSelfStaticModule_basic",
     # %7 = torch.operator "aten._index_put_impl_.hacked_twin"(%1, %6, %5, %true, %false) : (!torch.tensor<*,f32>, !torch.list<tensor>, !torch.tensor<*,f32>, !torch.bool, !torch.bool) -> !torch.tensor
     "IndexPutImpl1DFloatAccumulateModule_basic",
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
