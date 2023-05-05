@@ -1724,7 +1724,8 @@ OpFoldResult Torch::ConstantIntOp::fold(FoldAdaptor adaptor) {
 LogicalResult ConstantIntOp::verify() {
   Type valTy = getValueAttr().getType();
   if (!valTy.isSignedInteger() && !valTy.isSignlessInteger())
-    return emitOpError("ConstantIntOp only accept signed integer value");
+    return emitOpError(
+        "ConstantIntOp only accept signed/signless integer value");
   return success();
 }
 
