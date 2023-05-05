@@ -671,30 +671,6 @@ def TensorsConcatStaticModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class TensorsConcatNegativeDimStaticModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([2, 2, 4], torch.float32, True),
-        ([2, 1, 4], torch.float32, True),
-        ([2, 3, 4], torch.float32, True),
-    ])
-    def forward(self, x, y, z):
-        return torch.cat([x, y, z], dim=-2)
-
-
-@register_test_case(module_factory=lambda: TensorsConcatNegativeDimStaticModule())
-def TensorsConcatNegativeDimStaticModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 2, 4), tu.rand(2, 1, 4), tu.rand(2, 3, 4))
-
-
-# ==============================================================================
-
-
 class TensorsStackModule(torch.nn.Module):
 
     def __init__(self):
