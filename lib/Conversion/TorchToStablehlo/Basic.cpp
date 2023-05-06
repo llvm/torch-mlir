@@ -606,6 +606,12 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
   Value cond = adaptor.getCondition();
   Value other = adaptor.getOther();
 
+  auto outType =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+  // promote self and other types
+  self = hlo::promoteType(rewriter, self, outType);
+  other = hlo::promoteType(rewriter, other, outType);
+
   if (failed(
           broadcastRanks(rewriter, op, self, cond, options.dimSizeIndexBits)))
     return op.emitError("failed broadcast self and condition ranks");
