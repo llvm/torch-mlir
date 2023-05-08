@@ -10,6 +10,7 @@
 #include "PassDetail.h"
 
 #include "mlir/IR/BuiltinDialect.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
@@ -4323,15 +4324,18 @@ public:
 namespace {
 // decompose aten.scalar_tensor to prim.NumToTensor.Scalar and
 // aten.to.dtype_layout
-class DecomposeScalarTensor : public OpRewritePattern<AtenScalarTensorOp> {
+class DecomposeAtenScalarTensor : public OpRewritePattern<AtenScalarTensorOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenScalarTensorOp op,
                                 PatternRewriter &rewriter) const override {
 
-    Type resultTy = op.getResult().getType();
+    auto resultTy = op.getResult().getType().cast<BaseTensorType>();
+    auto scalarTy = getBuiltInTypeForTorchScalar(op.getS().getType());
     Value numToTensor = rewriter.create<PrimNumToTensorScalarOp>(
-        op.getLoc(), resultTy, op.getS());
+        op.getLoc(),
+        resultTy.getWithSizesAndDtype(resultTy.getOptionalSizes(), scalarTy),
+        op.getS());
 
     Value cstNone = rewriter.create<ConstantNoneOp>(op.getLoc());
     Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
@@ -4552,7 +4556,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenCrossEntropyLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTopkOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeScalarTensor>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenScalarTensor>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
