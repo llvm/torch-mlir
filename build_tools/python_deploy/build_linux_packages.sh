@@ -190,7 +190,7 @@ function run_in_docker() {
             popd
           fi
           if [ "${TM_SKIP_TESTS}" == "OFF" ]; then
-            test_in_tree;
+            test_in_tree "$TORCH_VERSION";
           fi
           ;;
         *)
@@ -266,6 +266,7 @@ function _check_file_not_changed_by() {
 }
 
 function test_in_tree() {
+  local torch_version="$1"
   echo ":::: Test in-tree"
   cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all || true # TODO remove - here to see all potential failures
 
@@ -279,19 +280,34 @@ function test_in_tree() {
   _check_file_not_changed_by ./build_tools/update_torch_ods.sh include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td || true # TODO remove - here to see all potential failures
 
   echo ":::: Run Linalg e2e integration tests"
-  python -m e2e_testing.main --config=linalg -v || true # TODO remove - here to see all potential failures
+  python -m e2e_testing.main --config=linalg -v
 
   echo ":::: Run StableHLO e2e integration tests"
-  python -m e2e_testing.main --config=stablehlo -v || true # TODO remove - here to see all potential failures
+  python -m e2e_testing.main --config=stablehlo -v
 
   echo ":::: Run TOSA e2e integration tests"
-  python -m e2e_testing.main --config=tosa -v || true # TODO remove - here to see all potential failures
+  python -m e2e_testing.main --config=tosa -v
 
-  echo ":::: Run Lazy Tensor Core e2e integration tests"
-  python -m e2e_testing.main --config=lazy_tensor_core -v || true # TODO remove - here to see all potential failures
+  case $torch_version in
+    nightly)
+      echo ":::: Run Lazy Tensor Core e2e integration tests"
+      python -m e2e_testing.main --config=lazy_tensor_core -v
 
-  echo ":::: Run TorchDynamo e2e integration tests"
-  python -m e2e_testing.main --config=torchdynamo -v || true # TODO remove - here to see all potential failures
+      echo ":::: Run TorchDynamo e2e integration tests"
+      python -m e2e_testing.main --config=torchdynamo -v
+      ;;
+    stable)
+      echo ":::: Run Lazy Tensor Core e2e integration tests in experimental mode"
+      python -m e2e_testing.main --config=lazy_tensor_core -v --experimental
+
+      echo ":::: Run TorchDynamo e2e integration tests in experimental mode"
+      python -m e2e_testing.main --config=torchdynamo -v -x --experimental
+      ;;
+    *)
+      echo "Unrecognized torch version '$torch_version'"
+      exit 1
+      ;;
+    esac
 }
 
 function setup_venv() {
@@ -305,6 +321,7 @@ function setup_venv() {
   python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/externals/llvm-project/mlir/python/requirements.txt
   case $torch_version in
     nightly)
+      echo ":::: Using nightly dependencies"
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/requirements.txt
       ;;
     stable)
