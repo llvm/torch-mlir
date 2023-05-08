@@ -445,7 +445,6 @@ private:
                                    ArrayRef<const ValueState *> operands,
                                    int resNum = 0);
   template <typename OpTy> void visitScalarToTensorConversionOp(OpTy op);
-  void visitAtenScalarTensorOp(AtenScalarTensorOp op);
   void visitAtenTensorOp(AtenTensorOp op);
   template <typename OpTy>
   void visitConstantTensorAllocOp(OpTy op, std::optional<Type> dataType);
@@ -992,9 +991,6 @@ void TypeAnalysis::visitOperation(Operation *op,
   } else if (auto tensorBool = dyn_cast<AtenTensorBoolOp>(op)) {
     visitScalarToTensorConversionOp<AtenTensorBoolOp>(tensorBool);
     return;
-  } else if (auto scalarTensor = dyn_cast<AtenScalarTensorOp>(op)) {
-    visitAtenScalarTensorOp(scalarTensor);
-    return;
   }
 
   if (auto tensor = dyn_cast<AtenTensorOp>(op)) {
@@ -1366,15 +1362,6 @@ void TypeAnalysis::visitScalarToTensorConversionOp(OpTy op) {
   Value t = op.getT();
   Value dtype = op.getDtype();
   fillInDTypeGivenDTypeAndDataType(knowledge, dtype, t.getType());
-  incorporateKnowledge(op.getResult(), knowledge);
-}
-
-void TypeAnalysis::visitAtenScalarTensorOp(AtenScalarTensorOp op) {
-  auto knowledge =
-      ValueKnowledge::getTensorPessimisticValueState(op.getContext());
-  Value s = op.getS();
-  Value dtype = op.getDtype();
-  fillInDTypeGivenDTypeAndDataType(knowledge, dtype, s.getType());
   incorporateKnowledge(op.getResult(), knowledge);
 }
 

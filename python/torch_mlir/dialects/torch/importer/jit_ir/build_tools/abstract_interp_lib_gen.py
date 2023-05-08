@@ -788,6 +788,12 @@ def aten〇tensor〇bool〡shape(t: bool, dtype: Optional[int] = None, device: O
 def aten〇scalar_tensor〡shape(s: float, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return []
 
+def aten〇scalar_tensor〡dtype(s: Union[int, float], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    if dtype is not None:
+        return dtype
+    else:
+        return get_dtype_of_scalar(s)
+
 @check_shape_function([
     Invocation(TensorOfShape()),
     Invocation(TensorOfShape(2, 3)),
