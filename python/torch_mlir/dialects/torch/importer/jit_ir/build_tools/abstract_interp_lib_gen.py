@@ -46,6 +46,9 @@ def _embedding_bag_helper(weight: List[int], indices: List[int], offsets: List[i
 def aten〇triu〡shape(self: List[int], diagonal: int = 0) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇atan〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇tanh〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -331,6 +334,14 @@ def aten〇var〇correction〡shape(self: List[int], dim: Optional[List[int]] = 
 def aten〇var_mean〇correction〡shape(self: List[int], dim: Optional[List[int]] = None, correction: Optional[float] = None, keepdim: bool = False) -> Tuple[List[int], List[int]]:
     out = upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
     return out, out
+
+def aten〇var_mean〇dim〡shape(self: List[int], dim: Optional[List[int]], unbiased: bool = True, keepdim: bool = False) -> Tuple[List[int], List[int]]:
+    out = upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
+    return out, out
+
+def aten〇var_mean〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[List[int]], unbiased: bool = True, keepdim: bool = False) -> Tuple[int, int]:
+    _, self_dtype = self_rank_dtype
+    return self_dtype, self_dtype
 
 def aten〇var_mean〡shape(self: List[int], unbiased: bool = True) -> Tuple[List[int], List[int]]:
     return [], []
@@ -811,6 +822,10 @@ def aten〇addcdiv〡shape(self: List[int], tensor1: List[int], tensor2: List[in
 def aten〇topk〡shape(self: List[int], k: int, dim: int = -1, largest: bool = True, sorted: bool = True) -> Tuple[List[int], List[int]]:
     return upstream_shape_functions.topk(self, k, dim)
 
+def aten〇topk〡dtype(self_rank_dtype: Tuple[int, int], k: int, dim: int = -1, largest: bool = True, sorted: bool = True) -> Tuple[int, int]:
+    _, self_dtype = self_rank_dtype
+    return self_dtype, torch.int64
+
 def aten〇conv2d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), groups: int = 1) -> List[int]:
     return upstream_shape_functions.conv2d(input, weight, bias, stride, padding, dilation, groups)
 
@@ -929,6 +944,9 @@ def aten〇mse_loss〡shape(self: List[int], target: List[int], reduction: int =
     if reduction == 0:
         return upstream_shape_functions.unary(self)
     return []
+
+def aten〇cross_entropy_loss〡shape(self: List[int], target: List[int], weight: Optional[List[int]] = None, reduction: int = 1, ignore_index: int = -100, label_smoothing: float = 0.) -> List[int]:
+    return upstream_shape_functions.cross_entropy_loss(self, target, weight, reduction, ignore_index, label_smoothing)
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 5, 2, 2, 3), [2, 2, 3], None, None, 1e-6), # Basic case.

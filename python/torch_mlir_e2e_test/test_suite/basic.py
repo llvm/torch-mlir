@@ -3700,3 +3700,61 @@ class OneHotModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: OneHotModule())
 def OneHotModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(10, high=5))
+
+
+# ==============================================================================
+
+
+class ConstantBoolParameterModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.bool_tensor = torch.tensor(
+            [True, False, True, False], dtype=torch.bool)
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return self.bool_tensor
+
+
+@register_test_case(module_factory=lambda: ConstantBoolParameterModule())
+def ConstantBoolParameterModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class AtenTopKModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.topk(x, k=50, dim=-1, largest=True, sorted=True)
+
+
+@register_test_case(module_factory=lambda: AtenTopKModule())
+def AtenTopKModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 100))
+
+
+class AtenTopKSmallestModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1, -1], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.topk(x, k=20, dim=1, largest=False, sorted=True)
+
+
+@register_test_case(module_factory=lambda: AtenTopKSmallestModule())
+def AtenTopKSmallestModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 40, 50))

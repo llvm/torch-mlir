@@ -47,9 +47,9 @@ function(torch_mlir_dialects_target_includes target)
   # target, when present, is just used for compilation and does not
   # contribute to the interface properties.
   # TODO: Normalize this upstream.
-  target_include_directories(${target} PUBLIC ${_dirs})
+  target_include_directories(${target} PUBLIC "${_dirs}") 
   if(TARGET obj.${target})
-    target_include_directories(obj.${target} PRIVATE ${_dirs})
+    target_include_directories(obj.${target} PRIVATE "${_dirs}")
   endif()
 endfunction()
 

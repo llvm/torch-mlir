@@ -3718,13 +3718,21 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
   // Only supports integer operand type, because for the floating point operand
   // type result tensor has to be of type `f64` which is not supported in the
   // tosa.
-  int64_t initValue;
-  if (!matchPattern(op.getA(), m_TorchConstantInt(&initValue)))
-    return rewriter.notifyMatchFailure(
-        op, "unimplemented: input should be a torch constant int");
+  double doubleValue;
+  auto isDouble = matchPattern(op.getA(), m_TorchConstantFloat(&doubleValue));
+  int64_t intValue;
+  auto isInt = matchPattern(op.getA(), m_TorchConstantInt(&intValue));
+  if (!isDouble && !isInt)
+    return rewriter.notifyMatchFailure(op,
+                                       "Unable to extract the scalar constant");
 
-  DenseElementsAttr constAttr = DenseElementsAttr::get(resultType, {initValue});
-  rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, resultType, constAttr);
+  auto outElemTy = resultType.getElementType();
+  if (outElemTy.isa<mlir::IntegerType>()) {
+    rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, resultType, DenseElementsAttr::get(resultType, {intValue}));
+  } else if (outElemTy.isF64()) {
+    rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, resultType, DenseElementsAttr::get(resultType, {doubleValue}));
+  }
+
   return success();
 }
 
@@ -4143,9 +4151,17 @@ static LogicalResult getOutputTypeAndPoolingParameters(
                     m_TorchListOfConstantInts(kernelSizeInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const kernel_size for pooling op unsupported");
+
   if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const stride for pooling op unsupported");
+  // If `stride` is not specified by the user, it is assigned the value of empty
+  // list during import. For such a case, the stride value is the kernel size.
+  // See:
+  // https://pytorch.org/docs/stable/generated/torch.nn.MaxPool2d.html#torch.nn.MaxPool2d
+  if (strideInts.empty())
+    strideInts.assign(kernelSizeInts);
+
   if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(paddingInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const padding factor for pooling op unsupported");
