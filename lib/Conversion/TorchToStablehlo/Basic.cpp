@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 
 #include "../PassDetail.h"
@@ -1405,6 +1407,37 @@ LogicalResult ConvertAtenOp<AtenPowTensorTensorOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenUniformOp>::matchAndRewrite(
+    AtenUniformOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value self = adaptor.getSelf();
+  Value generator = adaptor.getGenerator();
+  Location loc = op.getLoc();
+
+  if (!generator.getType().isa<Torch::NoneType>())
+    return rewriter.notifyMatchFailure(
+        op, "The generator has to be None because only global default "
+            "generator is supported");
+
+  auto elements = self.getType().cast<RankedTensorType>().getShape();
+  auto shape_tensor = rewriter.create<stablehlo::ConstantOp>(
+      loc,
+      DenseIntElementsAttr::get(
+          RankedTensorType::get(elements.size(), rewriter.getIntegerType(64)),
+          elements));
+  auto outTy =
+      this->getTypeConverter()->convertType(op.getType()).cast<TensorType>();
+  auto outElemTy = outTy.getElementType();
+  Value from =
+      hlo::scalarToStablehloTensor(rewriter, op, adaptor.getFrom(), outElemTy);
+  Value to =
+      hlo::scalarToStablehloTensor(rewriter, op, adaptor.getTo(), outElemTy);
+  rewriter.replaceOpWithNewOp<stablehlo::RngOp>(
+      op, outTy, from, to, shape_tensor, stablehlo::RngDistribution::UNIFORM);
+  return success();
+}
+
 // RuntimeAssertOp
 namespace {
 class ConvertRuntimeAssertOp : public OpConversionPattern<RuntimeAssertOp> {
@@ -1549,6 +1582,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenToDtypeOp);
   INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
   INSERT_ATENOP_PATTERN(AtenPowTensorTensorOp);
+  INSERT_ATENOP_PATTERN(AtenUniformOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, StablehloOp)                   \
