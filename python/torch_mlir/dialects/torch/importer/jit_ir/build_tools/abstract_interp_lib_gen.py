@@ -785,6 +785,9 @@ def aten〇tensor〇int〡shape(t: int, dtype: Optional[int] = None, device: Opt
 def aten〇tensor〇bool〡shape(t: bool, dtype: Optional[int] = None, device: Optional[device] = None, requires_grad: bool = False) -> List[int]:
     return []
 
+def aten〇scalar_tensor〡shape(s: float, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    return []
+
 @check_shape_function([
     Invocation(TensorOfShape()),
     Invocation(TensorOfShape(2, 3)),

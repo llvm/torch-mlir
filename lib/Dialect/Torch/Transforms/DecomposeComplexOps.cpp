@@ -4321,6 +4321,31 @@ public:
 } // namespace
 
 namespace {
+// decompose aten.scalar_tensor to prim.NumToTensor.Scalar and
+// aten.to.dtype_layout
+class DecomposeScalarTensor : public OpRewritePattern<AtenScalarTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenScalarTensorOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Type resultTy = op.getResult().getType();
+    Value numToTensor = rewriter.create<PrimNumToTensorScalarOp>(
+        op.getLoc(), resultTy, op.getS());
+
+    Value cstNone = rewriter.create<ConstantNoneOp>(op.getLoc());
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    Value toDTypeLayout = rewriter.create<AtenToDtypeLayoutOp>(
+        op.getLoc(), resultTy, numToTensor, op.getDtype(), op.getLayout(),
+        op.getDevice(), op.getPinMemory(), /*non_blocking*/ cstFalse,
+        /*copy*/ cstFalse, /*memory_format*/ cstNone);
+    rewriter.replaceOp(op, toDTypeLayout);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -4483,6 +4508,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenOneHotOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCrossEntropyLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeScalarTensor>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

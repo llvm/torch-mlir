@@ -3738,7 +3738,8 @@ class ScalarTensorModule(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return torch.scalar_tensor(1.0, dtype=torch.float32)
+        scalar = torch.ops.aten.scalar_tensor(1.0, dtype=torch.float64)
+        return scalar
 
 
 @register_test_case(module_factory=lambda: ScalarTensorModule())

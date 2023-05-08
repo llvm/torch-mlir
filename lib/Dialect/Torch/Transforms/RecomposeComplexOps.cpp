@@ -121,27 +121,6 @@ public:
     return success();
   }
 };
-
-class RecomposeScalarTensor : public OpRewritePattern<AtenScalarTensorOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenScalarTensorOp op,
-                                PatternRewriter &rewriter) const override {
-    // rewrite aten.scalar_tensor to
-    // prim.NumToTensor.Scalar + aten.to.dtype_layout
-    Type resultTy = op.getResult().getType();
-    Value numToTensor = rewriter.create<PrimNumToTensorScalarOp>(
-        op.getLoc(), resultTy, op.getS());
-
-    Value cstNone = rewriter.create<ConstantNoneOp>(op.getLoc());
-    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
-    Value toDTypeLayout = rewriter.create<AtenToDtypeLayoutOp>(
-        op.getLoc(), resultTy, numToTensor, op.getDtype(), op.getLayout(),
-        op.getDevice(), op.getPinMemory(), cstFalse, cstFalse, cstNone);
-    rewriter.replaceOp(op, toDTypeLayout);
-    return success();
-  }
-};
 } // namespace
 
 namespace {
@@ -155,7 +134,6 @@ public:
     // pattern.add calls go here
     patterns.add<RecomposeSliceCopy_>(context);
     patterns.add<RecomposeSelectFill_>(context);
-    patterns.add<RecomposeScalarTensor>(context);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
