@@ -91,10 +91,7 @@ OpFoldResult FromI64Op::fold(FoldAdaptor adaptor) {
 OpFoldResult ToI64Op::fold(FoldAdaptor adaptor) {
   auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::IntegerAttr>();
   if (attr) {
-    // note: arith.constant only accept signless integer, so convert signed to
-    // signless
-    return IntegerAttr::get(IntegerType::get(getContext(), 64),
-                            attr.getValue());
+    return attr;
   } else {
     return nullptr;
   }
