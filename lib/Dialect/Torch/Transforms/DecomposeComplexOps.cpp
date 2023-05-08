@@ -4346,6 +4346,49 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.topk` op into `aten.sort` and `aten.slice.Tensor` op.
+class DecomposeAtenTopkOp : public OpRewritePattern<AtenTopkOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTopkOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto context = op.getContext();
+
+    bool sorted;
+    if (!matchPattern(op.getSorted(), m_TorchConstantBool(&sorted)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected a constant boolean value for sorted");
+    if (!sorted)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: sorted value arg must be set to True");
+
+    Value self = op.getSelf();
+    Value dim = op.getDim();
+    auto selfType = self.getType().cast<BaseTensorType>();
+    auto sortIndicesType = selfType.getWithSizesAndDtype(
+        selfType.getOptionalSizes(),
+        IntegerType::get(context, 64, IntegerType::Signed));
+    auto sortOpResult = rewriter.create<AtenSortOp>(
+        loc, self.getType(), sortIndicesType, self, dim,
+        /*descending=*/op.getLargest());
+    Value start = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value step = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value resultValue = rewriter.create<AtenSliceTensorOp>(
+        loc, op->getResultTypes()[0], sortOpResult->getResult(0), dim, start,
+        /*end=*/op.getK(), step);
+    Value resultIndices = rewriter.create<AtenSliceTensorOp>(
+        loc, op->getResultTypes()[1], sortOpResult->getResult(1), dim, start,
+        /*end=*/op.getK(), step);
+    rewriter.replaceOp(op, {resultValue, resultIndices});
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -4508,6 +4551,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenOneHotOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCrossEntropyLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenTopkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeScalarTensor>(patterns);
 
     GreedyRewriteConfig config;

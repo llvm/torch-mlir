@@ -860,7 +860,7 @@ void TypeAnalysis::visitOperation(Operation *op,
     result2Knowledge.dtype = self.dtype;
     incorporateKnowledge(op->getResult(0), result0Knowledge);
     incorporateKnowledge(op->getResult(1), result1Knowledge);
-    incorporateKnowledge(op->getResult(2), result1Knowledge);
+    incorporateKnowledge(op->getResult(2), result2Knowledge);
     return;
   }
 
