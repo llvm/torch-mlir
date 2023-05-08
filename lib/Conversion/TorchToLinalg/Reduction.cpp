@@ -122,9 +122,9 @@ public:
           loc,
           rewriter.getFloatAttr(
               inElementType,
-              APFloat::getLargest(
+              APFloat::getInf(
                   inElementType.cast<mlir::FloatType>().getFloatSemantics(),
-                  true)));
+                  /*Negative=*/true)));
     } else {
       fillValueMax = rewriter.create<arith::ConstantOp>(
           loc, rewriter.getIntegerAttr(
@@ -213,7 +213,7 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
       return b.create<arith::ConstantOp>(
           loc, b.getFloatAttr(
                    elementType,
-                   APFloat::getLargest(
+                   APFloat::getInf(
                        elementType.cast<mlir::FloatType>().getFloatSemantics(),
                        /*Negative=*/true)));
     else if (elementType.isa<mlir::IntegerType>() &&
