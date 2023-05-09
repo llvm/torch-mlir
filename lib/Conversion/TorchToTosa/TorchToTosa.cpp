@@ -25,6 +25,8 @@
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
+#include <iostream>
+
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
@@ -717,11 +719,13 @@ class ConvertAtenMultipleDimsReductionOp
       return rewriter.notifyMatchFailure(op,
                                          "non-const dim parameter unsupported");
     int64_t N = reduceDims.size();
-    int64_t inputRank = adaptor.getSelf().getType().template cast<RankedTensorType>().getRank();
-    for (unsigned i=0; i<N; i++) {
+    int64_t inputRank =
+        adaptor.getSelf().getType().template cast<RankedTensorType>().getRank();
+    for (unsigned i = 0; i < N; i++) {
       reduceDims[i] = toPositiveDim(reduceDims[i], inputRank);
       if (!isValidDim(reduceDims[i], inputRank))
-        return rewriter.notifyMatchFailure(op, "reduce dim is statically invalid");
+        return rewriter.notifyMatchFailure(op,
+                                           "reduce dim is statically invalid");
     }
     auto reduceDimsType = RankedTensorType::get({N}, rewriter.getI64Type());
     reduceDimsAttr =
@@ -753,7 +757,8 @@ class ConvertAtenOneDimReductionOp
     if (!matchPattern(op.getDim(), m_TorchConstantInt(&reduceDim)))
       return rewriter.notifyMatchFailure(op,
                                          "non-const dim parameter unsupported");
-    int64_t inputRank = adaptor.getSelf().getType().template cast<RankedTensorType>().getRank();
+    int64_t inputRank =
+        adaptor.getSelf().getType().template cast<RankedTensorType>().getRank();
     reduceDim = toPositiveDim(reduceDim, inputRank);
     if (!isValidDim(reduceDim, inputRank))
       return rewriter.notifyMatchFailure(op, "dim is statically invalid");
@@ -820,7 +825,8 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
     int64_t inputRank = selfTy.getRank();
     reduceDim = toPositiveDim(reduceDim, inputRank);
     if (!isValidDim(reduceDim, inputRank))
-      return rewriter.notifyMatchFailure(op, "reduce dim is statically invalid");
+      return rewriter.notifyMatchFailure(op,
+                                         "reduce dim is statically invalid");
   }
 
   bool keepDim = false;
@@ -3728,9 +3734,11 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
 
   auto outElemTy = resultType.getElementType();
   if (outElemTy.isa<mlir::IntegerType>()) {
-    rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, resultType, DenseElementsAttr::get(resultType, {intValue}));
+    rewriter.replaceOpWithNewOp<tosa::ConstOp>(
+        op, resultType, DenseElementsAttr::get(resultType, {intValue}));
   } else if (outElemTy.isF64()) {
-    rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, resultType, DenseElementsAttr::get(resultType, {doubleValue}));
+    rewriter.replaceOpWithNewOp<tosa::ConstOp>(
+        op, resultType, DenseElementsAttr::get(resultType, {doubleValue}));
   }
 
   return success();
@@ -4507,30 +4515,39 @@ template <>
 LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
     AtenCatOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
+  TypeConverter *typeConverter = this->getTypeConverter();
   auto outType =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+      typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+  int64_t rank = outType.getRank();
   int64_t dim;
+
+  if (!outType || !outType.hasStaticShape()) {
+    return rewriter.notifyMatchFailure(
+        op, "Only Tensor types with static shapes are currently supported");
+  }
+
+  Location loc = op.getLoc();
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim))) {
     return rewriter.notifyMatchFailure(op,
                                        "unimplemented: dim is not constant");
   }
-  if (dim < 0) {
-    return rewriter.notifyMatchFailure(op,
-                                       "unimplemented: negative dimension is not supported");  
+  dim = toPositiveDim(dim, rank);
+  if (!isValidDim(dim, rank)) {
+    return rewriter.notifyMatchFailure(op, "dim is statically invalid");
   }
   auto tensorList = op.getTensors();
   SmallVector<Value> tensorsTorchType;
+
   if (!getListConstructElements(tensorList, tensorsTorchType)) {
     return rewriter.notifyMatchFailure(
         op, "unimplemented: the tensor list is not from list construct");
   }
-  SmallVector<Value> builtinTensors = getTypeConvertedValues(
-      rewriter, op->getLoc(), getTypeConverter(), tensorsTorchType);
+  auto builtinTensors =
+      getTypeConvertedValues(rewriter, loc, typeConverter, tensorsTorchType);
 
-  rewriter.replaceOpWithNewOp<mlir::tosa::ConcatOp>(
-      op, getTypeConverter()->convertType(op.getType()), builtinTensors,
-      rewriter.getI64IntegerAttr(dim));
-
+  auto result = tosa::CreateOpAndInfer<tosa::ConcatOp>(
+      rewriter, loc, outType, builtinTensors, rewriter.getI64IntegerAttr(dim));
+  rewriter.replaceOp(op, result.getResult());
   return success();
 }
 
