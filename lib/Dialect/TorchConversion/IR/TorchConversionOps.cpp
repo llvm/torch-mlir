@@ -46,7 +46,7 @@ LogicalResult ToBuiltinTensorOp::verify() {
 
 LogicalResult ToBuiltinTensorOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto resultType =
       operands[0].getType().cast<Torch::ValueTensorType>().toBuiltinTensor();
