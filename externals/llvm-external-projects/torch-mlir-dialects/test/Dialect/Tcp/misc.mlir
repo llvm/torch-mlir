@@ -86,6 +86,24 @@ func.func @test_group(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>) -> tenso
 
 // -----
 
+// CHECK-LABEL: func.func @test_group_any_type(
+// CHECK-SAME:           %[[ARG0:.*]]: tensor<?x?xui16>) -> tensor<?x?xsi16>
+// CHECK:         %[[GROUP:.*]] = tcp.group {
+// CHECK:            %[[CCAST:.*]] = builtin.unrealized_conversion_cast %[[ARG0]] : tensor<?x?xui16> to tensor<?x?xsi16>
+// CHECK:            tcp.yield %[[CCAST]] : tensor<?x?xsi16>
+// CHECK:         } : tensor<?x?xsi16>
+// CHECK:         return %[[GROUP]] : tensor<?x?xsi16>
+func.func @test_group_any_type(%arg0 : tensor<?x?xui16>) -> tensor<?x?xsi16> {
+  %10 = "tcp.group" () ({
+    ^bb0() :
+      %0 = builtin.unrealized_conversion_cast %arg0 : tensor<?x?xui16> to tensor<?x?xsi16>
+      tcp.yield %0 : tensor<?x?xsi16>
+  }) : () -> tensor<?x?xsi16>
+  return %10 : tensor<?x?xsi16>
+}
+
+// -----
+
 func.func @test_group_no_yield(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>) -> tensor<?x?xf32> {
   // expected-error @+1 {{'tcp.group' op failed to verify that op region ends with a terminator}}
   %10 = "tcp.group" () ({
@@ -142,6 +160,25 @@ func.func @test_isolated_group(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>)
       tcp.yield %3 : tensor<?x?xf32>
   }) : (tensor<?x?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
   return %10 : tensor<?x?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_isolated_group_any_type(
+// CHECK-SAME:          %[[ARG0:.*]]: tensor<?x?xui16>) -> tensor<?x?xsi16>
+// CHECK:         %[[IGROUP:.*]] = tcp.isolated_group %[[ARG0]] {
+// CHECK:         ^bb0(%[[BBARG0:.*]]: tensor<?x?xui16>):
+// CHECK:            %[[CCAST:.*]] = builtin.unrealized_conversion_cast %[[BBARG0]] : tensor<?x?xui16> to tensor<?x?xsi16>
+// CHECK:            tcp.yield %[[CCAST]] : tensor<?x?xsi16>
+// CHECK:         } : tensor<?x?xui16> -> tensor<?x?xsi16>
+// CHECK:         return %[[IGROUP]] : tensor<?x?xsi16>
+func.func @test_isolated_group_any_type(%arg0 : tensor<?x?xui16>) -> tensor<?x?xsi16> {
+  %10 = "tcp.isolated_group" (%arg0) ({
+    ^bb0(%0 : tensor<?x?xui16>) :
+      %1 = builtin.unrealized_conversion_cast %0 : tensor<?x?xui16> to tensor<?x?xsi16>
+      tcp.yield %1 : tensor<?x?xsi16>
+  }) : (tensor<?x?xui16>) -> tensor<?x?xsi16>
+  return %10 : tensor<?x?xsi16>
 }
 
 // -----

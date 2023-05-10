@@ -219,10 +219,13 @@ def Tcp_YieldOp : Tcp_Op<"yield", [Terminator, Pure]> {
 
     The values that are yielded should correspond to the parent operation's
     results.
+
+    The results can be `AnyType` since Tcp grouping ops can be used with ops
+    from any dialect (not just Tcp).
   }];
 
   let arguments = (ins
-    Variadic<Tcp_TensorOrScalar>:$ins
+    Variadic<AnyType>:$ins
   );
 
   let builders = [
@@ -249,10 +252,13 @@ def Tcp_GroupOp : Tcp_Op<"group", [
 
     The enclosed region will terminate with a `tcp.yield` op. This ops results
     should correspond to the values that are yielded by the terminating op.
+
+    The results can be `AnyType` since Tcp grouping ops can be used with ops
+    from any dialect (not just Tcp).
   }];
 
   let results = (outs
-    Variadic<Tcp_TensorOrScalar>:$outs
+    Variadic<AnyType>:$outs
   );
 
   let regions = (region
@@ -283,14 +289,17 @@ def Tcp_IsolatedGroupOp : Tcp_Op<"isolated_group", [
 
     The enclosed region will terminate with a `tcp.yield` op. This ops results
     should correspond to the values that are yielded by the terminating op.
+
+    The inputs and results can be `AnyType` since Tcp grouping ops can be used
+    with ops from any dialect (not just Tcp).
   }];
 
   let arguments = (ins
-    Variadic<Tcp_TensorOrScalar>:$ins
+    Variadic<AnyType>:$ins
   );
 
   let results = (outs
-    Variadic<Tcp_TensorOrScalar>:$outs
+    Variadic<AnyType>:$outs
   );
 
   let regions = (region
