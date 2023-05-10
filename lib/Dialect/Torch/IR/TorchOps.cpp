@@ -1713,7 +1713,7 @@ ParseResult ConstantIntOp::parse(OpAsmParser &parser, OperationState &result) {
 
 void ConstantIntOp::print(OpAsmPrinter &p) {
   p << " ";
-  p << getValue().getSExtValue();
+  p << getValueAttr().getInt();
   p.printOptionalAttrDict((*this)->getAttrs(), {"value"});
 }
 
@@ -1721,18 +1721,11 @@ OpFoldResult Torch::ConstantIntOp::fold(FoldAdaptor adaptor) {
   return getValueAttr();
 }
 
-LogicalResult ConstantIntOp::verify() {
-  Type valTy = getValueAttr().getType();
-  if (!valTy.isSignlessInteger())
-    return emitOpError("ConstantIntOp only accept signless integer value");
-  return success();
-}
-
 void Torch::ConstantIntOp::getAsmResultNames(
     function_ref<void(Value, StringRef)> setNameFn) {
   SmallVector<char> buf;
   llvm::raw_svector_ostream os(buf);
-  os << "int" << getValue();
+  os << "int" << getValueAttr().getInt();
   setNameFn(getResult(), os.str());
 }
 
