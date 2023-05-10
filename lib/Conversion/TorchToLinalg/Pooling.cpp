@@ -170,9 +170,8 @@ public:
     Type elementType = self.getType().cast<RankedTensorType>().getElementType();
     TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
         elementType,
-        APFloat::getLargest(
-            elementType.cast<mlir::FloatType>().getFloatSemantics(),
-            /*Negative=*/true));
+        APFloat::getInf(elementType.cast<mlir::FloatType>().getFloatSemantics(),
+                        /*Negative=*/true));
     SmallVector<Value, 4> outTensorShape;
     // `maxpool2d` contains the result of maxpool2d operation over the input.
     Value maxPool2d, paddedInput;
@@ -248,9 +247,8 @@ public:
     // `maxpool2d` contains the result of maxpool2d operation over the input.
     auto smallestFPValueAttr = rewriter.getFloatAttr(
         elementType,
-        APFloat::getLargest(
-            elementType.cast<mlir::FloatType>().getFloatSemantics(),
-            /*Negative=*/true));
+        APFloat::getInf(elementType.cast<mlir::FloatType>().getFloatSemantics(),
+                        /*Negative=*/true));
     Value maxPool2d, paddedInput;
     SmallVector<Value, 4> outTensorShape;
     if (failed(createPoolingOp<linalg::PoolingNchwMaxOp>(

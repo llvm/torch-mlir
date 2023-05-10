@@ -606,6 +606,12 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
   Value cond = adaptor.getCondition();
   Value other = adaptor.getOther();
 
+  auto outType =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+  // promote self and other types
+  self = hlo::promoteType(rewriter, self, outType);
+  other = hlo::promoteType(rewriter, other, outType);
+
   if (failed(
           broadcastRanks(rewriter, op, self, cond, options.dimSizeIndexBits)))
     return op.emitError("failed broadcast self and condition ranks");
@@ -1540,6 +1546,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_UNARY_PATTERN(AtenNegOp, stablehlo::NegOp);
   INSERT_UNARY_PATTERN(AtenLogicalNotOp, stablehlo::NotOp);
   INSERT_UNARY_PATTERN(AtenBitwiseNotOp, stablehlo::NotOp);
+  INSERT_UNARY_PATTERN(AtenAbsOp, stablehlo::AbsOp);
 #undef INSERT_UNARY_PATTERN
 
 #define INSERT_UNARY_FPONLY_PATTERN(AtenOp, StablehloOp)                       \
