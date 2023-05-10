@@ -436,6 +436,8 @@ STABLEHLO_PASS_SET = {
     "FlattenRank0Module_basic",
     "TensorsConcatNegativeDimModule_basic",
     "TensorsConcatPromoteDTypeModule_basic",
+    "TensorsConcatStaticModule_basic",
+    "TensorsConcatNegativeDimStaticModule_basic",
     "TensorsStackModule_basic",
     "TensorsStackNegativeDimModule_basic",
     "TensorsStackPromoteDTypeModule_basic",
@@ -910,6 +912,8 @@ TOSA_PASS_SET = {
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
     "DetachModule_basic",
+    "TensorsConcatStaticModule_basic",
+    "TensorsConcatNegativeDimStaticModule_basic",
 }
 
 LTC_XFAIL_SET = {
@@ -1025,6 +1029,8 @@ LTC_XFAIL_SET = {
     "TensorToIntZeroRank_basic",
     "TensorToInt_basic",
     "TensorsConcatModule_basic",
+    "TensorsConcatStaticModule_basic",
+    "TensorsConcatNegativeDimStaticModule_basic",
     "UniformModule_basic",
     "UniformNoCorrelationModule_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
