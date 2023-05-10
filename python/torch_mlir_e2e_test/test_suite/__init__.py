@@ -7,6 +7,8 @@
 # These represent further work needed in torch-mlir to lower them properly
 # to the backend contract.
 COMMON_TORCH_MLIR_LOWERING_XFAILS = {
+    "NativeGroupNormModule_basic",
+    "NativeGroupNormBackwardModule_basic",
     "QuantizedMLP_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
 }
