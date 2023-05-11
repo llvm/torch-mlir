@@ -514,4 +514,23 @@ def Tcp_Atan2Op : Tcp_BinaryElementwiseOp<"atan2", [SameOperandsAndResultElement
   let assemblyFormat = "$in1 `,` $in2 attr-dict `:` type($in1) `,` type($in2) `->` type($out)";
 }
 
+def Tcp_CastOp:  Tcp_Op<"cast", [Pure, Elementwise, SameOperandsAndResultShape]> {
+
+  let summary = "TCP Cast operation";
+
+  let description = [{
+    Performs elementwise type conversion.
+  }];
+
+  let arguments = (ins
+    Tcp_Tensor:$in
+  );
+
+  let results = (outs
+    Tcp_Tensor:$out
+  );
+
+  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
+}
+
 #endif // TORCH_MLIR_DIALECT_TCP_OPS

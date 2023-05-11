@@ -417,12 +417,76 @@ public:
   }
 };
 
+class ConvertAtenToDtypeOp : public OpConversionPattern<AtenToDtypeOp> {
+public:
+  using OpConversionPattern<AtenToDtypeOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(AtenToDtypeOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = adaptor.getSelf();
+    RankedTensorType inputType = input.getType().dyn_cast<RankedTensorType>();
+    RankedTensorType resultType =
+        OpConversionPattern<AtenToDtypeOp>::getTypeConverter()
+            ->convertType(op.getType())
+            .cast<RankedTensorType>();
+    if (!inputType || !resultType)
+      return rewriter.notifyMatchFailure(
+          op, "Only Ranked Tensor types are supported in TCP");
+    auto elementType = inputType.getElementType();
+    if (!elementType.isIntOrFloat())
+      return rewriter.notifyMatchFailure(
+          op, "Input tensor must have integer or floating-point datatype");
+
+    // The non_blocking arg should be a constant `False`.
+    bool nonBlocking;
+    if (!matchPattern(op.getNonBlocking(), m_TorchConstantBool(&nonBlocking))) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: non_blocking arg must be a constant");
+    } else if (nonBlocking) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: non_blocking arg is expected to be false");
+    }
+
+    // The copy arg should be a constant `False`.
+    bool copy;
+    if (!matchPattern(op.getCopy(), m_TorchConstantBool(&copy))) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: copy arg must be a constant");
+    } else if (copy) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: copy arg is expected to be false");
+    }
+
+    // Only `none`, `contiguous` and `preserve` memory_format is supported.
+    if (!op.getMemoryFormat().getType().isa<Torch::NoneType>()) {
+      int64_t memoryFormat;
+      if (!matchPattern(op.getMemoryFormat(),
+                        m_TorchConstantInt(&memoryFormat)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: the memory format should be specified in "
+                "an integer constant");
+      if (memoryFormat != torch_upstream::MemoryFormat::Contiguous &&
+          memoryFormat != torch_upstream::MemoryFormat::Preserve)
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: only none, contiguous and preserve "
+                "memory_format is supported");
+    }
+
+    rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, input);
+    return success();
+  }
+};
+
 } // namespace
 
 void torch_to_tcp::populateElementwisePatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
   MLIRContext *context = patterns.getContext();
+
+  target.addIllegalOp<AtenToDtypeOp>();
+  patterns.add<ConvertAtenToDtypeOp>(typeConverter, context);
 
   target.addIllegalOp<AtenClampOp>();
   patterns.add<ConvertAtenClampOp>(typeConverter, context);

@@ -183,3 +183,25 @@ func.func @test_atan_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
   %0 = tcp.atan %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @test_cast_i32_i8(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xi32>) -> tensor<?x?xi8>
+// CHECK:         %[[ATAN:.*]] = tcp.cast %[[ARG]] : tensor<?x?xi32> -> tensor<?x?xi8>
+// CHECK:         return %[[ATAN]] : tensor<?x?xi8>
+func.func @test_cast_i32_i8(%arg0 : tensor<?x?xi32>) -> tensor<?x?xi8> {
+  %0 = tcp.cast %arg0 : tensor<?x?xi32> -> tensor<?x?xi8>
+  return %0 : tensor<?x?xi8>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_cast_i32_f32(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xi32>) -> tensor<?x?xf32>
+// CHECK:         %[[ATAN:.*]] = tcp.cast %[[ARG]] : tensor<?x?xi32> -> tensor<?x?xf32>
+// CHECK:         return %[[ATAN]] : tensor<?x?xf32>
+func.func @test_cast_i32_f32(%arg0 : tensor<?x?xi32>) -> tensor<?x?xf32> {
+  %0 = tcp.cast %arg0 : tensor<?x?xi32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
