@@ -63,5 +63,59 @@ std::vector<torch::lazy::Shape> compute_shape_copy(
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
+std::vector<torch::lazy::Shape> compute_shape_native_group_norm(
+  const at::Tensor& input,
+  const c10::optional<at::Tensor>& weight,
+  const c10::optional<at::Tensor>& bias,
+  int64_t N, int64_t C, int64_t HxW,
+  int64_t group, double eps) {
+
+  TORCH_CHECK(
+      input.sizes().size() >= 2,
+      "Input tensor must have at least batch and channel dimensions!");
+  std::vector<torch::lazy::Shape> shapes;
+  shapes.reserve(3);
+  shapes.emplace_back(input.scalar_type(), input.sizes().vec());
+
+  // A separate mean and var needs to be kept for each group per N.
+  shapes.emplace_back(
+        at::get_default_dtype_as_scalartype(),
+        std::vector<int64_t>{N, group});
+
+  shapes.emplace_back(
+      at::get_default_dtype_as_scalartype(),
+      std::vector<int64_t>{N, group});
+  return shapes;
+}
+
+std::vector<torch::lazy::Shape> compute_shape_native_group_norm_backward(
+  const at::Tensor& grad_out,
+  const at::Tensor& input,
+  const at::Tensor& mean,
+  const at::Tensor& rstd,
+  const c10::optional<at::Tensor>& weight,
+  int64_t N, int64_t C, int64_t HxW,
+  int64_t group, ::std::array<bool, 3> output_mask) {
+
+  TORCH_CHECK(
+      input.sizes().size() >= 2,
+      "Input tensor must have at least batch and channel dimensions!");
+  std::vector<torch::lazy::Shape> shapes;
+  shapes.reserve(3);
+  shapes.emplace_back(input.scalar_type(), input.sizes().vec());
+
+  int64_t num_features = input.size(1);
+
+  // `weight` and `bias` are vectors of length C (number of channels)`
+  shapes.emplace_back(
+      at::get_default_dtype_as_scalartype(),
+      std::vector<int64_t>{num_features});
+  shapes.emplace_back(
+      at::get_default_dtype_as_scalartype(),
+      std::vector<int64_t>{num_features});
+
+  return shapes;
+}
+
 } // namespace lazy
 } // namespace torch

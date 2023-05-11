@@ -647,6 +647,54 @@ def TensorsConcatPromoteDTypeModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class TensorsConcatStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 2, 4], torch.float32, True),
+        ([2, 1, 4], torch.float32, True),
+        ([2, 3, 4], torch.float32, True),
+    ])
+    def forward(self, x, y, z):
+        return torch.cat([x, y, z], dim=1)
+
+
+@register_test_case(module_factory=lambda: TensorsConcatStaticModule())
+def TensorsConcatStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 2, 4), tu.rand(2, 1, 4), tu.rand(2, 3, 4))
+
+
+# ==============================================================================
+
+
+class TensorsConcatNegativeDimStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 2, 4], torch.float32, True),
+        ([2, 1, 4], torch.float32, True),
+        ([2, 3, 4], torch.float32, True),
+    ])
+    def forward(self, x, y, z):
+        return torch.cat([x, y, z], dim=-2)
+
+
+@register_test_case(module_factory=lambda: TensorsConcatNegativeDimStaticModule())
+def TensorsConcatNegativeDimStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 2, 4), tu.rand(2, 1, 4), tu.rand(2, 3, 4))
+
+
+# ==============================================================================
+
+
 class TensorsStackModule(torch.nn.Module):
 
     def __init__(self):
@@ -3723,3 +3771,116 @@ class ConstantBoolParameterModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ConstantBoolParameterModule())
 def ConstantBoolParameterModule_basic(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+
+class AtenTopKModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.topk(x, k=50, dim=-1, largest=True, sorted=True)
+
+
+@register_test_case(module_factory=lambda: AtenTopKModule())
+def AtenTopKModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 100))
+
+
+class AtenTopKSmallestModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1, -1], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.topk(x, k=20, dim=1, largest=False, sorted=True)
+
+
+@register_test_case(module_factory=lambda: AtenTopKSmallestModule())
+def AtenTopKSmallestModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 40, 50))
+
+
+# ==============================================================================
+
+class AtenComplexImagModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.complex64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.imag(x)
+
+
+@register_test_case(module_factory=lambda: AtenComplexImagModule())
+def AtenComplexImagModule_basic(module, tu: TestUtils):
+    module.forward(torch.view_as_complex(tu.rand(5,2)))
+
+
+class AtenComplexRealModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.complex64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.real(x)
+
+
+@register_test_case(module_factory=lambda: AtenComplexRealModule())
+def AtenComplexRealModule_basic(module, tu: TestUtils):
+    module.forward(torch.view_as_complex(tu.rand(5,2)))
+
+
+class AtenComplex64Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.complex64, True),
+    ])
+    def forward(self, x):
+        return x
+
+
+@register_test_case(module_factory=lambda: AtenComplex64Module())
+def AtenComplex64Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 2).to(torch.complex64))
+
+
+class AtenComplexViewModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.view_as_complex(x)
+
+
+@register_test_case(module_factory=lambda: AtenComplexViewModule())
+def AtenComplexViewModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5,2))

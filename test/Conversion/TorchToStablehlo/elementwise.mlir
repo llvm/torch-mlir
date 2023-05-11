@@ -624,3 +624,16 @@ func.func @torch.aten.div.Tensor_mode$floor(%arg0: !torch.vtensor<[?,?,?,?],f32>
   return %0 : !torch.vtensor<[?,?,?,?],f32>
 }
 
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.abs(
+// CHECK-SAME:                              %[[VAL_0:.*]]: !torch.vtensor<[15,15],si64>) -> !torch.vtensor<[15,15],si64> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[15,15],si64> -> tensor<15x15xi64>
+// CHECK:           %[[VAL_2:.*]] = stablehlo.abs %[[VAL_1]] : tensor<15x15xi64>
+// CHECK:           %[[VAL_3:.*]] = torch_c.from_builtin_tensor %[[VAL_2]] : tensor<15x15xi64> -> !torch.vtensor<[15,15],si64>
+// CHECK:           return %[[VAL_3]] : !torch.vtensor<[15,15],si64>
+// CHECK:         }
+func.func @torch.aten.abs(%arg0: !torch.vtensor<[15,15],si64>) -> !torch.vtensor<[15,15],si64>{
+  %0 = torch.aten.abs %arg0 : !torch.vtensor<[15,15],si64> -> !torch.vtensor<[15,15],si64>
+  return %0 : !torch.vtensor<[15,15],si64>
+}

@@ -1451,6 +1451,38 @@ func.func @torch.aten.to.dtype_layout$same_dtype(%arg0: !torch.tensor<[?,?],f32>
   return %0 : !torch.tensor<[?,?],f32>
 }
 
+// CHECK-LABEL:   func.func @torch.aten.to.dtype_layout$to_device(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f32> {
+// CHECK-NEXT:      %[[INT6:.*]] = torch.constant.int 6
+// CHECK-NEXT:      %[[FALSE:.*]] = torch.constant.bool false
+// CHECK-NEXT:      %[[NONE:.*]] = torch.constant.none
+// CHECK-NEXT:      %[[CPU:.*]] = torch.constant.device "cpu"
+// CHECK-NEXT:      %[[RESULT:.*]] = torch.aten.to.device %[[ARG]], %[[CPU]], %[[INT6]], %[[FALSE]], %[[FALSE]], %[[NONE]] : !torch.tensor<[?,?],f32>, !torch.Device, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.tensor<[?,?],f32>
+// CHECK-NEXT:      return %[[RESULT]] : !torch.tensor<[?,?],f32>
+func.func @torch.aten.to.dtype_layout$to_device(%arg0: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f32> {
+  %none = torch.constant.none
+  %device = torch.constant.device "cpu"
+  %false = torch.constant.bool false
+  %int6 = torch.constant.int 6
+  %0 = torch.aten.to.dtype_layout %arg0, %int6, %none, %device, %none, %false, %false, %none : !torch.tensor<[?,?],f32>, !torch.int, !torch.none, !torch.Device, !torch.none, !torch.bool, !torch.bool, !torch.none -> !torch.tensor<[?,?],f32>
+  return %0 : !torch.tensor<[?,?],f32>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.to.dtype_layout$to_dtype(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f16> {
+// CHECK-NEXT:      %[[NONE:.*]] = torch.constant.none
+// CHECK-NEXT:      %[[FALSE:.*]] = torch.constant.bool false
+// CHECK-NEXT:      %[[INT5:.*]] = torch.constant.int 5
+// CHECK-NEXT:      %[[RESULT:.*]] = torch.aten.to.dtype %[[ARG]], %[[INT5]], %[[FALSE]], %[[FALSE]], %[[NONE]] : !torch.tensor<[?,?],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.tensor<[?,?],f16>
+// CHECK-NEXT:      return %[[RESULT]] : !torch.tensor<[?,?],f16>
+func.func @torch.aten.to.dtype_layout$to_dtype(%arg0: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f16> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %int5 = torch.constant.int 5
+  %0 = torch.aten.to.dtype_layout %arg0, %int5, %none, %none, %none, %false, %false, %none : !torch.tensor<[?,?],f32>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.bool, !torch.bool, !torch.none -> !torch.tensor<[?,?],f16>
+  return %0 : !torch.tensor<[?,?],f16>
+}
+
 // CHECK-LABEL:   func.func @torch.aten.ge.float$same_operand(
 // CHECK-SAME:                                       %{{.*}}: !torch.float) -> !torch.bool {
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
