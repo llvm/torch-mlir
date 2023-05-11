@@ -1350,8 +1350,7 @@ public:
     auto input = adaptor.getSelf();
 
     RankedTensorType resultType =
-        typeConverter->convertType(op->getResult(0).getType())
-            .cast<RankedTensorType>();
+        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
 
     auto elementType = resultType.getElementType();
     SmallVector<Value> resultShape;
@@ -1382,7 +1381,7 @@ public:
     auto complexVar =
         rewriter
             .create<linalg::GenericOp>(
-                loc, resultType, ValueRange{}, outTensor, indexingMaps,
+                loc, outTensor.getType(), ValueRange{}, outTensor, indexingMaps,
                 iteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   SmallVector<Value> indicesZero;

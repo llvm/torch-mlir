@@ -3821,7 +3821,7 @@ class AtenComplexImagModule(torch.nn.Module):
         ([-1], torch.complex64, True),
     ])
     def forward(self, x):
-        return x.imag
+        return torch.ops.aten.imag(x)
 
 
 @register_test_case(module_factory=lambda: AtenComplexImagModule())
@@ -3840,7 +3840,7 @@ class AtenComplexRealModule(torch.nn.Module):
         ([-1], torch.complex64, True),
     ])
     def forward(self, x):
-        return x.real
+        return torch.ops.aten.real(x)
 
 
 @register_test_case(module_factory=lambda: AtenComplexRealModule())
