@@ -117,6 +117,7 @@ class CMakeBuild(build_py):
                                   cmake_args, cwd=cmake_build_dir)
             subprocess.check_call(["cmake",
                                    "--build",  ".",
+                                   "--config", "Release",
                                    "--target", "TorchMLIRPythonModules"],
                                   cwd=cmake_build_dir)
 
