@@ -191,6 +191,11 @@ TORCHDYNAMO_XFAIL_SET = {
     'IsFloatingPointInt_False',
     'TorchPrimLoopForLikeModule_basic',
     'TorchPrimLoopWhileLikeModule_basic',
+
+    # Forming aten.view_as_real and aten.view_as_imag instead of aten.real and aten.imag op.
+    # Complex ops
+    "AtenComplexImagModule_basic",
+    "AtenComplexRealModule_basic",
 }
 
 # See https://github.com/llvm/torch-mlir/issues/2050
@@ -625,6 +630,7 @@ STABLEHLO_PASS_SET = {
     "ConvolutionBackwardModule2DStrided_basic",
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
+    "AtenComplex64Module_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -906,6 +912,7 @@ TOSA_PASS_SET = {
     "ScalarTensorModule_basic",
     "TensorsConcatStaticModule_basic",
     "TensorsConcatNegativeDimStaticModule_basic",
+    "AtenComplex64Module_basic",
 }
 
 LTC_XFAIL_SET = {
@@ -1082,4 +1089,7 @@ LTC_XFAIL_SET = {
     "OneHotModule_basic",
     "VarMeanDimModule_basic",
     "VarMeanDimBiasedModule_basic",
+    "AtenComplexImagModule_basic",
+    "AtenComplexRealModule_basic",
+    "AtenComplexViewModule_basic"
 }
