@@ -826,6 +826,50 @@ def aten〇topk〡dtype(self_rank_dtype: Tuple[int, int], k: int, dim: int = -1,
     _, self_dtype = self_rank_dtype
     return self_dtype, torch.int64
 
+def complex_to_float(self_dtype: int) -> int:
+    if self_dtype == torch.complex32:
+        return torch.half
+    elif self_dtype == torch.complex64:
+        return torch.float
+    elif self_dtype == torch.complex128:
+        return torch.double
+    else:
+        assert False, "Unsupported dtype"
+
+def aten〇real〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇imag〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇real〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    return complex_to_float(self_rank_dtype[1])
+
+def aten〇imag〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    return complex_to_float(self_rank_dtype[1])
+
+def aten〇view_as_complex〡shape(self: List[int]) -> List[int]:
+    out: List[int] = []
+    n = len(self)
+    for i in range(n-1):
+        out.append(self[i])
+    return out
+
+def aten〇view_as_complex〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if self_dtype == torch.half:
+        return torch.complex32
+    elif self_dtype == torch.float:
+        return torch.complex64
+    elif self_dtype == torch.double:
+        return torch.complex128
+    elif self_dtype == torch.bool or self_dtype == torch.uint8 or \
+         self_dtype == torch.int8 or self_dtype == torch.int16 or \
+         self_dtype == torch.int32 or self_dtype == torch.int64:
+        return torch.complex64
+    else:
+        assert False, "Unsupported dtype"
+
 def aten〇conv2d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), groups: int = 1) -> List[int]:
     return upstream_shape_functions.conv2d(input, weight, bias, stride, padding, dilation, groups)
 

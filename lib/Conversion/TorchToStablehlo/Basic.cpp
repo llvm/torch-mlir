@@ -1529,6 +1529,21 @@ public:
 };
 } // namespace
 
+template <>
+LogicalResult ConvertAtenOp<AtenFillScalarOp>::matchAndRewrite(
+    AtenFillScalarOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto outType =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+  auto dtype = outType.getElementType();
+  Value scalarTensor =
+      hlo::scalarToStablehloTensor(rewriter, op, adaptor.getValue(), dtype);
+  Value bcastScalar = rewriter.create<stablehlo::BroadcastInDimOp>(
+      op->getLoc(), outType, scalarTensor, rewriter.getI64TensorAttr({}));
+  rewriter.replaceOp(op, bcastScalar);
+  return success();
+}
+
 void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToStablehloOptions &options) {
@@ -1652,6 +1667,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
   INSERT_ATENOP_PATTERN(AtenPowTensorTensorOp);
   INSERT_ATENOP_PATTERN(AtenEmptyMemoryFormatOp);
+  INSERT_ATENOP_PATTERN(AtenFillScalarOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, StablehloOp)                   \

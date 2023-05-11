@@ -17,6 +17,7 @@
 #include "PopulatePatterns.h"
 #include "Utils.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -1330,6 +1331,85 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenViewAsComplexOp
+    : public OpConversionPattern<AtenViewAsComplexOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenViewAsComplexOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Location loc = op.getLoc();
+    TypeConverter *typeConverter = getTypeConverter();
+    MLIRContext *context = rewriter.getContext();
+
+    auto input = adaptor.getSelf();
+
+    RankedTensorType resultType =
+        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+
+    auto elementType = resultType.getElementType();
+    SmallVector<Value> resultShape;
+    for (int64_t i = 0; i < resultType.getRank(); i++) {
+      auto currentDimSize = rewriter.create<tensor::DimOp>(loc, input, i);
+      resultShape.push_back(currentDimSize);
+    }
+
+    Value outTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(resultShape), elementType);
+
+    SmallVector<AffineExpr> outputExpr;
+    for (unsigned i = 0; i < resultType.getRank(); i++) {
+      outputExpr.push_back(getAffineDimExpr(i, context));
+    }
+
+    Value constantZero =
+        getConstant(rewriter, loc, 0, mlir::IndexType::get(context));
+    Value constantOne =
+        getConstant(rewriter, loc, 1, mlir::IndexType::get(context));
+
+    AffineMap outputMap =
+        AffineMap::get(resultType.getRank(), 0, outputExpr, op->getContext());
+
+    SmallVector<AffineMap> indexingMaps{outputMap};
+    SmallVector<utils::IteratorType> iteratorTypes(
+        resultType.getRank(), utils::IteratorType::parallel);
+    auto complexVar =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, outTensor.getType(), ValueRange{}, outTensor, indexingMaps,
+                iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  SmallVector<Value> indicesZero;
+                  SmallVector<Value> indicesOne;
+
+                  for (int i = 0; i < resultType.getRank(); i++) {
+                    indicesZero.push_back(b.create<linalg::IndexOp>(loc, i));
+                    indicesOne.push_back(b.create<linalg::IndexOp>(loc, i));
+                  }
+
+                  indicesZero.push_back(constantZero);
+                  indicesOne.push_back(constantOne);
+
+                  Value realVal =
+                      b.create<tensor::ExtractOp>(loc, input, indicesZero);
+                  Value imagVal =
+                      b.create<tensor::ExtractOp>(loc, input, indicesOne);
+                  Value complexVal = b.create<complex::CreateOp>(
+                      loc, elementType, realVal, imagVal);
+                  b.create<linalg::YieldOp>(loc, complexVal);
+                })
+            .getResult(0);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, complexVar);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -1360,4 +1440,6 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   patterns.add<ConvertAtenCopyOp>(typeConverter, context);
   target.addIllegalOp<AtenSliceScatterOp>();
   patterns.add<ConvertAtenSliceScatterOp>(typeConverter, context);
+  target.addIllegalOp<AtenViewAsComplexOp>();
+  patterns.add<ConvertAtenViewAsComplexOp>(typeConverter, context);
 }
