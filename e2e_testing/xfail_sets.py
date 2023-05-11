@@ -353,6 +353,8 @@ STABLEHLO_PASS_SET = {
     "EmbeddingModuleF16_basic",
     "ExpandAsIntModule_basic",
     "ExpandModule_basic",
+    "Fill_TensorFloat64WithFloat32Static_basic",
+    "Fill_TensorFloat64WithInt64Static_basic",
     "FullLikeModuleDefaultDtype_basic",
     "FullLikeModuleFalsePinMemory_basic",
     "FullLikeModuleFloat2D_basic",
