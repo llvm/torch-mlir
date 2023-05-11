@@ -51,7 +51,7 @@ Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
 // To create INT48 TOSA constant, need to pass in llvm::APInt instead.
 template <typename T>
 std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
-                                    ArrayRef<T> vec, ArrayRef<int64_t> shape);
+                                    ArrayRef<T> vec, ArrayRef<int64_t> shape, std::optional<Type> dtype = {});
 
 LogicalResult tosaCastTensorToType(PatternRewriter &rewriter, Operation *op,
                                    Value src, Type destType, Value &result);

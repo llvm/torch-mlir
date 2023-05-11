@@ -154,7 +154,7 @@ Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
 // Default template creates a constant tensor in T.
 template <typename T>
 std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
-                                    ArrayRef<T> vec, ArrayRef<int64_t> shape) {
+                                    ArrayRef<T> vec, ArrayRef<int64_t> shape, std::optional<Type> dtype) {
   uint64_t num_total_elements = 1;
   for (int64_t a : shape) {
     num_total_elements *= a;
@@ -171,6 +171,11 @@ std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
 
   auto const_op =
       rewriter.create<tosa::ConstOp>(op->getLoc(), const_type, const_attr);
+
+  if (dtype) {
+   return rewriter.createOrFold<tosa::CastOp>(
+        op->getLoc(), RankedTensorType::get(shape, *dtype), const_op);
+  }
   return const_op.getResult();
 }
 
@@ -178,7 +183,7 @@ std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
 template <>
 std::optional<Value> getConstTensor<APInt>(PatternRewriter &rewriter,
                                            Operation *op, ArrayRef<APInt> vec,
-                                           ArrayRef<int64_t> shape) {
+                                           ArrayRef<int64_t> shape, std::optional<Type> dtype) {
   uint64_t num_total_elements = 1;
   for (int64_t a : shape) {
     num_total_elements *= a;
@@ -195,6 +200,11 @@ std::optional<Value> getConstTensor<APInt>(PatternRewriter &rewriter,
 
   auto const_op =
       rewriter.create<tosa::ConstOp>(op->getLoc(), const_type, const_attr);
+  
+  if (dtype) {
+   return rewriter.createOrFold<tosa::CastOp>(
+        op->getLoc(), RankedTensorType::get(shape, *dtype), const_op);
+  }
   return const_op.getResult();
 }
 
@@ -202,7 +212,7 @@ std::optional<Value> getConstTensor<APInt>(PatternRewriter &rewriter,
 template <>
 std::optional<Value> getConstTensor<float>(PatternRewriter &rewriter,
                                            Operation *op, ArrayRef<float> vec,
-                                           ArrayRef<int64_t> shape) {
+                                           ArrayRef<int64_t> shape, std::optional<Type> dtype) {
   uint64_t num_total_elements = 1;
   for (int64_t a : shape) {
     num_total_elements *= a;
@@ -218,6 +228,11 @@ std::optional<Value> getConstTensor<float>(PatternRewriter &rewriter,
 
   auto const_op =
       rewriter.create<tosa::ConstOp>(op->getLoc(), const_type, const_attr);
+  
+  if (dtype) {
+   return rewriter.createOrFold<tosa::CastOp>(
+        op->getLoc(), RankedTensorType::get(shape, *dtype), const_op);
+  }
   return const_op.getResult();
 }
 
@@ -314,11 +329,13 @@ Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType) {
 template std::optional<Value> getConstTensor<int32_t>(PatternRewriter &,
                                                       Operation *,
                                                       ArrayRef<int32_t> vec,
-                                                      ArrayRef<int64_t> shape);
+                                                      ArrayRef<int64_t> shape,
+                                                      std::optional<Type> dtype);
 
 template std::optional<Value> getConstTensor<int64_t>(PatternRewriter &,
                                                       Operation *,
                                                       ArrayRef<int64_t> vec,
-                                                      ArrayRef<int64_t> shape);
+                                                      ArrayRef<int64_t> shape,
+                                                      std::optional<Type> dtype);
 } // namespace tosa
 } // namespace mlir
