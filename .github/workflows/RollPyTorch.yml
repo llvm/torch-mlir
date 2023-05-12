@@ -114,9 +114,6 @@ jobs:
         git fetch --recurse-submodules=no
         git checkout main
         git pull origin main
-        git checkout -b rollpytorch/${{ env.PT_RELEASE }}
-        git add pytorch-hash.txt pytorch-requirements.txt torchvision-requirements.txt lib/Dialect/Torch/Transforms/AbstractInterpLibrary.cpp include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
-        git diff --cached --exit-code || git commit -m "update PyTorch version to ${{ env.PT_RELEASE }}"
 
     - name: Create pull request
       uses: peter-evans/create-pull-request@v5.0.1
