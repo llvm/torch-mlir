@@ -201,6 +201,11 @@ TORCHDYNAMO_XFAIL_SET = {
     'IsFloatingPointInt_False',
     'TorchPrimLoopForLikeModule_basic',
     'TorchPrimLoopWhileLikeModule_basic',
+
+    # Forming aten.view_as_real and aten.view_as_imag instead of aten.real and aten.imag op.
+    # Complex ops
+    "AtenComplexImagModule_basic",
+    "AtenComplexRealModule_basic",
 }
 
 # See https://github.com/llvm/torch-mlir/issues/2050
@@ -340,6 +345,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseSubScalarFloatModule_basic",
     "ElementwiseSubScalarIntModule_basic",
     "ElementwiseWhereScalarModule_basic",
+    "ElementwiseAbsModule_basic",
     "EmbeddingModule1DIndices_basic",
     "EmbeddingModuleI32Static_basic",
     "EmbeddingModuleI32_basic",
@@ -347,6 +353,8 @@ STABLEHLO_PASS_SET = {
     "EmbeddingModuleF16_basic",
     "ExpandAsIntModule_basic",
     "ExpandModule_basic",
+    "Fill_TensorFloat64WithFloat32Static_basic",
+    "Fill_TensorFloat64WithInt64Static_basic",
     "FullLikeModuleDefaultDtype_basic",
     "FullLikeModuleFalsePinMemory_basic",
     "FullLikeModuleFloat2D_basic",
@@ -435,6 +443,8 @@ STABLEHLO_PASS_SET = {
     "FlattenRank0Module_basic",
     "TensorsConcatNegativeDimModule_basic",
     "TensorsConcatPromoteDTypeModule_basic",
+    "TensorsConcatStaticModule_basic",
+    "TensorsConcatNegativeDimStaticModule_basic",
     "TensorsStackModule_basic",
     "TensorsStackNegativeDimModule_basic",
     "TensorsStackPromoteDTypeModule_basic",
@@ -631,6 +641,7 @@ STABLEHLO_PASS_SET = {
     "ConvolutionBackwardModule2DStrided_basic",
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
+    "AtenComplex64Module_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -909,6 +920,9 @@ TOSA_PASS_SET = {
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
     "DetachModule_basic",
+    "TensorsConcatStaticModule_basic",
+    "TensorsConcatNegativeDimStaticModule_basic",
+    "AtenComplex64Module_basic",
 }
 
 LTC_XFAIL_SET = {
@@ -1024,6 +1038,8 @@ LTC_XFAIL_SET = {
     "TensorToIntZeroRank_basic",
     "TensorToInt_basic",
     "TensorsConcatModule_basic",
+    "TensorsConcatStaticModule_basic",
+    "TensorsConcatNegativeDimStaticModule_basic",
     "UniformModule_basic",
     "UniformNoCorrelationModule_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
@@ -1083,4 +1099,7 @@ LTC_XFAIL_SET = {
     "OneHotModule_basic",
     "VarMeanDimModule_basic",
     "VarMeanDimBiasedModule_basic",
+    "AtenComplexImagModule_basic",
+    "AtenComplexRealModule_basic",
+    "AtenComplexViewModule_basic"
 }
