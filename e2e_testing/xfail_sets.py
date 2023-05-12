@@ -642,6 +642,7 @@ STABLEHLO_PASS_SET = {
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
     "AtenComplex64Module_basic",
+    "SplitTensorGetItem_Module_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -923,6 +924,7 @@ TOSA_PASS_SET = {
     "TensorsConcatStaticModule_basic",
     "TensorsConcatNegativeDimStaticModule_basic",
     "AtenComplex64Module_basic",
+    "SplitTensorGetItem_Module_basic",
 }
 
 LTC_XFAIL_SET = {

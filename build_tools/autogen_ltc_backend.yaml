@@ -6,6 +6,7 @@ blacklist:
 - index.Tensor  # Error: TODO not sure if there are other valid types to handle here
 - index_put  # Error: TODO not sure if there are other valid types to handle here
 - index_put_  # Error: TODO not sure if there are other valid types to handle here
+- split.Tensor
 
 # Additional ops which autogen is supported for but don't compile yet
 - _convolution
