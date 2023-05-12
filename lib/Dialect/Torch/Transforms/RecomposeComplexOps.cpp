@@ -133,6 +133,8 @@ public:
         dyn_cast<AtenSplitTensorOp>(op.getList().getDefiningOp());
     if (!splitTensorOp)
       return failure();
+    if (isListPotentiallyMutated(op.getList()))
+      return failure();
     int64_t index;
     if (!matchPattern(op.getIdx(), m_TorchConstantInt(&index)))
       return rewriter.notifyMatchFailure(
