@@ -647,6 +647,7 @@ TCP_PASS_SET = {
     "AddCDivModule_basic",
     "AtenRoundIntModule_basic",
     "AtenToDeviceModule_basic",
+    "AtenComplex64Module_basic",
     "BatchNorm1DModule_basic",
     "BatchNorm1DWith2DInputModule_basic",
     "BatchNorm2DModule_basic",
