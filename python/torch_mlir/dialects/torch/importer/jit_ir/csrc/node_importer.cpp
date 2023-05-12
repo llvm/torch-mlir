@@ -233,6 +233,13 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock,
                        dummyAnnotator, importOptions);
       mapResults(node, mlirOpResultGetOwner(listValue));
       return; // Early return, since `importIValue` already added op to block.
+    } else if (output->type()->cast<c10::TupleType>()) {
+      ClassAnnotator dummyAnnotator;
+      MlirValue tupleValue =
+          importIValue(node->ival(c10::attr::value), appendToBlock, context,
+                       dummyAnnotator, importOptions);
+      mapResults(node, mlirOpResultGetOwner(tupleValue));
+      return; // Early return, since `importIValue` already added op to block.
     } else {
       std::stringstream msg;
       msg << "unhandled prim::Constant node: ";
