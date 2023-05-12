@@ -12,7 +12,6 @@ add_mlir_library(TorchMLIRTorchPasses
   RecomposeComplexOps.cpp
   ReduceOpVariants.cpp
   RefinePublicReturn.cpp
-  RefineTypes.cpp
   ReifyShapeCalculations.cpp
   ReifyDtypeCalculations.cpp
   ReifyAbstractInterpCalculationsUtils.cpp
