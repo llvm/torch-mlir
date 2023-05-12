@@ -13,7 +13,7 @@ func.func @forward(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,
   %false = torch.constant.bool false
   // CHECK: %[[C1:.*]] = torch_c.to_i64 %int1
   // CHECK: %[[C2:.*]] = torch_c.to_i64 %int2
-  // CHECK: %[[NEUTRAL:.*]] = arith.constant -3.40282347E+38 : f32
+  // CHECK: %[[NEUTRAL:.*]] = arith.constant 0xFF800000 : f32
   // CHECK: %[[PADDED:.*]] = tensor.pad %{{.*}} low[0, 0, 5, 6] high[0, 0, 5, 6]
   // CHECK: %[[OUT:.*]] = linalg.fill ins(%[[NEUTRAL]] : f32) outs(%{{.*}} : tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32>
   // CHECK: %[[T1:.*]] = arith.index_cast %[[C1]] : i64 to index

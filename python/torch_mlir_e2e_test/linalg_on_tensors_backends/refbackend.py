@@ -23,7 +23,7 @@ __all__ = [
 def assert_arg_type_is_supported(ty):
     SUPPORTED = [
         np.float16, np.float32, np.float64, np.uint8, np.int8, np.int32,
-        np.int64, np.bool_
+        np.int64, np.bool_, np.complex64, np.complex128
     ]
     assert ty in SUPPORTED, f"Only numpy arrays with dtypes in {SUPPORTED} are supported, but got {ty}"
 
@@ -35,7 +35,9 @@ memref_type_to_np_dtype = {
     "mri1": np.bool_,
     "mri8": np.int8,
     "mri32": np.int32,
-    "mri64": np.int64
+    "mri64": np.int64,
+    "mrc32": np.complex64,
+    "mrc64": np.complex128
 }
 elemental_type_to_ctype = {
     "i1": ctypes.c_bool,
@@ -167,6 +169,7 @@ LOWERING_PIPELINE = "builtin.module(" + ",".join([
     "func.func(convert-arith-to-llvm)",
     "convert-func-to-llvm",
     "convert-cf-to-llvm",
+    "convert-complex-to-llvm",
     "reconcile-unrealized-casts",
 ]) + ")"
 

@@ -74,6 +74,7 @@ TosaOp CreateOpAndInfer(PatternRewriter &rewriter, Location loc, Type result_ty,
   if (shapeInterface
           .inferReturnTypeComponents(op.getContext(), op.getLoc(),
                                      op->getOperands(), op->getAttrDictionary(),
+                                     op->getPropertiesStorage(),
                                      op->getRegions(), returnedShapes)
           .failed())
     return op;

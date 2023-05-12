@@ -67,6 +67,8 @@ static bool isArgMemRefTypeValid(Type type) {
         return true;
       if (integerTy.isSignlessInteger(1))
         return true;
+    } else if (auto complexTy = elemTy.dyn_cast<ComplexType>()) {
+      return complexTy.getElementType().isa<Float32Type, Float64Type>();
     }
   }
   return false;
@@ -88,6 +90,9 @@ static std::string getTypeToken(Type type) {
     return ("i" + Twine(type.getIntOrFloatBitWidth())).str();
   else if (type.isa<mlir::FloatType>())
     return ("f" + Twine(type.getIntOrFloatBitWidth())).str();
+  else if (auto complexTy = type.dyn_cast<mlir::ComplexType>())
+    return ("c" + Twine(complexTy.getElementType().getIntOrFloatBitWidth()))
+        .str();
   else if (auto memRefType = type.dyn_cast<UnrankedMemRefType>())
     return "mr" + getTypeToken(memRefType.getElementType());
 
@@ -143,7 +148,8 @@ static LogicalResult mungeFunction(
     auto type = arg.getType();
     if (!isArgMemRefTypeValid(type)) {
       return emitError(arg.getLoc())
-          .append("argument must be a memref of f32, f64, i32, i64, i8, i1 but "
+          .append("argument must be a memref of f32, f64, i32, i64, i8, i1, "
+                  "c32, c64, but "
                   "got ",
                   type);
     }
