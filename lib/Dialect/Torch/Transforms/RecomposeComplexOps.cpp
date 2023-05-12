@@ -159,6 +159,8 @@ public:
     auto unbind = dyn_cast<AtenUnbindIntOp>(op.getList().getDefiningOp());
     if (!unbind)
       return failure();
+    if (isListPotentiallyMutated(op.getList()))
+      return failure();
     int64_t index;
     if (!matchPattern(op.getIdx(), m_TorchConstantInt(&index)))
       return rewriter.notifyMatchFailure(
