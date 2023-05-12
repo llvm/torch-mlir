@@ -64,6 +64,8 @@ int main(int argc, char **argv) {
   mlir::tcp::registerTcpPasses();
 #endif // TORCH_MLIR_DIALECTS_ENABLE_TCP
 
+  mlir::torch_mlir_dialects::registerConversionPasses();
+
   return mlir::asMainReturnCode(mlir::MlirOptMain(
       argc, argv, "MLIR modular optimizer driver\n", registry));
 }
