@@ -138,6 +138,6 @@ jobs:
       shell: bash
       run: ./build_tools/python_deploy/build_windows_ci.sh
 
-    - name: Print ccache configuration and statistics
+    - name: Print ccache statistics
       shell: bash
-      run: ccache --show-config --show-stats --print-stats
+      run: ccache --show-stats
