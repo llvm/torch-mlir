@@ -131,8 +131,6 @@ public:
     auto unbind = dyn_cast<AtenUnbindIntOp>(op.getOperand().getDefiningOp());
     if (!unbind)
       return failure();
-    if (!unbind->hasOneUse())
-      return failure();
     Value dim = unbind.getDim();
     Value input = unbind.getSelf();
     SmallVector<Value> slices;
@@ -148,7 +146,34 @@ public:
       slices.push_back(squeeze);
     }
     rewriter.replaceOp(op, slices);
-    unbind.erase();
+    return success();
+  }
+};
+
+class RecomposeUnbindGetItem : public OpRewritePattern<Aten__Getitem__TOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten__Getitem__TOp op,
+                                PatternRewriter &rewriter) const override {
+    // recompose AtenUnbindIntOp + __getitem__t to select.int + squeeze op
+    auto unbind = dyn_cast<AtenUnbindIntOp>(op.getList().getDefiningOp());
+    if (!unbind)
+      return failure();
+    int64_t index;
+    if (!matchPattern(op.getIdx(), m_TorchConstantInt(&index)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected `idx` of `Aten__Getitem__TOp` to be a constant int");
+
+    Location loc = op.getLoc();
+    Value dim = unbind.getDim();
+    Value input = unbind.getSelf();
+    // rewrite to slice op
+    auto resultTy = op.getResult().getType();
+    auto newSelect = rewriter.create<AtenSelectIntOp>(loc, resultTy, input, dim,
+                                                      op.getIdx());
+    Value squeeze =
+        rewriter.create<AtenSqueezeDimOp>(loc, resultTy, newSelect, dim);
+    rewriter.replaceOp(op, squeeze);
     return success();
   }
 };
@@ -166,6 +191,7 @@ public:
     patterns.add<RecomposeSliceCopy_>(context);
     patterns.add<RecomposeSelectFill_>(context);
     patterns.add<RecomposeUnbindListUnpack>(context);
+    patterns.add<RecomposeUnbindGetItem>(context);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

@@ -9467,6 +9467,7 @@ def Torch_AtenSortOp : Torch_Op<"aten.sort", [
 }
 
 def Torch_AtenUnbindIntOp : Torch_Op<"aten.unbind.int", [
+    Pure,
     AllowsTypeRefinement,
     ReadOnly
   ]> {
