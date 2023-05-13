@@ -100,7 +100,7 @@ jobs:
     - name: Update PyTorch Build Cache (if running on main branch)
       if: github.ref_name == 'main'
       id: cache-pytorch
-      uses: ashay/cache@v1
+      uses: actions/cache@v3
       with:
         path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
         key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
