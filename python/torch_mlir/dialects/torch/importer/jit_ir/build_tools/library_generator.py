@@ -14,6 +14,55 @@ from torch_mlir.passmanager import PassManager
 
 from .registry import Registry
 
+def all_integer_dtypes() -> List[int]:
+    return [torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64]
+
+def is_integer_dtype(dtype: int) -> bool:
+    return dtype in all_integer_dtypes()
+
+def all_complex_dtypes() -> List[int]:
+    return [torch.complex64, torch.complex128]
+
+def is_complex_dtype(dtype: int) -> bool:
+    return dtype in all_complex_dtypes()
+
+def all_float_dtypes() -> List[int]:
+    return [torch.float16, torch.bfloat16, torch.float32, torch.float64]
+
+def is_float_dtype(dtype: int) -> bool:
+    return dtype in all_float_dtypes()
+
+def get_priority_of_dtype(dtype: int) -> int:
+    # If a loop is used to iterate over a list of sorted dtypes, TorchScript
+    # produces a loop with INT64_MAX max trip count, which causes problems
+    # during the loop unrolling that takes place when simplifying the dtype
+    # functions. Therefore, here we resort to `if`s.
+    if dtype == torch.bool:
+        return 0
+    if dtype == torch.uint8:
+        return 1
+    if dtype == torch.int8:
+        return 2
+    if dtype == torch.int16:
+        return 3
+    if dtype == torch.int32:
+        return 4
+    if dtype == torch.int64:
+        return 5
+    if dtype == torch.bfloat16:
+        return 6
+    if dtype == torch.float16:
+        return 7
+    if dtype == torch.float32:
+        return 8
+    if dtype == torch.float64:
+        return 9
+    if dtype == torch.complex64:
+        return 10
+    if dtype == torch.complex128:
+        return 11
+    assert False, "Cannot determine priority of dtype"
+
 def get_dtype_of_scalar(scalar: Union[int, float]) -> int:
     # This is hacky. `NumToTensor` is the only PyTorch op for scalars
     # that when `jit.script`ed converts a float scalar to a tensor
