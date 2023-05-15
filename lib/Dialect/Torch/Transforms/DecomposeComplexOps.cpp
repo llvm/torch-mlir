@@ -2471,23 +2471,12 @@ class DecomposeAtenLayerNormOp : public OpRewritePattern<AtenLayerNormOp> {
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
 
-    auto input = op.getInput().getType().cast<BaseTensorType>();
-    if (!input.hasSizes())
-      return rewriter.notifyMatchFailure(
-          op, "input tensor should have known sizes.");
-    int64_t inputRank = input.getSizes().size();
-    Value normalizedShape = op.getNormalizedShape();
-    SmallVector<Value> normalizedShapeSizesTorchInt;
-    getListConstructElements(normalizedShape, normalizedShapeSizesTorchInt);
-    int64_t axis = inputRank - normalizedShapeSizesTorchInt.size();
-    std::vector<int64_t> meanVarSizes(inputRank, 1);
-    for (int i = 0; i < axis; i++)
-      meanVarSizes[i] = input.getSizes()[i];
-    auto meanVarType = input.getWithSizesAndDtype(llvm::ArrayRef(meanVarSizes),
-                                                  input.getOptionalDtype());
     auto nativeLayerNorm = rewriter.create<AtenNativeLayerNormOp>(
-        loc, op.getType(), meanVarType, meanVarType, op.getInput(),
-        op.getNormalizedShape(), op.getWeight(), op.getBias(), op.getEps());
+        loc, op.getType(),
+        ValueTensorType::get(op->getContext(), std::nullopt, nullptr),
+        ValueTensorType::get(op->getContext(), std::nullopt, nullptr),
+        op.getInput(), op.getNormalizedShape(), op.getWeight(), op.getBias(),
+        op.getEps());
     rewriter.replaceOp(op, nativeLayerNorm.getResult(0));
     return success();
   }
@@ -2504,16 +2493,19 @@ class DecomposeAtenNativeLayerNormOp
     auto context = op.getContext();
 
     auto inputTy = op.getInput().getType().cast<BaseTensorType>();
-    if (!inputTy.hasSizes())
+    auto outputTy = op.getResult(0).getType().cast<BaseTensorType>();
+    auto reducedTy = op.getResult(1).getType().cast<BaseTensorType>();
+    if (!outputTy.hasSizes() || !outputTy.hasDtype() || !reducedTy.hasDtype()) {
       return rewriter.notifyMatchFailure(
-          op, "input tensor should have known sizes.");
+          op, "output tensor should have known sizes and dtype.");
+    }
     int64_t inputRank = inputTy.getSizes().size();
     Value normalizedShape = op.getNormalizedShape();
     SmallVector<Value> normalizedShapeSizesTorchInt;
     getListConstructElements(normalizedShape, normalizedShapeSizesTorchInt);
     int64_t axis = inputRank - normalizedShapeSizesTorchInt.size();
-    auto reduceDimInts = llvm::to_vector<4>(llvm::seq<int64_t>(axis, inputRank));
-    auto reducedTy = op.getResult(1).getType();
+    auto reduceDimInts =
+        llvm::to_vector<4>(llvm::seq<int64_t>(axis, inputRank));
     auto sizeListType = ListType::get(IntType::get(context));
 
     // build reduce dims
@@ -2532,29 +2524,38 @@ class DecomposeAtenNativeLayerNormOp
     Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
     Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
     // mean(x)
+    auto convertedInput = convertTensorToDtype(rewriter, loc, op.getInput(),
+                                               reducedTy.getDtype());
     Value inputMean = rewriter.create<AtenMeanDimOp>(
-        loc, reducedTy, op.getInput(), reduceDimList, cstTrue, none);
+        loc, reducedTy, convertedInput, reduceDimList, cstTrue, none);
+    auto convertedInputMean =
+        convertTensorToDtype(rewriter, loc, inputMean, inputTy.getDtype());
 
     // x - mean(x)
-    Value inputMeanExpanded =
-        rewriter.create<AtenExpandAsOp>(loc, inputTy, inputMean, op.getInput());
+    Value inputMeanExpanded = rewriter.create<AtenExpandAsOp>(
+        loc, inputTy, convertedInputMean, op.getInput());
     Value inputZeroMean = rewriter.create<AtenSubTensorOp>(
         loc, inputTy, op.getInput(), inputMeanExpanded, one);
     // var(x) = mean((x - mean(x))^2)
     Value inputZeroMeanSquare = rewriter.create<AtenMulTensorOp>(
         loc, inputTy, inputZeroMean, inputZeroMean);
+    auto convertedInputZeroMeanSquare = convertTensorToDtype(
+        rewriter, loc, inputZeroMeanSquare, reducedTy.getDtype());
     Value inputVar = rewriter.create<AtenMeanDimOp>(
-        loc, reducedTy, inputZeroMeanSquare, reduceDimList, cstTrue, none);
+        loc, reducedTy, convertedInputZeroMeanSquare, reduceDimList, cstTrue,
+        none);
 
     // rsqrt(var(x) + eps)
     Value inputVarPlusEps = rewriter.create<AtenAddScalarOp>(
         loc, reducedTy, inputVar, op.getEps(), one);
     Value inputRsqrtVar =
         rewriter.create<AtenRsqrtOp>(loc, reducedTy, inputVarPlusEps);
+    auto convertedInputRsqrtVar =
+        convertTensorToDtype(rewriter, loc, inputRsqrtVar, inputTy.getDtype());
 
     // (x - mean(x)) * rsqrt(var(x) + eps)
     Value inputRsqrtVarExpanded = rewriter.create<AtenExpandAsOp>(
-        loc, inputTy, inputRsqrtVar, op.getInput());
+        loc, inputTy, convertedInputRsqrtVar, op.getInput());
     Value inputNormalized = rewriter.create<AtenMulTensorOp>(
         loc, inputTy, inputZeroMean, inputRsqrtVarExpanded);
     Value out = rewriter.create<TensorStaticInfoCastOp>(

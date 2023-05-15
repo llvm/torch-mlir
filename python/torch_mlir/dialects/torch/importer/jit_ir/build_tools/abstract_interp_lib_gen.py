@@ -2601,7 +2601,9 @@ def aten〇nll_loss_forward〡dtype(self_rank_dtype: Tuple[int, int], target_ran
     return self_dtype, self_dtype
 
 @check_dtype_function(
-    [Invocation(TensorOfShape(2, 3, dtype=torch.float32), [3], TensorOfShape(3, dtype=torch.float32),
+    [Invocation(TensorOfShape(2, 3, dtype=torch.float16), [3], TensorOfShape(3, dtype=torch.float16),
+                TensorOfShape(3, dtype=torch.float16), eps=0.0),
+     Invocation(TensorOfShape(2, 3, dtype=torch.float32), [3], TensorOfShape(3, dtype=torch.float32),
                 TensorOfShape(3, dtype=torch.float32), eps=0.0),
      Invocation(TensorOfShape(2, 3, dtype=torch.float64), [3], TensorOfShape(3, dtype=torch.float32),
                 TensorOfShape(3, dtype=torch.float32), eps=0.0),
@@ -2620,12 +2622,13 @@ def aten〇nll_loss_forward〡dtype(self_rank_dtype: Tuple[int, int], target_ran
 def aten〇native_layer_norm〡dtype(input_rank_dtype: Tuple[int, int], normalized_shape: List[int], weight_rank_dtype: Optional[Tuple[int, int]], bias_rank_dtype: Optional[Tuple[int, int]], eps: float) -> Tuple[int, int, int]:
     input_rank, input_dtype = input_rank_dtype
     assert not is_integer_dtype(input_dtype)
-    result_dtype = input_dtype
+    if input_dtype == torch.float16:
+        return input_dtype, torch.float32, torch.float32
     if input_dtype == torch.complex64:
-        result_dtype = torch.float32
+        return input_dtype, input_dtype, torch.float32
     if input_dtype == torch.complex128:
-        result_dtype = torch.float64
-    return input_dtype, input_dtype, result_dtype
+        return input_dtype, input_dtype, torch.float64
+    return input_dtype, input_dtype, input_dtype
 
 @check_dtype_function(
     [Invocation(TensorOfShape(3, 3, dtype=torch.float32), TensorOfShape(3, dtype=torch.float32),
