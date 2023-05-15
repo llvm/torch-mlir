@@ -23,6 +23,13 @@ LogicalResult updateCalculateOpResultTypes(Operation *calculateOp,
                                            int resultNum, Type newResultType,
                                            PatternRewriter &rewriter);
 
+void populateFoldPrimUncheckedCastOpPattern(RewritePatternSet &patterns,
+                                            MLIRContext *context);
+void populateFullyUnrollPrimLoopOpPattern(RewritePatternSet &patterns,
+                                          MLIRContext *context);
+void populateAbstractlyInterpretListOpsWithinABlockPattern(
+    RewritePatternSet &patterns, MLIRContext *context);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

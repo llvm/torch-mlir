@@ -25,6 +25,15 @@ compute_shape_div(const at::Tensor& self, const at::Scalar& other) {
 }
 
 std::vector<torch::lazy::Shape>
+compute_shape_mse_loss_backward(
+    const at::Tensor& grad_output,
+    const at::Tensor& self,
+    const at::Tensor& target,
+    int64_t reduction) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
+std::vector<torch::lazy::Shape>
 compute_shape_mul(const at::Tensor& self, const at::Scalar& other) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }

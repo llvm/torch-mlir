@@ -818,7 +818,7 @@ def GatherNegativeDimModule_basic(module, tu: TestUtils):
 class GatherRandomIndexModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
@@ -839,7 +839,7 @@ def GatherRandomIndexModule_basic(module, tu: TestUtils):
 class Gather2DInputModdule(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
@@ -1914,7 +1914,7 @@ class TensorLiteralModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         torch.manual_seed(0)
-        self.t = torch.randint(-5, 5, (2, 3))
+        self.register_buffer("t", torch.randint(-5, 5, (2, 3)))
 
     @export
     @annotate_args([
@@ -1937,7 +1937,7 @@ class TensorOpaqueLiteralModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         torch.manual_seed(0)
-        self.t = torch.randint(-5, 5, (256, 1024))
+        self.register_buffer("t", torch.randint(-5, 5, (256, 1024)))
 
     @export
     @annotate_args([

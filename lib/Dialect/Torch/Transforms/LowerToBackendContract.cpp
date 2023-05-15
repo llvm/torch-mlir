@@ -103,7 +103,8 @@ static LogicalResult checkType(Operation *op, Type type,
             ->emitError(
                 "unsupported by backend contract: tensor with unknown dtype")
             .attachNote()
-            .append("this is likely due to a missing case in RefineTypes");
+            .append("this is likely due to a missing transfer function in "
+                    "abstract_interp_lib_gen.py");
       } else {
         return failure();
       }
