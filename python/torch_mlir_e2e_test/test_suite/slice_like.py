@@ -562,3 +562,22 @@ class UnbindIntListUnpack_Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: UnbindIntListUnpack_Module())
 def UnbindIntListUnpack_Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))
+
+# ==============================================================================
+
+class UnbindIntGetItem_Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        unbind = torch.unbind(x, 0)
+        return torch.ops.aten.sub(unbind[0], unbind[1])
+
+@register_test_case(module_factory=lambda: UnbindIntGetItem_Module())
+def UnbindIntGetItem_Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4))

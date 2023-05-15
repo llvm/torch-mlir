@@ -127,7 +127,7 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(PrimListUnpackOp op,
                                 PatternRewriter &rewriter) const override {
-    // recompose AtenUnbindOp + PrimListUnpackOp to select.int + squeeze ops
+    // recompose AtenUnbindOp + PrimListUnpackOp to select.int
     auto unbind = dyn_cast<AtenUnbindIntOp>(op.getOperand().getDefiningOp());
     if (!unbind)
       return failure();
@@ -141,9 +141,7 @@ public:
           op->getLoc(), rewriter.getI64IntegerAttr(i));
       auto newSelect = rewriter.create<AtenSelectIntOp>(op->getLoc(), resultTy,
                                                         input, dim, index);
-      auto squeeze = rewriter.create<AtenSqueezeDimOp>(op->getLoc(), resultTy,
-                                                       newSelect, dim);
-      slices.push_back(squeeze);
+      slices.push_back(newSelect);
     }
     rewriter.replaceOp(op, slices);
     return success();
@@ -155,7 +153,7 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(Aten__Getitem__TOp op,
                                 PatternRewriter &rewriter) const override {
-    // recompose AtenUnbindIntOp + __getitem__t to select.int + squeeze op
+    // recompose AtenUnbindIntOp + __getitem__t to select.int
     auto unbind = dyn_cast<AtenUnbindIntOp>(op.getList().getDefiningOp());
     if (!unbind)
       return failure();
@@ -171,11 +169,9 @@ public:
     Value input = unbind.getSelf();
     // rewrite to slice op
     auto resultTy = op.getResult().getType();
-    auto newSelect = rewriter.create<AtenSelectIntOp>(loc, resultTy, input, dim,
-                                                      op.getIdx());
-    Value squeeze =
-        rewriter.create<AtenSqueezeDimOp>(loc, resultTy, newSelect, dim);
-    rewriter.replaceOp(op, squeeze);
+    Value newSelect = rewriter.create<AtenSelectIntOp>(loc, resultTy, input,
+                                                       dim, op.getIdx());
+    rewriter.replaceOp(op, newSelect);
     return success();
   }
 };

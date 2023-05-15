@@ -8,7 +8,7 @@ blacklist:
 - index_put_  # Error: TODO not sure if there are other valid types to handle here
 
 # Ops with list of tensors output
-- unbind.int  # Error: TODO 
+- unbind.int
 
 # Additional ops which autogen is supported for but don't compile yet
 - _convolution
