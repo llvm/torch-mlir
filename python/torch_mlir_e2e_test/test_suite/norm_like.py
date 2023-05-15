@@ -217,6 +217,53 @@ def NativeBatchNormNoneWeightModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class NativeGroupNormModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 6, 2, 2], torch.float32, True),
+        ([6], torch.float32, True),
+        ([6], torch.float32, True),
+    ])
+    def forward(self, x, weight, bias):
+        return torch.ops.aten.native_group_norm(
+            x, weight, bias,
+            2, 6, 4, 3, 0.000001);
+
+
+@register_test_case(module_factory=lambda: NativeGroupNormModule())
+def NativeGroupNormModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 6, 2, 2), tu.rand(6), tu.rand(6))
+
+class NativeGroupNormBackwardModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 6, 2, 2], torch.float32, True),
+        ([2, 6, 2, 2], torch.float32, True),
+        ([2, 3], torch.float32, True),
+        ([2, 3], torch.float32, True),
+        ([6], torch.float32, True),
+    ])
+    def forward(self, grad_out, x, mean, rstd, weight):
+        return torch.ops.aten.native_group_norm_backward(
+            grad_out, x, mean, rstd, weight,
+            2, 6, 4, 3, [True, True, True]);
+
+
+@register_test_case(module_factory=lambda: NativeGroupNormBackwardModule())
+def NativeGroupNormBackwardModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 6, 2, 2), tu.rand(2, 6, 2, 2), tu.rand(2, 3),
+        tu.rand(2, 3), tu.rand(6))
+
+# ==============================================================================
+
 class NativeLayerNormModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

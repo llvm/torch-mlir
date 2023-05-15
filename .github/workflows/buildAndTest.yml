@@ -82,14 +82,13 @@ jobs:
       with:
         arch: x64
 
-    - name: Cache PyTorch Build
+    - name: Try to Restore PyTorch Build Cache
       if: matrix.os-arch != 'windows-x86_64'
       id: cache-pytorch
-      uses: ashay/cache@v1
+      uses: actions/cache/restore@v3
       with:
         path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
         key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
-        save: ${{ github.ref_name == 'main' && matrix.torch-binary == 'OFF' }}
 
     - name: Build and Test os-arch='ubuntu-x86_64' llvm-build='${{ matrix.llvm-build }}' torch-binary='${{ matrix.torch-binary }}'
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
@@ -100,6 +99,7 @@ jobs:
         TM_USE_PYTORCH_BINARY="${{ matrix.torch-binary }}" \
         TM_PYTORCH_INSTALL_WITHOUT_REBUILD="${{ steps.cache-pytorch.outputs.cache-hit }}" \
         ./build_tools/python_deploy/build_linux_packages.sh
+
     - name: Configure os-arch='macos-arm64' llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'
       # cross compile, can't test arm64
       if: ${{ matrix.os-arch == 'macos-arm64' && matrix.llvm-build == 'in-tree' }}
@@ -128,6 +128,7 @@ jobs:
           -DMACOSX_DEPLOYMENT_TARGET=12.0 \
           -DPython3_EXECUTABLE="$(which python)" \
           $GITHUB_WORKSPACE/externals/llvm-project/llvm
+
     - name: Build torch-mlir (cross-compile)
       if: ${{ matrix.os-arch == 'macos-arm64' }}
       run: |
@@ -138,6 +139,13 @@ jobs:
       shell: bash
       run: ./build_tools/python_deploy/build_windows_ci.sh
 
-    - name: Print ccache configuration and statistics
+    - name: Save PyTorch Build Cache
+      if: ${{ github.ref_name == 'main' && matrix.torch-binary == 'OFF' && matrix.os-arch != 'windows-x86_64' }}
+      uses: actions/cache/save@v3
+      with:
+        path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
+        key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
+
+    - name: Print ccache statistics
       shell: bash
-      run: ccache --show-config --show-stats --print-stats
+      run: ccache --show-stats

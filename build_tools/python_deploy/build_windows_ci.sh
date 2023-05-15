@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -eo pipefail
 
 echo "Building torch-mlir"
 
@@ -16,6 +17,6 @@ cmake -GNinja -Bbuild \
   -DPython3_EXECUTABLE="$(which python)" \
   $GITHUB_WORKSPACE/externals/llvm-project/llvm
 
-cmake --build build
+cmake --build build --config Release
 
 echo "Build completed successfully"

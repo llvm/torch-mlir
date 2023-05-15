@@ -191,9 +191,16 @@ class SimplifyDtypeCalculationsPass
     MLIRContext *context = &getContext();
 
     RewritePatternSet patterns(context);
+    populateFullyUnrollPrimLoopOpPattern(patterns, context);
+    populateAbstractlyInterpretListOpsWithinABlockPattern(patterns, context);
+    populateFoldPrimUncheckedCastOpPattern(patterns, context);
     patterns.insert<RefineDtypeCalculateOp>(context);
     patterns.insert<DecomposePromoteDtypesOp>(context);
     patterns.insert<RefineNumToTensorScalarOpType>(context);
+
+    PrimIfOp::getCanonicalizationPatterns(patterns, context);
+    Aten__Getitem__TOp::getCanonicalizationPatterns(patterns, context);
+    PrimTupleUnpackOp::getCanonicalizationPatterns(patterns, context);
 
     // TODO: Debug visitation order to make this more efficient.
     // A single linear scan should suffice.
