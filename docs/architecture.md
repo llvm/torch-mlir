@@ -242,8 +242,7 @@ The `torchscript-module-to-torch-backend-pipeline` contains the set of simplific
 1. LowerToBackendContract: This pass iteratively applies a simplification
    pipeline until the backend contract is reached. The simplification pipeline consists of:
    - Standard canonicalization.
-   - Shape refinement. See [shape_lib.md](https://github.com/llvm/torch-mlir/blob/main/docs/shape_lib.md) for detail
-   - DType refinement. See `RefineTypes`.
+   - Shape and Dtype refinement. See [abstract_interp_lib.md](https://github.com/llvm/torch-mlir/blob/main/docs/abstract_interp_lib.md) for detail
    - Decomposing ops into more primitive ops. See `DecomposeComplexOps`.
 
 ### Layering of the PyTorch Dependency
@@ -413,8 +412,6 @@ DON'T use a unit test if your lowering pattern could be described as a trivial
 "macro expansion" of one op into another op or set of ops. That is, if you feel
 like your unit test is just rewriting `b.create<...>(...)` into `CHECK: ...`
 then it is probably not a useful unit test.
-
-DON'T add a unit test for trivial changes to RefineTypes.
 
 With the exceptions above, all changes should include appropriate unit tests, as
 is standard in the LLVM and MLIR community. This includes full coverage of all

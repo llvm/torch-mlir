@@ -17,6 +17,10 @@
 using namespace mlir;
 using namespace mlir::torch;
 
+bool torchMlirTypeIsValidSubtype(MlirType subtype, MlirType type) {
+  return Torch::isValidSubtype(unwrap(subtype), unwrap(type));
+}
+
 //===----------------------------------------------------------------------===//
 // torch.nn.Module type.
 //===----------------------------------------------------------------------===//
