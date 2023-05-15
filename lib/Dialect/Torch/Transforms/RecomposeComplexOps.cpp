@@ -131,6 +131,8 @@ public:
     auto unbind = dyn_cast<AtenUnbindIntOp>(op.getOperand().getDefiningOp());
     if (!unbind)
       return failure();
+    if (isListPotentiallyMutated(unbind.getResult()))
+      return failure();
     Value dim = unbind.getDim();
     Value input = unbind.getSelf();
     SmallVector<Value> slices;
@@ -157,7 +159,7 @@ public:
     auto unbind = dyn_cast<AtenUnbindIntOp>(op.getList().getDefiningOp());
     if (!unbind)
       return failure();
-    if (isListPotentiallyMutated(op.getList()))
+    if (isListPotentiallyMutated(unbind.getResult()))
       return failure();
     int64_t index;
     if (!matchPattern(op.getIdx(), m_TorchConstantInt(&index)))
