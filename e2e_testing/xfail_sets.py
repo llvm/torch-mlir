@@ -36,6 +36,10 @@ TORCHDYNAMO_XFAIL_SET = {
     "NllLossModuleBackward1DSum_basic",
     "NllLossModuleBackward1DWeight_basic",
     "NllLossModuleBackward1D_basic",
+    # TypeError: uniform() missing 2 required keyword-only arguments: 'dtype' and 'device'
+    # RuntimeError: Failed running call_function aten.uniform(...
+    # https://github.com/pytorch/torchdynamo/issues/1954
+    "UniformNoCorrelationModule_basic",
 
     #### Torch-MLIR internal compiler errors
 
@@ -538,7 +542,8 @@ STABLEHLO_PASS_SET = {
     "RsubIntModule_basic",
     "RsubIntModule_noalpha_basic",
     "RsubInt0d_NumToTensor_Module_basic",
-    "ScalarTensorModule_basic",
+    "ScalarTensorFloat32Module_basic",
+    "ScalarTensorIntModule_basic",
     "SelectScattertModule_basic",
     "SelectScattertStaticModule_basic",
     "SliceStaticModule_basic",
@@ -969,7 +974,8 @@ TOSA_PASS_SET = {
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
     "DetachModule_basic",
-    "ScalarTensorModule_basic",
+    "ScalarTensorFloat32Module_basic",
+    "ScalarTensorIntModule_basic",
     "TensorsConcatStaticModule_basic",
     "TensorsConcatNegativeDimStaticModule_basic",
     "AtenComplex64Module_basic",

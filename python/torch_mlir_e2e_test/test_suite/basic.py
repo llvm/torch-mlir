@@ -3776,7 +3776,7 @@ def ConstantBoolParameterModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class ScalarTensorModule(torch.nn.Module):
+class ScalarTensorFloat32Module(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -3790,10 +3790,31 @@ class ScalarTensorModule(torch.nn.Module):
         return scalar
 
 
-@register_test_case(module_factory=lambda: ScalarTensorModule())
-def ScalarTensorModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: ScalarTensorFloat32Module())
+def ScalarTensorFloat32Module_basic(module, tu: TestUtils):
     module.forward()
 
+
+# ==============================================================================
+
+
+class ScalarTensorIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        scalar = torch.ops.aten.scalar_tensor(1, dtype=torch.int64)
+        return scalar
+
+
+@register_test_case(module_factory=lambda: ScalarTensorIntModule())
+def ScalarTensorIntModule_basic(module, tu: TestUtils):
+    module.forward()
 
 # ==============================================================================
 
