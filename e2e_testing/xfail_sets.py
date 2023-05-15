@@ -1103,5 +1103,6 @@ LTC_XFAIL_SET = {
     "VarMeanDimBiasedModule_basic",
     "AtenComplexImagModule_basic",
     "AtenComplexRealModule_basic",
-    "AtenComplexViewModule_basic"
+    "AtenComplexViewModule_basic",
+    "SplitTensorGetItem_Module_basic",
 }
