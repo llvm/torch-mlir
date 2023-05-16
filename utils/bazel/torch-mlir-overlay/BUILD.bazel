@@ -811,6 +811,7 @@ cc_library(
         ":TorchMLIRTMTensorDialect",
         ":TorchMLIRTMTensorPasses",
         ":TorchMLIRTcpDialect",
+        ":TorchMLIRTcpPasses",
         ":TorchMLIRTorchConversionDialect",
         ":TorchMLIRTorchConversionPasses",
         ":TorchMLIRTorchDialect",
