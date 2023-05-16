@@ -267,29 +267,21 @@ function _check_file_not_changed_by() {
 
 function test_in_tree() {
   local torch_version="$1"
-  echo ":::: Test in-tree"
-  cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all || true # TODO remove - here to see all potential failures
-
+  
   cd /main_checkout/torch-mlir/
   export PYTHONPATH="/main_checkout/torch-mlir/build/tools/torch-mlir/python_packages/torch_mlir"
-
-  echo ":::: Check that update_abstract_interp_lib.sh has been run"
-  _check_file_not_changed_by ./build_tools/update_abstract_interp_lib.sh lib/Dialect/Torch/Transforms/AbstractInterpLibrary.cpp || true # TODO remove - here to see all potential failures
-
-  echo ":::: Check that update_torch_ods.sh has been run"
-  _check_file_not_changed_by ./build_tools/update_torch_ods.sh include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td || true # TODO remove - here to see all potential failures
-
-  echo ":::: Run Linalg e2e integration tests"
-  python -m e2e_testing.main --config=linalg -v
-
-  echo ":::: Run StableHLO e2e integration tests"
-  python -m e2e_testing.main --config=stablehlo -v
-
-  echo ":::: Run TOSA e2e integration tests"
-  python -m e2e_testing.main --config=tosa -v
-
+  
   case $torch_version in
     nightly)
+      echo ":::: Test in-tree"
+      cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all
+
+      echo ":::: Check that update_abstract_interp_lib.sh has been run"
+      _check_file_not_changed_by ./build_tools/update_abstract_interp_lib.sh lib/Dialect/Torch/Transforms/AbstractInterpLibrary.cpp
+
+      echo ":::: Check that update_torch_ods.sh has been run"
+      _check_file_not_changed_by ./build_tools/update_torch_ods.sh include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
+
       echo ":::: Run Lazy Tensor Core e2e integration tests"
       python -m e2e_testing.main --config=lazy_tensor_core -v
 
@@ -297,6 +289,9 @@ function test_in_tree() {
       python -m e2e_testing.main --config=torchdynamo -v
       ;;
     stable)
+      echo ":::: Test in-tree"
+      LIT_XFAIL="debug/lockstep_basic.py" cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all
+
       echo ":::: Run Lazy Tensor Core e2e integration tests in experimental mode"
       python -m e2e_testing.main --config=lazy_tensor_core -v --experimental
 
@@ -308,6 +303,15 @@ function test_in_tree() {
       exit 1
       ;;
     esac
+
+  echo ":::: Run Linalg e2e integration tests"
+  python -m e2e_testing.main --config=linalg -v
+
+  echo ":::: Run StableHLO e2e integration tests"
+  python -m e2e_testing.main --config=stablehlo -v
+
+  echo ":::: Run TOSA e2e integration tests"
+  python -m e2e_testing.main --config=tosa -v
 }
 
 function setup_venv() {
