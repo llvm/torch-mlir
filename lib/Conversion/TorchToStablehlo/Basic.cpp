@@ -931,10 +931,10 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
   Value momentum = adaptor.getMomentum();
   (void)momentum;
 
-  if (inputTy.getRank() <= 2) {
-    return rewriter.notifyMatchFailure(op,
-                                       "input should have rank larger than 2");
-  }
+  // handle feature index, see torch's BatchNorm1d, BatchNorm2d, BatchNorm3d,
+  // all of NC, NCL, NCHW, NCDHW's feature index is 1.
+  int64_t feature_index = 1;
+
   if (!inputTy.getElementType().template isa<mlir::FloatType>()) {
     return op.emitError("only input tensor of float type is supported");
   }
@@ -1020,7 +1020,7 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
         rewriter.create<stablehlo::BatchNormTrainingOp>(
             op.getLoc(), outputTy, batchMeanOrVarTy, batchMeanOrVarTy, input,
             weight, bias, rewriter.getF32FloatAttr(eps),
-            rewriter.getI64IntegerAttr(1));
+            rewriter.getI64IntegerAttr(feature_index));
     rewriter.replaceOp(op, batchNormTrainingResult.getResult(0));
     return success();
   } else {
@@ -1037,7 +1037,8 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
         op.getLoc(), inputCasted.getType(), inputCasted, weight, bias,
         runningMean, runningVar,
         // 'epsilon' must satisfy constraint: 32-bit float attribute.
-        rewriter.getF32FloatAttr(eps), rewriter.getI64IntegerAttr(1));
+        rewriter.getF32FloatAttr(eps),
+        rewriter.getI64IntegerAttr(feature_index));
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outputTy, output);
     return success();
   }

@@ -131,6 +131,7 @@ LOWERING_PIPELINE = "builtin.module(" + ",".join([
     # emit things in that form from the high level (e.g. single linalg-generic).
     # Other backends are likely to benefit more.
     "func.func(linalg-fuse-elementwise-ops)",
+    "convert-shape-to-std",
     # Bufferize.
     "func.func(scf-bufferize)",
     "func.func(tm-tensor-bufferize)",
