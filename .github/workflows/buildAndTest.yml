@@ -40,7 +40,7 @@ jobs:
             llvm-build: out-of-tree
           - os-arch: windows-x86_64
             llvm-build: out-of-tree
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     steps:
     
