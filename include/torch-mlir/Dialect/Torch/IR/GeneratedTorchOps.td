@@ -9514,7 +9514,6 @@ def Torch_AtenSplitTensorOp : Torch_Op<"aten.split.Tensor", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
-  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenAddStrOp : Torch_Op<"aten.add.str", [

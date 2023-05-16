@@ -1503,20 +1503,6 @@ void AtenSortIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
-// AtenSplitTensorOp
-//===----------------------------------------------------------------------===//
-
-void AtenSplitTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
-                                                    MLIRContext *context) {
-  patterns.add(+[](AtenSplitTensorOp op, PatternRewriter &rewriter) {
-    if (!op.use_empty())
-      return failure();
-    rewriter.eraseOp(op);
-    return success();
-  });
-}
-
-//===----------------------------------------------------------------------===//
 // NonValueTensorLiteralOp
 //===----------------------------------------------------------------------===//
 

@@ -158,6 +158,8 @@ public:
         loc, op.getResult().getType(), splitTensorOp.getSelf(),
         splitTensorOp.getDim(), start, end, step);
     rewriter.replaceOp(op, sliceTensorOp);
+    if (splitTensorOp.getResult().use_empty())
+      rewriter.eraseOp(splitTensorOp);
     return success();
   }
 };
