@@ -211,7 +211,8 @@ void TorchMlirLoweringContext::AssignOutputOp(
 
   std::vector<std::string> source_files, functions;
   std::vector<int64_t> line_numbers;
-  const auto& frames = torch_mlir_node->metadata().frame_info;
+  const auto& metadata = torch_mlir_node->metadata();
+  const auto& frames = metadata.frame_info;
   if (!frames.empty()) {
     static std::vector<std::string> g_roots =
       string_split(sys_util::GetEnvString("LTC_IR_DEBUG_ROOT_PATH", ""), ":");
@@ -241,6 +242,10 @@ void TorchMlirLoweringContext::AssignOutputOp(
           c10::Symbol::attr("line_numbers"), line_numbers);
     }
   }
+  auto scope = ::c10::Symbol::scope(metadata.scope);
+  op->node()->setScope(
+    c10::make_intrusive<torch::jit::Scope>()->push(scope));
+
   emitted_outputs_[output] = std::move(op);
 }
 

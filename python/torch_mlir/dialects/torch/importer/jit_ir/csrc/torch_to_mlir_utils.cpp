@@ -409,12 +409,12 @@ MlirAttribute torch_mlir::importAttribute(MlirLocation loc,
 
 MlirLocation torch_mlir::getMlirLocationFromNode(MlirContext context,
                                                  torch::jit::Node *node) {
+  MlirLocation loc = mlirLocationUnknownGet(context);
   if (node->hasAttribute(c10::Symbol::attr("source_files"))) {
     const auto& source_files = node->ss(c10::Symbol::attr("source_files"));
     const auto& line_numbers = node->is(c10::Symbol::attr("line_numbers"));
     const auto& functions = node->ss(c10::Symbol::attr("functions"));
 
-    MlirLocation loc = mlirLocationUnknownGet(context);
     for (const auto i : c10::irange(source_files.size())) {
       MlirLocation new_loc = mlirLocationNameGet(
         context,
@@ -428,15 +428,23 @@ MlirLocation torch_mlir::getMlirLocationFromNode(MlirContext context,
       );
       loc = (i == 0 ? new_loc : mlirLocationCallSiteGet(new_loc, loc));
     }
-    return loc;
+    if (source_files.size() == 1) {
+      // Somehow a callstack depth of 1...
+      // Disambiguate function name from scope name below.
+      loc = mlirLocationCallSiteGet(loc, mlirLocationUnknownGet(context));
+    }
   } else if (auto flc = node->sourceRange().file_line_col()) {
     const std::string &file = std::get<0>(*flc);
     int line = std::get<1>(*flc);
     int col = std::get<2>(*flc);
-    return mlirLocationFileLineColGet(context, toMlirStringRef(file), line,
+    loc = mlirLocationFileLineColGet(context, toMlirStringRef(file), line,
                                       col);
   }
-  return mlirLocationUnknownGet(context);
+  auto scopeName = node->scopeName();
+  if (!scopeName.empty()) {
+    loc = mlirLocationNameGet(context, toMlirStringRef(scopeName), loc);
+  }
+  return loc;
 }
 
 std::vector<MlirType>
