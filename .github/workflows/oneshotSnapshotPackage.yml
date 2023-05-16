@@ -16,10 +16,11 @@ jobs:
           # existing lock files.
           sudo rm -rf $GITHUB_WORKSPACE/*
 
-      - name: Checking out repository
+      - name: Checkout torch-mlir
         uses: actions/checkout@v3
         with:
-          token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+            submodules: 'true'
+            fetch-depth: 0
 
       - name: Compute version
         run: |
