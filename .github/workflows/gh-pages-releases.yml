@@ -23,7 +23,7 @@ jobs:
       - name: Checking out repository
         uses: actions/checkout@v3
       - name: Run scrape releases script
-        run: python ./build_tools/scrape_releases.py llvm torch-mlir > /tmp/index.html
+        run: python ./build_tools/scrape_releases.py xilinx torch-mlir > /tmp/index.html
         shell: bash
       - run: git fetch --all
       - run: git switch github-pages
