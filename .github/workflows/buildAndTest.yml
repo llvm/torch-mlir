@@ -40,14 +40,6 @@ jobs:
             llvm-build: out-of-tree
           - os-arch: windows-x86_64
             llvm-build: out-of-tree
-        include:
-          # Specify OS versions
-          - os-arch: ubuntu-x86_64
-            os: ubuntu-latest
-          - os-arch: macos-arm64
-            os: macos-latest
-          - os-arch: windows-x86_64
-            os: windows-latest
     runs-on: ${{ matrix.os }}
 
     steps:
