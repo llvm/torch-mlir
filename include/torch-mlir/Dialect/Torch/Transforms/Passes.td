@@ -126,15 +126,6 @@ def AdjustCallingConventions
   }];
 }
 
-def RefineTypes : Pass<"torch-refine-types", "func::FuncOp"> {
-  let summary = "Refine types";
-  let constructor = "mlir::torch::Torch::createRefineTypesPass()";
-  let description = [{
-    Refines types of the program. Currently, this means shapes and dtypes of
-    tensors/arrays.
-  }];
-}
-
 def InlineGlobalSlots : Pass<"torch-inline-global-slots", "ModuleOp"> {
   let summary = "Inlines torch.global_slot ops.";
   let constructor = "mlir::torch::Torch::createInlineGlobalSlotsPass()";

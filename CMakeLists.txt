@@ -64,21 +64,6 @@ torch_mlir_add_llvm_external_project(
 
 option(TORCH_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
 
-# Adjustments to use ccache on Windows
-if (WIN32)
-  find_program(ccache_exe ccache)
-  if(ccache_exe)
-    file(COPY_FILE ${ccache_exe} ${CMAKE_BINARY_DIR}/cl.exe ONLY_IF_DIFFERENT)
-    set(CMAKE_VS_GLOBALS
-      "CLToolExe=cl.exe"
-      "CLToolPath=${CMAKE_BINARY_DIR}"
-      "TrackFileAccess=false"
-      "UseMultiToolTask=true"
-      "DebugInformationFormat=OldStyle"
-    )
-  endif()
-endif()
-
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR TORCH_MLIR_OUT_OF_TREE_BUILD)
   message(STATUS "Torch-MLIR out-of-tree build.")
   # Out-of-tree build
@@ -212,3 +197,35 @@ else()
 endif()
 
 add_subdirectory(test)
+
+if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+  install(DIRECTORY include/torch-mlir include/torch-mlir-c
+          DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+          COMPONENT torch-mlir-headers
+          FILES_MATCHING
+          PATTERN "*.def"
+          PATTERN "*.h"
+          PATTERN "*.inc"
+          PATTERN "*.td"
+          PATTERN "LICENSE.TXT"
+          )
+
+  install(DIRECTORY ${TORCH_MLIR_BINARY_DIR}/include/torch-mlir
+          DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+          COMPONENT torch-mlir-headers
+          FILES_MATCHING
+          PATTERN "*.def"
+          PATTERN "*.h"
+          PATTERN "*.gen"
+          PATTERN "*.inc"
+          PATTERN "*.td"
+          PATTERN "CMakeFiles" EXCLUDE
+          PATTERN "config.h" EXCLUDE
+          )
+
+  if (NOT LLVM_ENABLE_IDE)
+    add_llvm_install_targets(install-torch-mlir-headers
+            DEPENDS torch-mlir-headers
+            COMPONENT torch-mlir-headers)
+  endif()
+endif()

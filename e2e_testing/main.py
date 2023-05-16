@@ -110,7 +110,7 @@ def main():
         xfail_set = LTC_XFAIL_SET
         crashing_set = set()
     elif args.config == "torchdynamo":
-        config = TorchDynamoTestConfig()
+        config = TorchDynamoTestConfig(RefBackendLinalgOnTensorsBackend())
         xfail_set = TORCHDYNAMO_XFAIL_SET
         crashing_set = TORCHDYNAMO_CRASHING_SET
 

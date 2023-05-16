@@ -97,7 +97,15 @@ jobs:
           torchvision version: ${{ env.PTVISION_RELEASE }}
           ```
 
-    - name: Push changes to main branch
+    - name: Update PyTorch Build Cache (if running on main branch)
+      if: github.ref_name == 'main'
+      id: cache-pytorch
+      uses: actions/cache@v3
+      with:
+        path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
+        key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
+
+    - name: Commit changes locally
       if: env.PT_HASH_CHANGED != '0'
       run: |
         cd ${GITHUB_WORKSPACE}
@@ -106,13 +114,22 @@ jobs:
         git fetch --recurse-submodules=no
         git checkout main
         git pull origin main
-        git add pytorch-hash.txt pytorch-nightly-requirements.txt torchvision-nightly-requirements.txt lib/Dialect/Torch/Transforms/AbstractInterpLibrary.cpp include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
-        git diff --cached --exit-code || (git commit -m "update PyTorch version to ${{ env.PT_RELEASE }}" && git push --set-upstream origin main)
 
-    - name: Update PyTorch Build Cache (if running on main branch)
-      if: github.ref_name == 'main'
-      id: cache-pytorch
-      uses: ashay/cache@v1
+    - name: Create pull request
+      uses: peter-evans/create-pull-request@v5.0.1
       with:
-        path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
-        key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
+        author: Roll PyTorch Action <torch-mlir@users.noreply.github.com>
+        branch: rollpytorch/${{ env.PT_RELEASE }}
+        body: |
+          torch version: ${{ env.PT_RELEASE }}
+          torch commit hash: ${{ env.PT_HASH }}
+          torchvision version: ${{ env.PTVISION_RELEASE }}
+        commit-message: |
+          update PyTorch version to ${{ env.PT_RELEASE }}
+
+           - torch version: ${{ env.PT_RELEASE }}
+           - torch commit hash: ${{ env.PT_HASH }}
+           - torchvision version: ${{ env.PTVISION_RELEASE }}
+        committer: Roll PyTorch Action <torch-mlir@users.noreply.github.com>
+        title: update PyTorch version to ${{ env.PT_RELEASE }}
+        reviewers: ashay, powderluv, vivekkhandelwal1

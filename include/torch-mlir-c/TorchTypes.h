@@ -18,6 +18,11 @@
 extern "C" {
 #endif
 
+/// A restricted subset of PyTorch subtyping that only handles a few special
+/// cases that we need to model.
+MLIR_CAPI_EXPORTED bool torchMlirTypeIsValidSubtype(MlirType subtype,
+                                                    MlirType type);
+
 //===----------------------------------------------------------------------===//
 // torch.nn.Module type.
 //===----------------------------------------------------------------------===//

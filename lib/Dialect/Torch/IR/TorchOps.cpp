@@ -1508,7 +1508,7 @@ void AtenSortIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 
 LogicalResult NonValueTensorLiteralOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto attr = attributes.get("value").dyn_cast_or_null<ElementsAttr>();
   if (!attr)
@@ -1548,7 +1548,7 @@ bool NonValueTensorLiteralOp::isCompatibleReturnTypes(TypeRange inferred,
 
 LogicalResult ValueTensorLiteralOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto attr = attributes.get("value").dyn_cast_or_null<ElementsAttr>();
   if (!attr)
@@ -1622,7 +1622,7 @@ LogicalResult CopyToNonValueTensorOp::verify() {
 
 LogicalResult CopyToNonValueTensorOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto resultType = operands[0].getType().cast<ValueTensorType>();
   inferredReturnTypes.push_back(resultType.getWithoutValueSemantics());
@@ -1649,7 +1649,7 @@ LogicalResult CopyToValueTensorOp::verify() {
 
 LogicalResult CopyToValueTensorOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto resultType = operands[0].getType().cast<NonValueTensorType>();
   inferredReturnTypes.push_back(resultType.getWithValueSemantics());

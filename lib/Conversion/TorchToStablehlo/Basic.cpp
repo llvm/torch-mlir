@@ -1434,6 +1434,21 @@ public:
 };
 } // namespace
 
+template <>
+LogicalResult ConvertAtenOp<AtenFillScalarOp>::matchAndRewrite(
+    AtenFillScalarOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto outType =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+  auto dtype = outType.getElementType();
+  Value scalarTensor =
+      hlo::scalarToStablehloTensor(rewriter, op, adaptor.getValue(), dtype);
+  Value bcastScalar = rewriter.create<stablehlo::BroadcastInDimOp>(
+      op->getLoc(), outType, scalarTensor, rewriter.getI64TensorAttr({}));
+  rewriter.replaceOp(op, bcastScalar);
+  return success();
+}
+
 void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToStablehloOptions &options) {
@@ -1451,6 +1466,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_UNARY_PATTERN(AtenNegOp, stablehlo::NegOp);
   INSERT_UNARY_PATTERN(AtenLogicalNotOp, stablehlo::NotOp);
   INSERT_UNARY_PATTERN(AtenBitwiseNotOp, stablehlo::NotOp);
+  INSERT_UNARY_PATTERN(AtenAbsOp, stablehlo::AbsOp);
 #undef INSERT_UNARY_PATTERN
 
 #define INSERT_UNARY_FPONLY_PATTERN(AtenOp, StablehloOp)                       \
@@ -1555,6 +1571,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenToDtypeOp);
   INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
   INSERT_ATENOP_PATTERN(AtenPowTensorTensorOp);
+  INSERT_ATENOP_PATTERN(AtenFillScalarOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, StablehloOp)                   \
