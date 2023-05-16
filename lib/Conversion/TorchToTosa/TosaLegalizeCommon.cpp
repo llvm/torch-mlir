@@ -8,7 +8,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
-#include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 
 #include <climits>
@@ -19,7 +18,6 @@
 
 #include "mlir/Dialect/Quant/QuantTypes.h" // from @llvm-project
 #include "mlir/Dialect/Tensor/IR/Tensor.h" // from @llvm-project
-#include "mlir/Dialect/Tosa/IR/TosaOps.h"  // from @llvm-project
 #include "mlir/IR/BuiltinTypes.h"          // from @llvm-project
 #include "mlir/IR/Matchers.h"              // from @llvm-project
 #include "mlir/IR/PatternMatch.h"          // from @llvm-project
@@ -103,6 +101,32 @@ createOneDimTfIndices(PatternRewriter &rewriter, Operation *op,
                                             /*vec=*/indicesVec,
                                             /*shape=*/indicesOneDimShape);
   return indicesDim;
+}
+
+tosa::MulOp createMulOpAndCast(PatternRewriter &rewriter, Operation *op,
+                               TensorType outType, Value lhs, Value rhs,
+                               int32_t shift) {
+  lhs = promoteType(rewriter, lhs, outType);
+  rhs = promoteType(rewriter, rhs, outType);
+  return tosa::CreateOpAndInfer<tosa::MulOp>(rewriter, op->getLoc(), outType,
+                                             lhs, rhs, shift);
+}
+
+template <>
+tosa::DivOp createBinaryOpAndCast<DivOp>(PatternRewriter &rewriter,
+                                         Operation *op, TensorType outType,
+                                         Value lhs, Value rhs) {
+  auto lhsElemTy = lhs.getType().cast<TensorType>().getElementType();
+  auto rhsElemTy = rhs.getType().cast<TensorType>().getElementType();
+  if (lhsElemTy.isa<mlir::FloatType>() || rhsElemTy.isa<mlir::FloatType>()) {
+    (void)rewriter.notifyMatchFailure(op,
+                                      "tosa.div only supports integer type");
+  }
+
+  lhs = promoteType(rewriter, lhs, outType);
+  rhs = promoteType(rewriter, rhs, outType);
+  return tosa::CreateOpAndInfer<tosa::DivOp>(rewriter, op->getLoc(), outType,
+                                             lhs, rhs);
 }
 
 std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
