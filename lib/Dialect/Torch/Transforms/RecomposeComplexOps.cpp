@@ -146,6 +146,8 @@ public:
       slices.push_back(newSelect);
     }
     rewriter.replaceOp(op, slices);
+    if (unbind.getResult().use_empty())
+      rewriter.eraseOp(unbind);
     return success();
   }
 };
@@ -174,6 +176,8 @@ public:
     Value newSelect = rewriter.create<AtenSelectIntOp>(loc, resultTy, input,
                                                        dim, op.getIdx());
     rewriter.replaceOp(op, newSelect);
+    if (unbind.getResult().use_empty())
+      rewriter.eraseOp(unbind);
     return success();
   }
 };
