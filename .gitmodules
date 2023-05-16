@@ -1,6 +1,6 @@
 [submodule "externals/llvm-project"]
 	path = externals/llvm-project
-    url = git@github.com:Xilinx/llvm-project.git
+    url = https://github.com/Xilinx/llvm-project.git
     branch = misc_fixes
 [submodule "externals/mlir-hlo"]
 	path = externals/mlir-hlo
