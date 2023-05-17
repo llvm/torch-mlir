@@ -469,7 +469,7 @@ def do(model: torch.nn.Module,
 
     if type(output) is tuple and len(output) == 1:
         class Wrapper(torch.nn.Module):
-            def __init__(self) -> None:
+            def __init__(self, model) -> None:
                 super().__init__()
                 self.model = model
 
