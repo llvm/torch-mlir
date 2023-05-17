@@ -56,7 +56,7 @@ jobs:
       id: upload-release-assets
       uses: dwenegar/upload-release-assets@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN  }}
       with:
         release_id: ${{ github.event.inputs.release_id }}
         assets_path: ./build_tools/python_deploy/wheelhouse/torch*.whl
@@ -67,7 +67,7 @@ jobs:
       id: publish_release
       uses: eregon/publish-release@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN  }}
       with:
         release_id: ${{ github.event.inputs.release_id }}
     - name: Create dist directory
@@ -99,7 +99,7 @@ jobs:
       uses: benc-uk/workflow-dispatch@v1
       with:
         workflow: Publish releases page
-        token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+        token: ${{ secrets.GITHUB_TOKEN  }}
 
     # Wheels must be published from a linux environment.
     #

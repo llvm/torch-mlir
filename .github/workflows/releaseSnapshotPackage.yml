@@ -2,7 +2,7 @@ name: Release snapshot package
 
 on:
   schedule:
-    - cron: '0 11 * * *'
+    - cron: '17 4 * * *'
 
   workflow_dispatch:
 
@@ -22,8 +22,6 @@ jobs:
 
       - name: Checking out repository
         uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
 
       - name: Compute version
         run: |
@@ -40,7 +38,7 @@ jobs:
       - name: Pushing changes
         uses: ad-m/github-push-action@v0.6.0
         with:
-          github_token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN  }}
           branch: main
           tags: true
 
@@ -48,7 +46,7 @@ jobs:
         id: create_release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN  }}
         with:
           tag_name: ${{ env.tag_name }}
           release_name: torch-mlir snapshot ${{ env.tag_name }}
@@ -61,13 +59,11 @@ jobs:
         uses: benc-uk/workflow-dispatch@v1
         with:
           workflow: Build and Test
-          token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
           ref: "${{ env.tag_name }}"
 
       - name: "Invoke workflow :: Release Build"
         uses: benc-uk/workflow-dispatch@v1
         with:
           workflow: Release Build
-          token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
           ref: "${{ env.tag_name }}"
           inputs: '{"release_id": "${{ steps.create_release.outputs.id }}", "python_package_version": "${{ env.package_version }}"}'
