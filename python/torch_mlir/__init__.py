@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
+from copy import deepcopy
 from typing import Optional, Sequence, Union, List, Dict, Tuple, Callable, Iterable
 from enum import Enum
 
@@ -13,11 +14,16 @@ import tempfile
 from torch._functorch.compile_utils import strip_overloads
 import torch
 import torch.fx
+from torch.fx.experimental.proxy_tensor import make_fx
+from torch._decomp import get_decompositions
 
 from .compiler_utils import run_pipeline_with_repro_report
 from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ImportOptions, ModuleBuilder
 from torch_mlir.dialects.torch.importer.jit_ir.build_tools.library_generator import generate_library
-
+from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import (
+            LinalgOnTensorsTosaBackend,
+    )
+from ._mlir_libs._mlir.ir import Module
 
 class OutputType(Enum):
     """The kind of output that `torch_mlir.compile` can produce.
@@ -442,3 +448,76 @@ PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
     )
 
     return _lower_mlir_module(verbose, output_type, mb.module)
+
+def _clone_module(module):
+    return Module.parse(module.operation.get_asm(), module.context)
+
+def do(model: torch.nn.Module,
+       *model_args,
+       output_type: Union[str, "OutputType"] = OutputType.TORCH,
+       dtype = None,
+       output_prefix: Optional[str] = None,
+       **model_kwargs,
+       ):
+
+    assert len(model_kwargs) == 0, "model_kwargs are not supported yet"
+
+    model = deepcopy(model)
+    model.eval()
+
+    output = model(*model_args, **model_kwargs)
+
+    if type(output) is tuple and len(output) == 1:
+        class Wrapper(torch.nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.model = model
+
+            def forward(self, *args, **kwargs):
+                return self.model(*args, **kwargs)[0]
+
+        model = Wrapper(model)
+
+
+    if dtype is not None:
+        model.to(dtype)
+
+    fx_g = make_fx(
+           model,
+           decomposition_table=get_decompositions(
+            [
+            torch.ops.aten.embedding_dense_backward,
+            torch.ops.aten.native_layer_norm_backward,
+            torch.ops.aten.slice_backward,
+            torch.ops.aten.select_backward,
+            torch.ops.aten.norm.ScalarOpt_dim,
+            torch.ops.aten.native_group_norm,
+            torch.ops.aten.upsample_bilinear2d.vec,
+            torch.ops.aten.split.Tensor,
+            torch.ops.aten.split_with_sizes,
+            ]
+             ),)(*model_args)
+
+    fx_g.graph.set_codegen(torch.fx.graph.CodeGen())
+    fx_g.recompile()
+
+    module = compile(fx_g,model_args,output_type=output_type)
+    # TOSA lacks a bunch of verifiers.
+    # Our best way to find issues in the TOSA IR is to try to lower to Linalg
+    if output_type == "tosa":
+        backend = LinalgOnTensorsTosaBackend()
+        backend.compile(_clone_module(module))
+
+    if output_prefix is not None:
+        prefix = f"{output_prefix}.{output_type}"
+        if dtype is not None:
+            assert dtype == torch.bfloat16
+            prefix += ".bf16"
+
+        print(f"Writing output files with prefix {prefix}")
+        with open(f"{prefix}.full.mlir", "w+") as f:
+            f.write(module.operation.get_asm())
+        with open(f"{prefix}.mlir", "w+") as f:
+            f.write(module.operation.get_asm(large_elements_limit=10))
+
+    return module
