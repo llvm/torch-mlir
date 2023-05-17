@@ -14,6 +14,10 @@ jobs:
   build_linux:
     name: Manylinux Build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+      packages: write
     strategy:
       matrix:
         package: [ torch-mlir ]

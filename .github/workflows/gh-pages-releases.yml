@@ -8,6 +8,8 @@ jobs:
   scrape_and_publish_releases:
     name: "Scrape and publish releases"
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     # Don't run this in everyone's forks.
     if: github.repository == 'llvm/torch-mlir'

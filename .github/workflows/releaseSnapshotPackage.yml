@@ -60,11 +60,11 @@ jobs:
           draft: true
           prerelease: false
 
-      - name: "Invoke workflow :: Build and Test"
-        uses: benc-uk/workflow-dispatch@v1
-        with:
-          workflow: Build and Test
-          ref: "${{ env.tag_name }}"
+      # - name: "Invoke workflow :: Build and Test"
+      #   uses: benc-uk/workflow-dispatch@v1
+      #   with:
+      #     workflow: Build and Test
+      #     ref: "${{ env.tag_name }}"
 
       - name: "Invoke workflow :: Release Build"
         uses: benc-uk/workflow-dispatch@v1
