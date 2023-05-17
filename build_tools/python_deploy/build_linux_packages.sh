@@ -112,9 +112,9 @@ function run_on_host() {
   docker run --rm \
     -v "${repo_root}:/main_checkout/torch-mlir" \
     -v "${TM_OUTPUT_DIR}:/wheelhouse" \
-    -v "${HOME}:/home/${USER}" \
+    -v "${PWD}:$PWD" \
     --user ${USERID}:${GROUPID} \
-    --workdir="/home/$USER" \
+    --workdir="$PWD" \
     --volume="/etc/group:/etc/group:ro" \
     --volume="/etc/passwd:/etc/passwd:ro" \
     --volume="/etc/shadow:/etc/shadow:ro" \
