@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     # Don't run this in everyone's forks.
     #if: github.repository == 'llvm/torch-mlir'
+    permissions:
+      contents: write
     steps:
 
       - name: Prepare workspace
