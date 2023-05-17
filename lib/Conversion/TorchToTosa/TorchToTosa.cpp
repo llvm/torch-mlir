@@ -201,7 +201,7 @@ LogicalResult torchAlphaToTosaTensor(ConversionPatternRewriter &rewriter,
                                        "Unsupported integer value for alpha");
 
   alphaTensor = tosa::getConstTensor<float>(
-                    rewriter, op, {static_cast<float>(alphaValue)}, {1}, dtype)
+                    rewriter, op, {static_cast<float>(alphaValue)}, {}, dtype)
                     .value();
 
   return success();
@@ -2156,7 +2156,7 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
 
   auto epsilonConst =
       tosa::getConstTensor<float>(rewriter, op.getOperation(),
-                                  {static_cast<float>(eps)}, {1},
+                                  {static_cast<float>(eps)}, {},
                                   meanType.getElementType())
           .value();
 
@@ -2318,7 +2318,7 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "eps must be a scalar constant");
   auto epsilonConst =
       tosa::getConstTensor<float>(rewriter, op.getOperation(),
-                                  {static_cast<float>(eps)}, {1}, elemTy)
+                                  {static_cast<float>(eps)}, {}, elemTy)
           .value();
 
   // Compute layer norm.
