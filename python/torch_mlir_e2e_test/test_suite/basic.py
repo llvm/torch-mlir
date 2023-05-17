@@ -3695,6 +3695,51 @@ class MoveDimIntNegativeIndexModule(torch.nn.Module):
 def MoveDimIntNegativeIndexModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 2))
 
+# ==============================================================================
+
+class ScaledDotProductAttentionSameModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True)
+    ])
+    def forward(self, query, key, value):
+        return torch.ops.aten.scaled_dot_product_attention(query, key, value)
+
+@register_test_case(module_factory=lambda: ScaledDotProductAttentionSameModule())
+def ScaledDotProductAttentionSameModule_basic(module, tu: TestUtils):
+    query = torch.randn(1, 1, 5, 5, dtype=torch.float32)
+    key = torch.randn(1, 1, 5, 5, dtype=torch.float32)
+    value = torch.randn(1, 1, 5, 5, dtype=torch.float32)
+    module.forward(query, key, value)
+
+class ScaledDotProductAttentionDifferentModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True)
+    ])
+    def forward(self, query, key, value):
+        return torch.ops.aten.scaled_dot_product_attention(query, key, value)
+
+@register_test_case(module_factory=lambda: ScaledDotProductAttentionDifferentModule())
+def ScaledDotProductAttentionDifferentModule_basic(module, tu: TestUtils):
+    query = torch.randn(3, 2, 8, 4, dtype=torch.float32)
+    key = torch.randn(3, 2, 16, 4, dtype=torch.float32)
+    value = torch.randn(3, 2, 16, 4, dtype=torch.float32)
+    module.forward(query, key, value)
 
 # ==============================================================================
 
