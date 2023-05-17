@@ -3362,6 +3362,25 @@ class AtenToDeviceModule(torch.nn.Module):
 def AtenToDeviceModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4))
 
+
+# ==============================================================================
+class AtenToDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1 , -1], torch.bool, True),
+    ])
+
+    def forward(self, val):
+        return torch.ops.aten.to(val, dtype=torch.int32, non_blocking=False)
+
+@register_test_case(module_factory=lambda: AtenToDtypeModule())
+def AtenToDtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4))
+
 # ==============================================================================
 
 
