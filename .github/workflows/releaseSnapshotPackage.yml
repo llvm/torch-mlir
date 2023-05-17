@@ -14,6 +14,8 @@ jobs:
     #if: github.repository == 'llvm/torch-mlir'
     permissions:
       contents: write
+    env:
+        BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
     steps:
 
       - name: Prepare workspace
@@ -40,8 +42,8 @@ jobs:
       - name: Pushing changes
         uses: ad-m/github-push-action@v0.6.0
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN  }}
-          branch: main
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ env.BRANCH_NAME }} 
           tags: true
 
       - name: Create Release
