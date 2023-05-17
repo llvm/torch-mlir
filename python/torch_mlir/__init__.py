@@ -467,17 +467,30 @@ def do(model: torch.nn.Module,
 
     output = model(*model_args, **model_kwargs)
 
-    if type(output) is tuple and len(output) == 1:
-        class Wrapper(torch.nn.Module):
-            def __init__(self, model) -> None:
-                super().__init__()
-                self.model = model
+    def flatten(S):
+        if len(S) == 0:
+            return S
+        if isinstance(S[0], list) or isinstance(S[0], tuple):
+            return flatten(S[0]) + flatten(S[1:])
+        return S[:1] + flatten(S[1:])
 
-            def forward(self, *args, **kwargs):
-                return self.model(*args, **kwargs)[0]
+    class Wrapper(torch.nn.Module):
+        def __init__(self, model) -> None:
+            super().__init__()
+            self.model = model
 
-        model = Wrapper(model)
+        def forward(self, *args, **kwargs):
+            ret = self.model(*args, **kwargs)
+            
+            if isinstance(ret, list) or isinstance(ret, tuple):
+                ret = flatten(ret)
+                if len(ret) == 1:
+                    return ret[0]
+                else:
+                    return tuple(ret)
+            return ret
 
+    model = Wrapper(model)
 
     if dtype is not None:
         model.to(dtype)
