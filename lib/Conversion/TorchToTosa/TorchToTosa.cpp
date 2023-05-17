@@ -200,8 +200,9 @@ LogicalResult torchAlphaToTosaTensor(ConversionPatternRewriter &rewriter,
     return rewriter.notifyMatchFailure(op,
                                        "Unsupported integer value for alpha");
 
-  alphaTensor =
-      mlir::tosa::getTosaConstTensorSingleF32(rewriter, op, alphaValue);
+  alphaTensor = tosa::getConstTensor<float>(
+                    rewriter, op, {static_cast<float>(alphaValue)}, {1}, dtype)
+                    .value();
 
   return success();
 }
@@ -2154,7 +2155,10 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "eps must be a scalar constant");
 
   auto epsilonConst =
-      mlir::tosa::getTosaConstTensorSingleF32(rewriter, op, eps);
+      tosa::getConstTensor<float>(rewriter, op.getOperation(),
+                                  {static_cast<float>(eps)}, {1},
+                                  meanType.getElementType())
+          .value();
 
   auto batchNorm =
       computeBatchNorm(op, rewriter, outType, adaptor.getInput(), varianceVal,
@@ -2258,7 +2262,7 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
 
   auto elemCntConst =
       tosa::getConstTensor<float>(rewriter, op.getOperation(),
-                                  {static_cast<float>(elemCnt)}, {1})
+                                  {static_cast<float>(elemCnt)}, {1}, elemTy)
           .value();
   Value elemCntRcp = rewriter.create<tosa::ReciprocalOp>(
       op.getLoc(), elemCntConst.getType(), elemCntConst);
@@ -2313,7 +2317,9 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
   if (!matchPattern(op.getEps(), m_TorchConstantFloat(&eps)))
     return rewriter.notifyMatchFailure(op, "eps must be a scalar constant");
   auto epsilonConst =
-      mlir::tosa::getTosaConstTensorSingleF32(rewriter, op, eps);
+      tosa::getConstTensor<float>(rewriter, op.getOperation(),
+                                  {static_cast<float>(eps)}, {1}, elemTy)
+          .value();
 
   // Compute layer norm.
   auto layerNorm =
@@ -2466,9 +2472,9 @@ LogicalResult ConvertAtenOp<AtenLog2Op>::matchAndRewrite(
 
   // Constant value of ln2.
   SmallVector<int64_t> ln2Shape(selfType.getRank(), 1);
-  auto ln2Op =
-      tosa::getConstTensor<float>(rewriter, op, {0.69314718056}, ln2Shape)
-          .value();
+  auto ln2Op = tosa::getConstTensor<float>(rewriter, op, {0.69314718056},
+                                           ln2Shape, selfType.getElementType())
+                   .value();
   auto rcpOp =
       rewriter.create<tosa::ReciprocalOp>(op.getLoc(), ln2Op.getType(), ln2Op);
 
