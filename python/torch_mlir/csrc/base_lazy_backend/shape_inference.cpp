@@ -139,5 +139,20 @@ std::vector<torch::lazy::Shape> compute_shape_uniform(
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
+std::vector<torch::lazy::Shape>
+compute_shape_multinomial(
+    const at::Tensor& self,
+    int64_t num_samples,
+    bool replacement,
+    c10::optional<at::Generator> generator) {
+  // Input tensor can be either 1D or 2D. The last dim of output
+  // should be 'num_samples'. So the output shape can be either
+  // [num_samples] or [m, num_samples].
+  // Output type can only be long tensor.
+  auto ishape = self.sizes().vec();
+  ishape.back() = num_samples;
+  return {Shape(at::kLong, ishape)};
+}
+
 } // namespace lazy
 } // namespace torch
