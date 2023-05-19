@@ -4522,6 +4522,35 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenSqrtOp>::matchAndRewrite(
+    AtenSqrtOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Converts AtenSqrtOp into pow(x, 0.5)
+  auto self = adaptor.getSelf();
+  auto selfTy = self.getType().dyn_cast<TensorType>();
+  if (!selfTy)
+    return rewriter.notifyMatchFailure(op,
+                                       "Only Tensor types supported in TOSA");
+
+  auto resultType = typeConverter->convertType(op.getType())
+                        .template cast<RankedTensorType>();
+  auto elementType = resultType.getElementType();
+
+  if (isa<mlir::IntegerType>(selfTy.getElementType())) {
+    self = rewriter.createOrFold<tosa::CastOp>(
+        op->getLoc(), RankedTensorType::get(resultType.getShape(), elementType),
+        self);
+  }
+
+  auto oneHalf =
+      tosa::getConstTensor<float>(rewriter, op, 0.5, {}, elementType).value();
+
+  rewriter.replaceOpWithNewOp<tosa::PowOp>(op, resultType, self, oneHalf);
+  return success();
+}
+
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -4750,6 +4779,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenConstantPadNdOp);
     INSERT_ATENOP_PATTERN(AtenRemainderScalarOp);
     INSERT_ATENOP_PATTERN(AtenCatOp);
+    INSERT_ATENOP_PATTERN(AtenSqrtOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
