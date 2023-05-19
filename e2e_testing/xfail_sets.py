@@ -983,6 +983,7 @@ TOSA_PASS_SET = {
     "TensorsConcatStaticModule_basic",
     "TensorsConcatNegativeDimStaticModule_basic",
     "AtenComplex64Module_basic",
+    "ElementwiseSqrtModule_basic",
 }
 
 LTC_XFAIL_SET = {
