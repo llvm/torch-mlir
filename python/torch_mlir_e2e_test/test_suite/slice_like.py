@@ -543,6 +543,28 @@ class SliceCopyNegative_Module(torch.nn.Module):
 def SliceCopyNegative_Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 4, 4), tu.rand(4, 4, 4))
 
+# ==============================================================================
+
+class SliceCopyMax_Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        # A slice without specified end uses the max. value of int64_t
+        xslice = torch.ops.aten.slice(x, 0, 0, 9223372036854775807, 1)
+        xslice.copy_(y)
+        return x
+
+
+@register_test_case(module_factory=lambda: SliceCopyMax_Module())
+def SliceCopyMax_Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 4, 4), tu.rand(4, 4, 4))
 
 # ==============================================================================
 
