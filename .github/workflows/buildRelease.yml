@@ -92,6 +92,10 @@ jobs:
 
   publish_releases:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+      packages: write
     needs:
     - build_linux
 
