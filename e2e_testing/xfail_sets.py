@@ -259,6 +259,10 @@ TORCHDYNAMO_XFAIL_SET = {
     "AtenComplexImagModule_basic",
     "AtenComplexRealModule_basic",
     # END tests failing due to: complex floating point ops
+
+    # ERROR: Exception: Unsupported: return type List[Tensor] in schema for aten.unbind.int
+    "UnbindIntListUnpack_Module_basic",
+    "UnbindIntGetItem_Module_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -722,6 +726,8 @@ STABLEHLO_PASS_SET = {
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
     "AtenComplex64Module_basic",
+    "UnbindIntListUnpack_Module_basic",
+    "UnbindIntGetItem_Module_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -1001,6 +1007,8 @@ TOSA_PASS_SET = {
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
     "DetachModule_basic",
+    "UnbindIntListUnpack_Module_basic",
+    "UnbindIntGetItem_Module_basic",
     "TensorsConcatStaticModule_basic",
     "TensorsConcatNegativeDimStaticModule_basic",
     "AtenComplex64Module_basic",
@@ -1182,5 +1190,7 @@ LTC_XFAIL_SET = {
     "VarMeanDimBiasedModule_basic",
     "AtenComplexImagModule_basic",
     "AtenComplexRealModule_basic",
-    "AtenComplexViewModule_basic"
+    "AtenComplexViewModule_basic",
+    "UnbindIntListUnpack_Module_basic",
+    "UnbindIntGetItem_Module_basic",
 }
