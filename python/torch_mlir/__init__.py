@@ -6,6 +6,7 @@
 from copy import deepcopy
 from typing import Optional, Sequence, Union, List, Dict, Tuple, Callable, Iterable
 from enum import Enum
+import importlib.metadata
 
 import sys
 from io import StringIO
@@ -457,8 +458,16 @@ def do(model: torch.nn.Module,
        output_type: Union[str, "OutputType"] = OutputType.TORCH,
        dtype = None,
        output_prefix: Optional[str] = None,
+       verbose: bool = True,
        **model_kwargs,
        ):
+
+    if verbose:
+        try:
+            version = importlib.metadata.version('torch-mlir')
+        except importlib.metadata.PackageNotFoundError:
+            version = "dev"
+        print(f"Using torch-mlir {version}")
 
     assert len(model_kwargs) == 0, "model_kwargs are not supported yet"
 
@@ -527,7 +536,8 @@ def do(model: torch.nn.Module,
             assert dtype == torch.bfloat16
             prefix += ".bf16"
 
-        print(f"Writing output files with prefix {prefix}")
+        if verbose:
+            print(f"Writing output files with prefix {prefix}")
         with open(f"{prefix}.full.mlir", "w+") as f:
             f.write(module.operation.get_asm())
         with open(f"{prefix}.mlir", "w+") as f:
