@@ -3371,7 +3371,7 @@ class AtenToDtypeModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1 , -1], torch.bool, True),
+        ([2], torch.bool, True),
     ])
 
     def forward(self, val):
@@ -3379,7 +3379,7 @@ class AtenToDtypeModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AtenToDtypeModule())
 def AtenToDtypeModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 4))
+    module.forward(torch.tensor([True, False], dtype=torch.bool))
 
 # ==============================================================================
 
