@@ -132,4 +132,5 @@ jobs:
            - torchvision version: ${{ env.PTVISION_RELEASE }}
         committer: Roll PyTorch Action <torch-mlir@users.noreply.github.com>
         title: update PyTorch version to ${{ env.PT_RELEASE }}
+        token: ${{ secrets.ROLLPYTORCH_TOKEN0 }}
         reviewers: ashay, powderluv, vivekkhandelwal1
