@@ -9040,6 +9040,35 @@ def Torch_AtenUpsampleNearest2dOp : Torch_Op<"aten.upsample_nearest2d", [
   }];
 }
 
+def Torch_AtenScaledDotProductAttentionOp : Torch_Op<"aten.scaled_dot_product_attention", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::scaled_dot_product_attention : (Tensor, Tensor, Tensor, Tensor?, float, bool, float?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$query,
+    AnyTorchTensorType:$key,
+    AnyTorchTensorType:$value,
+    AnyTorchOptionalTensorType:$attn_mask,
+    Torch_FloatType:$dropout_p,
+    Torch_BoolType:$is_causal,
+    AnyTorchOptionalFloatType:$scale
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenScaledDotProductAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 7, 1);
+    }
+    void AtenScaledDotProductAttentionOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 7, 1);
+    }
+  }];
+}
+
 def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -9512,6 +9541,29 @@ def Torch_AtenSplitTensorOp : Torch_Op<"aten.split.Tensor", [
     }
     void AtenSplitTensorOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
+def Torch_AtenUnbindIntOp : Torch_Op<"aten.unbind.int", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::unbind.int : (Tensor, int) -> (Tensor[])`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim
+  );
+  let results = (outs
+    AnyTorchListOfTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenUnbindIntOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenUnbindIntOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
 }
