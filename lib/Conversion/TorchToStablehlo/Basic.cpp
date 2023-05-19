@@ -931,10 +931,10 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
   Value momentum = adaptor.getMomentum();
   (void)momentum;
 
-  if (inputTy.getRank() <= 2) {
-    return rewriter.notifyMatchFailure(op,
-                                       "input should have rank larger than 2");
-  }
+  // handle feature index, see torch's BatchNorm1d, BatchNorm2d, BatchNorm3d,
+  // all of NC, NCL, NCHW, NCDHW's feature index is 1.
+  int64_t feature_index = 1;
+
   if (!inputTy.getElementType().template isa<mlir::FloatType>()) {
     return op.emitError("only input tensor of float type is supported");
   }
@@ -1020,7 +1020,7 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
         rewriter.create<stablehlo::BatchNormTrainingOp>(
             op.getLoc(), outputTy, batchMeanOrVarTy, batchMeanOrVarTy, input,
             weight, bias, rewriter.getF32FloatAttr(eps),
-            rewriter.getI64IntegerAttr(1));
+            rewriter.getI64IntegerAttr(feature_index));
     rewriter.replaceOp(op, batchNormTrainingResult.getResult(0));
     return success();
   } else {
@@ -1037,7 +1037,8 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
         op.getLoc(), inputCasted.getType(), inputCasted, weight, bias,
         runningMean, runningVar,
         // 'epsilon' must satisfy constraint: 32-bit float attribute.
-        rewriter.getF32FloatAttr(eps), rewriter.getI64IntegerAttr(1));
+        rewriter.getF32FloatAttr(eps),
+        rewriter.getI64IntegerAttr(feature_index));
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outputTy, output);
     return success();
   }
@@ -1411,6 +1412,101 @@ LogicalResult ConvertAtenOp<AtenPowTensorTensorOp>::matchAndRewrite(
   return success();
 }
 
+// Converts `aten.empty.memory_format` to `tensor.empty` op.
+template <>
+LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
+    AtenEmptyMemoryFormatOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // TODO: Add support pin_memory and memory_format features.
+  // At this point all tensors should have value semantics, and hence the
+  // `layout` check can be ignored.
+
+  // The pin_memory should be either `False` or `none`.
+  bool pinMemory;
+  if (!op.getPinMemory().getType().template isa<Torch::NoneType>() &&
+      (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
+       pinMemory))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: pin_memory must be either None or false");
+
+  // Only `none`, `contiguous` and `preserve` memory_format is supported.
+  if (!op.getMemoryFormat().getType().isa<Torch::NoneType>()) {
+    int64_t memoryFormat;
+    if (!matchPattern(op.getMemoryFormat(), m_TorchConstantInt(&memoryFormat)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: the memory format should be specified in "
+              "an integer constant");
+    if (memoryFormat != torch_upstream::MemoryFormat::Contiguous &&
+        memoryFormat != torch_upstream::MemoryFormat::Preserve)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only none, contiguous and preserve "
+              "memory_format is supported");
+  }
+
+  // TODO: Add support for device arg other than cpu.
+  if (!op.getDevice().getType().isa<Torch::NoneType>()) {
+    std::string device;
+    if (!matchPattern(op.getDevice(), m_TorchConstantDevice(device)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: device must be a constant str");
+    else if (device != "cpu")
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: device is expected to be cpu");
+  }
+
+  // TODO: Add support for non-strided layout.
+  // torch.layout is by default strided i.e. 0.
+  if (!op.getLayout().getType().isa<Torch::NoneType>()) {
+    int64_t tensorLayout;
+    if (!matchPattern(op.getLayout(), m_TorchConstantInt(&tensorLayout)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: layout must be a constant");
+    else if (tensorLayout != torch_upstream::Layout::Strided)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: layout is expected to be strided");
+  }
+
+  Location loc = op.getLoc();
+  TypeConverter *typeConverter = this->getTypeConverter();
+  SmallVector<Value> resultSizeTorchInt, resultSize, resultSizeIndex;
+  if (!getListConstructElements(op.getSize(), resultSizeTorchInt)) {
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: size must be constructed using ListConstruct");
+  }
+  resultSize =
+      getTypeConvertedValues(rewriter, loc, typeConverter, resultSizeTorchInt);
+  for (auto size : resultSize)
+    resultSizeIndex.push_back(castIntToIndex(rewriter, loc, size));
+
+  auto resultType =
+      typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+  Type resultElementType;
+  if (op.getDtype().getType().isa<Torch::NoneType>()) {
+    resultElementType =
+        getDefaultDtypeForTorchScalar(Torch::FloatType::get(op->getContext()));
+  } else {
+    int64_t dtypeInt;
+    if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeInt)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: dtype must be a constant integer or none");
+    FailureOr<Type> maybeResultElementType = getTypeForScalarType(
+        op->getContext(), (torch_upstream::ScalarType)dtypeInt,
+        IntegerType::Signless);
+    if (failed(maybeResultElementType)) {
+      return rewriter.notifyMatchFailure(
+          op, "unable to convert `dtypeInt` to builtin type");
+    }
+    resultElementType = *maybeResultElementType;
+  }
+
+  // Create an uninitialized tensor of `resultSize` shape.
+  Value initTensor = rewriter.create<tensor::EmptyOp>(
+      loc, getAsOpFoldResult(resultSizeIndex), resultElementType);
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, initTensor);
+  return success();
+}
+
 // RuntimeAssertOp
 namespace {
 class ConvertRuntimeAssertOp : public OpConversionPattern<RuntimeAssertOp> {
@@ -1571,6 +1667,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenToDtypeOp);
   INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
   INSERT_ATENOP_PATTERN(AtenPowTensorTensorOp);
+  INSERT_ATENOP_PATTERN(AtenEmptyMemoryFormatOp);
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);
 #undef INSERT_ATENOP_PATTERN
 

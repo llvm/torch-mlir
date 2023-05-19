@@ -121,6 +121,66 @@ public:
     return success();
   }
 };
+
+class RecomposeUnbindListUnpack : public OpRewritePattern<PrimListUnpackOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimListUnpackOp op,
+                                PatternRewriter &rewriter) const override {
+    // recompose AtenUnbindOp + PrimListUnpackOp to select.int
+    auto unbind = dyn_cast<AtenUnbindIntOp>(op.getOperand().getDefiningOp());
+    if (!unbind)
+      return failure();
+    if (isListPotentiallyMutated(unbind.getResult()))
+      return failure();
+    Value dim = unbind.getDim();
+    Value input = unbind.getSelf();
+    SmallVector<Value> slices;
+    for (int i = 0; i < op.getNumResults(); i++) {
+      // rewrite to slice op
+      auto resultTy = op.getResult(i).getType();
+      auto index = rewriter.create<Torch::ConstantIntOp>(
+          op->getLoc(), rewriter.getI64IntegerAttr(i));
+      auto newSelect = rewriter.create<AtenSelectIntOp>(op->getLoc(), resultTy,
+                                                        input, dim, index);
+      slices.push_back(newSelect);
+    }
+    rewriter.replaceOp(op, slices);
+    if (unbind.getResult().use_empty())
+      rewriter.eraseOp(unbind);
+    return success();
+  }
+};
+
+class RecomposeUnbindGetItem : public OpRewritePattern<Aten__Getitem__TOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten__Getitem__TOp op,
+                                PatternRewriter &rewriter) const override {
+    // recompose AtenUnbindIntOp + __getitem__t to select.int
+    auto unbind = dyn_cast<AtenUnbindIntOp>(op.getList().getDefiningOp());
+    if (!unbind)
+      return failure();
+    if (isListPotentiallyMutated(unbind.getResult()))
+      return failure();
+    int64_t index;
+    if (!matchPattern(op.getIdx(), m_TorchConstantInt(&index)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected `idx` of `Aten__Getitem__TOp` to be a constant int");
+
+    Location loc = op.getLoc();
+    Value dim = unbind.getDim();
+    Value input = unbind.getSelf();
+    // rewrite to slice op
+    auto resultTy = op.getResult().getType();
+    Value newSelect = rewriter.create<AtenSelectIntOp>(loc, resultTy, input,
+                                                       dim, op.getIdx());
+    rewriter.replaceOp(op, newSelect);
+    if (unbind.getResult().use_empty())
+      rewriter.eraseOp(unbind);
+    return success();
+  }
+};
 } // namespace
 
 namespace {
@@ -134,6 +194,8 @@ public:
     // pattern.add calls go here
     patterns.add<RecomposeSliceCopy_>(context);
     patterns.add<RecomposeSelectFill_>(context);
+    patterns.add<RecomposeUnbindListUnpack>(context);
+    patterns.add<RecomposeUnbindGetItem>(context);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
