@@ -43,6 +43,9 @@ public:
           op.getLoc(), sliceOp.getSelf(), sliceOp.getDim());
       newEnd =
           rewriter.create<AtenAddIntOp>(op.getLoc(), dimSize, sliceOp.getEnd());
+    } else if(end == std::numeric_limits<int64_t>::max()) {
+      newEnd = rewriter.create<AtenSizeIntOp>(
+          op.getLoc(), sliceOp.getSelf(), sliceOp.getDim());
     }
 
     Value noneVal = rewriter.create<ConstantNoneOp>(op.getLoc());
