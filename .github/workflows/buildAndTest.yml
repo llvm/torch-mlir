@@ -28,6 +28,7 @@ jobs:
         os-arch: [ubuntu-x86_64]
         llvm-build: [in-tree]
         torch-binary: [ON]
+        torch-version: [nightly, stable]
         exclude:
           # Exclude llvm in-tree and pytorch source
           - llvm-build: in-tree
@@ -38,6 +39,8 @@ jobs:
           # Exclude macos-arm64 and llvm out-of-tree altogether
           - os-arch: macos-arm64
             llvm-build: out-of-tree
+          - os-arch: macos-arm64
+            torch-version: stable
           - os-arch: windows-x86_64
             llvm-build: out-of-tree
     runs-on: ubuntu-latest
@@ -67,6 +70,7 @@ jobs:
       uses: ./.github/actions/setup-build
       with:
         cache-suffix: 'build-${{ matrix.llvm-build }}'
+        torch-version: ${{ matrix.torch-version }}
 
     - name: Set up Visual Studio shell
       if: ${{ matrix.os-arch == 'windows-x86_64' }}
@@ -90,6 +94,7 @@ jobs:
         TM_PACKAGES="${{ matrix.llvm-build }}" \
         TM_USE_PYTORCH_BINARY="${{ matrix.torch-binary }}" \
         TM_PYTORCH_INSTALL_WITHOUT_REBUILD="${{ steps.cache-pytorch.outputs.cache-hit }}" \
+        TORCH_VERSION="${{ matrix.torch-version }}" \
         ./build_tools/python_deploy/build_linux_packages.sh
 
     - name: Configure os-arch='macos-arm64' llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'

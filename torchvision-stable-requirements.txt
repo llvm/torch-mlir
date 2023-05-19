@@ -1,0 +1,2 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torchvision==0.15.2
