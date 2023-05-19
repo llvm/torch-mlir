@@ -4,6 +4,7 @@ export TORCH_MLIR_PYTHON_PACKAGE_VERSION="$(printf '%(%Y%m%d)T').${run}"
 echo "TORCH_MLIR_PYTHON_PACKAGE_VERSION=$TORCH_MLIR_PYTHON_PACKAGE_VERSION"
 export TM_PYTHON_VERSIONS="cp38-cp38"
 export TM_PACKAGES="torch-mlir"
+export TORCH_VERSION="stable"
 /usr/bin/time ./build_tools/python_deploy/build_linux_packages.sh
 
 DIR=/proj/xirhdstaff/mgehre/nobkup/torch-mlir
