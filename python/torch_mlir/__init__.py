@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-from copy import deepcopy
 from typing import Optional, Sequence, Union, List, Dict, Tuple, Callable, Iterable
 from enum import Enum
 import importlib.metadata
@@ -461,6 +460,10 @@ def do(model: torch.nn.Module,
        verbose: bool = True,
        **model_kwargs,
        ):
+    """
+    Converts the given model to torch/tosa.
+    WARNING: This modifies the model in-place!
+    """
 
     if verbose:
         try:
@@ -471,7 +474,6 @@ def do(model: torch.nn.Module,
 
     assert len(model_kwargs) == 0, "model_kwargs are not supported yet"
 
-    model = deepcopy(model)
     model.eval()
 
     output = model(*model_args, **model_kwargs)
@@ -480,8 +482,8 @@ def do(model: torch.nn.Module,
         if len(S) == 0:
             return S
         if isinstance(S[0], list) or isinstance(S[0], tuple):
-            return flatten(S[0]) + flatten(S[1:])
-        return S[:1] + flatten(S[1:])
+            return list(flatten(S[0])) + list(flatten(S[1:]))
+        return list(S[:1]) + list(flatten(S[1:]))
 
     class Wrapper(torch.nn.Module):
         def __init__(self, model) -> None:
