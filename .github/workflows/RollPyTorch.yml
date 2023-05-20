@@ -98,7 +98,7 @@ jobs:
           ```
 
     - name: Update PyTorch Build Cache (if running on main branch)
-      if: github.ref_name == 'main'
+      if: github.ref_name == 'main' && env.PT_HASH_CHANGED != '0'
       id: cache-pytorch
       uses: actions/cache@v3
       with:
@@ -116,6 +116,7 @@ jobs:
         git pull origin main
 
     - name: Create pull request
+      if: env.PT_HASH_CHANGED != '0'
       uses: peter-evans/create-pull-request@v5.0.1
       with:
         author: Roll PyTorch Action <torch-mlir@users.noreply.github.com>

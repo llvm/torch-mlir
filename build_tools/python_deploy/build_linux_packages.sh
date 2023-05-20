@@ -91,15 +91,15 @@ function run_on_host() {
       ;;
     out-of-tree)
       TM_CURRENT_DOCKER_IMAGE=${TM_CI_DOCKER_IMAGE}
-      # CI uses only Python3.10
-      TM_PYTHON_VERSIONS="cp310-cp310"
+      # CI uses only Python3.11
+      TM_PYTHON_VERSIONS="cp311-cp311"
       export USERID=$(id -u)
       export GROUPID=$(id -g)
       ;;
     in-tree)
       TM_CURRENT_DOCKER_IMAGE=${TM_CI_DOCKER_IMAGE}
-      # CI uses only Python3.10
-      TM_PYTHON_VERSIONS="cp310-cp310"
+      # CI uses only Python3.11
+      TM_PYTHON_VERSIONS="cp311-cp311"
       export USERID=$(id -u)
       export GROUPID=$(id -g)
       ;;
