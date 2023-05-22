@@ -787,6 +787,7 @@ TOSA_PASS_SET = {
     "SqueezeDimModule_unitDim",
     "ReturnTwoTensorF32I64_basic",
     "ElementwisePowModule_basic",
+    "ElementwisePowScalarModule_basic",
     "AtenToDtypeModule_basic",
     "BmmModule_basic",
     "MmDagModule_basic",

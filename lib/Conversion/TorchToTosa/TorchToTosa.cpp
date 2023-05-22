@@ -987,6 +987,40 @@ class ConvertAtenSqueezeAllDimsOp : public ConvertAtenSqueezeOp<AtenOpT> {
 };
 
 template <>
+LogicalResult ConvertAtenOp<AtenPowScalarOp>::matchAndRewrite(
+    AtenPowScalarOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  Value exp = adaptor.getExponent();
+  auto expTy = exp.getType().template cast<RankedTensorType>();
+
+  if (!expTy)
+    return rewriter.notifyMatchFailure(
+        op, "Only ranked tensor types supported in TOSA Pow");
+
+  if (!expTy.getElementType().isa<mlir::FloatType>())
+    return rewriter.notifyMatchFailure(
+        op, "Only floating-point datatype legalization supported");
+
+  Value selfTensor;
+  Value selfScalar = op.getSelf();
+  if (failed(torchScalarToTosaTensor(rewriter, op, selfScalar, selfTensor,
+                                     expTy.getElementType(), {})))
+    return rewriter.notifyMatchFailure(
+        op, "Currently only scalar constants are supported for "
+            "conversion in TOSA Pow operation");
+
+  auto outType =
+      getTypeConverter()->convertType(op.getType()).template cast<TensorType>();
+
+  auto powOp = tosa::createBinaryOpAndCast<tosa::PowOp>(rewriter, op, outType,
+                                                        selfTensor, exp);
+  rewriter.replaceOp(op, powOp.getResult());
+
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenPowTensorScalarOp>::matchAndRewrite(
     AtenPowTensorScalarOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -4728,6 +4762,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenReluOp);
     INSERT_ATENOP_PATTERN(AtenLeakyReluOp);
     INSERT_ATENOP_PATTERN(AtenArgmaxOp);
+    INSERT_ATENOP_PATTERN(AtenPowScalarOp);
     INSERT_ATENOP_PATTERN(AtenPowTensorScalarOp);
     INSERT_ATENOP_PATTERN(AtenRsubScalarOp);
     INSERT_ATENOP_PATTERN(AtenConvolutionOp);
