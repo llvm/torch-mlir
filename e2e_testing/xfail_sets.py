@@ -1201,4 +1201,7 @@ LTC_XFAIL_SET = {
     "AtenComplexViewModule_basic",
     "UnbindIntListUnpack_Module_basic",
     "UnbindIntGetItem_Module_basic",
+    "TensorsSplitTensorModule_basic",
+    "TensorsSplitTensorNegativeDimModule_basic",
+    "TensorsSplitTensorLastSmallerModule_basic",
 }
