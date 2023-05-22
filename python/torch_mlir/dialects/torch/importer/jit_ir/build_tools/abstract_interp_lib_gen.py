@@ -104,6 +104,9 @@ def aten〇neg〡shape(self: List[int]) -> List[int]:
 def aten〇floor〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇sign〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇detach〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -250,6 +253,9 @@ def aten〇remainder〇Scalar〡shape(self: List[int], other: float) -> List[int
 
 def aten〇floor_divide〇Scalar〡shape(self: List[int], other: float) -> List[int]:
     return upstream_shape_functions.unary(self)
+
+def aten〇pow〇Scalar〡shape(self: float, exponent: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(exponent)
 
 def aten〇pow〇Tensor_Scalar〡shape(self: List[int], exponent: float) -> List[int]:
     return upstream_shape_functions.unary(self)
@@ -1461,6 +1467,11 @@ def aten〇flip〡dtype(self_rank_dtype: Tuple[int, int], dims: List[int]) -> in
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇sign〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇floor〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
@@ -2501,6 +2512,16 @@ def aten〇floor_divide〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other
     assert not is_complex_dtype(self_dtype)
     ranks: List[Optional[int]] = [self_rank, None]
     dtypes = [self_dtype, get_dtype_of_scalar(other)]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function([
+     Invocation(2.0, TensorOfShape(3, 4, dtype=torch.float64)),
+     Invocation(2.0, TensorOfShape(3, 4, dtype=torch.bfloat16)),
+     Invocation(2, TensorOfShape(4, dtype=torch.int32))])
+def aten〇pow〇Scalar〡dtype(self: Union[int, float], exponent_rank_dtype: Tuple[int, int]) -> int:
+    exp_rank, exp_dtype = exponent_rank_dtype
+    ranks: List[Optional[int]] = [exp_rank, None]
+    dtypes = [exp_dtype, get_dtype_of_scalar(self)]
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, exponent=1) +

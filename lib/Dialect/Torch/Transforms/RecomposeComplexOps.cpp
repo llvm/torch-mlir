@@ -184,6 +184,51 @@ public:
     return success();
   }
 };
+
+class RecomposeSplitTensorPrimListUnpackOp : public OpRewritePattern<PrimListUnpackOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimListUnpackOp op,
+                                PatternRewriter &rewriter) const override {
+
+    auto torchList = op.getOperand();
+    if (isListPotentiallyMutated(torchList))
+      return failure();
+
+    auto split = torchList.getDefiningOp<Torch::AtenSplitTensorOp>();
+    if (!split)
+        return failure();
+    int64_t size = 0;
+    if (!matchPattern(split.getSplitSize(), m_TorchConstantInt(&size)))
+      return failure();
+
+    Value constOne = rewriter.create<Torch::ConstantIntOp>(
+        op->getLoc(), rewriter.getI64IntegerAttr(1));
+    std::vector<Value> results;
+    int64_t start = 0;
+
+    for (size_t i = 0; i < op->getNumResults(); ++i) {
+      results.push_back(rewriter.create<AtenSliceTensorOp>(
+          op->getLoc(),
+          op.getResult(i).getType(),
+          split.getSelf(),
+          /*dim=*/split.getDim(),
+          /*start=*/
+          rewriter.create<Torch::ConstantIntOp>(
+              op->getLoc(), rewriter.getI64IntegerAttr(start)),
+          /*end=*/
+          rewriter.create<Torch::ConstantIntOp>(
+              op->getLoc(), rewriter.getI64IntegerAttr(start + size)),
+          /*step=*/constOne));
+      start += size;
+    }
+    rewriter.replaceOp(op, results);
+    if (split->use_empty())
+      rewriter.eraseOp(split);
+
+    return success();
+  }
+};
 } // namespace
 
 namespace {
@@ -199,6 +244,7 @@ public:
     patterns.add<RecomposeSelectFill_>(context);
     patterns.add<RecomposeUnbindListUnpack>(context);
     patterns.add<RecomposeUnbindGetItem>(context);
+    patterns.add<RecomposeSplitTensorPrimListUnpackOp>(context);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
