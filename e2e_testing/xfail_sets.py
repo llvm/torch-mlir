@@ -213,6 +213,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "BatchNorm1DWith2DInputModule_basic",
     "BatchNorm2DModule_basic",
     "BatchNorm3DModule_basic",
+    "BatchNorm1DStaticShapeModule_basic",
     "ElementwiseAddScalarFloatModule_basic",
     "ElementwiseAddScalarInt64Module_basic",
     "ElementwiseAddScalarIntModule_basic",
@@ -258,6 +259,10 @@ TORCHDYNAMO_XFAIL_SET = {
     "AtenComplexImagModule_basic",
     "AtenComplexRealModule_basic",
     # END tests failing due to: complex floating point ops
+
+    # ERROR: Exception: Unsupported: return type List[Tensor] in schema for aten.unbind.int
+    "UnbindIntListUnpack_Module_basic",
+    "UnbindIntGetItem_Module_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -317,6 +322,12 @@ STABLEHLO_PASS_SET = {
     "ArangeStartStepIntModule_basic",
     "ArangeZeroElementOutputModule_basic",
     "BatchMlpLayerModule_basic",
+    "BatchNorm1DModule_basic",
+    "BatchNorm1DWith2DInputModule_basic",
+    "BatchNorm2DModule_basic",
+    "BatchNorm3DModule_basic",
+    "BatchNorm1DStaticShapeModule_basic",
+    "ResNet18StaticModule_basic",
     "BmmModule_basic",
     "BroadcastToModule_basic",
     "BroadcastToSameRankStaticModule_basic",
@@ -580,6 +591,21 @@ STABLEHLO_PASS_SET = {
     "MmModule_basic",
     "MmModule_chained",
     "MaxPool2dStaticModule_basic",
+    "EmptyModule_contiguous",
+    "EmptyModule_defaultDtype",
+    "EmptyModule_falsePinMemory",
+    "EmptyModule_int",
+    "EmptyModule_float",
+    "NewEmptyModuleDefaultDtype_basic",
+    "NewEmptyModuleFalsePinMemory_basic",
+    "NewEmptyModuleFloat2D_basic",
+    "NewEmptyModuleFloat3D_basic",
+    "NewEmptyModuleInt2D_basic",
+    "NewEmptyModuleInt3D_basic",
+    "NewEmptyModuleLayoutIntDtype_basic",
+    "NewEmptyModuleNonDefaultFloatDtype_basic",
+    "NewEmptyModuleNonDefaultIntDtype_basic",
+    "NewEmptyStridedModuleDefaultDtype_basic",
     "PermuteModule_basic",
     "PermuteNegativeIndexModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
@@ -702,6 +728,8 @@ STABLEHLO_PASS_SET = {
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
     "AtenComplex64Module_basic",
+    "UnbindIntListUnpack_Module_basic",
+    "UnbindIntGetItem_Module_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -807,6 +835,7 @@ TOSA_PASS_SET = {
     "BatchNorm1DWith2DInputModule_basic",
     "BatchNorm2DModule_basic",
     "BatchNorm3DModule_basic",
+    "BatchNorm1DStaticShapeModule_basic",
     "FlattenStaticModule_basic",
     "FlattenRank0Module_basic",
     "ElementwiseFlattenBroadcastModule_basic",
@@ -980,6 +1009,8 @@ TOSA_PASS_SET = {
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
     "DetachModule_basic",
+    "UnbindIntListUnpack_Module_basic",
+    "UnbindIntGetItem_Module_basic",
     "TensorsConcatStaticModule_basic",
     "TensorsConcatNegativeDimStaticModule_basic",
     "AtenComplex64Module_basic",
@@ -1161,5 +1192,7 @@ LTC_XFAIL_SET = {
     "VarMeanDimBiasedModule_basic",
     "AtenComplexImagModule_basic",
     "AtenComplexRealModule_basic",
-    "AtenComplexViewModule_basic"
+    "AtenComplexViewModule_basic",
+    "UnbindIntListUnpack_Module_basic",
+    "UnbindIntGetItem_Module_basic",
 }

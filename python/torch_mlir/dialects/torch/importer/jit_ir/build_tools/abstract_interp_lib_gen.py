@@ -523,6 +523,15 @@ def aten〇linear〡shape(input: List[int], weight: List[int], bias: Optional[Li
     return upstream_shape_functions.linear(input, weight, bias)
 
 @check_shape_function([
+    Invocation(TensorOfShape(3, 2, 8, 4), TensorOfShape(3, 2, 8, 4), TensorOfShape(3, 2, 8, 4)), # Same shape
+    Invocation(TensorOfShape(3, 2, 16, 8), TensorOfShape(3, 2, 8, 8), TensorOfShape(3, 2, 8, 4)), # Different shape
+])
+def aten〇scaled_dot_product_attention〡shape(query: List[int], key: List[int], value: List[int], attn_mask: Optional[List[int]] = None, dropout_p: float = 0., is_causal: bool = False, scale: Optional[float] = None) -> List[int]:
+    outshape = query
+    outshape[-1] = value[-1]
+    return outshape
+
+@check_shape_function([
     Invocation([2, 3]),
 ])
 def aten〇zeros〡shape(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
@@ -1904,6 +1913,11 @@ def aten〇logical_and〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtyp
 def aten〇logical_not〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     return torch.bool
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(3, 4, 32, 16), (3, 4, 32, 16), (3, 4, 32, 16)])) 
+def aten〇scaled_dot_product_attention〡dtype(query_rank_dtype: Tuple[int, int], key_rank_dtype: Tuple[int, int], value_rank_dtype: Tuple[int, int], attn_mask_rank_dtype: Optional[Tuple[int, int]] = None, dropout_p: float = 0., is_causal: bool = False, scale: Optional[float] = None) -> int:
+    _, query_dtype = query_rank_dtype
+    return query_dtype
+
 @check_dtype_function(_check_two_tensor_op())
 def aten〇logical_or〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
     return torch.bool
@@ -2167,7 +2181,7 @@ def aten〇sub〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dty
 # Use CPU because META device results in the wrong behavior
 # https://github.com/pytorch/pytorch/issues/100921
 # TODO: This should be fixed by switching to FakeTensor instead of Meta tensor
-@check_dtype_function(_check_two_tensor_op(tensor_device="cpu", input_error_types={torch.complex64, torch.complex128}, output_error_types={torch.bool, torch.float16}, threshold=0))
+@check_dtype_function(_check_two_tensor_op(tensor_device="cpu", input_error_types={torch.complex64, torch.complex128}, output_error_types={torch.bool}, threshold=0))
 def aten〇threshold_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], threshold: Union[int, float]) -> int:
     self_rank, self_dtype = self_rank_dtype
     grad_output_rank, grad_output_dtype = grad_output_rank_dtype
@@ -2176,7 +2190,7 @@ def aten〇threshold_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], s
     ranks: List[Optional[int]] = [grad_output_rank, self_rank]
     dtypes = [grad_output_dtype, self_dtype]
     promoted_dtype = promote_dtypes(ranks, dtypes)
-    assert promoted_dtype not in [torch.bool, torch.float16], \
+    assert promoted_dtype not in [torch.bool], \
         "Result dtype for aten.threshold_backward cannot be bool or float16"
     return promoted_dtype
 
