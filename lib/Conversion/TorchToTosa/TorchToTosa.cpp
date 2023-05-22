@@ -992,7 +992,7 @@ LogicalResult ConvertAtenOp<AtenPowScalarOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   Value exp = adaptor.getExponent();
-  auto expTy = exp.getType().template cast<RankedTensorType>();
+  auto expTy = exp.getType().template dyn_cast<RankedTensorType>();
 
   if (!expTy)
     return rewriter.notifyMatchFailure(
