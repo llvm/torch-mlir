@@ -10,8 +10,11 @@
 #ifndef TORCHMLIR_CONVERSION_TORCHTOTOSA_TOSALEGALIZECOMMON_H
 #define TORCHMLIR_CONVERSION_TORCHTOTOSA_TOSALEGALIZECOMMON_H
 
-#include "mlir/IR/PatternMatch.h" // from @llvm-project
-#include "mlir/Support/LLVM.h"    // from @llvm-project
+#include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
+
+#include "mlir/Dialect/Tosa/IR/TosaOps.h" // from @llvm-project
+#include "mlir/IR/PatternMatch.h"         // from @llvm-project
+#include "mlir/Support/LLVM.h"            // from @llvm-project
 
 namespace mlir {
 namespace tosa {
@@ -20,6 +23,26 @@ std::optional<Value>
 createOneDimTfIndices(PatternRewriter &rewriter, Operation *op,
                       SmallVector<int64_t> indiceOneDimShape, int32_t dim,
                       ArrayRef<int64_t> indexShape);
+
+mlir::tosa::MulOp createMulOpAndCast(PatternRewriter &rewriter, Operation *op,
+                                     TensorType outType, Value lhs, Value rhs,
+                                     int32_t shift);
+
+// Create TOSA elementwise binary op with type conversion if necessary.
+template <typename TosaOpT>
+TosaOpT createBinaryOpAndCast(PatternRewriter &rewriter, Operation *op,
+                              TensorType outType, Value lhs, Value rhs) {
+  lhs = promoteType(rewriter, lhs, outType);
+  rhs = promoteType(rewriter, rhs, outType);
+  return CreateOpAndInfer<TosaOpT>(rewriter, op->getLoc(), outType, lhs, rhs);
+}
+
+// This specialization is for Div op. Unlike other binary ops, it doesn't support
+// floating type.
+template <>
+tosa::DivOp createBinaryOpAndCast<DivOp>(PatternRewriter &rewriter,
+                                         Operation *op, TensorType outType,
+                                         Value lhs, Value rhs);
 
 std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
                                                    Operation *op,

@@ -2190,7 +2190,7 @@ def aten〇sub〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dty
 # Use CPU because META device results in the wrong behavior
 # https://github.com/pytorch/pytorch/issues/100921
 # TODO: This should be fixed by switching to FakeTensor instead of Meta tensor
-@check_dtype_function(_check_two_tensor_op(tensor_device="cpu", input_error_types={torch.complex64, torch.complex128}, output_error_types={torch.bool, torch.float16}, threshold=0))
+@check_dtype_function(_check_two_tensor_op(tensor_device="cpu", input_error_types={torch.complex64, torch.complex128}, output_error_types={torch.bool}, threshold=0))
 def aten〇threshold_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], threshold: Union[int, float]) -> int:
     self_rank, self_dtype = self_rank_dtype
     grad_output_rank, grad_output_dtype = grad_output_rank_dtype
@@ -2199,7 +2199,7 @@ def aten〇threshold_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], s
     ranks: List[Optional[int]] = [grad_output_rank, self_rank]
     dtypes = [grad_output_dtype, self_dtype]
     promoted_dtype = promote_dtypes(ranks, dtypes)
-    assert promoted_dtype not in [torch.bool, torch.float16], \
+    assert promoted_dtype not in [torch.bool], \
         "Result dtype for aten.threshold_backward cannot be bool or float16"
     return promoted_dtype
 
