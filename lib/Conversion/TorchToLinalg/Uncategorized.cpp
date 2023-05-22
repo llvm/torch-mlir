@@ -623,6 +623,18 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     divTensorMode.emitError("invalid rounding mode");
     return nullptr;
   }
+  if (auto pow = dyn_cast<AtenPowScalarOp>(op)) {
+    if (!pow.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      pow.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Type dtype = pow.getExponent().getType().cast<ValueTensorType>().getDtype();
+    Value selfPromoted = convertScalarToDtype(b, loc, operands[0], dtype);
+    return b.create<math::PowFOp>(loc, selfPromoted, payloadArgs[0]);
+  }
   if (auto pow = dyn_cast<AtenPowTensorScalarOp>(op)) {
     if (!pow.getType()
              .cast<ValueTensorType>()
@@ -1136,7 +1148,7 @@ public:
              AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenExpm1Op,
              AtenMinimumOp, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
              AtenRsubScalarOp, AtenMulScalarOp, AtenLogOp, AtenErfOp,
-             AtenSqrtOp, AtenFloorOp, AtenPowTensorScalarOp,
+             AtenSqrtOp, AtenFloorOp, AtenPowScalarOp, AtenPowTensorScalarOp,
              AtenPowTensorTensorOp, AtenLog2Op, AtenLog1pOp, AtenRsqrtOp,
              AtenDivScalarOp, AtenRemainderScalarOp, AtenAbsOp,
              AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenBitwiseOrTensorOp,

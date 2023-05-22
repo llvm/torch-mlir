@@ -1313,6 +1313,23 @@ def ElementwiseSignModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwisePowScalarModule(torch.nn.Module):
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True)
+    ])
+    def forward(self, x):
+        return torch.ops.aten.pow(0.5, x)
+
+@register_test_case(module_factory=lambda: ElementwisePowScalarModule())
+def ElementwisePowScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
 class ElementwisePowModule(torch.nn.Module):
 
     def __init__(self):
