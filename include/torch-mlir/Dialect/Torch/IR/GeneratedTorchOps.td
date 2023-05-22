@@ -837,6 +837,51 @@ def Torch_AtenNeg_Op : Torch_Op<"aten.neg_", [
   }];
 }
 
+def Torch_AtenSignOp : Torch_Op<"aten.sign", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::sign : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenSignOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenSignOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
+def Torch_AtenSign_Op : Torch_Op<"aten.sign_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::sign_ : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenSign_Op::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenSign_Op::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenFloorOp : Torch_Op<"aten.floor", [
     AllowsTypeRefinement,
     HasValueSemantics,

@@ -4405,6 +4405,52 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.sign` op into comparisons and aten.where.
+class DecomposeAtenSignOp : public OpRewritePattern<AtenSignOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSignOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto outType = op.getType().dyn_cast<BaseTensorType>();
+    if (!outType)
+      return rewriter.notifyMatchFailure(
+          op, "Only tensor types input are currently supported");
+
+    auto zero =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+    auto one =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    auto minusOne =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(-1.0));
+
+    auto compTy = outType.getWithSizesAndDtype(outType.getOptionalSizes(),
+                                               rewriter.getI1Type());
+
+    auto greater =
+        rewriter.create<AtenGtScalarOp>(loc, compTy, op.getSelf(), zero);
+    auto greaterEqual =
+        rewriter.create<AtenGeScalarOp>(loc, compTy, op.getSelf(), zero);
+
+    // Pseudo code:
+    // if (in >= 0)
+    //   if (in > 0)
+    //     return 1
+    //   else
+    //     return 0
+    // else
+    //   return -1
+    auto selectGreater =
+        rewriter.create<AtenWhereScalarOp>(loc, outType, greater, one, zero);
+
+    rewriter.replaceOpWithNewOp<AtenWhereScalarOtherOp>(op, outType, greaterEqual,
+                                                   selectGreater, minusOne);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -4568,6 +4614,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenCrossEntropyLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTopkOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSignOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
