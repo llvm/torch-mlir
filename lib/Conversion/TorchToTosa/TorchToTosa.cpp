@@ -4535,6 +4535,21 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenSqrtOp>::matchAndRewrite(
+    AtenSqrtOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Converts AtenSqrtOp into (Reciprocal + Rsqrt)
+  Value self = adaptor.getSelf();
+  auto rcpOp =
+      rewriter.create<tosa::ReciprocalOp>(op->getLoc(), self.getType(), self);
+
+  rewriter.replaceOpWithNewOp<tosa::RsqrtOp>(
+      op, getTypeConverter()->convertType(op.getType()), rcpOp);
+  return success();
+}
+
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -4763,6 +4778,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenConstantPadNdOp);
     INSERT_ATENOP_PATTERN(AtenRemainderScalarOp);
     INSERT_ATENOP_PATTERN(AtenCatOp);
+    INSERT_ATENOP_PATTERN(AtenSqrtOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
