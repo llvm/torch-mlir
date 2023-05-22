@@ -3091,6 +3091,11 @@ public:
       return rewriter.notifyMatchFailure(
           op, "expected result type to have a dtype");
     }
+    auto srcTy = op.getSrc().getType().cast<BaseTensorType>();
+    if (!srcTy.hasSizes() || !srcTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "expected src type to have a known rank");
+    }
     Type resultDtype = resultType.getDtype();
     Value srcToDtype =
         convertTensorToDtype(rewriter, op.getLoc(), op.getSrc(), resultDtype);
