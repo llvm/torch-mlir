@@ -136,7 +136,7 @@ public:
     Value dim = unbind.getDim();
     Value input = unbind.getSelf();
     SmallVector<Value> slices;
-    for (int i = 0; i < op.getNumResults(); i++) {
+    for (size_t i = 0; i < op.getNumResults(); i++) {
       // rewrite to slice op
       auto resultTy = op.getResult(i).getType();
       auto index = rewriter.create<Torch::ConstantIntOp>(
