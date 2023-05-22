@@ -2699,6 +2699,10 @@ def aten〇native_layer_norm〡dtype(input_rank_dtype: Tuple[int, int], normaliz
         result_dtype = torch.float64
     return input_dtype, input_dtype, result_dtype
 
+@check_dtype_function([Invocation(TensorOfShape(5, dtype=torch.int64, device="cpu"), 2)])
+def aten〇one_hot〡dtype(self_rank_dtype: Tuple[int, int], num_classes: int = -1) -> int:
+    return torch.int64
+
 @check_dtype_function(
     [Invocation(TensorOfShape(3, 3, dtype=torch.float32), TensorOfShape(3, dtype=torch.float32),
                 TensorOfShape(3, dtype=torch.float32), TensorOfShape(3, dtype=torch.float32),
