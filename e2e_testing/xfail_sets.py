@@ -331,6 +331,7 @@ STABLEHLO_PASS_SET = {
     "PowIntFloatModule_basic",
     "PrimMaxIntModule_basic",
     "PrimMinIntModule_basic",
+    "PrimMinIntDynamicModule_basic",
     "SortIntListReverse_basic",
     "SortIntList_basic",
     "SqrtIntConstantModule_basic",
