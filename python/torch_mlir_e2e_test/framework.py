@@ -285,7 +285,8 @@ def generate_golden_trace(test: Test) -> Trace:
 def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
     try:
         golden_trace = generate_golden_trace(test)
-        print(f"Compiling {test.unique_name}...")
+        if verbose:
+            print(f"Compiling {test.unique_name}...", file=sys.stderr)
         compiled = config.compile(test.program_factory())
     except Exception as e:
         return TestResult(unique_name=test.unique_name,
@@ -296,7 +297,8 @@ def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
                           trace=None,
                           golden_trace=None)
     try:
-        print(f"Running {test.unique_name}...")
+        if verbose:
+            print(f"Running {test.unique_name}...", file=sys.stderr)
         trace = config.run(compiled, golden_trace)
     except Exception as e:
         return TestResult(unique_name=test.unique_name,

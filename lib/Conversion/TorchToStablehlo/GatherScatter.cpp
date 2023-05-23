@@ -19,8 +19,10 @@
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
+#include <sys/_types/_int64_t.h>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -419,8 +421,6 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
 
   auto indexTensors = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
                                              indicesTorchType);
-  RankedTensorType resultType =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
 
   // Step 1: broadcast indices tensors
   int maxRank = -1;
@@ -428,17 +428,29 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
   SmallVector<int64_t> expandShape;
   SmallVector<int64_t> concatShape;
   // concat index tensor into to indices tensor for concat
-  for (auto indexTensor : indexTensors) {
+  for (size_t i = 0; i < indexTensors.size(); i++) {
+    auto indexTensor = indexTensors[i];
+    auto indexTorchTensor = indicesTorchType[i];
     // TODO: add support for none index input
-    if (indexTensor.getType().isa<Torch::NoneType>())
+    if (indexTorchTensor.getType().isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(
           op, "Only list ranked tensor types index are supported");
-    RankedTensorType indexTensorType =
-        indexTensor.getType().cast<RankedTensorType>();
+    auto indexTensorType = indexTensor.getType().cast<RankedTensorType>();
+    for (int64_t size : makeShapeTorchCompatible(indexTensorType.getShape())) {
+      if (size == kUnknownSize)
+        return rewriter.notifyMatchFailure(op, "Dynamic index support TBD");
+    }
     maxRank = std::max(maxRank, (int)indexTensorType.getRank());
   }
 
-  auto refinedResultShape = resultType.getShape();
+  RankedTensorType resultType =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+  SmallVector<int64_t> refinedResultShape =
+      makeShapeTorchCompatible(resultType.getShape());
+  for (int64_t size : refinedResultShape) {
+    if (size == kUnknownSize)
+      return rewriter.notifyMatchFailure(op, "Dynamic index support TBD");
+  }
   for (int i = 0; i < maxRank; i++) {
     indicesShape.push_back(refinedResultShape[i]);
     expandShape.push_back(refinedResultShape[i]);
@@ -503,11 +515,12 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
       /*indexVecDim=*/indexVecDim);
 
   SmallVector<int64_t> sliceSizes;
+  auto inputShape = makeShapeTorchCompatible(inputTensorType.getShape());
   for (int64_t i = 0; i < inputTensorType.getRank(); ++i) {
     if (i < numIndicesDim) {
       sliceSizes.push_back(1);
     } else {
-      sliceSizes.push_back(inputTensorType.getShape()[i]);
+      sliceSizes.push_back(inputShape[i]);
     }
   }
 
