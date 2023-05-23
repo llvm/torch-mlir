@@ -181,6 +181,48 @@ public:
     return success();
   }
 };
+
+class RecomposeSplitTensorGetItemOp
+    : public OpRewritePattern<Aten__Getitem__TOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten__Getitem__TOp op,
+                                PatternRewriter &rewriter) const override {
+    // recompose AtenSplitTensorOp + __getitem__t to AtenSliceTensorOp
+    auto splitTensorOp =
+        dyn_cast<AtenSplitTensorOp>(op.getList().getDefiningOp());
+    if (!splitTensorOp)
+      return failure();
+    if (isListPotentiallyMutated(splitTensorOp.getResult()))
+      return failure();
+    int64_t index;
+    if (!matchPattern(op.getIdx(), m_TorchConstantInt(&index)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected `idx` of `Aten__Getitem__TOp` to be a constant int");
+
+    int64_t splitSize;
+    if (!matchPattern(splitTensorOp.getSplitSize(),
+                      m_TorchConstantInt(&splitSize)))
+      return rewriter.notifyMatchFailure(
+          op,
+          "Expected `SplitSize` of `AtenSplitTensorOp` to be a constant int");
+
+    Location loc = op.getLoc();
+    Value step =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value start = rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(index * splitSize));
+    Value end = rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(index * splitSize + splitSize));
+    Value sliceTensorOp = rewriter.create<AtenSliceTensorOp>(
+        loc, op.getResult().getType(), splitTensorOp.getSelf(),
+        splitTensorOp.getDim(), start, end, step);
+    rewriter.replaceOp(op, sliceTensorOp);
+    if (splitTensorOp.getResult().use_empty())
+      rewriter.eraseOp(splitTensorOp);
+    return success();
+  }
+};
 } // namespace
 
 namespace {
@@ -194,6 +236,7 @@ public:
     // pattern.add calls go here
     patterns.add<RecomposeSliceCopy_>(context);
     patterns.add<RecomposeSelectFill_>(context);
+    patterns.add<RecomposeSplitTensorGetItemOp>(context);
     patterns.add<RecomposeUnbindListUnpack>(context);
     patterns.add<RecomposeUnbindGetItem>(context);
 
