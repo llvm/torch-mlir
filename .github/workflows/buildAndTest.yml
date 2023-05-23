@@ -2,9 +2,9 @@ name: Build and Test
 
 on:
   pull_request:
-    branches: [ main, misc_fixes ]
+    branches: [ feature/misc_fixes ]
   push:
-    branches: [ main, misc_fixes ]
+    branches: [ feature/misc_fixes ]
   workflow_dispatch:
 
 # Ensure that only a single job or workflow using the same
