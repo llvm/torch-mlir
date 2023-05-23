@@ -22,7 +22,6 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include <sys/_types/_int64_t.h>
 
 using namespace mlir;
 using namespace mlir::torch;
