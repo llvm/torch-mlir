@@ -565,7 +565,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::diagonal_scatter : (Tensor, Tensor, int, int, int) -> (Tensor)")
     emit("aten::as_strided_scatter : (Tensor, Tensor, int[], int[], int?) -> (Tensor)")
     emit("aten::upsample_nearest2d : (Tensor, int[], float?, float?) -> (Tensor)")
-
+    emit("aten::scaled_dot_product_attention : (Tensor, Tensor, Tensor, Tensor?, float, bool, float?) -> (Tensor)")
 
     # Dict ops.
     emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)", has_folder=True)
@@ -589,6 +589,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::any.bool : (bool[]) -> (bool)")
     emit("aten::sort.int : (int[], bool) -> ()", has_canonicalizer=True)
     emit("aten::sort : (Tensor, int, bool) -> (Tensor, Tensor)")
+    emit("aten::unbind.int : (Tensor, int) -> (Tensor[])")
 
     # Str ops.
     emit("aten::add.str : (str, str) -> (str)")

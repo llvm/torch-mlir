@@ -44,5 +44,6 @@ void mlir::torch::registerAllPasses() {
   mlir::mhlo::registerStablehloLegalizeToHloPass();
   mlir::mhlo::registerChloLegalizeToHloPass();
   mlir::mhlo::registerHloLegalizeToLinalgPass();
+  mlir::mhlo::registerTestUnfuseBatchNormPass();
 #endif // TORCH_MLIR_ENABLE_STABLEHLO
 }
