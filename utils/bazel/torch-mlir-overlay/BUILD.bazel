@@ -297,7 +297,10 @@ gentbl_cc_library(
     strip_include_prefix = "include",
     tbl_outs = [
         (
-            ["-gen-pass-decls"],
+            [
+                "-gen-pass-decls",
+                "-DTORCH_MLIR_ENABLE_STABLEHLO",
+            ],
             "include/torch-mlir/Dialect/TorchConversion/Transforms/Passes.h.inc",
         ),
     ],
@@ -441,6 +444,9 @@ cc_library(
         "lib/Conversion/TorchToStablehlo/*.cpp",
     ]),
     hdrs = glob(["include/torch-mlir/Conversion/TorchToStablehlo/*.h"]),
+    defines = [
+        "TORCH_MLIR_ENABLE_STABLEHLO",
+    ],
     strip_include_prefix = "include",
     deps = [
         ":TorchMLIRConversionPassesIncGen",
