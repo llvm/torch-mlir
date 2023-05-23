@@ -72,13 +72,6 @@ std::vector<torch::lazy::Shape> compute_shape_copy(
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
-std::vector<torch::lazy::Shape> compute_shape_scalar_tensor(
-    const at::Scalar& s, c10::optional<at::ScalarType> dtype,
-    c10::optional<at::Layout> layout, c10::optional<at::Device> device,
-    c10::optional<bool> pin_memory) {
-  return {Shape(dtype.value_or(s.type()), {})};
-}
-
 std::vector<torch::lazy::Shape> compute_shape_native_group_norm(
   const at::Tensor& input,
   const c10::optional<at::Tensor>& weight,

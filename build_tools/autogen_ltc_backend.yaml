@@ -28,6 +28,7 @@ blacklist:
 - arange.start
 - arange.start_step
 - fill.Scalar
+- scalar_tensor
 
 # Disabled in favour of functionalized alternatives
 - _reshape_alias
