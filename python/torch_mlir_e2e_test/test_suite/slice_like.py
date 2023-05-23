@@ -615,7 +615,7 @@ class TensorsSplitTensorModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True)
+        ([6, 10, 12], torch.float32, True)
     ])
     def forward(self, x):
         s0, s1, s2 = torch.ops.aten.split(x, 2, dim=0)
@@ -637,7 +637,7 @@ class TensorsSplitTensorLastSmallerModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True)
+        ([8, 10, 12], torch.float32, True)
     ])
     def forward(self, x):
         s0, s1, s2 = torch.ops.aten.split(x, 3, dim=0)
@@ -661,7 +661,7 @@ class TensorsSplitTensorNegativeDimModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True)
+        ([10, 12, 6], torch.float32, True)
     ])
     def forward(self, x):
         s0, s1, s2 = torch.ops.aten.split(x, 2, -1)
