@@ -149,6 +149,27 @@ Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
   return const_op.getResult();
 }
 
+// Create a zero constant tensor of the desired type and shape.
+std::optional<Value> getZerosLikeTensor(PatternRewriter &rewriter,
+                                        Operation *op, Type type) {
+  RankedTensorType resultType = type.dyn_cast<RankedTensorType>();
+
+  if (!resultType) {
+    (void)rewriter.notifyMatchFailure(op, "not ranked tensor type");
+    return std::nullopt;
+  }
+
+  auto resultShape = resultType.getShape();
+  ShapedType zeroType =
+      RankedTensorType::get(resultShape, resultType.getElementType());
+  Attribute zeroAttr = rewriter.getZeroAttr(zeroType);
+
+  return CreateOpAndInfer<tosa::ConstOp>(rewriter, op->getLoc(), zeroType,
+                                         zeroAttr.cast<ElementsAttr>())
+      .getResult();
+}
+
+
 // Templated function to create a constant op for given type and shape.
 // T: storage C type.
 // Default template creates a constant tensor in T.

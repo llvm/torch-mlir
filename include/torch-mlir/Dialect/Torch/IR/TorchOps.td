@@ -720,7 +720,7 @@ def Torch_ConstantIntOp : Torch_Op<"constant.int", [
     Python where they are arbitrary precision.
   }];
   let arguments = (ins
-    AnyI64Attr:$value
+    I64Attr:$value
   );
   let results = (outs
     Torch_IntType:$result

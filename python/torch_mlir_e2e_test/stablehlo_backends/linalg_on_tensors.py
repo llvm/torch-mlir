@@ -40,7 +40,7 @@ class LinalgOnTensorsStablehloBackend(StablehloBackend):
         """
         run_pipeline_with_repro_report(
             imported_module,
-            "builtin.module(func.func(chlo-legalize-to-hlo),stablehlo-legalize-to-hlo,func.func(canonicalize,cse,symbolic-shape-optimization,hlo-legalize-to-linalg,canonicalize))",
+            "builtin.module(func.func(chlo-legalize-to-hlo),stablehlo-legalize-to-hlo,func.func(canonicalize,cse,symbolic-shape-optimization,mhlo-test-unfuse-batch-norm,canonicalize,hlo-legalize-to-linalg,canonicalize))",
             "Lowering StableHLO to Linalg-on-Tensors",
         )
         return self.refbackend.compile(imported_module)
