@@ -1,5 +1,0 @@
--r torchvision-nightly-requirements.txt
-
-pillow
-dill
-multiprocess

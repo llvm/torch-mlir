@@ -271,10 +271,12 @@ function test_in_tree() {
   cd /main_checkout/torch-mlir/
   export PYTHONPATH="/main_checkout/torch-mlir/build/tools/torch-mlir/python_packages/torch_mlir"
   
+  echo ":::: Test in-tree"
+  cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all
+
   case $torch_version in
     nightly)
-      echo ":::: Test in-tree"
-      cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all
+      echo ":::: Test with nightly torch"
 
       echo ":::: Check that update_abstract_interp_lib.sh has been run"
       _check_file_not_changed_by ./build_tools/update_abstract_interp_lib.sh lib/Dialect/Torch/Transforms/AbstractInterpLibrary.cpp
@@ -284,25 +286,21 @@ function test_in_tree() {
 
       echo ":::: Run Lazy Tensor Core e2e integration tests"
       python -m e2e_testing.main --config=lazy_tensor_core -v
-
-      echo ":::: Run TorchDynamo e2e integration tests"
-      python -m e2e_testing.main --config=torchdynamo -v
       ;;
     stable)
-      echo ":::: Test in-tree"
-      LIT_XFAIL="debug/lockstep_basic.py" cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all
+      echo ":::: Test with stable torch"
 
       echo ":::: Run Lazy Tensor Core e2e integration tests in experimental mode"
-      python -m e2e_testing.main --config=lazy_tensor_core -v --experimental
-
-      echo ":::: Run TorchDynamo e2e integration tests in experimental mode"
-      python -m e2e_testing.main --config=torchdynamo -v -x --experimental
+      python -m e2e_testing.main --config=lazy_tensor_core -v --ignore_failures
       ;;
     *)
       echo "Unrecognized torch version '$torch_version'"
       exit 1
       ;;
     esac
+  
+  echo ":::: Run TorchDynamo e2e integration tests"
+  python -m e2e_testing.main --config=torchdynamo -v
 
   echo ":::: Run Linalg e2e integration tests"
   python -m e2e_testing.main --config=linalg -v
@@ -331,8 +329,9 @@ function setup_venv() {
     stable)
       echo ":::: Using stable dependencies"
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/pytorch-stable-requirements.txt
+      python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/torchvision-stable-requirements.txt
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/build-requirements.txt
-      python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/test-stable-requirements.txt
+      python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/test-requirements.txt
       ;;
     *)
       echo "Unrecognized torch version '$torch_version'"

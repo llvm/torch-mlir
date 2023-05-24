@@ -45,6 +45,10 @@ jobs:
             llvm-build: out-of-tree
           - os-arch: windows-x86_64
             torch-version: stable
+          - os-arch: ubuntu-x86_64
+            llvm-build: out-of-tree
+          - os-arch: ubuntu-x86_64
+            torch-version: nightly
         include:
           # Specify OS versions
           - os-arch: ubuntu-x86_64

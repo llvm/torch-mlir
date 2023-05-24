@@ -4,6 +4,7 @@ wheel
 setuptools
 cmake
 ninja
+packaging
 
 # Workaround for what should be a torch dep
 # See discussion in #1174

@@ -1,5 +1,0 @@
--r torchvision-stable-requirements.txt
-
-pillow
-dill
-multiprocess
