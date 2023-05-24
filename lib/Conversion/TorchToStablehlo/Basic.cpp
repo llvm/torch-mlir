@@ -1426,15 +1426,11 @@ LogicalResult ConvertAtenOp<AtenUniformOp>::matchAndRewrite(
             "generator is supported");
 
   auto elements = self.getType().cast<RankedTensorType>().getShape();
-  for (auto element : elements) {
-    if (element == ShapedType::kDynamic)
-      return rewriter.notifyMatchFailure(op, "Dynamic shape support TBD");
-  }
+  if (llvm::any_of(elements,
+                   [](int64_t dim) { return dim == ShapedType::kDynamic; }))
+    return rewriter.notifyMatchFailure(op, "Dynamic shape support TBD");
   auto shape_tensor = rewriter.create<stablehlo::ConstantOp>(
-      loc,
-      DenseIntElementsAttr::get(
-          RankedTensorType::get(elements.size(), rewriter.getIntegerType(64)),
-          elements));
+      loc, rewriter.getI64TensorAttr(elements));
   auto outTy = getTypeConverter()->convertType(op.getType());
   auto outElemTy = outTy.cast<RankedTensorType>().getElementType();
   Value from =
