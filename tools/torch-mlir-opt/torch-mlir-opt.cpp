@@ -36,6 +36,7 @@ int main(int argc, char **argv) {
   mlir::mhlo::registerChloLegalizeToHloPass();
   mlir::mhlo::registerHloLegalizeToLinalgPass();
   mlir::mhlo::registerTestUnfuseBatchNormPass();
+  mlir::mhlo::registerHloLegalizeToMemrefPass();
 #endif
   return mlir::asMainReturnCode(mlir::MlirOptMain(
       argc, argv, "MLIR modular optimizer driver\n", registry));
