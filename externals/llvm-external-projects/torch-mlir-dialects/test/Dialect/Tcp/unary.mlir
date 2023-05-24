@@ -243,4 +243,3 @@ func.func @test_cast_f16_f32(%arg0 : tensor<?x?xf16>) -> tensor<?x?xf32> {
   %0 = tcp.cast %arg0 : tensor<?x?xf16> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
-

@@ -20,8 +20,6 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
-#include <iostream>
-
 using namespace mlir;
 using namespace mlir::tcp;
 using namespace mlir::torch;
@@ -479,52 +477,132 @@ public:
     }
 
     // FP -> FP
-    if (inputType.getDtype().isa<mlir::FloatType>() && outputType.getDtype().isa<mlir::FloatType>())
-      rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), IntegerAttr{}, IntegerAttr{});
+    if (inputType.getDtype().isa<mlir::FloatType>() &&
+        outputType.getDtype().isa<mlir::FloatType>())
+      rewriter.replaceOpWithNewOp<tcp::CastOp>(
+          op, resultType, adaptor.getSelf(), IntegerAttr{}, IntegerAttr{});
     // FP -> INT
     else if (inputType.getDtype().isa<mlir::FloatType>()) {
       if (outputType.getDtype().isSignlessInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), IntegerAttr{}, rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signless));
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(), IntegerAttr{},
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signless));
       else if (outputType.getDtype().isSignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), IntegerAttr{}, rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signed));
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(), IntegerAttr{},
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signed));
       else if (outputType.getDtype().isUnsignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), IntegerAttr{}, rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Unsigned));
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(), IntegerAttr{},
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Unsigned));
       else
-        return rewriter.notifyMatchFailure(op, "expect output type to be signless/signed/unsigned integer");
+        return rewriter.notifyMatchFailure(
+            op, "expect output type to be signless/signed/unsigned integer");
     }
     // INT -> FP
     else if (outputType.getDtype().isa<mlir::FloatType>()) {
       if (inputType.getDtype().isSignlessInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signless), IntegerAttr{});
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signless),
+            IntegerAttr{});
       else if (inputType.getDtype().isSignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signed), IntegerAttr{});
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signed),
+            IntegerAttr{});
       else if (inputType.getDtype().isUnsignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Unsigned), IntegerAttr{});
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Unsigned),
+            IntegerAttr{});
       else
-        return rewriter.notifyMatchFailure(op, "expect input type to be signless/signed/unsigned integer");
+        return rewriter.notifyMatchFailure(
+            op, "expect input type to be signless/signed/unsigned integer");
     }
     // INT -> INT
     else {
-      if (inputType.getDtype().isSignlessInteger() && outputType.getDtype().isSignlessInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signless), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signless));
-      else if (inputType.getDtype().isSignlessInteger() && outputType.getDtype().isSignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signless), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signed));
-      else if (inputType.getDtype().isSignlessInteger() && outputType.getDtype().isUnsignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signless), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Unsigned));
-      else if (inputType.getDtype().isSignedInteger() && outputType.getDtype().isSignlessInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signed), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signless));
-      else if (inputType.getDtype().isSignedInteger() && outputType.getDtype().isSignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signed), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signed));
-      else if (inputType.getDtype().isSignedInteger() && outputType.getDtype().isUnsignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signed), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Unsigned));
-      else if (inputType.getDtype().isUnsignedInteger() && outputType.getDtype().isSignlessInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Unsigned), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signless));
-      else if (inputType.getDtype().isUnsignedInteger() && outputType.getDtype().isSignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Unsigned), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Signed));
-      else if (inputType.getDtype().isUnsignedInteger() && outputType.getDtype().isUnsignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(op, resultType, adaptor.getSelf(), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Unsigned), rewriter.getUI32IntegerAttr(IntegerType::SignednessSemantics::Unsigned));
+      if (inputType.getDtype().isSignlessInteger() &&
+          outputType.getDtype().isSignlessInteger())
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signless),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signless));
+      else if (inputType.getDtype().isSignlessInteger() &&
+               outputType.getDtype().isSignedInteger())
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signless),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signed));
+      else if (inputType.getDtype().isSignlessInteger() &&
+               outputType.getDtype().isUnsignedInteger())
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signless),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Unsigned));
+      else if (inputType.getDtype().isSignedInteger() &&
+               outputType.getDtype().isSignlessInteger())
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signed),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signless));
+      else if (inputType.getDtype().isSignedInteger() &&
+               outputType.getDtype().isSignedInteger())
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signed),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signed));
+      else if (inputType.getDtype().isSignedInteger() &&
+               outputType.getDtype().isUnsignedInteger())
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signed),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Unsigned));
+      else if (inputType.getDtype().isUnsignedInteger() &&
+               outputType.getDtype().isSignlessInteger())
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Unsigned),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signless));
+      else if (inputType.getDtype().isUnsignedInteger() &&
+               outputType.getDtype().isSignedInteger())
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Unsigned),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Signed));
+      else if (inputType.getDtype().isUnsignedInteger() &&
+               outputType.getDtype().isUnsignedInteger())
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Unsigned),
+            rewriter.getUI32IntegerAttr(
+                IntegerType::SignednessSemantics::Unsigned));
       else
-        return rewriter.notifyMatchFailure(op, "invalid input/output data type");
+        return rewriter.notifyMatchFailure(op,
+                                           "invalid input/output data type");
     }
     return success();
   }
@@ -598,4 +676,3 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
   target.addIllegalOp<AtenAtan2Op>();
   patterns.add<ConvertAtenAtan2Op>(typeConverter, context);
 }
-  

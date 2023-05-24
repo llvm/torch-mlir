@@ -122,7 +122,8 @@ LogicalResult ConcatOp::verify() {
   for (auto type : getInputs().getTypes()) {
     auto inputTensorType = type.cast<TensorType>();
     if (outputTensorType.getRank() != inputTensorType.getRank())
-      return emitOpError() << "failed to verify tcp.concat operands and results rank mismatched";
+      return emitOpError() << "failed to verify tcp.concat operands and "
+                              "results rank mismatched";
     for (int64_t dim = 0; dim < inputTensorType.getRank(); ++dim) {
       if (dim == axis) {
         concatDimAcc += inputTensorType.getShape()[dim];
@@ -167,8 +168,10 @@ LogicalResult CastOp::verify() {
   if (inputType.getElementType().isa<IntegerType>()) {
     if (!getInDtype())
       return emitOpError("in_dtype attr must be set when input is INT");
-    if (inputType.getElementType().isInteger(1) && getInDtype().value() != IntegerType::SignednessSemantics::Signless)
-      return emitOpError("in_dtype attr must be set to SignednessSemantics::Signless when input is i1");
+    if (inputType.getElementType().isInteger(1) &&
+        getInDtype().value() != IntegerType::SignednessSemantics::Signless)
+      return emitOpError("in_dtype attr must be set to "
+                         "SignednessSemantics::Signless when input is i1");
   }
 
   if (outputType.getElementType().isa<FloatType>()) {
@@ -179,8 +182,10 @@ LogicalResult CastOp::verify() {
   if (outputType.getElementType().isa<IntegerType>()) {
     if (!getOutDtype())
       return emitOpError("out_dtype attr must be set when output is INT");
-    if (outputType.getElementType().isInteger(1) && getOutDtype().value() != IntegerType::SignednessSemantics::Signless)
-      return emitOpError("out_dtype attr must be set to SignednessSemantics::Signless when output is i1");
+    if (outputType.getElementType().isInteger(1) &&
+        getOutDtype().value() != IntegerType::SignednessSemantics::Signless)
+      return emitOpError("out_dtype attr must be set to "
+                         "SignednessSemantics::Signless when output is i1");
   }
 
   return success();
