@@ -241,36 +241,14 @@ public:
     Location loc = chunk.getLoc();
     Value totalSize = rewriter.create<Torch::AtenSizeIntOp>(loc, input, dim);
 
-    // below code is equivalent to:
-    // if floordiv(totalSize, chunks) * chunks == totalSize:
-    //    chunkSize = floordiv(totalSize, chunks)
-    // else:
-    //    chunkSize = floordiv(totalSize, chunks) + 1
-    Value floordiv = rewriter.create<AtenFloordivIntOp>(loc, totalSize, chunks);
-    Value lhs = rewriter.create<AtenMulIntOp>(loc, floordiv, chunks);
-    Value condition = rewriter.create<AtenEqIntOp>(loc, lhs, totalSize);
+    // chunkSize = floordiv(totalSize + chunks - 1, chunks)
     Value cstOne =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-    auto primIf =
-        rewriter.create<PrimIfOp>(loc, totalSize.getType(), condition);
-    {
-      Region &thenRegion = primIf.getThenRegion();
-      rewriter.createBlock(&thenRegion, thenRegion.end());
-      auto chunkSize =
-          rewriter.create<AtenFloordivIntOp>(loc, totalSize, chunks);
-      rewriter.create<PrimIfYieldOp>(loc, ValueRange{chunkSize});
-    }
-    {
-      Region &elseRegion = primIf.getElseRegion();
-      rewriter.createBlock(&elseRegion, elseRegion.end());
-      Value chunkSize =
-          rewriter.create<AtenFloordivIntOp>(loc, totalSize, chunks);
-      chunkSize = rewriter.create<AtenAddIntOp>(loc, chunkSize, cstOne);
-      rewriter.create<PrimIfYieldOp>(loc, ValueRange{chunkSize});
-    }
-    rewriter.setInsertionPointAfter(primIf);
-    SmallVector<Value> slices;
+    Value dividend = rewriter.create<AtenAddIntOp>(loc, totalSize, chunks);
+    dividend = rewriter.create<AtenSubIntOp>(loc, dividend, cstOne);
+    Value chunkSize = rewriter.create<AtenFloordivIntOp>(loc, dividend, chunks);
 
+    SmallVector<Value> slices;
     for (size_t i = 0; i < op.getNumResults(); i++) {
       // rewrite to slice op with
       // start = chunkSize * i,
@@ -278,14 +256,13 @@ public:
       auto resultTy = op.getResult(i).getType();
       auto index = rewriter.create<Torch::ConstantIntOp>(
           op->getLoc(), rewriter.getI64IntegerAttr(i));
-      auto start =
-          rewriter.create<AtenMulIntOp>(loc, index, primIf.getResult(0));
+      auto start = rewriter.create<AtenMulIntOp>(loc, index, chunkSize);
       Value end;
       if (i == op.getNumResults() - 1) {
         end = totalSize;
       } else {
         auto nextIdx = rewriter.create<AtenAddIntOp>(loc, index, cstOne);
-        end = rewriter.create<AtenMulIntOp>(loc, nextIdx, primIf.getResult(0));
+        end = rewriter.create<AtenMulIntOp>(loc, nextIdx, chunkSize);
       }
       Value sliceTensorOp = rewriter.create<AtenSliceTensorOp>(
           loc, resultTy, input, dim, start, end, cstOne);
