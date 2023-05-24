@@ -136,6 +136,7 @@ LOWERING_PIPELINE = "builtin.module(" + ",".join([
     "func.func(scf-bufferize)",
     "func.func(tm-tensor-bufferize)",
     "func.func(empty-tensor-to-alloc-tensor)",
+    "func.func(tensor-bufferize)",
     "func.func(linalg-bufferize)",
     "func-bufferize",
     "arith-bufferize",

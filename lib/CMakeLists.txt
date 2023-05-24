@@ -24,6 +24,7 @@ set(LinkedLibs
 if(TORCH_MLIR_ENABLE_STABLEHLO)
   list(APPEND LinkedLibs
     MhloPasses
+    MhloToMemrefConversion
     MhloToLinalg
     StablehloToMhlo
   )
