@@ -1200,4 +1200,8 @@ LTC_XFAIL_SET = {
     "SplitTensorGetItem_Module_basic",
     "UnbindIntListUnpack_Module_basic",
     "UnbindIntGetItem_Module_basic",
+    "ChunkListUnpack_Module_basic",
+    "ChunkListUnpackUneven_Module_basic",
+    "ChunkListUnpackDynamic_Module_basic",
+    "ChunkListUnpackUnevenDynamic_Module_basic",
 }
