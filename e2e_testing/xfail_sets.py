@@ -456,6 +456,8 @@ STABLEHLO_PASS_SET = {
     "IndexSelectWholeDimensionModule_basic",
     "IndexSelectWholeTensorModule_basic",
     "IndexSelectNegativeDimModule_basic",
+    "IndexTensorStaticModule_basic",
+    "IndexTensorMultiIndexStaticModule_basic",
     "LayerNormLastDimModule_basic",
     "LayerNormModule_basic",
     "LayerNormNormalizeOverAllDimsModule_basic",
