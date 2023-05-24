@@ -186,22 +186,61 @@ func.func @test_atan_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
 
 // -----
 
+func.func @test_cast_i32_f32(%arg0 : tensor<?x?xi32>) -> tensor<?x?xf32> {
+  // expected-error@+1{{tcp.cast' op in_dtype attr must be set when input is INT}}
+  %0 = tcp.cast %arg0 : tensor<?x?xi32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+func.func @test_cast_i32_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xi16> {
+  // expected-error@+1{{tcp.cast' op out_dtype attr must be set when output is INT}}
+  %0 = tcp.cast %arg0 : tensor<?x?xf32> -> tensor<?x?xi16>
+  return %0 : tensor<?x?xi16>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_cast_i32_i8(
 // CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xi32>) -> tensor<?x?xi8>
-// CHECK:         %[[ATAN:.*]] = tcp.cast %[[ARG]] : tensor<?x?xi32> -> tensor<?x?xi8>
-// CHECK:         return %[[ATAN]] : tensor<?x?xi8>
+// CHECK:         %[[OUT:.*]] = tcp.cast %[[ARG]] {in_dtype = 1 : ui32, out_dtype = 2 : ui32} : tensor<?x?xi32> -> tensor<?x?xi8>
+// CHECK:         return %[[OUT]] : tensor<?x?xi8>
 func.func @test_cast_i32_i8(%arg0 : tensor<?x?xi32>) -> tensor<?x?xi8> {
-  %0 = tcp.cast %arg0 : tensor<?x?xi32> -> tensor<?x?xi8>
+  %0 = tcp.cast %arg0 {in_dtype = 1 : ui32, out_dtype = 2 : ui32} : tensor<?x?xi32> -> tensor<?x?xi8>
   return %0 : tensor<?x?xi8>
 }
 
 // -----
 
-// CHECK-LABEL: func.func @test_cast_i32_f32(
-// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xi32>) -> tensor<?x?xf32>
-// CHECK:         %[[ATAN:.*]] = tcp.cast %[[ARG]] : tensor<?x?xi32> -> tensor<?x?xf32>
-// CHECK:         return %[[ATAN]] : tensor<?x?xf32>
-func.func @test_cast_i32_f32(%arg0 : tensor<?x?xi32>) -> tensor<?x?xf32> {
-  %0 = tcp.cast %arg0 : tensor<?x?xi32> -> tensor<?x?xf32>
+// CHECK-LABEL: func.func @test_cast_i32_f16(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xi32>) -> tensor<?x?xf16>
+// CHECK:         %[[OUT:.*]] = tcp.cast %[[ARG]] {in_dtype = 2 : ui32} : tensor<?x?xi32> -> tensor<?x?xf16>
+// CHECK:         return %[[OUT]] : tensor<?x?xf16>
+func.func @test_cast_i32_f16(%arg0 : tensor<?x?xi32>) -> tensor<?x?xf16> {
+  %0 = tcp.cast %arg0 {in_dtype = 2 : ui32} : tensor<?x?xi32> -> tensor<?x?xf16>
+  return %0 : tensor<?x?xf16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_cast_f16_i32(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xf16>) -> tensor<?x?xi32>
+// CHECK:         %[[OUT:.*]] = tcp.cast %[[ARG]] {out_dtype = 0 : ui32} : tensor<?x?xf16> -> tensor<?x?xi32>
+// CHECK:         return %[[OUT]] : tensor<?x?xi32>
+func.func @test_cast_f16_i32(%arg0 : tensor<?x?xf16>) -> tensor<?x?xi32> {
+  %0 = tcp.cast %arg0 {out_dtype = 0 : ui32} : tensor<?x?xf16> -> tensor<?x?xi32>
+  return %0 : tensor<?x?xi32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_cast_f16_f32(
+// CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xf16>) -> tensor<?x?xf32>
+// CHECK:         %[[OUT:.*]] = tcp.cast %[[ARG]] : tensor<?x?xf16> -> tensor<?x?xf32>
+// CHECK:         return %[[OUT]] : tensor<?x?xf32>
+func.func @test_cast_f16_f32(%arg0 : tensor<?x?xf16>) -> tensor<?x?xf32> {
+  %0 = tcp.cast %arg0 : tensor<?x?xf16> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
+

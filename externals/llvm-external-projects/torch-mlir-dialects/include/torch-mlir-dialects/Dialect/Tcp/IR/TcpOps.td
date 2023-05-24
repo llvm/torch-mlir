@@ -523,7 +523,10 @@ def Tcp_CastOp:  Tcp_Op<"cast", [Pure, Elementwise, SameOperandsAndResultShape]>
   }];
 
   let arguments = (ins
-    Tcp_Tensor:$in
+    Tcp_Tensor:$in,
+    // Align with enum SignednessSemantics
+    OptionalAttr<UI32Attr>:$in_dtype,
+    OptionalAttr<UI32Attr>:$out_dtype
   );
 
   let results = (outs
@@ -531,6 +534,8 @@ def Tcp_CastOp:  Tcp_Op<"cast", [Pure, Elementwise, SameOperandsAndResultShape]>
   );
 
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
+
+  let hasVerifier = 1;
 }
 
 #endif // TORCH_MLIR_DIALECT_TCP_OPS
