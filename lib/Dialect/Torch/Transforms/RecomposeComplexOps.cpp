@@ -137,7 +137,7 @@ public:
     Value input = unbind.getSelf();
     SmallVector<Value> slices;
     for (size_t i = 0; i < op.getNumResults(); i++) {
-      // rewrite to slice op
+      // rewrite to select.int op
       auto resultTy = op.getResult(i).getType();
       auto index = rewriter.create<Torch::ConstantIntOp>(
           op->getLoc(), rewriter.getI64IntegerAttr(i));
@@ -223,6 +223,81 @@ public:
     return success();
   }
 };
+
+class RecomposeChunkListUnpack : public OpRewritePattern<PrimListUnpackOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimListUnpackOp op,
+                                PatternRewriter &rewriter) const override {
+    // recompose AtenChunkOp + PrimListUnpackOp to AtenSliceTensorOps
+    auto chunk = dyn_cast<AtenChunkOp>(op.getOperand().getDefiningOp());
+    if (!chunk)
+      return failure();
+    if (isListPotentiallyMutated(chunk.getResult()))
+      return failure();
+    Value dim = chunk.getDim();
+    Value input = chunk.getSelf();
+    Value chunks = chunk.getChunks();
+    Location loc = chunk.getLoc();
+    Value totalSize = rewriter.create<Torch::AtenSizeIntOp>(loc, input, dim);
+
+    // below code is equivalent to:
+    // if floordiv(totalSize, chunks) * chunks == totalSize:
+    //    chunkSize = floordiv(totalSize, chunks)
+    // else:
+    //    chunkSize = floordiv(totalSize, chunks) + 1
+    Value floordiv = rewriter.create<AtenFloordivIntOp>(loc, totalSize, chunks);
+    Value lhs = rewriter.create<AtenMulIntOp>(loc, floordiv, chunks);
+    Value condition = rewriter.create<AtenEqIntOp>(loc, lhs, totalSize);
+    Value cstOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    auto primIf =
+        rewriter.create<PrimIfOp>(loc, totalSize.getType(), condition);
+    {
+      Region &thenRegion = primIf.getThenRegion();
+      rewriter.createBlock(&thenRegion, thenRegion.end());
+      auto chunkSize =
+          rewriter.create<AtenFloordivIntOp>(loc, totalSize, chunks);
+      rewriter.create<PrimIfYieldOp>(loc, ValueRange{chunkSize});
+    }
+    {
+      Region &elseRegion = primIf.getElseRegion();
+      rewriter.createBlock(&elseRegion, elseRegion.end());
+      Value chunkSize =
+          rewriter.create<AtenFloordivIntOp>(loc, totalSize, chunks);
+      chunkSize = rewriter.create<AtenAddIntOp>(loc, chunkSize, cstOne);
+      rewriter.create<PrimIfYieldOp>(loc, ValueRange{chunkSize});
+    }
+    rewriter.setInsertionPointAfter(primIf);
+    SmallVector<Value> slices;
+
+    for (size_t i = 0; i < op.getNumResults(); i++) {
+      // rewrite to slice op with
+      // start = chunkSize * i,
+      // end = lastIndex ? totalSize : chunkSize * (i+1)
+      auto resultTy = op.getResult(i).getType();
+      auto index = rewriter.create<Torch::ConstantIntOp>(
+          op->getLoc(), rewriter.getI64IntegerAttr(i));
+      auto start =
+          rewriter.create<AtenMulIntOp>(loc, index, primIf.getResult(0));
+      Value end;
+      if (i == op.getNumResults() - 1) {
+        end = totalSize;
+      } else {
+        auto nextIdx = rewriter.create<AtenAddIntOp>(loc, index, cstOne);
+        end = rewriter.create<AtenMulIntOp>(loc, nextIdx, primIf.getResult(0));
+      }
+      Value sliceTensorOp = rewriter.create<AtenSliceTensorOp>(
+          loc, resultTy, input, dim, start, end, cstOne);
+      slices.push_back(sliceTensorOp);
+    }
+    rewriter.replaceOp(op, slices);
+    // erase chunkOp if no user left
+    if (chunk.getResult().use_empty())
+      rewriter.eraseOp(chunk);
+    return success();
+  }
+};
 } // namespace
 
 namespace {
@@ -239,6 +314,7 @@ public:
     patterns.add<RecomposeSplitTensorGetItemOp>(context);
     patterns.add<RecomposeUnbindListUnpack>(context);
     patterns.add<RecomposeUnbindGetItem>(context);
+    patterns.add<RecomposeChunkListUnpack>(context);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

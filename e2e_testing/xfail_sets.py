@@ -729,6 +729,8 @@ STABLEHLO_PASS_SET = {
     "SplitTensorGetItem_Module_basic",
     "UnbindIntListUnpack_Module_basic",
     "UnbindIntGetItem_Module_basic",
+    "ChunkListUnpack_Module_basic",
+    "ChunkListUnpackUneven_Module_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -1014,6 +1016,8 @@ TOSA_PASS_SET = {
     "TensorsConcatNegativeDimStaticModule_basic",
     "AtenComplex64Module_basic",
     "SplitTensorGetItem_Module_basic",
+    "ChunkListUnpack_Module_basic",
+    "ChunkListUnpackUneven_Module_basic",
 }
 
 LTC_XFAIL_SET = {
