@@ -731,6 +731,12 @@ STABLEHLO_PASS_SET = {
     "SplitTensorGetItem_Module_basic",
     "UnbindIntListUnpack_Module_basic",
     "UnbindIntGetItem_Module_basic",
+    "RandIntDtypeModule_basic",
+    "RandIntLowDtypeModule_basic",
+    "RandIntLowModule_basic",
+    "RandIntModule_basic",
+    "RandIntPinMemoryModule_basic",
+    "UniformNoCorrelationModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
