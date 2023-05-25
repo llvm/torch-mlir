@@ -40,7 +40,7 @@ jobs:
 
     - uses: ./.github/actions/setup-build
       with:
-        cache-suffix: 'release'
+        cache-enabled: 'false'
     - name: Build Python wheels and smoke test.
       run: |
         cd $GITHUB_WORKSPACE
@@ -99,7 +99,7 @@ jobs:
         submodules: 'true'
     - uses: ./.github/actions/setup-build
       with:
-        cache-suffix: 'release'
+        cache-enabled: 'false'
     - name: Build Python wheels and smoke test.
       run: |
         cd $GITHUB_WORKSPACE
@@ -159,7 +159,7 @@ jobs:
         submodules: 'true'
     - uses: ./.github/actions/setup-build
       with:
-        cache-suffix: 'release'
+        cache-enabled: 'false'
     - name: Set up Visual Studio shell
       uses: egor-tensin/vs-shell@v2
       with:
