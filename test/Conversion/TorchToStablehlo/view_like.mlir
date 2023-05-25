@@ -7,8 +7,8 @@
 // CHECK:         %[[T1:.*]] = torch_c.to_i64 %[[INT0]]
 // CHECK:         %[[INT2:.*]] = torch.constant.int 2
 // CHECK:         %[[T2:.*]] = torch_c.to_i64 %[[INT2]]
-// CHECK:         %[[INT9223372036854775807:.*]] = torch.constant.int 9223372036854775807
-// CHECK:         %[[T3:.*]] = torch_c.to_i64 %[[INT9223372036854775807]]
+// CHECK:         %[[INT10:.*]] = torch.constant.int 10
+// CHECK:         %[[T3:.*]] = torch_c.to_i64 %[[INT10]]
 // CHECK:         %[[C0:.*]] = arith.constant 0 : index
 // CHECK:         %[[DIM:.*]] = tensor.dim %[[T0]], %[[C0]] : tensor<?x?x?xf32>
 // CHECK:         %[[T4:.*]] = arith.index_cast %[[DIM]] : index to i64
@@ -48,8 +48,8 @@
 func.func @torch.aten.slice.strided$slice_like(%arg0: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?,?],f32> {
   %int0 = torch.constant.int 0
   %int2 = torch.constant.int 2
-  %int9223372036854775807 = torch.constant.int 9223372036854775807
-  %0 = torch.aten.slice.Tensor %arg0, %int0, %int0, %int9223372036854775807, %int2 : !torch.vtensor<[?,?,?],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[?,?,?],f32>
+  %int10 = torch.constant.int 10
+  %0 = torch.aten.slice.Tensor %arg0, %int0, %int0, %int10, %int2 : !torch.vtensor<[?,?,?],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[?,?,?],f32>
   return %0 : !torch.vtensor<[?,?,?],f32>
 }
 
