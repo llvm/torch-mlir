@@ -2892,6 +2892,48 @@ class FlipModule(torch.nn.Module):
 def FlipModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4))
 
+# ==============================================================================
+
+
+class FlipModuleStaticShape(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 2, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.flip(x, [1, 2])
+
+
+@register_test_case(module_factory=lambda: FlipModuleStaticShape())
+def FlipModuleStaticShape_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
+
+# ==============================================================================
+
+
+class FlipNegativeIndexModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 2, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.flip(x, [-1])
+
+
+@register_test_case(module_factory=lambda: FlipNegativeIndexModule())
+def FlipNegativeIndexModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
+
 
 # ==============================================================================
 
