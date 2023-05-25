@@ -2,6 +2,10 @@ name: "Setup build environment"
 description: "Setup the build environment. An action so that it can be shared between in-tree/out-of-tree jobs"
 
 inputs:
+  cache-enabled:
+    required: true
+    default: true
+
   cache-suffix:
     description: |
       Additional string that is used to compute the ccache hash.
@@ -48,6 +52,7 @@ runs:
     shell: bash
 
   - name: Configure ccache
+    if: ${{ inputs.cache-enabled == 'true' }}
     run: |
       rm -rf ${{ github.workspace }}/.ccache
       mkdir -p ${{ github.workspace }}/.ccache
@@ -58,6 +63,7 @@ runs:
     shell: bash
 
   - name: Enable ccache
+    if: ${{ inputs.cache-enabled == 'true' }}
     uses: actions/cache@v3
     with:
       path: ${{ github.workspace }}/.ccache
