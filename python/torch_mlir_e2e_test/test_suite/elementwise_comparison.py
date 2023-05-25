@@ -651,3 +651,23 @@ class AllBoolFalseModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AllBoolFalseModule())
 def AllBoolFalseModule_basic(module, tu: TestUtils):
     module.forward()
+
+# ==============================================================================
+
+class ElementwiseIsnanModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.isnan(x)
+
+
+@register_test_case(module_factory=lambda: ElementwiseIsnanModule())
+def ElementwiseIsnanModule_basic(module, tu: TestUtils):
+    x = torch.full((1, 1, 32), torch.nan)
+    module.forward(x)

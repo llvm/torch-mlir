@@ -422,6 +422,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenBernoulliPOp>();
   target.addIllegalOp<AtenBernoulliTensorOp>();
   target.addIllegalOp<AtenZeroOp>();
+  target.addIllegalOp<AtenIsnanOp>();
   target.addIllegalOp<AtenRandLikeOp>();
   target.addIllegalOp<AtenHardsigmoidOp>();
   target.addIllegalOp<AtenRelu6Op>();

@@ -352,6 +352,24 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenIsnanOp : public OpRewritePattern<AtenIsnanOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenIsnanOp op,
+                                PatternRewriter &rewriter) const override {
+    Value input = op.getSelf();
+    if (!input.getType().isa<ValueTensorType>()) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only value tensor type operands are supported");
+    }
+    // Create a new aten.ne operation with the same type and input value.
+    rewriter.replaceOpWithNewOp<AtenNeTensorOp>(op, op.getType(), input, input);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenReshapeOp : public OpRewritePattern<AtenReshapeOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -4498,6 +4516,7 @@ public:
         DecomposeAtenBernoulliLikeOp<AtenBernoulliPOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBernoulliTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenZeroOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenIsnanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);

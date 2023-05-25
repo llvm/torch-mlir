@@ -337,6 +337,7 @@ STABLEHLO_PASS_SET = {
     "CumsumStaticModule_basic",
     "CumsumStaticNegativeDimModule_basic",
     "DetachModule_basic",
+    "ElementwiseIsnanModule_basic",
     "ElementwiseAtenLogicalAndOpPromoteBroadcastStaticShapeModule_basic",
     "ElementwiseAtenLogicalNotOpModule_basic",
     "ElementwiseAtenLogicalNotOpPromoteModule_basic",
