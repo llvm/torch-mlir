@@ -3194,9 +3194,15 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
   if (start < 0)
     return rewriter.notifyMatchFailure(op, "Currently unsupported: start < 0");
 
+  start = std::min(selfType.getShape()[dim], start);
+
   int64_t end;
-  if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end)))
-    return rewriter.notifyMatchFailure(op, "end must be a Scalar constant");
+  if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end))) {
+    if (isa<ConstantNoneOp>(op.getEnd().getDefiningOp()))
+      end = selfType.getShape()[dim];
+    else
+      return rewriter.notifyMatchFailure(op, "end must be a Scalar constant");
+  }
   // support for end < 0
   end = toPositiveDim(end, selfType.getShape()[dim]);
   // support for end out of upper bound

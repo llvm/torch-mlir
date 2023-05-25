@@ -73,6 +73,28 @@ def SliceOutOfUpperBoundIndexModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class SliceOutOfUpperBoundIndexStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([6, 4, 7], torch.float32, True),
+    ])
+    def forward(self, x):
+        # TODO: remove hacky cat tensor once refbackend supports 0 size dim
+        result =  x[:8, :5, 8:]
+        cat_tensor = torch.ones((6,4,1), dtype=torch.float32)
+        return torch.cat((result,cat_tensor), dim=2)
+
+
+@register_test_case(module_factory=lambda: SliceOutOfUpperBoundIndexStaticModule())
+def SliceOutOfUpperBoundIndexStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6,4,7))
+
+# ==============================================================================
+
 class SliceOutOfLowerBoundEndIndexModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
