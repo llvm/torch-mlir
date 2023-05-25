@@ -20,17 +20,6 @@ runs:
     with:
       python-version: '3.11'
 
-  - name: Install MLIR Python depends
-    run: |
-      python -m pip install -r $GITHUB_WORKSPACE/externals/llvm-project/mlir/python/requirements.txt
-    shell: bash
-
-  - name: Install PyTorch nightly depends
-    run: |
-      python -m pip install -r pytorch-requirements.txt
-      python -m pip install -r build-requirements.txt
-    shell: bash
-
   - name: Install prerequisites (Linux)
     if: ${{ runner.os == 'Linux' }}
     run: sudo apt-get install --yes ccache ninja-build
