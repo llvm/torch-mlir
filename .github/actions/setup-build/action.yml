@@ -15,6 +15,7 @@ runs:
 
   steps:
   - name: Set up Python
+    if: ${{ runner.arch == 'X64' }}
     uses: actions/setup-python@v4
     with:
       python-version: '3.11'
