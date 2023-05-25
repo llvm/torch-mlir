@@ -180,6 +180,7 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # ERROR: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function prim.min
     'PrimMinIntModule_basic',
+    'PrimMinIntDynamicModule_basic',
 
     # START tests failing due to: empty graph in dynamo
     'IsFloatingPointFloat_True',
