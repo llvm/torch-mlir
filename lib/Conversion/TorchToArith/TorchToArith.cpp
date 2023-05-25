@@ -470,6 +470,9 @@ public:
     target.addIllegalOp<PrimMaxIntOp>();
     patterns.add<ConvertAtenBinaryOp<PrimMaxIntOp, arith::MaxSIOp>>(
         typeConverter, context);
+    target.addIllegalOp<PrimMinIntOp>();
+    patterns.add<ConvertAtenBinaryOp<PrimMinIntOp, arith::MinSIOp>>(
+        typeConverter, context);
     target.addIllegalOp<AtenCeilFloatOp>();
     patterns
         .add<ConvertAtenUnaryOpToFloatMathOp<AtenCeilFloatOp, math::CeilOp>>(
