@@ -24,7 +24,7 @@ expand_template(
         "@MLIR_ENABLE_BINDINGS_PYTHON@": "0",
         "@TORCH_MLIR_ENABLE_JIT_IR_IMPORTER@": "0",
         "@TORCH_MLIR_ENABLE_STABLEHLO@": "0",
-        "@TORCH_MLIR_ENABLE_TCP@": "0",
+        "@TORCH_MLIR_ENABLE_TCP@": "1",
     },
     template = "lit.site.cfg.py.in",
 )
