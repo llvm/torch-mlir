@@ -28,6 +28,28 @@ static Value assertNonValueTensor(Value tensor) {
   return tensor;
 }
 
+// A cast-like op is an op that does not modify the contents, shape, and dtype
+// of the input tensor. In other words, it is an op that only serves to encode
+// compile time information, but at runtime the op behaves like a no-op.
+static bool isCastLikeOp(Operation *op) {
+  return isa<TensorStaticInfoCastOp>(op);
+}
+
+// Given a `value`, this function goes up the use-def chain and finds the
+// largest sequence of consecutive cast-like ops. The returned set contains all
+// the aliases that are identical to `value`, and have only been transformed by
+// cast-like ops.
+static DenseSet<Value> getCastLikeAliasesOf(Value value) {
+  Operation *currentOp = value.getDefiningOp();
+  DenseSet<Value> result;
+  while (isCastLikeOp(currentOp)) {
+    Value operand = assertNonValueTensor(currentOp->getOperand(0));
+    result.insert(operand);
+    currentOp = operand.getDefiningOp();
+  }
+  return result;
+}
+
 namespace {
 class AbstractlyInterpretCopyToNonValueTensorOpUsersWithinABlock
     : public OpRewritePattern<CopyToNonValueTensorOp> {
@@ -88,9 +110,13 @@ public:
       } else if (auto overwrite = dyn_cast<OverwriteTensorContentsOp>(user)) {
         // To simplify the analysis, we only support the case where the
         // only aliases used after an overwrite are the aliases generated
-        // after plus the alias being overwritten.
+        // after plus the alias being overwritten and any aliases that are
+        // simply a cast of the overwritten alias.
         availableAliases.clear();
-        availableAliases.insert(assertNonValueTensor(overwrite.getOverwritten()));
+        Value overwritten = overwrite.getOverwritten();
+        availableAliases.insert(assertNonValueTensor(overwritten));
+        DenseSet<Value> castLikeAliases = getCastLikeAliasesOf(overwritten);
+        availableAliases.insert(castLikeAliases.begin(), castLikeAliases.end());
         result.overwriteTensorContentsOps.push_back(overwrite);
       } else if (auto returnOp = dyn_cast<mlir::func::ReturnOp>(user)) {
         result.returnOp = returnOp;
@@ -128,10 +154,19 @@ public:
     for (OverwriteTensorContentsOp overwrite :
          llvm::reverse(ops.overwriteTensorContentsOps)) {
       Value overwritten = assertNonValueTensor(overwrite.getOverwritten());
-      overwritten.replaceUsesWithIf(
-          overwrite.getValue(), [&](const OpOperand &operand) {
-            return !operand.getOwner()->isBeforeInBlock(overwrite);
-          });
+      // Cast-like aliases represent the exact same tensor at runtime as the
+      // overwritten alias, since casts only encode compile time information.
+      // Therefore, here we replace the overwritten value and any cast-like
+      // aliases of it with the overwrite value.
+      DenseSet<Value> overwrittenAliases = getCastLikeAliasesOf(overwritten);
+      overwrittenAliases.insert(overwritten);
+
+      for (Value alias : overwrittenAliases) {
+        alias.replaceUsesWithIf(
+            overwrite.getValue(), [&](const OpOperand &operand) {
+              return !operand.getOwner()->isBeforeInBlock(overwrite);
+            });
+      }
       rewriter.eraseOp(overwrite);
     }
 

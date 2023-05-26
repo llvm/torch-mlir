@@ -247,6 +247,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::leaky_relu : (Tensor, Scalar) -> (Tensor)",
             "aten::log : (Tensor) -> (Tensor)",
             "aten::sigmoid : (Tensor) -> (Tensor)",
+            "aten::sign : (Tensor) -> (Tensor)",
             "aten::hardsigmoid : (Tensor) -> (Tensor)",
             "aten::hardswish : (Tensor) -> (Tensor)",
             "aten::erf : (Tensor) -> (Tensor)",
@@ -590,6 +591,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::any.bool : (bool[]) -> (bool)")
     emit("aten::sort.int : (int[], bool) -> ()", has_canonicalizer=True)
     emit("aten::sort : (Tensor, int, bool) -> (Tensor, Tensor)")
+    emit("aten::split.Tensor : (Tensor, int, int) -> (Tensor[])")
     emit("aten::unbind.int : (Tensor, int) -> (Tensor[])")
 
     # Str ops.

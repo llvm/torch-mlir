@@ -16,13 +16,14 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
+#include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 #include "utils/hlo_utils.h"
 #include <iostream>
 #include <numeric>
@@ -803,15 +804,14 @@ LogicalResult ConvertAtenOp<AtenPowTensorScalarOp>::matchAndRewrite(
   }
 
   if (!rhsType) {
-    rhs = hlo::scalarToStablehloTensor(rewriter, op, rhs,
-                                       outElemTy);
+    rhs = hlo::scalarToStablehloTensor(rewriter, op, rhs, outElemTy);
   }
   DenseIntElementsAttr bcastDimensions;
   lhs = hlo::promoteType(rewriter, lhs, outType);
   rhs = hlo::promoteType(rewriter, rhs, outType);
   auto loc = op.getLoc();
-  Value result =
-      rewriter.create<chlo::BroadcastPowOp>(loc, outType, lhs, rhs, bcastDimensions);
+  Value result = rewriter.create<chlo::BroadcastPowOp>(loc, outType, lhs, rhs,
+                                                       bcastDimensions);
 
   rewriter.replaceOp(op, result);
   return success();
@@ -1412,6 +1412,36 @@ LogicalResult ConvertAtenOp<AtenPowTensorTensorOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenUniformOp>::matchAndRewrite(
+    AtenUniformOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value self = adaptor.getSelf();
+  Value generator = adaptor.getGenerator();
+  Location loc = op.getLoc();
+
+  if (!generator.getType().isa<Torch::NoneType>())
+    return rewriter.notifyMatchFailure(
+        op, "The generator has to be None because only global default "
+            "generator is supported");
+
+  auto elements = self.getType().cast<RankedTensorType>().getShape();
+  if (llvm::any_of(elements,
+                   [](int64_t dim) { return dim == ShapedType::kDynamic; }))
+    return rewriter.notifyMatchFailure(op, "Dynamic shape support TBD");
+  auto shape_tensor = rewriter.create<stablehlo::ConstantOp>(
+      loc, rewriter.getI64TensorAttr(elements));
+  auto outTy = getTypeConverter()->convertType(op.getType());
+  auto outElemTy = outTy.cast<RankedTensorType>().getElementType();
+  Value from =
+      hlo::scalarToStablehloTensor(rewriter, op, adaptor.getFrom(), outElemTy);
+  Value to =
+      hlo::scalarToStablehloTensor(rewriter, op, adaptor.getTo(), outElemTy);
+  rewriter.replaceOpWithNewOp<stablehlo::RngOp>(
+      op, outTy, from, to, shape_tensor, stablehlo::RngDistribution::UNIFORM);
+  return success();
+}
+
 // Converts `aten.empty.memory_format` to `tensor.empty` op.
 template <>
 LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
@@ -1667,6 +1697,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenToDtypeOp);
   INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
   INSERT_ATENOP_PATTERN(AtenPowTensorTensorOp);
+  INSERT_ATENOP_PATTERN(AtenUniformOp);
   INSERT_ATENOP_PATTERN(AtenEmptyMemoryFormatOp);
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);
 #undef INSERT_ATENOP_PATTERN
