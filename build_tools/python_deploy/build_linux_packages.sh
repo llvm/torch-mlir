@@ -38,8 +38,10 @@ set -eu -o errtrace
 
 this_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$this_dir"/../../ && pwd)"
+arch="$(uname -m)"
+echo "Running on Arch: ${arch}"
 # This needs to be a manylinux image so we can ship pip packages
-TM_RELEASE_DOCKER_IMAGE="${TM_RELEASE_DOCKER_IMAGE:-gcr.io/iree-oss/manylinux2014_x86_64-release@sha256:d8994b87b45b7b2e6055fccc32db018ec73aeb05a4e43a9daa61b77cc34f846e}"
+TM_RELEASE_DOCKER_IMAGE="${TM_RELEASE_DOCKER_IMAGE:-quay.io/pypa/manylinux2014_${arch}}"
 # This assumes an Ubuntu LTS like image. You can build your own with
 # ./build_tools/docker/Dockerfile
 TM_CI_DOCKER_IMAGE="${TM_CI_DOCKER_IMAGE:-powderluv/torch-mlir-ci:latest}"
@@ -378,7 +380,7 @@ function build_torch_mlir() {
 function run_audit_wheel() {
   local wheel_basename="$1"
   local python_version="$2"
-  generic_wheel="/wheelhouse/${wheel_basename}-${TORCH_MLIR_PYTHON_PACKAGE_VERSION}-${python_version}-linux_x86_64.whl"
+  generic_wheel="/wheelhouse/${wheel_basename}-${TORCH_MLIR_PYTHON_PACKAGE_VERSION}-${python_version}-linux_${arch}.whl"
   echo ":::: Auditwheel $generic_wheel"
   auditwheel repair -w /wheelhouse "$generic_wheel"
   rm "$generic_wheel"

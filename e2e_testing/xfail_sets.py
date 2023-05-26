@@ -456,6 +456,8 @@ STABLEHLO_PASS_SET = {
     "IndexSelectWholeDimensionModule_basic",
     "IndexSelectWholeTensorModule_basic",
     "IndexSelectNegativeDimModule_basic",
+    "IndexTensorStaticModule_basic",
+    "IndexTensorMultiIndexStaticModule_basic",
     "LayerNormLastDimModule_basic",
     "LayerNormModule_basic",
     "LayerNormNormalizeOverAllDimsModule_basic",
@@ -731,6 +733,12 @@ STABLEHLO_PASS_SET = {
     "UnbindIntGetItem_Module_basic",
     "ChunkListUnpack_Module_basic",
     "ChunkListUnpackUneven_Module_basic",
+    "RandIntDtypeModule_basic",
+    "RandIntLowDtypeModule_basic",
+    "RandIntLowModule_basic",
+    "RandIntModule_basic",
+    "RandIntPinMemoryModule_basic",
+    "UniformNoCorrelationModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
