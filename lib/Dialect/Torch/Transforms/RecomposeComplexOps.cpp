@@ -130,9 +130,10 @@ public:
     // recompose AtenUnbindOp + PrimListUnpackOp to select.int
     auto unbind = dyn_cast<AtenUnbindIntOp>(op.getOperand().getDefiningOp());
     if (!unbind)
-      return failure();
+      return rewriter.notifyMatchFailure(op, "Input is not AtenUnbindIntOp");
     if (isListPotentiallyMutated(unbind.getResult()))
-      return failure();
+      return rewriter.notifyMatchFailure(
+          op, "AtenUnbindIntOp result is potentially mutated");
     Value dim = unbind.getDim();
     Value input = unbind.getSelf();
     SmallVector<Value> slices;
@@ -160,9 +161,10 @@ public:
     // recompose AtenUnbindIntOp + __getitem__t to select.int
     auto unbind = dyn_cast<AtenUnbindIntOp>(op.getList().getDefiningOp());
     if (!unbind)
-      return failure();
+      return rewriter.notifyMatchFailure(op, "Input is not AtenUnbindIntOp");
     if (isListPotentiallyMutated(unbind.getResult()))
-      return failure();
+      return rewriter.notifyMatchFailure(
+          op, "AtenUnbindIntOp result is potentially mutated");
     int64_t index;
     if (!matchPattern(op.getIdx(), m_TorchConstantInt(&index)))
       return rewriter.notifyMatchFailure(
@@ -192,9 +194,10 @@ public:
     auto splitTensorOp =
         dyn_cast<AtenSplitTensorOp>(op.getList().getDefiningOp());
     if (!splitTensorOp)
-      return failure();
+      return rewriter.notifyMatchFailure(op, "Input is not AtenSplitTensorOp");
     if (isListPotentiallyMutated(splitTensorOp.getResult()))
-      return failure();
+      return rewriter.notifyMatchFailure(
+          op, "SplitTensorOp result is potentially mutated");
     int64_t index;
     if (!matchPattern(op.getIdx(), m_TorchConstantInt(&index)))
       return rewriter.notifyMatchFailure(
@@ -232,9 +235,10 @@ public:
     // recompose AtenChunkOp + PrimListUnpackOp to AtenSliceTensorOps
     auto chunk = dyn_cast<AtenChunkOp>(op.getOperand().getDefiningOp());
     if (!chunk)
-      return failure();
+      return rewriter.notifyMatchFailure(op, "Input is not AtenChunkOp");
     if (isListPotentiallyMutated(chunk.getResult()))
-      return failure();
+      return rewriter.notifyMatchFailure(
+          op, "AtenChunkOp result is potentially mutated");
     Value dim = chunk.getDim();
     Value input = chunk.getSelf();
     Value chunks = chunk.getChunks();
