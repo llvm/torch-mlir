@@ -592,6 +592,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::sort : (Tensor, int, bool) -> (Tensor, Tensor)")
     emit("aten::split.Tensor : (Tensor, int, int) -> (Tensor[])")
     emit("aten::unbind.int : (Tensor, int) -> (Tensor[])")
+    emit("aten::chunk : (Tensor, int, int) -> (Tensor[])")
 
     # Str ops.
     emit("aten::add.str : (str, str) -> (str)")
