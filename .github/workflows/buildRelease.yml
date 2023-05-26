@@ -12,12 +12,12 @@ on:
 
 jobs:
   build_linux:
-    name: Manylinux Build
+    name: Manylinux x86_64 Build
     runs-on: a100
     strategy:
       matrix:
         package: [ torch-mlir, torch-mlir-core ]
-        py_version: [ cp38-cp38, cp310-cp310, cp311-cp311 ]
+        py_version: [ cp38-cp38, cp311-cp311 ]
         exclude:
           - package: torch-mlir-core
             py_version: cp38-cp38
@@ -47,7 +47,77 @@ jobs:
         TM_PACKAGE_VERSION=${{ github.event.inputs.python_package_version }}
         printf "TORCH_MLIR_PYTHON_PACKAGE_VERSION=%s\n" $TM_PACKAGE_VERSION > ./torch_mlir_package_version
         TM_PYTHON_VERSIONS=${{ matrix.py_version }} TM_PACKAGES=${{ matrix.package }} ./build_tools/python_deploy/build_linux_packages.sh
-              
+
+    # If we were given a release_id, then upload the package we just built
+    # to the github releases page.
+    - name: Upload Release Assets (if requested)
+      if: github.event.inputs.release_id != ''
+      id: upload-release-assets
+      uses: dwenegar/upload-release-assets@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+      with:
+        release_id: ${{ github.event.inputs.release_id }}
+        assets_path: ./build_tools/python_deploy/wheelhouse/torch*.whl
+    # Publishing is necessary to make the release visible to `pip`
+    # on the github releases page.
+    - name: Publish Release (if requested)
+      if: github.event.inputs.release_id != ''
+      id: publish_release
+      uses: eregon/publish-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+      with:
+        release_id: ${{ github.event.inputs.release_id }}
+    - name: Create dist directory
+      if: github.event.inputs.release_id != ''
+      run: mkdir dist
+    - name: Copy releases to publish to dist directory
+      if: github.event.inputs.release_id != ''
+      run: cp build_tools/python_deploy/wheelhouse/torch_mlir*.whl dist/
+
+    # Wheels must be published from a linux environment.
+    #
+    # See https://github.com/pypa/gh-action-pypi-publish/discussions/15
+    - name: Store the binary wheel
+      uses: actions/upload-artifact@v2
+      with:
+        name: wheels
+        path: dist
+
+  build_linux_arm64:
+    name: Manylinux arm64 Build
+    runs-on: linux-arm64
+    strategy:
+      matrix:
+        package: [ torch-mlir, torch-mlir-core ]
+        py_version: [ cp311-cp311 ]
+
+    steps:
+
+    - name: Prepare workspace
+      run: |
+        # Clear the workspace directory so that we don't run into errors about
+        # existing lock files.
+        sudo rm -rf $GITHUB_WORKSPACE/*
+
+    - name: Get torch-mlir
+      uses: actions/checkout@v3
+      with:
+        submodules: 'true'
+        fetch-depth: 0
+
+    - uses: ./.github/actions/setup-build
+      with:
+        cache-enabled: 'false'
+    - name: Build Python wheels and smoke test.
+      run: |
+        cd $GITHUB_WORKSPACE
+        python -m pip install wheel
+        TM_PACKAGE_VERSION=${{ github.event.inputs.python_package_version }}
+        printf "TORCH_MLIR_PYTHON_PACKAGE_VERSION=%s\n" $TM_PACKAGE_VERSION > ./torch_mlir_package_version
+        TM_PYTHON_VERSIONS=${{ matrix.py_version }} TM_PACKAGES=${{ matrix.package }} TM_TORCH_VERSION="stable" ./build_tools/python_deploy/build_linux_packages.sh
+
     # If we were given a release_id, then upload the package we just built
     # to the github releases page.
     - name: Upload Release Assets (if requested)
@@ -219,6 +289,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
     - build_linux
+    - build_linux_arm64
     - build_macos
     - build_windows
 
