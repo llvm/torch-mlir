@@ -16,6 +16,7 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
+#include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
@@ -23,6 +24,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
+#include "llvm/Support/Debug.h"
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
@@ -343,6 +345,7 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
   Value zero =
       rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(0));
   size_t diff = broadcastToShape.size() - inputShape.size();
+  bool flag = false;
   for (size_t i = 0; i < broadcastToShape.size(); i++) {
     Value shapeValue = broadcastToShape[i];
     size_t j = i - diff;
@@ -356,6 +359,8 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
       outShape.push_back(castIntToIndex(rewriter, loc, shapeValue));
       continue;
     }
+    //llvm::dbgs()<<"InputShape = "<<inputShape[j]<<"\n";
+    //llvm::dbgs()<<"BTS = "<<broadcastToShape[j]<<"\n";
     if (inputShape[j] == 1) {
       // Broadcast singleton dimension
       Value one =
@@ -368,30 +373,84 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
       outExpr.push_back(mlir::getAffineConstantExpr(0, context));
       continue;
     }
+    else if (diff == 0 && inputShape[j] == -1) {
+      //Value dim = getDimOp(rewriter, loc, input, j);
+      Value dim = castIntToIndex(rewriter, loc, broadcastToShape[j]);
+      Value isNegative = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::slt, shapeValue, zero);
+      Value isEqual = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::eq, castIndexToInt64(rewriter, loc, dim),
+        shapeValue);
+      Value isValid = rewriter.create<arith::OrIOp>(loc, isNegative, isEqual);
+      // rewriter.create<cf::AssertOp>(
+      //     loc, isValid,
+      //     rewriter.getStringAttr(
+      //         "only broadcasting singleton dimensions supported"));
+      outShape.push_back(dim);
+      outExpr.push_back(mlir::getAffineDimExpr(i, context));
+      flag = true;
+    } else {
+      Value dim = getDimOp(rewriter, loc, input, j);
+      //Value dim = castIntToIndex(rewriter, loc, broadcastToShape[j]);
+      Value isNegative = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::slt, shapeValue, zero);
+      Value isEqual = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::eq, castIndexToInt64(rewriter, loc, dim),
+        shapeValue);
+      Value isValid = rewriter.create<arith::OrIOp>(loc, isNegative, isEqual);
+      rewriter.create<cf::AssertOp>(
+           loc, isValid,
+           rewriter.getStringAttr(
+               "only broadcasting singleton dimensions supported"));
+      outShape.push_back(dim);
+      outExpr.push_back(mlir::getAffineDimExpr(i, context));
+    }
     // Non-broadcast case
-    Value dim = getDimOp(rewriter, loc, input, j);
+    /* Value dim = getDimOp(rewriter, loc, input, j);
+    //Value dim = castIntToIndex(rewriter, loc, broadcastToShape[j]);
     Value isNegative = rewriter.create<arith::CmpIOp>(
         loc, arith::CmpIPredicate::slt, shapeValue, zero);
     Value isEqual = rewriter.create<arith::CmpIOp>(
         loc, arith::CmpIPredicate::eq, castIndexToInt64(rewriter, loc, dim),
         shapeValue);
     Value isValid = rewriter.create<arith::OrIOp>(loc, isNegative, isEqual);
-    rewriter.create<cf::AssertOp>(
-        loc, isValid,
-        rewriter.getStringAttr(
-            "only broadcasting singleton dimensions supported"));
+    // rewriter.create<cf::AssertOp>(
+    //     loc, isValid,
+    //     rewriter.getStringAttr(
+    //         "only broadcasting singleton dimensions supported"));
     outShape.push_back(dim);
-    outExpr.push_back(mlir::getAffineDimExpr(i, context));
+    outExpr.push_back(mlir::getAffineDimExpr(i, context));*/
   }
 
   Value outTensor = rewriter.create<tensor::EmptyOp>(
       loc, getAsOpFoldResult(outShape), elementType);
 
-  SmallVector<AffineMap> indexingMaps = {
+  SmallVector<AffineMap> indexingMaps;
+  SmallVector<utils::IteratorType> iteratorTypes;
+  if (flag) {
+    SmallVector<AffineExpr> resAffineExprs;
+    for (unsigned r = 0; r < broadcastToShape.size()-1; r++){
+      resAffineExprs.push_back(mlir::getAffineDimExpr(r, context));
+    }
+    resAffineExprs.push_back(mlir::getAffineDimExpr(broadcastToShape.size(), context));
+    auto mapA = AffineMap::get(broadcastToShape.size()+1, 0, outExpr, context);
+    auto mapB = AffineMap::get(broadcastToShape.size()+1, 0, resAffineExprs, context);
+    // mapA.dump();
+    // mapB.dump();
+    //SmallVector<AffineMap> indexingMaps = {
+    indexingMaps = {mapA, mapB};
+    SmallVector<utils::IteratorType> iteratorTypesT(broadcastToShape.size()+1,
+                                                 utils::IteratorType::parallel);
+    iteratorTypes = iteratorTypesT;
+  } else {
+  SmallVector<AffineMap> indexingMapsT = {
       AffineMap::get(broadcastToShape.size(), 0, outExpr, context),
       rewriter.getMultiDimIdentityMap(broadcastToShape.size())};
-  SmallVector<utils::IteratorType> iteratorTypes(broadcastToShape.size(),
+  indexingMaps = indexingMapsT;
+  SmallVector<utils::IteratorType> iteratorTypesT(broadcastToShape.size(),
                                                  utils::IteratorType::parallel);
+  iteratorTypes = iteratorTypesT;
+  }
   result = rewriter
                .create<linalg::GenericOp>(
                    loc, outTensor.getType(), input, outTensor, indexingMaps,
