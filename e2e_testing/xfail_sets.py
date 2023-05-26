@@ -791,6 +791,32 @@ STABLEHLO_PASS_SET = {
     "UniformNoCorrelationModule_basic",
 }
 
+STABLEHLO_CRASHING_SET = {
+    # https://github.com/llvm/torch-mlir/pull/2176
+    "ArgmaxModule_basic",
+    "ArgmaxModule_keepDim",
+    "ArgmaxModule_with_dim",
+    "Aten_EmbeddingBagExample_basic",
+    "BucketizeTensorFloatModule_basic",
+    "BucketizeTensorModule_basic",
+    "BucketizeTensorOutInt32RightModule_basic",
+    "BucketizeTensorStaticFloatModule_basic",
+    "BucketizeTensorStaticModule_basic",
+    "CrossEntropyLossModule_basic",
+    "CrossEntropyLossNoReductionModule_basic",
+    "LogSoftmaxIntModule_basic",
+    "ReduceAmaxKeepDim_basic",
+    "ReduceAmaxMultiDim_basic",
+    "ReduceAmaxOutOfOrderDim_basic",
+    "ReduceAmaxSingleDim_basic",
+    "ReduceMaxAlongDimNegative_basic",
+    "ReduceMaxAlongDimSignedInt_basic",
+    "ReduceMaxAlongDim_basic",
+    "ReduceMaxKeepDimReturnBoth_basic",
+    "ReduceMaxKeepDim_basic",
+    "ReduceMaxNegativeDim_basic"
+}
+
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {

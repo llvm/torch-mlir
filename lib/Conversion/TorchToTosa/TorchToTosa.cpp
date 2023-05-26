@@ -3973,10 +3973,25 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Failed to process inputs for pooling");
 
-    auto pooledOutput =
-        rewriter
-            .create<TosaOpT>(op->getLoc(), outputTy, input, kernel, stride, pad)
-            .getResult();
+    Value pooledOutput;
+    static_assert(std::is_same<TosaOpT, tosa::MaxPool2dOp>::value ||
+                      std::is_same<TosaOpT, tosa::AvgPool2dOp>::value,
+                  "Expected either tosa::MaxPool2dOp or tosa::AvgPool2dOp");
+    if constexpr (std::is_same<TosaOpT, tosa::MaxPool2dOp>::value) {
+      pooledOutput = rewriter
+                         .create<TosaOpT>(op->getLoc(), outputTy, input, kernel,
+                                          stride, pad)
+                         .getResult();
+    } else if constexpr (std::is_same<TosaOpT, tosa::AvgPool2dOp>::value) {
+      TypeAttr accType;
+      if (failed(tosa::getAvgPool2dAccType(rewriter, input, accType)))
+        return rewriter.notifyMatchFailure(
+            op, "Failed to get accumulator type for pooling");
+      pooledOutput = rewriter
+                         .create<TosaOpT>(op->getLoc(), outputTy, input, kernel,
+                                          stride, pad, accType)
+                         .getResult();
+    }
 
     auto transposedOutput =
         ConvertAtenPoolingBaseOp<AtenOpT, TosaOpT>::transposePoolingOutputToChw(
