@@ -1394,6 +1394,32 @@ def BroadcastListConstructWithMinusOneModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class BroadcastDynamicDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, -1, 1, -1], torch.float32, True),
+        ([1, -1, 1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        dim_at_index_1 = torch.ops.aten.size(x, 1)
+        dim_at_index_3 = torch.ops.aten.size(x, 3)
+        res = torch.ops.aten.broadcast_to(y, [1, dim_at_index_1, 1, dim_at_index_3])
+        return res
+
+
+@register_test_case(module_factory=lambda: BroadcastDynamicDimModule())
+def BroadcastDynamicDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 1, 4), tu.rand(1, 1, 1, 1))
+
+
+# ==============================================================================
+
+
 class RollModule(torch.nn.Module):
 
     def __init__(self):
