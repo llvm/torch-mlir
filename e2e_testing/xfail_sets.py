@@ -298,6 +298,9 @@ TORCHDYNAMO_CRASHING_SET = {
     "ToCopyModule_basic",
     "TransposeIntModule_basic",
     "TransposeIntNegDimsModule_basic",
+
+    # See https://github.com/llvm/torch-mlir/issues/2178
+    "Add_Module_basic"
 }
 
 STABLEHLO_PASS_SET = {
@@ -1061,6 +1064,11 @@ TOSA_PASS_SET = {
     "SplitTensorGetItem_Module_basic",
     "ChunkListUnpack_Module_basic",
     "ChunkListUnpackUneven_Module_basic",
+}
+
+LTC_CRASHING_SET = {
+    # https://github.com/llvm/torch-mlir/issues/2186
+    "Add_Module_basic"
 }
 
 LTC_XFAIL_SET = {
