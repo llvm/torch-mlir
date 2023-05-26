@@ -119,13 +119,13 @@ endif()
 
 if (TORCH_MLIR_ENABLE_STABLEHLO)
   set(STABLEHLO_BUILD_EMBEDDED ON)
-  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/externals/mlir-hlo
-    ${CMAKE_CURRENT_BINARY_DIR}/mlir-hlo
+  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo
+    ${CMAKE_CURRENT_BINARY_DIR}/stablehlo
     EXCLUDE_FROM_ALL)
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/mlir-hlo/include)
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/mlir-hlo)
-  include_directories(${CMAKE_CURRENT_BINARY_DIR}/mlir-hlo/include)
-  include_directories(${CMAKE_CURRENT_BINARY_DIR}/mlir-hlo)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo/include)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo)
+  include_directories(${CMAKE_CURRENT_BINARY_DIR}/stablehlo/include)
+  include_directories(${CMAKE_CURRENT_BINARY_DIR}/stablehlo)
 endif()
 
 set(TORCH_MLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")

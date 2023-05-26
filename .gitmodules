@@ -4,3 +4,6 @@
 [submodule "externals/mlir-hlo"]
 	path = externals/mlir-hlo
 	url = https://github.com/tensorflow/mlir-hlo.git
+[submodule "externals/stablehlo"]
+	path = externals/stablehlo
+	url = https://github.com/openxla/stablehlo.git
