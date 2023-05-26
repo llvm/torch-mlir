@@ -4374,10 +4374,12 @@ public:
 
     Value cstNone = rewriter.create<ConstantNoneOp>(op.getLoc());
     Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    Value dtype =
+        getDtypeIntValueForType(rewriter, op.getLoc(), resultTy.getDtype());
     Value toDTypeLayout = rewriter.create<AtenToDtypeLayoutOp>(
-        op.getLoc(), resultTy, numToTensor, op.getDtype(), op.getLayout(),
-        op.getDevice(), op.getPinMemory(), /*non_blocking*/ cstFalse,
-        /*copy*/ cstFalse, /*memory_format*/ cstNone);
+        op.getLoc(), op.getType(), numToTensor, dtype, op.getLayout(),
+        op.getDevice(), op.getPinMemory(), /*non_blocking=*/cstFalse,
+        /*copy=*/cstFalse, /*memory_format=*/cstNone);
     rewriter.replaceOp(op, toDTypeLayout);
     return success();
   }

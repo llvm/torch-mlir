@@ -3843,7 +3843,29 @@ def ScalarTensorFloat32Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class ScalarTensorIntModule(torch.nn.Module):
+class ScalarTensorDefaultDtypeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        scalar = torch.ops.aten.scalar_tensor(1.0)
+        return scalar
+
+
+@register_test_case(module_factory=lambda: ScalarTensorDefaultDtypeModule())
+def ScalarTensorDefaultDtypeModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class ScalarTensorInt64Module(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -3857,9 +3879,32 @@ class ScalarTensorIntModule(torch.nn.Module):
         return scalar
 
 
-@register_test_case(module_factory=lambda: ScalarTensorIntModule())
-def ScalarTensorIntModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: ScalarTensorInt64Module())
+def ScalarTensorInt64Module_basic(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+
+class ScalarTensorInt32Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        scalar = torch.ops.aten.scalar_tensor(1, dtype=torch.int32)
+        return scalar
+
+
+@register_test_case(module_factory=lambda: ScalarTensorInt32Module())
+def ScalarTensorInt32Module_basic(module, tu: TestUtils):
+    module.forward()
+
 
 # ==============================================================================
 
