@@ -270,11 +270,11 @@ function _check_file_not_changed_by() {
 function test_in_tree() {
   local torch_version="$1"
   
-  cd /main_checkout/torch-mlir/
-  export PYTHONPATH="/main_checkout/torch-mlir/build/tools/torch-mlir/python_packages/torch_mlir"
-  
   echo ":::: Test in-tree"
   cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all
+  
+  cd /main_checkout/torch-mlir/
+  export PYTHONPATH="/main_checkout/torch-mlir/build/tools/torch-mlir/python_packages/torch_mlir"
 
   case $torch_version in
     nightly)
@@ -329,10 +329,11 @@ function setup_venv() {
     nightly)
       echo ":::: Using nightly dependencies"
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/requirements.txt
+      python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/torchvision-requirements.txt
       ;;
     stable)
       echo ":::: Using stable dependencies"
-      python3 -m pip install --no-cache-dir torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cpu
+      python3 -m pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/build-requirements.txt
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/test-requirements.txt
       ;;

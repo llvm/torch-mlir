@@ -1,4 +1,3 @@
 -r build-requirements.txt
 -r pytorch-requirements.txt
--r torchvision-requirements.txt
 -r test-requirements.txt
