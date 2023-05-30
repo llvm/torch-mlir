@@ -103,6 +103,7 @@ Torch::getTypeForScalarType(MLIRContext *context,
   case torch_upstream::ScalarType::Half:
     return mlir::FloatType::getF16(context);
   case torch_upstream::ScalarType::Byte:
+    return mlir::IntegerType::get(context, 8, mlir::IntegerType::Unsigned);
   case torch_upstream::ScalarType::Char:
     return mlir::IntegerType::get(context, 8, signedness);
   case torch_upstream::ScalarType::ComplexHalf:
