@@ -82,7 +82,7 @@ function build_torch_mlir() {
   python"${python_version}" -m venv "$output_dir"/build_venv
   source "$output_dir"/build_venv/bin/activate
   python"${python_version}" -m pip install -U pip
-  python"${python_version}" -m pip install -r "$repo_root"/pytorch-nightly-requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+  python"${python_version}" -m pip install -r "$repo_root"/pytorch-requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
   python"${python_version}" -m pip install -r "$repo_root"/build-requirements.txt
   CMAKE_GENERATOR=Ninja \
   TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
@@ -132,7 +132,7 @@ function run_audit_wheel() {
     python"${python_version}" -m venv "$output_dir"/test_venv
     source "$output_dir"/test_venv/bin/activate
     python"${python_version}" -m pip install -U pip
-    python"${python_version}" -m pip install -r "$repo_root"/pytorch-nightly-requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+    python"${python_version}" -m pip install -r "$repo_root"/pytorch-requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
     python"${python_version}" -m pip install -r "$repo_root"/build-requirements.txt
     python"${python_version}" -m pip install "$generic_wheel" --extra-index-url https://download.pytorch.org/whl/nightly/cpu
     DYLD_LIBRARY_PATH="$output_dir"/test_venv/lib/python"${python_version}"/site-packages/torch/lib delocate-wheel -v "$generic_wheel"

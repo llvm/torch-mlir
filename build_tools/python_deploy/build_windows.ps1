@@ -13,7 +13,7 @@
 Write-Host "Installing Build Dependencies"
 python -m venv .\mlir_venv\
 .\mlir_venv\Scripts\Activate.PS1
-pip install -r .\pytorch-nightly-requirements.txt
+pip install -r .\pytorch-requirements.txt
 pip install -r .\build-requirements.txt
 pip install delvewheel
 Write-Host "Build Deps installation completed successfully"
