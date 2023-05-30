@@ -540,6 +540,7 @@ STABLEHLO_PASS_SET = {
     "NormScalarOptDimKeepDimModule_basic",
     "NormScalarOptDimModule_basic",
     "NormalizeModule_basic",
+    "ScalarConstantTupleModule_basic",
     "SelectIntModule_basic",
     "SelectIntNegativeDimAndIndexStaticModule_basic",
     "SliceSingleIdxModule_basic",
