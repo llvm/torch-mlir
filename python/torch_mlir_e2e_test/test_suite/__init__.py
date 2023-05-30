@@ -21,7 +21,7 @@ TORCH_2_1_REQUIRED = {
 }
 import torch
 from packaging import version
-if not version.parse(torch.__version__) > version.parse("2.0.1"):
+if not version.parse(torch.__version__) > version.parse("2.0.1+cpu"):
     COMMON_TORCH_MLIR_LOWERING_XFAILS.update(TORCH_2_1_REQUIRED)
 
 def register_all_tests():
