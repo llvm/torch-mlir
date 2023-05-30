@@ -32,6 +32,7 @@ from .xfail_sets import (
     STABLEHLO_PASS_SET,
     TOSA_PASS_SET,
     LTC_XFAIL_SET,
+    LTC_CRASHING_SET,
     TORCHDYNAMO_XFAIL_SET,
     TORCHDYNAMO_CRASHING_SET
 )
@@ -108,7 +109,7 @@ def main():
     elif args.config == "lazy_tensor_core":
         config = LazyTensorCoreTestConfig()
         xfail_set = LTC_XFAIL_SET
-        crashing_set = set()
+        crashing_set = LTC_CRASHING_SET
     elif args.config == "torchdynamo":
         config = TorchDynamoTestConfig(RefBackendLinalgOnTensorsBackend())
         xfail_set = TORCHDYNAMO_XFAIL_SET

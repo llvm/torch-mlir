@@ -1020,6 +1020,7 @@ def Torch_CopyToNonValueTensorOp : Torch_Op<"copy.to_tensor", [
 }
 
 def Torch_CopyToValueTensorOp : Torch_Op<"copy.to_vtensor", [
+    ReadOnly,
     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
     DeclareOpInterfaceMethods<InferTypeOpInterface>,
     TypesMatchWith<"operand is corresponding !torch.tensor",
