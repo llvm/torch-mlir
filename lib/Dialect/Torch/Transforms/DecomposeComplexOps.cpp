@@ -358,10 +358,6 @@ public:
   LogicalResult matchAndRewrite(AtenIsnanOp op,
                                 PatternRewriter &rewriter) const override {
     Value input = op.getSelf();
-    if (!input.getType().isa<ValueTensorType>()) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only value tensor type operands are supported");
-    }
     // Create a new aten.ne operation with the same type and input value.
     rewriter.replaceOpWithNewOp<AtenNeTensorOp>(op, op.getType(), input, input);
     return success();
