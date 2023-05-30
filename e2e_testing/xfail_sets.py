@@ -268,6 +268,9 @@ TORCHDYNAMO_XFAIL_SET = {
     "ScatterValueFloatModule_basic",
     # ERROR: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
     "ScatterValueIntModule_basic",
+
+    # ERROR: encountered graph that does not return anything
+    "ScalarConstantTupleModule_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
