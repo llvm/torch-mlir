@@ -45,8 +45,7 @@ runs:
 
   - name: Install prerequisites (Linux)
     if: ${{ runner.os == 'Linux' }}
-    run: |
-      sudo apt-get update
+    run: 
       sudo apt-get install --yes ccache
     shell: bash
 
