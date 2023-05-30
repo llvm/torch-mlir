@@ -97,11 +97,11 @@ func.func @torch.aten.Int.Tensor$non_zero_rank(%arg0: !torch.vtensor<[?,?],si64>
 
 // CHECK-LABEL:     func.func @torch.aten.Int.Tensor$zero_rank$byte_dtype
 // CHECK-SAME:          (%[[ARG:.*]]: !torch.vtensor<[],ui8>) -> !torch.int {
-// CHECK:               %[[I:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[],ui8> -> tensor<i8>
+// CHECK:               %[[I:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[],ui8> -> tensor<ui8>
 // CHECK:               %[[C1_I64:.*]] = arith.constant 1 : i64
 // CHECK:               %[[C0:.*]] = arith.constant 0 : index
-// CHECK:               %[[EXTRACT:.*]] = tensor.extract %[[I]][] : tensor<i8>
-// CHECK:               %[[RES:.*]] = arith.extui %[[EXTRACT]] : i8 to i64
+// CHECK:               %[[EXTRACT:.*]] = tensor.extract %[[I]][] : tensor<ui8>
+// CHECK:               %[[RES:.*]] = arith.extui %[[EXTRACT]] : ui8 to i64
 // CHECK:               %[[RET:.*]] = torch_c.from_i64 %[[RES]]
 // CHECK:               return %[[RET]] : !torch.int
 func.func @torch.aten.Int.Tensor$zero_rank$byte_dtype(%arg0: !torch.vtensor<[],ui8>) -> !torch.int {

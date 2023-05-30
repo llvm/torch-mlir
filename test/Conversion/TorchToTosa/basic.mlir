@@ -888,7 +888,7 @@ func.func @torch.prim.NumToTensor.Scalar() -> !torch.vtensor<[],si64> {
 // -----
 // CHECK-LABEL:   func.func @torch.aten.copy(
 // CHECK-SAME:                                   %[[ARG_0:.*]]: !torch.vtensor<[1,1,5,5],ui8>) -> !torch.vtensor<[1,1,5,5],i1> {
-// CHECK:           %[[INP:.*]] = torch_c.to_builtin_tensor %[[ARG_0]] : !torch.vtensor<[1,1,5,5],ui8> -> tensor<1x1x5x5xi8>
+// CHECK:           %[[INP:.*]] = torch_c.to_builtin_tensor %[[ARG_0]] : !torch.vtensor<[1,1,5,5],ui8> -> tensor<1x1x5x5xui8>
 // CHECK:           %[[CST5:.*]] = torch.constant.int 5
 // CHECK:           %[[CST1:.*]] = torch.constant.int 1
 // CHECK:           %[[CST11:.*]] = torch.constant.int 11
@@ -899,8 +899,8 @@ func.func @torch.prim.NumToTensor.Scalar() -> !torch.vtensor<[],si64> {
 // CHECK:           %[[VAL_1:.*]] = "tosa.const"() <{value = dense<0> : tensor<i64>}> : () -> tensor<i64>
 // CHECK:           %[[VAL_2:.*]] = "tosa.equal"(%[[VAL_0]], %[[VAL_1]]) : (tensor<i64>, tensor<i64>) -> tensor<i1>
 // CHECK:           %[[VAL_3:.*]] = "tosa.logical_not"(%[[VAL_2]]) : (tensor<i1>) -> tensor<i1>
-// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{value = dense<0> : tensor<1x1x5x5xi8>}> : () -> tensor<1x1x5x5xi8>
-// CHECK:           %[[VAL_5:.*]] = "tosa.equal"(%[[INP]], %[[VAL_4]]) : (tensor<1x1x5x5xi8>, tensor<1x1x5x5xi8>) -> tensor<1x1x5x5xi1>
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{value = dense<0> : tensor<1x1x5x5xui8>}> : () -> tensor<1x1x5x5xui8>
+// CHECK:           %[[VAL_5:.*]] = "tosa.equal"(%[[INP]], %[[VAL_4]]) : (tensor<1x1x5x5xui8>, tensor<1x1x5x5xui8>) -> tensor<1x1x5x5xi1>
 // CHECK:           %[[VAL_6:.*]] = "tosa.logical_not"(%[[VAL_5]]) : (tensor<1x1x5x5xi1>) -> tensor<1x1x5x5xi1>
 // CHECK:           %[[VAL_7:.*]] = torch_c.from_builtin_tensor %[[VAL_6]] : tensor<1x1x5x5xi1> -> !torch.vtensor<[1,1,5,5],i1>
 // CHECK:           return %[[VAL_7]] : !torch.vtensor<[1,1,5,5],i1>
