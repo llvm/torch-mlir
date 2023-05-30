@@ -43,12 +43,6 @@ runs:
       python -m pip install -r build-requirements.txt
     shell: bash
 
-  - name: Install prerequisites (Linux)
-    if: ${{ runner.os == 'Linux' }}
-    run: 
-      sudo apt-get install --yes ccache
-    shell: bash
-
   - name: Install prerequisites (macOS)
     if: ${{ runner.os == 'macOS' }}
     run: brew install ccache ninja
