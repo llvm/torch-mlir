@@ -333,7 +333,7 @@ function setup_venv() {
       ;;
     stable)
       echo ":::: Using stable dependencies"
-      python3 -m pip install --no-cache-dir torch torchvision
+      python3 -m pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/build-requirements.txt
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/test-requirements.txt
       ;;
