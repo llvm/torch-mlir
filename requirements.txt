@@ -1,4 +1,4 @@
 -r build-requirements.txt
--r pytorch-nightly-requirements.txt
--r torchvision-nightly-requirements.txt
+-r pytorch-requirements.txt
+-r torchvision-requirements.txt
 -r test-requirements.txt

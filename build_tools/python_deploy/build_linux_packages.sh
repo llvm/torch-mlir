@@ -192,7 +192,7 @@ function run_in_docker() {
             popd
           fi
           if [ "${TM_SKIP_TESTS}" == "OFF" ]; then
-            test_in_tree "$TORCH_VERSION";
+            test_in_tree "$TM_TORCH_VERSION";
           fi
           ;;
         *)
@@ -324,7 +324,6 @@ function setup_venv() {
 
   echo ":::: pip installing dependencies"
   python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/externals/llvm-project/mlir/python/requirements.txt
-  python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/requirements.txt
 
   case $torch_version in
     nightly)
@@ -333,7 +332,7 @@ function setup_venv() {
       ;;
     stable)
       echo ":::: Using stable dependencies"
-      python3 -m pip install --no-cache-dir torch torchvision
+      python3 -m pip install --no-cache-dir torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cpu
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/build-requirements.txt
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/test-requirements.txt
       ;;

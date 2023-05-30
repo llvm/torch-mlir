@@ -13,6 +13,7 @@ COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "ReduceMaxAlongDimUnsignedInt_basic",
 }
 
+# TODO: Delete once torch 2.1.0 is released
 # check for torch version and disable tests
 TORCH_2_1_REQUIRED = {
     "ScaledDotProductAttentionDifferentModule_basic",
@@ -20,7 +21,7 @@ TORCH_2_1_REQUIRED = {
 }
 import torch
 from packaging import version
-if version.parse(torch.__version__) < version.parse("2.1.0"):
+if not version.parse(torch.__version__) > version.parse("2.0.1"):
     COMMON_TORCH_MLIR_LOWERING_XFAILS.update(TORCH_2_1_REQUIRED)
 
 def register_all_tests():

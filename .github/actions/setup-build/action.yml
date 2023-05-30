@@ -17,7 +17,7 @@ inputs:
     description: |
       Additional string to determine wether to test against a stable
       torch release or against the nightly build
-    required: true
+    required: false
     default: 'nightly'
 
 runs:
@@ -47,7 +47,7 @@ runs:
     if: ${{ runner.os == 'Linux' }}
     run: |
       sudo apt-get update
-      sudo apt-get install --yes ccache ninja-build
+      sudo apt-get install --yes ccache
     shell: bash
 
   - name: Install prerequisites (macOS)
