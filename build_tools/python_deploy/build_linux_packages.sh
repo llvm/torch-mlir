@@ -192,7 +192,7 @@ function run_in_docker() {
             popd
           fi
           if [ "${TM_SKIP_TESTS}" == "OFF" ]; then
-            test_in_tree;
+            test_in_tree "$TM_TORCH_VERSION";
           fi
           ;;
         *)
@@ -268,17 +268,41 @@ function _check_file_not_changed_by() {
 }
 
 function test_in_tree() {
+  local torch_version="$1"
+  
   echo ":::: Test in-tree"
   cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all
 
   cd /main_checkout/torch-mlir/
   export PYTHONPATH="/main_checkout/torch-mlir/build/tools/torch-mlir/python_packages/torch_mlir"
 
-  echo ":::: Check that update_abstract_interp_lib.sh has been run"
-  _check_file_not_changed_by ./build_tools/update_abstract_interp_lib.sh lib/Dialect/Torch/Transforms/AbstractInterpLibrary.cpp
+  case $torch_version in
+    nightly)
+      echo ":::: Test with nightly torch"
 
-  echo ":::: Check that update_torch_ods.sh has been run"
-  _check_file_not_changed_by ./build_tools/update_torch_ods.sh include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
+      echo ":::: Check that update_abstract_interp_lib.sh has been run"
+      _check_file_not_changed_by ./build_tools/update_abstract_interp_lib.sh lib/Dialect/Torch/Transforms/AbstractInterpLibrary.cpp
+
+      echo ":::: Check that update_torch_ods.sh has been run"
+      _check_file_not_changed_by ./build_tools/update_torch_ods.sh include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
+
+      echo ":::: Run Lazy Tensor Core e2e integration tests"
+      python -m e2e_testing.main --config=lazy_tensor_core -v
+      ;;
+    stable)
+      echo ":::: Test with stable torch"
+
+      echo ":::: Run Lazy Tensor Core e2e integration tests in experimental mode"
+      python -m e2e_testing.main --config=lazy_tensor_core -v --ignore_failures
+      ;;
+    *)
+      echo "Unrecognized torch version '$torch_version'"
+      exit 1
+      ;;
+    esac
+  
+  echo ":::: Run TorchDynamo e2e integration tests"
+  python -m e2e_testing.main --config=torchdynamo -v
 
   echo ":::: Run Linalg e2e integration tests"
   python -m e2e_testing.main --config=linalg -v
@@ -288,12 +312,6 @@ function test_in_tree() {
 
   echo ":::: Run TOSA e2e integration tests"
   python -m e2e_testing.main --config=tosa -v
-
-  echo ":::: Run Lazy Tensor Core e2e integration tests"
-  python -m e2e_testing.main --config=lazy_tensor_core -v
-
-  echo ":::: Run TorchDynamo e2e integration tests"
-  python -m e2e_testing.main --config=torchdynamo -v
 }
 
 function setup_venv() {
@@ -306,16 +324,16 @@ function setup_venv() {
 
   echo ":::: pip installing dependencies"
   python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/externals/llvm-project/mlir/python/requirements.txt
-  python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/requirements.txt
 
   case $torch_version in
     nightly)
       echo ":::: Using nightly dependencies"
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/requirements.txt
+      python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/torchvision-requirements.txt
       ;;
     stable)
       echo ":::: Using stable dependencies"
-      python3 -m pip install --no-cache-dir torch torchvision
+      python3 -m pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/build-requirements.txt
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/test-requirements.txt
       ;;
