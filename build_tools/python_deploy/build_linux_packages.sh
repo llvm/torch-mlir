@@ -272,7 +272,7 @@ function test_in_tree() {
   
   echo ":::: Test in-tree"
   cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all
-  
+
   cd /main_checkout/torch-mlir/
   export PYTHONPATH="/main_checkout/torch-mlir/build/tools/torch-mlir/python_packages/torch_mlir"
 
@@ -333,7 +333,7 @@ function setup_venv() {
       ;;
     stable)
       echo ":::: Using stable dependencies"
-      python3 -m pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      python3 -m pip install --no-cache-dir torch torchvision
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/build-requirements.txt
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/test-requirements.txt
       ;;
