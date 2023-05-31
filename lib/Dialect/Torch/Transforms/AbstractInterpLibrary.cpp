@@ -6342,7 +6342,7 @@ StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
 "    return %0 : !torch.list<int>\n"
 "  }\n"
 "  func.func @\"__torch_mlir_shape_fn.aten.ne.Tensor\"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {\n"
-"    %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>\n"
+"    %0 = call @__torch__.torch.jit._shape_functions.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>\n"
 "    return %0 : !torch.list<int>\n"
 "  }\n"
 "  func.func @\"__torch_mlir_shape_fn.aten.eq.Scalar\"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {\n"

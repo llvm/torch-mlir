@@ -585,8 +585,8 @@ class ElementwiseNeFloatTensorModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([2, 3], torch.float32, True),
-        ([2, 3], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x, y):
         return torch.ne(x, y)
@@ -607,8 +607,8 @@ class ElementwiseNeIntTensorModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([8, 5], torch.int64, True),
-        ([5], torch.int64, True),
+        ([-1, -1], torch.int64, True),
+        ([-1], torch.int64, True),
     ])
     def forward(self, x, y):
         return torch.ne(x, y)
@@ -616,6 +616,48 @@ class ElementwiseNeIntTensorModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseNeIntTensorModule())
 def ElementwiseNeIntTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(8, 5, low=2, high=4), tu.randint(5, low=2, high=4))
+
+# ==============================================================================
+
+class ElementwiseNeFloatTensorStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3], torch.float32, True),
+        ([2, 3], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.ne(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseNeFloatTensorStaticModule())
+def ElementwiseNeFloatTensorStaticModule_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor([[1.0, 2.2, 6.0], [6.0, 2.0, 3.1]]).to(torch.float32),
+        torch.tensor([[1.0, 2.4, 6.0], [torch.nan, 2.0, 6.0]]).to(torch.float32))
+
+# ==============================================================================
+
+class ElementwiseNeIntTensorStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([8, 5], torch.int64, True),
+        ([5], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ne(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseNeIntTensorStaticModule())
+def ElementwiseNeIntTensorStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(8, 5, low=2, high=4), tu.randint(5, low=2, high=4))
 
 # ==============================================================================

@@ -219,7 +219,7 @@ def aten〇isnan〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇ne〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
-    return upstream_shape_functions.unary(self)
+    return upstream_shape_functions.broadcast(self, other)
 
 def aten〇eq〇Scalar〡shape(self: List[int], other: float) -> List[int]:
     return upstream_shape_functions.unary(self)
