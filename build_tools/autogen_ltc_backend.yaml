@@ -10,6 +10,7 @@ blacklist:
 # Ops with list of tensors output
 - split.Tensor
 - unbind.int
+- chunk
 
 # Additional ops which autogen is supported for but don't compile yet
 - _convolution

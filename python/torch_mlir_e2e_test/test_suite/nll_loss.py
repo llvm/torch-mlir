@@ -29,7 +29,7 @@ class NllLossModule(torch.nn.Module):
                                            target=y,
                                            weight=None,
                                            reduction=0,
-                                           ignore_index=2)[0]
+                                           ignore_index=2)
 
 
 @register_test_case(module_factory=lambda: NllLossModule())
@@ -53,7 +53,7 @@ class NllLossModule_mean(torch.nn.Module):
                                            target=y,
                                            weight=None,
                                            reduction=1,
-                                           ignore_index=2)[0]
+                                           ignore_index=2)
 
 
 @register_test_case(module_factory=lambda: NllLossModule_mean())
@@ -77,7 +77,7 @@ class NllLossModule_sum(torch.nn.Module):
                                            target=y,
                                            weight=None,
                                            reduction=2,
-                                           ignore_index=2)[0]
+                                           ignore_index=2)
 
 
 @register_test_case(module_factory=lambda: NllLossModule_sum())
@@ -101,7 +101,7 @@ class NllLossModule_1D(torch.nn.Module):
                                            target=y,
                                            weight=None,
                                            reduction=0,
-                                           ignore_index=2)[0]
+                                           ignore_index=2)
 
 
 @register_test_case(module_factory=lambda: NllLossModule_1D())
@@ -126,7 +126,7 @@ class NllLossModule_ignore_index_out_of_bounds(torch.nn.Module):
                                            target=y,
                                            weight=None,
                                            reduction=0,
-                                           ignore_index=10)[0]
+                                           ignore_index=10)
 
 
 @register_test_case(module_factory=lambda: NllLossModule_ignore_index_out_of_bounds())

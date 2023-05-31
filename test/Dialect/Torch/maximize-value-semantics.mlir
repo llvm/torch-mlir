@@ -261,3 +261,19 @@ func.func @viewlike$two_inputs_two_copies(%arg0: !torch.vtensor, %arg1: !torch.v
   %3 = torch.copy.to_vtensor %2 : !torch.vtensor
   return %3 : !torch.vtensor
 }
+
+// CHECK-LABEL:   func.func @castlike(
+// CHECK-SAME:                       %[[ARG0:.*]]: !torch.vtensor<[5,4],f32>) -> !torch.tensor {
+// CHECK:           %[[CAST1:.*]] = torch.tensor_static_info_cast %[[ARG0]] : !torch.vtensor<[5,4],f32> to !torch.vtensor
+// CHECK:           %[[CAST2:.*]] = torch.tensor_static_info_cast %[[CAST1]] : !torch.vtensor to !torch.vtensor<[5,4],f32>
+// CHECK:           %[[CAST3:.*]] = torch.tensor_static_info_cast %[[CAST2]] : !torch.vtensor<[5,4],f32> to !torch.vtensor
+// CHECK:           %[[COPY:.*]] = torch.copy.to_tensor %[[CAST3]] : !torch.tensor
+// CHECK:           return %[[COPY]] : !torch.tensor
+func.func @castlike(%arg0: !torch.vtensor<[5,4],f32>) -> !torch.tensor {
+  %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[5,4],f32> to !torch.vtensor
+  %1 = torch.copy.to_tensor %0 : !torch.tensor
+  %2 = torch.tensor_static_info_cast %1 : !torch.tensor to !torch.tensor<[5,4],f32>
+  %3 = torch.copy.to_vtensor %2 : !torch.vtensor<[5,4],f32>
+  torch.overwrite.tensor.contents %3 overwrites %2 : !torch.vtensor<[5,4],f32>, !torch.tensor<[5,4],f32>
+  return %1 : !torch.tensor
+}
