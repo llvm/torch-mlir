@@ -520,13 +520,27 @@ def Tcp_CastOp:  Tcp_Op<"cast", [Pure, Elementwise, SameOperandsAndResultShape]>
 
   let description = [{
     Performs elementwise type conversion.
+
+    Supported torch/mlir element type:
+      INT: ui8,  si8,  i8, 
+           ui16, si16, i16,
+           ui32, si32, i32,
+           ui64, si64, i64, 
+           i1 (Boolean)
+      FP: f16, bf16, f32, f64
+
+    Supported Conversion Mode:
+      FP -> FP
+      INT -> FP
+      FP -> INT
+      INT -> INT
   }];
 
   let arguments = (ins
     Tcp_Tensor:$in,
     // TODO: Better way to align with enum SignednessSemantics
-    OptionalAttr<UI32Attr>:$in_int_element_type,
-    OptionalAttr<UI32Attr>:$out_int_element_type
+    OptionalAttr<UI32Attr>:$in_int_signedness,
+    OptionalAttr<UI32Attr>:$out_int_signedness
   );
 
   let results = (outs

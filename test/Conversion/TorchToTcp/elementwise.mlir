@@ -455,7 +455,7 @@ func.func @torch.aten.to.dtype(%arg0: !torch.vtensor<[?,?],f16>) -> !torch.vtens
 // CHECK:           %[[CST11:.*]] = torch.constant.int 11
 // CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:           %[[VAL_2:.*]] = tcp.cast %[[INP]] {out_int_element_type = 0 : ui32} : tensor<?x?xf16> -> tensor<?x?xi1>
+// CHECK:           %[[VAL_2:.*]] = tcp.cast %[[INP]] {out_int_signedness = 0 : ui32} : tensor<?x?xf16> -> tensor<?x?xi1>
 // CHECK:           %[[VAL_3:.*]] = torch_c.from_builtin_tensor %[[VAL_2]] : tensor<?x?xi1> -> !torch.vtensor<[?,?],i1>
 // CHECK:           return %[[VAL_3]] : !torch.vtensor<[?,?],i1>
 func.func @torch.aten.to.dtype(%arg0: !torch.vtensor<[?,?],f16>) -> !torch.vtensor<[?,?],i1> {
@@ -474,7 +474,7 @@ func.func @torch.aten.to.dtype(%arg0: !torch.vtensor<[?,?],f16>) -> !torch.vtens
 // CHECK:           %[[CST11:.*]] = torch.constant.int 11
 // CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:           %[[VAL_2:.*]] = tcp.cast %[[INP]] {in_int_element_type = 1 : ui32} : tensor<?x?xi32> -> tensor<?x?xf16>
+// CHECK:           %[[VAL_2:.*]] = tcp.cast %[[INP]] {in_int_signedness = 1 : ui32} : tensor<?x?xi32> -> tensor<?x?xf16>
 // CHECK:           %[[VAL_3:.*]] = torch_c.from_builtin_tensor %[[VAL_2]] : tensor<?x?xf16> -> !torch.vtensor<[?,?],f16>
 // CHECK:           return %[[VAL_3]] : !torch.vtensor<[?,?],f16>
 func.func @torch.aten.to.dtype(%arg0: !torch.vtensor<[?,?],si32>) -> !torch.vtensor<[?,?],f16> {
@@ -493,7 +493,7 @@ func.func @torch.aten.to.dtype(%arg0: !torch.vtensor<[?,?],si32>) -> !torch.vten
 // CHECK:           %[[CST11:.*]] = torch.constant.int 11
 // CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:           %[[VAL_2:.*]] = tcp.cast %[[INP]] {in_int_element_type = 0 : ui32, out_int_element_type = 2 : ui32} : tensor<?x?xi1> -> tensor<?x?xi8>
+// CHECK:           %[[VAL_2:.*]] = tcp.cast %[[INP]] {in_int_signedness = 0 : ui32, out_int_signedness = 2 : ui32} : tensor<?x?xi1> -> tensor<?x?xi8>
 // CHECK:           %[[VAL_3:.*]] = torch_c.from_builtin_tensor %[[VAL_2]] : tensor<?x?xi8> -> !torch.vtensor<[?,?],ui8>
 // CHECK:           return %[[VAL_3]] : !torch.vtensor<[?,?],ui8>
 func.func @torch.aten.to.dtype(%arg0: !torch.vtensor<[?,?],i1>) -> !torch.vtensor<[?,?],ui8> {

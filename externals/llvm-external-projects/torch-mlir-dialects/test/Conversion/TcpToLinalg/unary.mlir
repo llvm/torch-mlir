@@ -380,7 +380,7 @@ func.func @atan(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
 // CHECK:         return %[[GENERIC]] : tensor<?x?xi1>
 // CHECK:       }
 func.func @cast_i1(%arg0 : tensor<?x?xi32>) -> tensor<?x?xi1> {
-  %0 = tcp.cast %arg0 {in_int_element_type = 1 : ui32, out_int_element_type = 0 : ui32} : tensor<?x?xi32> -> tensor<?x?xi1>
+  %0 = tcp.cast %arg0 {in_int_signedness = 1 : ui32, out_int_signedness = 0 : ui32} : tensor<?x?xi32> -> tensor<?x?xi1>
   return %0 : tensor<?x?xi1>
 }
 
@@ -407,7 +407,7 @@ func.func @cast_i1(%arg0 : tensor<?x?xi32>) -> tensor<?x?xi1> {
 // CHECK:         return %[[GENERIC]] : tensor<?x?xf32>
 // CHECK:       }
 func.func @cast_si8_f32(%arg0 : tensor<?x?xi8>) -> tensor<?x?xf32> {
-  %0 = tcp.cast %arg0 {in_int_element_type = 1 : ui32} : tensor<?x?xi8> -> tensor<?x?xf32>
+  %0 = tcp.cast %arg0 {in_int_signedness = 1 : ui32} : tensor<?x?xi8> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
 
@@ -434,6 +434,6 @@ func.func @cast_si8_f32(%arg0 : tensor<?x?xi8>) -> tensor<?x?xf32> {
 // CHECK:         return %[[GENERIC]] : tensor<?x?xi32>
 // CHECK:       }
 func.func @cast_si8_ui32(%arg0 : tensor<?x?xi8>) -> tensor<?x?xi32> {
-  %0 = tcp.cast %arg0 {in_int_element_type = 1 : ui32, out_int_element_type = 2 : ui32} : tensor<?x?xi8> -> tensor<?x?xi32>
+  %0 = tcp.cast %arg0 {in_int_signedness = 1 : ui32, out_int_signedness = 2 : ui32} : tensor<?x?xi8> -> tensor<?x?xi32>
   return %0 : tensor<?x?xi32>
 }

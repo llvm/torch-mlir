@@ -161,36 +161,36 @@ LogicalResult CastOp::verify() {
   auto outputType = getOut().getType().cast<RankedTensorType>();
 
   if (inputType.getElementType().isa<FloatType>()) {
-    if (getInIntElementType())
+    if (getInIntSignedness())
       return emitOpError(
-          "in_int_element_type attr should not set when input is FP");
+          "in_int_signedness attr should not set when input is FP");
   }
 
   if (inputType.getElementType().isa<IntegerType>()) {
-    if (!getInIntElementType())
+    if (!getInIntSignedness())
       return emitOpError(
-          "in_int_element_type attr must be set when input is INT");
+          "in_int_signedness attr must be set when input is INT");
     if (inputType.getElementType().isInteger(1) &&
-        getInIntElementType().value() !=
+        getInIntSignedness().value() !=
             IntegerType::SignednessSemantics::Signless)
-      return emitOpError("in_int_element_type attr must be set to "
+      return emitOpError("in_int_signedness attr must be set to "
                          "SignednessSemantics::Signless when input is i1");
   }
 
   if (outputType.getElementType().isa<FloatType>()) {
-    if (getOutIntElementType())
+    if (getOutIntSignedness())
       return emitOpError(
-          "out_int_element_type attr should not set when output is FP");
+          "out_int_signedness attr should not set when output is FP");
   }
 
   if (outputType.getElementType().isa<IntegerType>()) {
-    if (!getOutIntElementType())
+    if (!getOutIntSignedness())
       return emitOpError(
-          "out_int_element_type attr must be set when output is INT");
+          "out_int_signedness attr must be set when output is INT");
     if (outputType.getElementType().isInteger(1) &&
-        getOutIntElementType().value() !=
+        getOutIntSignedness().value() !=
             IntegerType::SignednessSemantics::Signless)
-      return emitOpError("out_int_element_type attr must be set to "
+      return emitOpError("out_int_signedness attr must be set to "
                          "SignednessSemantics::Signless when output is i1");
   }
 
