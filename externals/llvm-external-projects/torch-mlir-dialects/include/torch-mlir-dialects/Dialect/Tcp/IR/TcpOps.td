@@ -524,7 +524,7 @@ def Tcp_CastOp:  Tcp_Op<"cast", [Pure, Elementwise, SameOperandsAndResultShape]>
 
   let arguments = (ins
     Tcp_Tensor:$in,
-    // Align with enum SignednessSemantics
+    // TODO: Better way to align with enum SignednessSemantics
     OptionalAttr<UI32Attr>:$in_int_element_type,
     OptionalAttr<UI32Attr>:$out_int_element_type
   );
