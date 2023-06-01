@@ -251,6 +251,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::hardsigmoid : (Tensor) -> (Tensor)",
             "aten::hardswish : (Tensor) -> (Tensor)",
             "aten::erf : (Tensor) -> (Tensor)",
+            "aten::erfinv : (Tensor) -> (Tensor)",
             "aten::silu : (Tensor) -> (Tensor)",
             "aten::sin : (Tensor) -> (Tensor)",
             "aten::exp : (Tensor) -> (Tensor)",
@@ -388,6 +389,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     )
     emit(
         "aten::norm.ScalarOpt_dim : (Tensor, Scalar?, int[], bool) -> (Tensor)"
+    )
+    emit(
+        "aten::normal_functional : (Tensor, float, float, Generator?) -> (Tensor)",
     )
     emit(
         "aten::native_layer_norm : (Tensor, int[], Tensor?, Tensor?, float) -> (Tensor, Tensor, Tensor)"

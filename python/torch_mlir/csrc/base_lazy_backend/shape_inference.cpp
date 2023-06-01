@@ -139,6 +139,11 @@ std::vector<torch::lazy::Shape> compute_shape_uniform(
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
+std::vector<torch::lazy::Shape> compute_shape_normal_functional(
+    const at::Tensor & self, double mean, double std, c10::optional<at::Generator> generator) {
+    return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
 std::vector<torch::lazy::Shape>
 compute_shape_multinomial(
     const at::Tensor& self,
