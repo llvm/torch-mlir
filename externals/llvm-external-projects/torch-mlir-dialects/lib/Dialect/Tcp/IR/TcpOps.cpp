@@ -161,30 +161,36 @@ LogicalResult CastOp::verify() {
   auto outputType = getOut().getType().cast<RankedTensorType>();
 
   if (inputType.getElementType().isa<FloatType>()) {
-    if (getInDtype())
-      return emitOpError("in_dtype attr should not set when input is FP");
+    if (getInIntElementType())
+      return emitOpError(
+          "in_int_element_type attr should not set when input is FP");
   }
 
   if (inputType.getElementType().isa<IntegerType>()) {
-    if (!getInDtype())
-      return emitOpError("in_dtype attr must be set when input is INT");
+    if (!getInIntElementType())
+      return emitOpError(
+          "in_int_element_type attr must be set when input is INT");
     if (inputType.getElementType().isInteger(1) &&
-        getInDtype().value() != IntegerType::SignednessSemantics::Signless)
-      return emitOpError("in_dtype attr must be set to "
+        getInIntElementType().value() !=
+            IntegerType::SignednessSemantics::Signless)
+      return emitOpError("in_int_element_type attr must be set to "
                          "SignednessSemantics::Signless when input is i1");
   }
 
   if (outputType.getElementType().isa<FloatType>()) {
-    if (getOutDtype())
-      return emitOpError("out_dtype attr should not set when output is FP");
+    if (getOutIntElementType())
+      return emitOpError(
+          "out_int_element_type attr should not set when output is FP");
   }
 
   if (outputType.getElementType().isa<IntegerType>()) {
-    if (!getOutDtype())
-      return emitOpError("out_dtype attr must be set when output is INT");
+    if (!getOutIntElementType())
+      return emitOpError(
+          "out_int_element_type attr must be set when output is INT");
     if (outputType.getElementType().isInteger(1) &&
-        getOutDtype().value() != IntegerType::SignednessSemantics::Signless)
-      return emitOpError("out_dtype attr must be set to "
+        getOutIntElementType().value() !=
+            IntegerType::SignednessSemantics::Signless)
+      return emitOpError("out_int_element_type attr must be set to "
                          "SignednessSemantics::Signless when output is i1");
   }
 

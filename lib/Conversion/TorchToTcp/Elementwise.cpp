@@ -443,163 +443,67 @@ public:
 
     // The non_blocking arg should be a constant `False`.
     bool nonBlocking;
-    if (!matchPattern(op.getNonBlocking(), m_TorchConstantBool(&nonBlocking))) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: non_blocking arg must be a constant");
-    } else if (nonBlocking) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: non_blocking arg is expected to be false");
+    if (!matchPattern(op.getNonBlocking(), m_TorchConstantBool(&nonBlocking)) ||
+        nonBlocking) {
+      return rewriter.notifyMatchFailure(op,
+                                         "unimplemented: non_blocking arg must "
+                                         "be a constant with False value");
     }
 
     // The copy arg should be a constant `False`.
     bool copy;
-    if (!matchPattern(op.getCopy(), m_TorchConstantBool(&copy))) {
+    if (!matchPattern(op.getCopy(), m_TorchConstantBool(&copy)) || copy) {
       return rewriter.notifyMatchFailure(
-          op, "unimplemented: copy arg must be a constant");
-    } else if (copy) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: copy arg is expected to be false");
+          op, "unimplemented: copy arg must be a constant with False value");
     }
 
     // Only `none`, `contiguous` and `preserve` memory_format is supported.
     if (!op.getMemoryFormat().getType().isa<Torch::NoneType>()) {
       int64_t memoryFormat;
       if (!matchPattern(op.getMemoryFormat(),
-                        m_TorchConstantInt(&memoryFormat)))
+                        m_TorchConstantInt(&memoryFormat)) ||
+          (memoryFormat != torch_upstream::MemoryFormat::Contiguous &&
+           memoryFormat != torch_upstream::MemoryFormat::Preserve))
         return rewriter.notifyMatchFailure(
             op, "unimplemented: the memory format should be specified in "
-                "an integer constant");
-      if (memoryFormat != torch_upstream::MemoryFormat::Contiguous &&
-          memoryFormat != torch_upstream::MemoryFormat::Preserve)
-        return rewriter.notifyMatchFailure(
-            op, "unimplemented: only none, contiguous and preserve "
-                "memory_format is supported");
+                "an integer constant with none, contiguous or preserve value");
     }
 
-    // FP -> FP
     if (inputType.getDtype().isa<mlir::FloatType>() &&
         outputType.getDtype().isa<mlir::FloatType>())
+      // FP -> FP
       rewriter.replaceOpWithNewOp<tcp::CastOp>(
           op, resultType, adaptor.getSelf(), IntegerAttr{}, IntegerAttr{});
-    // FP -> INT
     else if (inputType.getDtype().isa<mlir::FloatType>()) {
-      if (outputType.getDtype().isSignlessInteger())
+      // FP -> INT
+      if (auto intType = outputType.getDtype().dyn_cast<mlir::IntegerType>())
         rewriter.replaceOpWithNewOp<tcp::CastOp>(
             op, resultType, adaptor.getSelf(), IntegerAttr{},
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signless));
-      else if (outputType.getDtype().isSignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(
-            op, resultType, adaptor.getSelf(), IntegerAttr{},
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signed));
-      else if (outputType.getDtype().isUnsignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(
-            op, resultType, adaptor.getSelf(), IntegerAttr{},
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Unsigned));
+            rewriter.getUI32IntegerAttr(intType.getSignedness()));
       else
         return rewriter.notifyMatchFailure(
             op, "expect output type to be signless/signed/unsigned integer");
     }
-    // INT -> FP
     else if (outputType.getDtype().isa<mlir::FloatType>()) {
-      if (inputType.getDtype().isSignlessInteger())
+      // INT -> FP
+      if (auto intType = inputType.getDtype().dyn_cast<mlir::IntegerType>())
         rewriter.replaceOpWithNewOp<tcp::CastOp>(
             op, resultType, adaptor.getSelf(),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signless),
-            IntegerAttr{});
-      else if (inputType.getDtype().isSignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(
-            op, resultType, adaptor.getSelf(),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signed),
-            IntegerAttr{});
-      else if (inputType.getDtype().isUnsignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(
-            op, resultType, adaptor.getSelf(),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Unsigned),
+            rewriter.getUI32IntegerAttr(intType.getSignedness()),
             IntegerAttr{});
       else
         return rewriter.notifyMatchFailure(
             op, "expect input type to be signless/signed/unsigned integer");
     }
-    // INT -> INT
     else {
-      if (inputType.getDtype().isSignlessInteger() &&
-          outputType.getDtype().isSignlessInteger())
+      // INT -> INT
+      auto inIntType = inputType.getDtype().dyn_cast<mlir::IntegerType>();
+      auto outIntType = outputType.getDtype().dyn_cast<mlir::IntegerType>();
+      if (inIntType && outIntType)
         rewriter.replaceOpWithNewOp<tcp::CastOp>(
             op, resultType, adaptor.getSelf(),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signless),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signless));
-      else if (inputType.getDtype().isSignlessInteger() &&
-               outputType.getDtype().isSignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(
-            op, resultType, adaptor.getSelf(),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signless),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signed));
-      else if (inputType.getDtype().isSignlessInteger() &&
-               outputType.getDtype().isUnsignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(
-            op, resultType, adaptor.getSelf(),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signless),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Unsigned));
-      else if (inputType.getDtype().isSignedInteger() &&
-               outputType.getDtype().isSignlessInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(
-            op, resultType, adaptor.getSelf(),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signed),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signless));
-      else if (inputType.getDtype().isSignedInteger() &&
-               outputType.getDtype().isSignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(
-            op, resultType, adaptor.getSelf(),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signed),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signed));
-      else if (inputType.getDtype().isSignedInteger() &&
-               outputType.getDtype().isUnsignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(
-            op, resultType, adaptor.getSelf(),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signed),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Unsigned));
-      else if (inputType.getDtype().isUnsignedInteger() &&
-               outputType.getDtype().isSignlessInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(
-            op, resultType, adaptor.getSelf(),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Unsigned),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signless));
-      else if (inputType.getDtype().isUnsignedInteger() &&
-               outputType.getDtype().isSignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(
-            op, resultType, adaptor.getSelf(),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Unsigned),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Signed));
-      else if (inputType.getDtype().isUnsignedInteger() &&
-               outputType.getDtype().isUnsignedInteger())
-        rewriter.replaceOpWithNewOp<tcp::CastOp>(
-            op, resultType, adaptor.getSelf(),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Unsigned),
-            rewriter.getUI32IntegerAttr(
-                IntegerType::SignednessSemantics::Unsigned));
+            rewriter.getUI32IntegerAttr(inIntType.getSignedness()),
+            rewriter.getUI32IntegerAttr(outIntType.getSignedness()));
       else
         return rewriter.notifyMatchFailure(op,
                                            "invalid input/output data type");

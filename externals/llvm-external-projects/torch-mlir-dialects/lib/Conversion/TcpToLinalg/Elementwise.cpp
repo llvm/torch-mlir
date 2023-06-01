@@ -198,15 +198,17 @@ createLinalgPayloadForElementwiseOp(Operation *op,
     auto inputType =
         castOp.getIn().getType().dyn_cast<RankedTensorType>().getElementType();
     auto outputType = resultTensorType.getElementType();
-    // check for same type
+
     if (inputType.getIntOrFloatBitWidth() ==
             outputType.getIntOrFloatBitWidth() &&
-        ((!castOp.getInDtype() && !castOp.getOutDtype()) ||
-         (castOp.getInDtype() && castOp.getOutDtype() &&
-          castOp.getInDtype().value() == castOp.getOutDtype().value())))
-      return payloadArgs[0];
-    // To I1 (Bool)
+        ((!castOp.getInIntElementType() && !castOp.getOutIntElementType()) ||
+         (castOp.getInIntElementType() && castOp.getOutIntElementType() &&
+          castOp.getInIntElementType().value() ==
+              castOp.getOutIntElementType().value())))
+      // check for same type
+      return {payloadArgs[0]};
     else if (outputType.isInteger(1)) {
+      // To I1 (Bool) type
       Value cstZero =
           b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputType));
       if (inputType.isa<mlir::FloatType>()) {
@@ -216,10 +218,8 @@ createLinalgPayloadForElementwiseOp(Operation *op,
         return {b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne,
                                         payloadArgs[0], cstZero)};
       }
-    }
-    // TO FP
-    else if (!castOp.getOutDtype()) {
-      assert(outputType.isa<mlir::FloatType>());
+    } else if (outputType.isa<mlir::FloatType>()) {
+      // TO FP type
       // FP -> FP
       if (inputType.dyn_cast<mlir::FloatType>()) {
         if (inputType.getIntOrFloatBitWidth() >
@@ -230,30 +230,28 @@ createLinalgPayloadForElementwiseOp(Operation *op,
       // INT -> FP
       else if (inputType.dyn_cast<mlir::IntegerType>()) {
         // Signless or Unsigned INT to FP
-        if (castOp.getInDtype().value() ==
+        if (castOp.getInIntElementType().value() ==
                 IntegerType::SignednessSemantics::Signless ||
-            castOp.getInDtype().value() ==
+            castOp.getInIntElementType().value() ==
                 IntegerType::SignednessSemantics::Unsigned)
           return {b.create<arith::UIToFPOp>(loc, outputType, payloadArgs[0])};
         // Signed INT to FP
-        else if (castOp.getInDtype().value() ==
+        else if (castOp.getInIntElementType().value() ==
                  IntegerType::SignednessSemantics::Signed)
           return {b.create<arith::SIToFPOp>(loc, outputType, payloadArgs[0])};
       }
-    }
-    // TO INT
-    else if (castOp.getOutDtype()) {
-      assert(outputType.isa<mlir::IntegerType>());
+    } else if (outputType.isa<mlir::IntegerType>()) {
+      // TO INT type
       // FP -> INT
       if (inputType.dyn_cast<mlir::FloatType>()) {
         // FP to Signless or Unsigned INT
-        if (castOp.getOutDtype().value() ==
+        if (castOp.getOutIntElementType().value() ==
                 IntegerType::SignednessSemantics::Signless ||
-            castOp.getOutDtype().value() ==
+            castOp.getOutIntElementType().value() ==
                 IntegerType::SignednessSemantics::Unsigned)
           return {b.create<arith::FPToUIOp>(loc, outputType, payloadArgs[0])};
         // FP to Signed INT
-        else if (castOp.getOutDtype().value() ==
+        else if (castOp.getOutIntElementType().value() ==
                  IntegerType::SignednessSemantics::Signed)
           return {b.create<arith::FPToSIOp>(loc, outputType, payloadArgs[0])};
       }
@@ -263,13 +261,13 @@ createLinalgPayloadForElementwiseOp(Operation *op,
             outputType.getIntOrFloatBitWidth())
           return {b.create<arith::TruncIOp>(loc, outputType, payloadArgs[0])};
         // Signless or Unsigned INT extension
-        if (castOp.getInDtype().value() ==
+        if (castOp.getInIntElementType().value() ==
                 IntegerType::SignednessSemantics::Signless ||
-            castOp.getInDtype().value() ==
+            castOp.getInIntElementType().value() ==
                 IntegerType::SignednessSemantics::Unsigned)
           return {b.create<arith::ExtUIOp>(loc, outputType, payloadArgs[0])};
         // Signed INT extension
-        else if (castOp.getInDtype().value() ==
+        else if (castOp.getInIntElementType().value() ==
                  IntegerType::SignednessSemantics::Signed)
           return {b.create<arith::ExtSIOp>(loc, outputType, payloadArgs[0])};
       }
