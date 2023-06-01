@@ -3839,6 +3839,94 @@ def ConstantBoolParameterModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ScalarTensorFloat32Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        scalar = torch.ops.aten.scalar_tensor(1.0, dtype=torch.float32)
+        return scalar
+
+
+@register_test_case(module_factory=lambda: ScalarTensorFloat32Module())
+def ScalarTensorFloat32Module_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class ScalarTensorDefaultDtypeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        scalar = torch.ops.aten.scalar_tensor(1.0)
+        return scalar
+
+
+@register_test_case(module_factory=lambda: ScalarTensorDefaultDtypeModule())
+def ScalarTensorDefaultDtypeModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class ScalarTensorInt64Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        scalar = torch.ops.aten.scalar_tensor(1, dtype=torch.int64)
+        return scalar
+
+
+@register_test_case(module_factory=lambda: ScalarTensorInt64Module())
+def ScalarTensorInt64Module_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class ScalarTensorInt32Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        scalar = torch.ops.aten.scalar_tensor(1, dtype=torch.int32)
+        return scalar
+
+
+@register_test_case(module_factory=lambda: ScalarTensorInt32Module())
+def ScalarTensorInt32Module_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
 class AtenTopKModule(torch.nn.Module):
 
     def __init__(self):

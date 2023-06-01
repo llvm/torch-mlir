@@ -6427,6 +6427,33 @@ def Torch_AtenTensorIntOp : Torch_Op<"aten.tensor.int", [
   }];
 }
 
+def Torch_AtenScalarTensorOp : Torch_Op<"aten.scalar_tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::scalar_tensor : (Scalar, int?, int?, Device?, bool?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchScalarType:$s,
+    AnyTorchOptionalIntType:$dtype,
+    AnyTorchOptionalIntType:$layout,
+    AnyTorchOptionalDeviceType:$device,
+    AnyTorchOptionalBoolType:$pin_memory
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenScalarTensorOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 5, 1);
+    }
+    void AtenScalarTensorOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 5, 1);
+    }
+  }];
+}
+
 def Torch_Aten_ShapeAsTensorOp : Torch_Op<"aten._shape_as_tensor", [
     AllowsTypeRefinement,
     HasValueSemantics,
