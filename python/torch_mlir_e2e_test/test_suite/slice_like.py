@@ -665,15 +665,34 @@ class SplitTensorGetItem_Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([2, 3, 4], torch.float32, True),
+        ([3, 3, 4], torch.float32, True),
     ])
     def forward(self, x):
-        splits = torch.ops.aten.split(x, 1, 0)
+        splits = torch.ops.aten.split(x, 2, 0)
         return torch.ops.aten.sub(splits[0], splits[1])
 
 @register_test_case(module_factory=lambda: SplitTensorGetItem_Module())
 def SplitTensorGetItem_Module_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 3, 4))
+    module.forward(tu.rand(3, 3, 4))
+
+# ==============================================================================
+
+class SplitTensorListUnpackModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+        ([5, 3, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        x1, x2, x3 = torch.ops.aten.split(x, 2, 0)
+        return x1 + x2 + x3
+
+@register_test_case(module_factory=lambda: SplitTensorListUnpackModule())
+def SplitTensorListUnpackModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, 4))
 
 # ==============================================================================
 
