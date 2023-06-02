@@ -45,6 +45,9 @@ jobs:
             llvm-build: out-of-tree
           - os-arch: windows-x86_64
             torch-version: stable
+          # For PyTorch stable builds, we don't build PyTorch from source
+          - torch-version: stable
+            torch-binary: OFF
         include:
           # Specify OS versions
           - os-arch: ubuntu-x86_64
@@ -89,7 +92,7 @@ jobs:
         arch: x64
 
     - name: Try to Restore PyTorch Build Cache
-      if: matrix.os-arch != 'windows-x86_64'
+      if: ${{ matrix.torch-binary == 'OFF' }}
       id: cache-pytorch
       uses: actions/cache/restore@v3
       with:
@@ -147,7 +150,7 @@ jobs:
       run: ./build_tools/python_deploy/build_windows_ci.sh
 
     - name: Save PyTorch Build Cache
-      if: ${{ github.ref_name == 'main' && matrix.torch-binary == 'OFF' && matrix.os-arch != 'windows-x86_64' }}
+      if: ${{ github.ref_name == 'main' && matrix.torch-binary == 'OFF' }}
       uses: actions/cache/save@v3
       with:
         path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
