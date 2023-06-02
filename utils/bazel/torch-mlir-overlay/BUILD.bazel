@@ -843,8 +843,8 @@ td_library(
     name = "TorchMLIRTcpTdFiles",
     srcs = [
         "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/Tcp/IR/TcpBase.td",
-        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/Tcp/IR/TcpOps.td",
         "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/Tcp/IR/TcpEnums.td",
+        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/Tcp/IR/TcpOps.td",
     ],
     includes = ["externals/llvm-external-projects/torch-mlir-dialects/include"],
     deps = [
@@ -939,9 +939,9 @@ cc_library(
     ],
     strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
     deps = [
-        ":TorchMLIRTcpOpsIncGen",
         ":TorchMLIRTcpAttrsIncGen",
         ":TorchMLIRTcpEnumsIncGen",
+        ":TorchMLIRTcpOpsIncGen",
         "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:DialectUtils",
         "@llvm-project//mlir:FuncDialect",
