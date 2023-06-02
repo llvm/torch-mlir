@@ -45,6 +45,9 @@ jobs:
             llvm-build: out-of-tree
           - os-arch: windows-x86_64
             torch-version: stable
+          # For PyTorch stable builds, we don't build PyTorch from source
+          - torch-version: stable
+            torch-binary: OFF
         include:
           # Specify OS versions
           - os-arch: ubuntu-x86_64
