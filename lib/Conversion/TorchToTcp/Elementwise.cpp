@@ -37,6 +37,16 @@ bool skipMultiplyAlpha(Value alphaValue) {
   return ((isFloat && doubleValue == 1.0) || (isInt && intValue == 1.0));
 }
 
+SignednessAttr
+getTcpSignednessAttr(MLIRContext *context,
+                     IntegerType::SignednessSemantics signednessInfo) {
+  if (signednessInfo == IntegerType::SignednessSemantics::Signless)
+    return SignednessAttr::get(context, Signedness::Signless);
+  if (signednessInfo == IntegerType::SignednessSemantics::Signed)
+    return SignednessAttr::get(context, Signedness::Signed);
+  return SignednessAttr::get(context, Signedness::Unsigned);
+}
+
 template <typename AtenOpT, typename TcpOpT>
 class ConvertAtenAddSubOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -424,6 +434,7 @@ public:
   LogicalResult
   matchAndRewrite(AtenToDtypeOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    MLIRContext *context = op.getContext();
     Value input = op.getSelf();
     auto inputType = input.getType().dyn_cast<torch::Torch::ValueTensorType>();
     auto outputType = op.getType().dyn_cast<torch::Torch::ValueTensorType>();
@@ -473,13 +484,14 @@ public:
         outputType.getDtype().isa<mlir::FloatType>())
       // FP -> FP
       rewriter.replaceOpWithNewOp<tcp::CastOp>(
-          op, resultType, adaptor.getSelf(), IntegerAttr{}, IntegerAttr{});
+          op, resultType, adaptor.getSelf(), SignednessAttr{},
+          SignednessAttr{});
     else if (inputType.getDtype().isa<mlir::FloatType>()) {
       // FP -> INT
       if (auto intType = outputType.getDtype().dyn_cast<mlir::IntegerType>())
         rewriter.replaceOpWithNewOp<tcp::CastOp>(
-            op, resultType, adaptor.getSelf(), IntegerAttr{},
-            rewriter.getUI32IntegerAttr(intType.getSignedness()));
+            op, resultType, adaptor.getSelf(), SignednessAttr{},
+            getTcpSignednessAttr(context, intType.getSignedness()));
       else
         return rewriter.notifyMatchFailure(
             op, "expect output type to be signless/signed/unsigned integer");
@@ -489,8 +501,8 @@ public:
       if (auto intType = inputType.getDtype().dyn_cast<mlir::IntegerType>())
         rewriter.replaceOpWithNewOp<tcp::CastOp>(
             op, resultType, adaptor.getSelf(),
-            rewriter.getUI32IntegerAttr(intType.getSignedness()),
-            IntegerAttr{});
+            getTcpSignednessAttr(context, intType.getSignedness()),
+            SignednessAttr{});
       else
         return rewriter.notifyMatchFailure(
             op, "expect input type to be signless/signed/unsigned integer");
@@ -502,8 +514,8 @@ public:
       if (inIntType && outIntType)
         rewriter.replaceOpWithNewOp<tcp::CastOp>(
             op, resultType, adaptor.getSelf(),
-            rewriter.getUI32IntegerAttr(inIntType.getSignedness()),
-            rewriter.getUI32IntegerAttr(outIntType.getSignedness()));
+            getTcpSignednessAttr(context, inIntType.getSignedness()),
+            getTcpSignednessAttr(context, outIntType.getSignedness()));
       else
         return rewriter.notifyMatchFailure(op,
                                            "invalid input/output data type");

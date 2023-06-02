@@ -23,6 +23,13 @@ def Tcp_Dialect : Dialect {
     TCP is a mid-level transformation oriented IR for deep learning & similar
     applications.
   }];
+  // Dialect attribute parsing hook.
+  let extraClassDeclaration = [{        
+      Attribute parseAttribute(
+          DialectAsmParser &parser, Type type) const override;
+      void printAttribute(
+          Attribute attr, DialectAsmPrinter &printer) const override;
+    }]; 
 
   let dependentDialects = [];
 }

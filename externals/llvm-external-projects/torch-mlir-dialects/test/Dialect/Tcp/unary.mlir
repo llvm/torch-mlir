@@ -204,10 +204,10 @@ func.func @test_cast_i32_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xi16> {
 
 // CHECK-LABEL: func.func @test_cast_i32_i8(
 // CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xi32>) -> tensor<?x?xi8>
-// CHECK:         %[[OUT:.*]] = tcp.cast %[[ARG]] {in_int_signedness = 1 : ui32, out_int_signedness = 2 : ui32} : tensor<?x?xi32> -> tensor<?x?xi8>
+// CHECK:         %[[OUT:.*]] = tcp.cast %[[ARG]] {in_int_signedness = #tcp<signedness Signed>, out_int_signedness = #tcp<signedness Unsigned>} : tensor<?x?xi32> -> tensor<?x?xi8>
 // CHECK:         return %[[OUT]] : tensor<?x?xi8>
 func.func @test_cast_i32_i8(%arg0 : tensor<?x?xi32>) -> tensor<?x?xi8> {
-  %0 = tcp.cast %arg0 {in_int_signedness = 1 : ui32, out_int_signedness = 2 : ui32} : tensor<?x?xi32> -> tensor<?x?xi8>
+  %0 = tcp.cast %arg0 {in_int_signedness = #tcp<signedness Signed>, out_int_signedness = #tcp<signedness Unsigned>} : tensor<?x?xi32> -> tensor<?x?xi8>
   return %0 : tensor<?x?xi8>
 }
 
@@ -215,10 +215,10 @@ func.func @test_cast_i32_i8(%arg0 : tensor<?x?xi32>) -> tensor<?x?xi8> {
 
 // CHECK-LABEL: func.func @test_cast_i32_f16(
 // CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xi32>) -> tensor<?x?xf16>
-// CHECK:         %[[OUT:.*]] = tcp.cast %[[ARG]] {in_int_signedness = 2 : ui32} : tensor<?x?xi32> -> tensor<?x?xf16>
+// CHECK:         %[[OUT:.*]] = tcp.cast %[[ARG]] {in_int_signedness = #tcp<signedness Unsigned>} : tensor<?x?xi32> -> tensor<?x?xf16>
 // CHECK:         return %[[OUT]] : tensor<?x?xf16>
 func.func @test_cast_i32_f16(%arg0 : tensor<?x?xi32>) -> tensor<?x?xf16> {
-  %0 = tcp.cast %arg0 {in_int_signedness = 2 : ui32} : tensor<?x?xi32> -> tensor<?x?xf16>
+  %0 = tcp.cast %arg0 {in_int_signedness = #tcp<signedness Unsigned>} : tensor<?x?xi32> -> tensor<?x?xf16>
   return %0 : tensor<?x?xf16>
 }
 
@@ -226,10 +226,10 @@ func.func @test_cast_i32_f16(%arg0 : tensor<?x?xi32>) -> tensor<?x?xf16> {
 
 // CHECK-LABEL: func.func @test_cast_f16_i32(
 // CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xf16>) -> tensor<?x?xi32>
-// CHECK:         %[[OUT:.*]] = tcp.cast %[[ARG]] {out_int_signedness = 0 : ui32} : tensor<?x?xf16> -> tensor<?x?xi32>
+// CHECK:         %[[OUT:.*]] = tcp.cast %[[ARG]] {out_int_signedness = #tcp<signedness Signless>} : tensor<?x?xf16> -> tensor<?x?xi32>
 // CHECK:         return %[[OUT]] : tensor<?x?xi32>
 func.func @test_cast_f16_i32(%arg0 : tensor<?x?xf16>) -> tensor<?x?xi32> {
-  %0 = tcp.cast %arg0 {out_int_signedness = 0 : ui32} : tensor<?x?xf16> -> tensor<?x?xi32>
+  %0 = tcp.cast %arg0 {out_int_signedness = #tcp<signedness Signless>} : tensor<?x?xf16> -> tensor<?x?xi32>
   return %0 : tensor<?x?xi32>
 }
 

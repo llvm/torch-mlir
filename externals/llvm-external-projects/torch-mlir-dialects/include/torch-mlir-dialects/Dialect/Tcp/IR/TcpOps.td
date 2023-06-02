@@ -11,6 +11,7 @@
 #define TORCH_MLIR_DIALECT_TCP_OPS
 
 include "torch-mlir-dialects/Dialect/Tcp/IR/TcpBase.td"
+include "torch-mlir-dialects/Dialect/Tcp/IR/TcpEnums.td"
 
 include "mlir/IR/OpBase.td"
 
@@ -538,9 +539,8 @@ def Tcp_CastOp:  Tcp_Op<"cast", [Pure, Elementwise, SameOperandsAndResultShape]>
 
   let arguments = (ins
     Tcp_Tensor:$in,
-    // TODO: Better way to align with enum SignednessSemantics
-    OptionalAttr<UI32Attr>:$in_int_signedness,
-    OptionalAttr<UI32Attr>:$out_int_signedness
+    OptionalAttr<Tcp_SignednessAttr>:$in_int_signedness,
+    OptionalAttr<Tcp_SignednessAttr>:$out_int_signedness
   );
 
   let results = (outs

@@ -17,7 +17,12 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/TypeSwitch.h"
 
+#include "torch-mlir-dialects/Dialect/Tcp/IR/TcpEnums.h.inc"
+#define GET_ATTRDEF_CLASSES
+#include "torch-mlir-dialects/Dialect/Tcp/IR/TcpAttrs.h.inc"
 #define GET_OP_CLASSES
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpOps.h.inc"
 

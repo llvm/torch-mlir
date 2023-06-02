@@ -171,10 +171,9 @@ LogicalResult CastOp::verify() {
       return emitOpError(
           "in_int_signedness attr must be set when input is INT");
     if (inputType.getElementType().isInteger(1) &&
-        getInIntSignedness().value() !=
-            IntegerType::SignednessSemantics::Signless)
+        getInIntSignedness().value() != Signedness::Signless)
       return emitOpError("in_int_signedness attr must be set to "
-                         "SignednessSemantics::Signless when input is i1");
+                         "Signedness::Signless when input is i1");
   }
 
   if (outputType.getElementType().isa<FloatType>()) {
@@ -188,10 +187,9 @@ LogicalResult CastOp::verify() {
       return emitOpError(
           "out_int_signedness attr must be set when output is INT");
     if (outputType.getElementType().isInteger(1) &&
-        getOutIntSignedness().value() !=
-            IntegerType::SignednessSemantics::Signless)
+        getOutIntSignedness().value() != Signedness::Signless)
       return emitOpError("out_int_signedness attr must be set to "
-                         "SignednessSemantics::Signless when output is i1");
+                         "Signedness::Signless when output is i1");
   }
 
   return success();
