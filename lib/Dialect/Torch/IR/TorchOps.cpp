@@ -1861,6 +1861,26 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenIsFloatingPointOp
+//===----------------------------------------------------------------------===//
+
+void AtenIsFloatingPointOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenIsFloatingPointOp op, PatternRewriter &rewriter) {
+    auto tensorType = op.getSelf().getType().cast<BaseTensorType>();
+    if (tensorType.hasDtype()) {
+      if (tensorType.getDtype().isa<mlir::FloatType>()) {
+        rewriter.replaceOpWithNewOp<Torch::ConstantBoolOp>(op, true);
+      } else {
+        rewriter.replaceOpWithNewOp<Torch::ConstantBoolOp>(op, false);
+      }
+      return success();
+    }
+    return failure();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenAddTOp
 //===----------------------------------------------------------------------===//
 
