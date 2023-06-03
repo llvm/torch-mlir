@@ -18,7 +18,7 @@ def Tcp_Signedness_Signed   : I32EnumAttrCase<"Signed", 1>;
 def Tcp_Signedness_Unsigned : I32EnumAttrCase<"Unsigned", 2>;
 
 def Tcp_Signedness : I32EnumAttr<"Signedness",
-    "Signedness info for interger type element",
+    "Signedness info for integer type element",
     [
       Tcp_Signedness_Signless,
       Tcp_Signedness_Signed,
