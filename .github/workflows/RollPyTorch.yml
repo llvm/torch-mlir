@@ -119,7 +119,7 @@ jobs:
       uses: peter-evans/create-pull-request@v5.0.1
       with:
         author: Roll PyTorch Action <torch-mlir@users.noreply.github.com>
-        branch: rollpytorch/${{ env.PT_RELEASE }}
+        branch: rollpytorch
         body: |
           torch version: ${{ env.PT_RELEASE }}
           torch commit hash: ${{ env.PT_HASH }}
