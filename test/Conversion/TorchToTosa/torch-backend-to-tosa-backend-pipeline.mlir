@@ -91,8 +91,8 @@ func.func @torch.aten.bitwise_and.Tensor$mixed_type(%arg0: !torch.vtensor<[?,?],
 // CHECK-LABEL: torch.aten.div.Tensor$mixed_type_fp
 // CHECK-SAME: %[[VAL_0:.*]]: tensor<?x?xf32>,
 // CHECK-SAME: %[[VAL_1:.*]]: tensor<?x?xi32>
-// CHECK: %[[VAL_2:.*]] = "tosa.reciprocal"(%[[VAL_1]]) : (tensor<?x?xi32>) -> tensor<?x?xi32>
-// CHECK: %[[VAL_3:.*]] = "tosa.cast"(%[[VAL_2]]) : (tensor<?x?xi32>) -> tensor<?x?xf32>
+// CHECK: %[[VAL_2:.*]] = "tosa.cast"(%[[VAL_1]]) : (tensor<?x?xi32>) -> tensor<?x?xf32>
+// CHECK: %[[VAL_3:.*]] = "tosa.reciprocal"(%[[VAL_2]]) : (tensor<?x?xf32>) -> tensor<?x?xf32>
 // CHECK: %[[VAL_4:.*]] = "tosa.mul"(%[[VAL_0]], %[[VAL_3]]) <{shift = 0 : i32}> : (tensor<?x?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
 func.func @torch.aten.div.Tensor$mixed_type_fp(%arg0: !torch.vtensor<[?, ?],f32>, %arg1: !torch.vtensor<[?, ?],si32>) -> !torch.vtensor<[?, ?],f32> {
   %0 = torch.aten.div.Tensor %arg0, %arg1 : !torch.vtensor<[?, ?],f32>, !torch.vtensor<[?, ?],si32> -> !torch.vtensor<[?, ?],f32>
