@@ -45,7 +45,9 @@ Attribute TcpDialect::parseAttribute(DialectAsmParser &parser,
       generatedAttributeParser(parser, &attrKind, type, attr);
   if (result.has_value())
     return attr;
-  return {};
+
+  parser.emitError(parser.getNameLoc(), "unknown Tcp attribute");
+  return Attribute();
 }
 
 void TcpDialect::printAttribute(Attribute attr,

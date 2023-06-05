@@ -160,6 +160,10 @@ LogicalResult CastOp::verify() {
   auto inputType = getIn().getType().cast<RankedTensorType>();
   auto outputType = getOut().getType().cast<RankedTensorType>();
 
+  if (!inputType.getElementType().isIntOrFloat() ||
+      !outputType.getElementType().isIntOrFloat())
+    return emitOpError("Cast Op must have integer or floating-point datatype");
+
   if (inputType.getElementType().isa<FloatType>()) {
     if (getInIntSignedness())
       return emitOpError(
