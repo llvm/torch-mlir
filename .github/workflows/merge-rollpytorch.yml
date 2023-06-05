@@ -1,0 +1,21 @@
+name: RollPyTorch Merge
+
+on:
+  workflow_run:
+    workflows: [Build and Test]
+    types: [completed]
+    branches: [rollpytorch]
+
+jobs:
+  merge-pr:
+    runs-on: ubuntu-latest
+    if: |
+      github.repository == 'llvm/torch-mlir' &&
+      github.event.workflow_run.actor.login == 'silvasean' &&
+      github.event.workflow_run.conclusion == 'success'
+
+    env:
+      PR_IDS: ${{ toJson(github.event.workflow_run.pull_requests.*.number) }}
+
+    steps:
+    - run: echo "PRs to approve and merge -- $PR_IDS"

@@ -24,9 +24,19 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenCopy_Op op,
                                 PatternRewriter &rewriter) const override {
+    // This pattern replaces the in-place mutation of a slice of a tensor with
+    // an `index_put` op. Since the slice of the tensor can have a different
+    // shape than the full tensor, this pattern requires the `copy_` op to not
+    // have users to avoid mismached types. This restriction can be removed by
+    // inserting another slice after the `index_put` that creates a tensor of
+    // the same shape as the operand to `copy_`.
+    if (!op.use_empty())
+      return rewriter.notifyMatchFailure(
+          op, "`AtenCopy_Op` must not have any users");
     if (!op.getSelf().getDefiningOp() ||
         !isa<AtenSliceTensorOp>(op.getSelf().getDefiningOp()))
-      return failure();
+      return rewriter.notifyMatchFailure(
+          op, "defining op is not `AtenSliceTensorOp`");
     auto sliceOp = cast<AtenSliceTensorOp>(op.getSelf().getDefiningOp());
 
     // Get indices
@@ -37,36 +47,45 @@ public:
     if (!matchPattern(sliceOp.getEnd(), m_TorchConstantInt(&end)))
       return failure();
 
+    Value newStart = sliceOp.getStart();
     Value newEnd = sliceOp.getEnd();
+    Value dimSize = rewriter.create<AtenSizeIntOp>(
+        op.getLoc(), sliceOp.getSelf(), sliceOp.getDim());
     if (end < 0) {
-      Value dimSize = rewriter.create<AtenSizeIntOp>(
-          op.getLoc(), sliceOp.getSelf(), sliceOp.getDim());
       newEnd =
           rewriter.create<AtenAddIntOp>(op.getLoc(), dimSize, sliceOp.getEnd());
     }
+
+    newStart = rewriter.create<PrimMinIntOp>(op.getLoc(), newStart, dimSize);
+    newEnd = rewriter.create<PrimMinIntOp>(op.getLoc(), newEnd, dimSize);
 
     Value noneVal = rewriter.create<ConstantNoneOp>(op.getLoc());
     Value falseVal = rewriter.create<ConstantBoolOp>(op.getLoc(), false);
 
     // Create IndexPut_Op
-    BaseTensorType tensorType = op->getResultTypes()[0].cast<BaseTensorType>();
+    BaseTensorType tensorType = op.getType().cast<BaseTensorType>();
+    Type rangeType = tensorType.getWithSizesAndDtype(
+        {kUnknownSize}, tensorType.getOptionalDtype());
     Value range = rewriter.create<AtenArangeStartStepOp>(
-        op.getLoc(), tensorType, sliceOp.getStart(), newEnd, sliceOp.getStep(),
+        op.getLoc(), rangeType, newStart, newEnd, sliceOp.getStep(),
         /*dtype=*/noneVal, /*layout=*/noneVal, /*device=*/noneVal,
         /*pin_memory=*/noneVal);
 
     SmallVector<Value> indicesVector;
-    for (auto i = 0; i < dim - 1; i++)
+    for (auto i = 0; i < dim; i++)
       indicesVector.push_back(noneVal);
     indicesVector.push_back(range);
+    Type indicesType = tensorType.getWithSizesAndDtype(
+        /*optionalSizes=*/std::nullopt, /*optionalDtype=*/nullptr);
     Value indices = rewriter.create<PrimListConstructOp>(
         op.getLoc(),
         Torch::ListType::get(op->getContext(),
-                             Torch::OptionalType::get(tensorType)),
+                             Torch::OptionalType::get(indicesType)),
         indicesVector);
 
+    Value sliceOpInput = sliceOp.getSelf();
     rewriter.replaceOpWithNewOp<Aten_IndexPutImpl_Op>(
-        op, op->getResultTypes(), sliceOp.getSelf(), indices, op.getSrc(),
+        op, sliceOpInput.getType(), sliceOpInput, indices, op.getSrc(),
         /*accumulate=*/falseVal, /*unsafe=*/falseVal);
 
     return success();

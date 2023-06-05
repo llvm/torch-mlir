@@ -4371,6 +4371,36 @@ public:
 } // namespace
 
 namespace {
+// decompose aten.scalar_tensor to prim.NumToTensor.Scalar and
+// aten.to.dtype_layout
+class DecomposeAtenScalarTensor : public OpRewritePattern<AtenScalarTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenScalarTensorOp op,
+                                PatternRewriter &rewriter) const override {
+
+    auto resultTy = op.getResult().getType().cast<BaseTensorType>();
+    auto scalarTy = getBuiltInTypeForTorchScalar(op.getS().getType());
+    Value numToTensor = rewriter.create<PrimNumToTensorScalarOp>(
+        op.getLoc(),
+        resultTy.getWithSizesAndDtype(resultTy.getOptionalSizes(), scalarTy),
+        op.getS());
+
+    Value cstNone = rewriter.create<ConstantNoneOp>(op.getLoc());
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    Value dtype =
+        getDtypeIntValueForType(rewriter, op.getLoc(), resultTy.getDtype());
+    Value toDTypeLayout = rewriter.create<AtenToDtypeLayoutOp>(
+        op.getLoc(), op.getType(), numToTensor, dtype, op.getLayout(),
+        op.getDevice(), op.getPinMemory(), /*non_blocking=*/cstFalse,
+        /*copy=*/cstFalse, /*memory_format=*/cstNone);
+    rewriter.replaceOp(op, toDTypeLayout);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.topk` op into `aten.sort` and `aten.slice.Tensor` op.
 class DecomposeAtenTopkOp : public OpRewritePattern<AtenTopkOp> {
 public:
@@ -4622,6 +4652,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenCrossEntropyLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTopkOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenScalarTensor>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScatterValueOp>(patterns);
 
     GreedyRewriteConfig config;
