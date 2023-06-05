@@ -226,12 +226,13 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock,
           toMlirNamedAttribute(
               "value",
               mlirFlatSymbolRefAttrGet(context, toMlirStringRef(symName))));
-    } else if (output->type()->cast<c10::ListType>()) {
+    } else if (output->type()->cast<c10::ListType>() ||
+               output->type()->cast<c10::TupleType>()) {
       ClassAnnotator dummyAnnotator;
-      MlirValue listValue =
+      MlirValue listOrTupleValue =
           importIValue(node->ival(c10::attr::value), appendToBlock, context,
                        dummyAnnotator, importOptions);
-      mapResults(node, mlirOpResultGetOwner(listValue));
+      mapResults(node, mlirOpResultGetOwner(listOrTupleValue));
       return; // Early return, since `importIValue` already added op to block.
     } else {
       std::stringstream msg;

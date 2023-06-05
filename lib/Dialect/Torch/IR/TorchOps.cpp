@@ -797,6 +797,48 @@ OpFoldResult AtenToDtypeLayoutOp::fold(FoldAdaptor adaptor) {
   return getOperand(0);
 }
 
+void AtenToDtypeLayoutOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  // `to.dtype_layout` -> `to.device/to.dtype` if layout is none and pin memory
+  // is false
+  patterns.add(+[](AtenToDtypeLayoutOp op, PatternRewriter &rewriter) {
+    // The pin_memory arg should be either constant `False` or `none`.
+    if (!op.getPinMemory().getType().isa<Torch::NoneType>()) {
+      bool pinMemory;
+      if (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)))
+        return failure();
+      else if (pinMemory)
+        return failure();
+    }
+
+    // The layout arg should be either `none` or `0` i.e. strided.
+    if (!op.getLayout().getType().isa<Torch::NoneType>()) {
+      int64_t tensorLayout;
+      if (!matchPattern(op.getLayout(), m_TorchConstantInt(&tensorLayout)))
+        return failure();
+      else if (tensorLayout != torch_upstream::Layout::Strided)
+        return failure();
+    }
+
+    if (op.getDevice().getType().isa<Torch::NoneType>()) {
+      // The device arg is `none`. Rewrite to to.dtype.
+      AtenToDtypeOp toDtype = rewriter.create<AtenToDtypeOp>(
+          op.getLoc(), op.getType(), op.getSelf(), op.getDtype(),
+          op.getNonBlocking(), op.getCopy(), op.getMemoryFormat());
+      rewriter.replaceOp(op, toDtype->getResults());
+    } else {
+      // The device arg is not `none`. Rewrite to to.device.
+      AtenToDeviceOp toDevice = rewriter.create<AtenToDeviceOp>(
+          op.getLoc(), op.getType(), op.getSelf(), op.getDevice(),
+          op.getDtype(), op.getNonBlocking(), op.getCopy(),
+          op.getMemoryFormat());
+      rewriter.replaceOp(op, toDevice->getResults());
+    }
+
+    return success();
+  });
+}
+
 //===----------------------------------------------------------------------===//
 // AtenViewOp
 //===----------------------------------------------------------------------===//
@@ -1391,7 +1433,7 @@ OpFoldResult AtenIntFloatOp::fold(FoldAdaptor adaptor) {
   // Constant fold float -> int conversion.
   if (auto floatAttr = adaptor.getA().dyn_cast_or_null<FloatAttr>()) {
     return IntegerAttr::get(
-        mlir::IntegerType::get(getContext(), 64, IntegerType::Signed),
+        mlir::IntegerType::get(getContext(), 64),
         static_cast<int64_t>(floatAttr.getValue().convertToDouble()));
   }
   return nullptr;
@@ -1405,7 +1447,7 @@ OpFoldResult AtenIntScalarOp::fold(FoldAdaptor adaptor) {
   // Constant fold float -> int conversion.
   if (auto floatAttr = adaptor.getA().dyn_cast_or_null<FloatAttr>()) {
     return IntegerAttr::get(
-        mlir::IntegerType::get(getContext(), 64, IntegerType::Signed),
+        mlir::IntegerType::get(getContext(), 64),
         static_cast<long>(floatAttr.getValue().convertToDouble()));
   }
   // If the input is int type already, the op is an identity.
@@ -1466,7 +1508,7 @@ void AtenSortIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 
 LogicalResult NonValueTensorLiteralOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto attr = attributes.get("value").dyn_cast_or_null<ElementsAttr>();
   if (!attr)
@@ -1506,7 +1548,7 @@ bool NonValueTensorLiteralOp::isCompatibleReturnTypes(TypeRange inferred,
 
 LogicalResult ValueTensorLiteralOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto attr = attributes.get("value").dyn_cast_or_null<ElementsAttr>();
   if (!attr)
@@ -1580,7 +1622,7 @@ LogicalResult CopyToNonValueTensorOp::verify() {
 
 LogicalResult CopyToNonValueTensorOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto resultType = operands[0].getType().cast<ValueTensorType>();
   inferredReturnTypes.push_back(resultType.getWithoutValueSemantics());
@@ -1607,7 +1649,7 @@ LogicalResult CopyToValueTensorOp::verify() {
 
 LogicalResult CopyToValueTensorOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto resultType = operands[0].getType().cast<NonValueTensorType>();
   inferredReturnTypes.push_back(resultType.getWithValueSemantics());
@@ -1671,7 +1713,7 @@ ParseResult ConstantIntOp::parse(OpAsmParser &parser, OperationState &result) {
 
 void ConstantIntOp::print(OpAsmPrinter &p) {
   p << " ";
-  p << getValue().getSExtValue();
+  p << getValueAttr().getInt();
   p.printOptionalAttrDict((*this)->getAttrs(), {"value"});
 }
 
@@ -1683,7 +1725,7 @@ void Torch::ConstantIntOp::getAsmResultNames(
     function_ref<void(Value, StringRef)> setNameFn) {
   SmallVector<char> buf;
   llvm::raw_svector_ostream os(buf);
-  os << "int" << getValue();
+  os << "int" << getValueAttr().getInt();
   setNameFn(getResult(), os.str());
 }
 
@@ -2338,6 +2380,20 @@ OpFoldResult PrimDtypeOp::fold(FoldAdaptor adaptor) {
     return getI64IntegerAttr(getContext(), static_cast<int64_t>(scalarType));
   }
   return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// PrimDeviceOp
+//===----------------------------------------------------------------------===//
+
+void PrimDeviceOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                               MLIRContext *context) {
+  patterns.add(+[](PrimDeviceOp op, PatternRewriter &rewriter) {
+    // Device information isn't relevant to torch-mlir, just replace it with
+    // "cpu".
+    rewriter.replaceOpWithNewOp<Torch::ConstantDeviceOp>(op, "cpu");
+    return success();
+  });
 }
 
 //===----------------------------------------------------------------------===//

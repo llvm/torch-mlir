@@ -45,6 +45,10 @@ bool isScale32(mlir::quant::UniformQuantizedType output_element_type);
 Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
                                   float val);
 
+// Create a zero constant tensor of the desired type and shape.
+std::optional<Value> getZerosLikeTensor(PatternRewriter &rewriter,
+                                        Operation *op, Type type);
+
 // Templated function to create a constant op for given type and shape.
 // T: storage C type.
 // Default template creates a constant tensor in T.
@@ -74,6 +78,7 @@ TosaOp CreateOpAndInfer(PatternRewriter &rewriter, Location loc, Type result_ty,
   if (shapeInterface
           .inferReturnTypeComponents(op.getContext(), op.getLoc(),
                                      op->getOperands(), op->getAttrDictionary(),
+                                     op->getPropertiesStorage(),
                                      op->getRegions(), returnedShapes)
           .failed())
     return op;

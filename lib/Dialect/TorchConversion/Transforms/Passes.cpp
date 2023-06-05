@@ -128,6 +128,8 @@ void TorchConversion::createTorchBackendToStablehloBackendPipeline(
   // Generate Stablehlo ops.
   pm.addNestedPass<func::FuncOp>(createConvertTorchToStablehloPass(
       options.enableStaticShape, options.enableI32Index));
+  // Lowering remained ops to Arith
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToArithPass());
 
   // Clean up any non-canonical code introduced above..
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
@@ -137,6 +139,7 @@ void TorchConversion::createTorchBackendToStablehloBackendPipeline(
   // Finish the type conversion from `torch` types to the types of the
   // StableHLO backend contract.
   pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   pm.addNestedPass<func::FuncOp>(
       TorchConversion::createFinalizingBackendTypeConversionPass());
 

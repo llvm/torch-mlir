@@ -149,6 +149,27 @@ Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
   return const_op.getResult();
 }
 
+// Create a zero constant tensor of the desired type and shape.
+std::optional<Value> getZerosLikeTensor(PatternRewriter &rewriter,
+                                        Operation *op, Type type) {
+  RankedTensorType resultType = type.dyn_cast<RankedTensorType>();
+
+  if (!resultType) {
+    (void)rewriter.notifyMatchFailure(op, "not ranked tensor type");
+    return std::nullopt;
+  }
+
+  auto resultShape = resultType.getShape();
+  ShapedType zeroType =
+      RankedTensorType::get(resultShape, resultType.getElementType());
+  Attribute zeroAttr = rewriter.getZeroAttr(zeroType);
+
+  return CreateOpAndInfer<tosa::ConstOp>(rewriter, op->getLoc(), zeroType,
+                                         zeroAttr.cast<ElementsAttr>())
+      .getResult();
+}
+
+
 // Templated function to create a constant op for given type and shape.
 // T: storage C type.
 // Default template creates a constant tensor in T.
@@ -222,21 +243,31 @@ std::optional<Value> getConstTensor<float>(PatternRewriter &rewriter,
 }
 
 static LogicalResult checkValidityOfCast(Type src, Type dest) {
-  if ((src == dest) || (src.isInteger(64) && dest.isInteger(32)) ||
+  if ((src == dest) ||
+      (src.isInteger(64) && dest.isInteger(32)) ||
       (src.isInteger(64) && dest.isInteger(8)) ||
       (src.isInteger(64) && dest.isInteger(1)) ||
       (src.isInteger(64) && dest.isF32()) ||
       (src.isInteger(32) && dest.isInteger(64)) ||
       (src.isInteger(32) && dest.isInteger(1)) ||
       (src.isInteger(32) && dest.isF32()) ||
+      (src.isInteger(32) && dest.isBF16()) ||
+      (src.isInteger(16) && dest.isBF16()) ||
       (src.isInteger(8) && dest.isInteger(1)) ||
+      (src.isInteger(8) && dest.isBF16()) ||
       (src.isInteger(1) && dest.isInteger(64)) ||
       (src.isInteger(1) && dest.isF32()) ||
       (src.isF32() && dest.isF64()) ||
+      (src.isF32() && dest.isBF16()) ||
       (src.isF64() && dest.isF32()) ||
+      (src.isF64() && dest.isBF16()) ||
       (src.isF32() && dest.isInteger(8)) ||
       (src.isF32() && dest.isInteger(64)) ||
-      (src.isF32() && dest.isInteger(1))) {
+      (src.isF32() && dest.isInteger(1)) ||
+      (src.isBF16() && dest.isInteger(8)) ||
+      (src.isBF16() && dest.isInteger(16)) ||
+      (src.isBF16() && dest.isInteger(32)) ||
+      (src.isBF16() && dest.isF32())) {
     return success();
   }
   return failure();

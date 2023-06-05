@@ -7,9 +7,22 @@
 # These represent further work needed in torch-mlir to lower them properly
 # to the backend contract.
 COMMON_TORCH_MLIR_LOWERING_XFAILS = {
+    "NativeGroupNormModule_basic",
+    "NativeGroupNormBackwardModule_basic",
     "QuantizedMLP_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
 }
+
+# TODO: Delete once torch 2.1.0 is released
+# check for torch version and disable tests
+TORCH_2_1_REQUIRED = {
+    "ScaledDotProductAttentionDifferentModule_basic",
+    "ScaledDotProductAttentionSameModule_basic"
+}
+import torch
+from packaging import version
+if not version.parse(torch.__version__) > version.parse("2.0.1+cpu"):
+    COMMON_TORCH_MLIR_LOWERING_XFAILS.update(TORCH_2_1_REQUIRED)
 
 def register_all_tests():
     """Registers all the built-in E2E tests that Torch-MLIR provides."""

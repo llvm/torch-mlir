@@ -7,6 +7,11 @@ blacklist:
 - index_put  # Error: TODO not sure if there are other valid types to handle here
 - index_put_  # Error: TODO not sure if there are other valid types to handle here
 
+# Ops with list of tensors output
+- split.Tensor
+- unbind.int
+- chunk
+
 # Additional ops which autogen is supported for but don't compile yet
 - _convolution
 - detach
@@ -25,6 +30,7 @@ blacklist:
 - arange.start
 - arange.start_step
 - fill.Scalar
+- scalar_tensor
 
 # Disabled in favour of functionalized alternatives
 - _reshape_alias

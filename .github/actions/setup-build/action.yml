@@ -2,6 +2,10 @@ name: "Setup build environment"
 description: "Setup the build environment. An action so that it can be shared between in-tree/out-of-tree jobs"
 
 inputs:
+  cache-enabled:
+    required: true
+    default: true
+
   cache-suffix:
     description: |
       Additional string that is used to compute the ccache hash.
@@ -9,22 +13,31 @@ inputs:
       but the content is irrelevant.
     required: false
     default: ''
+  torch-version:
+    description: |
+      Additional string to determine wether to test against a stable
+      torch release or against the nightly build
+    required: false
+    default: 'nightly'
 
 runs:
   using: "composite"
 
   steps:
   - name: Set up Python
+    if: ${{ runner.arch == 'X64' }}
     uses: actions/setup-python@v4
     with:
       python-version: '3.11'
 
   - name: Install MLIR Python depends
+    if: ${{ runner.os != 'Linux' }}
     run: |
       python -m pip install -r $GITHUB_WORKSPACE/externals/llvm-project/mlir/python/requirements.txt
     shell: bash
 
   - name: Install PyTorch nightly depends
+    if: ${{ runner.os != 'Linux' }}
     run: |
       python -m pip install -r pytorch-requirements.txt
       python -m pip install -r build-requirements.txt
@@ -48,6 +61,7 @@ runs:
     shell: bash
 
   - name: Configure ccache
+    if: ${{ inputs.cache-enabled == 'true' }}
     run: |
       rm -rf ${{ github.workspace }}/.ccache
       mkdir -p ${{ github.workspace }}/.ccache
@@ -58,6 +72,7 @@ runs:
     shell: bash
 
   - name: Enable ccache
+    if: ${{ inputs.cache-enabled == 'true' }}
     uses: actions/cache@v3
     with:
       path: ${{ github.workspace }}/.ccache

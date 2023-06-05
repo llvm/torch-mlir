@@ -119,20 +119,14 @@ void mlir::torch::Torch::createTorchSimplificationPipeline(
   // Update the return op to return value tensors.
   pm.addPass(Torch::createRefinePublicReturnPass());
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
-  // Do shape refinement.
-  // This should be run before RefineTypes (which primarily does dtype
-  // inference), because Torch type promotion rules actually depend on the shape
-  // of the operand.
+  // Do shape and dtype refinement.
+  // Shape refinement should be run before dtype refinement because Torch type
+  // promotion rules actually depend on the shape of the operand.
   createTorchShapeRefinementPipeline(pm, options);
   createTorchDtypeRefinementPipeline(pm, options);
-  // Refine types in the program, which mainly means inferring dtypes of ops.
-  pm.addNestedPass<func::FuncOp>(Torch::createRefineTypesPass());
   // Propagate to ABI return types the shape/dtype information discovered by
   // the previous pass. Doing this is ABI-compatible for our backends.
   pm.addPass(Torch::createRefinePublicReturnPass());
-  // This can fold away some branches given the information got from
-  // RefineTypes before doing maximize value sematics which only works with
-  // basic blocks.
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   if (options.decompose) {
     pm.addNestedPass<func::FuncOp>(
