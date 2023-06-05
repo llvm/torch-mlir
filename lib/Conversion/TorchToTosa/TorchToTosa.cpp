@@ -3971,10 +3971,29 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Failed to process inputs for pooling");
 
-    auto pooledOutput =
-        rewriter
-            .create<TosaOpT>(op->getLoc(), outputTy, input, kernel, stride, pad)
-            .getResult();
+    Value pooledOutput;
+    // AvgPool2dOp requires an extra argument acc_type.
+    if constexpr (std::is_same<TosaOpT, tosa::AvgPool2dOp>::value) {
+      auto inputTy = input.getType().template cast<RankedTensorType>();
+      auto inputElemTy = inputTy.getElementType();
+      if (!inputElemTy.isIntOrFloat())
+        return rewriter.notifyMatchFailure(
+            op, "Only floating-point or integer datatype input supported");
+
+      auto accType = inputElemTy.isa<mlir::FloatType>() ? inputElemTy
+                                                        : rewriter.getI32Type();
+      auto accTypeAttr = mlir::TypeAttr::get(accType);
+      pooledOutput =
+          rewriter
+              .create<tosa::AvgPool2dOp>(op->getLoc(), outputTy, input, kernel,
+                                         stride, pad, accTypeAttr)
+              .getResult();
+    } else {
+      pooledOutput = rewriter
+                         .create<TosaOpT>(op->getLoc(), outputTy, input, kernel,
+                                          stride, pad)
+                         .getResult();
+    }
 
     auto transposedOutput =
         ConvertAtenPoolingBaseOp<AtenOpT, TosaOpT>::transposePoolingOutputToChw(
