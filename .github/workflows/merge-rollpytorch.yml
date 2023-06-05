@@ -18,4 +18,4 @@ jobs:
       PR_IDS: ${{ toJson(github.event.workflow_run.pull_requests.*.number) }}
 
     steps:
-      - run: echo "PRs to approve and merge: ${PR_IDS}"
+    - run: echo "PRs to approve and merge -- $PR_IDS"
