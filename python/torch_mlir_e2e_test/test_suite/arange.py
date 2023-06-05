@@ -199,6 +199,25 @@ def ArangeStartNegativeStepFloatModule_basic(module, tu: TestUtils):
     module.forward()
 
 
+class ArangeStartEndValueModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3], torch.float32, True),
+    ])
+
+    def forward(self, x):
+        end = torch.ops.prim.NumToTensor(x.shape[1])
+        return torch.arange(0, end, 1)
+
+@register_test_case(module_factory=lambda: ArangeStartEndValueModule())
+def ArangeStartEndValueModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3))
+
+
 class ArangeDtypeFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

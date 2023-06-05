@@ -36,6 +36,18 @@ bool Torch::isValidSubtype(Type subtype, Type type) {
     return true;
   }
 
+  if (auto number = subtype.dyn_cast<NumberType>()) {
+    if (auto unionType = type.dyn_cast<UnionType>()) {
+      bool hasFloatType = false;
+      bool hasIntType = false;
+      for (auto containedType : unionType.getContainedTypes()) {
+        hasFloatType |= containedType.isa<FloatType>();
+        hasIntType |= containedType.isa<IntType>();
+      }
+      return hasIntType && hasFloatType;
+    }
+  }
+
   if (auto any = type.dyn_cast<AnyType>())
     return true;
 

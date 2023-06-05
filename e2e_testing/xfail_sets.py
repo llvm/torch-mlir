@@ -199,6 +199,86 @@ TORCHDYNAMO_XFAIL_SET = {
     'IsFloatingPointInt_False',
     'TorchPrimLoopForLikeModule_basic',
     'TorchPrimLoopWhileLikeModule_basic',
+    "ScalarConstantTupleModule_basic",
+    # END tests failing due to: empty graph in dynamo
+
+    # ERROR due to: backend never runs because of empty frame
+    'ConstantBoolParameterModule_basic',
+
+    # START tests failing due to: 'torch.aten.mul.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
+    "AddCDivModule_basic",
+    "ElementwiseMulScalarModule_basic",
+    "ElementwiseMulScalarModule_float",
+    "NativeGroupNormBackwardModule_basic",
+    "UpSampleNearest2dDynamicSize_basic",
+    "UpSampleNearest2dStaticFactor_basic",
+    "UpSampleNearest2dStaticSize_basic",
+    "UpSampleNearest2d_basic",
+    # END tests failing due to: 'torch.aten.mul.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
+
+    # START tests failing due to: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
+    "BatchNorm1DModule_basic",
+    "BatchNorm1DWith2DInputModule_basic",
+    "BatchNorm2DModule_basic",
+    "BatchNorm3DModule_basic",
+    "BatchNorm1DStaticShapeModule_basic",
+    "ElementwiseAddScalarFloatModule_basic",
+    "ElementwiseAddScalarInt64Module_basic",
+    "ElementwiseAddScalarIntModule_basic",
+    "MobilenetV3Module_basic",
+    "NativeBatchNorm1DModule_basic",
+    "NativeBatchNorm2DModule_basic",
+    "NativeBatchNorm3DModule_basic",
+    "NativeBatchNormNoneWeightModule_basic",
+    "NativeGroupNormModule_basic",
+    "ResNet18Module_basic",
+    "ResNet18StaticModule_basic",
+    # END tests failing due to: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
+
+    # ERROR: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.int'
+    "ElementwiseAddScalar_TensorLiteralInt32_Module_basic",
+    "HBC_basic",
+
+    # ERROR: 'torch.aten.div.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
+    "ElementwiseDivScalarModule_basic",
+
+    # ERROR: 'torch.aten.mul.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.int'
+    "ElementwiseMulScalarModule_int",
+
+    # ERROR: 'torch.aten.sub.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
+    "ElementwiseSubScalarFloatModule_basic",
+    "ElementwiseSubScalarIntModule_basic",
+
+    # ERROR: Exception: Unsupported: missing default value for argument 0 in schema for aten.div.Tensor_mode
+    "ElementwiseDivRoundingModeFloorModule_basic",
+    "ElementwiseDivRoundingModeTruncModule_basic",
+
+    # ERROR: Exception: Unsupported op: get_attr
+    "NumToTensorFloatModule_basic",
+    "NumToTensorIntModule_basic",
+    "TensorFloatModule_basic",
+    "TensorIntModule_basic",
+
+    # ERROR: Exception: Unsupported: missing default value for argument 0 in schema for aten.randn.generator
+    "RandnGeneratorF64Module_basic",
+    "RandnGeneratorModule_basic",
+
+    # START tests failing due to: complex floating point ops
+    "AtenComplexImagModule_basic",
+    "AtenComplexRealModule_basic",
+    # END tests failing due to: complex floating point ops
+
+    # ERROR: Exception: Unsupported: return type List[Tensor] in schema for aten.unbind.int
+    "UnbindIntListUnpack_Module_basic",
+    "UnbindIntGetItem_Module_basic",
+
+    # ERROR: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(float) [TensorVariable()] {}
+    "ScatterValueFloatModule_basic",
+    # ERROR: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
+    "ScatterValueIntModule_basic",
+
+    # ERROR: torch._dynamo.exc.Unsupported: dynamic shapes: arange
+    "ArangeStartEndValueModule_basic",
 }
 
 # See https://github.com/llvm/torch-mlir/issues/2050
@@ -250,6 +330,7 @@ STABLEHLO_PASS_SET = {
     "ArangeStartNegativeStepIntModule_basic",
     "ArangeStartStepFloatModule_basic",
     "ArangeStartStepIntModule_basic",
+    "ArangeStartEndValueModule_basic",
     "ArangeZeroElementOutputModule_basic",
     "BatchMlpLayerModule_basic",
     "BmmModule_basic",
