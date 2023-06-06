@@ -3172,6 +3172,8 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "end must be a Scalar constant");
   // support for end < 0
   end = toPositiveDim(end, selfType.getShape()[dim]);
+  // support for end out of upper bound
+  end = (end > selfType.getShape()[dim] ? selfType.getShape()[dim] : end);
 
   // FIXME: add support for start < 0 and end < start
   if (end < start)
