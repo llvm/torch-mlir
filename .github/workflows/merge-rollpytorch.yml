@@ -14,8 +14,11 @@ jobs:
       github.event.workflow_run.actor.login == 'silvasean' &&
       github.event.workflow_run.conclusion == 'success'
 
-    env:
-      PR_IDS: ${{ toJson(github.event.workflow_run.pull_requests.*.number) }}
-
     steps:
-    - run: echo "PRs to approve and merge -- $PR_IDS"
+    - run: |
+        for pr_id in ${{ join(github.event.workflow_run.pull_requests.*.number, ' ') }}
+        do
+          echo "[mock] Merging PR: $pr_id"
+          echo gh pr merge $pr_id --delete-branch --squash
+        done
+      shell: bash
