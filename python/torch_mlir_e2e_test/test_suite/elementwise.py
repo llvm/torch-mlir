@@ -2852,6 +2852,73 @@ class AtenTriuWithNegDiagonalModule(torch.nn.Module):
 def AtenTriuWithNegDiagonalModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 5, 9))
 
+
+# ==============================================================================
+
+
+class AtenTrilModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.tril(x)
+
+
+@register_test_case(module_factory=lambda: AtenTrilModule())
+def AtenTrilModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(8, 8))
+
+
+# ==============================================================================
+
+
+class AtenTrilWithPosDiagonalModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.tril(x, diagonal=2)
+
+
+@register_test_case(module_factory=lambda: AtenTrilWithPosDiagonalModule())
+def AtenTrilWithPosDiagonalModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(9, 4, 3))
+
+
+# ==============================================================================
+
+
+class AtenTrilWithNegDiagonalModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.tril(x, diagonal=-4)
+
+
+@register_test_case(module_factory=lambda: AtenTrilWithNegDiagonalModule())
+def AtenTrilWithNegDiagonalModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 5, 9))
+
+
 # ==============================================================================
 
 

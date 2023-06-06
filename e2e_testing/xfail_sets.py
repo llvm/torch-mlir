@@ -778,6 +778,7 @@ STABLEHLO_PASS_SET = {
     "PrimsViewOfZeroRankModule_basic",
     "AtenComplex64Module_basic",
     "SplitTensorGetItem_Module_basic",
+    "SplitTensorListUnpackModule_basic",
     "UnbindIntListUnpack_Module_basic",
     "UnbindIntGetItem_Module_basic",
     "ChunkListUnpack_Module_basic",
@@ -1082,6 +1083,7 @@ TOSA_PASS_SET = {
     "TensorsConcatNegativeDimStaticModule_basic",
     "AtenComplex64Module_basic",
     "SplitTensorGetItem_Module_basic",
+    "SplitTensorListUnpackModule_basic",
     "ChunkListUnpack_Module_basic",
     "ChunkListUnpackUneven_Module_basic",
 }
@@ -1269,6 +1271,7 @@ LTC_XFAIL_SET = {
     "AtenComplexRealModule_basic",
     "AtenComplexViewModule_basic",
     "SplitTensorGetItem_Module_basic",
+    "SplitTensorListUnpackModule_basic",
     "UnbindIntListUnpack_Module_basic",
     "UnbindIntGetItem_Module_basic",
     "ChunkListUnpack_Module_basic",
