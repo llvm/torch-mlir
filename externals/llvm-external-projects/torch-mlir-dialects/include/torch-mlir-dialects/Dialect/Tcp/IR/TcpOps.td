@@ -11,6 +11,7 @@
 #define TORCH_MLIR_DIALECT_TCP_OPS
 
 include "torch-mlir-dialects/Dialect/Tcp/IR/TcpBase.td"
+include "torch-mlir-dialects/Dialect/Tcp/IR/TcpEnums.td"
 
 include "mlir/IR/OpBase.td"
 
@@ -512,6 +513,46 @@ def Tcp_Atan2Op : Tcp_BinaryElementwiseOp<"atan2", [SameOperandsAndResultElement
   );
 
   let assemblyFormat = "$in1 `,` $in2 attr-dict `:` type($in1) `,` type($in2) `->` type($out)";
+}
+
+def Tcp_CastOp:  Tcp_Op<"cast", [Pure, Elementwise, SameOperandsAndResultShape]> {
+
+  let summary = "TCP Cast operation";
+
+  // TODO: Make the cast op handle more corner cases
+  // e.g. onversion overflows the destination type
+  // e.g. convert negative number to unsigned destination type
+  let description = [{
+    Performs elementwise type conversion.
+
+    Supported MLIR core types:
+      INT: ui8,  si8,  i8, 
+           ui16, si16, i16,
+           ui32, si32, i32,
+           ui64, si64, i64, 
+           i1 (Boolean)
+      FP: f16, bf16, f32, f64
+
+    Supported Conversion Mode:
+      FP -> FP
+      INT -> FP
+      FP -> INT
+      INT -> INT
+  }];
+
+  let arguments = (ins
+    Tcp_Tensor:$in,
+    OptionalAttr<Tcp_SignednessAttr>:$in_int_signedness,
+    OptionalAttr<Tcp_SignednessAttr>:$out_int_signedness
+  );
+
+  let results = (outs
+    Tcp_Tensor:$out
+  );
+
+  let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
+
+  let hasVerifier = 1;
 }
 
 #endif // TORCH_MLIR_DIALECT_TCP_OPS

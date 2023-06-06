@@ -122,7 +122,8 @@ LogicalResult ConcatOp::verify() {
   for (auto type : getInputs().getTypes()) {
     auto inputTensorType = type.cast<TensorType>();
     if (outputTensorType.getRank() != inputTensorType.getRank())
-      return emitOpError() << "failed to verify tcp.concat operands and results rank mismatched";
+      return emitOpError() << "failed to verify tcp.concat operands and "
+                              "results rank mismatched";
     for (int64_t dim = 0; dim < inputTensorType.getRank(); ++dim) {
       if (dim == axis) {
         concatDimAcc += inputTensorType.getShape()[dim];
@@ -152,6 +153,49 @@ LogicalResult ConcatOp::verify() {
   if (concatDimAcc != concatDimVal)
     return emitOpError() << "failed to verify tcp.concat with dim " << axis
                          << " != " << concatDimAcc;
+  return success();
+}
+
+LogicalResult CastOp::verify() {
+  auto inputType = getIn().getType().cast<RankedTensorType>();
+  auto outputType = getOut().getType().cast<RankedTensorType>();
+
+  if (!inputType.getElementType().isIntOrFloat() ||
+      !outputType.getElementType().isIntOrFloat())
+    return emitOpError("Cast Op must have integer or floating-point datatype");
+
+  if (inputType.getElementType().isa<FloatType>()) {
+    if (getInIntSignedness())
+      return emitOpError(
+          "in_int_signedness attr should not set when input is FP");
+  }
+
+  if (inputType.getElementType().isa<IntegerType>()) {
+    if (!getInIntSignedness())
+      return emitOpError(
+          "in_int_signedness attr must be set when input is INT");
+    if (inputType.getElementType().isInteger(1) &&
+        getInIntSignedness().value() != Signedness::Signless)
+      return emitOpError("in_int_signedness attr must be set to "
+                         "Signedness::Signless when input is i1");
+  }
+
+  if (outputType.getElementType().isa<FloatType>()) {
+    if (getOutIntSignedness())
+      return emitOpError(
+          "out_int_signedness attr should not set when output is FP");
+  }
+
+  if (outputType.getElementType().isa<IntegerType>()) {
+    if (!getOutIntSignedness())
+      return emitOpError(
+          "out_int_signedness attr must be set when output is INT");
+    if (outputType.getElementType().isInteger(1) &&
+        getOutIntSignedness().value() != Signedness::Signless)
+      return emitOpError("out_int_signedness attr must be set to "
+                         "Signedness::Signless when output is i1");
+  }
+
   return success();
 }
 

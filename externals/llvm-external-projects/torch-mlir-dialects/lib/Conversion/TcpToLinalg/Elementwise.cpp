@@ -91,8 +91,8 @@ createLinalgPayloadForElementwiseOp(Operation *op,
             loc, result,
             b.create<arith::ConstantIntOp>(loc, *maxInt, b.getIntegerType(64)));
     } else {
-      llvm_unreachable(
-          "unsupported element type in createLinalgPayloadForElementwiseOp");
+      llvm_unreachable("unsupported element type in "
+                       "createLinalgPayloadForElementwiseOp for tcp.clamp");
     }
     return result;
   }
@@ -132,8 +132,8 @@ createLinalgPayloadForElementwiseOp(Operation *op,
     else if (elemType.isa<mlir::IntegerType>())
       return {b.create<math::AbsIOp>(loc, payloadArgs[0])};
     else
-      llvm_unreachable(
-          "unsupported element type in createLinalgPayloadForElementwiseOp");
+      llvm_unreachable("unsupported element type in "
+                       "createLinalgPayloadForElementwiseOp for tcp.abs");
   }
 
   if (isa<LogOp>(op)) {
@@ -154,8 +154,8 @@ createLinalgPayloadForElementwiseOp(Operation *op,
     else if (elemType.isa<mlir::IntegerType>())
       return {b.create<arith::AddIOp>(loc, payloadArgs[0], payloadArgs[1])};
     else
-      llvm_unreachable(
-          "unsupported element type in createLinalgPayloadForElementwiseOp");
+      llvm_unreachable("unsupported element type in "
+                       "createLinalgPayloadForElementwiseOp for tcp.add");
   }
 
   if (isa<SubOp>(op)) {
@@ -164,8 +164,8 @@ createLinalgPayloadForElementwiseOp(Operation *op,
     else if (elemType.isa<mlir::IntegerType>())
       return {b.create<arith::SubIOp>(loc, payloadArgs[0], payloadArgs[1])};
     else
-      llvm_unreachable(
-          "unsupported element type in createLinalgPayloadForElementwiseOp");
+      llvm_unreachable("unsupported element type in "
+                       "createLinalgPayloadForElementwiseOp fot tcp.sub");
   }
 
   if (isa<MulOp>(op)) {
@@ -174,24 +174,99 @@ createLinalgPayloadForElementwiseOp(Operation *op,
     else if (elemType.isa<mlir::IntegerType>())
       return {b.create<arith::MulIOp>(loc, payloadArgs[0], payloadArgs[1])};
     else
-      llvm_unreachable(
-          "unsupported element type in createLinalgPayloadForElementwiseOp");
+      llvm_unreachable("unsupported element type in "
+                       "createLinalgPayloadForElementwiseOp for tcp.mul");
   }
 
   if (isa<DivFOp>(op)) {
     if (elemType.isa<mlir::FloatType>())
       return {b.create<arith::DivFOp>(loc, payloadArgs[0], payloadArgs[1])};
     else
-      llvm_unreachable(
-          "unsupported element type in createLinalgPayloadForElementwiseOp");
+      llvm_unreachable("unsupported element type in "
+                       "createLinalgPayloadForElementwiseOp for tcp.divf");
   }
 
   if (isa<Atan2Op>(op)) {
     if (elemType.isa<mlir::FloatType>())
       return {b.create<math::Atan2Op>(loc, payloadArgs[0], payloadArgs[1])};
     else
-      llvm_unreachable(
-          "unsupported element type in createLinalgPayloadForElementwiseOp");
+      llvm_unreachable("unsupported element type in "
+                       "createLinalgPayloadForElementwiseOp for tcp.atan2");
+  }
+
+  if (auto castOp = dyn_cast<CastOp>(op)) {
+    auto inputType =
+        castOp.getIn().getType().dyn_cast<RankedTensorType>().getElementType();
+    auto outputType = resultTensorType.getElementType();
+
+    if (inputType.getIntOrFloatBitWidth() ==
+            outputType.getIntOrFloatBitWidth() &&
+        ((!castOp.getInIntSignedness() && !castOp.getOutIntSignedness()) ||
+         (castOp.getInIntSignedness() && castOp.getOutIntSignedness() &&
+          castOp.getInIntSignedness().value() ==
+              castOp.getOutIntSignedness().value())))
+      // check for same type
+      return {payloadArgs[0]};
+    else if (outputType.isInteger(1)) {
+      // To I1 (Bool) type
+      Value cstZero =
+          b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputType));
+      if (inputType.isa<mlir::FloatType>()) {
+        return {b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UNE,
+                                        payloadArgs[0], cstZero)};
+      } else if (inputType.isa<mlir::IntegerType>()) {
+        return {b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne,
+                                        payloadArgs[0], cstZero)};
+      }
+    } else if (outputType.isa<mlir::FloatType>()) {
+      // TO FP type
+      // FP -> FP
+      if (inputType.dyn_cast<mlir::FloatType>()) {
+        if (inputType.getIntOrFloatBitWidth() >
+            outputType.getIntOrFloatBitWidth())
+          return {b.create<arith::TruncFOp>(loc, outputType, payloadArgs[0])};
+        return {b.create<arith::ExtFOp>(loc, outputType, payloadArgs[0])};
+      }
+      // INT -> FP
+      else if (inputType.dyn_cast<mlir::IntegerType>()) {
+        // Signless or Unsigned INT to FP
+        // Curently, signless is only for i1 (bool) case,
+        // which has been handeled above
+        if (castOp.getInIntSignedness().value() == Signedness::Signless ||
+            castOp.getInIntSignedness().value() == Signedness::Unsigned)
+          return {b.create<arith::UIToFPOp>(loc, outputType, payloadArgs[0])};
+        // Signed INT to FP
+        else if (castOp.getInIntSignedness().value() == Signedness::Signed)
+          return {b.create<arith::SIToFPOp>(loc, outputType, payloadArgs[0])};
+      }
+    } else if (outputType.isa<mlir::IntegerType>()) {
+      // TO INT type
+      // FP -> INT
+      if (inputType.dyn_cast<mlir::FloatType>()) {
+        // FP to Signless or Unsigned INT
+        if (castOp.getOutIntSignedness().value() == Signedness::Signless ||
+            castOp.getOutIntSignedness().value() == Signedness::Unsigned)
+          return {b.create<arith::FPToUIOp>(loc, outputType, payloadArgs[0])};
+        // FP to Signed INT
+        else if (castOp.getOutIntSignedness().value() == Signedness::Signed)
+          return {b.create<arith::FPToSIOp>(loc, outputType, payloadArgs[0])};
+      }
+      // INT -> INT
+      if (inputType.dyn_cast<mlir::IntegerType>()) {
+        if (inputType.getIntOrFloatBitWidth() >
+            outputType.getIntOrFloatBitWidth())
+          return {b.create<arith::TruncIOp>(loc, outputType, payloadArgs[0])};
+        // Signless or Unsigned INT extension
+        if (castOp.getInIntSignedness().value() == Signedness::Signless ||
+            castOp.getInIntSignedness().value() == Signedness::Unsigned)
+          return {b.create<arith::ExtUIOp>(loc, outputType, payloadArgs[0])};
+        // Signed INT extension
+        else if (castOp.getInIntSignedness().value() == Signedness::Signed)
+          return {b.create<arith::ExtSIOp>(loc, outputType, payloadArgs[0])};
+      }
+    } else
+      llvm_unreachable("unsupported element type in "
+                       "createLinalgPayloadForElementwiseOp for tcp.cast");
   }
 
   return op->emitError(
@@ -257,4 +332,5 @@ void mlir::TcpToLinalg::populateElementwisePatternsAndLegality(
   patterns.add<ConvertElementwiseOp<NegOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<AtanOp>>(typeConverter, context);
   patterns.add<ConvertElementwiseOp<Atan2Op>>(typeConverter, context);
+  patterns.add<ConvertElementwiseOp<CastOp>>(typeConverter, context);
 }

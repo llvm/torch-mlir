@@ -355,3 +355,85 @@ func.func @atan(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
   %0 = tcp.atan %arg0 : tensor<?x?xf32> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
+
+// -----
+
+// CHECK: #[[MAP:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+
+// CHECK-LABEL: func.func @cast_i1(
+// CHECK-SAME:                %[[ARG:.*]]: tensor<?x?xi32>) -> tensor<?x?xi1> {
+// CHECK:         %[[CONST0:.*]] = arith.constant 0 : index
+// CHECK:         %[[DIM0:.*]] = tensor.dim %[[ARG]], %[[CONST0]] : tensor<?x?xi32>
+// CHECK:         %[[CONST1:.*]] = arith.constant 1 : index
+// CHECK:         %[[DIM1:.*]] = tensor.dim %[[ARG]], %[[CONST1]] : tensor<?x?xi32>
+// CHECK:         %[[EMPTY_TENSOR:.*]] = tensor.empty(%[[DIM0]], %[[DIM1]]) : tensor<?x?xi1>
+// CHECK:         %[[GENERIC:.*]] = linalg.generic {
+// CHECK-SAME:                        indexing_maps = [#[[MAP]], #[[MAP]]],
+// CHECK-SAME:                        iterator_types = ["parallel", "parallel"]}
+// CHECK-SAME:                        ins(%[[ARG]] :  tensor<?x?xi32>)
+// CHECK-SAME:                        outs(%[[EMPTY_TENSOR]] : tensor<?x?xi1>) {
+// CHECK:         ^bb0(%[[BBARG0:.*]]: i32, %{{.*}}: i1):
+// CHECK:           %[[CSTZERO:.*]] = arith.constant 0 : i32
+// CHECK:           %[[RESULT:.*]] = arith.cmpi ne, %in, %[[CSTZERO]] : i32
+// CHECK:           linalg.yield %[[RESULT]] : i1
+// CHECK:         } -> tensor<?x?xi1>
+// CHECK:         return %[[GENERIC]] : tensor<?x?xi1>
+// CHECK:       }
+func.func @cast_i1(%arg0 : tensor<?x?xi32>) -> tensor<?x?xi1> {
+  %0 = tcp.cast %arg0 {in_int_signedness = #tcp<signedness Signed>, out_int_signedness = #tcp<signedness Signless>} : tensor<?x?xi32> -> tensor<?x?xi1>
+  return %0 : tensor<?x?xi1>
+}
+
+// -----
+
+// CHECK: #[[MAP:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+
+// CHECK-LABEL: func.func @cast_si8_f32(
+// CHECK-SAME:                %[[ARG:.*]]: tensor<?x?xi8>) -> tensor<?x?xf32> {
+// CHECK:         %[[CONST0:.*]] = arith.constant 0 : index
+// CHECK:         %[[DIM0:.*]] = tensor.dim %[[ARG]], %[[CONST0]] : tensor<?x?xi8>
+// CHECK:         %[[CONST1:.*]] = arith.constant 1 : index
+// CHECK:         %[[DIM1:.*]] = tensor.dim %[[ARG]], %[[CONST1]] : tensor<?x?xi8>
+// CHECK:         %[[EMPTY_TENSOR:.*]] = tensor.empty(%[[DIM0]], %[[DIM1]]) : tensor<?x?xf32>
+// CHECK:         %[[GENERIC:.*]] = linalg.generic {
+// CHECK-SAME:                        indexing_maps = [#[[MAP]], #[[MAP]]],
+// CHECK-SAME:                        iterator_types = ["parallel", "parallel"]}
+// CHECK-SAME:                        ins(%[[ARG]] :  tensor<?x?xi8>)
+// CHECK-SAME:                        outs(%[[EMPTY_TENSOR]] : tensor<?x?xf32>) {
+// CHECK:         ^bb0(%[[BBARG0:.*]]: i8, %{{.*}}: f32):
+// CHECK:           %[[RESULT:.*]] =  arith.sitofp %[[BBARG0]] : i8 to f32
+// CHECK:           linalg.yield %[[RESULT]] : f32
+// CHECK:         } -> tensor<?x?xf32>
+// CHECK:         return %[[GENERIC]] : tensor<?x?xf32>
+// CHECK:       }
+func.func @cast_si8_f32(%arg0 : tensor<?x?xi8>) -> tensor<?x?xf32> {
+  %0 = tcp.cast %arg0 {in_int_signedness = #tcp<signedness Signed>} : tensor<?x?xi8> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+// CHECK: #[[MAP:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+
+// CHECK-LABEL: func.func @cast_si8_ui32(
+// CHECK-SAME:                %[[ARG:.*]]: tensor<?x?xi8>) -> tensor<?x?xi32> {
+// CHECK:         %[[CONST0:.*]] = arith.constant 0 : index
+// CHECK:         %[[DIM0:.*]] = tensor.dim %[[ARG]], %[[CONST0]] : tensor<?x?xi8>
+// CHECK:         %[[CONST1:.*]] = arith.constant 1 : index
+// CHECK:         %[[DIM1:.*]] = tensor.dim %[[ARG]], %[[CONST1]] : tensor<?x?xi8>
+// CHECK:         %[[EMPTY_TENSOR:.*]] = tensor.empty(%[[DIM0]], %[[DIM1]]) : tensor<?x?xi32>
+// CHECK:         %[[GENERIC:.*]] = linalg.generic {
+// CHECK-SAME:                        indexing_maps = [#[[MAP]], #[[MAP]]],
+// CHECK-SAME:                        iterator_types = ["parallel", "parallel"]}
+// CHECK-SAME:                        ins(%[[ARG]] :  tensor<?x?xi8>)
+// CHECK-SAME:                        outs(%[[EMPTY_TENSOR]] : tensor<?x?xi32>) {
+// CHECK:         ^bb0(%[[BBARG0:.*]]: i8, %{{.*}}: i32):
+// CHECK:           %[[RESULT:.*]] =  arith.extsi %[[BBARG0]] : i8 to i32
+// CHECK:           linalg.yield %[[RESULT]] : i32
+// CHECK:         } -> tensor<?x?xi32>
+// CHECK:         return %[[GENERIC]] : tensor<?x?xi32>
+// CHECK:       }
+func.func @cast_si8_ui32(%arg0 : tensor<?x?xi8>) -> tensor<?x?xi32> {
+  %0 = tcp.cast %arg0 {in_int_signedness = #tcp<signedness Signed>, out_int_signedness = #tcp<signedness Unsigned>} : tensor<?x?xi8> -> tensor<?x?xi32>
+  return %0 : tensor<?x?xi32>
+}

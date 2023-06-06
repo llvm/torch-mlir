@@ -25,6 +25,34 @@ void TcpDialect::initialize() {
   addOperations<
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpOps.cpp.inc"
       >();
+#define GET_ATTRDEF_LIST
+  addAttributes<
+#include "torch-mlir-dialects/Dialect/Tcp/IR/TcpAttrs.cpp.inc"
+      >();
 }
 
+#include "torch-mlir-dialects/Dialect/Tcp/IR/TcpEnums.cpp.inc"
+#define GET_ATTRDEF_CLASSES
+#include "torch-mlir-dialects/Dialect/Tcp/IR/TcpAttrs.cpp.inc"
+
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpDialect.cpp.inc"
+
+Attribute TcpDialect::parseAttribute(DialectAsmParser &parser,
+                                     Type type) const {
+  StringRef attrKind;
+  Attribute attr;
+  OptionalParseResult result =
+      generatedAttributeParser(parser, &attrKind, type, attr);
+  if (result.has_value())
+    return attr;
+
+  parser.emitError(parser.getNameLoc(), "unknown Tcp attribute");
+  return Attribute();
+}
+
+void TcpDialect::printAttribute(Attribute attr,
+                                DialectAsmPrinter &printer) const {
+  if (succeeded(generatedAttributePrinter(attr, printer)))
+    return;
+  llvm_unreachable("unhandled Tcp attribute kind");
+}

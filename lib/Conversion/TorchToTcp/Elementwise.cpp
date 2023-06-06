@@ -37,6 +37,16 @@ bool skipMultiplyAlpha(Value alphaValue) {
   return ((isFloat && doubleValue == 1.0) || (isInt && intValue == 1.0));
 }
 
+SignednessAttr
+getTcpSignednessAttr(MLIRContext *context,
+                     IntegerType::SignednessSemantics signednessInfo) {
+  if (signednessInfo == IntegerType::SignednessSemantics::Signless)
+    return SignednessAttr::get(context, Signedness::Signless);
+  if (signednessInfo == IntegerType::SignednessSemantics::Signed)
+    return SignednessAttr::get(context, Signedness::Signed);
+  return SignednessAttr::get(context, Signedness::Unsigned);
+}
+
 template <typename AtenOpT, typename TcpOpT>
 class ConvertAtenAddSubOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -417,12 +427,112 @@ public:
   }
 };
 
+class ConvertAtenToDtypeOp : public OpConversionPattern<AtenToDtypeOp> {
+public:
+  using OpConversionPattern<AtenToDtypeOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(AtenToDtypeOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    MLIRContext *context = op.getContext();
+    Value input = op.getSelf();
+    auto inputType = input.getType().dyn_cast<torch::Torch::ValueTensorType>();
+    auto outputType = op.getType().dyn_cast<torch::Torch::ValueTensorType>();
+    RankedTensorType resultType =
+        OpConversionPattern<AtenToDtypeOp>::getTypeConverter()
+            ->convertType(op.getType())
+            .cast<RankedTensorType>();
+
+    if (!inputType || !outputType)
+      return rewriter.notifyMatchFailure(
+          op, "Expected Input/Output to be ValueTensorType");
+
+    auto elementType = inputType.getDtype();
+    if (!elementType.isIntOrFloat())
+      return rewriter.notifyMatchFailure(
+          op, "Input tensor must have integer or floating-point datatype");
+
+    // The non_blocking arg should be a constant `False`.
+    bool nonBlocking;
+    if (!matchPattern(op.getNonBlocking(), m_TorchConstantBool(&nonBlocking)) ||
+        nonBlocking) {
+      return rewriter.notifyMatchFailure(op,
+                                         "unimplemented: non_blocking arg must "
+                                         "be a constant with False value");
+    }
+
+    // The copy arg should be a constant `False`.
+    bool copy;
+    if (!matchPattern(op.getCopy(), m_TorchConstantBool(&copy)) || copy) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: copy arg must be a constant with False value");
+    }
+
+    // Only `none`, `contiguous` and `preserve` memory_format is supported.
+    if (!op.getMemoryFormat().getType().isa<Torch::NoneType>()) {
+      int64_t memoryFormat;
+      if (!matchPattern(op.getMemoryFormat(),
+                        m_TorchConstantInt(&memoryFormat)) ||
+          (memoryFormat != torch_upstream::MemoryFormat::Contiguous &&
+           memoryFormat != torch_upstream::MemoryFormat::Preserve))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: the memory format should be specified in "
+                "an integer constant with none, contiguous or preserve value");
+    }
+
+    if (inputType.getDtype().isa<mlir::FloatType>() &&
+        outputType.getDtype().isa<mlir::FloatType>())
+      // FP -> FP
+      rewriter.replaceOpWithNewOp<tcp::CastOp>(
+          op, resultType, adaptor.getSelf(), SignednessAttr{},
+          SignednessAttr{});
+    else if (inputType.getDtype().isa<mlir::FloatType>()) {
+      // FP -> INT
+      if (auto intType = outputType.getDtype().dyn_cast<mlir::IntegerType>())
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(), SignednessAttr{},
+            getTcpSignednessAttr(context, intType.getSignedness()));
+      else
+        return rewriter.notifyMatchFailure(
+            op, "expect output type to be signless/signed/unsigned integer");
+    }
+    else if (outputType.getDtype().isa<mlir::FloatType>()) {
+      // INT -> FP
+      if (auto intType = inputType.getDtype().dyn_cast<mlir::IntegerType>())
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(),
+            getTcpSignednessAttr(context, intType.getSignedness()),
+            SignednessAttr{});
+      else
+        return rewriter.notifyMatchFailure(
+            op, "expect input type to be signless/signed/unsigned integer");
+    }
+    else {
+      // INT -> INT
+      auto inIntType = inputType.getDtype().dyn_cast<mlir::IntegerType>();
+      auto outIntType = outputType.getDtype().dyn_cast<mlir::IntegerType>();
+      if (inIntType && outIntType)
+        rewriter.replaceOpWithNewOp<tcp::CastOp>(
+            op, resultType, adaptor.getSelf(),
+            getTcpSignednessAttr(context, inIntType.getSignedness()),
+            getTcpSignednessAttr(context, outIntType.getSignedness()));
+      else
+        return rewriter.notifyMatchFailure(op,
+                                           "invalid input/output data type");
+    }
+    return success();
+  }
+};
+
 } // namespace
 
 void torch_to_tcp::populateElementwisePatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
   MLIRContext *context = patterns.getContext();
+
+  target.addIllegalOp<AtenToDtypeOp>();
+  patterns.add<ConvertAtenToDtypeOp>(typeConverter, context);
 
   target.addIllegalOp<AtenClampOp>();
   patterns.add<ConvertAtenClampOp>(typeConverter, context);

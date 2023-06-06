@@ -722,6 +722,19 @@ TCP_PASS_SET = {
     "PrimsSqueezeEmptyDimensionsModule_basic",
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
+    "ElementwiseToDtypeF32ToI64Module_basic",
+    "PrimsConvertElementTypeModule_basic",
+    "ToDtypeBoolLayoutNoneStaticModule_basic",
+    "ToDtypeLayoutNoneModule_basic",
+    "ToDtypeLayoutStridedModule_basic",
+    "TypeConversionF32ToF64Module_basic",
+    "TypeConversionF64ToF32Module_basic",
+    "TypeConversionI1ToF32Module_basic",
+    "TypeConversionI1ToF64Module_basic",
+    "TypeConversionI1ToI32Module_basic",
+    "TypeConversionI1ToI64Module_basic",
+    "TypeConversionI32ToI64Module_basic",
+    "TypeConversionI64ToI32Module_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
