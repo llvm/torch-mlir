@@ -519,10 +519,13 @@ def Tcp_CastOp:  Tcp_Op<"cast", [Pure, Elementwise, SameOperandsAndResultShape]>
 
   let summary = "TCP Cast operation";
 
+  // TODO: Make the cast op handle more corner cases
+  // e.g. onversion overflows the destination type
+  // e.g. convert negative number to unsigned destination type
   let description = [{
     Performs elementwise type conversion.
 
-    Supported torch/mlir element type:
+    Supported MLIR core types:
       INT: ui8,  si8,  i8, 
            ui16, si16, i16,
            ui32, si32, i32,

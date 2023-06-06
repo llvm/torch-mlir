@@ -230,6 +230,8 @@ createLinalgPayloadForElementwiseOp(Operation *op,
       // INT -> FP
       else if (inputType.dyn_cast<mlir::IntegerType>()) {
         // Signless or Unsigned INT to FP
+        // Curently, signless is only for i1 (bool) case,
+        // which has been handeled above
         if (castOp.getInIntSignedness().value() == Signedness::Signless ||
             castOp.getInIntSignedness().value() == Signedness::Unsigned)
           return {b.create<arith::UIToFPOp>(loc, outputType, payloadArgs[0])};

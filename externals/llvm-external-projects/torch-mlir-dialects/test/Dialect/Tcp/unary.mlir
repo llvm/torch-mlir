@@ -202,6 +202,38 @@ func.func @test_cast_i32_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xi16> {
 
 // -----
 
+func.func @test_cast_f32_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  // expected-error@+1{{tcp.cast' op in_int_signedness attr should not set when input is FP}}
+  %0 = tcp.cast %arg0 {in_int_signedness = #tcp<signedness Signed>} : tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+func.func @test_cast_f32_f32(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  // expected-error@+1{{tcp.cast' op out_int_signedness attr should not set when output is FP}}
+  %0 = tcp.cast %arg0 {out_int_signedness = #tcp<signedness Signed>} : tensor<?x?xf32> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+func.func @test_cast_i1_f32(%arg0 : tensor<?x?xi1>) -> tensor<?x?xf32> {
+  // expected-error@+1{{tcp.cast' op in_int_signedness attr must be set to Signedness::Signless when input is i1}}
+  %0 = tcp.cast %arg0 {in_int_signedness = #tcp<signedness Signed>} : tensor<?x?xi1> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+func.func @test_cast_f32_i1(%arg0 : tensor<?x?xf32>) -> tensor<?x?xi1> {
+  // expected-error@+1{{tcp.cast' op out_int_signedness attr must be set to Signedness::Signless when output is i1}}
+  %0 = tcp.cast %arg0 {out_int_signedness = #tcp<signedness Signed>} : tensor<?x?xf32> -> tensor<?x?xi1>
+  return %0 : tensor<?x?xi1>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_cast_i32_i8(
 // CHECK-SAME:               %[[ARG:.*]]: tensor<?x?xi32>) -> tensor<?x?xi8>
 // CHECK:         %[[OUT:.*]] = tcp.cast %[[ARG]] {in_int_signedness = #tcp<signedness Signed>, out_int_signedness = #tcp<signedness Unsigned>} : tensor<?x?xi32> -> tensor<?x?xi8>
