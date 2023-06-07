@@ -1869,11 +1869,8 @@ OpFoldResult AtenIsFloatingPointOp::fold(FoldAdaptor adaptor) {
   if (!operandType)
     return nullptr;
   if (operandType.hasDtype()) {
-    if (operandType.getDtype().isa<mlir::FloatType>()) {
-      return IntegerAttr::get(IntegerType::get(getContext(), 1), true);
-    } else {
-      return IntegerAttr::get(IntegerType::get(getContext(), 1), false);
-    }
+    bool isFloatType = operandType.getDtype().isa<mlir::FloatType>();
+    return IntegerAttr::get(IntegerType::get(getContext(), 1), isFloatType);
   }
   // doesn't has dtype
   return nullptr;
