@@ -2961,9 +2961,6 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "Indices must be of integer tensor type");
 
-  if (indicesType.getRank() != 2)
-    return rewriter.notifyMatchFailure(op, "indices must be of rank 2");
-
   auto weightType = weight.getType().cast<RankedTensorType>();
   if (weightType.getRank() != 2)
     return op.emitError("weight must be of rank 2");
