@@ -142,7 +142,8 @@ static Value createCompareTensorOp(OpBuilder &b, Location loc, OpTy op,
                     std::is_same<OpTy, AtenLeTensorOp>() ||
                     std::is_same<OpTy, AtenGtTensorOp>() ||
                     std::is_same<OpTy, AtenGeTensorOp>() ||
-                    std::is_same<OpTy, AtenEqTensorOp>(),
+                    std::is_same<OpTy, AtenEqTensorOp>() ||
+                    std::is_same<OpTy, AtenNeTensorOp>(),
                 "unimplemented: op type not supported");
 
   Type lhsDtype = lhs.getType();
@@ -171,6 +172,9 @@ static Value createCompareTensorOp(OpBuilder &b, Location loc, OpTy op,
   }
   if constexpr (std::is_same<OpTy, AtenEqTensorOp>()) {
     return createEqual(b, loc, elementalType, lhs, rhs);
+  }
+  if constexpr (std::is_same<OpTy, AtenNeTensorOp>()) {
+    return createNotEqual(b, loc, elementalType, lhs, rhs);
   }
   llvm_unreachable("unimplemented: op type not supported");
 }
@@ -593,6 +597,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (auto eqTensor = dyn_cast<AtenEqTensorOp>(op)) {
     return createCompareTensorOp(b, loc, eqTensor, payloadArgs[0],
+                                 payloadArgs[1]);
+  }
+  if (auto neTensor = dyn_cast<AtenNeTensorOp>(op)) {
+    return createCompareTensorOp(b, loc, neTensor, payloadArgs[0],
                                  payloadArgs[1]);
   }
   if (auto div = dyn_cast<AtenDivTensorOp>(op)) {
@@ -1156,7 +1164,7 @@ public:
              AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenBitwiseOrTensorOp,
              AtenBitwiseXorTensorOp, AtenGtScalarOp, AtenGeScalarOp,
              AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp,
-             AtenCeilOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
+             AtenCeilOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp,
              AtenLtTensorOp, AtenLeTensorOp, AtenSubScalarOp, AtenAddScalarOp,
              AtenThresholdOp, AtenThresholdBackwardOp, AtenHardtanhBackwardOp,
              AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenNegOp,
@@ -1689,7 +1697,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
       AtenBitwiseOrTensorOp, AtenBitwiseXorTensorOp, AtenGtScalarOp,
       AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp,
-      AtenWhereSelfOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
+      AtenWhereSelfOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp,
       AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
       AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
       AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp,
