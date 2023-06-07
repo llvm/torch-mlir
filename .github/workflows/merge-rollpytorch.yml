@@ -15,10 +15,11 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
 
     steps:
-    - run: |
+    - name: Merge RollPyTorch PR
+      run: |
         for pr_id in ${{ join(github.event.workflow_run.pull_requests.*.number, ' ') }}
         do
-          echo "[mock] Merging PR: $pr_id"
-          echo gh pr merge $pr_id --delete-branch --squash
+          echo "Merging PR: $pr_id"
+          gh pr merge $pr_id --delete-branch --squash
         done
       shell: bash
