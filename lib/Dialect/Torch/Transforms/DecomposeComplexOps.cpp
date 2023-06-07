@@ -384,6 +384,252 @@ public:
 };
 } // namespace
 
+namespace {
+class DecomposeAtenEinsumOp : public OpRewritePattern<AtenEinsumOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenEinsumOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    std::string equation;
+    if (!matchPattern(op.getEquation(), m_TorchConstantStr(equation))) {
+      return rewriter.notifyMatchFailure(op, "Unsupported value of equation");
+    }
+    SmallVector<SmallVector<char>> inputTokens;
+    SmallVector<char> resultTokens;
+    SmallVector<char> inputToken;
+    SmallVector<SmallVector<int64_t>> inputShapes;
+    size_t index = 0;
+    enum EquationVariable { kIsInput, kIsResult };
+    EquationVariable currentVariable = kIsInput;
+    while (index < equation.size()) {
+      if (std::isalpha(equation[index])) {
+        if (currentVariable == kIsInput) {
+          inputToken.push_back(equation[index]);
+        } else {
+          resultTokens.push_back(equation[index]);
+        }
+      } else if (equation.substr(index, 1).find(",") != std::string::npos) {
+        inputTokens.emplace_back(std::move(inputToken));
+      } else if ((index < (equation.size() - 1)) &&
+                 (equation.substr(index, 2).find("->") != std::string::npos)) {
+        inputTokens.emplace_back(std::move(inputToken));
+        currentVariable = kIsResult;
+        index++;
+      } else {
+        return rewriter.notifyMatchFailure(op, "unexpected character encountered");
+      }
+      index++;
+    }
+
+    SmallVector<Value> torchTensors;
+    if (!getListConstructElements(op.getTensors(), torchTensors)) {
+      return rewriter.notifyMatchFailure(
+          op, "input should comes from a PrimListConstructOp");
+    }
+    int64_t totalRank = torchTensors.size();
+    for (int i = 0; i < totalRank; i++) {
+      auto tensorType = torchTensors[i].getType().cast<BaseTensorType>();
+
+      SmallVector<int64_t> inputShape;
+      for (auto &it: tensorType.getSizes()) {
+        inputShape.push_back(it);
+      }
+      inputShapes.push_back(inputShape);
+    }
+
+
+    auto collectOperandDims =
+        [resultTokens](
+            SmallVector<int64_t> operandShape, SmallVector<char> operandTokens,
+            SmallVector<char> others, SmallVectorImpl<int64_t> &contractingDims,
+            SmallVectorImpl<int64_t> &batchingDims,
+            SmallVector<char> &dotResultTokens,
+            SmallVector<int64_t> &dotResultShape) {
+          llvm::SmallDenseSet<char> othersSet(others.begin(), others.end());
+          llvm::SmallDenseSet<char> resultTokensSet(resultTokens.begin(),
+                                                    resultTokens.end());
+          for (const auto &en : llvm::enumerate(operandTokens)) {
+            bool isResultToken = resultTokensSet.contains(en.value());
+            bool isOtherToken = othersSet.contains(en.value());
+            if (!isResultToken && isOtherToken) {
+              contractingDims.push_back(en.index());
+            } else if (isOtherToken) {
+              batchingDims.push_back(en.index());
+            } else {
+              dotResultTokens.push_back(en.value());
+              dotResultShape.push_back(operandShape[en.index()]);
+            }
+          }
+        };
+
+    for (int i = 0; i < totalRank - 1; i++) {
+      SmallVector<int64_t> lhsContractingDims, lhsBatchingDims,
+          rhsContractingDims, rhsBatchingDims;
+      SmallVector<char> dotResultTokens;
+      SmallVector<int64_t> dotResultShape;
+      SmallVector<int64_t> lhsShape = inputShapes[0];
+      SmallVector<int64_t> rhsShape = inputShapes[1];
+      SmallVector<char> lhsTokens, rhsTokens;
+      lhsTokens = inputTokens[0];
+      rhsTokens = inputTokens[1];
+      collectOperandDims(lhsShape, lhsTokens, rhsTokens, lhsContractingDims,
+                        lhsBatchingDims, dotResultTokens, dotResultShape);
+      collectOperandDims(rhsShape, rhsTokens, lhsTokens, rhsContractingDims,
+                        rhsBatchingDims, dotResultTokens, dotResultShape);
+      // Prepend batch tokens.
+      for (const auto &it : llvm::enumerate(lhsBatchingDims)) {
+        char batchingToken = lhsTokens[it.value()];
+        int64_t batchingShapeDim = lhsShape[it.value()];
+        dotResultTokens.insert(dotResultTokens.begin() + it.index(),
+                              batchingToken);
+        dotResultShape.insert(dotResultShape.begin() + it.index(),
+                              batchingShapeDim);
+      }
+      // Lowering to dot_general does not support a mismatch between the number
+      // of result dims and the number of non-contracting dims.
+
+      if (!lhsContractingDims.empty()) {
+        int rank = lhsTokens.size() - 1;
+        if (lhsContractingDims[0] != rank) {
+          Value zero =
+              rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(lhsContractingDims[0]));
+          Value one =
+              rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(rank));
+          size_t temp = lhsShape[lhsContractingDims[0]];
+          int rank = lhsTokens.size() - 1;
+          lhsShape[lhsContractingDims[0]] = lhsShape[rank];
+          lhsShape[lhsTokens.size() - 1] = temp;
+          torchTensors[0] = rewriter.create<AtenTransposeIntOp>(loc, op.getType(),torchTensors[0], zero, one);
+        }
+      } else {
+        lhsShape.insert(lhsShape.begin() + lhsTokens.size(), 1);
+      }
+      if (!lhsBatchingDims.empty()) {
+        if (lhsBatchingDims[0] != 0) {
+          Value zero =
+              rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(lhsBatchingDims[0]));
+          Value one =
+              rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+          torchTensors[0] = rewriter.create<AtenTransposeIntOp>(loc, op.getType(),torchTensors[0], zero, one);
+          size_t temp = lhsShape[lhsBatchingDims[0]];
+          lhsShape[lhsBatchingDims[0]] = lhsShape[0];
+          lhsShape[0] = temp;
+        }
+      } else {
+        lhsShape.insert(lhsShape.begin(), 1);
+      }
+
+      if (!rhsContractingDims.empty()) {
+        int rank = rhsTokens.size() - 1;
+        if (rhsContractingDims[0] != rank) {
+          Value zero =
+              rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(rhsContractingDims[0]));
+          Value one =
+              rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(rank));
+          size_t temp = rhsShape[rhsContractingDims[0]];
+          rhsShape[rhsContractingDims[0]] = rhsShape[rank];
+          rhsShape[rank] = temp;
+          torchTensors[1] = rewriter.create<AtenTransposeIntOp>(loc, op.getType(),torchTensors[1], zero, one);
+        }
+      } else {
+        rhsShape.insert(rhsShape.begin() + rhsTokens.size(), 1);
+      }
+      if (!rhsBatchingDims.empty()) {
+        if (rhsBatchingDims[0] != 0) {
+          Value zero =
+              rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(rhsBatchingDims[0]));
+          Value one =
+              rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+          torchTensors[1] = rewriter.create<AtenTransposeIntOp>(loc, op.getType(),torchTensors[1], zero, one);
+          size_t temp = rhsShape[rhsBatchingDims[0]];
+          rhsShape[rhsBatchingDims[0]] = rhsShape[0];
+          rhsShape[0] = temp;
+        }
+      } else {
+        rhsShape.insert(rhsShape.begin(), 1);
+      }
+
+      SmallVector<Value> lhsFinalShape, rhsFinalShape, finalShape;
+      int lhsMiddle = 1;
+      for (size_t i = 1; i < lhsShape.size() - 1; i++) {
+        lhsMiddle = lhsMiddle * lhsShape[i];
+      }
+
+      lhsFinalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(lhsShape[0])));
+      lhsFinalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(lhsMiddle)));
+      lhsFinalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(lhsShape[lhsShape.size() - 1])));
+      
+      for (auto &it: dotResultShape) {
+        finalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(it)));
+      }
+      int rhsMiddle = 1;
+      for (size_t i = 1; i < rhsShape.size() - 1; i++) {
+        rhsMiddle = rhsMiddle * rhsShape[i];
+      }
+
+      rhsFinalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(rhsShape[0])));
+      rhsFinalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(rhsMiddle)));
+      rhsFinalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(rhsShape[rhsShape.size() - 1])));
+
+      auto listType = Torch::ListType::get(Torch::IntType::get(op.getContext()));
+      Value lhsReshapedDims =
+        rewriter.create<PrimListConstructOp>(loc, listType, lhsFinalShape);
+      Value rhsReshapedDims =
+        rewriter.create<PrimListConstructOp>(loc, listType, rhsFinalShape);
+      Value reshapedDims =
+        rewriter.create<PrimListConstructOp>(loc, listType, finalShape);
+
+      Value lhs = rewriter.create<AtenReshapeOp>(loc, op.getType(), torchTensors[0], lhsReshapedDims);
+      Value rhs = rewriter.create<AtenReshapeOp>(loc, op.getType(), torchTensors[1], rhsReshapedDims);
+      Value rhsFirst =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+      Value rhsSecond =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2));
+      rhs = rewriter.create<AtenTransposeIntOp>(loc, op.getType(),rhs, rhsFirst, rhsSecond);
+      Value bmm = rewriter.create<AtenBmmOp>(loc, op.getType(), lhs, rhs);
+      Value result = rewriter.create<AtenReshapeOp>(loc, op.getType(), bmm, reshapedDims);
+
+      torchTensors.erase(torchTensors.begin(), torchTensors.begin() + 2);
+      inputTokens.erase(inputTokens.begin(), inputTokens.begin() + 2);
+      inputShapes.erase(inputShapes.begin(), inputShapes.begin() + 2);
+      inputTokens.push_back(dotResultTokens);
+      torchTensors.push_back(result);
+      inputShapes.push_back(dotResultShape);
+
+      if (inputTokens.size() == 1) {
+        int64_t resultSize = 0;
+        for (char resultToken : resultTokens) {
+          auto *foundIt = std::find(dotResultTokens.begin(), dotResultTokens.end(),
+                                    resultToken);
+          if (foundIt == dotResultTokens.end()) {
+            return rewriter.notifyMatchFailure(
+                op, "result token not found in operands");
+          }
+          auto resultIndex = std::distance(dotResultTokens.begin(), foundIt);
+          if (resultIndex > resultSize) {
+            Value first = rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(resultSize));
+            Value second = rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(resultIndex));
+            result = rewriter.create<AtenTransposeIntOp>(loc, op.getType(), result, first, second);
+          }
+          resultSize += 1;
+        }
+        // The dot_general is already in an appropriate result order.
+        rewriter.replaceOp(op, ValueRange{result});
+      }
+    }
+    return success();
+  }
+};
+} // namespace
+
 // Calculates the softmax function on the given `input` tensor. Softmax(x) =
 // exp(x)/sum(exp(x)).
 // To avoid overflow we use the following decomposition rule:
@@ -4590,6 +4836,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftplusOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSiluOp>(patterns);

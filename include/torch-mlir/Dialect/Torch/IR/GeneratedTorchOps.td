@@ -6799,6 +6799,31 @@ def Torch_AtenOneHotOp : Torch_Op<"aten.one_hot", [
   }];
 }
 
+def Torch_AtenEinsumOp : Torch_Op<"aten.einsum", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::einsum : (str, Tensor[], int[]?) -> (Tensor)`";
+  let arguments = (ins
+    Torch_StringType:$equation,
+    AnyTorchListOfTensorType:$tensors,
+    AnyTorchOptionalListOfTorchIntType:$path
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenEinsumOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void AtenEinsumOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
 def Torch_AtenBucketizeTensorOp : Torch_Op<"aten.bucketize.Tensor", [
     AllowsTypeRefinement,
     HasValueSemantics,

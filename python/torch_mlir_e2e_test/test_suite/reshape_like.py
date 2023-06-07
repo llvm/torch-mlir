@@ -711,3 +711,23 @@ class ReshapeAliasCollapseModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReshapeAliasCollapseModule())
 def ReshapeAliasCollapseModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4))
+
+# ==============================================================================
+
+class EinsumModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 2, 4], torch.float32, True),
+        ([5, 4, 6], torch.float32, True),
+        ([3, 7, 6], torch.float32, True),
+    ])
+    def forward(self, tensor1, tensor2, tensor3):
+        return torch.ops.aten.einsum('bqe,ked,btd->bqtk', [tensor1, tensor2, tensor3])
+
+@register_test_case(module_factory=lambda: EinsumModule())
+def EinsumModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.rand(5, 4, 6), tu.rand(3, 7, 6))
