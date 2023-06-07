@@ -25,6 +25,11 @@ compute_shape_add(const at::Tensor& self, const at::Scalar& other, const at::Sca
 }
 
 std::vector<torch::lazy::Shape>
+compute_shape_sub(const at::Tensor& self, const at::Scalar& other, const at::Scalar& alpha) {
+    return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
+std::vector<torch::lazy::Shape>
 compute_shape_div(const at::Tensor& self, const at::Scalar& other) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }

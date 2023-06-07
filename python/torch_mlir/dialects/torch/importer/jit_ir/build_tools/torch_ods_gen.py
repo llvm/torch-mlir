@@ -288,7 +288,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::clamp : (Tensor, Scalar?, Scalar?) -> (Tensor)",
             "aten::clamp.Tensor : (Tensor, Tensor?, Tensor?) -> (Tensor)",
             "aten::clamp_min : (Tensor, Scalar) -> (Tensor)",
+            "aten::clamp_min.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::clamp_max : (Tensor, Scalar) -> (Tensor)",
+            "aten::clamp_max.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::log2 : (Tensor) -> (Tensor)",
             "aten::sqrt : (Tensor) -> (Tensor)",
             "aten::log1p : (Tensor) -> (Tensor)",
@@ -321,6 +323,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::maximum : (Tensor, Tensor) -> (Tensor)")
     emit("aten::minimum : (Tensor, Tensor) -> (Tensor)")
     emit("aten::mish : (Tensor) -> (Tensor)")
+    emit("aten::xlogy.Tensor : (Tensor, Tensor) -> (Tensor)")
     emit("aten::rsub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)", has_canonicalizer=True)
     emit("aten::gelu : (Tensor, str) -> (Tensor)")
     emit("aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)")
@@ -460,6 +463,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::nonzero : (Tensor) -> (Tensor)")
     emit("aten::nonzero_numpy : (Tensor) -> (Tensor[])")
     emit("aten::nonzero_static : (Tensor, int, int) -> (Tensor)")
+    emit("aten::binary_cross_entropy : (Tensor, Tensor, Tensor?, int) -> (Tensor)")
+    emit("aten::binary_cross_entropy_backward : (Tensor, Tensor, Tensor, Tensor?, int) -> (Tensor)")
+    emit("aten::log_sigmoid_forward : (Tensor) -> (Tensor, Tensor)")
+    emit("aten::log_sigmoid_backward : (Tensor, Tensor, Tensor) -> (Tensor)")
+    emit("aten::sigmoid_backward : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::cosine_embedding_loss : (Tensor, Tensor, Tensor, float, int) -> (Tensor)")
 
     # Misc tensor ops.
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")
@@ -582,6 +591,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::view_copy : (Tensor, int[]) -> (Tensor)")
     emit("aten::view_copy.dtype : (Tensor, int) -> (Tensor)")
     emit("aten::unfold_copy : (Tensor, int, int, int) -> (Tensor)")
+    emit("aten::scatter.src : (Tensor, int, Tensor, Tensor) -> (Tensor)")
+    emit("aten::scatter.value : (Tensor, int, Tensor, Scalar) -> (Tensor)")
+    emit("aten::scatter.reduce : (Tensor, int, Tensor, Tensor, str) -> (Tensor)")
     emit("aten::select_scatter : (Tensor, Tensor, int, int) -> (Tensor)")
     emit("aten::slice_scatter : (Tensor, Tensor, int, int?, int?, int) -> (Tensor)")
     emit("aten::diagonal_scatter : (Tensor, Tensor, int, int, int) -> (Tensor)")
