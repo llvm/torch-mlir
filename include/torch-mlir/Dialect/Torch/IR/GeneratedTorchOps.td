@@ -6284,6 +6284,7 @@ def Torch_AtenIsFloatingPointOp : Torch_Op<"aten.is_floating_point", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenOnesOp : Torch_Op<"aten.ones", [

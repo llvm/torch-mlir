@@ -1861,6 +1861,22 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenIsFloatingPointOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenIsFloatingPointOp::fold(FoldAdaptor adaptor) {
+  auto operandType = getSelf().getType().dyn_cast<BaseTensorType>();
+  if (!operandType)
+    return nullptr;
+  if (operandType.hasDtype()) {
+    bool isFloatType = operandType.getDtype().isa<mlir::FloatType>();
+    return IntegerAttr::get(IntegerType::get(getContext(), 1), isFloatType);
+  }
+  // doesn't has dtype
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenAddTOp
 //===----------------------------------------------------------------------===//
 

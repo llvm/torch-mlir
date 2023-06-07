@@ -21,6 +21,22 @@ func.func @torch.aten.__range_length$fold() -> (!torch.int, !torch.int, !torch.i
   return %0, %1, %2, %3 : !torch.int, !torch.int, !torch.int, !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.aten.is_floating_point$fold_true
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func.func @torch.aten.is_floating_point$fold_true(%arg0: !torch.vtensor<[], f32>) -> !torch.bool {
+  %0 = torch.aten.is_floating_point %arg0 : !torch.vtensor<[], f32> -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch.aten.is_floating_point$fold_false
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func.func @torch.aten.is_floating_point$fold_false(%arg0: !torch.vtensor<[], si64>) -> !torch.bool {
+  %0 = torch.aten.is_floating_point %arg0 : !torch.vtensor<[], si64> -> !torch.bool
+  return %0 : !torch.bool
+}
+
 // CHECK-LABEL:   func.func @torch.aten.__is__
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
 // CHECK:           return %[[FALSE]] : !torch.bool
