@@ -23,3 +23,5 @@ jobs:
           gh pr merge $pr_id --delete-branch --squash
         done
       shell: bash
+      env:
+        GH_TOKEN: ${{ secrets.ROLLPYTORCH_TOKEN1 }}
