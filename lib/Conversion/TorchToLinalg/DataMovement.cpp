@@ -25,8 +25,10 @@
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/ADT/STLExtras.h"
 
 #include <numeric>
 
@@ -354,6 +356,48 @@ public:
     if (resultRank != (int64_t)outputSizeInt.size()) {
       return rewriter.notifyMatchFailure(
           op, "desired size list length mismatches with the result type rank");
+    }
+
+    // Case where output size is all statically known
+    SmallVector<int64_t> outputSizeIntList;
+    if (matchPattern(op.size(), m_TorchConstantIntList(outputSizeIntList)) &&
+        llvm::none_of(outputSizeIntList,
+                      [](int64_t x) { return x == kUnknownSize; })) {
+
+      int64_t outputRank = outputSizeIntList.size();
+      int64_t midSize = 1;
+      for (auto outSize : outputSizeIntList)
+        midSize *= outSize;
+      bool inputDynamic = !llvm::all_of(
+          inputType.getShape(), [](int64_t x) { return x != kUnknownSize; });
+      auto midType =
+          RankedTensorType::get({(inputDynamic ? kUnknownSize : midSize)},
+                                resultType.getElementType());
+      auto staticType =
+          RankedTensorType::get({midSize}, resultType.getElementType());
+      auto outType =
+          RankedTensorType::get(outputSizeIntList, resultType.getElementType());
+
+      SmallVector<ReassociationIndices> flatten(1);
+      for (auto i = 0; i < inputRank; i++)
+        flatten[0].push_back(i);
+      SmallVector<ReassociationIndices> unflatten(1);
+      for (auto i = 0; i < outputRank; i++)
+        unflatten[0].push_back(i);
+
+      Value flattened =
+          (inputRank <= 1 ? input
+                          : rewriter.create<tensor::CollapseShapeOp>(
+                                loc, midType, input, flatten));
+      Value staticFlattened =
+          rewriter.create<tensor::CastOp>(loc, staticType, flattened);
+      Value result =
+          (outputRank <= 1 ? staticFlattened
+                           : rewriter.create<tensor::ExpandShapeOp>(
+                                 loc, outType, staticFlattened, unflatten));
+
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
+      return success();
     }
 
     // Currently, we only handle the cases where each dimension is either

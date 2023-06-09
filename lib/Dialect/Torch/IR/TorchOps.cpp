@@ -854,6 +854,36 @@ OpFoldResult AtenViewOp::fold(FoldAdaptor adaptor) {
   return getOperand(0);
 }
 
+void AtenViewOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                             MLIRContext *context) {
+  patterns.add(+[](AtenViewOp op, PatternRewriter &rewriter) {
+    Location loc = op->getLoc();
+    auto outType = op.getType().dyn_cast<BaseTensorType>();
+    Value size = op.size();
+    if (!outType || !outType.hasSizes())
+      return failure();
+    // When all result sizes are statically known, replace the sizes argument
+    // with a constant list
+    auto staticSizes = outType.getSizes();
+    SmallVector<int64_t> constSizeList;
+    if (!matchPattern(size, m_TorchConstantIntList(constSizeList)) &&
+        llvm::none_of(staticSizes,
+                      [](int64_t x) { return x == kUnknownSize; })) {
+      SmallVector<Value> staticSizeValues;
+      for (auto staticSize : staticSizes)
+        staticSizeValues.push_back(rewriter.create<ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(staticSize)));
+      Value argList = rewriter.create<PrimListConstructOp>(
+          loc, Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+          staticSizeValues);
+      rewriter.replaceOpWithNewOp<AtenViewOp>(op, op.getType(), op.self(),
+                                              argList);
+      return success();
+    }
+    return failure();
+  });
+}
+
 //===----------------------------------------------------------------------===//
 // PrimsViewOfOp
 //===----------------------------------------------------------------------===//
