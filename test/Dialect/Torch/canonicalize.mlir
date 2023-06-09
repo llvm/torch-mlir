@@ -21,6 +21,14 @@ func.func @torch.aten.__range_length$fold() -> (!torch.int, !torch.int, !torch.i
   return %0, %1, %2, %3 : !torch.int, !torch.int, !torch.int, !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.runtime.assert
+// CHECK-NEXT:      return
+func.func @torch.runtime.assert() {
+  %true = torch.constant.bool true
+  torch.runtime.assert %true, "msg"
+  return
+}
+
 // CHECK-LABEL:   func.func @torch.aten.is_floating_point$fold_true
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
 // CHECK:           return %[[TRUE]] : !torch.bool

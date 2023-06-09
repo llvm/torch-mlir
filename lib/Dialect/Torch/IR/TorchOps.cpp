@@ -503,6 +503,27 @@ void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// RuntimeAssertOp
+//===----------------------------------------------------------------------===//
+
+void RuntimeAssertOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add(+[](RuntimeAssertOp op, PatternRewriter &rewriter) {
+    bool value;
+    if (!matchPattern(op.getCondition(), m_TorchConstantBool(&value)))
+      return failure();
+
+    if (value) {
+        rewriter.eraseOp(op);
+        return success();
+    }
+    // Even if the condition is statically false, the assert might never be
+    // executed.
+    return failure();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // DerefineOp
 //===----------------------------------------------------------------------===//
 
