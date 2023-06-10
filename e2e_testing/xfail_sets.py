@@ -735,6 +735,23 @@ TCP_PASS_SET = {
     "TypeConversionI1ToI64Module_basic",
     "TypeConversionI32ToI64Module_basic",
     "TypeConversionI64ToI32Module_basic",
+    "ElementwiseAddScalarFloatModule_basic",
+    "ElementwiseAddScalarInt64Module_basic",
+    "ElementwiseAddScalarIntModule_basic",
+    "ElementwiseSubScalarFloatModule_basic",
+    "ElementwiseSubScalarIntModule_basic",
+    "TypePromotionAlphaWiderModule_basic",
+    "TypePromotionDifferentCategoryModule_basic",
+    "TypePromotionSameCategoryDifferentWidthModule_basic",
+    "TypePromotionSameCategoryZeroRankWider_basic",
+    "TypePromotionZeroRankHigherCategoryModule_basic",
+    "ElementwiseMulScalarModule_basic",
+    "ElementwiseMulScalarModule_float",
+    "ElementwiseMulScalarModule_int",
+    "ElementwiseMulTensorFloatModule_basic",
+    "ElementwiseMulTensorIntModule_basic",
+    "ElementwiseDivTensorFloatModule_basic",
+    "ElementwiseDivScalarModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
