@@ -1291,6 +1291,28 @@ def ElementwiseCeilModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseSignModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.sign(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSignModule())
+def ElementwiseSignModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
 class ElementwisePowModule(torch.nn.Module):
 
     def __init__(self):
