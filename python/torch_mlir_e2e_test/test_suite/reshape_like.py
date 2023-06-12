@@ -714,7 +714,7 @@ def ReshapeAliasCollapseModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-class EinsumModule(torch.nn.Module):
+class EinsumStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -728,6 +728,45 @@ class EinsumModule(torch.nn.Module):
     def forward(self, tensor1, tensor2, tensor3):
         return torch.ops.aten.einsum('bqe,ked,btd->bqtk', [tensor1, tensor2, tensor3])
 
-@register_test_case(module_factory=lambda: EinsumModule())
-def EinsumModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: EinsumStaticModule())
+def EinsumStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.rand(5, 4, 6), tu.rand(3, 7, 6))
+
+# ==============================================================================
+
+class EinsumStaticTwoDimensionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 2, 4], torch.float32, True),
+        ([5, 4, 6], torch.float32, True),
+    ])
+    def forward(self, tensor1, tensor2):
+        return torch.ops.aten.einsum('bqe,ked->bqkd', [tensor1, tensor2])
+
+@register_test_case(module_factory=lambda: EinsumStaticTwoDimensionModule())
+def EinsumStaticTwoDimensionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.rand(5, 4, 6))
+
+# ==============================================================================
+
+class EinsumModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, tensor1, tensor2, tensor3):
+        return torch.ops.aten.einsum('bqe,ked,btd->bqtk', [tensor1, tensor2, tensor3])
+
+@register_test_case(module_factory=lambda: EinsumStaticModule())
+def EinsumStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4), tu.rand(5, 4, 6), tu.rand(3, 7, 6))

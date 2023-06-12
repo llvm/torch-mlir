@@ -385,6 +385,7 @@ public:
 } // namespace
 
 namespace {
+// support static shape only
 class DecomposeAtenEinsumOp : public OpRewritePattern<AtenEinsumOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -395,10 +396,12 @@ public:
     if (!matchPattern(op.getEquation(), m_TorchConstantStr(equation))) {
       return rewriter.notifyMatchFailure(op, "Unsupported value of equation");
     }
+
     SmallVector<SmallVector<char>> inputTokens;
     SmallVector<char> resultTokens;
     SmallVector<char> inputToken;
-    SmallVector<SmallVector<int64_t>> inputShapes;
+    SmallVector<SmallVector<Value>> inputShapes;
+
     size_t index = 0;
     enum EquationVariable { kIsInput, kIsResult };
     EquationVariable currentVariable = kIsInput;
@@ -427,25 +430,36 @@ public:
       return rewriter.notifyMatchFailure(
           op, "input should comes from a PrimListConstructOp");
     }
+
     int64_t totalRank = torchTensors.size();
     for (int i = 0; i < totalRank; i++) {
-      auto tensorType = torchTensors[i].getType().cast<BaseTensorType>();
-
-      SmallVector<int64_t> inputShape;
-      for (auto &it: tensorType.getSizes()) {
-        inputShape.push_back(it);
+      BaseTensorType tensorType = torchTensors[i].getType().cast<BaseTensorType>();
+      ArrayRef<int64_t> inputShape = tensorType.getSizes();
+      int64_t inputRank = inputShape.size();
+      SmallVector<Value> inputValueShape;
+      for (int j = 0; j < inputRank; j++) {
+        Value SizeInt = rewriter.create<AtenSizeIntOp>(
+                                loc, torchTensors[i], 
+                                rewriter.create<Torch::ConstantIntOp>(
+                                  loc, rewriter.getI64IntegerAttr(j)));
+        inputValueShape.push_back(inputShape[j] == kUnknownSize 
+                              ? SizeInt
+                              : rewriter.create<Torch::ConstantIntOp>(
+                                    loc, rewriter.getI64IntegerAttr(
+                                            inputShape[j])));
       }
-      inputShapes.push_back(inputShape);
+
+      inputShapes.push_back(inputValueShape);
     }
 
 
     auto collectOperandDims =
         [resultTokens](
-            SmallVector<int64_t> operandShape, SmallVector<char> operandTokens,
+            SmallVector<Value> operandShape, SmallVector<char> operandTokens,
             SmallVector<char> others, SmallVectorImpl<int64_t> &contractingDims,
             SmallVectorImpl<int64_t> &batchingDims,
             SmallVector<char> &dotResultTokens,
-            SmallVector<int64_t> &dotResultShape) {
+            SmallVector<Value> &dotResultShape) {
           llvm::SmallDenseSet<char> othersSet(others.begin(), others.end());
           llvm::SmallDenseSet<char> resultTokensSet(resultTokens.begin(),
                                                     resultTokens.end());
@@ -467,9 +481,9 @@ public:
       SmallVector<int64_t> lhsContractingDims, lhsBatchingDims,
           rhsContractingDims, rhsBatchingDims;
       SmallVector<char> dotResultTokens;
-      SmallVector<int64_t> dotResultShape;
-      SmallVector<int64_t> lhsShape = inputShapes[0];
-      SmallVector<int64_t> rhsShape = inputShapes[1];
+      SmallVector<Value> dotResultShape;
+      SmallVector<Value> lhsShape = inputShapes[0];
+      SmallVector<Value> rhsShape = inputShapes[1];
       SmallVector<char> lhsTokens, rhsTokens;
       lhsTokens = inputTokens[0];
       rhsTokens = inputTokens[1];
@@ -480,7 +494,7 @@ public:
       // Prepend batch tokens.
       for (const auto &it : llvm::enumerate(lhsBatchingDims)) {
         char batchingToken = lhsTokens[it.value()];
-        int64_t batchingShapeDim = lhsShape[it.value()];
+        Value batchingShapeDim = lhsShape[it.value()];
         dotResultTokens.insert(dotResultTokens.begin() + it.index(),
                               batchingToken);
         dotResultShape.insert(dotResultShape.begin() + it.index(),
@@ -488,7 +502,13 @@ public:
       }
       // Lowering to dot_general does not support a mismatch between the number
       // of result dims and the number of non-contracting dims.
-
+      Value constZero =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+      Value constOne =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+      Value constTwo =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2));
+      SmallVector<Value> lhsFinalShape, rhsFinalShape, finalShape;
       if (!lhsContractingDims.empty()) {
         int rank = lhsTokens.size() - 1;
         if (lhsContractingDims[0] != rank) {
@@ -496,28 +516,27 @@ public:
               rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(lhsContractingDims[0]));
           Value one =
               rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(rank));
-          size_t temp = lhsShape[lhsContractingDims[0]];
+          Value temp = lhsShape[lhsContractingDims[0]];
           int rank = lhsTokens.size() - 1;
           lhsShape[lhsContractingDims[0]] = lhsShape[rank];
           lhsShape[lhsTokens.size() - 1] = temp;
           torchTensors[0] = rewriter.create<AtenTransposeIntOp>(loc, op.getType(),torchTensors[0], zero, one);
         }
       } else {
-        lhsShape.insert(lhsShape.begin() + lhsTokens.size(), 1);
+        lhsShape.insert(lhsShape.begin() + lhsTokens.size(), constOne);
       }
       if (!lhsBatchingDims.empty()) {
         if (lhsBatchingDims[0] != 0) {
           Value zero =
               rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(lhsBatchingDims[0]));
-          Value one =
-              rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
-          torchTensors[0] = rewriter.create<AtenTransposeIntOp>(loc, op.getType(),torchTensors[0], zero, one);
-          size_t temp = lhsShape[lhsBatchingDims[0]];
+          torchTensors[0] = rewriter.create<AtenTransposeIntOp>(loc, op.getType(),torchTensors[0], zero, constZero);
+          Value temp = lhsShape[lhsBatchingDims[0]];
           lhsShape[lhsBatchingDims[0]] = lhsShape[0];
           lhsShape[0] = temp;
         }
-      } else {
-        lhsShape.insert(lhsShape.begin(), 1);
+        lhsFinalShape.push_back(lhsShape[0]);
+      }  else {
+        lhsShape.insert(lhsShape.begin(), constOne);
       }
 
       if (!rhsContractingDims.empty()) {
@@ -527,57 +546,49 @@ public:
               rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(rhsContractingDims[0]));
           Value one =
               rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(rank));
-          size_t temp = rhsShape[rhsContractingDims[0]];
+          Value temp = rhsShape[rhsContractingDims[0]];
           rhsShape[rhsContractingDims[0]] = rhsShape[rank];
           rhsShape[rank] = temp;
           torchTensors[1] = rewriter.create<AtenTransposeIntOp>(loc, op.getType(),torchTensors[1], zero, one);
         }
       } else {
-        rhsShape.insert(rhsShape.begin() + rhsTokens.size(), 1);
+        rhsShape.insert(rhsShape.begin() + rhsTokens.size(), constOne);
       }
       if (!rhsBatchingDims.empty()) {
         if (rhsBatchingDims[0] != 0) {
           Value zero =
               rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(rhsBatchingDims[0]));
-          Value one =
-              rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
-          torchTensors[1] = rewriter.create<AtenTransposeIntOp>(loc, op.getType(),torchTensors[1], zero, one);
-          size_t temp = rhsShape[rhsBatchingDims[0]];
+          torchTensors[1] = rewriter.create<AtenTransposeIntOp>(loc, op.getType(),torchTensors[1], zero, constZero);
+          Value temp = rhsShape[rhsBatchingDims[0]];
           rhsShape[rhsBatchingDims[0]] = rhsShape[0];
           rhsShape[0] = temp;
         }
+        rhsFinalShape.push_back(rhsShape[0]);
       } else {
-        rhsShape.insert(rhsShape.begin(), 1);
+        rhsShape.insert(rhsShape.begin(), constOne);
       }
 
-      SmallVector<Value> lhsFinalShape, rhsFinalShape, finalShape;
-      int lhsMiddle = 1;
+      Value lhsMiddle = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
       for (size_t i = 1; i < lhsShape.size() - 1; i++) {
-        lhsMiddle = lhsMiddle * lhsShape[i];
+        lhsMiddle =
+          rewriter.create<AtenMulIntOp>(loc, lhsMiddle, lhsShape[i]);
       }
 
-      lhsFinalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(lhsShape[0])));
-      lhsFinalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(lhsMiddle)));
-      lhsFinalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(lhsShape[lhsShape.size() - 1])));
+      lhsFinalShape.push_back(lhsMiddle);
+      lhsFinalShape.push_back(lhsShape[lhsShape.size() - 1]);
       
-      for (auto &it: dotResultShape) {
-        finalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(it)));
-      }
-      int rhsMiddle = 1;
+      finalShape = dotResultShape;
+      // for (auto &it: dotResultShape) {
+      //   finalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
+      //         loc, rewriter.getI64IntegerAttr(it)));
+      // }
+      Value rhsMiddle = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
       for (size_t i = 1; i < rhsShape.size() - 1; i++) {
-        rhsMiddle = rhsMiddle * rhsShape[i];
+        rhsMiddle = rewriter.create<AtenMulIntOp>(loc, rhsMiddle, rhsShape[i]);
       }
 
-      rhsFinalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(rhsShape[0])));
-      rhsFinalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(rhsMiddle)));
-      rhsFinalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(rhsShape[rhsShape.size() - 1])));
+      rhsFinalShape.push_back(rhsMiddle);
+      rhsFinalShape.push_back(rhsShape[rhsShape.size() - 1]);
 
       auto listType = Torch::ListType::get(Torch::IntType::get(op.getContext()));
       Value lhsReshapedDims =
@@ -586,24 +597,24 @@ public:
         rewriter.create<PrimListConstructOp>(loc, listType, rhsFinalShape);
       Value reshapedDims =
         rewriter.create<PrimListConstructOp>(loc, listType, finalShape);
-
       Value lhs = rewriter.create<AtenReshapeOp>(loc, op.getType(), torchTensors[0], lhsReshapedDims);
       Value rhs = rewriter.create<AtenReshapeOp>(loc, op.getType(), torchTensors[1], rhsReshapedDims);
-      Value rhsFirst =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-      Value rhsSecond =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2));
-      rhs = rewriter.create<AtenTransposeIntOp>(loc, op.getType(),rhs, rhsFirst, rhsSecond);
-      Value bmm = rewriter.create<AtenBmmOp>(loc, op.getType(), lhs, rhs);
-      Value result = rewriter.create<AtenReshapeOp>(loc, op.getType(), bmm, reshapedDims);
-
+      Value matmul;
+      if (!lhsBatchingDims.empty()) {
+        rhs = rewriter.create<AtenTransposeIntOp>(loc, op.getType(),rhs, constOne, constTwo);
+        matmul = rewriter.create<AtenBmmOp>(loc, op.getType(), lhs, rhs);
+      } else {
+        rhs = rewriter.create<AtenTransposeIntOp>(loc, op.getType(),rhs, constZero, constOne);
+        matmul = rewriter.create<AtenMmOp>(loc, op.getType(), lhs, rhs);
+      }
+      Value result = rewriter.create<AtenReshapeOp>(loc, op.getType(), matmul, reshapedDims);
       torchTensors.erase(torchTensors.begin(), torchTensors.begin() + 2);
       inputTokens.erase(inputTokens.begin(), inputTokens.begin() + 2);
       inputShapes.erase(inputShapes.begin(), inputShapes.begin() + 2);
       inputTokens.push_back(dotResultTokens);
       torchTensors.push_back(result);
       inputShapes.push_back(dotResultShape);
-
+  
       if (inputTokens.size() == 1) {
         int64_t resultSize = 0;
         for (char resultToken : resultTokens) {
