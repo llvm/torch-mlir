@@ -36,7 +36,8 @@ setupValueTensorToBuiltinTensorConversion(ConversionTarget &target,
                                             ValueRange inputs,
                                             Location loc) -> Value {
     assert(inputs.size() == 1);
-    assert(inputs[0].getType().isa<Torch::BaseTensorType>());
+    if (!inputs[0].getType().isa<Torch::BaseTensorType>())
+      return {};
     return builder.create<ToBuiltinTensorOp>(loc, inputs[0]);
   });
   auto sourceMaterialization = [](OpBuilder &builder,
