@@ -15,6 +15,12 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
 
     steps:
+    # Fetch the repo first so that the gh command knows where to look for the PR
+    - name: Fetch Repo
+      uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+
     - name: Merge RollPyTorch PR
       run: |
         for pr_id in ${{ join(github.event.workflow_run.pull_requests.*.number, ' ') }}
@@ -23,3 +29,5 @@ jobs:
           gh pr merge $pr_id --delete-branch --squash
         done
       shell: bash
+      env:
+        GH_TOKEN: ${{ secrets.ROLLPYTORCH_TOKEN1 }}

@@ -141,7 +141,7 @@ def main():
     results = run_tests(tests, config, args.sequential, args.verbose)
 
     # Report the test results.
-    failed = report_results(results, xfail_set, args.verbose)
+    failed = report_results(results, xfail_set, args.verbose, args.config)
     if args.ignore_failures:
         sys.exit(0)
     sys.exit(1 if failed else 0)

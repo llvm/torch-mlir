@@ -1163,6 +1163,7 @@ def Torch_RuntimeAssertOp: Torch_Op<"runtime.assert", [
   let results = (outs
   );
   let assemblyFormat = "$condition `,` $message attr-dict";
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//

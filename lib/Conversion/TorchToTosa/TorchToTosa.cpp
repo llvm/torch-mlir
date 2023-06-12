@@ -485,15 +485,20 @@ public:
 
     // auto result;
     Value result;
-    if (lhsElemTy.isa<mlir::FloatType>()) {
+    if (outType.getElementType().template isa<mlir::FloatType>()) {
+      // The input to the reciprocal is an integer sometimes, and we may need to
+      // promote it to a floating point. Per TOSA specification, the input types
+      // can only be floating point for tosa::ReciprocalOp.
+      Value rhsCasted = tosa::promoteType(rewriter, rhsTensor, outType);
       auto rcpOp = rewriter.create<tosa::ReciprocalOp>(
-          op->getLoc(), rhsTy ? rhsTy : RankedTensorType::get({}, lhsElemTy),
-          rhsTensor);
+          op->getLoc(), rhsCasted.getType(), rhsCasted);
 
       result = tosa::createMulOpAndCast(rewriter, op, outType, lhs,
                                         rcpOp.getResult(), /*shift=*/0)
                    .getResult();
     } else {
+      // The output type can be different than the input types (e.g. dividing an
+      // int tensor results in a floating point tensor).
       result = tosa::createBinaryOpAndCast<tosa::DivOp>(rewriter, op, outType,
                                                         lhs, rhsTensor)
                    .getResult();
@@ -3229,6 +3234,13 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
 
   SmallVector<int64_t> inputShape(
       makeShapeTorchCompatible(selfType.getShape()));
+  // Result dimension -1 means not changing the size of that dimension.
+  // Adjust it by assigning its inputShape.
+  for (auto shape : llvm::enumerate(makeShapeTorchCompatible(inputShape))) {
+    auto index = shape.index();
+    if (resultShape[index] == -1)
+      resultShape[index] = shape.value();
+  }
   // Check for identity case i.e, for ex: [a, b, c] -> [a, b, c]. If this is
   // true then we can replace the op result with the input operand directly.
   if (llvm::equal(inputShape, resultShape)) {
@@ -4591,6 +4603,7 @@ public:
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenCompareOp<AtenOp, TosaOp>>(typeConverter, context);
     INSERT_BINARY_COMPARE_PATTERN(AtenGtTensorOp, tosa::GreaterOp)
+    INSERT_BINARY_COMPARE_PATTERN(AtenGeScalarOp, tosa::GreaterEqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenGtScalarOp, tosa::GreaterOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenLtTensorOp, tosa::GreaterOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenLtScalarOp, tosa::GreaterOp)

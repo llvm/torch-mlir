@@ -1350,6 +1350,27 @@ def BroadcastZeroRankInputStaticModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class BroadcastListConstructWithMinusOneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 1, 8], torch.float32, True),
+        ([3, 1, 8], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        y = torch.broadcast_to(y, [-1, -1, -1])
+        return torch.ops.aten.sub(x, y)
+
+
+@register_test_case(module_factory=lambda: BroadcastListConstructWithMinusOneModule())
+def BroadcastListConstructWithMinusOneModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 8), tu.rand(3, 1, 8))
+
+# ==============================================================================
 
 class RollModule(torch.nn.Module):
 
