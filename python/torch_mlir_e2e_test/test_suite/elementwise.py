@@ -1637,6 +1637,28 @@ class ElementwiseDivScalarModule(torch.nn.Module):
 def ElementwiseDivScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
+
+# ==============================================================================
+
+
+class ElementwiseAtenDivIntScalarModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.div(x, 128)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAtenDivIntScalarModule())
+def ElementwiseAtenDivIntScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4))
+
 # ==============================================================================
 
 

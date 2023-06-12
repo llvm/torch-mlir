@@ -485,15 +485,20 @@ public:
 
     // auto result;
     Value result;
-    if (lhsElemTy.isa<mlir::FloatType>()) {
+    if (outType.getElementType().template isa<mlir::FloatType>()) {
+      // The input to the reciprocal is an integer sometimes, and we may need to
+      // promote it to a floating point. Per TOSA specification, the input types
+      // can only be floating point for tosa::ReciprocalOp.
+      Value rhsCasted = tosa::promoteType(rewriter, rhsTensor, outType);
       auto rcpOp = rewriter.create<tosa::ReciprocalOp>(
-          op->getLoc(), rhsTy ? rhsTy : RankedTensorType::get({}, lhsElemTy),
-          rhsTensor);
+          op->getLoc(), rhsCasted.getType(), rhsCasted);
 
       result = tosa::createMulOpAndCast(rewriter, op, outType, lhs,
                                         rcpOp.getResult(), /*shift=*/0)
                    .getResult();
     } else {
+      // The output type can be different than the input types (e.g. dividing an
+      // int tensor results in a floating point tensor).
       result = tosa::createBinaryOpAndCast<tosa::DivOp>(rewriter, op, outType,
                                                         lhs, rhsTensor)
                    .getResult();

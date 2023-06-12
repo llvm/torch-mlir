@@ -977,7 +977,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       divScalar.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    Value self = payloadArgs[0];
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value other = convertScalarToDtype(b, loc, operands[1], dtype);
     return b.create<arith::DivFOp>(loc, self, other);
   }
