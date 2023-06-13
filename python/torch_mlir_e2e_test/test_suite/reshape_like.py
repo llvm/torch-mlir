@@ -767,6 +767,6 @@ class EinsumModule(torch.nn.Module):
     def forward(self, tensor1, tensor2, tensor3):
         return torch.ops.aten.einsum('bqe,ked,btd->bqtk', [tensor1, tensor2, tensor3])
 
-@register_test_case(module_factory=lambda: EinsumStaticModule())
-def EinsumStaticModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: EinsumModule())
+def EinsumModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4), tu.rand(5, 4, 6), tu.rand(3, 7, 6))
