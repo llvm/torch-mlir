@@ -578,10 +578,6 @@ public:
       lhsFinalShape.push_back(lhsShape[lhsShape.size() - 1]);
       
       finalShape = dotResultShape;
-      // for (auto &it: dotResultShape) {
-      //   finalShape.push_back(rewriter.create<Torch::ConstantIntOp>(
-      //         loc, rewriter.getI64IntegerAttr(it)));
-      // }
       Value rhsMiddle = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
       for (size_t i = 1; i < rhsShape.size() - 1; i++) {
         rhsMiddle = rewriter.create<AtenMulIntOp>(loc, rhsMiddle, rhsShape[i]);
