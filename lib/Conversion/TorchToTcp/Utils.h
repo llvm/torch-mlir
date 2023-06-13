@@ -23,24 +23,15 @@ Value broadcastShapeInLeadingDims(ConversionPatternRewriter &rewriter,
                                   Value input, Value target,
                                   int64_t numLeadingAxes);
 
-// Helper function to broadcast all 1-dim shapes in input to match
-// that of target, without altering the rank, using `tcp::BroadcastOp`.
-// target element type is replaced by targetType
-Value broadcastShapeInLeadingDimsWithType(ConversionPatternRewriter &rewriter,
-                                          Value input, Value target,
-                                          int64_t numLeadingAxes,
-                                          Type targetType);
-
 // Helper function to do both rank and shape leading-dim broadcasting
 // of the input to match target.
 Value broadcastInLeadingDimsToMatchShape(ConversionPatternRewriter &rewriter,
                                          Value input, Value target);
 
-// Helper function to do both rank and shape leading-dim broadcasting
-// of the input to match target, with specified element type in target.
-Value broadcastInLeadingDimsToMatchShapeAndType(
-    ConversionPatternRewriter &rewriter, Value input, Value target,
-    Type newType);
+// Helper function to do both rank and shape all-dim broadcasting
+// of the input to match target.
+Value broadcastToMatchShapeAndType(ConversionPatternRewriter &rewriter,
+                                   Value input, Value target);
 
 // Helper function to broadcast a 0D or 1D input tensor to match rank and shape
 // of target. For the 1D case, this projects the input vector to the

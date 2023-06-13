@@ -95,8 +95,7 @@ public:
             resultType.getElementType());
       else
         return rewriter.notifyMatchFailure(op, "Unsupported rhs data type");
-      rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShapeAndType(
-          rewriter, rhs, lhs, resultType.getElementType());
+      rhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, rhs, lhs);
     } else {
       auto inputBType = op.getOther()
                             .getType()
@@ -104,14 +103,12 @@ public:
                             .getDtype();
       rhs = torch_to_tcp::castTensorToDtype(rewriter, inputBType, outputType,
                                             rhs, resultType.getElementType());
-      rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShapeAndType(
-          rewriter, rhs, lhs, resultType.getElementType());
+      rhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, rhs, lhs);
     }
 
     lhs = torch_to_tcp::castTensorToDtype(rewriter, inputAType, outputType, lhs,
                                           resultType.getElementType());
-    lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShapeAndType(
-        rewriter, lhs, rhs, resultType.getElementType());
+    lhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, lhs, rhs);
 
     if (!IsMultiplyAlphaOne(op.getAlpha())) {
       RankedTensorType tensorResultType =
@@ -130,8 +127,7 @@ public:
             resultType.getElementType());
       else
         return rewriter.notifyMatchFailure(op, "Unsupported alpha data type");
-      alpha = torch_to_tcp::broadcastInLeadingDimsToMatchShapeAndType(
-          rewriter, alpha, rhs, resultType.getElementType());
+      alpha = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, alpha, rhs);
       rhs = rewriter.create<MulOp>(op->getLoc(), resultType, alpha, rhs);
     }
 
@@ -188,8 +184,7 @@ public:
             resultType.getElementType());
       else
         return rewriter.notifyMatchFailure(op, "Unsupported rhs data type");
-      rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShapeAndType(
-          rewriter, rhs, lhs, resultType.getElementType());
+      rhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, rhs, lhs);
     } else {
       auto inputBType = op.getOther()
                             .getType()
@@ -197,14 +192,12 @@ public:
                             .getDtype();
       rhs = torch_to_tcp::castTensorToDtype(rewriter, inputBType, outputType,
                                             rhs, resultType.getElementType());
-      rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShapeAndType(
-          rewriter, rhs, lhs, resultType.getElementType());
+      rhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, rhs, lhs);
     }
 
     lhs = torch_to_tcp::castTensorToDtype(rewriter, inputAType, outputType, lhs,
                                           resultType.getElementType());
-    lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShapeAndType(
-        rewriter, lhs, rhs, resultType.getElementType());
+    lhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, lhs, rhs);
 
     rewriter.replaceOpWithNewOp<tcp::MulOp>(op, resultType, lhs, rhs);
     return success();
@@ -368,8 +361,7 @@ public:
             resultType.getElementType());
       else
         return rewriter.notifyMatchFailure(op, "Unsupported rhs data type");
-      rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShapeAndType(
-          rewriter, rhs, lhs, resultType.getElementType());
+      rhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, rhs, lhs);
     } else {
       auto inputBType = op.getOther()
                             .getType()
@@ -377,14 +369,12 @@ public:
                             .getDtype();
       rhs = torch_to_tcp::castTensorToDtype(rewriter, inputBType, outputType,
                                             rhs, resultType.getElementType());
-      rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShapeAndType(
-          rewriter, rhs, lhs, resultType.getElementType());
+      rhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, rhs, lhs);
     }
 
     lhs = torch_to_tcp::castTensorToDtype(rewriter, inputAType, outputType, lhs,
                                           resultType.getElementType());
-    lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShapeAndType(
-        rewriter, lhs, rhs, resultType.getElementType());
+    lhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, lhs, rhs);
 
     rewriter.replaceOpWithNewOp<tcp::DivFOp>(op, resultType, lhs, rhs);
     return success();
@@ -571,13 +561,11 @@ public:
 
     rhs = torch_to_tcp::castTensorToDtype(rewriter, inputBType, outputType, rhs,
                                           resultType.getElementType());
-    rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShapeAndType(
-        rewriter, rhs, lhs, resultType.getElementType());
+    rhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, rhs, lhs);
 
     lhs = torch_to_tcp::castTensorToDtype(rewriter, inputAType, outputType, lhs,
                                           resultType.getElementType());
-    lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShapeAndType(
-        rewriter, lhs, rhs, resultType.getElementType());
+    lhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, lhs, rhs);
 
     rewriter.replaceOpWithNewOp<tcp::Atan2Op>(op, resultType, lhs, rhs);
     return success();

@@ -18,6 +18,8 @@
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 
+#include <iostream>
+
 using namespace mlir;
 using namespace mlir::tcp;
 using namespace mlir::torch;
@@ -66,27 +68,6 @@ Value torch_to_tcp::broadcastShapeInLeadingDims(
 }
 
 // The parameters input and target are expected to be of RankedTensorType.
-// newType is the specified element type in target
-Value torch_to_tcp::broadcastShapeInLeadingDimsWithType(
-    ConversionPatternRewriter &rewriter, Value input, Value target,
-    int64_t numLeadingAxes, Type newType) {
-  RankedTensorType targetType = target.getType().cast<RankedTensorType>();
-  Operation *op = input.getDefiningOp();
-  SmallVector<int64_t> axes;
-  SmallVector<Value> dimSizes;
-  for (int64_t axis = 0; axis < numLeadingAxes; ++axis) {
-    axes.push_back(axis);
-    dimSizes.push_back(
-        rewriter.createOrFold<tensor::DimOp>(op->getLoc(), target, axis));
-  }
-
-  auto axesAttr = rewriter.getI64ArrayAttr(axes);
-  Type resultType = targetType.cloneWith(targetType.getShape(), newType);
-  return rewriter.create<tcp::BroadcastOp>(op->getLoc(), resultType, input,
-                                           dimSizes, axesAttr);
-}
-
-// The parameters input and target are expected to be of RankedTensorType.
 // TODO: didn't cover tailing dims (e.g. [5, 3, 2] * [1, 2])
 Value torch_to_tcp::broadcastInLeadingDimsToMatchShape(
     ConversionPatternRewriter &rewriter, Value input, Value target) {
@@ -105,21 +86,47 @@ Value torch_to_tcp::broadcastInLeadingDimsToMatchShape(
   return result;
 }
 
-// The parameters input and target are expected to be of RankedTensorType.
-// newType is the specified element type in target
-Value torch_to_tcp::broadcastInLeadingDimsToMatchShapeAndType(
-    ConversionPatternRewriter &rewriter, Value input, Value target,
-    Type newType) {
-  RankedTensorType targetType = target.getType().cast<RankedTensorType>();
+// The parameters input are expected to be of RankedTensorType.
+Value torch_to_tcp::broadcastToMatchShapeAndType(
+    ConversionPatternRewriter &rewriter, Value input, Value target) {
   RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+  RankedTensorType targetType = target.getType().cast<RankedTensorType>();
 
   Value result = input;
-  if (inputType.getRank() < targetType.getRank()) {
-    int64_t rankIncrease = targetType.getRank() - inputType.getRank();
-    result = torch_to_tcp::broadcastRankInLeadingDims(rewriter, result,
-                                                      rankIncrease);
-    result = torch_to_tcp::broadcastShapeInLeadingDimsWithType(
-        rewriter, result, target, rankIncrease, newType);
+  int64_t rankDiff = targetType.getRank() - inputType.getRank();
+  if (rankDiff > 0)
+    result =
+        torch_to_tcp::broadcastRankInLeadingDims(rewriter, result, rankDiff);
+
+  inputType = result.getType().cast<RankedTensorType>();
+  SmallVector<int64_t> inputShape(inputType.getShape().begin(),
+                                  inputType.getShape().end());
+  SmallVector<int64_t> targetShape(targetType.getShape().begin(),
+                                   targetType.getShape().end());
+  Operation *op = input.getDefiningOp();
+  SmallVector<int64_t> axes;
+  SmallVector<Value> dimSizes;
+  int64_t inputAxes = inputShape.size() - 1;
+  int64_t targetAxes = targetShape.size() - 1;
+  int64_t numAxes = std::min(inputType.getRank(), targetType.getRank());
+  while (numAxes-- > 0) {
+    if (inputShape[inputAxes] == 1 && targetShape[targetAxes] != 1) {
+      axes.push_back(targetAxes);
+      dimSizes.push_back(rewriter.createOrFold<tensor::DimOp>(
+          op->getLoc(), target, targetAxes));
+      inputShape[inputAxes] = targetShape[targetAxes];
+    }
+    inputAxes--;
+    targetAxes--;
+  }
+  if (axes.size() > 0) {
+    std::reverse(axes.begin(), axes.end());
+    std::reverse(dimSizes.begin(), dimSizes.end());
+    auto axesAttr = rewriter.getI64ArrayAttr(axes);
+    Type resultType =
+        inputType.cloneWith(inputShape, inputType.getElementType());
+    result = rewriter.create<tcp::BroadcastOp>(op->getLoc(), resultType, result,
+                                               dimSizes, axesAttr);
   }
 
   return result;
