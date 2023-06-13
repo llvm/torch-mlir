@@ -1993,3 +1993,11 @@ func.func @torch.prims.view_of$fold(%arg0: !torch.vtensor<[3,4,2],f32>) -> !torc
   %0 = torch.prims.view_of %arg0 : !torch.vtensor<[3,4,2],f32> -> !torch.vtensor<[3,4,2],f32>
   return %0 : !torch.vtensor<[3,4,2],f32>
 }
+
+// CHECK-LABEL:  func.func @torch.aten.cuda$canonicalize
+// CHECK-SAME:           %[[ARG:.*]]: !torch.tensor
+// CHECK-NEXT:     return %[[ARG]] : !torch.tensor
+func.func @torch.aten.cuda$canonicalize(%arg0: !torch.tensor) -> !torch.tensor {
+  %0 = torch.aten.cuda %arg0 : !torch.tensor -> !torch.tensor
+  return %0 : !torch.tensor
+}
