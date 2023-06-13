@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <ATen/ATen.h>
+#include <ATen/ops/where.h>
 #include <c10/util/Optional.h>
 #include <cmath>
 
@@ -65,7 +66,34 @@ std::vector<torch::lazy::Shape> compute_shape_where(
   const at::Tensor & condition,
   const at::Tensor & self,
   const at::Tensor & other) {
-  return {Shape(self.scalar_type(), self.sizes().vec())};
+  // There are cases like  -
+  // torch.aten.where.self %42, %arg17, %37 : !torch.vtensor<[15,10],i1>,
+  // !torch.vtensor<[],f32>, !torch.vtensor<[15,10],f32>.
+  // So the result tensor would the biggest of all the three operands.
+  auto condition_meta = at::native::empty_strided_meta_symint(
+      condition.sym_sizes(),
+      condition.sym_strides(),
+      /*dtype=*/c10::make_optional(condition.scalar_type()),
+      /*layout=*/c10::make_optional(condition.layout()),
+      /*device=*/c10::make_optional(c10::Device(c10::kMeta)),
+      /*pin_memory=*/c10::nullopt);
+  auto self_meta = at::native::empty_strided_meta_symint(
+      self.sym_sizes(),
+      self.sym_strides(),
+      /*dtype=*/c10::make_optional(self.scalar_type()),
+      /*layout=*/c10::make_optional(self.layout()),
+      /*device=*/c10::make_optional(c10::Device(c10::kMeta)),
+      /*pin_memory=*/c10::nullopt);
+  auto other_meta = at::native::empty_strided_meta_symint(
+      other.sym_sizes(),
+      other.sym_strides(),
+      /*dtype=*/c10::make_optional(other.scalar_type()),
+      /*layout=*/c10::make_optional(other.layout()),
+      /*device=*/c10::make_optional(c10::Device(c10::kMeta)),
+      /*pin_memory=*/c10::nullopt);
+  auto out_meta =
+      at::where(condition_meta, self_meta, other_meta);
+  return {Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
 }
 
 std::vector<torch::lazy::Shape> compute_shape_bucketize(
