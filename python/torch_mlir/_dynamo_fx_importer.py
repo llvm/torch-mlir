@@ -437,6 +437,6 @@ def import_fx_graph_as_func(g: torch.fx.Graph, func_name: str) -> ir.Module:
     # The reason is that the supported subset only involves stateless
     # fx.Graph's, so the state held on the fx.GraphModule is not necessary.
     _verify_fx_graph_conforms_to_subset(g)
-    with ir.Context() as context:
+    with ir.Context() as context, ir.Location.unknown(context=context):
         torch_dialect.register_dialect(context)
         return _FXGraphImporter(g, func_name).import_graph()
