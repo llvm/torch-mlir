@@ -6996,6 +6996,29 @@ def Torch_AtenDetachOp : Torch_Op<"aten.detach", [
   let hasFolder = 1;
 }
 
+def Torch_AtenCudaOp : Torch_Op<"aten.cuda", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::cuda : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenCudaOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenCudaOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+  let hasCanonicalizer = 1;
+}
+
 def Torch_AtenEmbeddingOp : Torch_Op<"aten.embedding", [
     AllowsTypeRefinement,
     HasValueSemantics,
