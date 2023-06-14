@@ -253,12 +253,6 @@ Value torch_to_tcp::broadcast0DOr1DFromShape(
   return result;
 }
 
-Value torch_to_tcp::scalarToTcpTensor(ConversionPatternRewriter &rewriter,
-                                      Operation *op, Type targetType,
-                                      Value scalarValue) {
-  return rewriter.create<tensor::FromElementsOp>(op->getLoc(), targetType, ArrayRef<Value>{scalarValue});
-}
-
 Value torch_to_tcp::castTensorToDtype(ConversionPatternRewriter &rewriter,
                                       Type srcType, Type dstType, Value input,
                                       Type convertedType) {
@@ -417,4 +411,25 @@ bool torch_to_tcp::getConstTensorWithType(ConversionPatternRewriter &rewriter,
     return false;
   }
   return true;
+}
+
+// scalarValue should be accessed by op itself, not through the adaptor
+Value torch_to_tcp::scalarToTcpTensor(ConversionPatternRewriter &rewriter,
+                                      Operation *op, Type targetType,
+                                      Value scalarValue) {
+  double doubleValue;
+  auto isFloat = matchPattern(scalarValue, m_TorchConstantFloat(&doubleValue));
+  if (isFloat) {
+    return *getConstTensor<double>(rewriter, op, llvm::ArrayRef(doubleValue),
+                                   {});
+  }
+
+  int64_t intValue;
+  auto isInt = matchPattern(scalarValue, m_TorchConstantInt(&intValue));
+  if (isInt) {
+    return *getConstTensor<int64_t>(rewriter, op, llvm::ArrayRef(intValue), {});
+  }
+
+  return rewriter.create<tensor::FromElementsOp>(op->getLoc(), targetType,
+                                                 ArrayRef<Value>{scalarValue});
 }

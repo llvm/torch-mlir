@@ -82,7 +82,7 @@ public:
       RankedTensorType tensorResultType =
           RankedTensorType::get({}, adaptor.getOther().getType());
       rhs = torch_to_tcp::scalarToTcpTensor(rewriter, op, tensorResultType,
-                                            adaptor.getOther());
+                                            op.getOther());
       if (adaptor.getOther().getType().template isa<mlir::FloatType>())
         // FP rhs is treated as fp64
         rhs = torch_to_tcp::castTensorToDtype(rewriter, rewriter.getF64Type(),
@@ -114,7 +114,7 @@ public:
       RankedTensorType tensorResultType =
           RankedTensorType::get({}, adaptor.getAlpha().getType());
       Value alpha = torch_to_tcp::scalarToTcpTensor(
-          rewriter, op, tensorResultType, adaptor.getAlpha());
+          rewriter, op, tensorResultType, op.getAlpha());
       if (adaptor.getAlpha().getType().template isa<mlir::FloatType>())
         // FP alpha is treated as fp64
         alpha = torch_to_tcp::castTensorToDtype(rewriter, rewriter.getF64Type(),
@@ -171,7 +171,7 @@ public:
       RankedTensorType tensorResultType =
           RankedTensorType::get({}, adaptor.getOther().getType());
       rhs = torch_to_tcp::scalarToTcpTensor(rewriter, op, tensorResultType,
-                                            adaptor.getOther());
+                                            op.getOther());
       if (adaptor.getOther().getType().template isa<mlir::FloatType>())
         // FP rhs is treated as fp64
         rhs = torch_to_tcp::castTensorToDtype(rewriter, rewriter.getF64Type(),
@@ -348,7 +348,7 @@ public:
       RankedTensorType tensorResultType =
           RankedTensorType::get({}, adaptor.getOther().getType());
       rhs = torch_to_tcp::scalarToTcpTensor(rewriter, op, tensorResultType,
-                                            adaptor.getOther());
+                                            op.getOther());
       if (adaptor.getOther().getType().template isa<mlir::FloatType>())
         // FP rhs is treated as fp64
         rhs = torch_to_tcp::castTensorToDtype(rewriter, rewriter.getF64Type(),
