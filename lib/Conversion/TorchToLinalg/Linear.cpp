@@ -113,6 +113,13 @@ public:
     if (!matchPattern(adaptor.getDims(), m_TorchListOfConstantInts(axis)))
       return rewriter.notifyMatchFailure(op,
                                          "only constant dim lists supported");
+    for (unsigned i = 0, e = axis.size(); i < e; i++) {
+      axis[i] = toPositiveDim(axis[i], selfRank);
+      if (!isValidDim(axis[i], selfRank)) {
+        return rewriter.notifyMatchFailure(op, "axis is statically invalid");
+      }
+    }
+
     // Only used to calculate flipped values, i.e. those on the flip axes. Other
     // dims won't be used.
     SmallVector<Value> dims = getTensorSizes(rewriter, loc, self);

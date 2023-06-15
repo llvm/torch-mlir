@@ -474,6 +474,8 @@ STABLEHLO_PASS_SET = {
     "ExpandModule_basic",
     "Fill_TensorFloat64WithFloat32Static_basic",
     "Fill_TensorFloat64WithInt64Static_basic",
+    "FlipModuleStaticShape_basic",
+    "FlipNegativeIndexModule_basic",
     "FullLikeModuleDefaultDtype_basic",
     "FullLikeModuleFalsePinMemory_basic",
     "FullLikeModuleFloat2D_basic",

@@ -1560,6 +1560,7 @@ public:
 };
 } // namespace
 
+// AtenFillScalarOp
 template <>
 LogicalResult ConvertAtenOp<AtenFillScalarOp>::matchAndRewrite(
     AtenFillScalarOp op, OpAdaptor adaptor,
@@ -1572,6 +1573,31 @@ LogicalResult ConvertAtenOp<AtenFillScalarOp>::matchAndRewrite(
   Value bcastScalar = rewriter.create<stablehlo::BroadcastInDimOp>(
       op->getLoc(), outType, scalarTensor, rewriter.getI64TensorAttr({}));
   rewriter.replaceOp(op, bcastScalar);
+  return success();
+}
+
+// AtenFlipOp
+template <>
+LogicalResult ConvertAtenOp<AtenFlipOp>::matchAndRewrite(
+    AtenFlipOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value self = adaptor.getSelf();
+  auto outType =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+
+  SmallVector<int64_t> dims;
+  if (!matchPattern(op.getDims(), m_TorchListOfConstantInts(dims))) {
+    return rewriter.notifyMatchFailure(op, "dims must be a list of const int");
+  }
+  for (unsigned i = 0, e = dims.size(); i < e; i++) {
+    dims[i] = toPositiveDim(dims[i], outType.getRank());
+    if (!isValidDim(dims[i], outType.getRank())) {
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+    }
+  }
+
+  rewriter.replaceOpWithNewOp<stablehlo::ReverseOp>(
+      op, outType, self, rewriter.getI64TensorAttr(dims));
   return success();
 }
 
@@ -1700,6 +1726,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenUniformOp);
   INSERT_ATENOP_PATTERN(AtenEmptyMemoryFormatOp);
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);
+  INSERT_ATENOP_PATTERN(AtenFlipOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, StablehloOp)                   \
