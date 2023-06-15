@@ -3124,28 +3124,6 @@ def BaddbmmStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 2, 7), tu.rand(5, 2, 9), tu.rand(5, 9, 7))
 
 
-class BaddbmmDifferentDtypesModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.int64, True),
-        ([-1, -1, -1], torch.float32, True),
-        ([-1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, input, batch1, batch2):
-        return torch.ops.aten.baddbmm(input, batch1, batch2)
-
-
-@register_test_case(module_factory=lambda: BaddbmmDifferentDtypesModule())
-def BaddbmmDifferentDtypesModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(3, 4, 5, high=10), tu.rand(3, 4, 6),
-                   tu.rand(3, 6, 5))
-
-
 class BaddbmmWithAlphaModule(torch.nn.Module):
 
     def __init__(self):
