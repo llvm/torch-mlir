@@ -1295,4 +1295,5 @@ LTC_XFAIL_SET = {
     "ChunkListUnpackUnevenDynamic_Module_basic",
     "ScatterValueFloatModule_basic",
     "ScatterValueIntModule_basic",
+    "IndexTensorNegativeIndexModule_basic",
 }

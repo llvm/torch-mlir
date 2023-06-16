@@ -2079,6 +2079,8 @@ def IndexTensorStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 5), tu.randint(2, 3, high=4))
 
 # ==============================================================================
+
+
 class IndexTensorMultiIndexStaticModule(torch.nn.Module):
 
     def __init__(self):
@@ -2386,6 +2388,29 @@ class IndexTensorMultiInputContiguousCenter(torch.nn.Module):
 @register_test_case(module_factory=lambda: IndexTensorMultiInputContiguousCenter())
 def IndexTensorMultiInputContiguousCenter_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 4, 3, 2), tu.randint(2, 2, high=3), tu.randint(2, high=2))
+
+
+# ==============================================================================
+
+
+class IndexTensorNegativeIndexModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 2, 3, 2], torch.float32, True),
+        ([1], torch.int64, True),
+    ])
+    def forward(self, x, index):
+        return torch.ops.aten.index(x, (None, None, index))
+
+
+@register_test_case(module_factory=lambda: IndexTensorNegativeIndexModule())
+def IndexTensorNegativeIndexModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 3, 2), tu.randint(1, low=-2, high=0))
 
 
 # ==============================================================================
