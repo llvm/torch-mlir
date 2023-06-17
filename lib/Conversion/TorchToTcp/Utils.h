@@ -18,9 +18,10 @@ Value broadcastRankInLeadingDims(ConversionPatternRewriter &rewriter,
                                  Value input, int64_t rankIncrease);
 
 // Helper function to do both rank and shape all-dim broadcasting
-// of the input to match target.
-Value broadcastToMatchShapeAndType(ConversionPatternRewriter &rewriter,
-                                   Value input, Value target);
+// of the inputs to match each other.
+std::pair<Value, Value>
+broadcastToMatchShape(ConversionPatternRewriter &rewriter, Value lhs,
+                      Value rhs);
 
 // Helper function to broadcast a 0D or 1D input tensor to match rank and shape
 // of target. For the 1D case, this projects the input vector to the

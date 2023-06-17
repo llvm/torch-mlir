@@ -36,11 +36,11 @@ func.func @torch.aten.addtensor$samerank(%arg0: !torch.vtensor<[?,?],f32>, %arg1
 // CHECK:         %[[T4:.*]] = tcp.const {value = dense<2> : tensor<i64>} : tensor<i64>
 // CHECK:         %[[T5:.*]] = tcp.cast %[[T4]] {in_int_signedness = #tcp<signedness Signed>} : tensor<i64> -> tensor<f32>
 // CHECK:         %[[T6:.*]] = tensor.expand_shape %[[T5]] [] : tensor<f32> into tensor<1x1xf32>
-// CHECK:         %[[T7:.*]] = arith.constant 1 : index
+// CHECK:         %[[T7:.*]] = arith.constant 0 : index
 // CHECK:         %[[T8:.*]] = tensor.dim %[[T1]], %[[T7]] : tensor<?x?xf32>
-// CHECK:         %[[T9:.*]] = arith.constant 0 : index
+// CHECK:         %[[T9:.*]] = arith.constant 1 : index
 // CHECK:         %[[T10:.*]] = tensor.dim %[[T1]], %[[T9]] : tensor<?x?xf32>
-// CHECK:         %[[T11:.*]] = tcp.broadcast %[[T6]], %[[T10]], %[[T8]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
+// CHECK:         %[[T11:.*]] = tcp.broadcast %[[T6]], %[[T8]], %[[T10]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
 // CHECK:         %[[T12:.*]] = tcp.mul %[[T11]], %[[T1]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
 // CHECK:         %[[T13:.*]] = tcp.add %[[T0]], %[[T12]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
 // CHECK:         %[[T14:.*]] = torch_c.from_builtin_tensor %[[T13]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
@@ -60,11 +60,11 @@ func.func @torch.aten.addtensor$alpha(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !
 // CHECK:         %[[T4:.*]] = tcp.const {value = dense<1> : tensor<i64>} : tensor<i64>
 // CHECK:         %[[T5:.*]] = tcp.cast %[[T4]] {in_int_signedness = #tcp<signedness Signed>} : tensor<i64> -> tensor<f32>
 // CHECK:         %[[T6:.*]] = tensor.expand_shape %[[T5]] [] : tensor<f32> into tensor<1x1xf32>
-// CHECK:         %[[T7:.*]] = arith.constant 1 : index
+// CHECK:         %[[T7:.*]] = arith.constant 0 : index
 // CHECK:         %[[T8:.*]] = tensor.dim %[[T0]], %[[T7]] : tensor<?x?xf32>
-// CHECK:         %[[T9:.*]] = arith.constant 0 : index
+// CHECK:         %[[T9:.*]] = arith.constant 1 : index
 // CHECK:         %[[T10:.*]] = tensor.dim %[[T0]], %[[T9]] : tensor<?x?xf32>
-// CHECK:         %[[T11:.*]] = tcp.broadcast %[[T6]], %[[T10]], %[[T8]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
+// CHECK:         %[[T11:.*]] = tcp.broadcast %[[T6]], %[[T8]], %[[T10]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
 // CHECK:         %[[T13:.*]] = tcp.add %[[T0]], %[[T11]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
 // CHECK:         %[[T14:.*]] = torch_c.from_builtin_tensor %[[T13]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
 // CHECK:         return %[[T14]] : !torch.vtensor<[?,?],f32>
@@ -106,11 +106,11 @@ func.func @torch.aten.addtensor$diffrank(%arg0: !torch.vtensor<[?,?],f32>, %arg1
 // CHECK:         %[[EXPAND_SHAPE:.*]] = tensor.expand_shape %[[TO_BUILTIN1]]
 // CHECK-SAME:                           []
 // CHECK-SAME:                           : tensor<f32> into tensor<1x1xf32>
-// CHECK:         %[[CONST1:.*]] = arith.constant 1 : index
-// CHECK:         %[[DIM0:.*]] = tensor.dim %[[TO_BUILTIN0]], %[[CONST1]] : tensor<?x?xf32>
 // CHECK:         %[[CONST0:.*]] = arith.constant 0 : index
-// CHECK:         %[[DIM1:.*]] = tensor.dim %[[TO_BUILTIN0]], %[[CONST0]] : tensor<?x?xf32>
-// CHECK:         %[[BROADCAST:.*]] = tcp.broadcast %[[EXPAND_SHAPE]], %[[DIM1]], %[[DIM0]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
+// CHECK:         %[[DIM0:.*]] = tensor.dim %[[TO_BUILTIN0]], %[[CONST0]] : tensor<?x?xf32>
+// CHECK:         %[[CONST1:.*]] = arith.constant 1 : index
+// CHECK:         %[[DIM1:.*]] = tensor.dim %[[TO_BUILTIN0]], %[[CONST1]] : tensor<?x?xf32>
+// CHECK:         %[[BROADCAST:.*]] = tcp.broadcast %[[EXPAND_SHAPE]], %[[DIM0]], %[[DIM1]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
 // CHECK:         %[[ADD:.*]] = tcp.add %[[TO_BUILTIN0]], %[[BROADCAST]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
 // CHECK:         %[[FROM_BUILTIN:.*]] = torch_c.from_builtin_tensor %[[ADD]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
 // CHECK:         return %[[FROM_BUILTIN]] : !torch.vtensor<[?,?],f32>
@@ -145,11 +145,11 @@ func.func @torch.aten.subtensor(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.
 // CHECK:         %[[T4:.*]] = tcp.const {value = dense<2> : tensor<i64>} : tensor<i64>
 // CHECK:         %[[T5:.*]] = tcp.cast %[[T4]] {in_int_signedness = #tcp<signedness Signed>} : tensor<i64> -> tensor<f32>
 // CHECK:         %[[T6:.*]] = tensor.expand_shape %[[T5]] [] : tensor<f32> into tensor<1x1xf32>
-// CHECK:         %[[T7:.*]] = arith.constant 1 : index
+// CHECK:         %[[T7:.*]] = arith.constant 0 : index
 // CHECK:         %[[T8:.*]] = tensor.dim %[[T1]], %[[T7]] : tensor<?x?xf32>
-// CHECK:         %[[T9:.*]] = arith.constant 0 : index
+// CHECK:         %[[T9:.*]] = arith.constant 1 : index
 // CHECK:         %[[T10:.*]] = tensor.dim %[[T1]], %[[T9]] : tensor<?x?xf32>
-// CHECK:         %[[T11:.*]] = tcp.broadcast %[[T6]], %[[T10]], %[[T8]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
+// CHECK:         %[[T11:.*]] = tcp.broadcast %[[T6]], %[[T8]], %[[T10]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
 // CHECK:         %[[T12:.*]] = tcp.mul %[[T11]], %[[T1]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
 // CHECK:         %[[T13:.*]] = tcp.sub %[[T0]], %[[T12]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
 // CHECK:         %[[T14:.*]] = torch_c.from_builtin_tensor %[[T13]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
@@ -169,11 +169,11 @@ func.func @torch.aten.subtensor$alpha(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !
 // CHECK:         %[[T4:.*]] = tcp.const {value = dense<1> : tensor<i64>} : tensor<i64>
 // CHECK:         %[[T5:.*]] = tcp.cast %[[T4]] {in_int_signedness = #tcp<signedness Signed>} : tensor<i64> -> tensor<f32>
 // CHECK:         %[[T6:.*]] = tensor.expand_shape %[[T5]] [] : tensor<f32> into tensor<1x1xf32>
-// CHECK:         %[[T7:.*]] = arith.constant 1 : index
+// CHECK:         %[[T7:.*]] = arith.constant 0 : index
 // CHECK:         %[[T8:.*]] = tensor.dim %[[T0]], %[[T7]] : tensor<?x?xf32>
-// CHECK:         %[[T9:.*]] = arith.constant 0 : index
+// CHECK:         %[[T9:.*]] = arith.constant 1 : index
 // CHECK:         %[[T10:.*]] = tensor.dim %[[T0]], %[[T9]] : tensor<?x?xf32>
-// CHECK:         %[[T11:.*]] = tcp.broadcast %[[T6]], %[[T10]], %[[T8]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
+// CHECK:         %[[T11:.*]] = tcp.broadcast %[[T6]], %[[T8]], %[[T10]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
 // CHECK:         %[[T13:.*]] = tcp.sub %[[T0]], %[[T11]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
 // CHECK:         %[[T14:.*]] = torch_c.from_builtin_tensor %[[T13]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
 // CHECK:         return %[[T14]] : !torch.vtensor<[?,?],f32>
@@ -213,11 +213,11 @@ func.func @torch.aten.multensor(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.
 // CHECK:         %[[T4:.*]] = tcp.const {value = dense<1> : tensor<i64>} : tensor<i64>
 // CHECK:         %[[T5:.*]] = tcp.cast %[[T4]] {in_int_signedness = #tcp<signedness Signed>} : tensor<i64> -> tensor<f32>
 // CHECK:         %[[T6:.*]] = tensor.expand_shape %[[T5]] [] : tensor<f32> into tensor<1x1xf32>
-// CHECK:         %[[T7:.*]] = arith.constant 1 : index
+// CHECK:         %[[T7:.*]] = arith.constant 0 : index
 // CHECK:         %[[T8:.*]] = tensor.dim %[[T0]], %[[T7]] : tensor<?x?xf32>
-// CHECK:         %[[T9:.*]] = arith.constant 0 : index
+// CHECK:         %[[T9:.*]] = arith.constant 1 : index
 // CHECK:         %[[T10:.*]] = tensor.dim %[[T0]], %[[T9]] : tensor<?x?xf32>
-// CHECK:         %[[T11:.*]] = tcp.broadcast %[[T6]], %[[T10]], %[[T8]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
+// CHECK:         %[[T11:.*]] = tcp.broadcast %[[T6]], %[[T8]], %[[T10]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
 // CHECK:         %[[T13:.*]] = tcp.mul %[[T0]], %[[T11]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
 // CHECK:         %[[T14:.*]] = torch_c.from_builtin_tensor %[[T13]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
 // CHECK:         return %[[T14]] : !torch.vtensor<[?,?],f32>
@@ -257,11 +257,11 @@ func.func @torch.aten.divtensor(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.
 // CHECK:         %[[T4:.*]] = tcp.const {value = dense<1> : tensor<i64>} : tensor<i64>
 // CHECK:         %[[T5:.*]] = tcp.cast %[[T4]] {in_int_signedness = #tcp<signedness Signed>} : tensor<i64> -> tensor<f32>
 // CHECK:         %[[T6:.*]] = tensor.expand_shape %[[T5]] [] : tensor<f32> into tensor<1x1xf32>
-// CHECK:         %[[T7:.*]] = arith.constant 1 : index
+// CHECK:         %[[T7:.*]] = arith.constant 0 : index
 // CHECK:         %[[T8:.*]] = tensor.dim %[[T0]], %[[T7]] : tensor<?x?xf32>
-// CHECK:         %[[T9:.*]] = arith.constant 0 : index
+// CHECK:         %[[T9:.*]] = arith.constant 1 : index
 // CHECK:         %[[T10:.*]] = tensor.dim %[[T0]], %[[T9]] : tensor<?x?xf32>
-// CHECK:         %[[T11:.*]] = tcp.broadcast %[[T6]], %[[T10]], %[[T8]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
+// CHECK:         %[[T11:.*]] = tcp.broadcast %[[T6]], %[[T8]], %[[T10]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
 // CHECK:         %[[T13:.*]] = tcp.divf %[[T0]], %[[T11]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
 // CHECK:         %[[T14:.*]] = torch_c.from_builtin_tensor %[[T13]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
 // CHECK:         return %[[T14]] : !torch.vtensor<[?,?],f32>
@@ -544,11 +544,11 @@ func.func @torch.aten.atan2$diffrank(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !t
 // CHECK:         %[[EXPAND_SHAPE:.*]] = tensor.expand_shape %[[TO_BUILTIN1]]
 // CHECK-SAME:                           []
 // CHECK-SAME:                           : tensor<f32> into tensor<1x1xf32>
-// CHECK:         %[[CONST1:.*]] = arith.constant 1 : index
-// CHECK:         %[[DIM0:.*]] = tensor.dim %[[TO_BUILTIN0]], %[[CONST1]] : tensor<?x?xf32>
 // CHECK:         %[[CONST0:.*]] = arith.constant 0 : index
-// CHECK:         %[[DIM1:.*]] = tensor.dim %[[TO_BUILTIN0]], %[[CONST0]] : tensor<?x?xf32>
-// CHECK:         %[[BROADCAST:.*]] = tcp.broadcast %[[EXPAND_SHAPE]], %[[DIM1]], %[[DIM0]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
+// CHECK:         %[[DIM0:.*]] = tensor.dim %[[TO_BUILTIN0]], %[[CONST0]] : tensor<?x?xf32>
+// CHECK:         %[[CONST1:.*]] = arith.constant 1 : index
+// CHECK:         %[[DIM1:.*]] = tensor.dim %[[TO_BUILTIN0]], %[[CONST1]] : tensor<?x?xf32>
+// CHECK:         %[[BROADCAST:.*]] = tcp.broadcast %[[EXPAND_SHAPE]], %[[DIM0]], %[[DIM1]] {axes = [0, 1]} : tensor<1x1xf32>, index, index -> tensor<?x?xf32>
 // CHECK:         %[[ATAN2:.*]] = tcp.atan2 %[[TO_BUILTIN0]], %[[BROADCAST]] : tensor<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
 // CHECK:         %[[FROM_BUILTIN:.*]] = torch_c.from_builtin_tensor %[[ATAN2]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
 // CHECK:         return %[[FROM_BUILTIN]] : !torch.vtensor<[?,?],f32>

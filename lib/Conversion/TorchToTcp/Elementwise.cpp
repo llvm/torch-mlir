@@ -47,6 +47,29 @@ getTcpSignednessAttr(MLIRContext *context,
   return SignednessAttr::get(context, Signedness::Unsigned);
 }
 
+Value convertScalarOperandToTensor(ConversionPatternRewriter &rewriter,
+                                   Operation *op, Value scalarValue,
+                                   Value convertedscalarValue, Type outputType,
+                                   Type convertedOutputType) {
+  RankedTensorType scalarToTensorType =
+      RankedTensorType::get({}, convertedscalarValue.getType());
+  Value resultValue = torch_to_tcp::scalarToTcpTensor(
+      rewriter, op, scalarToTensorType, scalarValue);
+  if (convertedscalarValue.getType().template isa<mlir::FloatType>())
+    // FP scalarValue is treated as fp64
+    resultValue = torch_to_tcp::castTensorToDtype(
+        rewriter, rewriter.getF64Type(), outputType, resultValue,
+        convertedOutputType);
+  else if (convertedscalarValue.getType().template isa<mlir::IntegerType>())
+    // INT scalarValue is treated as si64
+    resultValue = torch_to_tcp::castTensorToDtype(
+        rewriter, rewriter.getIntegerType(64, true), outputType, resultValue,
+        convertedOutputType);
+  else
+    resultValue = nullptr;
+  return resultValue;
+}
+
 template <typename AtenOpT, typename TcpOpT>
 class ConvertAtenAddSubOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -79,23 +102,11 @@ public:
                           .getDtype();
 
     if (isa<AtenAddScalarOp>(op) || isa<AtenSubScalarOp>(op)) {
-      RankedTensorType tensorResultType =
-          RankedTensorType::get({}, adaptor.getOther().getType());
-      rhs = torch_to_tcp::scalarToTcpTensor(rewriter, op, tensorResultType,
-                                            op.getOther());
-      if (adaptor.getOther().getType().template isa<mlir::FloatType>())
-        // FP rhs is treated as fp64
-        rhs = torch_to_tcp::castTensorToDtype(rewriter, rewriter.getF64Type(),
-                                              outputType, rhs,
-                                              resultType.getElementType());
-      else if (adaptor.getOther().getType().template isa<mlir::IntegerType>())
-        // INT rhs is treated as si64
-        rhs = torch_to_tcp::castTensorToDtype(
-            rewriter, rewriter.getIntegerType(64, true), outputType, rhs,
-            resultType.getElementType());
-      else
+      rhs = convertScalarOperandToTensor(rewriter, op, op.getOther(),
+                                         adaptor.getOther(), outputType,
+                                         resultType.getElementType());
+      if (!rhs)
         return rewriter.notifyMatchFailure(op, "Unsupported rhs data type");
-      rhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, rhs, lhs);
     } else {
       auto inputBType = op.getOther()
                             .getType()
@@ -103,31 +114,20 @@ public:
                             .getDtype();
       rhs = torch_to_tcp::castTensorToDtype(rewriter, inputBType, outputType,
                                             rhs, resultType.getElementType());
-      rhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, rhs, lhs);
     }
-
     lhs = torch_to_tcp::castTensorToDtype(rewriter, inputAType, outputType, lhs,
                                           resultType.getElementType());
-    lhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, lhs, rhs);
+    std::tie(lhs, rhs) =
+        torch_to_tcp::broadcastToMatchShape(rewriter, lhs, rhs);
 
     if (!IsMultiplyAlphaOne(op.getAlpha())) {
-      RankedTensorType tensorResultType =
-          RankedTensorType::get({}, adaptor.getAlpha().getType());
-      Value alpha = torch_to_tcp::scalarToTcpTensor(
-          rewriter, op, tensorResultType, op.getAlpha());
-      if (adaptor.getAlpha().getType().template isa<mlir::FloatType>())
-        // FP alpha is treated as fp64
-        alpha = torch_to_tcp::castTensorToDtype(rewriter, rewriter.getF64Type(),
-                                                outputType, alpha,
-                                                resultType.getElementType());
-      else if (adaptor.getAlpha().getType().template isa<mlir::IntegerType>())
-        // INT alpha is treated as si64
-        alpha = torch_to_tcp::castTensorToDtype(
-            rewriter, rewriter.getIntegerType(64, true), outputType, alpha,
-            resultType.getElementType());
-      else
+      Value alpha = convertScalarOperandToTensor(rewriter, op, op.getAlpha(),
+                                                 adaptor.getAlpha(), outputType,
+                                                 resultType.getElementType());
+      if (!alpha)
         return rewriter.notifyMatchFailure(op, "Unsupported alpha data type");
-      alpha = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, alpha, rhs);
+      std::tie(alpha, rhs) =
+          torch_to_tcp::broadcastToMatchShape(rewriter, alpha, rhs);
       rhs = rewriter.create<MulOp>(op->getLoc(), resultType, alpha, rhs);
     }
 
@@ -168,23 +168,11 @@ public:
                           .getDtype();
 
     if (isa<AtenMulScalarOp>(op)) {
-      RankedTensorType tensorResultType =
-          RankedTensorType::get({}, adaptor.getOther().getType());
-      rhs = torch_to_tcp::scalarToTcpTensor(rewriter, op, tensorResultType,
-                                            op.getOther());
-      if (adaptor.getOther().getType().template isa<mlir::FloatType>())
-        // FP rhs is treated as fp64
-        rhs = torch_to_tcp::castTensorToDtype(rewriter, rewriter.getF64Type(),
-                                              outputType, rhs,
-                                              resultType.getElementType());
-      else if (adaptor.getOther().getType().template isa<mlir::IntegerType>())
-        // INT rhs is treated as si64
-        rhs = torch_to_tcp::castTensorToDtype(
-            rewriter, rewriter.getIntegerType(64, true), outputType, rhs,
-            resultType.getElementType());
-      else
+      rhs = convertScalarOperandToTensor(rewriter, op, op.getOther(),
+                                         adaptor.getOther(), outputType,
+                                         resultType.getElementType());
+      if (!rhs)
         return rewriter.notifyMatchFailure(op, "Unsupported rhs data type");
-      rhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, rhs, lhs);
     } else {
       auto inputBType = op.getOther()
                             .getType()
@@ -192,12 +180,11 @@ public:
                             .getDtype();
       rhs = torch_to_tcp::castTensorToDtype(rewriter, inputBType, outputType,
                                             rhs, resultType.getElementType());
-      rhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, rhs, lhs);
     }
-
     lhs = torch_to_tcp::castTensorToDtype(rewriter, inputAType, outputType, lhs,
                                           resultType.getElementType());
-    lhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, lhs, rhs);
+    std::tie(lhs, rhs) =
+        torch_to_tcp::broadcastToMatchShape(rewriter, lhs, rhs);
 
     rewriter.replaceOpWithNewOp<tcp::MulOp>(op, resultType, lhs, rhs);
     return success();
@@ -345,23 +332,11 @@ public:
                           .getDtype();
 
     if (isa<AtenDivScalarOp>(op)) {
-      RankedTensorType tensorResultType =
-          RankedTensorType::get({}, adaptor.getOther().getType());
-      rhs = torch_to_tcp::scalarToTcpTensor(rewriter, op, tensorResultType,
-                                            op.getOther());
-      if (adaptor.getOther().getType().template isa<mlir::FloatType>())
-        // FP rhs is treated as fp64
-        rhs = torch_to_tcp::castTensorToDtype(rewriter, rewriter.getF64Type(),
-                                              outputType, rhs,
-                                              resultType.getElementType());
-      else if (adaptor.getOther().getType().template isa<mlir::IntegerType>())
-        // INT rhs is treated as si64
-        rhs = torch_to_tcp::castTensorToDtype(
-            rewriter, rewriter.getIntegerType(64, true), outputType, rhs,
-            resultType.getElementType());
-      else
+      rhs = convertScalarOperandToTensor(rewriter, op, op.getOther(),
+                                         adaptor.getOther(), outputType,
+                                         resultType.getElementType());
+      if (!rhs)
         return rewriter.notifyMatchFailure(op, "Unsupported rhs data type");
-      rhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, rhs, lhs);
     } else {
       auto inputBType = op.getOther()
                             .getType()
@@ -369,12 +344,11 @@ public:
                             .getDtype();
       rhs = torch_to_tcp::castTensorToDtype(rewriter, inputBType, outputType,
                                             rhs, resultType.getElementType());
-      rhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, rhs, lhs);
     }
-
     lhs = torch_to_tcp::castTensorToDtype(rewriter, inputAType, outputType, lhs,
                                           resultType.getElementType());
-    lhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, lhs, rhs);
+    std::tie(lhs, rhs) =
+        torch_to_tcp::broadcastToMatchShape(rewriter, lhs, rhs);
 
     rewriter.replaceOpWithNewOp<tcp::DivFOp>(op, resultType, lhs, rhs);
     return success();
@@ -561,11 +535,10 @@ public:
 
     rhs = torch_to_tcp::castTensorToDtype(rewriter, inputBType, outputType, rhs,
                                           resultType.getElementType());
-    rhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, rhs, lhs);
-
     lhs = torch_to_tcp::castTensorToDtype(rewriter, inputAType, outputType, lhs,
                                           resultType.getElementType());
-    lhs = torch_to_tcp::broadcastToMatchShapeAndType(rewriter, lhs, rhs);
+    std::tie(lhs, rhs) =
+        torch_to_tcp::broadcastToMatchShape(rewriter, lhs, rhs);
 
     rewriter.replaceOpWithNewOp<tcp::Atan2Op>(op, resultType, lhs, rhs);
     return success();
