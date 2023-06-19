@@ -49,24 +49,22 @@ getTcpSignednessAttr(MLIRContext *context,
 
 Value convertScalarOperandToTensor(ConversionPatternRewriter &rewriter,
                                    Operation *op, Value scalarValue,
-                                   Value convertedscalarValue, Type outputType,
+                                   Value convertedScalarValue, Type outputType,
                                    Type convertedOutputType) {
   RankedTensorType scalarToTensorType =
-      RankedTensorType::get({}, convertedscalarValue.getType());
+      RankedTensorType::get({}, convertedScalarValue.getType());
   Value resultValue = torch_to_tcp::scalarToTcpTensor(
       rewriter, op, scalarToTensorType, scalarValue);
-  if (convertedscalarValue.getType().template isa<mlir::FloatType>())
+  if (convertedScalarValue.getType().template isa<mlir::FloatType>())
     // FP scalarValue is treated as fp64
     resultValue = torch_to_tcp::castTensorToDtype(
         rewriter, rewriter.getF64Type(), outputType, resultValue,
         convertedOutputType);
-  else if (convertedscalarValue.getType().template isa<mlir::IntegerType>())
+  else if (convertedScalarValue.getType().template isa<mlir::IntegerType>())
     // INT scalarValue is treated as si64
     resultValue = torch_to_tcp::castTensorToDtype(
         rewriter, rewriter.getIntegerType(64, true), outputType, resultValue,
         convertedOutputType);
-  else
-    resultValue = nullptr;
   return resultValue;
 }
 
