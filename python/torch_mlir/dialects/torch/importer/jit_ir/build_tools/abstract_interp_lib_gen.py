@@ -3305,6 +3305,23 @@ def prims〇squeeze〡dtype(a_rank_dtype: Tuple[int, int], dimensions: List[int]
     a_rank, a_dtype = a_rank_dtype
     return a_dtype
 
+# TODO: need 
+def aten〇tile(self: List[int], dims: List[int]) -> List[int]:
+    assert len(dims) <= len(self)
+    ndim = len(dims)
+    tensor_dim = len(self)
+    leading_rank = tensor_dim - ndim
+    out: List[int] = []
+    if len(dims) == len(self):
+        for i in range(tensor_dim):
+            out.append(self[i] * dims[i])
+    else:
+        for i in range(leading_rank):
+            out.append(self[i])
+        for i in range(ndim):
+            out.append(self[i + leading_rank] * dims[i])
+    return out
+
 # ==============================================================================
 # Main
 # ==============================================================================
