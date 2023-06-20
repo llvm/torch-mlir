@@ -27,7 +27,7 @@ using namespace mlir::torch::Torch;
 
 namespace {
 
-bool skipMultiplyAlpha(Value alphaValue) {
+bool IsMultiplyAlphaOne(Value alphaValue) {
   double doubleValue;
   auto isFloat = matchPattern(alphaValue, m_TorchConstantFloat(&doubleValue));
 
@@ -47,6 +47,27 @@ getTcpSignednessAttr(MLIRContext *context,
   return SignednessAttr::get(context, Signedness::Unsigned);
 }
 
+Value convertScalarOperandToTensor(ConversionPatternRewriter &rewriter,
+                                   Operation *op, Value scalarValue,
+                                   Value convertedScalarValue, Type outputType,
+                                   Type convertedOutputType) {
+  RankedTensorType scalarToTensorType =
+      RankedTensorType::get({}, convertedScalarValue.getType());
+  Value resultValue = torch_to_tcp::scalarToTcpTensor(
+      rewriter, op, scalarToTensorType, scalarValue);
+  if (convertedScalarValue.getType().template isa<mlir::FloatType>())
+    // FP scalarValue is treated as fp64
+    resultValue = torch_to_tcp::castTensorToDtype(
+        rewriter, rewriter.getF64Type(), outputType, resultValue,
+        convertedOutputType);
+  else if (convertedScalarValue.getType().template isa<mlir::IntegerType>())
+    // INT scalarValue is treated as si64
+    resultValue = torch_to_tcp::castTensorToDtype(
+        rewriter, rewriter.getIntegerType(64, true), outputType, resultValue,
+        convertedOutputType);
+  return resultValue;
+}
+
 template <typename AtenOpT, typename TcpOpT>
 class ConvertAtenAddSubOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -60,54 +81,108 @@ public:
     RankedTensorType lhsType = lhs.getType().dyn_cast<RankedTensorType>();
 
     Value rhs = adaptor.getOther();
-    RankedTensorType rhsType = rhs.getType().dyn_cast<RankedTensorType>();
 
     RankedTensorType resultType =
         OpConversionPattern<AtenOpT>::getTypeConverter()
             ->convertType(op.getType())
             .template cast<RankedTensorType>();
 
-    if (!lhsType || !rhsType || !resultType)
+    if (!lhsType || !resultType)
       return rewriter.notifyMatchFailure(
           op, "Only Ranked Tensor types are supported in TCP");
 
-    lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, lhs, rhs);
-    rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, rhs, lhs);
+    auto inputAType = op.getSelf()
+                          .getType()
+                          .template dyn_cast<torch::Torch::ValueTensorType>()
+                          .getDtype();
+    auto outputType = op.getType()
+                          .template dyn_cast<torch::Torch::ValueTensorType>()
+                          .getDtype();
 
-    if (!skipMultiplyAlpha(op.getAlpha()))
-      return rewriter.notifyMatchFailure(
-          op, "torch ops with alpha != 1 is not yet supported in "
-              "Torch to TCP conversion");
+    if (isa<AtenAddScalarOp>(op) || isa<AtenSubScalarOp>(op)) {
+      rhs = convertScalarOperandToTensor(rewriter, op, op.getOther(),
+                                         adaptor.getOther(), outputType,
+                                         resultType.getElementType());
+      if (!rhs)
+        return rewriter.notifyMatchFailure(op, "Unsupported rhs data type");
+    } else {
+      auto inputBType = op.getOther()
+                            .getType()
+                            .template dyn_cast<torch::Torch::ValueTensorType>()
+                            .getDtype();
+      rhs = torch_to_tcp::castTensorToDtype(rewriter, inputBType, outputType,
+                                            rhs, resultType.getElementType());
+    }
+    lhs = torch_to_tcp::castTensorToDtype(rewriter, inputAType, outputType, lhs,
+                                          resultType.getElementType());
+    std::tie(lhs, rhs) =
+        torch_to_tcp::broadcastToMatchShape(rewriter, lhs, rhs);
+
+    if (!IsMultiplyAlphaOne(op.getAlpha())) {
+      Value alpha = convertScalarOperandToTensor(rewriter, op, op.getAlpha(),
+                                                 adaptor.getAlpha(), outputType,
+                                                 resultType.getElementType());
+      if (!alpha)
+        return rewriter.notifyMatchFailure(op, "Unsupported alpha data type");
+      std::tie(alpha, rhs) =
+          torch_to_tcp::broadcastToMatchShape(rewriter, alpha, rhs);
+      rhs = rewriter.create<MulOp>(op->getLoc(), resultType, alpha, rhs);
+    }
 
     rewriter.replaceOpWithNewOp<TcpOpT>(op, resultType, lhs, rhs);
     return success();
   }
 };
 
-class ConvertAtenMulOp : public OpConversionPattern<AtenMulTensorOp> {
+template <typename AtenOpT>
+class ConvertAtenMulOp : public OpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenMulTensorOp>::OpConversionPattern;
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
 
   LogicalResult
-  matchAndRewrite(AtenMulTensorOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
     RankedTensorType lhsType = lhs.getType().dyn_cast<RankedTensorType>();
 
     Value rhs = adaptor.getOther();
-    RankedTensorType rhsType = rhs.getType().dyn_cast<RankedTensorType>();
 
     RankedTensorType resultType =
-        OpConversionPattern<AtenMulTensorOp>::getTypeConverter()
+        OpConversionPattern<AtenOpT>::getTypeConverter()
             ->convertType(op.getType())
-            .cast<RankedTensorType>();
+            .template cast<RankedTensorType>();
 
-    if (!lhsType || !rhsType || !resultType)
+    if (!lhsType || !resultType)
       return rewriter.notifyMatchFailure(
           op, "Only Ranked Tensor types are supported in TCP");
 
-    lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, lhs, rhs);
-    rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, rhs, lhs);
+    auto inputAType = op.getSelf()
+                          .getType()
+                          .template dyn_cast<torch::Torch::ValueTensorType>()
+                          .getDtype();
+    auto outputType = op.getType()
+                          .template dyn_cast<torch::Torch::ValueTensorType>()
+                          .getDtype();
+
+    if (isa<AtenMulScalarOp>(op)) {
+      rhs = convertScalarOperandToTensor(rewriter, op, op.getOther(),
+                                         adaptor.getOther(), outputType,
+                                         resultType.getElementType());
+      if (!rhs)
+        return rewriter.notifyMatchFailure(op, "Unsupported rhs data type");
+    } else {
+      auto inputBType = op.getOther()
+                            .getType()
+                            .template dyn_cast<torch::Torch::ValueTensorType>()
+                            .getDtype();
+      rhs = torch_to_tcp::castTensorToDtype(rewriter, inputBType, outputType,
+                                            rhs, resultType.getElementType());
+    }
+    lhs = torch_to_tcp::castTensorToDtype(rewriter, inputAType, outputType, lhs,
+                                          resultType.getElementType());
+    std::tie(lhs, rhs) =
+        torch_to_tcp::broadcastToMatchShape(rewriter, lhs, rhs);
 
     rewriter.replaceOpWithNewOp<tcp::MulOp>(op, resultType, lhs, rhs);
     return success();
@@ -216,25 +291,26 @@ public:
   }
 };
 
-class ConvertAtenDivOp : public OpConversionPattern<AtenDivTensorOp> {
+template <typename AtenOpT>
+class ConvertAtenDivOp : public OpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenDivTensorOp>::OpConversionPattern;
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
 
   LogicalResult
-  matchAndRewrite(AtenDivTensorOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
     RankedTensorType lhsType = lhs.getType().dyn_cast<RankedTensorType>();
 
     Value rhs = adaptor.getOther();
-    RankedTensorType rhsType = rhs.getType().dyn_cast<RankedTensorType>();
 
     RankedTensorType resultType =
-        OpConversionPattern<AtenDivTensorOp>::getTypeConverter()
+        OpConversionPattern<AtenOpT>::getTypeConverter()
             ->convertType(op.getType())
-            .cast<RankedTensorType>();
+            .template cast<RankedTensorType>();
 
-    if (!lhsType || !rhsType || !resultType)
+    if (!lhsType || !resultType)
       return rewriter.notifyMatchFailure(
           op, "Only Ranked Tensor types are supported in TCP");
 
@@ -245,8 +321,32 @@ public:
           op, "Only floating point division supported for now");
     }
 
-    lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, lhs, rhs);
-    rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, rhs, lhs);
+    auto inputAType = op.getSelf()
+                          .getType()
+                          .template dyn_cast<torch::Torch::ValueTensorType>()
+                          .getDtype();
+    auto outputType = op.getType()
+                          .template dyn_cast<torch::Torch::ValueTensorType>()
+                          .getDtype();
+
+    if (isa<AtenDivScalarOp>(op)) {
+      rhs = convertScalarOperandToTensor(rewriter, op, op.getOther(),
+                                         adaptor.getOther(), outputType,
+                                         resultType.getElementType());
+      if (!rhs)
+        return rewriter.notifyMatchFailure(op, "Unsupported rhs data type");
+    } else {
+      auto inputBType = op.getOther()
+                            .getType()
+                            .template dyn_cast<torch::Torch::ValueTensorType>()
+                            .getDtype();
+      rhs = torch_to_tcp::castTensorToDtype(rewriter, inputBType, outputType,
+                                            rhs, resultType.getElementType());
+    }
+    lhs = torch_to_tcp::castTensorToDtype(rewriter, inputAType, outputType, lhs,
+                                          resultType.getElementType());
+    std::tie(lhs, rhs) =
+        torch_to_tcp::broadcastToMatchShape(rewriter, lhs, rhs);
 
     rewriter.replaceOpWithNewOp<tcp::DivFOp>(op, resultType, lhs, rhs);
     return success();
@@ -419,8 +519,24 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Input tensors must have floating-point datatype");
 
-    lhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, lhs, rhs);
-    rhs = torch_to_tcp::broadcastInLeadingDimsToMatchShape(rewriter, rhs, lhs);
+    auto inputAType = op.getSelf()
+                          .getType()
+                          .template dyn_cast<torch::Torch::ValueTensorType>()
+                          .getDtype();
+    auto inputBType = op.getOther()
+                          .getType()
+                          .template dyn_cast<torch::Torch::ValueTensorType>()
+                          .getDtype();
+    auto outputType = op.getType()
+                          .template dyn_cast<torch::Torch::ValueTensorType>()
+                          .getDtype();
+
+    rhs = torch_to_tcp::castTensorToDtype(rewriter, inputBType, outputType, rhs,
+                                          resultType.getElementType());
+    lhs = torch_to_tcp::castTensorToDtype(rewriter, inputAType, outputType, lhs,
+                                          resultType.getElementType());
+    std::tie(lhs, rhs) =
+        torch_to_tcp::broadcastToMatchShape(rewriter, lhs, rhs);
 
     rewriter.replaceOpWithNewOp<tcp::Atan2Op>(op, resultType, lhs, rhs);
     return success();
@@ -541,16 +657,26 @@ void torch_to_tcp::populateElementwisePatternsAndLegality(
 
   target.addIllegalOp<AtenAddTensorOp>();
   target.addIllegalOp<AtenSubTensorOp>();
+  target.addIllegalOp<AtenAddScalarOp>();
+  target.addIllegalOp<AtenSubScalarOp>();
   patterns.add<ConvertAtenAddSubOp<AtenAddTensorOp, tcp::AddOp>>(typeConverter,
                                                                  context);
   patterns.add<ConvertAtenAddSubOp<AtenSubTensorOp, tcp::SubOp>>(typeConverter,
                                                                  context);
+  patterns.add<ConvertAtenAddSubOp<AtenAddScalarOp, tcp::AddOp>>(typeConverter,
+                                                                 context);
+  patterns.add<ConvertAtenAddSubOp<AtenSubScalarOp, tcp::SubOp>>(typeConverter,
+                                                                 context);
 
   target.addIllegalOp<AtenMulTensorOp>();
-  patterns.add<ConvertAtenMulOp>(typeConverter, context);
+  target.addIllegalOp<AtenMulScalarOp>();
+  patterns.add<ConvertAtenMulOp<AtenMulTensorOp>>(typeConverter, context);
+  patterns.add<ConvertAtenMulOp<AtenMulScalarOp>>(typeConverter, context);
 
   target.addIllegalOp<AtenDivTensorOp>();
-  patterns.add<ConvertAtenDivOp>(typeConverter, context);
+  target.addIllegalOp<AtenDivScalarOp>();
+  patterns.add<ConvertAtenDivOp<AtenDivTensorOp>>(typeConverter, context);
+  patterns.add<ConvertAtenDivOp<AtenDivScalarOp>>(typeConverter, context);
 
   target.addIllegalOp<AtenCeilOp>();
   target.addIllegalOp<AtenFloorOp>();

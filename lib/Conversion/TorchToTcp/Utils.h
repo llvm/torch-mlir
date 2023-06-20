@@ -17,16 +17,11 @@ namespace torch_to_tcp {
 Value broadcastRankInLeadingDims(ConversionPatternRewriter &rewriter,
                                  Value input, int64_t rankIncrease);
 
-// Helper function to broadcast all 1-dim shapes in input to match
-// that of target, without altering the rank, using `tcp::BroadcastOp`.
-Value broadcastShapeInLeadingDims(ConversionPatternRewriter &rewriter,
-                                  Value input, Value target,
-                                  int64_t numLeadingAxes);
-
-// Helper function to do both rank and shape leading-dim broadcasting
-// of the input to match target.
-Value broadcastInLeadingDimsToMatchShape(ConversionPatternRewriter &rewriter,
-                                         Value input, Value target);
+// Helper function to do both rank and shape all-dim broadcasting
+// of the inputs to match each other.
+std::pair<Value, Value>
+broadcastToMatchShape(ConversionPatternRewriter &rewriter, Value lhs,
+                      Value rhs);
 
 // Helper function to broadcast a 0D or 1D input tensor to match rank and shape
 // of target. For the 1D case, this projects the input vector to the
@@ -54,9 +49,18 @@ Value broadcast0DOr1DFromShape(ConversionPatternRewriter &rewriter, Value input,
                                ArrayRef<Value> targetVal,
                                SmallVector<int64_t> resultShape,
                                int64_t axisInOutput = 0);
+
 // Helper function to construct the shape info from a PrimListConstructOp.
 // default is ShapedType::kDynamic if the element is not a constant
 SmallVector<int64_t> getShapeFromPrimList(ArrayRef<Value> listVal);
+
+// Helper function to create a Tcp tensor from a scalar value
+Value scalarToTcpTensor(ConversionPatternRewriter &rewriter, Operation *op,
+                        Type targetType, Value scalarValue);
+
+// Helper function to convert a Tcp tensor to the target data type
+Value castTensorToDtype(ConversionPatternRewriter &rewriter, Type srcType,
+                        Type dstType, Value input, Type convertedType);
 
 // Utility function to create a tcp.const op with given content and shape.
 template <typename T>

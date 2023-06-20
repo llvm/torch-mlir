@@ -36,7 +36,7 @@ class LinalgOnTensorsTcpBackend(TcpBackend):
         """
         run_pipeline_with_repro_report(
             imported_module,
-            "builtin.module(func.func(convert-tcp-to-linalg))",
+            "builtin.module(func.func(convert-tcp-to-arith,convert-tcp-to-linalg))",
             "Lowering TCP to Linalg-on-Tensors")
 
         return self.refbackend.compile(imported_module)

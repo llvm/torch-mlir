@@ -47,40 +47,65 @@ Value torch_to_tcp::broadcastRankInLeadingDims(
       input.getDefiningOp()->getLoc(), resultType, input, reassociationMap);
 }
 
-// The parameters input and target are expected to be of RankedTensorType.
-Value torch_to_tcp::broadcastShapeInLeadingDims(
-    ConversionPatternRewriter &rewriter, Value input, Value target,
-    int64_t numLeadingAxes) {
-  Operation *op = input.getDefiningOp();
-  SmallVector<int64_t> axes;
-  SmallVector<Value> dimSizes;
-  for (int64_t axis = 0; axis < numLeadingAxes; ++axis) {
-    axes.push_back(axis);
-    dimSizes.push_back(
-        rewriter.createOrFold<tensor::DimOp>(op->getLoc(), target, axis));
+// The parameters input are expected to be of RankedTensorType.
+std::pair<Value, Value>
+torch_to_tcp::broadcastToMatchShape(ConversionPatternRewriter &rewriter,
+                                    Value lhs, Value rhs) {
+  RankedTensorType inputAType = lhs.getType().cast<RankedTensorType>();
+  RankedTensorType inputBType = rhs.getType().cast<RankedTensorType>();
+
+  Value resultA = lhs;
+  Value resultB = rhs;
+  if (inputAType.getRank() > inputBType.getRank())
+    resultB = torch_to_tcp::broadcastRankInLeadingDims(
+        rewriter, resultB, inputAType.getRank() - inputBType.getRank());
+  if (inputAType.getRank() < inputBType.getRank())
+    resultA = torch_to_tcp::broadcastRankInLeadingDims(
+        rewriter, resultA, inputBType.getRank() - inputAType.getRank());
+
+  inputAType = resultA.getType().cast<RankedTensorType>();
+  inputBType = resultB.getType().cast<RankedTensorType>();
+  SmallVector<int64_t> inputAShape(inputAType.getShape().begin(),
+                                   inputAType.getShape().end());
+  SmallVector<int64_t> inputBShape(inputBType.getShape().begin(),
+                                   inputBType.getShape().end());
+  assert(inputAShape.size() == inputBShape.size());
+
+  Operation *opA = lhs.getDefiningOp();
+  Operation *opB = rhs.getDefiningOp();
+  SmallVector<int64_t> axesA, axesB;
+  SmallVector<Value> dimSizesA, dimSizesB;
+
+  for (size_t curDim = 0; curDim < inputAShape.size(); curDim++) {
+    if (inputAShape[curDim] == 1 && inputBShape[curDim] != 1) {
+      axesA.push_back(curDim);
+      dimSizesA.push_back(
+          rewriter.createOrFold<tensor::DimOp>(opA->getLoc(), resultB, curDim));
+      inputAShape[curDim] = inputBShape[curDim];
+    }
+    if (inputBShape[curDim] == 1 && inputAShape[curDim] != 1) {
+      axesB.push_back(curDim);
+      dimSizesB.push_back(
+          rewriter.createOrFold<tensor::DimOp>(opB->getLoc(), resultA, curDim));
+      inputBShape[curDim] = inputAShape[curDim];
+    }
+  }
+  if (axesA.size() > 0) {
+    auto axesAttr = rewriter.getI64ArrayAttr(axesA);
+    Type resultType =
+        inputAType.cloneWith(inputAShape, inputAType.getElementType());
+    resultA = rewriter.create<tcp::BroadcastOp>(opA->getLoc(), resultType,
+                                                resultA, dimSizesA, axesAttr);
+  }
+  if (axesB.size() > 0) {
+    auto axesAttr = rewriter.getI64ArrayAttr(axesB);
+    Type resultType =
+        inputBType.cloneWith(inputBShape, inputBType.getElementType());
+    resultB = rewriter.create<tcp::BroadcastOp>(opB->getLoc(), resultType,
+                                                resultB, dimSizesB, axesAttr);
   }
 
-  auto axesAttr = rewriter.getI64ArrayAttr(axes);
-  return rewriter.create<tcp::BroadcastOp>(op->getLoc(), target.getType(),
-                                           input, dimSizes, axesAttr);
-}
-
-// The parameters input and target are expected to be of RankedTensorType.
-Value torch_to_tcp::broadcastInLeadingDimsToMatchShape(
-    ConversionPatternRewriter &rewriter, Value input, Value target) {
-  RankedTensorType targetType = target.getType().cast<RankedTensorType>();
-  RankedTensorType inputType = input.getType().cast<RankedTensorType>();
-
-  Value result = input;
-  if (inputType.getRank() < targetType.getRank()) {
-    int64_t rankIncrease = targetType.getRank() - inputType.getRank();
-    result = torch_to_tcp::broadcastRankInLeadingDims(rewriter, result,
-                                                      rankIncrease);
-    result = torch_to_tcp::broadcastShapeInLeadingDims(rewriter, result, target,
-                                                       rankIncrease);
-  }
-
-  return result;
+  return std::make_pair(resultA, resultB);
 }
 
 Value torch_to_tcp::broadcast0DOr1DToNDAndMatchShape(
@@ -204,6 +229,38 @@ Value torch_to_tcp::broadcast0DOr1DFromShape(
   return result;
 }
 
+Value torch_to_tcp::castTensorToDtype(ConversionPatternRewriter &rewriter,
+                                      Type srcType, Type dstType, Value input,
+                                      Type convertedType) {
+  if (srcType == dstType)
+    return input;
+
+  RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+  auto resultType = inputType.cloneWith(inputType.getShape(), convertedType);
+
+  auto getTcpSignednessAttr =
+      [](MLIRContext *context,
+         IntegerType::SignednessSemantics signednessInfo) {
+        if (signednessInfo == IntegerType::SignednessSemantics::Signless)
+          return SignednessAttr::get(context, Signedness::Signless);
+        if (signednessInfo == IntegerType::SignednessSemantics::Signed)
+          return SignednessAttr::get(context, Signedness::Signed);
+        return SignednessAttr::get(context, Signedness::Unsigned);
+      };
+
+  SignednessAttr inputSignedness;
+  SignednessAttr outputSignedness;
+  if (auto inputIntType = srcType.dyn_cast<mlir::IntegerType>())
+    inputSignedness = getTcpSignednessAttr(input.getDefiningOp()->getContext(),
+                                           inputIntType.getSignedness());
+  if (auto outputIntType = dstType.dyn_cast<mlir::IntegerType>())
+    outputSignedness = getTcpSignednessAttr(input.getDefiningOp()->getContext(),
+                                            outputIntType.getSignedness());
+  return rewriter.create<tcp::CastOp>(input.getDefiningOp()->getLoc(),
+                                      resultType, input, inputSignedness,
+                                      outputSignedness);
+}
+
 // TODO: Add unit tests for all getConstTensor* functions below
 template <typename T>
 std::optional<Value>
@@ -309,4 +366,25 @@ bool torch_to_tcp::getConstTensorWithType(ConversionPatternRewriter &rewriter,
     return false;
   }
   return true;
+}
+
+// scalarValue should be accessed by op itself, not through the adaptor
+Value torch_to_tcp::scalarToTcpTensor(ConversionPatternRewriter &rewriter,
+                                      Operation *op, Type targetType,
+                                      Value scalarValue) {
+  double doubleValue;
+  auto isFloat = matchPattern(scalarValue, m_TorchConstantFloat(&doubleValue));
+  if (isFloat) {
+    return *getConstTensor<double>(rewriter, op, llvm::ArrayRef(doubleValue),
+                                   {});
+  }
+
+  int64_t intValue;
+  auto isInt = matchPattern(scalarValue, m_TorchConstantInt(&intValue));
+  if (isInt) {
+    return *getConstTensor<int64_t>(rewriter, op, llvm::ArrayRef(intValue), {});
+  }
+
+  return rewriter.create<tensor::FromElementsOp>(op->getLoc(), targetType,
+                                                 ArrayRef<Value>{scalarValue});
 }
