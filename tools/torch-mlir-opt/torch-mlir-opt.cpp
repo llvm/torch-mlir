@@ -10,6 +10,7 @@
 #include "mlir/InitAllDialects.h"
 #include "mlir/InitAllPasses.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
+#include "mlir/InitAllExtensions.h"
 #include "torch-mlir/InitAll.h"
 
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
@@ -26,6 +27,7 @@ int main(int argc, char **argv) {
 
   DialectRegistry registry;
   registerAllDialects(registry);
+  registerAllExtensions(registry);
   mlir::torch::registerAllDialects(registry);
   
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
