@@ -8728,6 +8728,29 @@ def Torch_AtenAliasCopyOp : Torch_Op<"aten.alias_copy", [
   }];
 }
 
+def Torch_AtenAliasOp : Torch_Op<"aten.alias", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::alias : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenAliasOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenAliasOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_AtenAsStridedCopyOp : Torch_Op<"aten.as_strided_copy", [
     AllowsTypeRefinement,
     HasValueSemantics,

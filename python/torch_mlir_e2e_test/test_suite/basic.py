@@ -353,6 +353,28 @@ def FlattenDynamicModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AliasModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, inp_tensor):
+        return torch.ops.aten.alias(inp_tensor)
+
+
+@register_test_case(module_factory=lambda: AliasModule())
+def AliasModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 20, 20, low=-1))
+
+
+# ==============================================================================
+
+
 class ConstantPad2dStaticModule(torch.nn.Module):
 
     def __init__(self):
