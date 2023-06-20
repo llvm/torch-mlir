@@ -62,6 +62,15 @@ std::vector<torch::lazy::Shape> compute_shape_hardtanh(
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
+std::vector<torch::lazy::Shape> compute_shape_hardtanh_backward(
+    const at::Tensor& grad_output, 
+    const at::Tensor& self, 
+    const at::Scalar& min_val, 
+    const at::Scalar& max_val
+) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
 std::vector<torch::lazy::Shape> compute_shape_where(
   const at::Tensor & condition,
   const at::Tensor & self,
