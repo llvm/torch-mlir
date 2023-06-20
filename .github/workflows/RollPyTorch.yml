@@ -100,7 +100,7 @@ jobs:
     - name: Update PyTorch Build Cache (if running on main branch)
       if: github.ref_name == 'main'
       id: cache-pytorch
-      uses: ashay/cache@v1
+      uses: actions/cache@v3
       with:
         path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
         key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
@@ -114,15 +114,12 @@ jobs:
         git fetch --recurse-submodules=no
         git checkout main
         git pull origin main
-        git checkout -b rollpytorch/${{ env.PT_RELEASE }}
-        git add pytorch-hash.txt pytorch-requirements.txt torchvision-requirements.txt lib/Dialect/Torch/Transforms/AbstractInterpLibrary.cpp include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
-        git diff --cached --exit-code || git commit -m "update PyTorch version to ${{ env.PT_RELEASE }}"
 
     - name: Create pull request
       uses: peter-evans/create-pull-request@v5.0.1
       with:
         author: Roll PyTorch Action <torch-mlir@users.noreply.github.com>
-        branch: rollpytorch/${{ env.PT_RELEASE }}
+        branch: rollpytorch
         body: |
           torch version: ${{ env.PT_RELEASE }}
           torch commit hash: ${{ env.PT_HASH }}
@@ -135,4 +132,4 @@ jobs:
            - torchvision version: ${{ env.PTVISION_RELEASE }}
         committer: Roll PyTorch Action <torch-mlir@users.noreply.github.com>
         title: update PyTorch version to ${{ env.PT_RELEASE }}
-        reviewers: ashay, powderluv, vivekkhandelwal1
+        token: ${{ secrets.ROLLPYTORCH_TOKEN0 }}

@@ -74,22 +74,6 @@ jobs:
                    torch-mlir:ci \
                    bazel test @torch-mlir//test/...
 
-    - name: Bazel build torch-mlir-dialects
-      run: |
-        docker run --rm \
-                   -v "$(pwd)":"/opt/src/torch-mlir" \
-                   -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
-                   torch-mlir:ci \
-                   bazel build @torch-mlir//:torch-mlir-dialects-opt
-
-    - name: Bazel test torch-mlir-dialects (lit tests)
-      run: |
-        docker run --rm \
-                   -v "$(pwd)":"/opt/src/torch-mlir" \
-                   -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
-                   torch-mlir:ci \
-                   bazel test @torch-mlir//externals/llvm-external-projects/torch-mlir-dialects/test/...
-
     - name: Verify buildifier was run (bazel lint)
       run: |
         docker run --rm \
