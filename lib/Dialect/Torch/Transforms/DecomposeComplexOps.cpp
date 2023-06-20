@@ -219,13 +219,18 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Expected a constant boolean value for keepDim");
 
-    Value input = op.getSelf();    
+    Value input = op.getSelf();
+    auto inputTy = input.getType().dyn_cast<Torch::ValueTensorType>();
+    if (!inputTy || !inputTy.hasSizes()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Expected input type having sizes");
+    }
     // For every dimension included in `dim` of the op, iterated over in
     // reverse order, we create a call to aten.max.dim.
     std::sort(dims.begin(), dims.end());
     std::reverse(dims.begin(), dims.end());
     for (int64_t dimInt : dims) {
-      int64_t inputRank = input.getType().cast<Torch::ValueTensorType>().getSizes().size();
+      int64_t inputRank = inputTy.getSizes().size();
       dimInt = toPositiveDim(dimInt, inputRank);
       if (!isValidDim(dimInt, inputRank))
         return rewriter.notifyMatchFailure(op, "dim is statically invalid");
