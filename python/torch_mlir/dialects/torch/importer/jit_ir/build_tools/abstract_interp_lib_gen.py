@@ -926,6 +926,9 @@ def aten〇index_put〇hacked_twin〡shape(self: List[int], indices: List[List[i
 def aten〇embedding〡shape(weight: List[int], indices: List[int], padding_idx: int = -1, scale_grad_by_freq: bool = False, sparse: bool = False) -> List[int]:
     return upstream_shape_functions.embedding(weight, indices, padding_idx, scale_grad_by_freq, sparse)
 
+def aten〇embedding_dense_backward〡shape(grad_output: List[int], indices: List[int], num_weights: int, padding_idx: int, scale_grad_by_freq: bool) -> List[int]:
+    return [num_weights] + grad_output[len(indices):]
+
 def aten〇embedding_bag〇padding_idx〡shape(weight: List[int], indices: List[int], offsets: List[int], scale_grad_by_freq: bool, mode: int, sparse: bool, per_sample_weights: Optional[List[int]], include_last_offset: bool, padding_idx: Optional[int]) -> Tuple[List[int], List[int], List[int], List[int]]:
     return _embedding_bag_helper(weight, indices, offsets, include_last_offset, mode)
 
@@ -3257,6 +3260,10 @@ def aten〇log_softmax〇int〡dtype(self_rank_dtype: Tuple[int, int], dim: int,
 def aten〇embedding〡dtype(weight_rank_dtype: Tuple[int, int], indices_rank_dtype: Tuple[int, int], padding_idx: int = -1, scale_grad_by_freq: bool = False, sparse: bool = False) -> int:
     weight_rank, weight_dtype = weight_rank_dtype
     return weight_dtype
+
+def aten〇embedding_dense_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], indices_rank_dtype: Tuple[int, int], num_weights: int, padding_idx: int, scale_grad_by_freq: bool) -> int:
+    grad_output_rank, grad_output_dtype = grad_output_rank_dtype
+    return grad_output_dtype
 
 # TODO: to test these functions, we need to be able to specify the tensor contents used in each invocation
 def aten〇_embedding_bag〡dtype(weight_rank_dtype: Tuple[int, int], indices_rank_dtype: Tuple[int, int], offsets_rank_dtype: Tuple[int, int], scale_grad_by_freq: bool = False, mode: int = 0, sparse: bool = False, per_sample_weights_rank_dtype: Optional[Tuple[int, int]] = None, include_last_offset: bool = False, padding_idx: int = -1) -> Tuple[int, int, int, int]:

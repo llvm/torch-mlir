@@ -4533,6 +4533,127 @@ public:
 };
 } // namespace
 
+// The `embedding_dense_backward` op is decomposed as follows:
+// embedding_dense_backward(
+//    grad_output: Tensor,
+//    indices: Tensor,
+//    num_weights: int,
+//    padding_idx: int,
+//    scale_grad_by_freq: bool
+// )
+//
+// if scale_grad_by_freq:
+//     counts = indices.new_zeros((num_weights,))
+//     ones = torch.ones_like(indices)
+//     counts = aten.index_put(counts, [indices], ones, accumulate=True)
+//     grad_weights_scale = counts[indices]
+//     grad_output = grad_output / grad_weights_scale.unsqueeze(-1)
+//
+// mask = indices == padding_idx
+// for i in range(grad_output.ndim - mask.dim()):
+//     mask = mask.unsqueeze(-1)
+// grad = grad_output.masked_fill(mask, 0)
+// grad_weight = grad_output.new_zeros(
+//     (num_weights,) + grad_output.shape[indices.ndim :]
+// )
+// result = aten.index_put(grad_weight, [indices], grad, accumulate=True)
+namespace {
+class DecomposeAtenEmbeddingDenseBackwardOp
+    : public OpRewritePattern<AtenEmbeddingDenseBackwardOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenEmbeddingDenseBackwardOp op,
+                                PatternRewriter &rewriter) const override {
+    // TODO: Add support for casting the fp16 inputs to fp32 for computation and
+    // then convert the result back to fp16.
+    Location loc = op.getLoc();
+    Value gradOutput = op.getGradOutput();
+    Value indices = op.getIndices();
+
+    // TODO: Add support for `scale_grad_by_freq` equals to `True`.
+    bool scaleGradByFreq;
+    if (!matchPattern(op.getScaleGradByFreq(),
+                      m_TorchConstantBool(&scaleGradByFreq)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected a constant boolean value for scaleGradByFreq");
+    if (scaleGradByFreq)
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: constant value True for scaleGradByFreq.");
+
+    int64_t numWeights;
+    if (!matchPattern(op.getNumWeights(), m_TorchConstantInt(&numWeights)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected a constant integer value for num_weights");
+
+    Value cstMinusOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(-1));
+    Value cstNone = rewriter.create<ConstantNoneOp>(loc);
+    Value accumulate = rewriter.create<ConstantBoolOp>(loc, true);
+
+    auto indicesType = indices.getType().cast<BaseTensorType>();
+    Type maskType = indicesType.getWithSizesAndDtype(
+        indicesType.getOptionalSizes(), rewriter.getI1Type());
+    Value mask = rewriter.create<AtenEqScalarOp>(loc, maskType, indices,
+                                                 op.getPaddingIdx());
+
+    std::optional<unsigned> maybeRank = getTensorRank(gradOutput);
+    if (!maybeRank)
+      return rewriter.notifyMatchFailure(op, "Unimplemented: unranked tensor");
+    unsigned gradOutputRank = *maybeRank;
+
+    maybeRank = getTensorRank(mask);
+    if (!maybeRank)
+      return rewriter.notifyMatchFailure(op, "Unimplemented: unranked tensor");
+    unsigned maskRank = *maybeRank;
+
+    for (unsigned i = 0; i < (gradOutputRank - maskRank); i++) {
+      auto unsqzTensorInfo =
+          unsqueezeTensor(rewriter, op, mask, /*dim=*/cstMinusOne);
+      if (failed(unsqzTensorInfo)) {
+        return rewriter.notifyMatchFailure(op,
+                                           "cannot generate unsqueeze tensor");
+      }
+      mask = *unsqzTensorInfo;
+    }
+
+    auto gradOutputType = gradOutput.getType().cast<BaseTensorType>();
+    if (!gradOutputType.hasDtype())
+      return rewriter.notifyMatchFailure(op, "Dtype not present");
+    Type dType = gradOutputType.getDtype();
+    Value fillValue =
+        getConstantWithGivenDtypeAndValue(rewriter, loc, 0.0, dType);
+    Value grad = rewriter.create<AtenMaskedFillScalarOp>(
+        loc, gradOutput.getType(), gradOutput, mask, fillValue);
+
+    SmallVector<int64_t> gradOutputShapeInt(gradOutputType.getSizes());
+    SmallVector<int64_t> gradWeightShapeInt{numWeights};
+    SmallVector<Value> gradWeightShape{op.getNumWeights()};
+    for (unsigned i = maskRank; i < gradOutputRank; i++) {
+      gradWeightShape.push_back(rewriter.create<AtenSizeIntOp>(
+          loc, gradOutput,
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i))));
+      gradWeightShapeInt.push_back(gradOutputShapeInt[i]);
+    }
+    Type gradWeightType =
+        gradOutputType.getWithSizesAndDtype(gradWeightShapeInt, dType);
+    Value gradWeightShapeList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op->getContext())),
+        gradWeightShape);
+    Value gradWeight = rewriter.create<AtenNewZerosOp>(
+        loc, gradWeightType, gradOutput, gradWeightShapeList, /*dtype=*/cstNone,
+        /*layout=*/cstNone,
+        /*device=*/cstNone, /*pin_memory=*/cstNone);
+
+    Value indicesList = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), Torch::ListType::get(indices.getType()), indices);
+    rewriter.replaceOpWithNewOp<AtenIndexPutOp>(
+        op, op->getResultTypes(), /*self=*/gradWeight, /*indices=*/indicesList,
+        /*values=*/grad, accumulate);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
@@ -4701,6 +4822,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenScalarTensor>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScatterValueOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSignOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenEmbeddingDenseBackwardOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

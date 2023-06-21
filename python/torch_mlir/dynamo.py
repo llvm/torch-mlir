@@ -54,7 +54,6 @@ def _get_decomposition_table():
         aten.split.Tensor,
         aten.split_with_sizes,
         aten.norm.ScalarOpt_dim,
-        aten.embedding_dense_backward,
         aten.native_layer_norm_backward,
         aten.slice_backward,
         aten.select_backward,
