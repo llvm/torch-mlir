@@ -6996,6 +6996,31 @@ def Torch_AtenDetachOp : Torch_Op<"aten.detach", [
   let hasFolder = 1;
 }
 
+def Torch_AtenDeviceWithIndexOp : Torch_Op<"aten.device.with_index", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::device.with_index : (str, int) -> (Device)`";
+  let arguments = (ins
+    Torch_StringType:$type,
+    Torch_IntType:$index
+  );
+  let results = (outs
+    Torch_DeviceType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenDeviceWithIndexOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenDeviceWithIndexOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasCanonicalizer = 1;
+}
+
 def Torch_AtenCudaOp : Torch_Op<"aten.cuda", [
     AllowsTypeRefinement,
     ReadOnly

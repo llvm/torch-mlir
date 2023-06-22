@@ -2001,3 +2001,13 @@ func.func @torch.aten.cuda$canonicalize(%arg0: !torch.tensor) -> !torch.tensor {
   %0 = torch.aten.cuda %arg0 : !torch.tensor -> !torch.tensor
   return %0 : !torch.tensor
 }
+
+// CHECK-LABEL:  func.func @torch.aten.device.with_index$canonicalize
+// CHECK-NEXT:     %[[VAL:.*]] = torch.constant.device "cuda:0"
+// CHECK-NEXT:     return %[[VAL]] : !torch.Device
+func.func @torch.aten.device.with_index$canonicalize() -> !torch.Device {
+  %str = torch.constant.str "cuda"
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.device.with_index %str, %int0 : !torch.str, !torch.int -> !torch.Device
+  return %0 : !torch.Device
+}
