@@ -55,8 +55,17 @@ TorchMlirOpVector LowerTorchMlirBuiltin(
   CHECK(sv);
 
   TorchMlirOpVector results;
-  if (sv->getValue()->type()->kind() == c10::TypeKind::TupleType) {
-    // Op returns multiple values.
+  if (sv->getValue()->type()->kind() == c10::TypeKind::ListType) {
+    // Unpack dynamic multi-output operations like aten::split with Tensor[] output type.
+    // This is required to have consistent input types for multi-output node consumers.
+    torch::jit::Node * node = function->graph()->createListUnpack(sv->getValue(), tensor_types.size());
+    function->graph()->insertNode(node);
+    for (const auto & output : node->outputs()) {
+      results.push_back(output);
+    }
+  } else if (sv->getValue()->type()->kind() == c10::TypeKind::TupleType) {
+    // Op returns multiple values and the number of outputs is static and defined
+    // by the operation schema.
     const auto tuple_call_result = sv->asTuple({}, *function);
     for (const auto& tuple_component : tuple_call_result) {
       auto tuple_component_sv =

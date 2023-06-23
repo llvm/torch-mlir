@@ -333,6 +333,11 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::imag : (Tensor) -> (Tensor)")
     emit("aten::view_as_complex : (Tensor) -> (Tensor)")
 
+    # Ops with dynamic number of outputs
+    emit("aten::unbind_copy.int : (Tensor, int) -> (Tensor[])")
+    emit("aten::split_copy.Tensor : (Tensor, int, int) -> (Tensor[])")
+    emit("aten::split_with_sizes_copy : (Tensor, int[], int) -> (Tensor[])")
+
     # Random number generation
     emit_with_mutating_variants("aten::uniform : (Tensor, float, float, Generator?) -> (Tensor)")
     emit("aten::rand_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
