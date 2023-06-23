@@ -4313,7 +4313,6 @@ class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
       return rewriter.notifyMatchFailure(
           op, "unimplemented: num_classes must be constant");
     Value none = rewriter.create<ConstantNoneOp>(loc);
-    Value falseValue = rewriter.create<ConstantBoolOp>(loc, false);
 
     // arange tensor
     auto si64Type = IntegerType::get(context, 64, IntegerType::Signed);
@@ -4341,11 +4340,7 @@ class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
         loc, eqType, unsqueezeTensor, arangeTensor);
 
     // convert to si64
-    Value si64TypeValue =
-        Torch::getDtypeIntValueForType(rewriter, loc, si64Type);
-    Value result = rewriter.create<AtenToDtypeOp>(
-        loc, op.getType(), eqTensor, si64TypeValue, /*non_blocking=*/falseValue,
-        /*copy=*/falseValue, /*memory_format=*/none);
+    Value result = convertTensorToDtype(rewriter, loc, eqTensor, si64Type);
     rewriter.replaceOp(op, result);
     return success();
   }
