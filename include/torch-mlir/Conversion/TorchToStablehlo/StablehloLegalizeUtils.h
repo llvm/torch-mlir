@@ -45,7 +45,8 @@ Value getSplatConstTensor(ConversionPatternRewriter &rewriter, Operation *op,
 Value scalarToStablehloTensor(ConversionPatternRewriter &rewriter,
                               Operation *op, Value scalarValue, Type dtype);
 
-Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType);
+Value promoteType(PatternRewriter &rewriter, Location loc, Value input,
+                  TensorType outType);
 
 Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
                           TensorType outType);
