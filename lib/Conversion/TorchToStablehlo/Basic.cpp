@@ -148,7 +148,7 @@ public:
     auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
                        ->convertType(op.getType())
                        .template cast<TensorType>();
-    self = hlo::promoteType(rewriter, self, outType);
+    self = hlo::promoteType(rewriter, op.getLoc(), self, outType);
     rewriter.replaceOpWithNewOp<StablehloOpT>(op, outType, self);
     return success();
   }
@@ -253,8 +253,8 @@ public:
                      ->convertType(op.getType())
                      .template cast<TensorType>();
 
-    lhs = hlo::promoteType(rewriter, lhs, outTy);
-    rhs = hlo::promoteType(rewriter, rhs, outTy);
+    lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outTy);
+    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outTy);
 
     rewriter.replaceOpWithNewOp<ChloOpT>(op, outTy, lhs, rhs,
                                          /*broadcast_attr*/ nullptr);
@@ -300,8 +300,8 @@ public:
       }
     }
 
-    lhs = hlo::promoteType(rewriter, lhs, outType);
-    rhs = hlo::promoteType(rewriter, rhs, outType);
+    lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outType);
+    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outType);
 
     if (!skipMultiplyAlpha(op.getAlpha())) {
       Value alpha = hlo::scalarToStablehloTensor(rewriter, op,
@@ -354,8 +354,8 @@ public:
                                          outElemTy);
     }
     DenseIntElementsAttr bcastDimensions;
-    lhs = hlo::promoteType(rewriter, lhs, outType);
-    rhs = hlo::promoteType(rewriter, rhs, outType);
+    lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outType);
+    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outType);
     auto loc = op.getLoc();
     Value result =
         rewriter.create<ChloOpT>(loc, outType, lhs, rhs, bcastDimensions);
@@ -427,7 +427,7 @@ public:
     }
 
     // TODO: what is the PyTorch default type promotion?
-    rhs = hlo::promoteType(rewriter, rhs, lhsTy);
+    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, lhsTy);
 
     chlo::ComparisonTypeAttr compareTypeAttr;
     chlo::ComparisonDirectionAttr compareDirectionAttr;
@@ -494,8 +494,10 @@ public:
     TensorType outType = OpConversionPattern<AtenOpT>::getTypeConverter()
                              ->convertType(op.getType())
                              .template cast<TensorType>();
-    Value lhs = hlo::promoteType(rewriter, adaptor.getSelf(), outType);
-    Value rhs = hlo::promoteType(rewriter, adaptor.getOther(), outType);
+    Value lhs =
+        hlo::promoteType(rewriter, op.getLoc(), adaptor.getSelf(), outType);
+    Value rhs =
+        hlo::promoteType(rewriter, op.getLoc(), adaptor.getOther(), outType);
 
     DenseIntElementsAttr bcastDimensions;
     rewriter.replaceOpWithNewOp<ChloOpT>(op, outType, lhs, rhs,
@@ -610,8 +612,8 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
   auto outType =
       getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
   // promote self and other types
-  self = hlo::promoteType(rewriter, self, outType);
-  other = hlo::promoteType(rewriter, other, outType);
+  self = hlo::promoteType(rewriter, op.getLoc(), self, outType);
+  other = hlo::promoteType(rewriter, op.getLoc(), other, outType);
 
   if (failed(
           broadcastRanks(rewriter, op, self, cond, options.dimSizeIndexBits)))
@@ -807,8 +809,8 @@ LogicalResult ConvertAtenOp<AtenPowTensorScalarOp>::matchAndRewrite(
     rhs = hlo::scalarToStablehloTensor(rewriter, op, rhs, outElemTy);
   }
   DenseIntElementsAttr bcastDimensions;
-  lhs = hlo::promoteType(rewriter, lhs, outType);
-  rhs = hlo::promoteType(rewriter, rhs, outType);
+  lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outType);
+  rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outType);
   auto loc = op.getLoc();
   Value result = rewriter.create<chlo::BroadcastPowOp>(loc, outType, lhs, rhs,
                                                        bcastDimensions);
@@ -1212,7 +1214,7 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
 
   // Promote type
   for (auto &v : builtinTensors) {
-    v = hlo::promoteType(rewriter, v, outType);
+    v = hlo::promoteType(rewriter, op->getLoc(), v, outType);
   }
 
   rewriter.replaceOpWithNewOp<stablehlo::ConcatenateOp>(
@@ -1404,8 +1406,8 @@ LogicalResult ConvertAtenOp<AtenPowTensorTensorOp>::matchAndRewrite(
   auto outTy =
       this->getTypeConverter()->convertType(op.getType()).cast<TensorType>();
 
-  lhs = hlo::promoteType(rewriter, lhs, outTy);
-  rhs = hlo::promoteType(rewriter, rhs, outTy);
+  lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outTy);
+  rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outTy);
 
   rewriter.replaceOpWithNewOp<chlo::BroadcastPowOp>(op, outTy, lhs, rhs,
                                                     /*broadcast_attr*/ nullptr);
