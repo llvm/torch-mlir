@@ -403,6 +403,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::avg_pool2d : (Tensor, int[], int[], int[], bool, bool, int?) -> (Tensor)"
     )
     emit(
+        "aten::avg_pool1d : (Tensor, int[], int[], int[], bool, bool) -> (Tensor)"
+    )
+    emit(
         "aten::softmax.int : (Tensor, int, int?) -> (Tensor)"
     )
     emit(

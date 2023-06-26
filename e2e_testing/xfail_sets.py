@@ -590,6 +590,7 @@ STABLEHLO_PASS_SET = {
     "ViewOffsetBackwardTestStaticModule_basic",
     "NumToTensorFloatModule_basic",
     "AtenToDeviceModule_basic",
+    "AvgPool1dStaticModule_basic",
     "AvgPool2dStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_basic",
     "Convolution2DStaticModule_basic",
