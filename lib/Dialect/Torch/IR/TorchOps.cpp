@@ -503,6 +503,27 @@ void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// RuntimeAssertOp
+//===----------------------------------------------------------------------===//
+
+void RuntimeAssertOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add(+[](RuntimeAssertOp op, PatternRewriter &rewriter) {
+    bool value;
+    if (!matchPattern(op.getCondition(), m_TorchConstantBool(&value)))
+      return failure();
+
+    if (value) {
+        rewriter.eraseOp(op);
+        return success();
+    }
+    // Even if the condition is statically false, the assert might never be
+    // executed.
+    return failure();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // DerefineOp
 //===----------------------------------------------------------------------===//
 
@@ -1861,6 +1882,22 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenIsFloatingPointOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenIsFloatingPointOp::fold(FoldAdaptor adaptor) {
+  auto operandType = getSelf().getType().dyn_cast<BaseTensorType>();
+  if (!operandType)
+    return nullptr;
+  if (operandType.hasDtype()) {
+    bool isFloatType = operandType.getDtype().isa<mlir::FloatType>();
+    return IntegerAttr::get(IntegerType::get(getContext(), 1), isFloatType);
+  }
+  // doesn't has dtype
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenAddTOp
 //===----------------------------------------------------------------------===//
 
@@ -2182,6 +2219,14 @@ atenBinaryFloatOperatorFoldHelper(ArrayRef<Attribute> operands,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenAliasOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenAliasOp::fold(FoldAdaptor adaptor) {
+  return getOperand();
+}
+
+//===----------------------------------------------------------------------===//
 // AtenFloordivIntOp
 //===----------------------------------------------------------------------===//
 
@@ -2392,6 +2437,43 @@ void PrimDeviceOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     // Device information isn't relevant to torch-mlir, just replace it with
     // "cpu".
     rewriter.replaceOpWithNewOp<Torch::ConstantDeviceOp>(op, "cpu");
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenCudaOp
+//===----------------------------------------------------------------------===//
+
+void AtenCudaOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                             MLIRContext *context) {
+  patterns.add(+[](AtenCudaOp op, PatternRewriter &rewriter) {
+    // Device information isn't relevant to torch-mlir
+    auto inputTensor = op.getSelf();
+    rewriter.replaceOp(op, inputTensor);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenDeviceWithIndexOp
+//===----------------------------------------------------------------------===//
+
+void AtenDeviceWithIndexOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenDeviceWithIndexOp op, PatternRewriter &rewriter) {
+    std::string type;
+    int64_t index;
+    if (!matchPattern(op.getType(), m_TorchConstantStr(type))) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: type must be a constant string");
+    }
+    if (!matchPattern(op.getIndex(), m_TorchConstantInt(&index))) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: index must be a constant integer");
+    }
+    rewriter.replaceOpWithNewOp<Torch::ConstantDeviceOp>(
+        op, type + ":" + std::to_string(index));
     return success();
   });
 }

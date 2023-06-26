@@ -246,6 +246,52 @@ public:
   }
 };
 
+class RecomposeSplitTensorListUnpack
+    : public OpRewritePattern<PrimListUnpackOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimListUnpackOp op,
+                                PatternRewriter &rewriter) const override {
+    // recompose AtenSplitTensorOp + PrimListUnpackOp to AtenSliceTensorOps
+    auto splitTensorOp =
+        dyn_cast<AtenSplitTensorOp>(op.getOperand().getDefiningOp());
+    if (!splitTensorOp)
+      return rewriter.notifyMatchFailure(op, "Input is not AtenSplitTensorOp");
+    if (isListPotentiallyMutated(splitTensorOp.getResult()))
+      return rewriter.notifyMatchFailure(
+          op, "SplitTensorOp result is potentially mutated");
+
+    int64_t splitSize;
+    if (!matchPattern(splitTensorOp.getSplitSize(),
+                      m_TorchConstantInt(&splitSize)))
+      return rewriter.notifyMatchFailure(
+          op,
+          "Expected `SplitSize` of `AtenSplitTensorOp` to be a constant int");
+
+    Location loc = op.getLoc();
+    Value step =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+
+    SmallVector<Value> slices;
+    for (size_t i = 0; i < op.getNumResults(); i++) {
+      auto resultTy = op.getResult(i).getType();
+      auto start = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(i * splitSize));
+      auto end = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr((i + 1) * splitSize));
+      Value sliceTensorOp = rewriter.create<AtenSliceTensorOp>(
+          loc, resultTy, splitTensorOp.getSelf(), splitTensorOp.getDim(), start,
+          end, step);
+      slices.push_back(sliceTensorOp);
+    }
+    rewriter.replaceOp(op, slices);
+    // erase splitTensorOp if no user left
+    if (splitTensorOp.getResult().use_empty())
+      rewriter.eraseOp(splitTensorOp);
+    return success();
+  }
+};
+
 class RecomposeChunkListUnpack : public OpRewritePattern<PrimListUnpackOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -312,6 +358,7 @@ public:
     patterns.add<RecomposeSliceCopy_>(context);
     patterns.add<RecomposeSelectFill_>(context);
     patterns.add<RecomposeSplitTensorGetItemOp>(context);
+    patterns.add<RecomposeSplitTensorListUnpack>(context);
     patterns.add<RecomposeUnbindListUnpack>(context);
     patterns.add<RecomposeUnbindGetItem>(context);
     patterns.add<RecomposeChunkListUnpack>(context);

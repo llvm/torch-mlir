@@ -21,6 +21,30 @@ func.func @torch.aten.__range_length$fold() -> (!torch.int, !torch.int, !torch.i
   return %0, %1, %2, %3 : !torch.int, !torch.int, !torch.int, !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.runtime.assert
+// CHECK-NEXT:      return
+func.func @torch.runtime.assert() {
+  %true = torch.constant.bool true
+  torch.runtime.assert %true, "msg"
+  return
+}
+
+// CHECK-LABEL:   func.func @torch.aten.is_floating_point$fold_true
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func.func @torch.aten.is_floating_point$fold_true(%arg0: !torch.vtensor<[], f32>) -> !torch.bool {
+  %0 = torch.aten.is_floating_point %arg0 : !torch.vtensor<[], f32> -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch.aten.is_floating_point$fold_false
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func.func @torch.aten.is_floating_point$fold_false(%arg0: !torch.vtensor<[], si64>) -> !torch.bool {
+  %0 = torch.aten.is_floating_point %arg0 : !torch.vtensor<[], si64> -> !torch.bool
+  return %0 : !torch.bool
+}
+
 // CHECK-LABEL:   func.func @torch.aten.__is__
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
 // CHECK:           return %[[FALSE]] : !torch.bool
@@ -1968,4 +1992,22 @@ func.func @torch.aten.ScalarImplicit$canonicalize_literal_0d() -> !torch.number 
 func.func @torch.prims.view_of$fold(%arg0: !torch.vtensor<[3,4,2],f32>) -> !torch.vtensor<[3,4,2],f32> {
   %0 = torch.prims.view_of %arg0 : !torch.vtensor<[3,4,2],f32> -> !torch.vtensor<[3,4,2],f32>
   return %0 : !torch.vtensor<[3,4,2],f32>
+}
+
+// CHECK-LABEL:  func.func @torch.aten.cuda$canonicalize
+// CHECK-SAME:           %[[ARG:.*]]: !torch.tensor
+// CHECK-NEXT:     return %[[ARG]] : !torch.tensor
+func.func @torch.aten.cuda$canonicalize(%arg0: !torch.tensor) -> !torch.tensor {
+  %0 = torch.aten.cuda %arg0 : !torch.tensor -> !torch.tensor
+  return %0 : !torch.tensor
+}
+
+// CHECK-LABEL:  func.func @torch.aten.device.with_index$canonicalize
+// CHECK-NEXT:     %[[VAL:.*]] = torch.constant.device "cuda:0"
+// CHECK-NEXT:     return %[[VAL]] : !torch.Device
+func.func @torch.aten.device.with_index$canonicalize() -> !torch.Device {
+  %str = torch.constant.str "cuda"
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.device.with_index %str, %int0 : !torch.str, !torch.int -> !torch.Device
+  return %0 : !torch.Device
 }

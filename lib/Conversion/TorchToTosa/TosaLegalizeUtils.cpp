@@ -169,13 +169,12 @@ std::optional<Value> getZerosLikeTensor(PatternRewriter &rewriter,
       .getResult();
 }
 
-
 // Templated function to create a constant op for given type and shape.
 // T: storage C type.
 // Default template creates a constant tensor in T.
 template <typename T>
 std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
-                                    ArrayRef<T> vec, ArrayRef<int64_t> shape) {
+                                    ArrayRef<T> vec, ArrayRef<int64_t> shape, std::optional<Type> dtype) {
   uint64_t num_total_elements = 1;
   for (int64_t a : shape) {
     num_total_elements *= a;
@@ -192,6 +191,11 @@ std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
 
   auto const_op =
       rewriter.create<tosa::ConstOp>(op->getLoc(), const_type, const_attr);
+
+  if (dtype) {
+   return rewriter.createOrFold<tosa::CastOp>(
+        op->getLoc(), RankedTensorType::get(shape, *dtype), const_op);
+  }
   return const_op.getResult();
 }
 
@@ -199,7 +203,7 @@ std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
 template <>
 std::optional<Value> getConstTensor<APInt>(PatternRewriter &rewriter,
                                            Operation *op, ArrayRef<APInt> vec,
-                                           ArrayRef<int64_t> shape) {
+                                           ArrayRef<int64_t> shape, std::optional<Type> dtype) {
   uint64_t num_total_elements = 1;
   for (int64_t a : shape) {
     num_total_elements *= a;
@@ -216,6 +220,11 @@ std::optional<Value> getConstTensor<APInt>(PatternRewriter &rewriter,
 
   auto const_op =
       rewriter.create<tosa::ConstOp>(op->getLoc(), const_type, const_attr);
+
+  if (dtype) {
+   return rewriter.createOrFold<tosa::CastOp>(
+        op->getLoc(), RankedTensorType::get(shape, *dtype), const_op);
+  }
   return const_op.getResult();
 }
 
@@ -223,7 +232,7 @@ std::optional<Value> getConstTensor<APInt>(PatternRewriter &rewriter,
 template <>
 std::optional<Value> getConstTensor<float>(PatternRewriter &rewriter,
                                            Operation *op, ArrayRef<float> vec,
-                                           ArrayRef<int64_t> shape) {
+                                           ArrayRef<int64_t> shape, std::optional<Type> dtype) {
   uint64_t num_total_elements = 1;
   for (int64_t a : shape) {
     num_total_elements *= a;
@@ -239,12 +248,16 @@ std::optional<Value> getConstTensor<float>(PatternRewriter &rewriter,
 
   auto const_op =
       rewriter.create<tosa::ConstOp>(op->getLoc(), const_type, const_attr);
+
+  if (dtype) {
+   return rewriter.createOrFold<tosa::CastOp>(
+        op->getLoc(), RankedTensorType::get(shape, *dtype), const_op);
+  }
   return const_op.getResult();
 }
 
 static LogicalResult checkValidityOfCast(Type src, Type dest) {
-  if ((src == dest) ||
-      (src.isInteger(64) && dest.isInteger(32)) ||
+  if ((src == dest) || (src.isInteger(64) && dest.isInteger(32)) ||
       (src.isInteger(64) && dest.isInteger(8)) ||
       (src.isInteger(64) && dest.isInteger(1)) ||
       (src.isInteger(64) && dest.isF32()) ||
@@ -256,18 +269,14 @@ static LogicalResult checkValidityOfCast(Type src, Type dest) {
       (src.isInteger(8) && dest.isInteger(1)) ||
       (src.isInteger(8) && dest.isBF16()) ||
       (src.isInteger(1) && dest.isInteger(64)) ||
-      (src.isInteger(1) && dest.isF32()) ||
-      (src.isF32() && dest.isF64()) ||
-      (src.isF32() && dest.isBF16()) ||
-      (src.isF64() && dest.isF32()) ||
-      (src.isF64() && dest.isBF16()) ||
-      (src.isF32() && dest.isInteger(8)) ||
+      (src.isInteger(1) && dest.isF32()) || (src.isF32() && dest.isF64()) ||
+      (src.isF32() && dest.isBF16()) || (src.isF64() && dest.isF32()) ||
+      (src.isF64() && dest.isBF16()) || (src.isF32() && dest.isInteger(8)) ||
       (src.isF32() && dest.isInteger(64)) ||
       (src.isF32() && dest.isInteger(1)) ||
       (src.isBF16() && dest.isInteger(8)) ||
       (src.isBF16() && dest.isInteger(16)) ||
-      (src.isBF16() && dest.isInteger(32)) ||
-      (src.isBF16() && dest.isF32())) {
+      (src.isBF16() && dest.isInteger(32)) || (src.isBF16() && dest.isF32())) {
     return success();
   }
   return failure();
@@ -335,11 +344,35 @@ Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType) {
 template std::optional<Value> getConstTensor<int32_t>(PatternRewriter &,
                                                       Operation *,
                                                       ArrayRef<int32_t> vec,
-                                                      ArrayRef<int64_t> shape);
+                                                      ArrayRef<int64_t> shape,
+                                                      std::optional<Type> dtype);
 
 template std::optional<Value> getConstTensor<int64_t>(PatternRewriter &,
                                                       Operation *,
                                                       ArrayRef<int64_t> vec,
-                                                      ArrayRef<int64_t> shape);
+                                                      ArrayRef<int64_t> shape,
+                                                      std::optional<Type> dtype);
+
+LogicalResult getAvgPool2dAccType(PatternRewriter &rewriter, Value input,
+                                  TypeAttr &accType) {
+  auto inputTy = llvm::dyn_cast<ShapedType>(input.getType());
+  if (!inputTy)
+    return failure();
+  auto inputETy = inputTy.getElementType();
+
+  if (auto quantType =
+          llvm::dyn_cast<mlir::quant::UniformQuantizedType>(inputETy))
+    inputETy = quantType.getStorageType();
+
+  // Tosa supports FP16 and FP32 accumulator type for FP16 input. When the time
+  // FP16 is supported, the accumulator type can be selected based on trade-off
+  // between performance and accuracy. Set to FP32 by default.
+  accType = inputETy.isa<FloatType>()
+                ? mlir::TypeAttr::get(rewriter.getF32Type())
+                : mlir::TypeAttr::get(rewriter.getIntegerType(32));
+
+  return success();
+}
+
 } // namespace tosa
 } // namespace mlir

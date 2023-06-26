@@ -219,13 +219,18 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Expected a constant boolean value for keepDim");
 
-    Value input = op.getSelf();    
+    Value input = op.getSelf();
+    auto inputTy = input.getType().dyn_cast<Torch::ValueTensorType>();
+    if (!inputTy || !inputTy.hasSizes()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Expected input type having sizes");
+    }
     // For every dimension included in `dim` of the op, iterated over in
     // reverse order, we create a call to aten.max.dim.
     std::sort(dims.begin(), dims.end());
     std::reverse(dims.begin(), dims.end());
     for (int64_t dimInt : dims) {
-      int64_t inputRank = input.getType().cast<Torch::ValueTensorType>().getSizes().size();
+      int64_t inputRank = inputTy.getSizes().size();
       dimInt = toPositiveDim(dimInt, inputRank);
       if (!isValidDim(dimInt, inputRank))
         return rewriter.notifyMatchFailure(op, "dim is statically invalid");
@@ -346,6 +351,20 @@ public:
                                                 rewriter.getI64IntegerAttr(0));
     rewriter.replaceOpWithNewOp<AtenFillScalarOp>(op, op.getType(), op.getSelf(),
                                                   zero);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenIsnanOp : public OpRewritePattern<AtenIsnanOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenIsnanOp op,
+                                PatternRewriter &rewriter) const override {
+    Value input = op.getSelf();
+    // Create a new aten.ne operation with the same type and input value.
+    rewriter.replaceOpWithNewOp<AtenNeTensorOp>(op, op.getType(), input, input);
     return success();
   }
 };
@@ -4294,7 +4313,6 @@ class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
       return rewriter.notifyMatchFailure(
           op, "unimplemented: num_classes must be constant");
     Value none = rewriter.create<ConstantNoneOp>(loc);
-    Value falseValue = rewriter.create<ConstantBoolOp>(loc, false);
 
     // arange tensor
     auto si64Type = IntegerType::get(context, 64, IntegerType::Signed);
@@ -4322,11 +4340,7 @@ class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
         loc, eqType, unsqueezeTensor, arangeTensor);
 
     // convert to si64
-    Value si64TypeValue =
-        Torch::getDtypeIntValueForType(rewriter, loc, si64Type);
-    Value result = rewriter.create<AtenToDtypeOp>(
-        loc, op.getType(), eqTensor, si64TypeValue, /*non_blocking=*/falseValue,
-        /*copy=*/falseValue, /*memory_format=*/none);
+    Value result = convertTensorToDtype(rewriter, loc, eqTensor, si64Type);
     rewriter.replaceOp(op, result);
     return success();
   }
@@ -4474,6 +4488,52 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.sign` op into comparisons and aten.where.
+class DecomposeAtenSignOp : public OpRewritePattern<AtenSignOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSignOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto outType = op.getType().dyn_cast<BaseTensorType>();
+    if (!outType)
+      return rewriter.notifyMatchFailure(
+          op, "Only tensor types input are currently supported");
+
+    auto zero =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+    auto one =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    auto minusOne =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(-1.0));
+
+    auto compTy = outType.getWithSizesAndDtype(outType.getOptionalSizes(),
+                                               rewriter.getI1Type());
+
+    auto greater =
+        rewriter.create<AtenGtScalarOp>(loc, compTy, op.getSelf(), zero);
+    auto greaterEqual =
+        rewriter.create<AtenGeScalarOp>(loc, compTy, op.getSelf(), zero);
+
+    // Pseudo code:
+    // if (in >= 0)
+    //   if (in > 0)
+    //     return 1
+    //   else
+    //     return 0
+    // else
+    //   return -1
+    auto selectGreater =
+        rewriter.create<AtenWhereScalarOp>(loc, outType, greater, one, zero);
+
+    rewriter.replaceOpWithNewOp<AtenWhereScalarOtherOp>(op, outType, greaterEqual,
+                                                   selectGreater, minusOne);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -4572,6 +4632,7 @@ public:
         DecomposeAtenBernoulliLikeOp<AtenBernoulliPOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBernoulliTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenZeroOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenIsnanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
@@ -4639,6 +4700,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenTopkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScalarTensor>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScatterValueOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSignOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

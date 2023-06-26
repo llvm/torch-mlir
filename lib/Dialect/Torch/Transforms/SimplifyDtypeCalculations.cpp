@@ -171,6 +171,11 @@ public:
       return rewriter.notifyMatchFailure(
           op, "`PrimNumToTensorScalarOp` already has a dtype");
 
+    if (op.getA().getType().isa<Torch::NumberType>()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "`PrimNumToTensorScalarOp`'s input "
+                                         "should have concrete Scalar Type.");
+    }
     Type inputType = getBuiltInTypeForTorchScalar(op.getA().getType());
     auto impliedTypeFromInputType =
         originalResultType.cast<BaseTensorType>()

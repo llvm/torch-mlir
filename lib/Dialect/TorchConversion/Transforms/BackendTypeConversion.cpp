@@ -29,14 +29,15 @@ setupValueTensorToBuiltinTensorConversion(ConversionTarget &target,
   target.addLegalOp<TorchConversion::ToBuiltinTensorOp,
                     TorchConversion::FromBuiltinTensorOp>();
   typeConverter.addConversion(
-      [](Torch::ValueTensorType type) -> Optional<Type> {
+      [](Torch::ValueTensorType type) -> std::optional<Type> {
         return type.toBuiltinTensor();
       });
   typeConverter.addTargetMaterialization([](OpBuilder &builder, TensorType type,
                                             ValueRange inputs,
                                             Location loc) -> Value {
     assert(inputs.size() == 1);
-    assert(inputs[0].getType().isa<Torch::BaseTensorType>());
+    if (!inputs[0].getType().isa<Torch::BaseTensorType>())
+      return {};
     return builder.create<ToBuiltinTensorOp>(loc, inputs[0]);
   });
   auto sourceMaterialization = [](OpBuilder &builder,
@@ -53,12 +54,12 @@ setupValueTensorToBuiltinTensorConversion(ConversionTarget &target,
 static void setupTorchBoolToI1Conversion(ConversionTarget &target,
                                          TypeConverter &typeConverter) {
   target.addLegalOp<TorchConversion::ToI1Op, TorchConversion::FromI1Op>();
-  typeConverter.addConversion([](Torch::BoolType type) -> Optional<Type> {
+  typeConverter.addConversion([](Torch::BoolType type) -> std::optional<Type> {
     return IntegerType::get(type.getContext(), 1);
   });
   typeConverter.addTargetMaterialization([](OpBuilder &builder,
                                             IntegerType type, ValueRange inputs,
-                                            Location loc) -> Optional<Value> {
+                                            Location loc) -> std::optional<Value> {
     // Other builtin integer types could be handled by other materializers.
     if (!(type.getWidth() == 1 && type.isSignless()))
       return std::nullopt;
@@ -79,12 +80,12 @@ static void setupTorchBoolToI1Conversion(ConversionTarget &target,
 static void setupTorchIntToI64Conversion(ConversionTarget &target,
                                          TypeConverter &typeConverter) {
   target.addLegalOp<TorchConversion::ToI64Op, TorchConversion::FromI64Op>();
-  typeConverter.addConversion([](Torch::IntType type) -> Optional<Type> {
+  typeConverter.addConversion([](Torch::IntType type) -> std::optional<Type> {
     return IntegerType::get(type.getContext(), 64);
   });
   typeConverter.addTargetMaterialization([](OpBuilder &builder,
                                             IntegerType type, ValueRange inputs,
-                                            Location loc) -> Optional<Value> {
+                                            Location loc) -> std::optional<Value> {
     // Other builtin integer types could be handled by other materializers.
     if (!(type.getWidth() == 64 && type.isSignless()))
       return std::nullopt;
@@ -108,12 +109,12 @@ static void setupTorchIntToI64Conversion(ConversionTarget &target,
 static void setupTorchFloatToF64Conversion(ConversionTarget &target,
                                            TypeConverter &typeConverter) {
   target.addLegalOp<TorchConversion::ToF64Op, TorchConversion::FromF64Op>();
-  typeConverter.addConversion([](Torch::FloatType type) -> Optional<Type> {
+  typeConverter.addConversion([](Torch::FloatType type) -> std::optional<Type> {
     return Float64Type::get(type.getContext());
   });
   typeConverter.addTargetMaterialization([](OpBuilder &builder,
                                             Float64Type type, ValueRange inputs,
-                                            Location loc) -> Optional<Value> {
+                                            Location loc) -> std::optional<Value> {
     assert(inputs.size() == 1);
     assert(inputs[0].getType().isa<Torch::FloatType>());
     return builder.create<ToF64Op>(loc, inputs[0]).getResult();
@@ -132,12 +133,12 @@ static void setupTorchGeneratorToI64Conversion(ConversionTarget &target,
                                                TypeConverter &typeConverter) {
   target.addLegalOp<TorchConversion::GeneratorToI64Op,
                     TorchConversion::I64ToGeneratorOp>();
-  typeConverter.addConversion([](Torch::GeneratorType type) -> Optional<Type> {
+  typeConverter.addConversion([](Torch::GeneratorType type) -> std::optional<Type> {
     return IntegerType::get(type.getContext(), 64);
   });
   typeConverter.addTargetMaterialization([](OpBuilder &builder,
                                             IntegerType type, ValueRange inputs,
-                                            Location loc) -> Optional<Value> {
+                                            Location loc) -> std::optional<Value> {
     // Other builtin integer types could be handled by other materializers.
     if (!(type.getWidth() == 64 && type.isSignless()))
       return std::nullopt;
