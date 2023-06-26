@@ -2320,6 +2320,15 @@ OpFoldResult AtenMulIntOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenMulFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenMulFloatOp::fold(FoldAdaptor adaptor) {
+  return atenBinaryFloatOperatorFoldHelper(
+      adaptor.getOperands(), [](double a, double b) { return a * b; });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSubFloatOp
 //===----------------------------------------------------------------------===//
 
@@ -2363,6 +2372,18 @@ OpFoldResult AtenDivOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenAddFloatIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenAddFloatIntOp::fold(FoldAdaptor adaptor) {
+  if (!adaptor.getA() || !adaptor.getB()) {
+    return nullptr;
+  }
+  return atenBinaryFloatOperatorFoldHelper(
+      adaptor.getOperands(), [](double a, double b) { return a + b; });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenPowIntFloatOp
 //===----------------------------------------------------------------------===//
 
@@ -2400,6 +2421,21 @@ OpFoldResult AtenNegIntOp::fold(FoldAdaptor adaptor) {
   if (matchPattern(getOperand(), m_TorchConstantInt(&c)))
     return getI64IntegerAttr(getContext(), -c);
   return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenNegFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenNegFloatOp::fold(FoldAdaptor adaptor) {
+  if (!adaptor.getA()) {
+    return nullptr;
+  }
+  auto value = adaptor.getA().dyn_cast_or_null<FloatAttr>();
+  if (!value) {
+    return nullptr;
+  }
+  return getF64FloatAttr(getContext(), -value.getValue().convertToDouble());
 }
 
 //===----------------------------------------------------------------------===//

@@ -1036,6 +1036,16 @@ func.func @torch.aten.add.int() -> !torch.int {
     return %ret : !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.aten.add.float_int() -> !torch.float {
+// CHECK:           %[[CST9:.*]] = torch.constant.float 9.000000e+00
+// CHECK:           return %[[CST9]] : !torch.float
+func.func @torch.aten.add.float_int() -> !torch.float {
+    %cst4 = torch.constant.float 4.0
+    %cst5 = torch.constant.int 5
+    %ret = torch.aten.add.float_int %cst4, %cst5: !torch.float, !torch.int -> !torch.float
+    return %ret : !torch.float
+}
+
 // CHECK-LABEL:   func.func @torch.aten.sub.int() -> !torch.int {
 // CHECK:           %[[CST1:.*]] = torch.constant.int 1
 // CHECK:           return %[[CST1]] : !torch.int
@@ -1054,6 +1064,25 @@ func.func @torch.aten.mul.int() -> !torch.int {
     %cst5 = torch.constant.int 5
     %ret = torch.aten.mul.int %cst6, %cst5: !torch.int, !torch.int -> !torch.int
     return %ret : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.aten.mul.float() -> !torch.float {
+// CHECK:           %[[CST30:.*]] = torch.constant.float 3.000000e+01
+// CHECK:           return %[[CST30]] : !torch.float
+func.func @torch.aten.mul.float() -> !torch.float {
+    %cst6 = torch.constant.float 6.0
+    %cst5 = torch.constant.float 5.0
+    %ret = torch.aten.mul.float %cst6, %cst5: !torch.float, !torch.float -> !torch.float
+    return %ret : !torch.float
+}
+
+// CHECK-LABEL:   func.func @torch.aten.neg.float() -> !torch.float {
+// CHECK:           %[[CST_6:.*]] = torch.constant.float -6.000000e+00
+// CHECK:           return %[[CST_6]] : !torch.float
+func.func @torch.aten.neg.float() -> !torch.float {
+    %cst6 = torch.constant.float 6.0
+    %ret = torch.aten.neg.float %cst6: !torch.float -> !torch.float
+    return %ret : !torch.float
 }
 
 // CHECK-LABEL:   func.func @torch.aten.mul.int$with_zero() -> !torch.int {
