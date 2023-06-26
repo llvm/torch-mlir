@@ -795,6 +795,7 @@ STABLEHLO_PASS_SET = {
     "RandIntLowModule_basic",
     "RandIntModule_basic",
     "RandIntPinMemoryModule_basic",
+    "UniformStaticShapeModule_basic",
     "UniformNoCorrelationModule_basic",
 }
 
