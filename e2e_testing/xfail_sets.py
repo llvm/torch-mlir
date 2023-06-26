@@ -1299,4 +1299,5 @@ LTC_XFAIL_SET = {
     "ScatterValueFloatModule_basic",
     "ScatterValueIntModule_basic",
     "IndexTensorNegativeIndexModule_basic",
+    "UniformStaticShapeModule_basic",
 }
