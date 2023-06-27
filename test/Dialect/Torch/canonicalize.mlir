@@ -2011,3 +2011,13 @@ func.func @torch.aten.device.with_index$canonicalize() -> !torch.Device {
   %0 = torch.aten.device.with_index %str, %int0 : !torch.str, !torch.int -> !torch.Device
   return %0 : !torch.Device
 }
+
+// CHECK-LABEL:   func.func @torch.aten.add$fold() -> !torch.float {
+// CHECK:             %[[FLOAT_1:.*]] = torch.constant.float 3.000000e+00
+// CHECK:             return %[[FLOAT_1]] : !torch.float
+func.func @torch.aten.add$fold() -> !torch.float {
+    %float1 = torch.constant.float 1.0
+    %float2 = torch.constant.float 2.0
+    %0 = torch.aten.add %float1, %float2 : !torch.float, !torch.float -> !torch.float
+    return %0 : !torch.float
+}
