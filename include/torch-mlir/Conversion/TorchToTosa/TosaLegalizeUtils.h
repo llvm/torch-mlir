@@ -117,6 +117,9 @@ void CreateReplaceOpAndInfer(PatternRewriter &rewriter, Operation *op,
   rewriter.replaceOp(op, result->getResults());
 }
 
+TypedValue<RankedTensorType> reshapeTo(Location loc, PatternRewriter &rewriter,
+                                       Value val, ArrayRef<int64_t> newShape);
+
 // Get accumulator type for AvgPool2dOp.
 LogicalResult getAvgPool2dAccType(PatternRewriter &rewriter, Value input,
                                     TypeAttr &accType);

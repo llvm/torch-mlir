@@ -42,6 +42,43 @@ bool Torch::getListConstructElements(Value v, SmallVectorImpl<Value> &elems) {
   return true;
 }
 
+Value Torch::toTorchList(Location loc, PatternRewriter &rewriter,
+                         ArrayRef<int64_t> vals) {
+  SmallVector<Value> intConsts;
+  for (int64_t v : vals) {
+    intConsts.push_back(rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(v)));
+  }
+
+  auto listType =
+      Torch::ListType::get(Torch::IntType::get(rewriter.getContext()));
+  return rewriter.create<PrimListConstructOp>(loc, listType, intConsts);
+}
+
+TypedValue<BaseTensorType> Torch::broadcastTo(Location loc,
+                                              PatternRewriter &rewriter,
+                                              Value val,
+                                              ArrayRef<int64_t> newShape) {
+
+  auto ty = dyn_cast<BaseTensorType>(val.getType());
+  assert(ty);
+  auto newTy = ty.getWithSizesAndDtype(newShape, ty.getOptionalDtype());
+  return cast<TypedValue<BaseTensorType>>(rewriter.create<AtenBroadcastToOp>(
+                                                      loc, newTy, val, toTorchList(loc, rewriter, newShape)).getResult());
+}
+
+TypedValue<BaseTensorType> Torch::reshapeTo(Location loc,
+                                            PatternRewriter &rewriter,
+                                            Value val,
+                                            ArrayRef<int64_t> newShape) {
+
+  auto ty = dyn_cast<BaseTensorType>(val.getType());
+  assert(ty);
+  auto newTy = ty.getWithSizesAndDtype(newShape, ty.getOptionalDtype());
+  return cast<TypedValue<BaseTensorType>>(rewriter.create<AtenViewOp>(loc, newTy, val,
+                                                                      toTorchList(loc, rewriter, newShape)).getResult());
+}
+
 torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
   if (type.isa<Float32Type>())
     return torch_upstream::ScalarType::Float;

@@ -12,7 +12,10 @@
 
 from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 
-LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
+LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
+    # tm_tensor.scatter' op mismatch in shape of indices and update value at dim#0
+    "IndexPutImpl2DNoneIndexBroadcastStaticModule_basic"
+}
 
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
@@ -268,6 +271,8 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
     "ScatterValueIntModule_basic",
 
+    # tm_tensor.scatter' op mismatch in shape of indices and update value at dim#0
+    "IndexPutImpl2DNoneIndexBroadcastStaticModule_basic"
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -301,6 +306,14 @@ TORCHDYNAMO_CRASHING_SET = {
     "ToCopyModule_basic",
     "TransposeIntModule_basic",
     "TransposeIntNegDimsModule_basic",
+    "IndexPutImpl2DNoneIndexStaticModule_basic",
+    "IndexPutImpl2DNoneIndexBroadcastStaticModule_basic",
+    "IndexPut1DFloatNonAccumulateModule_basic",
+    "IndexPut1DIntNonAccumulateModule_basic",
+    "IndexPutHackedTwin1DFloatNonAccumulateModule_basic",
+    "IndexPutHackedTwin1DIntNonAccumulateModule_basic",
+    "IndexPutImpl1DFloatNonAccumulateModule_basic",
+    "IndexPutImpl1DIntNonAccumulateModule_basic",
 
     # See https://github.com/llvm/torch-mlir/issues/2178
     "Add_Module_basic"
@@ -1016,6 +1029,8 @@ TOSA_PASS_SET = {
     "TypePromotionSameCategoryZeroRankWider_basic",
     "TypePromotionZeroRankHigherCategoryModule_basic",
     "GatherStaticModule_basic",
+    "IndexPutImpl2DNoneIndexStaticModule_basic",
+    "IndexPutImpl2DNoneIndexBroadcastStaticModule_basic",
     "IndexTensorStaticModule_basic",
     "IndexTensorMultiIndexStaticModule_basic",
     "ElementwiseWhereScalarModule_basic",
@@ -1175,6 +1190,8 @@ LTC_XFAIL_SET = {
     "IndexPutImpl2DFloatAccumulateModule_basic",
     "IndexPutImpl2DFloatNonAccumulateModule_basic",
     "IndexPutImpl2DIndexModule_basic",
+    "IndexPutImpl2DNoneIndexStaticModule_basic",
+    "IndexPutImpl2DNoneIndexBroadcastStaticModule_basic",
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
     "IndexPutImplIndexWithNoneModule_basic",

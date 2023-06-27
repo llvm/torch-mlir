@@ -3395,6 +3395,246 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
   return success();
 }
 
+// Turn a torch.aten._index_put_impl where some entries in the indices list are
+// none into multiple _index_put_impl across all elements of that dimension.
+//
+//  Example:
+//    a = torch.aten._index_put_impl(in, [idx0, None, idx1], values)
+//  where in is a 7x3x5 tensor, is equivalent to
+//    tmp = torch.aten._index_put_impl(in, [idx0, [0], idx1], values)
+//    tmp2 = torch.aten._index_put_impl(tmp, [idx0, [1], idx1], values)
+//    a = torch.aten._index_put_impl(tmp2, [idx0, [2], idx1], values)
+class SimplifyAten_IndexPutImplOpNone
+    : public OpRewritePattern<Aten_IndexPutImplOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(Aten_IndexPutImplOp op,
+                                PatternRewriter &rewriter) const override {
+
+    auto outTy = dyn_cast<BaseTensorType>(op.getType());
+    if (!outTy || !outTy.areAllSizesKnown())
+      return failure();
+
+    SmallVector<Value> indices;
+    if (!getListConstructElements(op.getIndices(), indices))
+      return failure();
+
+    for (size_t i=0; i < indices.size(); ++i) {
+      if (isa<Torch::NoneType>(indices[i].getType())) {
+        Value newIndexPut = op.getSelf();
+        auto si64Type = IntegerType::get(rewriter.getContext(), 64, IntegerType::Signed);
+        Type indexType =
+            ValueTensorType::get(rewriter.getContext(), {{}}, si64Type);
+        for( int64_t d=0; d < outTy.getSizes()[i]; ++d) {
+          SmallVector<Value> newIndices = indices;
+
+          newIndices[i] = rewriter.create<PrimNumToTensorScalarOp>(op.getLoc(), indexType,
+                                                                   rewriter.create<Torch::ConstantIntOp>(
+                                                                       op->getLoc(), d));
+
+          Value newIndicesList =
+              rewriter.create<PrimListConstructOp>(op->getLoc(), op.getIndices().getType(), newIndices);
+
+          newIndexPut = rewriter.create<Aten_IndexPutImplOp>(op.getLoc(), op.getType(), newIndexPut, newIndicesList, op.getValues(),
+                                                             op.getAccumulate(), op.getUnsafe());
+        }
+        rewriter.replaceOp(op, newIndexPut);
+        return success();
+      }
+    }
+    return failure();
+  }
+};
+
+// Turn a torch.aten._index_put_impl on a 2d [1, n] tensor into a
+// torch.aten._index_put_impl on a 1d [n] tensor.
+class SimplifyAten_IndexPutImplOp
+    : public OpRewritePattern<Aten_IndexPutImplOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(Aten_IndexPutImplOp op,
+                                PatternRewriter &rewriter) const override {
+
+    auto ty = op.getType().dyn_cast<BaseTensorType>();
+    if (!ty || !ty.areAllSizesKnown()) {
+      return rewriter.notifyMatchFailure(op, "Required ranked tensor type");
+    }
+
+    auto shape = ty.getSizes();
+    if (shape.size() != 2 || shape[0] != 1) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: non-2d output with leading dimension of size 1");
+    }
+    int64_t numSelfElements = shape[1];
+
+    auto valuesTy = op.getValues().getType().dyn_cast<BaseTensorType>();
+    if (!valuesTy || !valuesTy.areAllSizesKnown()) {
+      return rewriter.notifyMatchFailure(op, "Required ranked tensor type for values");
+    }
+
+    auto valuesShape = valuesTy.getSizes();
+    if (valuesShape.size() > 2) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: nd values with n>=2");
+    }
+    if (valuesShape.size() == 2 && valuesShape[0] != 1) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: 2d values with leading dimension of size 1");
+    }
+    auto numValues = valuesShape.empty() ? 1 : valuesShape.back();
+
+    SmallVector<Value> indicesList;
+    if (!getListConstructElements(op.getIndices(), indicesList)) {
+      return op.emitError(
+          "unimplemented: the indices list is not from list construct");
+    }
+    // There is one indices tensor for each dimension of self.
+    // Here, we know that self is 1xN, so we are only interested for the indices
+    // of the 2nd dimension.
+    auto indices = indicesList[1];
+    auto indicesTy = indices.getType().dyn_cast<BaseTensorType>();
+    if (!indicesTy || !indicesTy.areAllSizesKnown()) {
+      return rewriter.notifyMatchFailure(
+          op, "Required ranked tensor type for indices");
+    }
+    if (indicesTy.getSizes().size() > 1) {
+      return rewriter.notifyMatchFailure(
+          op, "Required 0d or 1d tensor for indices");
+    }
+    auto numIndices =
+        indicesTy.getSizes().empty() ? 1 : indicesTy.getSizes()[0];
+
+    if (indicesTy.getSizes().empty()) {
+      indices = reshapeTo(op.getLoc(), rewriter, indices, {1});
+    }
+
+    // Broadcast so that values and indices have the same size
+    if (numIndices == 1 && numValues > numIndices) {
+      indices = broadcastTo(op.getLoc(), rewriter, indices, {numValues});
+    }
+
+    Value newIndicesList = rewriter.create<PrimListConstructOp>(
+        op->getLoc(), op.getIndices().getType(), SmallVector<Value>{indices});
+
+    auto reshapedSelf =
+        reshapeTo(op.getLoc(), rewriter, op.getSelf(), {numSelfElements});
+
+    auto values = reshapeTo(op.getLoc(), rewriter, op.getValues(), {numValues});
+
+    // Broadcast so that values and indices have the same size
+    if (numValues == 1 && numIndices > numValues) {
+      values = broadcastTo(op.getLoc(), rewriter, values, {numIndices});
+    }
+
+    auto put = rewriter.create<Aten_IndexPutImplOp>(
+        op.getLoc(), reshapedSelf.getType(), reshapedSelf, newIndicesList,
+        values, op.getAccumulate(), op.getUnsafe());
+
+    rewriter.replaceOp(op, reshapeTo(op.getLoc(), rewriter, put, shape));
+
+    return success();
+  }
+};
+
+// Handle Aten_IndexPutImplOp on 1d tensors
+template <>
+LogicalResult ConvertAtenOp<Aten_IndexPutImplOp>::matchAndRewrite(
+    Aten_IndexPutImplOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // TOSA scatter:
+  // // Copy the values_in tensor to the values_out tensor.
+  // // Values not written by the scatter operation are unchanged in the output.
+  // for_each(0 <= n < N, 0 <= k < K, 0 <= c < C) {
+  //     value_t value = tensor_read<value_t>(values_in, [N,K,C], [n,k,c]);
+  //     tensor_write<value_t>(values_out, [N,K,C], [n, k, c], value);
+  // }
+  // // Now perform the SCATTER operation, modifying the positions from the
+  // indices tensor for_each(0 <= n < N, 0 <= w < W, 0 <= c < C) {
+  //     index_t k = tensor_read<index_t>(indices, [N,W], [n,w]);
+  //     REQUIRE(0 <= k && k < K);
+  //     value_t value = tensor_read<value_t>(input, [N,W,C], [n,w,c]);
+  //     tensor_write<value_t>(values_out, [N,K,C], [n, k, c], value);
+  //     output_modified[n,k,c] = true;
+  // }
+
+  auto loc = op.getLoc();
+
+  // Not a tensor type.
+  auto self = dyn_cast<TypedValue<RankedTensorType>>(adaptor.getSelf());
+  if (!self)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+
+  if (self.getType().getRank() != 1) {
+    return rewriter.notifyMatchFailure(
+        op, "Only 1d input tensor are currently supported");
+  }
+
+  auto values = dyn_cast<TypedValue<RankedTensorType>>(adaptor.getValues());
+  if (!values)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+
+  // Deal with torch.prim.ListConstruct of non const value to get the index
+  SmallVector<Value> indicesTorchType;
+  if (!getListConstructElements(op.getIndices(), indicesTorchType))
+    return op.emitError(
+        "unimplemented: the tensor list is not from list construct");
+
+  // Convert indicesTorchType to TOSA types
+  auto indexTensors = getTypeConvertedValues(
+      rewriter, op->getLoc(), getTypeConverter(), indicesTorchType);
+
+  // the number of tensors in indexTensors is equal to the rank of outType
+  if (indexTensors.size() != 1) {
+    return rewriter.notifyMatchFailure(op, "Expected 1 indices ");
+  }
+
+  auto indices0 = indexTensors[0];
+  auto indicesTy = dyn_cast<RankedTensorType>(indices0.getType());
+
+  if (!indicesTy || indicesTy.getShape() != values.getType().getShape())
+    return rewriter.notifyMatchFailure(
+        op, "Expected indices to have same shape as values");
+
+
+  auto outType =
+      dyn_cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  if (!outType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+
+
+  auto numInElements = self.getType().getShape()[0];
+  auto numValues = values.getType().getShape()[0];
+
+  // TOSA scatter requires 3d in and 2d indices & values
+  SmallVector<int64_t> scatterInOutShape {1, numInElements, 1};
+  SmallVector<int64_t> scatterIndicesShape {1, numValues};
+  SmallVector<int64_t> scatterInputShape {1, numValues, 1};
+
+  auto in = mlir::tosa::reshapeTo(loc, rewriter, self, scatterInOutShape);
+  auto indices =
+      mlir::tosa::reshapeTo(loc, rewriter, indices0, scatterIndicesShape);
+  auto input = mlir::tosa::reshapeTo(loc, rewriter, values, scatterInputShape);
+
+  // TOSA scatter requires 32 bit indices
+  // TODO: This might break on large (sparse?) tensors that require 64 bit indices
+  auto indices32Ty = RankedTensorType::get(indices.getType().getShape(), rewriter.getI32Type());
+  auto indices32 = rewriter.create<tosa::CastOp>(loc, indices32Ty, indices);
+
+  auto scatterTy = RankedTensorType::get(scatterInOutShape, self.getType().getElementType());
+  auto scatter = rewriter.create<tosa::ScatterOp>(loc, scatterTy, in, indices32, input);
+
+  auto reshaped =
+      mlir::tosa::reshapeTo(loc, rewriter, scatter, outType.getShape());
+
+  rewriter.replaceOp(op, reshaped);
+  return success();
+}
+
 template <>
 LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
     AtenIndexTensorOp op, OpAdaptor adaptor,
@@ -4591,6 +4831,9 @@ public:
 
     RewritePatternSet patterns(context);
 
+    patterns.add<SimplifyAten_IndexPutImplOp>(context);
+    patterns.add<SimplifyAten_IndexPutImplOpNone>(context);
+
 #define INSERT_UNARY_FPONLY_PATTERN(AtenOp, TosaOp)                            \
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenUnaryFPOnlyOp<AtenOp, TosaOp>>(typeConverter,        \
@@ -4780,6 +5023,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
     INSERT_ATENOP_PATTERN(AtenGatherOp);
+    INSERT_ATENOP_PATTERN(Aten_IndexPutImplOp);
     INSERT_ATENOP_PATTERN(AtenIndexTensorOp);
     INSERT_ATENOP_PATTERN(AtenAbsOp);
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);

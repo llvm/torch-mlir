@@ -124,7 +124,7 @@ public:
 
     // Create indicesVector for IndexPut_Op by TorchNone and indexTensor
     BaseTensorType tensorType = op->getResultTypes()[0].cast<BaseTensorType>();
-    SmallVector<Value> indicesVector(dim - 1, noneVal);
+    SmallVector<Value> indicesVector(dim, noneVal);
     indicesVector.push_back(indexTensor);
 
     Value indices = rewriter.create<PrimListConstructOp>(

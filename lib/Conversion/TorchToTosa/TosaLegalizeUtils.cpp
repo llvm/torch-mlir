@@ -340,6 +340,17 @@ Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType) {
   return input;
 }
 
+TypedValue<RankedTensorType> reshapeTo(Location loc, PatternRewriter &rewriter,
+                                       Value val, ArrayRef<int64_t> newShape) {
+
+  auto tensorTy = dyn_cast<TensorType>(val.getType());
+  assert(tensorTy);
+
+  auto newTy = RankedTensorType::get(newShape, tensorTy.getElementType());
+  return rewriter.create<tosa::ReshapeOp>(
+      loc, newTy, val, rewriter.getDenseI64ArrayAttr(newShape));
+}
+
 // Template instantiation
 template std::optional<Value> getConstTensor<int32_t>(PatternRewriter &,
                                                       Operation *,
