@@ -2128,6 +2128,58 @@ public:
     return success();
   }
 };
+
+class DeomposeAtenNativeDropoutOp
+    : public OpRewritePattern<AtenNativeDropoutOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNativeDropoutOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *context = op->getContext();
+    Value input = op.getInput();
+    Value prob = op.getP();
+    bool train = false;
+    if (!op.getTrain().getType().isa<Torch::NoneType>()) {
+      if (!matchPattern(op.getTrain(), m_TorchConstantBool(&train))) {
+        return rewriter.notifyMatchFailure(
+            op, "train must be a boolean constant or none");
+      }
+    }
+    Value noneVal = rewriter.create<ConstantNoneOp>(loc);
+    if (!train) {
+      Value i1Type =
+          getDtypeIntValueForType(rewriter, loc, IntegerType::get(context, 1));
+      Value inputSize = rewriter.create<AtenSizeOp>(
+          loc, Torch::ListType::get(Torch::IntType::get(context)), input);
+      Value trueValue = rewriter.create<ConstantIntOp>(loc, 1);
+      Value trueMask = rewriter.create<AtenFullOp>(
+          loc, op->getResultTypes()[1], inputSize, trueValue, i1Type,
+          /*layout=*/noneVal, /*device=*/noneVal, /*pin_memory=*/noneVal);
+      rewriter.replaceOp(op, ArrayRef<Value>{input, trueMask});
+      return success();
+    }
+    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+    if (!inputType.hasDtype() || !inputType.getDtype().isa<mlir::FloatType>()) {
+      return rewriter.notifyMatchFailure(
+          op, "only support floating type input for training mode");
+    }
+    Value floatOne =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value oneMinusP = rewriter.create<AtenSubFloatOp>(loc, floatOne, prob);
+    Value boolMask = rewriter.create<ValsemVariantAtenBernoulliFloatOp>(
+        loc, inputType, input, oneMinusP, /*generator=*/noneVal);
+    Value maskedInput =
+        rewriter.create<AtenMulTensorOp>(loc, inputType, boolMask, input);
+    Value output = rewriter.create<AtenDivScalarOp>(
+        loc, op->getResultTypes()[0], maskedInput, oneMinusP);
+    rewriter.replaceOp(
+        op, ArrayRef<Value>{
+                output, convertTensorToDtype(rewriter, loc, boolMask,
+                                             IntegerType::get(context, 1))});
+    return success();
+  }
+};
 } // namespace
 
 // Decompose aten.var into: aten.var.dim op.
@@ -4654,6 +4706,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_ToCopyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCopyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenDropoutOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DeomposeAtenNativeDropoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexPutHackedTwinOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenPadOp>(patterns);
