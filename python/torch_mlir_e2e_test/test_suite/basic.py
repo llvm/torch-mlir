@@ -1786,6 +1786,94 @@ class DropoutTrainModule(torch.nn.Module):
 def DropoutTrainModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1024, 1536))
 
+# ==============================================================================
+
+
+class DropoutTrainStaticShapeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1024, 1536], torch.float32, True),
+    ])
+    def forward(self, x):
+        res = torch.dropout(x, 0.3, train=True)
+        return torch.mean(res), torch.std(res)
+
+
+@register_test_case(module_factory=lambda: DropoutTrainStaticShapeModule())
+def DropoutTrainStaticShapeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1024, 1536))
+
+# ==============================================================================
+
+
+class NativeDropoutEvalFloatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.native_dropout(x, 0.1, train=False)
+
+
+@register_test_case(module_factory=lambda: NativeDropoutEvalFloatModule())
+def NativeDropoutEvalFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class NativeDropoutTrainModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        res = torch.native_dropout(x, 0.3, train=True)
+        return torch.mean(res[0]), torch.std(res[0]), torch.mean(res[1].to(torch.float32)), torch.std(res[1].to(torch.float32))
+
+
+@register_test_case(module_factory=lambda: NativeDropoutTrainModule())
+def NativeDropoutTrainModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1024, 1536))
+
+
+# ==============================================================================
+
+
+class NativeDropoutTrainStaticShapeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1024, 1536], torch.float32, True),
+    ])
+    def forward(self, x):
+        res = torch.native_dropout(x, 0.3, train=True)
+        return torch.mean(res[0]), torch.std(res[0]), torch.mean(res[1].to(torch.float32)), torch.std(res[1].to(torch.float32))
+
+
+@register_test_case(module_factory=lambda: NativeDropoutTrainStaticShapeModule())
+def NativeDropoutTrainStaticShapeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1024, 1536))
 
 # ==============================================================================
 

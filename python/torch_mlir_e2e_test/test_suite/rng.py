@@ -44,6 +44,44 @@ def UniformModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class UniformStaticShapeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([256, 512, 12], torch.float64, True),
+        ([512, 1024, 12], torch.float64, True),
+        ([512, 256, 12], torch.float64, True),
+    ])
+    def forward(self, x, y, z):
+        a = torch.ops.aten.uniform_(x, 1.0, 10.0)
+        b = torch.ops.aten.uniform_(y, -20.0, -5.0)
+        c = torch.ops.aten.uniform_(z, -15.0, 3.0)
+        std = torch.cat([
+            torch.flatten(torch.std(a)),
+            torch.flatten(torch.std(b)),
+            torch.flatten(torch.std(c))
+        ])
+        mean = torch.cat([
+            torch.flatten(torch.mean(a)),
+            torch.flatten(torch.mean(b)),
+            torch.flatten(torch.mean(c))
+        ])
+        return std, mean
+
+
+@register_test_case(module_factory=lambda: UniformStaticShapeModule())
+def UniformStaticShapeModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(256, 512, 12).double(),
+        tu.rand(512, 1024, 12).double(),
+        tu.rand(512, 256, 12).double())
+
+# ==============================================================================
+
 class UniformNoCorrelationModule(torch.nn.Module):
 
     def __init__(self):

@@ -203,6 +203,10 @@ def aten〇type_as〡shape(self: List[int], other: List[int]) -> List[int]:
 def aten〇dropout〡shape(input: List[int], p: float, train: bool) -> List[int]:
     return upstream_shape_functions.unary(input)
 
+def aten〇native_dropout〡shape(input: List[int], p: float, train: Optional[bool]) -> Tuple[List[int], List[int]]:
+    shape = upstream_shape_functions.unary(input)
+    return shape, shape
+
 def aten〇gelu〡shape(self: List[int], approximate: str = "none") -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -1493,6 +1497,11 @@ def aten〇detach〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 def aten〇dropout〡dtype(input_rank_dtype: Tuple[int, int], p: float, train: bool) -> int:
     input_rank, input_dtype = input_rank_dtype
     return input_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, p=0.5, train=False))
+def aten〇native_dropout〡dtype(input_rank_dtype: Tuple[int, int], p: float, train: Optional[bool]) -> Tuple[int, int]:
+    input_rank, input_dtype = input_rank_dtype
+    return input_dtype, torch.bool
 
 @check_dtype_function(_check_two_tensor_op())
 def aten〇expand_as〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
