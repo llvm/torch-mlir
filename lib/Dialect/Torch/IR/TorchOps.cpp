@@ -2880,10 +2880,10 @@ void ConstantDeviceOp::getAsmResultNames(
 ParseResult ConstantIntOp::parse(OpAsmParser &parser, OperationState &result) {
   Builder builder(result.getContext());
   result.addTypes(builder.getType<Torch::IntType>());
-  if (parser.parseOptionalAttrDict(result.attributes))
-    return failure();
   int64_t value;
   if (parser.parseInteger(value))
+    return failure();
+  if (parser.parseOptionalAttrDict(result.attributes))
     return failure();
   result.addAttribute("value", builder.getI64IntegerAttr(value));
   return success();
