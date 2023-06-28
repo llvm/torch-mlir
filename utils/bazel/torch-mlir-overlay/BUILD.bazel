@@ -105,6 +105,7 @@ cc_library(
         ":MLIRTorchOpsIncGen",
         ":MLIRTorchTypesIncGen",
         "@llvm-project//mlir:ControlFlowInterfaces",
+        "@llvm-project//mlir:CastInterfaces",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:InferTypeOpInterface",
     ],
@@ -828,5 +829,6 @@ cc_binary(
         ":TorchMLIRTorchPasses",
         "@llvm-project//mlir:AllPassesAndDialects",
         "@llvm-project//mlir:MlirOptLib",
+        "@llvm-project//mlir:AllExtensions",
     ],
 )
