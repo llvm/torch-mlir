@@ -861,6 +861,26 @@ void AtenToDtypeLayoutOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenToOtherOp
+//===----------------------------------------------------------------------===//
+
+void AtenToOtherOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                MLIRContext *context) {
+  // Canonicalize `aten.to.other` to `aten.to.device`
+  patterns.add(+[](AtenToOtherOp op, PatternRewriter &rewriter) {
+    auto lhs = op.getSelf();
+    auto rhs = op.getOther();
+    auto getRhsDevice = rewriter.create<PrimDeviceOp>(op.getLoc(), rhs);
+    auto getRhsDtype = rewriter.create<PrimDtypeOp>(op.getLoc(), rhs);
+                           rewriter.replaceOpWithNewOp<AtenToDeviceOp>(
+                               op, op.getType(), lhs, getRhsDevice.getResult(),
+                               getRhsDtype.getResult(), op.getNonBlocking(),
+                               op.getCopy(), op.getMemoryFormat());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenViewOp
 //===----------------------------------------------------------------------===//
 
