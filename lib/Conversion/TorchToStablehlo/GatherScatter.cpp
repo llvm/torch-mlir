@@ -417,29 +417,43 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
   if (!getListConstructElements(indexList, indicesTorchType))
     return op.emitError(
         "unimplemented: the tensor list is not from list construct");
-
-  auto indexTensors = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
+ 
+  auto indicesVal = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
                                              indicesTorchType);
 
   // Step 1: broadcast indices tensors
   int maxRank = -1;
-  SmallVector<int64_t> indicesShape;
-  SmallVector<int64_t> expandShape;
-  SmallVector<int64_t> concatShape;
+  SmallVector<int64_t> indexTensorDims;
+  SmallVector<Value> indexTensors;
+  auto inputShape = makeShapeTorchCompatible(inputTensorType.getShape());
+
   // concat index tensor into to indices tensor for concat
-  for (size_t i = 0; i < indexTensors.size(); i++) {
-    auto indexTensor = indexTensors[i];
+  for (size_t i = 0; i < indicesVal.size(); i++) {
+    auto indexTensor = indicesVal[i];
     auto indexTorchTensor = indicesTorchType[i];
-    // TODO: add support for none index input
-    if (indexTorchTensor.getType().isa<Torch::NoneType>())
-      return rewriter.notifyMatchFailure(
-          op, "Only list ranked tensor types index are supported");
+
+    if (indexTorchTensor.getType().isa<Torch::NoneType>()) {
+      SmallVector<int64_t> sizes;
+      for (size_t j = 0; j < inputShape[i]; j++) {
+        sizes.push_back(j);
+      }
+      auto sizesTensor = rewriter.getI64TensorAttr(sizes);
+      indexTensor = rewriter.create<arith::ConstantOp>(loc, sizesTensor);
+      indexTensorDims.push_back(i);
+    }
+    indexTensors.push_back(indexTensor);
+
     auto indexTensorType = indexTensor.getType().cast<RankedTensorType>();
     for (int64_t size : makeShapeTorchCompatible(indexTensorType.getShape())) {
       if (size == kUnknownSize)
         return rewriter.notifyMatchFailure(op, "Dynamic index support TBD");
     }
     maxRank = std::max(maxRank, (int)indexTensorType.getRank());
+  }
+
+  if (indexTensors.empty()) {
+    return rewriter.notifyMatchFailure(
+        op, "aten.index.Tensor: index tensor must not be None");
   }
 
   RankedTensorType resultType =
@@ -450,6 +464,11 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
     if (size == kUnknownSize)
       return rewriter.notifyMatchFailure(op, "Dynamic index support TBD");
   }
+
+  SmallVector<int64_t> indicesShape;
+  SmallVector<int64_t> expandShape;
+  SmallVector<int64_t> concatShape;
+
   for (int i = 0; i < maxRank; i++) {
     indicesShape.push_back(refinedResultShape[i]);
     expandShape.push_back(refinedResultShape[i]);
@@ -462,18 +481,22 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
 
   SmallVector<Value> broadcastedIndices;
   Type indexElemTy =
-      indexTensors[0].getType().cast<RankedTensorType>().getElementType();
+        indexTensors[0].getType().cast<RankedTensorType>().getElementType();
   RankedTensorType bcastIndexType =
       RankedTensorType::get(indicesShape, indexElemTy);
-  for (auto indexTensor : indexTensors) {
+  for (size_t i = 0; i < indexTensors.size(); i++) {
+    auto indexTensor = indexTensors[i];
+
     Value bcastVal =
         hlo::promoteAndBroadcast(rewriter, indexTensor, bcastIndexType);
+
     if (indexTensors.size() > 1) {
       RankedTensorType reshapeType =
           RankedTensorType::get(expandShape, indexElemTy);
       bcastVal =
           rewriter.create<stablehlo::ReshapeOp>(loc, reshapeType, bcastVal);
     }
+    llvm::outs() << bcastVal << '\n';
     broadcastedIndices.push_back(bcastVal);
   }
 
@@ -496,12 +519,16 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
   SmallVector<int64_t> collapsedDims;
   SmallVector<int64_t> startIndexMap;
   for (int64_t i = 0; i < numIndicesDim; ++i) {
-    collapsedDims.push_back(i);
+    if (std::find(indexTensorDims.begin(), indexTensorDims.end(), i) == 
+        indexTensorDims.end())
+      collapsedDims.push_back(i);
     startIndexMap.push_back(i);
   }
-  for (int64_t i = numIndicesDim; i < inputTensorType.getRank(); i++) {
+  for (int64_t i = numIndicesDim;
+       i < inputTensorType.getRank() + indexTensorDims.size(); i++) {
     if (numIndicesDim > 1) {
       offsetDims.push_back(i + indicesRank - 1 - numIndicesDim);
+      llvm::outs() << i + indicesRank - 1 - numIndicesDim << '\n';
     } else {
       offsetDims.push_back(i + indicesRank - numIndicesDim);
     }
@@ -514,7 +541,6 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
       /*indexVecDim=*/indexVecDim);
 
   SmallVector<int64_t> sliceSizes;
-  auto inputShape = makeShapeTorchCompatible(inputTensorType.getShape());
   for (int64_t i = 0; i < inputTensorType.getRank(); ++i) {
     if (i < numIndicesDim) {
       sliceSizes.push_back(1);
@@ -523,9 +549,10 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
     }
   }
 
-  rewriter.replaceOpWithNewOp<stablehlo::GatherOp>(
+  auto result = rewriter.replaceOpWithNewOp<stablehlo::GatherOp>(
       op, resultType, input, finalIndexTensor, dimsAttr,
       rewriter.getI64TensorAttr(sliceSizes));
+  llvm::outs() << result <<'\n';   
   return success();
 }
 

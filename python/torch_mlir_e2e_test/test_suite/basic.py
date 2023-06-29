@@ -2191,6 +2191,30 @@ def IndexTensorStaticModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class IndexTensorStaticWithNoneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 2, 32], torch.float32, True),
+        ([2, 1], torch.int64, True),
+        ([1], torch.int64, True),
+    ])
+    def forward(self, x, index1, index):
+        return torch.ops.aten.index(x, (index1, index))
+
+
+@register_test_case(module_factory=lambda: IndexTensorStaticWithNoneModule())
+def IndexTensorStaticWithNoneModule_basic(module, tu: TestUtils):
+    
+    module.forward(tu.rand(2, 2, 32), torch.tensor([[0],[1]]), tu.randint(1, high=1))
+
+# ==============================================================================
+
+
 class IndexTensorMultiIndexStaticModule(torch.nn.Module):
 
     def __init__(self):
