@@ -10554,6 +10554,7 @@ def Torch_AtenAddFloatIntOp : Torch_Op<"aten.add.float_int", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenSubFloatOp : Torch_Op<"aten.sub.float", [
@@ -10603,6 +10604,7 @@ def Torch_AtenMulFloatOp : Torch_Op<"aten.mul.float", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenDivFloatOp : Torch_Op<"aten.div.float", [
@@ -10651,6 +10653,7 @@ def Torch_AtenNegFloatOp : Torch_Op<"aten.neg.float", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenEqFloatOp : Torch_Op<"aten.eq.float", [
