@@ -1036,6 +1036,16 @@ func.func @torch.aten.add.int() -> !torch.int {
     return %ret : !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.aten.add.float_int() -> !torch.float {
+// CHECK:           %[[CST9:.*]] = torch.constant.float 9.000000e+00
+// CHECK:           return %[[CST9]] : !torch.float
+func.func @torch.aten.add.float_int() -> !torch.float {
+    %cst4 = torch.constant.float 4.0
+    %cst5 = torch.constant.int 5
+    %ret = torch.aten.add.float_int %cst4, %cst5: !torch.float, !torch.int -> !torch.float
+    return %ret : !torch.float
+}
+
 // CHECK-LABEL:   func.func @torch.aten.sub.int() -> !torch.int {
 // CHECK:           %[[CST1:.*]] = torch.constant.int 1
 // CHECK:           return %[[CST1]] : !torch.int
@@ -1054,6 +1064,25 @@ func.func @torch.aten.mul.int() -> !torch.int {
     %cst5 = torch.constant.int 5
     %ret = torch.aten.mul.int %cst6, %cst5: !torch.int, !torch.int -> !torch.int
     return %ret : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.aten.mul.float() -> !torch.float {
+// CHECK:           %[[CST30:.*]] = torch.constant.float 3.000000e+01
+// CHECK:           return %[[CST30]] : !torch.float
+func.func @torch.aten.mul.float() -> !torch.float {
+    %cst6 = torch.constant.float 6.0
+    %cst5 = torch.constant.float 5.0
+    %ret = torch.aten.mul.float %cst6, %cst5: !torch.float, !torch.float -> !torch.float
+    return %ret : !torch.float
+}
+
+// CHECK-LABEL:   func.func @torch.aten.neg.float() -> !torch.float {
+// CHECK:           %[[CST_6:.*]] = torch.constant.float -6.000000e+00
+// CHECK:           return %[[CST_6]] : !torch.float
+func.func @torch.aten.neg.float() -> !torch.float {
+    %cst6 = torch.constant.float 6.0
+    %ret = torch.aten.neg.float %cst6: !torch.float -> !torch.float
+    return %ret : !torch.float
 }
 
 // CHECK-LABEL:   func.func @torch.aten.mul.int$with_zero() -> !torch.int {
@@ -1411,6 +1440,21 @@ func.func @torch.aten.to.dtype$no_fold$unk_dtype(%arg0: !torch.tensor) -> !torch
   %false = torch.constant.bool false
   %int6 = torch.constant.int 6
   %0 = torch.aten.to.dtype %arg0, %int6, %false, %false, %none : !torch.tensor, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.tensor
+  return %0 : !torch.tensor
+}
+
+// CHECK-LABEL: func.func @torch.aten.to.other$basic(
+// CHECK-SAME:                                 %[[ARG_0:.*]]: !torch.tensor, %[[ARG_1:.*]]: !torch.tensor) -> !torch.tensor {
+// CHECK:         %[[NONE:.*]] = torch.constant.none
+// CHECK:         %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:         %[[CPU:.*]] = torch.constant.device "cpu"
+// CHECK:         %[[VAR_0:.*]] = torch.prim.dtype %[[ARG_1]] : !torch.tensor -> !torch.int
+// CHECK:         %[[VAR_1:.*]] = torch.aten.to.device %[[ARG_0]], %[[CPU]], %[[VAR_0]], %[[FALSE]], %[[FALSE]], %[[NONE]] : !torch.tensor, !torch.Device, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.tensor
+// CHECK:         return %[[VAR_1]] : !torch.tensor
+func.func @torch.aten.to.other$basic(%arg0 : !torch.tensor, %arg1 : !torch.tensor) -> !torch.tensor {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %0 = torch.aten.to.other %arg0, %arg1, %false, %false, %none : !torch.tensor, !torch.tensor, !torch.bool, !torch.bool, !torch.none -> !torch.tensor
   return %0 : !torch.tensor
 }
 
@@ -1992,4 +2036,32 @@ func.func @torch.aten.ScalarImplicit$canonicalize_literal_0d() -> !torch.number 
 func.func @torch.prims.view_of$fold(%arg0: !torch.vtensor<[3,4,2],f32>) -> !torch.vtensor<[3,4,2],f32> {
   %0 = torch.prims.view_of %arg0 : !torch.vtensor<[3,4,2],f32> -> !torch.vtensor<[3,4,2],f32>
   return %0 : !torch.vtensor<[3,4,2],f32>
+}
+
+// CHECK-LABEL:  func.func @torch.aten.cuda$canonicalize
+// CHECK-SAME:           %[[ARG:.*]]: !torch.tensor
+// CHECK-NEXT:     return %[[ARG]] : !torch.tensor
+func.func @torch.aten.cuda$canonicalize(%arg0: !torch.tensor) -> !torch.tensor {
+  %0 = torch.aten.cuda %arg0 : !torch.tensor -> !torch.tensor
+  return %0 : !torch.tensor
+}
+
+// CHECK-LABEL:  func.func @torch.aten.device.with_index$canonicalize
+// CHECK-NEXT:     %[[VAL:.*]] = torch.constant.device "cuda:0"
+// CHECK-NEXT:     return %[[VAL]] : !torch.Device
+func.func @torch.aten.device.with_index$canonicalize() -> !torch.Device {
+  %str = torch.constant.str "cuda"
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.device.with_index %str, %int0 : !torch.str, !torch.int -> !torch.Device
+  return %0 : !torch.Device
+}
+
+// CHECK-LABEL:   func.func @torch.aten.add$fold() -> !torch.float {
+// CHECK:             %[[FLOAT_1:.*]] = torch.constant.float 3.000000e+00
+// CHECK:             return %[[FLOAT_1]] : !torch.float
+func.func @torch.aten.add$fold() -> !torch.float {
+    %float1 = torch.constant.float 1.0
+    %float2 = torch.constant.float 2.0
+    %0 = torch.aten.add %float1, %float2 : !torch.float, !torch.float -> !torch.float
+    return %0 : !torch.float
 }

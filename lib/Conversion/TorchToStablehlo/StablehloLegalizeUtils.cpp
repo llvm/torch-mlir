@@ -185,15 +185,14 @@ Value scalarToStablehloTensor(ConversionPatternRewriter &rewriter,
       dtype_tensor);
 }
 
-Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType) {
-  Operation *op = input.getDefiningOp();
-  TensorType in_type = input.getType().dyn_cast<TensorType>();
+Value promoteType(PatternRewriter &rewriter, Location loc, Value input,
+                  TensorType outType) {
+  TensorType in_type = input.getType().cast<TensorType>();
 
   if (in_type.getElementType() != outType.getElementType()) {
     TensorType promotedType =
         in_type.cloneWith(in_type.getShape(), outType.getElementType());
-    return rewriter.create<stablehlo::ConvertOp>(op->getLoc(), promotedType,
-                                                 input);
+    return rewriter.create<stablehlo::ConvertOp>(loc, promotedType, input);
   }
   return input;
 }

@@ -785,7 +785,7 @@ public:
     const auto &options = getOptions();
     bias = *hlo::unsqueezeTensor(rewriter, op, bias, inputUnsqzDims,
                                  options.dimSizeIndexBits);
-    bias = hlo::promoteType(rewriter, bias, outTy);
+    bias = hlo::promoteType(rewriter, op.getLoc(), bias, outTy);
 
     DenseIntElementsAttr bcastDimensions;
     rewriter.replaceOpWithNewOp<chlo::BroadcastAddOp>(

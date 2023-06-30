@@ -861,6 +861,26 @@ void AtenToDtypeLayoutOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenToOtherOp
+//===----------------------------------------------------------------------===//
+
+void AtenToOtherOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                MLIRContext *context) {
+  // Canonicalize `aten.to.other` to `aten.to.device`
+  patterns.add(+[](AtenToOtherOp op, PatternRewriter &rewriter) {
+    auto lhs = op.getSelf();
+    auto rhs = op.getOther();
+    auto getRhsDevice = rewriter.create<PrimDeviceOp>(op.getLoc(), rhs);
+    auto getRhsDtype = rewriter.create<PrimDtypeOp>(op.getLoc(), rhs);
+                           rewriter.replaceOpWithNewOp<AtenToDeviceOp>(
+                               op, op.getType(), lhs, getRhsDevice.getResult(),
+                               getRhsDtype.getResult(), op.getNonBlocking(),
+                               op.getCopy(), op.getMemoryFormat());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenViewOp
 //===----------------------------------------------------------------------===//
 
@@ -2219,6 +2239,14 @@ atenBinaryFloatOperatorFoldHelper(ArrayRef<Attribute> operands,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenAliasOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenAliasOp::fold(FoldAdaptor adaptor) {
+  return getOperand();
+}
+
+//===----------------------------------------------------------------------===//
 // AtenFloordivIntOp
 //===----------------------------------------------------------------------===//
 
@@ -2312,12 +2340,40 @@ OpFoldResult AtenMulIntOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenMulFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenMulFloatOp::fold(FoldAdaptor adaptor) {
+  return atenBinaryFloatOperatorFoldHelper(
+      adaptor.getOperands(), [](double a, double b) { return a * b; });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSubFloatOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenSubFloatOp::fold(FoldAdaptor adaptor) {
   return atenBinaryFloatOperatorFoldHelper(
       adaptor.getOperands(), [](double a, double b) { return a - b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenAddOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenAddOp::fold(FoldAdaptor adaptor) {
+  if (!adaptor.getA() || !adaptor.getB()) {
+    return nullptr;
+  }
+
+  if (adaptor.getA().isa<IntegerAttr>() && adaptor.getB().isa<IntegerAttr>()) {
+    return atenBinaryIntOperatorFoldHelper(
+        adaptor.getOperands(),
+        [](int64_t a, int64_t b) -> int64_t { return a + b; });
+  }
+  return atenBinaryFloatOperatorFoldHelper(
+      adaptor.getOperands(),
+      [](double a, double b) -> double { return a + b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -2352,6 +2408,18 @@ OpFoldResult AtenDivOp::fold(FoldAdaptor adaptor) {
   return atenBinaryFloatOperatorFoldHelper(
       adaptor.getOperands(),
       [](double a, double b) -> double { return a / b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenAddFloatIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenAddFloatIntOp::fold(FoldAdaptor adaptor) {
+  if (!adaptor.getA() || !adaptor.getB()) {
+    return nullptr;
+  }
+  return atenBinaryFloatOperatorFoldHelper(
+      adaptor.getOperands(), [](double a, double b) { return a + b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -2395,6 +2463,21 @@ OpFoldResult AtenNegIntOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenNegFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenNegFloatOp::fold(FoldAdaptor adaptor) {
+  if (!adaptor.getA()) {
+    return nullptr;
+  }
+  auto value = adaptor.getA().dyn_cast_or_null<FloatAttr>();
+  if (!value) {
+    return nullptr;
+  }
+  return getF64FloatAttr(getContext(), -value.getValue().convertToDouble());
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSqrtIntOp
 //===----------------------------------------------------------------------===//
 
@@ -2429,6 +2512,43 @@ void PrimDeviceOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     // Device information isn't relevant to torch-mlir, just replace it with
     // "cpu".
     rewriter.replaceOpWithNewOp<Torch::ConstantDeviceOp>(op, "cpu");
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenCudaOp
+//===----------------------------------------------------------------------===//
+
+void AtenCudaOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                             MLIRContext *context) {
+  patterns.add(+[](AtenCudaOp op, PatternRewriter &rewriter) {
+    // Device information isn't relevant to torch-mlir
+    auto inputTensor = op.getSelf();
+    rewriter.replaceOp(op, inputTensor);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenDeviceWithIndexOp
+//===----------------------------------------------------------------------===//
+
+void AtenDeviceWithIndexOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenDeviceWithIndexOp op, PatternRewriter &rewriter) {
+    std::string type;
+    int64_t index;
+    if (!matchPattern(op.getType(), m_TorchConstantStr(type))) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: type must be a constant string");
+    }
+    if (!matchPattern(op.getIndex(), m_TorchConstantInt(&index))) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: index must be a constant integer");
+    }
+    rewriter.replaceOpWithNewOp<Torch::ConstantDeviceOp>(
+        op, type + ":" + std::to_string(index));
     return success();
   });
 }

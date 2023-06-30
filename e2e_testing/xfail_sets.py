@@ -58,6 +58,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseFlattenBroadcastModule_basic",
     "FlattenRank0Module_basic",
     "UniformModule_basic",
+    "UniformStaticShapeModule_basic",
     # error: unsupported by backend contract: tensor with unknown rank
     # note: see current operation: %1 = "torch.tensor_static_info_cast"(%arg0) : (!torch.vtensor<[5,4,3,2,1],f32>) -> !torch.vtensor<*,f32>
     "ElementwisePreluModule_basic",
@@ -275,8 +276,6 @@ TORCHDYNAMO_CRASHING_SET = {
     # %6:4 = torch.operator "aten._embedding_bag_forward_only"(%1, %3, %5, %false, %int0, %false, %none, %false, %int-1) : (!torch.tensor<*,f32>, !torch.tensor<*,si64>, !torch.tensor<*,si64>, !torch.bool, !torch.int, !torch.bool, !torch.none, !torch.bool, !torch.int) -> (!torch.tensor, !torch.tensor, !torch.tensor, !torch.tensor)
     # See also: https://github.com/pytorch/torchdynamo/issues/327
     "Aten_EmbeddingBagExample_basic",
-    # https://github.com/pytorch/pytorch/issues/100838
-    "BaddbmmDifferentDtypesModule_basic",
     "FullModuleInt3D_basic",
     "ThresholdBackward1dIntModule_basic",
     "ThresholdBackward2dIntModule_basic",
@@ -309,6 +308,7 @@ TORCHDYNAMO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "AliasModule_basic",
     "AllBoolFalseModule_basic",
     "AllBoolTrueModule_basic",
     "AnyBoolFalseModule_basic",
@@ -476,6 +476,8 @@ STABLEHLO_PASS_SET = {
     "EinsumStaticTwoDimensionModule_basic",
     "Fill_TensorFloat64WithFloat32Static_basic",
     "Fill_TensorFloat64WithInt64Static_basic",
+    "FlipModuleStaticShape_basic",
+    "FlipNegativeIndexModule_basic",
     "FullLikeModuleDefaultDtype_basic",
     "FullLikeModuleFalsePinMemory_basic",
     "FullLikeModuleFloat2D_basic",
@@ -699,6 +701,9 @@ STABLEHLO_PASS_SET = {
     "NewZerosStaticModuleLayoutStrided_basic",
     "DropoutEvalIntModule_basic",
     "DropoutEvalFloatModule_basic",
+    "DropoutTrainStaticShapeModule_basic",
+    "NativeDropoutEvalFloatModule_basic",
+    "NativeDropoutTrainStaticShapeModule_basic",
     "ContiguousModule_basic",
     "DropoutModule_basic",
     "ViewCollapseModule_basic",
@@ -796,12 +801,14 @@ STABLEHLO_PASS_SET = {
     "RandIntLowModule_basic",
     "RandIntModule_basic",
     "RandIntPinMemoryModule_basic",
+    "UniformStaticShapeModule_basic",
     "UniformNoCorrelationModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "AliasModule_basic",
     "MaxPool2dEmptyStrideStaticModule_basic",
     "ConstantBoolParameterModule_basic",
     "ElementwiseCloneContiguousModule_basic",
@@ -1256,6 +1263,9 @@ LTC_XFAIL_SET = {
     "BernoulliModule_basic",
     "BernoulliPModule_basic",
     "DropoutTrainModule_basic",
+    "DropoutTrainStaticShapeModule_basic",
+    "NativeDropoutTrainModule_basic",
+    "NativeDropoutTrainStaticShapeModule_basic",
     "StdCorrectionKeepDimModule_basic",
     "StdCorrectionNoneModule_basic",
     "VarBiasedModule_basic",
@@ -1297,4 +1307,6 @@ LTC_XFAIL_SET = {
     "ChunkListUnpackUnevenDynamic_Module_basic",
     "ScatterValueFloatModule_basic",
     "ScatterValueIntModule_basic",
+    "IndexTensorNegativeIndexModule_basic",
+    "UniformStaticShapeModule_basic",
 }

@@ -484,7 +484,7 @@ LogicalResult ConvertAtenOp<AtenAvgPool2dOp>::matchAndRewrite(
     Value divisor = hlo::getConstTensor<int64_t>(
                         rewriter, op, {kernelSize[0] * kernelSize[1]}, {})
                         .value();
-    divisor = hlo::promoteType(rewriter, divisor, outTy);
+    divisor = hlo::promoteType(rewriter, op.getLoc(), divisor, outTy);
     DenseIntElementsAttr bcastDimensions;
     rewriter.replaceOpWithNewOp<mlir::chlo::BroadcastDivOp>(
         op, outTy, reduceWindowSum.getResult(0), divisor, bcastDimensions);
@@ -494,7 +494,8 @@ LogicalResult ConvertAtenOp<AtenAvgPool2dOp>::matchAndRewrite(
   // Use another stablehlo.ReduceWindowOp to get the divisor
   Value windowSizeConst =
       hlo::getConstTensor<float>(rewriter, op, {1.0}, {}).value();
-  windowSizeConst = hlo::promoteType(rewriter, windowSizeConst, outTy);
+  windowSizeConst =
+      hlo::promoteType(rewriter, op.getLoc(), windowSizeConst, outTy);
   const auto &options = getOptions();
   auto inputShapeVec =
       *hlo::getDimSizesOfTensor(rewriter, op, input, options.dimSizeIndexBits);
