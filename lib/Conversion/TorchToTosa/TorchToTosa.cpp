@@ -3396,6 +3396,150 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<Aten_IndexPutImplOp>::matchAndRewrite(
+    Aten_IndexPutImplOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // a = torch.tensor([[0, 1, 2, 3]])
+  // a[..., 1:] = torch.tensor([4, 5, 6])
+  // = a[..., 1:4] = torch.tensor([4, 5, 6])
+  // = a[[0, 0, 0], [1, 2, 3]] = torch.tensor([4, 5, 6]) # tensor([[0, 4, 5,
+  // 6]]) = torch.ops.aten.index_put(torch.tensor([[0, 1, 2, 3]]), # input
+  //                            (torch.tensor([0, 0, 0]), torch.tensor([1, 2,
+  //                            3])), # indicies torch.tensor([4, 5, 6])) #
+  //                            value
+  // = torch.ops.aten.index_put(torch.tensor([[0, 1, 2, 3]]), # input
+  //                            (None, torch.tensor([1, 2, 3]),),# indicies
+  //                            torch.tensor([4, 5, 6])) # value
+
+  // Not a tensor type.
+  auto input = adaptor.getSelf();
+  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+
+  auto fillValues = adaptor.getValues();
+  auto valuesType = adaptor.getValues().getType().dyn_cast<TensorType>();
+  if (!valuesType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+
+  // Deal with torch.prim.ListConstruct of non const value to get the index
+  auto tensorList = op.getIndices();
+  SmallVector<Value> tensorsTorchType;
+  if (!getListConstructElements(tensorList, tensorsTorchType))
+    return op.emitError(
+        "unimplemented: the tensor list is not from list construct");
+  auto indexTensors = getTypeConvertedValues(
+      rewriter, op->getLoc(), getTypeConverter(), tensorsTorchType);
+
+  auto outType = getTypeConverter()->convertType(op.getType());
+
+  // convert list of indices with none into indices tensor  without none
+  // indexTensors (none,[1,2,3]) -> ([0,0,0],[1,2,3])
+  // ([[0],[0],[0]],[[1],[2],[3]])-> [[0,1],[0,2], [0,3]]
+  if (indexTensors.size() <= 1) {
+    return rewriter.notifyMatchFailure(
+        op, "Only support indexput with multiple index.");
+  }
+  SmallVector<Value> indicesTfConcatTensors;
+  SmallVector<int64_t> indexesRank;
+  SmallVector<SmallVector<int64_t>> indexesShape;
+
+  // concat index tensor into to indices tensor for concat
+  for (size_t i = 0; i < indexTensors.size(); i++) {
+    auto index = indexTensors[i];
+    auto indexTorch = tensorsTorchType[i];
+    // TODO add support for none index other than i==0, like (index0, None)
+    // (None, index1)
+    if (i == 0 && indexTorch.getType().isa<Torch::NoneType>()) {
+      // convert None to [0,0,0]
+      auto indexNext = indexTensors[i + 1];
+      auto indexNextTorch = tensorsTorchType[i + 1];
+      if (indexNextTorch.getType().isa<Torch::NoneType>()){
+        return rewriter.notifyMatchFailure(
+            op, "Multiple None index is not support for now.");
+      }
+      auto indexNextType = indexNext.getType().dyn_cast<RankedTensorType>();
+      auto indexNextShape = indexNextType.getShape();
+
+      int64_t size = 1;
+      for (auto s : indexNextShape)
+        size *= s;
+      SmallVector<int32_t> values(size, i);
+      index =
+          tosa::getConstTensor<int32_t>(rewriter, op, values, indexNextShape)
+              .value();
+    }
+
+    auto indexType = index.getType().dyn_cast<RankedTensorType>();
+    auto indexShape = indexType.getShape();
+    indexesShape.push_back(makeShapeTorchCompatible(indexShape));
+    indexesRank.push_back(indexType.getRank());
+
+    // index i64 to i32 for tosa compatible
+    if (indexType.getElementType() != rewriter.getIntegerType(32)) {
+      index = rewriter.create<tosa::CastOp>(
+          op->getLoc(),
+          RankedTensorType::get(indexShape, rewriter.getIntegerType(32)),
+          index);
+    }
+
+    // Expand last dim of index to tf indices [3] -> [3,1]
+    // convert [0,0,0]  to [[0],[0],[0]]
+    SmallVector<int64_t> indiceShapeOneDim;
+    for (auto shape : indexShape) {
+      indiceShapeOneDim.push_back(shape);
+    }
+    indiceShapeOneDim.push_back(1);
+    auto indicesTfOneDim = tosa::CreateOpAndInfer<tosa::ReshapeOp>(
+        rewriter, op->getLoc(),
+        RankedTensorType::get(indiceShapeOneDim, rewriter.getIntegerType(32)),
+        index, rewriter.getDenseI64ArrayAttr(indiceShapeOneDim));
+
+    // create concat tensor for indicesTf
+    // ([[0],[0],[0]], [[1],[2],[3]])
+    indicesTfConcatTensors.push_back(indicesTfOneDim.getResult());
+  }
+
+  // Right now only support multiple indexes with same shape
+  // TODO for different shape multiple indexes, add broadcast_to for small
+  // shape
+  for (auto indexShapeOneDim : indexesShape) {
+    if (!llvm::equal(indexesShape[0], indexShapeOneDim)) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: Only support multi indexes with same shape");
+    }
+  }
+
+  // concat each indices into indicesTf: shape ([3,1],[3,1]) -> [3,2]
+  // ([0,0,0],[1,2,3]) -> [[0,1],[0,2], [0,3]]
+  auto indicesShapeConcat = indexesShape[0];
+  uint64_t lastDim = indexesRank[0];
+  indicesShapeConcat.push_back(indicesTfConcatTensors.size());
+  auto indicesTf = tosa::CreateOpAndInfer<tosa::ConcatOp>(
+      rewriter, op->getLoc(),
+      GetTypeFromTensorShape(indicesShapeConcat, rewriter.getIntegerType(32)),
+      indicesTfConcatTensors, lastDim);
+
+  if (!indicesTf) {
+    return rewriter.notifyMatchFailure(
+        op, "Convert TorchIndex To TfIndices fail.");
+  }
+  // do the tf scatterNd algorithm with tf style indices as input, algorithm mostly take from convertGatherNdOp.
+  auto result = tosa::convertScatterNdOp(rewriter, op, outType, input,
+                                          indicesTf.getResult(), fillValues);
+
+  if (!result) {
+    return rewriter.notifyMatchFailure(
+        op, "Convert ScatterNdOp fail for index tensor.");
+  }
+  rewriter.replaceOp(op, {result.value()});
+
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
     AtenIndexTensorOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -3457,7 +3601,7 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
       indexesShape.push_back(makeShapeTorchCompatible(indexShape));
       indexesRank.push_back(indexType.getRank());
 
-      // index i64 to i32 for tosa compatible
+      // Make type of index tosa compatible, i64 to i32.
       if (indexType.getElementType() != rewriter.getIntegerType(32)) {
         index = rewriter.create<tosa::CastOp>(
             op->getLoc(),
@@ -4780,6 +4924,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
     INSERT_ATENOP_PATTERN(AtenGatherOp);
+    INSERT_ATENOP_PATTERN(Aten_IndexPutImplOp);
     INSERT_ATENOP_PATTERN(AtenIndexTensorOp);
     INSERT_ATENOP_PATTERN(AtenAbsOp);
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
