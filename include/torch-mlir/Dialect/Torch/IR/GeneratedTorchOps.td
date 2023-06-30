@@ -7923,6 +7923,7 @@ def Torch_AtenToOtherOp : Torch_Op<"aten.to.other", [
       printDefaultTorchOp(printer, *this, 5, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenToPrimDeviceOp : Torch_Op<"aten.to.prim_Device", [

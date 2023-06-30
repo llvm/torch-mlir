@@ -1443,6 +1443,21 @@ func.func @torch.aten.to.dtype$no_fold$unk_dtype(%arg0: !torch.tensor) -> !torch
   return %0 : !torch.tensor
 }
 
+// CHECK-LABEL: func.func @torch.aten.to.other$basic(
+// CHECK-SAME:                                 %[[ARG_0:.*]]: !torch.tensor, %[[ARG_1:.*]]: !torch.tensor) -> !torch.tensor {
+// CHECK:         %[[NONE:.*]] = torch.constant.none
+// CHECK:         %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:         %[[CPU:.*]] = torch.constant.device "cpu"
+// CHECK:         %[[VAR_0:.*]] = torch.prim.dtype %[[ARG_1]] : !torch.tensor -> !torch.int
+// CHECK:         %[[VAR_1:.*]] = torch.aten.to.device %[[ARG_0]], %[[CPU]], %[[VAR_0]], %[[FALSE]], %[[FALSE]], %[[NONE]] : !torch.tensor, !torch.Device, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.tensor
+// CHECK:         return %[[VAR_1]] : !torch.tensor
+func.func @torch.aten.to.other$basic(%arg0 : !torch.tensor, %arg1 : !torch.tensor) -> !torch.tensor {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %0 = torch.aten.to.other %arg0, %arg1, %false, %false, %none : !torch.tensor, !torch.tensor, !torch.bool, !torch.bool, !torch.none -> !torch.tensor
+  return %0 : !torch.tensor
+}
+
 // CHECK-LABEL:   func.func @torch.aten.view$1D(
 // CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[?],f32>) -> !torch.tensor<[?],f32> {
 // CHECK-NEXT:      return %[[ARG]] : !torch.tensor<[?],f32>
