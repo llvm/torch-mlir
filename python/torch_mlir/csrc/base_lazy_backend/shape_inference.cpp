@@ -119,6 +119,16 @@ std::vector<torch::lazy::Shape> compute_shape_copy(
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
+std::vector<torch::lazy::Shape> compute_shape_floor_divide(
+  const at::Tensor & self, const at::Tensor & other) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
+std::vector<torch::lazy::Shape> compute_shape_fmod(
+  const at::Tensor & self, const at::Scalar & other) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
 std::vector<torch::lazy::Shape> compute_shape_native_group_norm(
   const at::Tensor& input,
   const c10::optional<at::Tensor>& weight,
@@ -171,6 +181,10 @@ std::vector<torch::lazy::Shape> compute_shape_native_group_norm_backward(
       std::vector<int64_t>{num_features});
 
   return shapes;
+}
+std::vector<torch::lazy::Shape> compute_shape_remainder(
+  const at::Tensor & self, const at::Scalar & other) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
 std::vector<torch::lazy::Shape> compute_shape_uniform(

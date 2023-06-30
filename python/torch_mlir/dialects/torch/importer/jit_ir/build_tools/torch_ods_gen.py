@@ -578,6 +578,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::full_like : (Tensor, Scalar, int?, int?, Device?, bool?, int?) -> (Tensor)")
     emit_with_mutating_variants("aten::baddbmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::fft_fft : (Tensor, int?, int, str?) -> (Tensor)")
+    emit("aten::fmod.Tensor : (Tensor, Tensor) -> (Tensor)")
     emit("aten::unique_consecutive : (Tensor, bool, bool, int?) -> (Tensor, Tensor, Tensor)")
 
     # Functionalization ops
@@ -663,6 +664,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::floordiv.int : (int, int) -> (int)", has_folder=True)
     emit("aten::remainder.int : (int, int) -> (int)", has_folder=True)
     emit("aten::remainder.Scalar : (Tensor, Scalar) -> (Tensor)")
+    emit("aten::remainder.Tensor : (Tensor, Tensor) -> (Tensor)")
     emit("aten::add.int : (int, int) -> (int)", has_folder=True)
     emit("aten::sub.int : (int, int) -> (int)", has_folder=True)
     emit("aten::mul.int : (int, int) -> (int)", has_folder=True)
