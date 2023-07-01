@@ -8004,6 +8004,30 @@ def Torch_AtenTypeAsOp : Torch_Op<"aten.type_as", [
   let hasFolder = 1;
 }
 
+def Torch_AtenUnbindIntOp : Torch_Op<"aten.unbind.int", [
+    Pure,
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::unbind.int : (Tensor, int) -> (Tensor[])`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim
+  );
+  let results = (outs
+    AnyTorchListOfTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenUnbindIntOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenUnbindIntOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_AtenViewOp : Torch_Op<"aten.view", [
     AllowsTypeRefinement,
     ReadOnly

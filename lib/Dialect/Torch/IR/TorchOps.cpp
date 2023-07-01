@@ -21,6 +21,8 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Casting.h"
 
+#include <iostream>
+
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
@@ -1899,6 +1901,43 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
     rewriter.replaceOpWithNewOp<AtenSizeIntOp>(op, sizeOp.getSelf(), op.getIdx());
     return success();
   });
+
+  // For AtenUnbindIntOp that are immediately followed by a call to
+  // Aten__Getitem__TOp, we can simplify with a direct call to
+  // AtenTensorIndexOp.
+  patterns.add(+[](Aten__Getitem__TOp op, PatternRewriter &rewriter) {
+    auto potentialUnbindOp = op.getOperand(0);
+    auto unbindOp = potentialUnbindOp.getDefiningOp<AtenUnbindIntOp>();
+    if (!unbindOp)
+      return failure();
+
+    // Create an AtenTensorIntOp, representing the index into the tensor
+    auto tensor = unbindOp.getOperand(0);
+    auto boolConst = rewriter.create<Torch::ConstantBoolOp>(op->getLoc(), false);
+    Value noneVal = rewriter.create<ConstantNoneOp>(op.getLoc());
+    auto indexAsTensorMLIRType = rewriter.getType<Torch::NonValueTensorType>(
+      ArrayRef<int64_t>(), IntegerType::get(op->getContext(), 64, IntegerType::Signed));
+    auto indexAsTensor = rewriter.create<Torch::AtenTensorIntOp>(
+      op->getLoc(),
+      indexAsTensorMLIRType,
+      op.getOperand(1),
+      /*dtype=*/noneVal,
+      /*device=*/noneVal,
+      /*requiresGrad=*/boolConst);
+
+    // Create arguments for AtenIndexTensorOp
+    SmallVector<Value> listElements;
+    listElements.push_back(indexAsTensor);
+    auto list = rewriter.create<Torch::PrimListConstructOp>(
+      op->getLoc(), Torch::ListType::get(indexAsTensor.getType()),
+      listElements);
+
+    // Create AtenIndexTensorOp
+    rewriter.replaceOpWithNewOp<AtenIndexTensorOp>(op, op.getType(),
+                                                   tensor, list);
+    return success();
+  });
+
 }
 
 //===----------------------------------------------------------------------===//
