@@ -21,6 +21,30 @@ def FuncBackendTypeConversion : Pass<"torch-func-backend-type-conversion", "Modu
   }];
 }
 
+def SingleTensorReturnConversion : Pass<"torch-single-tensor-return-conversion", "ModuleOp"> {
+  let summary = "Convert functions to return single tensor";
+  let constructor = "mlir::torch::TorchConversion::createSingleTensorReturnConversionPass(/*valueIndex=*/0)";
+  let options = [
+    Option<"valueIndex", "value-index", "unsigned", /*default=*/"0",
+           "Index of the value in original return op to return instead">
+  ];
+  let description = [{
+    Convert functions to return single tensor
+  }];
+}
+
+def MultiForwardReturnConversion : Pass<"torch-multi-forward-return-conversion", "ModuleOp"> {
+  let summary = "Convert multiple forward functions encompassing history of one of the returned value tensor";
+  let constructor = "mlir::torch::TorchConversion::createMultiForwardReturnConversionPass(/*valueIndex=*/0)";
+  let options = [
+    Option<"valueIndex", "value-index", "unsigned", /*default=*/"0",
+           "Index of the value in original return op to base the entire backtracking on">
+  ];
+  let description = [{
+    Create multiple forward functions based on one of the values being returned initially
+  }];
+}
+
 def FinalizingBackendTypeConversion
     : Pass<"torch-finalizing-backend-type-conversion", "func::FuncOp"> {
   let summary = "Finalizes a partial conversion to builtin tensors";
