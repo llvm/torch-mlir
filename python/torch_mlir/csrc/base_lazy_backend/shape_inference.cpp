@@ -154,6 +154,23 @@ std::vector<torch::lazy::Shape> compute_shape_native_group_norm(
   return shapes;
 }
 
+std::vector<torch::lazy::Shape> compute_shape_im2col(
+  const at::Tensor& self, at::IntArrayRef kernel_size, at::IntArrayRef dilation,
+  at::IntArrayRef padding, at::IntArrayRef stride) {
+
+  auto self_meta = at::native::empty_strided_meta_symint(
+      self.sym_sizes(),
+      self.sym_strides(),
+      /*dtype=*/c10::make_optional(self.scalar_type()),
+      /*layout=*/c10::make_optional(self.layout()),
+      /*device=*/c10::make_optional(c10::Device(c10::kMeta)),
+      /*pin_memory=*/c10::nullopt);
+
+  auto out_meta =
+      at::im2col(self_meta, kernel_size, dilation, padding, stride);
+  return {Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
+}
+
 std::vector<torch::lazy::Shape> compute_shape_native_group_norm_backward(
   const at::Tensor& grad_out,
   const at::Tensor& input,
