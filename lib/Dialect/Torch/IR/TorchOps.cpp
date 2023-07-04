@@ -527,9 +527,30 @@ void RuntimeAssertOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 // DerefineOp
 //===----------------------------------------------------------------------===//
 
+namespace {
+bool hasIntersectingType(Type operandType, Type resultType) {
+  if (auto number = operandType.dyn_cast<Torch::NumberType>()) {
+    if (resultType.isa<Torch::IntType>() ||
+        resultType.isa<Torch::FloatType>()) {
+      return true;
+    }
+    if (auto unionType = resultType.dyn_cast<UnionType>()) {
+      for (auto containedType : unionType.getContainedTypes()) {
+        if (containedType.isa<Torch::IntType>() ||
+            containedType.isa<Torch::FloatType>()) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+} // namespace
+
 bool DerefineOp::areCastCompatible(mlir::TypeRange inputs,
                                    mlir::TypeRange outputs) {
-  return isValidSubtype(inputs[0], outputs[0]);
+  return isValidSubtype(inputs[0], outputs[0]) ||
+         hasIntersectingType(inputs[0], outputs[0]);
 }
 
 OpFoldResult DerefineOp::fold(FoldAdaptor adaptor) {
