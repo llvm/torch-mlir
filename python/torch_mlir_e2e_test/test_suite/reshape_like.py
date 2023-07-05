@@ -734,19 +734,38 @@ def EinsumStaticModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-class EinsumStaticTwoDimensionModule(torch.nn.Module):
+class EinsumStaticTwoBatchingDimModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([3, 2, 4], torch.float32, True),
-        ([5, 4, 6], torch.float32, True),
+        ([3, 2, 5, 6], torch.float32, True),
+        ([3, 2, 6, 4], torch.float32, True),
     ])
     def forward(self, tensor1, tensor2):
-        return torch.ops.aten.einsum('bqe,ked->bqkd', [tensor1, tensor2])
+        return torch.ops.aten.einsum('bcwd,bcdh->bcwh', [tensor1, tensor2])
 
-@register_test_case(module_factory=lambda: EinsumStaticTwoDimensionModule())
-def EinsumStaticTwoDimensionModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 2, 4), tu.rand(5, 4, 6))
+@register_test_case(module_factory=lambda: EinsumStaticTwoBatchingDimModule())
+def EinsumStaticTwoBatchingDimModule(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 5, 6), tu.rand(3, 2, 6, 4))
+
+# ==============================================================================
+
+class EinsumStaticFourDimensionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4, 5, 6], torch.float32, True),
+        ([3, 7, 5, 6], torch.float32, True),
+    ])
+    def forward(self, tensor1, tensor2):
+        return torch.ops.aten.einsum('blhd,bshd->blhs', [tensor1, tensor2])
+
+@register_test_case(module_factory=lambda: EinsumStaticFourDimensionModule())
+def EinsumStaticFourDimensionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5, 6), tu.rand(3, 7, 5, 6))
