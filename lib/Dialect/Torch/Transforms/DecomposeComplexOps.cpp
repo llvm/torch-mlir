@@ -543,17 +543,14 @@ class DecomposeAtenEinsumOp : public OpRewritePattern<AtenEinsumOp> {
       int64_t inputShapeSize = inputShape.size();
       SmallVector<Value> inputValueShape;
       for (int j = 0; j < inputShapeSize; j++) {
-        Value sizeInt = rewriter.create<AtenSizeIntOp>(
-            loc, inputTensors[i],
-            rewriter.create<Torch::ConstantIntOp>(
-                loc, rewriter.getI64IntegerAttr(j)));
-        inputValueShape.push_back(inputShape[j] == kUnknownSize
-                                      ? sizeInt
-                                      : rewriter.create<Torch::ConstantIntOp>(
-                                            loc, rewriter.getI64IntegerAttr(
-                                                     inputShape[j])));
+          inputValueShape.push_back(inputShape[j] == kUnknownSize
+                                    ? rewriter.create<AtenSizeIntOp>(
+                                          loc, inputTensors[i],
+                                          rewriter.create<Torch::ConstantIntOp>(
+                                              loc, rewriter.getI64IntegerAttr(j)))
+                                    : rewriter.create<Torch::ConstantIntOp>(
+                                          loc, rewriter.getI64IntegerAttr(inputShape[j])));
       }
-
       inputShapes.push_back(inputValueShape);
     }
 
