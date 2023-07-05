@@ -523,6 +523,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::to.device : (Tensor, Device, int, bool, bool, int?) -> (Tensor)")
     emit("aten::type_as : (Tensor, Tensor) -> (Tensor)", has_folder=True)
     emit("aten::view : (Tensor, int[]) -> (Tensor)", has_folder=True)
+    emit("aten::as_strided : (Tensor, int[], int[], int?) -> (Tensor)", has_folder=True)
     emit("aten::_unsafe_view : (Tensor, int[]) -> (Tensor)")
     emit("aten::where.self : (Tensor, Tensor, Tensor) -> (Tensor)")
     emit("aten::where.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)")
