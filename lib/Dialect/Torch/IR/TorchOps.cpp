@@ -716,14 +716,23 @@ OpFoldResult AtenRoundOp::fold(FoldAdaptor adaptor) {
 // AtenTypeAsOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult AtenTypeAsOp::fold(FoldAdaptor adaptor) {
-  Type inType = getSelf().getType();
-  Type newType = getOther().getType();
+void AtenTypeAsOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                               MLIRContext *context) {
+  // Unconditionally canonicalize `torch.type_as` to `prim.dtype` +
+  // `torch.to.dtype`.
+  patterns.add(+[](AtenTypeAsOp op, PatternRewriter &rewriter) {
+    auto input = op.getSelf();
+    auto other = op.getOther();
+    Location loc = op.getLoc();
 
-  if (inType == newType)
-    return getSelf();
-
-  return nullptr;
+    Value targetDtype = rewriter.create<Torch::PrimDtypeOp>(loc, other);
+    Value nonBlocking = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value copy = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value memoryFormat = rewriter.create<Torch::ConstantNoneOp>(loc);
+    rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
+        op, op.getType(), input, targetDtype, nonBlocking, copy, memoryFormat);
+    return success();
+  });
 }
 
 //===----------------------------------------------------------------------===//
