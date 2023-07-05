@@ -232,5 +232,27 @@ compute_shape_multinomial(
   return {Shape(at::kLong, ishape)};
 }
 
+std::vector<torch::lazy::Shape> compute_shape_eye(
+  int64_t n, c10::optional<at::ScalarType> dtype,
+  c10::optional<at::Layout> layout,
+  c10::optional<at::Device> device,
+  c10::optional<bool> pin_memory) {
+    auto out_meta = at::eye(n, dtype, layout, c10::Device(c10::kMeta),
+                            pin_memory);
+    return {Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
+}
+
+std::vector<torch::lazy::Shape> compute_shape_eye(
+  int64_t n,
+  int64_t m,
+  c10::optional<at::ScalarType> dtype,
+  c10::optional<at::Layout> layout,
+  c10::optional<at::Device> device,
+  c10::optional<bool> pin_memory) {
+    auto out_meta = at::eye(n, m, dtype, layout, c10::Device(c10::kMeta),
+                            pin_memory);
+    return {Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
+}
+
 } // namespace lazy
 } // namespace torch
