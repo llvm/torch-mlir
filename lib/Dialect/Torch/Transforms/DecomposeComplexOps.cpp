@@ -4586,6 +4586,29 @@ public:
 } // namespace
 
 namespace {
+// Unconditionally decompose `torch.type_as` into `prim.dtype` +
+// `torch.to.dtype`.
+class DecomposeAtenTypeAsOp : public OpRewritePattern<AtenTypeAsOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTypeAsOp op,
+                                PatternRewriter &rewriter) const override {
+    auto input = op.getSelf();
+    auto other = op.getOther();
+    Location loc = op.getLoc();
+
+    Value targetDtype = rewriter.create<Torch::PrimDtypeOp>(loc, other);
+    Value nonBlocking = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value copy = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value memoryFormat = rewriter.create<Torch::ConstantNoneOp>(loc);
+    rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
+        op, op.getType(), input, targetDtype, nonBlocking, copy, memoryFormat);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -4754,6 +4777,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenScalarTensor>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScatterValueOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSignOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenTypeAsOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
