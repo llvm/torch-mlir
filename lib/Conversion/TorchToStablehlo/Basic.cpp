@@ -1476,15 +1476,11 @@ LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
               "memory_format is supported");
   }
 
-  // TODO: Add support for device arg other than cpu.
   if (!op.getDevice().getType().isa<Torch::NoneType>()) {
     std::string device;
     if (!matchPattern(op.getDevice(), m_TorchConstantDevice(device)))
       return rewriter.notifyMatchFailure(
           op, "unimplemented: device must be a constant str");
-    else if (device != "cpu")
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: device is expected to be cpu");
   }
 
   // TODO: Add support for non-strided layout.
