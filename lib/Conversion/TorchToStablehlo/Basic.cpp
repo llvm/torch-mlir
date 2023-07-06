@@ -1511,8 +1511,7 @@ LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
       typeConverter->convertType(op.getType()).cast<RankedTensorType>();
   Type resultElementType;
   if (op.getDtype().getType().isa<Torch::NoneType>()) {
-    resultElementType =
-        getDefaultDtypeForTorchScalar(Torch::FloatType::get(op->getContext()));
+    resultElementType = resultType.getElementType();
   } else {
     int64_t dtypeInt;
     if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeInt)))
