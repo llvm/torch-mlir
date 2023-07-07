@@ -1,11 +1,7 @@
 blacklist:
-# List of unsupported ops in LTC autogen because of some error
-- _index_put_impl_  # Error: TODO not sure if there are other valid types to handle here
-- _index_put_impl # Error: TODO not sure if there are other valid types to handle here
-- empty_like  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
-- index.Tensor  # Error: TODO not sure if there are other valid types to handle here
-- index_put  # Error: TODO not sure if there are other valid types to handle here
-- index_put_  # Error: TODO not sure if there are other valid types to handle here
+# Disabled in favour of `aten::index_put` which supports optional indices via `hacked_twin` JIT hack.
+# It also doesn't have confusing `unsafe` argument.
+- _index_put_impl
 
 # Ops with list of tensors output
 - split.Tensor
@@ -61,6 +57,8 @@ supported:
 - unbind_copy.int
 - split_copy.Tensor
 - split_with_sizes_copy
+- index.Tensor
+- index_put
 
 # ops required for functionalization
 - lift
