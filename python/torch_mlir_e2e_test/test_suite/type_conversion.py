@@ -235,6 +235,27 @@ class TypeAsSameModule(torch.nn.Module):
 def TypeAsSameModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5), tu.rand(3, 5))
 
+class TypeAsDifferentModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.type_as(x, y)
+
+
+@register_test_case(module_factory=lambda: TypeAsDifferentModule())
+def TypeAsDifferentModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 5, low=0, high=10, dtype=torch.int), 
+        tu.randint(3, 5, low=0, high=10, dtype=torch.int64)
+    )
 
 # ==============================================================================
 
