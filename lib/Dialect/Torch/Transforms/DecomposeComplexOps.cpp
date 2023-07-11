@@ -4603,7 +4603,6 @@ public:
       return rewriter.notifyMatchFailure(
           op, "only handle input tensor with shape information");
     }
-    auto outType = op.getType();
     ArrayRef<int64_t> inputSizes = inputType.getSizes();
 
     SmallVector<int64_t> outSizes;
