@@ -58,6 +58,18 @@ jobs:
                      -t torch-mlir:ci \
                      .
 
+    - name: Verify buildifier was run (bazel lint)
+      run: |
+        docker run --rm \
+                   -v "$(pwd)":"/opt/src/torch-mlir" \
+                   -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
+                   torch-mlir:ci \
+                   bazel run @torch-mlir//:buildifier
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "Please 'bazel run @torch-mlir//:buildifier' and commit changes."
+          exit 1
+        fi
+
     - name: Bazel build torch-mlir
       run: |
         docker run --rm \
@@ -73,18 +85,6 @@ jobs:
                    -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
                    torch-mlir:ci \
                    bazel test @torch-mlir//test/...
-
-    - name: Verify buildifier was run (bazel lint)
-      run: |
-        docker run --rm \
-                   -v "$(pwd)":"/opt/src/torch-mlir" \
-                   -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
-                   torch-mlir:ci \
-                   bazel run @torch-mlir//:buildifier
-        if [ -n "$(git status --porcelain)" ]; then
-          echo "Please 'bazel run @torch-mlir//:buildifier' and commit changes."
-          exit 1
-        fi
 
     # Switch back bazel cache directory to user ownership
     # to allow GHA post-cache step to save cache without
