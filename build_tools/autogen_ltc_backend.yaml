@@ -18,14 +18,8 @@ blacklist:
 
 # Disabled for consistency with TS backend
 - lift_fresh_copy
-- new_empty
 - rsub
 - slice.Tensor  # Disabled in favour of slice_copy.Tensor
-- zeros
-- ones
-- arange
-- arange.start
-- arange.start_step
 - fill.Scalar
 - scalar_tensor
 
@@ -40,10 +34,6 @@ blacklist:
 - transpose.int
 - unsqueeze
 - view
-
-whitelist:
-# Enabled for consistency with TS backend
-- arange.start_out
 
 # List of supported ops that we don't want to do the full codegen for
 supported:
