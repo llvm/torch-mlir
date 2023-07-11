@@ -313,6 +313,7 @@ TORCHDYNAMO_CRASHING_SET = {
 
 STABLEHLO_PASS_SET = {
     "AliasModule_basic",
+    "TensorIntModule_basic",
     "AllBoolFalseModule_basic",
     "AllBoolTrueModule_basic",
     "AnyBoolFalseModule_basic",
@@ -748,6 +749,8 @@ STABLEHLO_PASS_SET = {
     "NarrowHorizontalTest_basic",
     "NarrowVerticalTest2_basic",
     "NarrowVerticalTest_basic",
+    "NarrowTensorHorizontalModule_basic",
+    "NarrowTensorVerticalModule_basic",
     "NumToTensorIntModule_basic",
     "NumpyTRank0Module_basic",
     "NumpyTRank1Module_basic",

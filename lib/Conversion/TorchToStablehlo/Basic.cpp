@@ -762,6 +762,22 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
   return success();
 }
 
+// AtenTensorIntOp
+template <>
+LogicalResult ConvertAtenOp<AtenTensorIntOp>::matchAndRewrite(
+    AtenTensorIntOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  RankedTensorType resultType = getTypeConverter()
+                                    ->convertType(op->getResult(0).getType())
+                                    .cast<RankedTensorType>();
+  Type outElementType = resultType.getElementType();
+  Value innerValue = adaptor.getT();
+  Value stablehloTensor =
+      hlo::scalarToStablehloTensor(rewriter, op, innerValue, outElementType);
+  rewriter.replaceOp(op, stablehloTensor);
+  return success();
+}
+
 // AtenReciprocalOp
 // Reciprocal(x) = Div(1, x)
 template <>
@@ -1699,6 +1715,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenPermuteOp);
 
   INSERT_ATENOP_PATTERN(ValueTensorLiteralOp);
+  INSERT_ATENOP_PATTERN(AtenTensorIntOp);
   INSERT_ATENOP_PATTERN(AtenReciprocalOp);
   INSERT_ATENOP_PATTERN(AtenPowTensorScalarOp);
   INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);

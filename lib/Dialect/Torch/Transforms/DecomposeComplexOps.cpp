@@ -341,6 +341,27 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.narrow.Tensor` to `aten.narrow` op
+class DecomposeAtenNarrowTensorOp
+    : public OpRewritePattern<AtenNarrowTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNarrowTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto *context = op.getContext();
+    // PyTorch makes sure that `start` param is an 0-dim integral tensor.
+    // REF: https://pytorch.org/docs/stable/generated/torch.narrow.html.
+    auto start = rewriter.create<Torch::AtenScalarImplicitOp>(
+        loc, Torch::IntType::get(context), op.getStart());
+    rewriter.replaceOpWithNewOp<Torch::AtenNarrowOp>(
+        op, op.getType(), op.getSelf(), op.getDim(), start, op.getLength());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenZeroOp
     : public OpRewritePattern<AtenZeroOp> {
 public:
@@ -4725,6 +4746,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdCorrectionOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNarrowOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenNarrowTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_EmbeddingBagOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLiftFreshCopyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorHackedTwinOp>(
