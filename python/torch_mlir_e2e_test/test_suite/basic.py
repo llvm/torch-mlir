@@ -2225,18 +2225,18 @@ class IndexTensorStaticWithNoneModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([2, 2, 32], torch.float32, True),
+        ([2, 3, 4, 5, 32], torch.float32, True),
+        ([1, 2, 1], torch.int64, True),
         ([2, 1], torch.int64, True),
-        ([2], torch.int64, True),
     ])
-    def forward(self, x, index1, index):
-        return torch.ops.aten.index(x, (index1, None, index))
+    def forward(self, x, index, index1):
+        return torch.ops.aten.index(x, (None, index, index1, None))
 
 
 @register_test_case(module_factory=lambda: IndexTensorStaticWithNoneModule())
 def IndexTensorStaticWithNoneModule_basic(module, tu: TestUtils):
     
-    module.forward(tu.rand(2, 2, 32), torch.tensor([[0],[1]]), tu.randint(2, high=1))
+    module.forward(tu.rand(2, 3, 4, 5, 32), torch.tensor([[[0],[1]]]), torch.tensor([[0],[1]]))
 
 # ==============================================================================
 

@@ -423,23 +423,26 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
 
   // Step 1: broadcast indices tensors
   int maxRank = -1;
-  SmallVector<int64_t> indexNoneTensorDims;
+  SmallVector<int64_t> indexTensorDims;
   SmallVector<Value> indexTensors;
   auto inputShape = makeShapeTorchCompatible(inputTensorType.getShape());
 
   // concat index tensor into to indices tensor for concat
-  for (size_t i = 0; i < indicesVal.size(); i++) {
+  int64_t indicesSize = indicesVal.size();
+  for (int64_t i = 0; i < indicesSize; i++) {
     auto indexTensor = indicesVal[i];
     auto indexTorchTensor = indicesTorchType[i];
 
     if (indexTorchTensor.getType().isa<Torch::NoneType>()) {
       SmallVector<int64_t> sizes(1, 0);
-      // for (size_t j = 0; j < inputShape[i]; j++) {
-      //   sizes.push_back(j);
-      // }
       auto sizesTensor = rewriter.getI64TensorAttr(sizes);
       indexTensor = rewriter.create<arith::ConstantOp>(loc, sizesTensor);
-      indexNoneTensorDims.push_back(i);
+    } else {
+      // TODO: add support for none index input between indices tensors
+      if (!indexTensorDims.empty() && indexTensorDims.back() != i - 1)
+        return rewriter.notifyMatchFailure(
+          op, "none index input tensor in middle are not supported");
+      indexTensorDims.push_back(i);
     }
     indexTensors.push_back(indexTensor);
 
@@ -450,7 +453,10 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
     }
     maxRank = std::max(maxRank, (int)indexTensorType.getRank());
   }
-
+  if (!indexTensorDims.empty()) {
+    indexTensors.resize(indexTensorDims.back() + 1);
+  }
+  int64_t noneTensorCount = indexTensors.size() - indexTensorDims.size();
   if (indexTensors.empty()) {
     return rewriter.notifyMatchFailure(
         op, "aten.index.Tensor: index tensor must not be None");
@@ -469,10 +475,14 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
   SmallVector<int64_t> expandShape;
   SmallVector<int64_t> concatShape;
 
+  int64_t offsetBroadcastDim = 0;
+  if (!indexTensorDims.empty())
+    offsetBroadcastDim = indexTensorDims[0];
+
   for (int i = 0; i < maxRank; i++) {
-    indicesShape.push_back(refinedResultShape[i]);
-    expandShape.push_back(refinedResultShape[i]);
-    concatShape.push_back(refinedResultShape[i]);
+    indicesShape.push_back(refinedResultShape[i + offsetBroadcastDim]);
+    expandShape.push_back(refinedResultShape[i + offsetBroadcastDim]);
+    concatShape.push_back(refinedResultShape[i + offsetBroadcastDim]);
   }
   if (indexTensors.size() > 1) {
     expandShape.push_back(1);
@@ -513,13 +523,13 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
   int64_t indicesRank = finalIndexTy.getRank();
   int64_t numIndicesDim = broadcastedIndices.size();
   int64_t indexVecDim = numIndicesDim > 1 ? indicesRank - 1 : indicesRank;
-  llvm::outs()<< "indexVecDim:" << indexVecDim << '\n';
+
   SmallVector<int64_t> offsetDims;
   SmallVector<int64_t> collapsedDims;
   SmallVector<int64_t> startIndexMap;
   for (int64_t i = 0; i < numIndicesDim; ++i) {
-    if (std::find(indexNoneTensorDims.begin(), indexNoneTensorDims.end(), i) == 
-        indexNoneTensorDims.end()) {
+    if (std::find(indexTensorDims.begin(), indexTensorDims.end(), i) != 
+        indexTensorDims.end()) {
       collapsedDims.push_back(i);
     } else {
       offsetDims.push_back(i);
@@ -528,12 +538,13 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
   }
 
   for (int64_t i = numIndicesDim; i < inputTensorType.getRank(); i++) {
-    if (numIndicesDim > 1 && indexNoneTensorDims.size() == 0) {
-      offsetDims.push_back(i + indicesRank - 1 - numIndicesDim);
+    if (numIndicesDim > 1) {
+      offsetDims.push_back(i + indicesRank - 1 - numIndicesDim + noneTensorCount);
     } else {
-      offsetDims.push_back(i + indicesRank - numIndicesDim);
+      offsetDims.push_back(i + indicesRank - numIndicesDim + noneTensorCount);
     }
   }
+
   auto dimsAttr = stablehlo::GatherDimensionNumbersAttr::get(
       rewriter.getContext(),
       /*offsetDims=*/offsetDims,
@@ -544,21 +555,21 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
   SmallVector<int64_t> sliceSizes;
   for (int64_t i = 0; i < inputTensorType.getRank(); ++i) {
     if (i < numIndicesDim) {
-      if (std::find(indexNoneTensorDims.begin(), indexNoneTensorDims.end(), i) != indexNoneTensorDims.end()) {
+      if (std::find(indexTensorDims.begin(), 
+          indexTensorDims.end(), i) == indexTensorDims.end()) {
         sliceSizes.push_back(inputShape[i]);
       } else {
         sliceSizes.push_back(1);
       }
-
     } else {
       sliceSizes.push_back(inputShape[i]);
     }
   }
 
-  auto result = rewriter.replaceOpWithNewOp<stablehlo::GatherOp>(
+  rewriter.replaceOpWithNewOp<stablehlo::GatherOp>(
       op, resultType, input, finalIndexTensor, dimsAttr,
       rewriter.getI64TensorAttr(sliceSizes));
-  llvm::outs() << result <<'\n';   
+
   return success();
 }
 
