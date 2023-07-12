@@ -423,7 +423,7 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
 
   // Step 1: broadcast indices tensors
   int maxRank = -1;
-  SmallVector<int64_t> indexTensorDims;
+  SmallVector<int64_t> indexNoneTensorDims;
   SmallVector<Value> indexTensors;
   auto inputShape = makeShapeTorchCompatible(inputTensorType.getShape());
 
@@ -433,13 +433,13 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
     auto indexTorchTensor = indicesTorchType[i];
 
     if (indexTorchTensor.getType().isa<Torch::NoneType>()) {
-      SmallVector<int64_t> sizes;
-      for (size_t j = 0; j < inputShape[i]; j++) {
-        sizes.push_back(j);
-      }
+      SmallVector<int64_t> sizes(1, 0);
+      // for (size_t j = 0; j < inputShape[i]; j++) {
+      //   sizes.push_back(j);
+      // }
       auto sizesTensor = rewriter.getI64TensorAttr(sizes);
       indexTensor = rewriter.create<arith::ConstantOp>(loc, sizesTensor);
-      indexTensorDims.push_back(i);
+      indexNoneTensorDims.push_back(i);
     }
     indexTensors.push_back(indexTensor);
 
@@ -496,7 +496,6 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
       bcastVal =
           rewriter.create<stablehlo::ReshapeOp>(loc, reshapeType, bcastVal);
     }
-    llvm::outs() << bcastVal << '\n';
     broadcastedIndices.push_back(bcastVal);
   }
 
@@ -514,21 +513,23 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
   int64_t indicesRank = finalIndexTy.getRank();
   int64_t numIndicesDim = broadcastedIndices.size();
   int64_t indexVecDim = numIndicesDim > 1 ? indicesRank - 1 : indicesRank;
-
+  llvm::outs()<< "indexVecDim:" << indexVecDim << '\n';
   SmallVector<int64_t> offsetDims;
   SmallVector<int64_t> collapsedDims;
   SmallVector<int64_t> startIndexMap;
   for (int64_t i = 0; i < numIndicesDim; ++i) {
-    if (std::find(indexTensorDims.begin(), indexTensorDims.end(), i) == 
-        indexTensorDims.end())
+    if (std::find(indexNoneTensorDims.begin(), indexNoneTensorDims.end(), i) == 
+        indexNoneTensorDims.end()) {
       collapsedDims.push_back(i);
+    } else {
+      offsetDims.push_back(i);
+    }
     startIndexMap.push_back(i);
   }
-  for (int64_t i = numIndicesDim;
-       i < inputTensorType.getRank() + indexTensorDims.size(); i++) {
-    if (numIndicesDim > 1) {
+
+  for (int64_t i = numIndicesDim; i < inputTensorType.getRank(); i++) {
+    if (numIndicesDim > 1 && indexNoneTensorDims.size() == 0) {
       offsetDims.push_back(i + indicesRank - 1 - numIndicesDim);
-      llvm::outs() << i + indicesRank - 1 - numIndicesDim << '\n';
     } else {
       offsetDims.push_back(i + indicesRank - numIndicesDim);
     }
@@ -543,7 +544,12 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
   SmallVector<int64_t> sliceSizes;
   for (int64_t i = 0; i < inputTensorType.getRank(); ++i) {
     if (i < numIndicesDim) {
-      sliceSizes.push_back(1);
+      if (std::find(indexNoneTensorDims.begin(), indexNoneTensorDims.end(), i) != indexNoneTensorDims.end()) {
+        sliceSizes.push_back(inputShape[i]);
+      } else {
+        sliceSizes.push_back(1);
+      }
+
     } else {
       sliceSizes.push_back(inputShape[i]);
     }
