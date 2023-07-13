@@ -300,7 +300,10 @@ function test_in_tree() {
       exit 1
       ;;
     esac
-  
+
+  echo ":::: Run make_fx + TOSA e2e integration tests"
+  python -m e2e_testing.main --config=make_fx_tosa -v
+
   echo ":::: Run TorchDynamo e2e integration tests"
   python -m e2e_testing.main --config=torchdynamo -v
 

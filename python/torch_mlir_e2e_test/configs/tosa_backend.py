@@ -23,14 +23,15 @@ class TosaBackendTestConfig(TestConfig):
     This class handles all the common lowering that torch-mlir does before
     reaching the linalg-on-tensors abstraction level.
     """
-    def __init__(self, backend: TosaBackend):
+    def __init__(self, backend: TosaBackend, use_make_fx: bool = False):
         super().__init__()
         self.backend = backend
+        self.use_make_fx = use_make_fx
 
     def compile(self, program: torch.nn.Module) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
         module = torch_mlir.compile(
-            program, example_args, output_type="tosa")
+            program, example_args, output_type="tosa", use_make_fx=self.use_make_fx)
 
         return self.backend.compile(module)
 
