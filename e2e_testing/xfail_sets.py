@@ -11,6 +11,7 @@
 # might be used to keep more elaborate sets of testing configurations).
 
 from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
+from torch_mlir._version import torch_version_for_comparison, version
 
 LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 
@@ -1141,6 +1142,12 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
     "IndexPutImpl1DIntNonAccumulateModule_basic",
 }
+
+if torch_version_for_comparison() < version.parse("2.1.0.dev"):
+    MAKE_FX_TOSA_PASS_SET -= {
+        # 'tensor.expand_shape' op expected rank expansion, but found source rank 1 >= result rank 1
+        "ReshapeCollapseModule_basic",
+    }
 
 LTC_CRASHING_SET = {
     # https://github.com/llvm/torch-mlir/issues/2186
