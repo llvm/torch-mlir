@@ -1026,7 +1026,6 @@ TOSA_PASS_SET = {
     "TypePromotionZeroRankHigherCategoryModule_basic",
     "GatherStaticModule_basic",
     "IndexTensorStaticModule_basic",
-    "IndexTensorStaticWithNoneModule_basic",
     "IndexTensorMultiIndexStaticModule_basic",
     "ElementwiseWhereScalarModule_basic",
     "FullLikeModuleFloat3DStatic_basic",
