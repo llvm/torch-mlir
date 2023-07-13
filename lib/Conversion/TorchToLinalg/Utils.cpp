@@ -323,7 +323,8 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
 // Broadcasts input tensor based on the broadcastToShape.
 LogicalResult torch_to_linalg::broadcastToGivenShape(
     Operation *op, PatternRewriter &rewriter, Value input,
-    SmallVector<Value> broadcastToShape, Value &result) {
+    SmallVector<Value> broadcastToShape, Value &result,
+    SmallVector<bool> useBroadcastToShape) {
   RankedTensorType inputType = input.getType().cast<RankedTensorType>();
   SmallVector<int64_t> inputShape =
       makeShapeTorchCompatible(inputType.getShape());
@@ -335,13 +336,16 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
 
   Type elementType = inputType.getElementType();
   Location loc = op->getLoc();
-  MLIRContext *context = op->getContext();
   SmallVector<Value> outShape;
 
   // Create affine map and shapes for tensor initialization.
   SmallVector<AffineExpr> outExpr;
   Value zero =
       rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(0));
+  Value zeroIndex =
+      rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+  Value oneIndex =
+      rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
   size_t diff = broadcastToShape.size() - inputShape.size();
   for (size_t i = 0; i < broadcastToShape.size(); i++) {
     Value shapeValue = broadcastToShape[i];
@@ -358,46 +362,65 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
     }
     if (inputShape[j] == 1) {
       // Broadcast singleton dimension
-      Value one =
-          rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
       Value isNegative = rewriter.create<arith::CmpIOp>(
           loc, arith::CmpIPredicate::slt, shapeValue, zero);
       Value select = rewriter.create<arith::SelectOp>(
-          loc, isNegative, one, castIntToIndex(rewriter, loc, shapeValue));
+          loc, isNegative, oneIndex, castIntToIndex(rewriter, loc, shapeValue));
       outShape.push_back(select);
-      outExpr.push_back(mlir::getAffineConstantExpr(0, context));
-      continue;
+    } else {
+      // Case of dynamic input dimension wherein the shape to broadcast will
+      // yield us the dimension size of the output.
+      Value dim = getDimOp(rewriter, loc, input, j);
+      if (!useBroadcastToShape.empty()) {
+        if (useBroadcastToShape[i])
+          dim = castIntToIndex(rewriter, loc, broadcastToShape[j]);
+      }
+      outShape.push_back(dim);
     }
-    // Non-broadcast case
-    Value dim = getDimOp(rewriter, loc, input, j);
-    Value isNegative = rewriter.create<arith::CmpIOp>(
-        loc, arith::CmpIPredicate::slt, shapeValue, zero);
-    Value isEqual = rewriter.create<arith::CmpIOp>(
-        loc, arith::CmpIPredicate::eq, castIndexToInt64(rewriter, loc, dim),
-        shapeValue);
-    Value isValid = rewriter.create<arith::OrIOp>(loc, isNegative, isEqual);
-    rewriter.create<cf::AssertOp>(
-        loc, isValid,
-        rewriter.getStringAttr(
-            "only broadcasting singleton dimensions supported"));
-    outShape.push_back(dim);
-    outExpr.push_back(mlir::getAffineDimExpr(i, context));
   }
 
   Value outTensor = rewriter.create<tensor::EmptyOp>(
       loc, getAsOpFoldResult(outShape), elementType);
 
   SmallVector<AffineMap> indexingMaps = {
-      AffineMap::get(broadcastToShape.size(), 0, outExpr, context),
       rewriter.getMultiDimIdentityMap(broadcastToShape.size())};
   SmallVector<utils::IteratorType> iteratorTypes(broadcastToShape.size(),
                                                  utils::IteratorType::parallel);
   result = rewriter
                .create<linalg::GenericOp>(
-                   loc, outTensor.getType(), input, outTensor, indexingMaps,
-                   iteratorTypes,
-                   [](OpBuilder &b, Location loc, ValueRange args) {
-                     b.create<linalg::YieldOp>(loc, args[0]);
+                   loc, outTensor.getType(), ValueRange(), outTensor,
+                   indexingMaps, iteratorTypes,
+                   [&](OpBuilder &b, Location loc, ValueRange args) {
+                     // `loopIndices` contains IV of the linalg loops which
+                     // would be used to extract values from the input tensor
+                     // later on.
+                     SmallVector<Value> loopIndices;
+                     for (size_t i = 0; i < broadcastToShape.size(); ++i) {
+                       if (i < diff)
+                         continue;
+                       loopIndices.push_back(b.create<linalg::IndexOp>(loc, i));
+                     }
+                     // `inputIndicesToExtract` contains i-th linalg loop IV if
+                     // the i-th input dimension is not 1, else it contains a
+                     // zero index.
+                     SmallVector<Value> inputIndicesToExtract;
+                     for (size_t i = 0, n = inputShape.size(); i < n; i++) {
+                       if (inputShape[i] == 1) {
+                         inputIndicesToExtract.push_back(zeroIndex);
+                       } else {
+                         Value inputDim = getDimOp(b, loc, input, i);
+                         Value isEqual = b.create<arith::CmpIOp>(
+                             loc, arith::CmpIPredicate::eq, inputDim, oneIndex);
+                         Value select = rewriter.create<arith::SelectOp>(
+                             loc, isEqual, zeroIndex, loopIndices[i]);
+                         inputIndicesToExtract.push_back(select);
+                       }
+                     }
+                     // Extract and yield the value from input tensor at
+                     // `inputIndicesToExtract` indices.
+                     Value result = b.create<tensor::ExtractOp>(
+                         loc, input, inputIndicesToExtract);
+                     b.create<linalg::YieldOp>(loc, result);
                    })
                .getResult(0);
 

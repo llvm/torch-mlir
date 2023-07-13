@@ -1179,12 +1179,29 @@ public:
       return rewriter.notifyMatchFailure(
           op, "unimplemented: the size list is not from list construct");
     }
+    // For dynamic input dimension we need to use the `broadcastToShape`
+    // which in this case is `inShapeConverted` because this shape will yield
+    // us the dimension size of the output.
+    SmallVector<bool> useBroadcastToShape;
+    for (auto x : inShape) {
+      int64_t dim;
+      if (!matchPattern(x, m_TorchConstantInt(&dim))) {
+        Operation* defOp = x.getDefiningOp();
+        if (isa<AtenSizeOp, AtenSizeIntOp>(defOp))
+          useBroadcastToShape.push_back(true);
+        else
+          useBroadcastToShape.push_back(false);
+      } else {
+        useBroadcastToShape.push_back(false);
+      }
+    }
+
     SmallVector<Value> inShapeConverted = getTypeConvertedValues(
         rewriter, op.getLoc(), getTypeConverter(), inShape);
-
     Value result;
-    if (failed(torch_to_linalg::broadcastToGivenShape(
-            op, rewriter, self, inShapeConverted, result))) {
+    if (failed(torch_to_linalg::broadcastToGivenShape(op, rewriter, self,
+                                                      inShapeConverted, result,
+                                                      useBroadcastToShape))) {
       return rewriter.notifyMatchFailure(
           op, "unable to perform broadcast operation");
     }
