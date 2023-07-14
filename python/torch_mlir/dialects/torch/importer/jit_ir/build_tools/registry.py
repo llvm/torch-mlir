@@ -197,6 +197,7 @@ class JitOperator:
         def_name = "〇".join(mlir_op_name.split("."))
         def_name += f"〡{function_kind}"
         parameter_decls = list(map(parameter_decl_builder, self.arguments))
+        parameter_decls = list(filter(None, parameter_decls))
         ret_decls = list(map(ret_decl_builder, self.returns))
         parameters = ", ".join(parameter_decls)
         result = ", ".join(ret_decls)
