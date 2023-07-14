@@ -29,6 +29,7 @@ from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import LinalgOnTensorsT
 
 from .xfail_sets import (
     LINALG_XFAIL_SET,
+    MAKE_FX_TOSA_PASS_SET,
     STABLEHLO_PASS_SET,
     TOSA_PASS_SET,
     LTC_XFAIL_SET,
@@ -42,7 +43,7 @@ from torch_mlir_e2e_test.test_suite import register_all_tests
 register_all_tests()
 
 def _get_argparse():
-    config_choices = ["native_torch", "torchscript", "linalg", "stablehlo", "tosa", "lazy_tensor_core", "torchdynamo"]
+    config_choices = ["native_torch", "torchscript", "linalg", "stablehlo", "make_fx_tosa", "tosa", "lazy_tensor_core", "torchdynamo"]
     parser = argparse.ArgumentParser(description="Run torchscript e2e tests.")
     parser.add_argument("-c", "--config",
         choices=config_choices,
@@ -93,6 +94,10 @@ def main():
     elif args.config == "tosa":
         config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend())
         xfail_set = all_test_unique_names - TOSA_PASS_SET
+        crashing_set = set()
+    elif args.config == "make_fx_tosa":
+        config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend(), use_make_fx=True)
+        xfail_set = all_test_unique_names - MAKE_FX_TOSA_PASS_SET
         crashing_set = set()
     elif args.config == "stablehlo":
         config = StablehloBackendTestConfig(LinalgOnTensorsStablehloBackend())
