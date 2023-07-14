@@ -1108,6 +1108,8 @@ TOSA_PASS_SET = {
     "TensorsConcatStaticModule_basic",
     "TensorsConcatNegativeDimStaticModule_basic",
     "AtenComplex64Module_basic",
+    "ElementwiseSqrtIntModule_basic",
+    "ElementwiseSqrtModule_basic",
     "SplitTensorGetItem_Module_basic",
     "SplitTensorListUnpackModule_basic",
     "ChunkListUnpack_Module_basic",
