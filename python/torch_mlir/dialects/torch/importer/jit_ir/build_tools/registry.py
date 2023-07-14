@@ -43,7 +43,7 @@ def _get_default_value(arg: "SIG_ATTR_TYPE") -> str:
 
 def _pytype_to_fn_pytype_common(pytype: str) -> str:
     if "number" in pytype:
-        return pytype.replace("number", "Union[int, float]")
+        return pytype.replace("number", "Union[int, float, complex]")
     # `torch.device` is lowercase.
     if pytype == "Device":
         return "device"
