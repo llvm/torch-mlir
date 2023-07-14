@@ -2106,6 +2106,36 @@ void PrimTupleUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// PrimListConstructOp
+//===----------------------------------------------------------------------===//
+
+void PrimListConstructOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](PrimListConstructOp op, PatternRewriter &rewriter) {
+    if (isListPotentiallyMutated(op.getResult())) 
+      return failure();
+    SmallVector<Value> elements = llvm::to_vector<4>(op.getElements());
+    if (elements.size() == 0)
+      return failure();
+
+    auto listUnpackOp = elements[0].getDefiningOp<PrimListUnpackOp>();
+    if (!listUnpackOp)
+      return failure();
+    SmallVector<Value, 4> listUnpackResults;
+    for (auto v : listUnpackOp.getResults()) {
+      listUnpackResults.emplace_back(v);
+    }
+    if (listUnpackResults != elements)
+      return failure();
+    if (isListPotentiallyMutated(listUnpackOp.getOperand()))
+      return failure();
+
+    rewriter.replaceOp(op, listUnpackOp.getOperand());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // PrimListUnpackOp
 //===----------------------------------------------------------------------===//
 
