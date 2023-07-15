@@ -922,6 +922,11 @@ TCP_PASS_SET = {
     "ElementwiseAddScalar_TensorLiteralInt32_Module_basic",
     "TensorLiteralModule_basic",
     "TensorOpaqueLiteralModule_basic",
+    "Add_Module_basic",
+    "AliasModule_basic",
+    "BatchNorm1DStaticShapeModule_basic",
+    "BroadcastListConstructWithMinusOneModule_basic",
+    "ElementwiseAtenDivIntScalarModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
