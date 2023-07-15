@@ -36,7 +36,7 @@ Value createElementwiseLinalgGeneric(
   // the tensorOperands, since all the operands are expected to have the same
   // shape.
   SmallVector<OpFoldResult> resultDimSizes =
-      mlir::tensor::createDimValues(b, loc, tensorOperands[0]);
+      mlir::tensor::getMixedSizes(b, loc, tensorOperands[0]);
 
   // Add indexing maps for all the tensor operands and for the result.
   SmallVector<AffineMap> indexingMaps{tensorOperands.size() + 1,
