@@ -73,10 +73,10 @@ Value createElementwiseLinalgGeneric(
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild);
 
 // Broadcasts input tensor based on the broadcastToShape.
-LogicalResult broadcastToGivenShape(Operation *op, PatternRewriter &rewriter,
-                                    Value input,
-                                    SmallVector<Value> broadcastToShape,
-                                    Value &result);
+LogicalResult
+broadcastToGivenShape(Operation *op, PatternRewriter &rewriter, Value input,
+                      SmallVector<Value> broadcastToShape, Value &result,
+                      SmallVector<bool> useBroadcastToShape = {});
 
 // Cast a tensor to a rank-equivalent tensor of unknown size, i.e. <1x2xf32> ->
 // <?x?xf32>

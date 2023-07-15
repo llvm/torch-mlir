@@ -39,7 +39,7 @@ struct torch_constant_int_op_binder {
 
   bool match(Operation *op) {
     if (auto constantInt = dyn_cast<Torch::ConstantIntOp>(op)) {
-      *bind_value = constantInt.getValue().getSExtValue();
+      *bind_value = constantInt.getValueAttr().getInt();
       return true;
     }
     return false;

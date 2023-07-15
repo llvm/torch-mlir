@@ -100,17 +100,13 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Only Tensor types supported in TOSA");
 
-    auto lhsElemTy = lhsTy.getElementType();
-    auto rhsElemTy = rhsTy.getElementType();
+    auto outTy = OpConversionPattern<AtenOpT>::getTypeConverter()
+                     ->convertType(op.getType())
+                     .template cast<TensorType>();
 
-    if (lhsElemTy != rhsElemTy)
-      return rewriter.notifyMatchFailure(op, "Input datatypes mismatched");
-
-    rewriter.replaceOpWithNewOp<TosaOpT>(
-        op,
-        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-            op.getType()),
-        lhs, rhs);
+    auto binaryOp =
+        tosa::createBinaryOpAndCast<TosaOpT>(rewriter, op, outTy, lhs, rhs);
+    rewriter.replaceOp(op, binaryOp.getResult());
     return success();
   }
 };
@@ -149,7 +145,7 @@ LogicalResult torchScalarToTosaTensor(ConversionPatternRewriter &rewriter,
 
   if (dtype.isa<mlir::FloatType>()) {
     tosaTensor = tosa::getConstTensor<float>(
-                     rewriter, op, (isFloat ? doubleValue : intValue), dshape)
+                     rewriter, op, (isFloat ? doubleValue : intValue), dshape, dtype)
                      .value();
   } else if (auto intType = dtype.dyn_cast<mlir::IntegerType>()) {
     auto w = intType.getWidth();
@@ -204,8 +200,9 @@ LogicalResult torchAlphaToTosaTensor(ConversionPatternRewriter &rewriter,
     return rewriter.notifyMatchFailure(op,
                                        "Unsupported integer value for alpha");
 
-  alphaTensor =
-      mlir::tosa::getTosaConstTensorSingleF32(rewriter, op, alphaValue);
+  alphaTensor = tosa::getConstTensor<float>(
+                    rewriter, op, {static_cast<float>(alphaValue)}, {}, dtype)
+                    .value();
 
   return success();
 }
@@ -291,52 +288,30 @@ public:
               "alpha in conversion to TOSA operation");
     }
 
-    // make sure input of MulOp is same datetype, otherwise the lowering to
-    // arith dialect will bug
-    auto multTensor = rewriter.create<tosa::MulOp>(
-        op.getLoc(),
+    auto mulAlphaOp = tosa::createMulOpAndCast(
+        rewriter, op,
         rhsType ? rhsType : RankedTensorType::get({}, rhsAlphaMulElemType),
         rhsTensor, alphaTensor, /*shift=*/0);
 
-    if (outElemTy.isa<mlir::FloatType>() || outElemTy.isInteger(32)) {
-      // if outElemTy tensor<f32>, mulTensor must be tensor<f32>,
-      //    left value could be tensor<f32/i32/i64>, cast left value to
-      //    tensor<f32> type
-      // if outElemTy tensor<i32>, mulTensor must be tensor<i32>,
-      //    left value could be tensor<f32/i32/i64>, cast left value to
-      //    tensor<i32> type
-      if (lhsType.getElementType() != rhsAlphaMulElemType)
-        lhs = rewriter.create<tosa::CastOp>(
-            op.getLoc(),
-            RankedTensorType::get(lhsType.getShape(), rhsAlphaMulElemType),
-            lhs);
-
-      rewriter.replaceOpWithNewOp<TosaOpT>(op, outType, lhs, multTensor);
-
-      return success();
-    } else if (outElemTy.isInteger(64)) {
+    if (outElemTy.isInteger(64)) {
+      // Tosa doesn't support 64-bit elementwise addition and subtraction.
       // if outElemTy tensor<i64>, mulTensor must be tensor<i32>,
       //    left value could be tensor<f32/i32/i64> type, cast left value to
       //    tensor<i32> type
-      if (lhsType.getElementType() != rhsAlphaMulElemType)
-        lhs = rewriter.create<tosa::CastOp>(
-            op.getLoc(),
-            RankedTensorType::get(lhsType.getShape(), rhsAlphaMulElemType),
-            lhs);
-
-      auto tosaOpTOutputTensor = rewriter.create<TosaOpT>(
-          op.getLoc(),
+      auto addOrSubi64Op = tosa::createBinaryOpAndCast<TosaOpT>(
+          rewriter, op,
           RankedTensorType::get(outType.getShape(), rhsAlphaMulElemType), lhs,
-          multTensor);
-      // cast tensor<i32> back to tensor<i64>
-      rewriter.replaceOpWithNewOp<tosa::CastOp>(op, outType,
-                                                tosaOpTOutputTensor);
+          mulAlphaOp);
 
+      // cast tensor<i32> back to tensor<i64>
+      rewriter.replaceOpWithNewOp<tosa::CastOp>(op, outType, addOrSubi64Op);
       return success();
-    } else {
-      return rewriter.notifyMatchFailure(
-          op, "Only floating-point, i32, i64 datatype legalization supported");
     }
+
+    auto binaryOp = tosa::createBinaryOpAndCast<TosaOpT>(rewriter, op, outType,
+                                                         lhs, mulAlphaOp);
+    rewriter.replaceOp(op, binaryOp.getResult());
+    return success();
   }
 }; // namespace
 
@@ -457,15 +432,13 @@ public:
 
     if (outElemTy.isa<mlir::FloatType>() ||
         outElemTy.isa<mlir::IntegerType>()) {
-      if (lhsType.getElementType() != outElemTy)
-        lhs = rewriter.create<tosa::CastOp>(op.getLoc(), outType, lhs);
+      auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
+                         ->convertType(op.getType())
+                         .template cast<TensorType>();
 
-      rewriter.replaceOpWithNewOp<tosa::MulOp>(
-          op,
-          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-              op.getType()),
-          lhs, rhsTensor,
-          /*shift=*/0);
+      auto mulOp = tosa::createMulOpAndCast(rewriter, op, outType, lhs,
+                                            rhsTensor, /*shift=*/0);
+      rewriter.replaceOp(op, mulOp.getResult());
       return success();
     }
 
@@ -507,23 +480,32 @@ public:
                 "conversion in TOSA operation");
     }
     auto rhsTensor = rhsTy ? rhs : rhsAsTensor;
+    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
+                       ->convertType(op.getType())
+                       .template cast<TensorType>();
 
-    if (lhsElemTy.isa<mlir::FloatType>()) {
+    // auto result;
+    Value result;
+    if (outType.getElementType().template isa<mlir::FloatType>()) {
+      // The input to the reciprocal is an integer sometimes, and we may need to
+      // promote it to a floating point. Per TOSA specification, the input types
+      // can only be floating point for tosa::ReciprocalOp.
+      Value rhsCasted = tosa::promoteType(rewriter, rhsTensor, outType);
       auto rcpOp = rewriter.create<tosa::ReciprocalOp>(
-          op->getLoc(), rhsTy ? rhsTy : RankedTensorType::get({}, lhsElemTy),
-          rhsTensor);
-      rewriter.replaceOpWithNewOp<tosa::MulOp>(
-          op,
-          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-              op.getType()),
-          lhs, rcpOp.getResult(), /*shift=*/0);
+          op->getLoc(), rhsCasted.getType(), rhsCasted);
+
+      result = tosa::createMulOpAndCast(rewriter, op, outType, lhs,
+                                        rcpOp.getResult(), /*shift=*/0)
+                   .getResult();
     } else {
-      rewriter.replaceOpWithNewOp<tosa::DivOp>(
-          op,
-          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-              op.getType()),
-          lhs, rhsTensor);
+      // The output type can be different than the input types (e.g. dividing an
+      // int tensor results in a floating point tensor).
+      result = tosa::createBinaryOpAndCast<tosa::DivOp>(rewriter, op, outType,
+                                                        lhs, rhsTensor)
+                   .getResult();
     }
+
+    rewriter.replaceOp(op, {result});
     return success();
   }
 };
@@ -623,7 +605,7 @@ LogicalResult ConvertAtenOp<AtenLeakyReluOp>::matchAndRewrite(
         op, "Negative slope needs to be a scalar constant for conversion to "
             "TOSA LeakyReLU operation");
 
-  auto zero = tosa::getConstTensor<float>(rewriter, op, 0, {}).value();
+  auto zero = tosa::getConstTensor<float>(rewriter, op, 0, {}, selfTy.getElementType()).value();
   auto cond = rewriter.create<tosa::GreaterEqualOp>(
       op->getLoc(),
       RankedTensorType::get(selfTy.getShape(), rewriter.getIntegerType(1)),
@@ -1025,16 +1007,20 @@ LogicalResult ConvertAtenOp<AtenPowTensorScalarOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "Only floating-point datatype legalization supported");
 
+  auto outType =
+      getTypeConverter()->convertType(op.getType()).template cast<TensorType>();
+
   Value expTensor;
   Value expScalar = op.getExponent();
   if (failed(torchScalarToTosaTensor(rewriter, op, expScalar, expTensor,
-                                     selfTy.getElementType(), {})))
+                                     outType.getElementType(), {})))
     return rewriter.notifyMatchFailure(
         op, "Currently only scalar constants are supported for "
             "conversion in TOSA Pow operation");
 
-  rewriter.replaceOpWithNewOp<tosa::PowOp>(
-      op, getTypeConverter()->convertType(op.getType()), self, expTensor);
+  auto powOp = tosa::createBinaryOpAndCast<tosa::PowOp>(rewriter, op, outType,
+                                                        self, expTensor);
+  rewriter.replaceOp(op, powOp.getResult());
 
   return success();
 }
@@ -2174,7 +2160,10 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "eps must be a scalar constant");
 
   auto epsilonConst =
-      mlir::tosa::getTosaConstTensorSingleF32(rewriter, op, eps);
+      tosa::getConstTensor<float>(rewriter, op.getOperation(),
+                                  {static_cast<float>(eps)}, {},
+                                  meanType.getElementType())
+          .value();
 
   auto batchNorm =
       computeBatchNorm(op, rewriter, outType, adaptor.getInput(), varianceVal,
@@ -2278,7 +2267,7 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
 
   auto elemCntConst =
       tosa::getConstTensor<float>(rewriter, op.getOperation(),
-                                  {static_cast<float>(elemCnt)}, {1})
+                                  {static_cast<float>(elemCnt)}, {1}, elemTy)
           .value();
   Value elemCntRcp = rewriter.create<tosa::ReciprocalOp>(
       op.getLoc(), elemCntConst.getType(), elemCntConst);
@@ -2333,7 +2322,9 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
   if (!matchPattern(op.getEps(), m_TorchConstantFloat(&eps)))
     return rewriter.notifyMatchFailure(op, "eps must be a scalar constant");
   auto epsilonConst =
-      mlir::tosa::getTosaConstTensorSingleF32(rewriter, op, eps);
+      tosa::getConstTensor<float>(rewriter, op.getOperation(),
+                                  {static_cast<float>(eps)}, {}, elemTy)
+          .value();
 
   // Compute layer norm.
   auto layerNorm =
@@ -2486,9 +2477,9 @@ LogicalResult ConvertAtenOp<AtenLog2Op>::matchAndRewrite(
 
   // Constant value of ln2.
   SmallVector<int64_t> ln2Shape(selfType.getRank(), 1);
-  auto ln2Op =
-      tosa::getConstTensor<float>(rewriter, op, {0.69314718056}, ln2Shape)
-          .value();
+  auto ln2Op = tosa::getConstTensor<float>(rewriter, op, {0.69314718056},
+                                           ln2Shape, selfType.getElementType())
+                   .value();
   auto rcpOp =
       rewriter.create<tosa::ReciprocalOp>(op.getLoc(), ln2Op.getType(), ln2Op);
 
@@ -2703,7 +2694,7 @@ LogicalResult ConvertAtenOp<AtenViewOp>::matchAndRewrite(
 }
 
 static Value approximateErfOp(ConversionPatternRewriter &rewriter,
-                              Operation *op, Value x) {
+                              Operation *op, Value x, Type dtype) {
   // Using:
   // https://en.wikipedia.org/wiki/Error_function#Numerical_approximations with
   // maximum error as 5 x 10^-4 where a1 = 0.278393, a2 = 0.230389, a3 =
@@ -2714,24 +2705,24 @@ static Value approximateErfOp(ConversionPatternRewriter &rewriter,
   auto outType = x.getType().cast<TensorType>();
   auto loc = op->getLoc();
   auto absX = rewriter.create<tosa::AbsOp>(loc, outType, x);
-  auto zero = tosa::getConstTensor<float>(rewriter, op, 0, {}).value();
-  auto one = tosa::getConstTensor<float>(rewriter, op, 1, {}).value();
+  auto zero = tosa::getConstTensor<float>(rewriter, op, 0, {}, dtype).value();
+  auto one = tosa::getConstTensor<float>(rewriter, op, 1, {}, dtype).value();
 
-  auto a1 = tosa::getConstTensor<float>(rewriter, op, 0.278393, {}).value();
+  auto a1 = tosa::getConstTensor<float>(rewriter, op, 0.278393, {}, dtype).value();
   auto a1X = rewriter.create<tosa::MulOp>(loc, outType, a1, absX, /*shift=*/0);
   auto sum = rewriter.create<tosa::AddOp>(loc, outType, a1X, one);
 
-  auto a2 = tosa::getConstTensor<float>(rewriter, op, 0.230389, {}).value();
+  auto a2 = tosa::getConstTensor<float>(rewriter, op, 0.230389, {}, dtype).value();
   auto x2 = rewriter.create<tosa::MulOp>(loc, outType, absX, absX, /*shift=*/0);
   auto a2X = rewriter.create<tosa::MulOp>(loc, outType, a2, x2, /*shift=*/0);
   sum = rewriter.create<tosa::AddOp>(loc, outType, sum, a2X);
 
-  auto a3 = tosa::getConstTensor<float>(rewriter, op, 0.000972, {}).value();
+  auto a3 = tosa::getConstTensor<float>(rewriter, op, 0.000972, {}, dtype).value();
   auto x3 = rewriter.create<tosa::MulOp>(loc, outType, x2, absX, /*shift=*/0);
   auto a3X = rewriter.create<tosa::MulOp>(loc, outType, a3, x3, /*shift=*/0);
   sum = rewriter.create<tosa::AddOp>(loc, outType, sum, a3X);
 
-  auto a4 = tosa::getConstTensor<float>(rewriter, op, 0.078108, {}).value();
+  auto a4 = tosa::getConstTensor<float>(rewriter, op, 0.078108, {}, dtype).value();
   auto x4 = rewriter.create<tosa::MulOp>(loc, outType, x3, absX, /*shift=*/0);
   auto a4X = rewriter.create<tosa::MulOp>(loc, outType, a4, x4, /*shift=*/0);
   sum = rewriter.create<tosa::AddOp>(loc, outType, sum, a4X);
@@ -2754,9 +2745,10 @@ static Value approximateErfOp(ConversionPatternRewriter &rewriter,
 }
 
 static Value buildUnitNormalCdf(ConversionPatternRewriter &rewriter,
-                                Operation *op, Value x) {
-  auto zero = tosa::getConstTensor<float>(rewriter, op, 0, {}).value();
-  auto one = tosa::getConstTensor<float>(rewriter, op, 1, {}).value();
+                                Operation *op, Value x, Type dtype) {
+  auto zero = tosa::getConstTensor<float>(rewriter, op, 0, {}, dtype).value();
+  auto one = tosa::getConstTensor<float>(rewriter, op, 1, {}, dtype).value();
+
   auto loc = op->getLoc();
 
   // buildNormalCdf, mean = zero, sigma = one
@@ -2765,12 +2757,14 @@ static Value buildUnitNormalCdf(ConversionPatternRewriter &rewriter,
   Value xMinusMean = rewriter.create<tosa::SubOp>(loc, outType, x, mean);
   // rsqrt of 2
   Value rsqrt2 =
-      tosa::getConstTensor<float>(rewriter, op, 0.70710678, {}).value();
+      tosa::getConstTensor<float>(rewriter, op, 0.70710678, {}, dtype).value();
+
   Value erfArg = rewriter.create<tosa::MulOp>(loc, outType, xMinusMean, rsqrt2,
                                               /*shift=*/0);
-  Value erf = approximateErfOp(rewriter, op, erfArg);
+  Value erf = approximateErfOp(rewriter, op, erfArg, dtype);
   Value erfPlus1 = rewriter.create<tosa::AddOp>(loc, outType, one, erf);
-  Value oneHalf = tosa::getConstTensor<float>(rewriter, op, 0.5, {}).value();
+  Value oneHalf = tosa::getConstTensor<float>(rewriter, op, 0.5, {}, dtype).value();
+
   Value normalCdf = rewriter.create<tosa::MulOp>(loc, outType, oneHalf,
                                                  erfPlus1, /*shift=*/0);
   return normalCdf;
@@ -2801,7 +2795,10 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "Unsupported value of approximate");
   }
 
-  Value cdf = buildUnitNormalCdf(rewriter, op, adaptor.getSelf());
+  Value cdf = buildUnitNormalCdf(rewriter, op, adaptor.getSelf(), selfElemTy);
+  cdf = rewriter.createOrFold<tosa::CastOp>(
+          op->getLoc(), cast<RankedTensorType>(cdf.getType()).cloneWith({}, selfElemTy), cdf);
+
   rewriter.replaceOpWithNewOp<tosa::MulOp>(
       op, getTypeConverter()->convertType(op.getType()), adaptor.getSelf(), cdf,
       /*shift=*/0);
@@ -2842,16 +2839,16 @@ LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
   const double kAlpha = cstAlpha0 * cstAlpha1;
 
   Value kAlphaHalf =
-      tosa::getConstTensor<float>(rewriter, op, kAlpha * oneHalf, {}).value();
+      tosa::getConstTensor<float>(rewriter, op, kAlpha * oneHalf, {}, selfElemTy).value();
   Value negOneHalf =
-      tosa::getConstTensor<float>(rewriter, op, -0.5, {}).value();
+      tosa::getConstTensor<float>(rewriter, op, -0.5, {}, selfElemTy).value();
   Value inputSquared = rewriter.create<tosa::MulOp>(
       loc, selfType, adaptor.getSelf(), adaptor.getSelf(), /*shift=*/0);
   Value negHalfInputSquared = rewriter.create<tosa::MulOp>(
       loc, selfType, inputSquared, negOneHalf, /*shift=*/0);
   Value dinput =
       rewriter.create<tosa::ExpOp>(loc, selfType, negHalfInputSquared);
-  Value cdf = buildUnitNormalCdf(rewriter, op, adaptor.getSelf());
+  Value cdf = buildUnitNormalCdf(rewriter, op, adaptor.getSelf(), selfElemTy);
   Value dinputInput = rewriter.create<tosa::MulOp>(
       loc, selfType, dinput, adaptor.getSelf(), /*shift=*/0);
   Value dinputInputAlpha = rewriter.create<tosa::MulOp>(
@@ -2915,7 +2912,7 @@ LogicalResult ConvertAtenOp<AtenHardtanhBackwardOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "Only scalar constant is supported");
   }
 
-  Value replace = tosa::getConstTensor<float>(rewriter, op, 0, {}).value();
+  Value replace = tosa::getConstTensor<float>(rewriter, op, 0, {}, selfElemTy).value();
   Type outType = getTypeConverter()->convertType(op.getType());
 
   Value lesser = rewriter.create<tosa::GreaterOp>(
@@ -3192,6 +3189,8 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "end must be a Scalar constant");
   // support for end < 0
   end = toPositiveDim(end, selfType.getShape()[dim]);
+  // support for end out of upper bound
+  end = (end > selfType.getShape()[dim] ? selfType.getShape()[dim] : end);
 
   // FIXME: add support for start < 0 and end < start
   if (end < start)
@@ -3247,6 +3246,13 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
 
   SmallVector<int64_t> inputShape(
       makeShapeTorchCompatible(selfType.getShape()));
+  // Result dimension -1 means not changing the size of that dimension.
+  // Adjust it by assigning its inputShape.
+  for (auto shape : llvm::enumerate(makeShapeTorchCompatible(inputShape))) {
+    auto index = shape.index();
+    if (resultShape[index] == -1)
+      resultShape[index] = shape.value();
+  }
   // Check for identity case i.e, for ex: [a, b, c] -> [a, b, c]. If this is
   // true then we can replace the op result with the input operand directly.
   if (llvm::equal(inputShape, resultShape)) {
@@ -3289,15 +3295,8 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
     // +0. (sign bit flips). These are probably acceptable in the short term,
     // but we should put a comment acknowledging the danger, as there isn't an
     // op that avoids the denorm flushing.
-    SmallVector<int64_t> intValues(totalNumElements, 0);
-    SmallVector<float> floatValues(totalNumElements, 0.0);
-    Value zeroTensor = selfType.getElementType().isa<mlir::FloatType>()
-                           ? tosa::getConstTensor<float>(
-                                 rewriter, op, floatValues, zeroTensorShape)
-                                 .value()
-                           : tosa::getConstTensor<int64_t>(
-                                 rewriter, op, intValues, zeroTensorShape)
-                                 .value();
+    Value zeroTensor =
+        tosa::getZerosLikeTensor(rewriter, op, resultType).value();
 
     // Use add broadcast
     rewriter.replaceOpWithNewOp<tosa::AddOp>(op, resultType, adaptor.getSelf(),
@@ -3998,10 +3997,25 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Failed to process inputs for pooling");
 
-    auto pooledOutput =
-        rewriter
-            .create<TosaOpT>(op->getLoc(), outputTy, input, kernel, stride, pad)
-            .getResult();
+    Value pooledOutput;
+    static_assert(std::is_same<TosaOpT, tosa::MaxPool2dOp>::value ||
+                      std::is_same<TosaOpT, tosa::AvgPool2dOp>::value,
+                  "Expected either tosa::MaxPool2dOp or tosa::AvgPool2dOp");
+    if constexpr (std::is_same<TosaOpT, tosa::MaxPool2dOp>::value) {
+      pooledOutput = rewriter
+                         .create<TosaOpT>(op->getLoc(), outputTy, input, kernel,
+                                          stride, pad)
+                         .getResult();
+    } else if constexpr (std::is_same<TosaOpT, tosa::AvgPool2dOp>::value) {
+      TypeAttr accType;
+      if (failed(tosa::getAvgPool2dAccType(rewriter, input, accType)))
+        return rewriter.notifyMatchFailure(
+            op, "Failed to get accumulator type for pooling");
+      pooledOutput = rewriter
+                         .create<TosaOpT>(op->getLoc(), outputTy, input, kernel,
+                                          stride, pad, accType)
+                         .getResult();
+    }
 
     auto transposedOutput =
         ConvertAtenPoolingBaseOp<AtenOpT, TosaOpT>::transposePoolingOutputToChw(
@@ -4549,6 +4563,35 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenSqrtOp>::matchAndRewrite(
+    AtenSqrtOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Converts AtenSqrtOp into pow(x, 0.5)
+  auto self = adaptor.getSelf();
+  auto selfTy = self.getType().dyn_cast<TensorType>();
+  if (!selfTy)
+    return rewriter.notifyMatchFailure(op,
+                                       "Only Tensor types supported in TOSA");
+
+  auto resultType = typeConverter->convertType(op.getType())
+                        .template cast<RankedTensorType>();
+  auto elementType = resultType.getElementType();
+
+  if (isa<mlir::IntegerType>(selfTy.getElementType())) {
+    self = rewriter.createOrFold<tosa::CastOp>(
+        op->getLoc(), RankedTensorType::get(resultType.getShape(), elementType),
+        self);
+  }
+
+  auto oneHalf =
+      tosa::getConstTensor<float>(rewriter, op, 0.5, {}, elementType).value();
+
+  rewriter.replaceOpWithNewOp<tosa::PowOp>(op, resultType, self, oneHalf);
+  return success();
+}
+
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -4616,6 +4659,7 @@ public:
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenCompareOp<AtenOp, TosaOp>>(typeConverter, context);
     INSERT_BINARY_COMPARE_PATTERN(AtenGtTensorOp, tosa::GreaterOp)
+    INSERT_BINARY_COMPARE_PATTERN(AtenGeScalarOp, tosa::GreaterEqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenGtScalarOp, tosa::GreaterOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenLtTensorOp, tosa::GreaterOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenLtScalarOp, tosa::GreaterOp)
@@ -4777,6 +4821,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenConstantPadNdOp);
     INSERT_ATENOP_PATTERN(AtenRemainderScalarOp);
     INSERT_ATENOP_PATTERN(AtenCatOp);
+    INSERT_ATENOP_PATTERN(AtenSqrtOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \

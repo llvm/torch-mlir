@@ -12,6 +12,24 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
+class ScalarConstantTupleModule(torch.nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return (1, 2)
+
+@register_test_case(module_factory=lambda: ScalarConstantTupleModule())
+def ScalarConstantTupleModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 4))
+
+# ==============================================================================
 
 class MmModule(torch.nn.Module):
 
@@ -330,6 +348,28 @@ class FlattenDynamicModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: FlattenDynamicModule())
 def FlattenDynamicModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 3, 8, 9, 3, 4))
+
+
+# ==============================================================================
+
+
+class AliasModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, inp_tensor):
+        return torch.ops.aten.alias(inp_tensor)
+
+
+@register_test_case(module_factory=lambda: AliasModule())
+def AliasModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 20, 20, low=-1))
 
 
 # ==============================================================================
@@ -818,7 +858,7 @@ def GatherNegativeDimModule_basic(module, tu: TestUtils):
 class GatherRandomIndexModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
@@ -839,7 +879,7 @@ def GatherRandomIndexModule_basic(module, tu: TestUtils):
 class Gather2DInputModdule(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
@@ -1332,6 +1372,53 @@ def BroadcastZeroRankInputStaticModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class BroadcastListConstructWithMinusOneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 1, 8], torch.float32, True),
+        ([3, 1, 8], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        y = torch.broadcast_to(y, [-1, -1, -1])
+        return torch.ops.aten.sub(x, y)
+
+
+@register_test_case(module_factory=lambda: BroadcastListConstructWithMinusOneModule())
+def BroadcastListConstructWithMinusOneModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 8), tu.rand(3, 1, 8))
+
+# ==============================================================================
+
+class BroadcastDynamicDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, -1, 1, -1], torch.float32, True),
+        ([1, -1, 1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        dim_at_index_1 = torch.ops.aten.size(x, 1)
+        dim_at_index_3 = torch.ops.aten.size(x, 3)
+        res = torch.ops.aten.broadcast_to(y, [1, dim_at_index_1, 1, dim_at_index_3])
+        return res
+
+
+@register_test_case(module_factory=lambda: BroadcastDynamicDimModule())
+def BroadcastDynamicDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 1, 4), tu.rand(1, 1, 1, 1))
+
+
+# ==============================================================================
+
 
 class RollModule(torch.nn.Module):
 
@@ -1457,6 +1544,27 @@ class PrimMinIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: PrimMinIntModule())
 def PrimMinIntModule_basic(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+class PrimMinIntDynamicModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.prim.min(a.size(0), a.size(1))
+
+
+@register_test_case(module_factory=lambda: PrimMinIntDynamicModule())
+def PrimMinIntDynamicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 5))
 
 
 # ==============================================================================
@@ -1704,6 +1812,94 @@ class DropoutTrainModule(torch.nn.Module):
 def DropoutTrainModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1024, 1536))
 
+# ==============================================================================
+
+
+class DropoutTrainStaticShapeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1024, 1536], torch.float32, True),
+    ])
+    def forward(self, x):
+        res = torch.dropout(x, 0.3, train=True)
+        return torch.mean(res), torch.std(res)
+
+
+@register_test_case(module_factory=lambda: DropoutTrainStaticShapeModule())
+def DropoutTrainStaticShapeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1024, 1536))
+
+# ==============================================================================
+
+
+class NativeDropoutEvalFloatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.native_dropout(x, 0.1, train=False)
+
+
+@register_test_case(module_factory=lambda: NativeDropoutEvalFloatModule())
+def NativeDropoutEvalFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class NativeDropoutTrainModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        res = torch.native_dropout(x, 0.3, train=True)
+        return torch.mean(res[0]), torch.std(res[0]), torch.mean(res[1].to(torch.float32)), torch.std(res[1].to(torch.float32))
+
+
+@register_test_case(module_factory=lambda: NativeDropoutTrainModule())
+def NativeDropoutTrainModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1024, 1536))
+
+
+# ==============================================================================
+
+
+class NativeDropoutTrainStaticShapeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1024, 1536], torch.float32, True),
+    ])
+    def forward(self, x):
+        res = torch.native_dropout(x, 0.3, train=True)
+        return torch.mean(res[0]), torch.std(res[0]), torch.mean(res[1].to(torch.float32)), torch.std(res[1].to(torch.float32))
+
+
+@register_test_case(module_factory=lambda: NativeDropoutTrainStaticShapeModule())
+def NativeDropoutTrainStaticShapeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1024, 1536))
 
 # ==============================================================================
 
@@ -1914,7 +2110,7 @@ class TensorLiteralModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         torch.manual_seed(0)
-        self.t = torch.randint(-5, 5, (2, 3))
+        self.register_buffer("t", torch.randint(-5, 5, (2, 3)))
 
     @export
     @annotate_args([
@@ -1937,7 +2133,7 @@ class TensorOpaqueLiteralModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         torch.manual_seed(0)
-        self.t = torch.randint(-5, 5, (256, 1024))
+        self.register_buffer("t", torch.randint(-5, 5, (256, 1024)))
 
     @export
     @annotate_args([
@@ -2019,6 +2215,8 @@ def IndexTensorStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 5), tu.randint(2, 3, high=4))
 
 # ==============================================================================
+
+
 class IndexTensorMultiIndexStaticModule(torch.nn.Module):
 
     def __init__(self):
@@ -2326,6 +2524,29 @@ class IndexTensorMultiInputContiguousCenter(torch.nn.Module):
 @register_test_case(module_factory=lambda: IndexTensorMultiInputContiguousCenter())
 def IndexTensorMultiInputContiguousCenter_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 4, 3, 2), tu.randint(2, 2, high=3), tu.randint(2, high=2))
+
+
+# ==============================================================================
+
+
+class IndexTensorNegativeIndexModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 2, 3, 2], torch.float32, True),
+        ([1], torch.int64, True),
+    ])
+    def forward(self, x, index):
+        return torch.ops.aten.index(x, (None, None, index))
+
+
+@register_test_case(module_factory=lambda: IndexTensorNegativeIndexModule())
+def IndexTensorNegativeIndexModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 3, 2), tu.randint(1, low=-2, high=0))
 
 
 # ==============================================================================
@@ -2832,6 +3053,48 @@ class FlipModule(torch.nn.Module):
 def FlipModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4))
 
+# ==============================================================================
+
+
+class FlipModuleStaticShape(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 2, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.flip(x, [1, 2])
+
+
+@register_test_case(module_factory=lambda: FlipModuleStaticShape())
+def FlipModuleStaticShape_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
+
+# ==============================================================================
+
+
+class FlipNegativeIndexModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 2, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.flip(x, [-1])
+
+
+@register_test_case(module_factory=lambda: FlipNegativeIndexModule())
+def FlipNegativeIndexModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
+
 
 # ==============================================================================
 
@@ -3020,28 +3283,6 @@ class BaddbmmStaticModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: BaddbmmStaticModule())
 def BaddbmmStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 2, 7), tu.rand(5, 2, 9), tu.rand(5, 9, 7))
-
-
-class BaddbmmDifferentDtypesModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.int64, True),
-        ([-1, -1, -1], torch.float32, True),
-        ([-1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, input, batch1, batch2):
-        return torch.ops.aten.baddbmm(input, batch1, batch2)
-
-
-@register_test_case(module_factory=lambda: BaddbmmDifferentDtypesModule())
-def BaddbmmDifferentDtypesModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(3, 4, 5, high=10), tu.rand(3, 4, 6),
-                   tu.rand(3, 6, 5))
 
 
 class BaddbmmWithAlphaModule(torch.nn.Module):
@@ -3695,6 +3936,51 @@ class MoveDimIntNegativeIndexModule(torch.nn.Module):
 def MoveDimIntNegativeIndexModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 2))
 
+# ==============================================================================
+
+class ScaledDotProductAttentionSameModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True)
+    ])
+    def forward(self, query, key, value):
+        return torch.ops.aten.scaled_dot_product_attention(query, key, value)
+
+@register_test_case(module_factory=lambda: ScaledDotProductAttentionSameModule())
+def ScaledDotProductAttentionSameModule_basic(module, tu: TestUtils):
+    query = torch.randn(1, 1, 5, 5, dtype=torch.float32)
+    key = torch.randn(1, 1, 5, 5, dtype=torch.float32)
+    value = torch.randn(1, 1, 5, 5, dtype=torch.float32)
+    module.forward(query, key, value)
+
+class ScaledDotProductAttentionDifferentModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True)
+    ])
+    def forward(self, query, key, value):
+        return torch.ops.aten.scaled_dot_product_attention(query, key, value)
+
+@register_test_case(module_factory=lambda: ScaledDotProductAttentionDifferentModule())
+def ScaledDotProductAttentionDifferentModule_basic(module, tu: TestUtils):
+    query = torch.randn(3, 2, 8, 4, dtype=torch.float32)
+    key = torch.randn(3, 2, 16, 4, dtype=torch.float32)
+    value = torch.randn(3, 2, 16, 4, dtype=torch.float32)
+    module.forward(query, key, value)
 
 # ==============================================================================
 
@@ -3770,6 +4056,94 @@ class ConstantBoolParameterModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ConstantBoolParameterModule())
 def ConstantBoolParameterModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class ScalarTensorFloat32Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        scalar = torch.ops.aten.scalar_tensor(1.0, dtype=torch.float32)
+        return scalar
+
+
+@register_test_case(module_factory=lambda: ScalarTensorFloat32Module())
+def ScalarTensorFloat32Module_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class ScalarTensorDefaultDtypeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        scalar = torch.ops.aten.scalar_tensor(1.0)
+        return scalar
+
+
+@register_test_case(module_factory=lambda: ScalarTensorDefaultDtypeModule())
+def ScalarTensorDefaultDtypeModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class ScalarTensorInt64Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        scalar = torch.ops.aten.scalar_tensor(1, dtype=torch.int64)
+        return scalar
+
+
+@register_test_case(module_factory=lambda: ScalarTensorInt64Module())
+def ScalarTensorInt64Module_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class ScalarTensorInt32Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        scalar = torch.ops.aten.scalar_tensor(1, dtype=torch.int32)
+        return scalar
+
+
+@register_test_case(module_factory=lambda: ScalarTensorInt32Module())
+def ScalarTensorInt32Module_basic(module, tu: TestUtils):
     module.forward()
 
 
@@ -3884,3 +4258,26 @@ class AtenComplexViewModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenComplexViewModule())
 def AtenComplexViewModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5,2))
+
+
+# ==============================================================================
+
+
+class Add_Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.tensor = torch.ones(2, 3)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.add_(x, self.tensor)
+
+
+@register_test_case(module_factory=lambda: Add_Module())
+def Add_Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3))

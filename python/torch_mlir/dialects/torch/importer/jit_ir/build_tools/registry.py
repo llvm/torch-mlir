@@ -32,8 +32,14 @@ def _get_default_value(arg: "SIG_ATTR_TYPE") -> str:
             # testing against the real ops, and tuples work fine in all
             # the places this kicks in (e.g. conv dilations -- we aren't
             # mutating those lists).
-            default_debug = arg["default_debug"].replace(
-                '[', '(').replace(']', ')')
+            default_list = arg["default_debug"]
+            # (,) is not a valid empty tuple contruction in Python, so
+            # we must handle the emtpy case separately.
+            if default_list == "[]":
+                default_debug = "()"
+            else:
+                default_debug = default_list.replace(
+                    "[", "(").replace("]", ",)")
         elif arg["pytype"] == "str":
             default_debug = repr(arg["default_debug"]).replace("'", '"')
         else:
@@ -191,6 +197,7 @@ class JitOperator:
         def_name = "〇".join(mlir_op_name.split("."))
         def_name += f"〡{function_kind}"
         parameter_decls = list(map(parameter_decl_builder, self.arguments))
+        parameter_decls = list(filter(None, parameter_decls))
         ret_decls = list(map(ret_decl_builder, self.returns))
         parameters = ", ".join(parameter_decls)
         result = ", ".join(ret_decls)

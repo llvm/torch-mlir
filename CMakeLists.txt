@@ -69,21 +69,6 @@ torch_mlir_add_llvm_external_project(
 
 option(TORCH_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
 
-# Adjustments to use ccache on Windows
-if (WIN32)
-  find_program(ccache_exe ccache)
-  if(ccache_exe)
-    file(COPY_FILE ${ccache_exe} ${CMAKE_BINARY_DIR}/cl.exe ONLY_IF_DIFFERENT)
-    set(CMAKE_VS_GLOBALS
-      "CLToolExe=cl.exe"
-      "CLToolPath=${CMAKE_BINARY_DIR}"
-      "TrackFileAccess=false"
-      "UseMultiToolTask=true"
-      "DebugInformationFormat=OldStyle"
-    )
-  endif()
-endif()
-
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR TORCH_MLIR_OUT_OF_TREE_BUILD)
   message(STATUS "Torch-MLIR out-of-tree build.")
   # Out-of-tree build

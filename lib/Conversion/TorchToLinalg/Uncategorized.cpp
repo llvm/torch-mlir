@@ -142,7 +142,8 @@ static Value createCompareTensorOp(OpBuilder &b, Location loc, OpTy op,
                     std::is_same<OpTy, AtenLeTensorOp>() ||
                     std::is_same<OpTy, AtenGtTensorOp>() ||
                     std::is_same<OpTy, AtenGeTensorOp>() ||
-                    std::is_same<OpTy, AtenEqTensorOp>(),
+                    std::is_same<OpTy, AtenEqTensorOp>() ||
+                    std::is_same<OpTy, AtenNeTensorOp>(),
                 "unimplemented: op type not supported");
 
   Type lhsDtype = lhs.getType();
@@ -172,7 +173,35 @@ static Value createCompareTensorOp(OpBuilder &b, Location loc, OpTy op,
   if constexpr (std::is_same<OpTy, AtenEqTensorOp>()) {
     return createEqual(b, loc, elementalType, lhs, rhs);
   }
+  if constexpr (std::is_same<OpTy, AtenNeTensorOp>()) {
+    return createNotEqual(b, loc, elementalType, lhs, rhs);
+  }
   llvm_unreachable("unimplemented: op type not supported");
+}
+
+template <arith::CmpIPredicate predicate>
+static LogicalResult
+createTriangularMatrix(OpBuilder &b, Location loc, ValueRange payloadArgs,
+                       Operation *op, ArrayRef<Value> operands, Value &result) {
+  auto inputType = operands[0].getType().cast<RankedTensorType>();
+  uint64_t inputRank = inputType.getRank();
+
+  // Use the indices of the two innermost dimensions.
+  auto rowIndex = b.create<linalg::IndexOp>(loc, inputRank - 2);
+  Value rowIndexI64 = castIndexToInt64(b, loc, rowIndex);
+  auto colIndex = b.create<linalg::IndexOp>(loc, inputRank - 1);
+  Value colIndexI64 = castIndexToInt64(b, loc, colIndex);
+
+  // columnIndex >= rowIndex + diagonal?
+  auto sum =
+      b.create<arith::AddIOp>(loc, rowIndexI64, /*diagonal=*/operands[1]);
+  auto pred = b.create<arith::CmpIOp>(loc, predicate, colIndexI64, sum);
+
+  Value scalar = payloadArgs[0];
+  Type elementType = inputType.getElementType();
+  Value zero = getConstant(b, loc, 0, elementType);
+  result = b.create<arith::SelectOp>(loc, pred, scalar, zero);
+  return success();
 }
 
 static Value createLinalgPayloadCalculationForElementwiseOp(
@@ -570,6 +599,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return createCompareTensorOp(b, loc, eqTensor, payloadArgs[0],
                                  payloadArgs[1]);
   }
+  if (auto neTensor = dyn_cast<AtenNeTensorOp>(op)) {
+    return createCompareTensorOp(b, loc, neTensor, payloadArgs[0],
+                                 payloadArgs[1]);
+  }
   if (auto div = dyn_cast<AtenDivTensorOp>(op)) {
     AtenDivTensorOp::Adaptor adaptor(operands);
     Type dtype = converter->convertType(div.getType())
@@ -944,7 +977,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       divScalar.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    Value self = payloadArgs[0];
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value other = convertScalarToDtype(b, loc, operands[1], dtype);
     return b.create<arith::DivFOp>(loc, self, other);
   }
@@ -1056,30 +1089,19 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto triu = dyn_cast<AtenTriuOp>(op)) {
-    // Check if the rank of the input tensor is valid.
-    AtenTriuOp::Adaptor adaptor(operands);
-    auto inputType = adaptor.getSelf().getType().cast<RankedTensorType>();
-    uint64_t inputRank = inputType.getRank();
-    if (inputRank < 2) {
-      triu.emitError("too few dimensions to compute triangular part of matrix");
+    Value result;
+    if (failed(createTriangularMatrix<arith::CmpIPredicate::sge>(
+            b, loc, payloadArgs, op, operands, result)))
       return nullptr;
-    }
+    return result;
+  }
 
-    // Use the indices of the two innermost dimensions.
-    auto rowIndex = b.create<linalg::IndexOp>(loc, inputRank - 2);
-    Value rowIndexI64 = castIndexToInt64(b, loc, rowIndex);
-    auto colIndex = b.create<linalg::IndexOp>(loc, inputRank - 1);
-    Value colIndexI64 = castIndexToInt64(b, loc, colIndex);
-
-    // columnIndex >= rowIndex + diagonal?
-    auto sum = b.create<arith::AddIOp>(loc, rowIndexI64, adaptor.getDiagonal());
-    auto pred = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge,
-                                        colIndexI64, sum);
-
-    Value scalar = payloadArgs[0];
-    Type elementType = inputType.getElementType();
-    Value zero = getConstant(b, loc, 0, elementType);
-    return b.create<arith::SelectOp>(loc, pred, scalar, zero);
+  if (auto tril = dyn_cast<AtenTrilOp>(op)) {
+    Value result;
+    if (failed(createTriangularMatrix<arith::CmpIPredicate::sle>(
+            b, loc, payloadArgs, op, operands, result)))
+      return nullptr;
+    return result;
   }
 
   if (auto bitwiseNot = dyn_cast<AtenBitwiseNotOp>(op)) {
@@ -1142,14 +1164,14 @@ public:
              AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenBitwiseOrTensorOp,
              AtenBitwiseXorTensorOp, AtenGtScalarOp, AtenGeScalarOp,
              AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp,
-             AtenCeilOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
+             AtenCeilOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp,
              AtenLtTensorOp, AtenLeTensorOp, AtenSubScalarOp, AtenAddScalarOp,
              AtenThresholdOp, AtenThresholdBackwardOp, AtenHardtanhBackwardOp,
              AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenNegOp,
              AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
-             AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenBitwiseNotOp,
-             AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp, AtenAtanOp,
-             AtenRealOp, AtenImagOp>(op))
+             AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenTrilOp,
+             AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
+             AtenAtanOp, AtenRealOp, AtenImagOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1258,13 +1280,14 @@ public:
           b.create<linalg::YieldOp>(loc, selectFinal);
         });
 
+    llvm::iota_range<int64_t> dimsToReduce(0, targetRank,
+                                           /*inclusive=*/false);
+    DenseSet<int64_t> dimSet(dimsToReduce.begin(), dimsToReduce.end());
+
     if (reduction == torch_upstream::Reduction::Sum ||
         reduction == torch_upstream::Reduction::Mean) {
       Value numOfElems = getTensorSize(rewriter, loc, finalRes);
       numOfElems = convertScalarToDtype(rewriter, loc, numOfElems, elementType);
-      llvm::iota_range<int64_t> dimsToReduce(0, targetRank,
-                                             /*inclusive=*/false);
-      DenseSet<int64_t> dimSet(dimsToReduce.begin(), dimsToReduce.end());
 
       auto opInfo = torch_to_linalg::ReductionOpInfo{false, finalRes, dimSet};
       finalRes = torch_to_linalg::createReductionLinalgGeneric(
@@ -1280,9 +1303,61 @@ public:
           });
     }
 
-    // TODO: Update the second result tensor.
-    Value weightUpdated = createZeroInitTensor(rewriter, loc, {}, elementType);
-    rewriter.replaceOp(op, {finalRes, weightUpdated});
+    // The implementation for the `total_weight` has been adopted from here:
+    // https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/LossNLL.cpp#L154-L294
+    // As per the ref link, the `total_weight` value when the `weight` is
+    // `None`, is equal to `total_weight = batch_size - num_ignored_index`,
+    // where `batch_size` is equal to `target.shape[0]` when rank(target) > 0,
+    // otherwise 1. The value `num_ignored_index` is the number of elements of
+    // the `target` tensors that have been ignored.
+
+    if (reduction == torch_upstream::Reduction::None && inputRank == 2) {
+      Value totalWeight = createZeroInitTensor(rewriter, loc, {}, elementType);
+      rewriter.replaceOp(op, {finalRes, totalWeight});
+      return success();
+    }
+
+    Value numIgnoredIndex;
+    if (targetRank == 0) {
+      Value targetVal = rewriter.create<tensor::ExtractOp>(loc, target);
+      numIgnoredIndex = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::eq, targetVal, ignoreIndex);
+      numIgnoredIndex = convertScalarToDtype(rewriter, loc, numIgnoredIndex,
+                                             ignoreIndex.getType());
+    } else {
+      Value zeroCstInt = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getZeroAttr(ignoreIndex.getType()));
+
+      auto opInfo =
+          torch_to_linalg::ReductionOpInfo{/*keepDim=*/false, target, dimSet};
+      numIgnoredIndex = torch_to_linalg::createReductionLinalgGeneric(
+          rewriter, loc, opInfo,
+          /*initElem=*/zeroCstInt,
+          [&](OpBuilder &b, Location loc, ValueRange args) {
+            Value targetVal = args[0];
+            Value accumulator = args[1];
+            Value result = b.create<arith::CmpIOp>(
+                loc, arith::CmpIPredicate::eq, targetVal, ignoreIndex);
+            result = b.create<arith::AddIOp>(
+                loc,
+                convertScalarToDtype(rewriter, loc, result,
+                                     ignoreIndex.getType()),
+                accumulator);
+            b.create<linalg::YieldOp>(loc, result);
+          });
+
+      numIgnoredIndex =
+          rewriter.create<tensor::ExtractOp>(loc, numIgnoredIndex);
+    }
+
+    Value numtargetElems = getTensorSize(rewriter, loc, target);
+    Value totalWeightVal =
+        rewriter.create<arith::SubIOp>(loc, numtargetElems, numIgnoredIndex);
+    Value totalWeight = createInitTensor(
+        rewriter, loc, {}, elementType,
+        convertScalarToDtype(rewriter, loc, totalWeightVal, elementType));
+
+    rewriter.replaceOp(op, {finalRes, totalWeight});
     return success();
   }
 };
@@ -1622,13 +1697,13 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
       AtenBitwiseOrTensorOp, AtenBitwiseXorTensorOp, AtenGtScalarOp,
       AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp,
-      AtenWhereSelfOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
+      AtenWhereSelfOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp,
       AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
       AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
       AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp,
-      AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenRemainderScalarOp,
-      AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
-      AtenRealOp, AtenImagOp>();
+      AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenTrilOp,
+      AtenRemainderScalarOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
+      AtenFillTensorOp, AtenRealOp, AtenImagOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);

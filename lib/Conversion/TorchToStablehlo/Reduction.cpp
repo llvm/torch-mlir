@@ -98,9 +98,6 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
     initIndex = hlo::getConstTensor<int64_t>(rewriter, op, {0}, {}).value();
   }
 
-  DenseIntElementsAttr dimensions = DenseIntElementsAttr::get(
-      RankedTensorType::get({}, rewriter.getI64Type()), dim);
-
   auto inputShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
       op->getLoc(), inputShapeVec);
   auto indexTensor = rewriter.create<stablehlo::DynamicIotaOp>(
@@ -115,7 +112,7 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
           initValue,
           initIndex,
       },
-      dimensions);
+      rewriter.getI64TensorAttr(dim));
 
   Block &block = stablehloReduceOp.getBody().emplaceBlock();
 

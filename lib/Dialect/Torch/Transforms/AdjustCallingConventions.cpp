@@ -12,6 +12,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
@@ -239,13 +240,13 @@ static LogicalResult adjustCallingConventions(func::FuncOp func,
   typeConverter.addConversion([](Type type) { return type; });
   typeConverter.addConversion(
       [](Torch::TupleType type,
-         SmallVectorImpl<Type> &types) -> Optional<LogicalResult> {
+         SmallVectorImpl<Type> &types) -> LogicalResult {
         llvm::append_range(types, type.getContainedTypes());
         return success();
       });
   typeConverter.addConversion(
       [](Torch::NoneType type,
-         SmallVectorImpl<Type> &types) -> Optional<LogicalResult> {
+         SmallVectorImpl<Type> &types) -> LogicalResult {
         return success();
       });
 

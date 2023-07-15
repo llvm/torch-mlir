@@ -4,6 +4,7 @@
 # Also available under a BSD-style license. See LICENSE.
 
 from typing import List
+from ._version import torch_version_for_comparison, version
 
 import torch
 from torch._functorch.compile_utils import strip_overloads
@@ -35,7 +36,7 @@ def _get_decomposition_table():
     the new decomposition infra and PrimTorch.
     """
     aten = torch.ops.aten
-    return get_decompositions([
+    decomp_list = [
         aten._adaptive_avg_pool2d,
         aten.std.correction,
         aten.dot,
@@ -62,9 +63,12 @@ def _get_decomposition_table():
         aten.native_group_norm_backward,
         aten.sigmoid_backward,
         aten._native_batch_norm_legit,
-        aten._native_batch_norm_legit_no_training,
         aten.squeeze,
-    ])
+    ]
+    # TODO: enable test once 2.1.0 is stable
+    if torch_version_for_comparison() >= version.parse("2.1.0.dev"):
+        decomp_list += [aten._native_batch_norm_legit_no_training]
+    return get_decompositions(decomp_list)
 
 
 def _adjust_calling_convention(gm: torch.fx.GraphModule) -> bool:

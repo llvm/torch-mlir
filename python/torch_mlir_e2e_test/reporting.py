@@ -263,7 +263,8 @@ class SingleTestReport:
 
 def report_results(results: List[TestResult],
                    expected_failures: Set[str],
-                   verbose: bool = False):
+                   verbose: bool = False,
+                   config: str = ""):
     """Print a basic error report summarizing various TestResult's.
 
     This report uses the PASS/FAIL/XPASS/XFAIL nomenclature of LLVM's
@@ -310,7 +311,7 @@ def report_results(results: List[TestResult],
         results_by_outcome['XPASS']) != 0
 
     if had_unexpected_results:
-        print('\nUnexpected outcome summary:')
+        print(f'\nUnexpected outcome summary: ({config})')
 
     # For FAIL and XPASS (unexpected outcomes), print a summary.
     for outcome, results in results_by_outcome.items():

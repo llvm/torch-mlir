@@ -285,9 +285,23 @@ func.func @torch.aten.neg.f16(%arg0: !torch.vtensor<[?,?],f16>) -> !torch.vtenso
 // CHECK:           %[[OUT_T:.*]] = tensor.empty(%[[DIM0]], %[[DIM1]], %[[DIM2]]) : tensor<?x?x?xf32>
 // CHECK:           %[[OUT:.*]] = linalg.generic {indexing_maps = [#map, #map1, #map2], iterator_types = ["parallel", "parallel", "parallel"]} ins(%[[INDEX1]], %[[INDEX2]] : tensor<?x1xi64>, tensor<?xi64>) outs(%[[OUT_T]] : tensor<?x?x?xf32>) {
 // CHECK:           ^bb0(%[[IN1:.*]]: i64, %[[IN2:.*]]: i64, %[[IN3:.*]]: f32):
-// CHECK:             %[[INDEX_1:.*]] = arith.index_cast %[[IN1]] : i64 to index
+// CHECK:             %[[CST0_1:.*]] = arith.constant 0 : i64
+// CHECK:             %[[CMP:.*]] = arith.cmpi slt, %[[IN1]], %[[CST0_1]] : i64
+// CHECK:             %[[CST0_2:.*]] = arith.constant 0 : index
+// CHECK:             %[[DIM0:.*]] = tensor.dim %[[T]], %[[CST0_2]] : tensor<?x?x?xf32>
+// CHECK:             %[[TMP:.*]] = arith.index_cast %[[DIM0]] : index to i64
+// CHECK:             %[[WRAPPED_INDEX:.*]] = arith.addi %[[IN1]], %[[TMP]] : i64
+// CHECK:             %[[SELECT:.*]] = arith.select %[[CMP]], %[[WRAPPED_INDEX]], %[[IN1]] : i64
+// CHECK:             %[[INDEX_1:.*]] = arith.index_cast %[[SELECT]] : i64 to index
 // CHECK:             %[[INDEX_2:.*]] = linalg.index 2 : index
-// CHECK:             %[[INDEX_3:.*]] = arith.index_cast %[[IN2]] : i64 to index
+// CHECK:             %[[CST0_3:.*]] = arith.constant 0 : i64
+// CHECK:             %[[CMP_0:.*]] = arith.cmpi slt, %[[IN2]], %[[CST0_3]] : i64
+// CHECK:             %[[CST2:.*]] = arith.constant 2 : index
+// CHECK:             %[[DIM2:.*]] = tensor.dim %[[T]], %[[CST2]] : tensor<?x?x?xf32>
+// CHECK:             %[[TMP_0:.*]] = arith.index_cast %[[DIM2]] : index to i64
+// CHECK:             %[[WRAPPED_INDEX_0:.*]] = arith.addi %[[IN2]], %[[TMP_0]] : i64
+// CHECK:             %[[SELECT:.*]] = arith.select %[[CMP_0]], %[[WRAPPED_INDEX_0]], %[[IN2]] : i64
+// CHECK:             %[[INDEX_3:.*]] = arith.index_cast %[[SELECT]] : i64 to index
 // CHECK:             %[[RESULT:.*]] = tensor.extract %[[T]][%[[INDEX_1]], %[[INDEX_2]], %[[INDEX_3]]] : tensor<?x?x?xf32>
 // CHECK:             linalg.yield %[[RESULT]] : f32
 // CHECK:           } -> tensor<?x?x?xf32>

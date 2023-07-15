@@ -115,6 +115,32 @@ def BatchNorm3DModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class BatchNorm1DStaticShapeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 5], torch.float32, True),
+        ([5], torch.float32, True),
+        ([5], torch.float32, True),
+        ([5], torch.float32, True),
+        ([5], torch.float32, True),
+    ])
+    def forward(self, x, weight, bias, running_mean, running_var):
+        return torch.ops.aten.batch_norm(
+            x, weight, bias, running_mean, running_var, training=False, 
+            momentum=0.1, eps=0.00001, cudnn_enabled=False)
+
+
+@register_test_case(module_factory=lambda: BatchNorm1DStaticShapeModule())
+def BatchNorm1DStaticShapeModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(2, 5), tu.rand(5), tu.rand(5), tu.rand(5), tu.rand(5))
+
+# ==============================================================================
+
 class NativeBatchNorm1DModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

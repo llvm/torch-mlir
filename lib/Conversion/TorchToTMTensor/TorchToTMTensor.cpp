@@ -13,10 +13,13 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/ValueRange.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h"
@@ -295,6 +298,55 @@ createTMTensorSortOp(PatternRewriter &rewriter, Location sortOpLoc,
   rewriter.create<TMTensor::YieldOp>(loc, compareOp);
   return SmallVector<Value>(sortOp.getResults());
 }
+
+namespace {
+class ConvertAtenScatterSrcOp : public OpConversionPattern<AtenScatterSrcOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenScatterSrcOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op.getLoc();
+    TypeConverter *typeConverter = getTypeConverter();
+    Value self = adaptor.getSelf();
+    Value index = adaptor.getIndex();
+    Value src = adaptor.getSrc();
+
+    RankedTensorType selfType = self.getType().cast<RankedTensorType>();
+    RankedTensorType indexType = index.getType().cast<RankedTensorType>();
+    RankedTensorType srcType = src.getType().cast<RankedTensorType>();
+    if (selfType.getRank() != indexType.getRank() ||
+        indexType.getRank() != srcType.getRank())
+      return rewriter.notifyMatchFailure(op,
+                                         "'self', 'index' and 'src' should all"
+                                         "have the same number of dimensions.");
+
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(op,
+                                         "unimplemented: dim is not constant");
+
+    // Get the inputs reformatted for the TMScatterOp
+    auto [indices, updates] =
+        convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(rewriter, index,
+                                                             src, dim);
+    Value scatterOp = createTMTensorScatterOp(
+        rewriter, loc, updates, indices, self,
+        /*uniqueIndices=*/false,
+        [&](OpBuilder &b, Location loc, Value updatesElement,
+            Value inputElement) {
+          b.create<TMTensor::YieldOp>(loc, updatesElement);
+        });
+
+    auto resultType = typeConverter->convertType(op->getResult(0).getType())
+                          .cast<RankedTensorType>();
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, scatterOp);
+    return success();
+  }
+};
+} // namespace
 
 namespace {
 // aten::bincount op counts the frequency of each value in a 1-d input tensor of
@@ -1494,6 +1546,68 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenScaledDotProductAttentionOp
+    : public OpConversionPattern<AtenScaledDotProductAttentionOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenScaledDotProductAttentionOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value mask = op.getAttnMask();
+    Value dropoutP = op.getDropoutP();
+    Value isCausal = op.getIsCausal();
+    Value scale = op.getScale();
+    Type elementType =
+        adaptor.getQuery().getType().cast<ShapedType>().getElementType();
+
+    // Verify inputs (only support defaults)
+    if (!mask.getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(op.getLoc(),
+                                         "attention masking not supported");
+    double dropout;
+    if (!matchPattern(dropoutP, m_TorchConstantFloat(&dropout)) ||
+        dropout > 0.0)
+      return rewriter.notifyMatchFailure(op.getLoc(), "dropout not supported");
+    bool causal;
+    if (!matchPattern(isCausal, m_TorchConstantBool(&causal)) || causal)
+      return rewriter.notifyMatchFailure(
+          op.getLoc(), "causal attention masking not supported");
+    if (!scale.getType().isa<Torch::NoneType>()) {
+      double scaleFloat;
+      if (!matchPattern(scale, m_TorchConstantFloat(&scaleFloat)) ||
+          scaleFloat != 1.0)
+        return rewriter.notifyMatchFailure(op.getLoc(),
+                                           "only default scale supported");
+    }
+
+    SmallVector<int64_t> outSizes(
+        adaptor.getQuery().getType().cast<ShapedType>().getShape());
+    SmallVector<int64_t> valueSizes(
+        adaptor.getValue().getType().cast<ShapedType>().getShape());
+    outSizes[outSizes.size() - 1] = valueSizes[valueSizes.size() - 1];
+    SmallVector<Value> outSizesDynamic(
+        getTensorSizes(rewriter, op.getLoc(), adaptor.getQuery()));
+    outSizesDynamic[outSizesDynamic.size() - 1] = getTensorSizes(
+        rewriter, op.getLoc(), adaptor.getValue())[valueSizes.size() - 1];
+    Type outType = RankedTensorType::get(outSizes, elementType);
+    Value output = createZeroInitTensor(rewriter, op.getLoc(), outSizesDynamic,
+                                        elementType);
+
+    // Overwrite with tm_tensor::attention
+    auto attention = rewriter.create<AttentionOp>(
+        op.getLoc(), outType,
+        SmallVector<Value>{adaptor.getQuery(), adaptor.getKey(),
+                           adaptor.getValue()},
+        SmallVector<Value>{output});
+
+    rewriter.replaceOp(op, attention.getResult());
+
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -1516,7 +1630,8 @@ public:
     ConversionTarget target(*context);
     target.addLegalDialect<linalg::LinalgDialect, func::FuncDialect,
                            tensor::TensorDialect, arith::ArithDialect,
-                           Torch::TorchDialect, TMTensorDialect>();
+                           math::MathDialect, Torch::TorchDialect,
+                           TMTensorDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
@@ -1536,6 +1651,12 @@ public:
     patterns.add<ConvertAtenSortOp>(typeConverter, context);
     target.addIllegalOp<AtenCumsumOp>();
     patterns.add<ConvertAtenCumsumOp>(typeConverter, context);
+    target.addIllegalOp<AtenScaledDotProductAttentionOp>();
+    patterns.add<ConvertAtenScaledDotProductAttentionOp>(typeConverter,
+                                                         context);
+
+    target.addIllegalOp<AtenScatterSrcOp>();
+    patterns.add<ConvertAtenScatterSrcOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

@@ -171,6 +171,11 @@ public:
       return rewriter.notifyMatchFailure(
           op, "`PrimNumToTensorScalarOp` already has a dtype");
 
+    if (op.getA().getType().isa<Torch::NumberType>()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "`PrimNumToTensorScalarOp`'s input "
+                                         "should have concrete Scalar Type.");
+    }
     Type inputType = getBuiltInTypeForTorchScalar(op.getA().getType());
     auto impliedTypeFromInputType =
         originalResultType.cast<BaseTensorType>()
@@ -191,9 +196,16 @@ class SimplifyDtypeCalculationsPass
     MLIRContext *context = &getContext();
 
     RewritePatternSet patterns(context);
+    populateFullyUnrollPrimLoopOpPattern(patterns, context);
+    populateAbstractlyInterpretListOpsWithinABlockPattern(patterns, context);
+    populateFoldPrimUncheckedCastOpPattern(patterns, context);
     patterns.insert<RefineDtypeCalculateOp>(context);
     patterns.insert<DecomposePromoteDtypesOp>(context);
     patterns.insert<RefineNumToTensorScalarOpType>(context);
+
+    PrimIfOp::getCanonicalizationPatterns(patterns, context);
+    Aten__Getitem__TOp::getCanonicalizationPatterns(patterns, context);
+    PrimTupleUnpackOp::getCanonicalizationPatterns(patterns, context);
 
     // TODO: Debug visitation order to make this more efficient.
     // A single linear scan should suffice.

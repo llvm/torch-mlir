@@ -52,24 +52,6 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenIsFloatingPointOp
-    : public OpConversionPattern<AtenIsFloatingPointOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenIsFloatingPointOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto tensorType = op.getSelf().getType().cast<BaseTensorType>();
-    bool result =
-        tensorType.hasDtype() && tensorType.getDtype().isa<mlir::FloatType>();
-    rewriter.replaceOpWithNewOp<arith::ConstantOp>(
-        op, BoolAttr::get(getContext(), result));
-    return success();
-  }
-};
-} // namespace
-
-namespace {
 class ConvertRuntimeAssertOp : public OpConversionPattern<RuntimeAssertOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -241,8 +223,8 @@ public:
   LogicalResult
   matchAndRewrite(Torch::ConstantIntOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    // note: arith.constant only accept singless integer, so convert singed to
-    // singless
+    // note: arith.constant only accept signless integer, so convert signed to
+    // signless
     rewriter.replaceOpWithNewOp<arith::ConstantOp>(
         op, rewriter.getIntegerAttr(rewriter.getI64Type(),
                                     op.getValueAttr().getValue()));
@@ -400,8 +382,6 @@ public:
     RewritePatternSet patterns(context);
     target.addIllegalOp<AtenDimOp>();
     patterns.add<ConvertAtenDimOp>(typeConverter, context);
-    target.addIllegalOp<AtenIsFloatingPointOp>();
-    patterns.add<ConvertAtenIsFloatingPointOp>(typeConverter, context);
     target.addIllegalOp<RuntimeAssertOp>();
     patterns.add<ConvertRuntimeAssertOp>(typeConverter, context);
     target.addIllegalOp<AtenNeIntOp, AtenEqIntOp, AtenGtIntOp, AtenGeIntOp>();
@@ -469,6 +449,9 @@ public:
         typeConverter, context);
     target.addIllegalOp<PrimMaxIntOp>();
     patterns.add<ConvertAtenBinaryOp<PrimMaxIntOp, arith::MaxSIOp>>(
+        typeConverter, context);
+    target.addIllegalOp<PrimMinIntOp>();
+    patterns.add<ConvertAtenBinaryOp<PrimMinIntOp, arith::MinSIOp>>(
         typeConverter, context);
     target.addIllegalOp<AtenCeilFloatOp>();
     patterns

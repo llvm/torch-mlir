@@ -37,6 +37,7 @@ and Clang's
 ### TorchToStablehlo
 
 - Tianyo Kwok (@tanyokwok)
+- Xiafei Qiu (@qiuxiafei)
 - Ziheng Jiang (@ZihengJiang)
 - Jiawei Wu (@Vremold)
 

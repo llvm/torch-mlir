@@ -1291,6 +1291,28 @@ def ElementwiseCeilModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseSignModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.sign(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSignModule())
+def ElementwiseSignModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
 class ElementwisePowModule(torch.nn.Module):
 
     def __init__(self):
@@ -1614,6 +1636,28 @@ class ElementwiseDivScalarModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseDivScalarModule())
 def ElementwiseDivScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenDivIntScalarModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.div(x, 128)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAtenDivIntScalarModule())
+def ElementwiseAtenDivIntScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4))
 
 # ==============================================================================
 
@@ -2852,6 +2896,73 @@ class AtenTriuWithNegDiagonalModule(torch.nn.Module):
 def AtenTriuWithNegDiagonalModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 5, 9))
 
+
+# ==============================================================================
+
+
+class AtenTrilModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.tril(x)
+
+
+@register_test_case(module_factory=lambda: AtenTrilModule())
+def AtenTrilModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(8, 8))
+
+
+# ==============================================================================
+
+
+class AtenTrilWithPosDiagonalModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.tril(x, diagonal=2)
+
+
+@register_test_case(module_factory=lambda: AtenTrilWithPosDiagonalModule())
+def AtenTrilWithPosDiagonalModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(9, 4, 3))
+
+
+# ==============================================================================
+
+
+class AtenTrilWithNegDiagonalModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.tril(x, diagonal=-4)
+
+
+@register_test_case(module_factory=lambda: AtenTrilWithNegDiagonalModule())
+def AtenTrilWithNegDiagonalModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 5, 9))
+
+
 # ==============================================================================
 
 
@@ -2934,6 +3045,25 @@ def Fill_TensorFloat64WithFloat32_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4))
 
 
+class Fill_TensorFloat64WithFloat32Static(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 2, 4], torch.float32, True),
+    ])
+    def forward(self, tensor):
+        return torch.ops.aten.fill_(tensor, 3.0)
+
+
+@register_test_case(module_factory=lambda: Fill_TensorFloat64WithFloat32Static())
+def Fill_TensorFloat64WithFloat32Static_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
+
+
 class Fill_TensorFloat64WithFloat64(torch.nn.Module):
 
     def __init__(self):
@@ -2969,6 +3099,25 @@ class Fill_TensorFloat64WithInt64(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Fill_TensorFloat64WithInt64())
 def Fill_TensorFloat64WithInt64_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4).to(torch.float64))
+
+
+class Fill_TensorFloat64WithInt64Static(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 2, 4], torch.float64, True),
+    ])
+    def forward(self, tensor):
+        return torch.ops.aten.fill_(tensor, 3)
+
+
+@register_test_case(module_factory=lambda: Fill_TensorFloat64WithInt64Static())
+def Fill_TensorFloat64WithInt64Static_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4).to(torch.float64))
 
 

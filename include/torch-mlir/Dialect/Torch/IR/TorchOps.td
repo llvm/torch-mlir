@@ -720,7 +720,7 @@ def Torch_ConstantIntOp : Torch_Op<"constant.int", [
     Python where they are arbitrary precision.
   }];
   let arguments = (ins
-    AnyI64Attr:$value
+    I64Attr:$value
   );
   let results = (outs
     Torch_IntType:$result
@@ -1020,6 +1020,7 @@ def Torch_CopyToNonValueTensorOp : Torch_Op<"copy.to_tensor", [
 }
 
 def Torch_CopyToValueTensorOp : Torch_Op<"copy.to_vtensor", [
+    ReadOnly,
     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
     DeclareOpInterfaceMethods<InferTypeOpInterface>,
     TypesMatchWith<"operand is corresponding !torch.tensor",
@@ -1162,6 +1163,7 @@ def Torch_RuntimeAssertOp: Torch_Op<"runtime.assert", [
   let results = (outs
   );
   let assemblyFormat = "$condition `,` $message attr-dict";
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
