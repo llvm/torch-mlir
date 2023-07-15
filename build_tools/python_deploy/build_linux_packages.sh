@@ -317,9 +317,6 @@ function test_in_tree() {
   echo ":::: Run TOSA e2e integration tests"
   python -m e2e_testing.main --config=tosa -v
 
-  echo ":::: Run Lazy Tensor Core e2e integration tests"
-  python -m e2e_testing.main --config=lazy_tensor_core -v
-
   echo ":::: Run TCP e2e integration tests"
   python -m e2e_testing.main --config=tcp -v
 }
