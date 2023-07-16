@@ -2121,11 +2121,7 @@ void PrimListConstructOp::getCanonicalizationPatterns(
     auto listUnpackOp = elements[0].getDefiningOp<PrimListUnpackOp>();
     if (!listUnpackOp)
       return failure();
-    SmallVector<Value, 4> listUnpackResults;
-    for (auto v : listUnpackOp.getResults()) {
-      listUnpackResults.emplace_back(v);
-    }
-    if (listUnpackResults != elements)
+    if (listUnpackOp.getResults() != elements)
       return failure();
     if (isListPotentiallyMutated(listUnpackOp.getOperand()))
       return failure();
