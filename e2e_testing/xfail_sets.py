@@ -280,6 +280,7 @@ TORCHDYNAMO_CRASHING_SET = {
     # %6:4 = torch.operator "aten._embedding_bag_forward_only"(%1, %3, %5, %false, %int0, %false, %none, %false, %int-1) : (!torch.tensor<*,f32>, !torch.tensor<*,si64>, !torch.tensor<*,si64>, !torch.bool, !torch.int, !torch.bool, !torch.none, !torch.bool, !torch.int) -> (!torch.tensor, !torch.tensor, !torch.tensor, !torch.tensor)
     # See also: https://github.com/pytorch/torchdynamo/issues/327
     "Aten_EmbeddingBagExample_basic",
+    "AsStridedStaticModule_basic",
     "FullModuleInt3D_basic",
     "ThresholdBackward1dIntModule_basic",
     "ThresholdBackward2dIntModule_basic",
