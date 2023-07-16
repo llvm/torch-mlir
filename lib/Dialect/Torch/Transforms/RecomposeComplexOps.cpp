@@ -425,15 +425,18 @@ class RecomposeIndexTensorWithNonzeroNumpy
     : public OpRewritePattern<AtenIndexTensorOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  // Look forward a few steps in order to try to restore the shape information of the value.
-  // For now, it only handles with static_info_cast and copy_to_tensor op.
+  // Look forward a few steps in order to try to restore the shape information
+  // of the value. For now, it only handles with static_info_cast and
+  // copy.to_tensor op.
   static FailureOr<Value> getOriginalValue(Value input) {
     auto inputType = input.getType().cast<BaseTensorType>();
     while (!inputType.hasSizes()) {
-      if (auto staticInfoCastOp = input.getDefiningOp<TensorStaticInfoCastOp>()) {
+      if (auto staticInfoCastOp =
+              input.getDefiningOp<TensorStaticInfoCastOp>()) {
         input = staticInfoCastOp.getOperand();
         inputType = input.getType().cast<BaseTensorType>();
-      } else if (auto copyToNonValueTensorOp = input.getDefiningOp<CopyToNonValueTensorOp>()) {
+      } else if (auto copyToNonValueTensorOp =
+                     input.getDefiningOp<CopyToNonValueTensorOp>()) {
         input = copyToNonValueTensorOp.getOperand();
         inputType = input.getType().cast<BaseTensorType>();
       } else {
@@ -460,17 +463,22 @@ public:
     Value mask = nonzeroNumpyOp.getSelf();
     auto inputType = input.getType().cast<BaseTensorType>();
     auto maskType = mask.getType().cast<BaseTensorType>();
-    
-    // Because this pass is run before redcue-op-variant and maximize-value-semantics pass,
-    // operation operands might already be converted through static_info_cast or copy.to_tensor op. 
-    // We need to restore the shape information to judge whether we can convert the op.
+
+    // Because this pass is run before reduce-op-variants and
+    // maximize-value-semantics pass, operation operands might already be
+    // converted through static_info_cast or copy.to_tensor op. We need to
+    // restore the shape information to judge whether we can convert the op.
     auto originalMaskInfo = getOriginalValue(mask);
     auto originalInputInfo = getOriginalValue(input);
-    if (failed(originalMaskInfo) || failed(originalInputInfo)) 
-      return rewriter.notifyMatchFailure(op, "failed to get shape information of inputs of aten::index.tensor and aten::nonzero_numpy");
+    if (failed(originalMaskInfo) || failed(originalInputInfo))
+      return rewriter.notifyMatchFailure(
+          op, "failed to get shape information of inputs of aten::index.tensor "
+              "and aten::nonzero_numpy");
 
-    auto originalMaskType = (*originalMaskInfo).getType().cast<BaseTensorType>();
-    auto originalInputType = (*originalInputInfo).getType().cast<BaseTensorType>();
+    auto originalMaskType =
+        (*originalMaskInfo).getType().cast<BaseTensorType>();
+    auto originalInputType =
+        (*originalInputInfo).getType().cast<BaseTensorType>();
 
     auto originalInputSizes = originalInputType.getSizes();
     auto originalMaskSizes = originalMaskType.getSizes();
@@ -502,13 +510,14 @@ public:
 
     rewriter.replaceOpWithNewOp<AtenMaskedSelectOp>(op, op.getType(), input,
                                                     boolMask);
-    
-    // Separately handle possible prim::ListUnpack op, which is a use of the 
+
+    // Separately handle possible prim::ListUnpack op, if it's a user of the
     // aten::nonzero_numpy op.
     if (nonzeroNumpyOp.getResult().hasOneUse()) {
       auto use = nonzeroNumpyOp.getResult().use_begin();
       auto listUnpackOp = dyn_cast<PrimListUnpackOp>(use->getOwner());
-      if (listUnpackOp && listUnpackOp.getResults().use_empty() && listUnpackOp.getResults().size() == originalMaskSizes.size()) {
+      if (listUnpackOp && listUnpackOp.getResults().use_empty() &&
+          listUnpackOp.getResults().size() == originalMaskSizes.size()) {
         rewriter.eraseOp(listUnpackOp);
       }
     }
@@ -518,7 +527,6 @@ public:
     return success();
   }
 };
-
 
 } // namespace
 
