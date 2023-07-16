@@ -909,10 +909,11 @@ OpFoldResult AtenAsStridedOp::fold(FoldAdaptor adaptor) {
     return nullptr;
 
   int64_t storageOffset;
-  if (!getStorageOffset().getType().isa<Torch::NoneType>())
+  if (!getStorageOffset().getType().isa<Torch::NoneType>()) {
     if (!matchPattern(getStorageOffset(), m_TorchConstantInt(&storageOffset)) ||
         storageOffset != 0)
       return nullptr;
+  }
 
   // Check if the shapes of input tensor and output tensor are totally same.
   ArrayRef<int64_t> inputSizes = inputType.getSizes();
@@ -920,7 +921,8 @@ OpFoldResult AtenAsStridedOp::fold(FoldAdaptor adaptor) {
   if (inputSizes.size() != outSizes.size())
     return nullptr;
   for (int i = 0, e = inputSizes.size(); i < e; ++i) {
-    if (inputSizes[i] != outSizes[i])
+    if (inputSizes[i] != outSizes[i] || inputSizes[i] == ShapedType::kDynamic ||
+        outSizes[i] == ShapedType::kDynamic)
       return nullptr;
   }
 
