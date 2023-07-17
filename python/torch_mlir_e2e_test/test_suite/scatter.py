@@ -61,6 +61,30 @@ class IndexPutImpl2DFloatNonAccumulateModule(torch.nn.Module):
 def IndexPutImpl2DFloatNonAccumulateModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 8), tu.randint(5, high=4), tu.rand(5, 8))
 
+class IndexPutImpl2DNoneIndexStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 4], torch.int64, True),
+        ([3], torch.int64, True),
+        ([1, 3], torch.int64, True),
+    ])
+    def forward(self, input, index, value):
+        return torch.ops.aten._index_put_impl_(input, (None, index),
+                                               value,
+                                               accumulate=False,
+                                               unsafe=False)
+
+
+@register_test_case(
+    module_factory=lambda: IndexPutImpl2DNoneIndexStaticModule())
+def IndexPutImpl2DNoneIndexStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(1, 4, high=3), tu.randint(3, high=3), tu.randint(1, 3, high=1))
+
 
 class IndexPutImpl3DFloatNonAccumulateModule(torch.nn.Module):
 

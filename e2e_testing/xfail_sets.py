@@ -306,6 +306,7 @@ TORCHDYNAMO_CRASHING_SET = {
     "ToCopyModule_basic",
     "TransposeIntModule_basic",
     "TransposeIntNegDimsModule_basic",
+    "IndexPutImpl2DNoneIndexStaticModule_basic",
 
     # See https://github.com/llvm/torch-mlir/issues/2178
     "Add_Module_basic"
@@ -811,6 +812,7 @@ STABLEHLO_PASS_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "IndexPutImpl2DNoneIndexStaticModule_basic",
     "AliasModule_basic",
     "MaxPool2dEmptyStrideStaticModule_basic",
     "ConstantBoolParameterModule_basic",
@@ -1223,6 +1225,7 @@ LTC_XFAIL_SET = {
     "IndexPutImpl2DFloatAccumulateModule_basic",
     "IndexPutImpl2DFloatNonAccumulateModule_basic",
     "IndexPutImpl2DIndexModule_basic",
+    "IndexPutImpl2DNoneIndexStaticModule_basic",
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
     "IndexPutImplIndexWithNoneModule_basic",
