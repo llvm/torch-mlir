@@ -718,6 +718,52 @@ def SplitTensorListUnpackModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+
+class SplitTensorLastSmallerModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([8, 10, 12], torch.float32, True)
+    ])
+    def forward(self, x):
+        s0, s1, s2 = torch.ops.aten.split(x, 3, dim=0)
+        return s2
+
+
+@register_test_case(module_factory=lambda: SplitTensorLastSmallerModule())
+def SplitTensorLastSmallerModule_basic(module, tu: TestUtils):
+    # Splitting the first dimension with 8 elements into chunks of 3
+    # will leave the last result to have 2 elements in that dimension.
+    module.forward(tu.rand(8, 10, 12))
+
+# ==============================================================================
+
+
+class SplitTensorNegativeDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([10, 12, 6], torch.float32, True)
+    ])
+    def forward(self, x):
+        s0, s1, s2 = torch.ops.aten.split(x, 2, -1)
+        return s1
+
+
+@register_test_case(module_factory=lambda: SplitTensorNegativeDimModule())
+def SplitTensorNegativeDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 12, 6))
+
+# ==============================================================================
+
 class ChunkListUnpack_Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
