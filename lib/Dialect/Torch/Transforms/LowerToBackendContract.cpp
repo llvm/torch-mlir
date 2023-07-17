@@ -483,6 +483,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenTopkOp>();
   target.addIllegalOp<AtenScalarTensorOp>();
   target.addIllegalOp<AtenScatterValueOp>();
+  target.addIllegalOp<AtenAsStridedOp>();
   for (auto &opName : backendLegalOpsSet) {
     target.addLegalOp(
         OperationName(kTorchOpPrefix + opName.first().str(), context));

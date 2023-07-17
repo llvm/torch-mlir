@@ -4586,6 +4586,123 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.as_strided` into `aten.flatten.using_ints`, `aten.gather` and
+// `aten.view`.
+// This decomposition is a little hacky. Since aten.as_strided is a
+// view-like op, while aten.gather is not. But it might be okay
+// in torch-mlir, since we've already assumed view-like ops to be of value
+// semantics.
+class DecomposeAtenAsStridedOp : public OpRewritePattern<AtenAsStridedOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAsStridedOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto inputType = op.getSelf().getType().dyn_cast<BaseTensorType>();
+    if (!inputType || !inputType.hasSizes() || !inputType.areAllSizesKnown()) {
+      return rewriter.notifyMatchFailure(
+          op, "only handle input tensor with static shape information");
+    }
+    ArrayRef<int64_t> inputSizes = inputType.getSizes();
+
+    SmallVector<int64_t> outSizes;
+    if (!matchPattern(op.getSize(), m_TorchListOfConstantInts(outSizes))) {
+      return rewriter.notifyMatchFailure(
+          op, "out size must be a list of constant integers");
+    }
+    SmallVector<int64_t> strides;
+    if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strides))) {
+      return rewriter.notifyMatchFailure(
+          op, "strides must be a list of constant integers");
+    }
+    if (strides.size() != outSizes.size()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "the stride size is expected to be "
+                                         "the same as that of output tensor");
+    }
+    int64_t storageOffset = 0;
+    if (!op.getStorageOffset().getType().isa<Torch::NoneType>() &&
+        !matchPattern(op.getStorageOffset(),
+                      m_TorchConstantInt(&storageOffset))) {
+      return rewriter.notifyMatchFailure(
+          op, "storage offset must be a constant integer");
+    }
+
+    int64_t inputTotalSize = 1;
+    for (auto inputDimSize : inputSizes) {
+      inputTotalSize *= inputDimSize;
+    }
+
+    auto flattenInputType = inputType.getWithSizesAndDtype(
+        SmallVector<int64_t>(1, inputTotalSize), inputType.getOptionalDtype());
+    Value startDim = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value endDim = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(inputSizes.size() - 1));
+    Value flattenInput = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
+        loc, flattenInputType, op.getSelf(), startDim, endDim);
+
+    int64_t outTotalSize = 1;
+    for (auto outDimSize : outSizes) {
+      outTotalSize *= outDimSize;
+    }
+
+    // Generate index for gather op;
+    DenseSet<int64_t> visitedStoragePlaces;
+    SmallVector<int64_t> gatherIndicies;
+    for (int64_t i = 0; i < outTotalSize; ++i) {
+      int64_t newI = i;
+      int64_t index = 0;
+      for (int64_t d = outSizes.size() - 1; d >= 0; --d) {
+        index += newI % outSizes[d] * strides[d];
+        newI /= outSizes[d];
+      }
+
+      // We can not handle the situation when the view is "overlapped"
+      // Ref: https://pytorch.org/docs/stable/generated/torch.as_strided.html
+      if (visitedStoragePlaces.find(index) != visitedStoragePlaces.end()) {
+        return rewriter.notifyMatchFailure(
+            op, "multiple indices of new tensor are mapped to the same storage "
+                "location");
+      }
+
+      visitedStoragePlaces.insert(index);
+      gatherIndicies.push_back(index + storageOffset);
+    }
+    auto gatherOpType = inputType.getWithSizesAndDtype(
+        {outTotalSize}, inputType.getOptionalDtype());
+    Value gatherDim = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+
+    Value gatherIndex = rewriter.create<Torch::ValueTensorLiteralOp>(
+        loc,
+        inputType.getWithSizesAndDtype({outTotalSize},
+                                       rewriter.getIntegerType(64, true)),
+        DenseIntElementsAttr::get(
+            RankedTensorType::get({static_cast<int64_t>(outTotalSize)},
+                                  rewriter.getIntegerType(64, true)),
+            gatherIndicies));
+    Value sparseGrad = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    auto gatherOp = rewriter.create<Torch::AtenGatherOp>(
+        loc, gatherOpType, flattenInput, gatherDim, gatherIndex, sparseGrad);
+
+    SmallVector<Value> viewSizes;
+    for (auto outDimSize : outSizes) {
+      viewSizes.push_back(rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(outDimSize)));
+    }
+    auto viewSizesListConstructOp = rewriter.create<Torch::PrimListConstructOp>(
+        loc, Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+        ValueRange(viewSizes));
+
+    rewriter.replaceOpWithNewOp<AtenViewOp>(op, op.getType(), gatherOp,
+                                            viewSizesListConstructOp);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -4754,6 +4871,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenScalarTensor>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScatterValueOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSignOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAsStridedOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

@@ -469,6 +469,9 @@ def aten〇_unsafe_view〡shape(self: List[int], size: List[int]) -> List[int]:
 def aten〇resize_〡shape(self: List[int], size: List[int], memory_format: Optional[int] = None) -> List[int]:
     return size
 
+def aten〇as_strided〡shape(self: List[int], size: List[int], stride: List[int], storage_offset: Optional[int] = None) -> List[int]:
+    return size
+
 def aten〇max_pool2d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0,), dilation: List[int] = (1, 1,), ceil_mode: bool = False) -> List[int]:
     return upstream_shape_functions.max_pool2d(self, kernel_size, stride, padding, dilation, ceil_mode)
 
@@ -1729,6 +1732,11 @@ def aten〇reshape〡dtype(self_rank_dtype: Tuple[int, int], shape: List[int]) -
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1]))
 def aten〇resize_〡dtype(self_rank_dtype: Tuple[int, int], size: List[int], memory_format: Optional[int] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1], stride=[1]))
+def aten〇as_strided〡dtype(self_rank_dtype: Tuple[int, int], size: List[int], stride: List[int], storage_offset: Optional[int] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 

@@ -2065,3 +2065,29 @@ func.func @torch.aten.add$fold() -> !torch.float {
     %0 = torch.aten.add %float1, %float2 : !torch.float, !torch.float -> !torch.float
     return %0 : !torch.float
 }
+
+// CHECK-LABEL:  func.func @torch.aten.as_strided$none_storage_offset(
+// CHECK-SAME:                                    %[[ARG:.*]]: !torch.vtensor<[3,3],f32>) -> !torch.vtensor<[3,3],f32> {
+// CHECK:          return %[[ARG]] : !torch.vtensor<[3,3],f32>
+func.func @torch.aten.as_strided$none_storage_offset(%arg0: !torch.vtensor<[3,3],f32>) -> !torch.vtensor<[3,3],f32> {
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int3, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.aten.as_strided %arg0, %0, %1, %none : !torch.vtensor<[3,3],f32>, !torch.list<int>, !torch.list<int>, !torch.none -> !torch.vtensor<[3,3],f32>
+  return %2 : !torch.vtensor<[3,3],f32>
+}
+
+// CHECK-LABEL:  func.func @torch.aten.as_strided$zero_storage_offset(
+// CHECK-SAME:                                    %[[ARG:.*]]: !torch.vtensor<[3,3],f32>) -> !torch.vtensor<[3,3],f32> {
+// CHECK:          return %[[ARG]] : !torch.vtensor<[3,3],f32>
+func.func @torch.aten.as_strided$zero_storage_offset(%arg0: !torch.vtensor<[3,3],f32>) -> !torch.vtensor<[3,3],f32> {
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %int0 = torch.constant.int 0
+  %0 = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int3, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.aten.as_strided %arg0, %0, %1, %int0 : !torch.vtensor<[3,3],f32>, !torch.list<int>, !torch.list<int>, !torch.int -> !torch.vtensor<[3,3],f32>
+  return %2 : !torch.vtensor<[3,3],f32>
+}

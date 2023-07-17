@@ -896,6 +896,52 @@ OpFoldResult AtenViewOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenAsStrideOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenAsStridedOp::fold(FoldAdaptor adaptor) {
+  auto inputType = getOperand(0).getType().dyn_cast<BaseTensorType>();
+  if (!inputType || !inputType.hasSizes() || !inputType.areAllSizesKnown())
+    return nullptr;
+
+  auto outType = getType().dyn_cast<BaseTensorType>();
+  if (!outType || !outType.hasSizes() || !outType.areAllSizesKnown())
+    return nullptr;
+
+  int64_t storageOffset;
+  if (!getStorageOffset().getType().isa<Torch::NoneType>()) {
+    if (!matchPattern(getStorageOffset(), m_TorchConstantInt(&storageOffset)) ||
+        storageOffset != 0)
+      return nullptr;
+  }
+
+  // Check if the shapes of input tensor and output tensor are totally same.
+  ArrayRef<int64_t> inputSizes = inputType.getSizes();
+  ArrayRef<int64_t> outSizes = outType.getSizes();
+  if (inputSizes.size() != outSizes.size())
+    return nullptr;
+  for (int i = 0, e = inputSizes.size(); i < e; ++i) {
+    if (inputSizes[i] != outSizes[i])
+      return nullptr;
+  }
+
+  // Check if the elements of output tensor are fetched sequentially from input
+  // tensor's storage.
+  SmallVector<int64_t> strides;
+  if (!matchPattern(getStride(), m_TorchListOfConstantInts(strides)))
+    return nullptr;
+
+  if (strides.size() != inputSizes.size() || strides[strides.size() - 1] != 1)
+    return nullptr;
+  for (int i = inputSizes.size() - 2; i >= 0; --i) {
+    if (strides[i] != inputSizes[i + 1] * strides[i + 1])
+      return nullptr;
+  }
+
+  return getOperand(0);
+}
+
+//===----------------------------------------------------------------------===//
 // PrimsViewOfOp
 //===----------------------------------------------------------------------===//
 
