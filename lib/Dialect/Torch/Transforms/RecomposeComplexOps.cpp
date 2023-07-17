@@ -418,6 +418,116 @@ public:
     return success();
   }
 };
+
+// recompose `aten::nonzero_numpy` + `prim::ListUnpack` + `prim::ListConstruct` + `aten::index.Tensor` with
+// `aten::masked_select`
+class RecomposeIndexTensorWithNonzeroNumpy
+    : public OpRewritePattern<AtenIndexTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  // Look forward a few steps in order to try to restore the shape information
+  // of the value. For now, it only handles with static_info_cast and
+  // copy.to_tensor op.
+  static FailureOr<Value> getOriginalValue(Value input) {
+    auto inputType = input.getType().cast<BaseTensorType>();
+    while (!inputType.hasSizes()) {
+      if (auto staticInfoCastOp =
+              input.getDefiningOp<TensorStaticInfoCastOp>()) {
+        input = staticInfoCastOp.getOperand();
+        inputType = input.getType().cast<BaseTensorType>();
+      } else if (auto copyToNonValueTensorOp =
+                     input.getDefiningOp<CopyToNonValueTensorOp>()) {
+        input = copyToNonValueTensorOp.getOperand();
+        inputType = input.getType().cast<BaseTensorType>();
+      } else {
+        return failure();
+      }
+    }
+    return input;
+  }
+  LogicalResult matchAndRewrite(AtenIndexTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+
+    Value input = op.getSelf();
+    Value index = op.getIndices();
+    AtenNonzeroNumpyOp nonzeroNumpyOp =
+        index.getDefiningOp<AtenNonzeroNumpyOp>();
+    if (!nonzeroNumpyOp) {
+      return rewriter.notifyMatchFailure(op,
+                                         "index of aten::index.tensor should "
+                                         "come from aten::nonzero_numpy op");
+    }
+
+    Value mask = nonzeroNumpyOp.getSelf();
+    auto inputType = input.getType().cast<BaseTensorType>();
+    auto maskType = mask.getType().cast<BaseTensorType>();
+
+    // Because this pass is run before reduce-op-variants and
+    // maximize-value-semantics pass, operation operands might already be
+    // converted through static_info_cast or copy.to_tensor op. We need to
+    // restore the shape information to judge whether we can convert the op.
+    auto originalMaskInfo = getOriginalValue(mask);
+    auto originalInputInfo = getOriginalValue(input);
+    if (failed(originalMaskInfo) || failed(originalInputInfo))
+      return rewriter.notifyMatchFailure(
+          op, "failed to get shape information of inputs of aten::index.tensor "
+              "and aten::nonzero_numpy");
+
+    auto originalMaskType =
+        (*originalMaskInfo).getType().cast<BaseTensorType>();
+    auto originalInputType =
+        (*originalInputInfo).getType().cast<BaseTensorType>();
+
+    auto originalInputSizes = originalInputType.getSizes();
+    auto originalMaskSizes = originalMaskType.getSizes();
+    if (originalMaskSizes.size() != originalInputSizes.size()) {
+      return rewriter.notifyMatchFailure(
+          op, "inputs of aten::index.tensor and aten::nonzero_numpy should "
+              "have same-ranked shape");
+    }
+
+    for (int64_t i = 0; i < originalInputSizes.size(); ++i) {
+      if (originalInputSizes[i] != originalMaskSizes[i] ||
+          originalInputSizes[i] == ShapedType::kDynamic ||
+          originalMaskSizes[i] == ShapedType::kDynamic) {
+        return rewriter.notifyMatchFailure(
+            op, "inputs of aten::index.tensor and aten::nonzero_numpy should "
+                "have same static shape");
+      }
+    }
+
+    Value falseValue = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value noneValue = rewriter.create<Torch::ConstantNoneOp>(loc);
+    Value i1DtypeValue =
+        getDtypeIntValueForType(rewriter, loc, rewriter.getI1Type());
+    Type boolMaskType = maskType.getWithSizesAndDtype(
+        inputType.getOptionalSizes(), rewriter.getI1Type());
+    Value boolMask =
+        rewriter.create<AtenToDtypeOp>(loc, boolMaskType, mask, i1DtypeValue,
+                                       falseValue, falseValue, noneValue);
+
+    rewriter.replaceOpWithNewOp<AtenMaskedSelectOp>(op, op.getType(), input,
+                                                    boolMask);
+
+    // Separately handle possible prim::ListUnpack op, if it's a user of the
+    // aten::nonzero_numpy op.
+    if (nonzeroNumpyOp.getResult().hasOneUse()) {
+      auto use = nonzeroNumpyOp.getResult().use_begin();
+      auto listUnpackOp = dyn_cast<PrimListUnpackOp>(use->getOwner());
+      if (listUnpackOp && listUnpackOp.getResults().use_empty() &&
+          listUnpackOp.getResults().size() == originalMaskSizes.size()) {
+        rewriter.eraseOp(listUnpackOp);
+      }
+    }
+    if (nonzeroNumpyOp.getResult().use_empty()) {
+      rewriter.eraseOp(nonzeroNumpyOp);
+    }
+    return success();
+  }
+};
+
 } // namespace
 
 namespace {
@@ -436,6 +546,7 @@ public:
     patterns.add<RecomposeUnbindListUnpack>(context);
     patterns.add<RecomposeUnbindGetItem>(context);
     patterns.add<RecomposeChunkListUnpack>(context);
+    patterns.add<RecomposeIndexTensorWithNonzeroNumpy>(context);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

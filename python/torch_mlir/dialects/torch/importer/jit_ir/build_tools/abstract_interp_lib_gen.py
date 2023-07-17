@@ -1112,6 +1112,12 @@ def hacky_get_unknown_dimension_size():
 def aten〇bincount〡shape(self: List[int], weights: Optional[List[int]] = None, minlength: int = 0) -> List[int]:
     return [hacky_get_unknown_dimension_size()]
 
+def aten〇nonzero〡shape(self: List[int]) -> List[int]:
+    return [hacky_get_unknown_dimension_size(), len(self)]
+
+def aten〇masked_select〡shape(self: List[int], mask: List[int]) -> List[int]:
+    return [hacky_get_unknown_dimension_size()]
+
 def aten〇linalg_vector_norm〡shape(self: List[int], ord: float = 2, dim: Optional[List[int]] = None, keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, dtype)
 
@@ -2419,6 +2425,11 @@ def aten〇bincount〡dtype(self_rank_dtype: Tuple[int, int], weights_rank_dtype
     if weights_rank_dtype is None:
         return torch.int64
     return torch.float64
+
+# TODO: Error
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, tensor_device=torch.device("cpu")))
+def aten〇nonzero〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    return torch.int64
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1), (1, 1)]) +
