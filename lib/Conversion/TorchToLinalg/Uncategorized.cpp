@@ -48,6 +48,8 @@ static Value createComparisonTemplate(OpBuilder &b, Location loc, Type type,
       return b.create<arith::CmpIOp>(loc, iupred, lhs, rhs);
     if (intType.isSigned())
       return b.create<arith::CmpIOp>(loc, ispred, lhs, rhs);
+    assert(intType.getWidth() == 1);
+    return b.create<arith::CmpIOp>(loc, iupred, lhs, rhs);
   }
   llvm_unreachable("Unhandled element type for comparison");
 }
