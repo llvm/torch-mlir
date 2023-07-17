@@ -901,11 +901,11 @@ OpFoldResult AtenViewOp::fold(FoldAdaptor adaptor) {
 
 OpFoldResult AtenAsStridedOp::fold(FoldAdaptor adaptor) {
   auto inputType = getOperand(0).getType().dyn_cast<BaseTensorType>();
-  if (!inputType || !inputType.hasSizes())
+  if (!inputType || !inputType.hasSizes() || !inputType.areAllSizesKnown())
     return nullptr;
 
   auto outType = getType().dyn_cast<BaseTensorType>();
-  if (!outType || !outType.hasSizes())
+  if (!outType || !outType.hasSizes() || !outType.areAllSizesKnown())
     return nullptr;
 
   int64_t storageOffset;
@@ -921,8 +921,7 @@ OpFoldResult AtenAsStridedOp::fold(FoldAdaptor adaptor) {
   if (inputSizes.size() != outSizes.size())
     return nullptr;
   for (int i = 0, e = inputSizes.size(); i < e; ++i) {
-    if (inputSizes[i] != outSizes[i] || inputSizes[i] == ShapedType::kDynamic ||
-        outSizes[i] == ShapedType::kDynamic)
+    if (inputSizes[i] != outSizes[i])
       return nullptr;
   }
 

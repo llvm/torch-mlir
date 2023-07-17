@@ -4589,8 +4589,8 @@ namespace {
 // Decompose `aten.as_strided` into `aten.flatten.using_ints`, `aten.gather` and
 // `aten.view`.
 // This decomposition is a little hacky. Since aten.as_strided is a
-// view-like op, while aten.gather is not a view-like op. But it might be okay
-// in torch-mlir, since we've already assume view-like ops to be of value
+// view-like op, while aten.gather is not. But it might be okay
+// in torch-mlir, since we've already assumed view-like ops to be of value
 // semantics.
 class DecomposeAtenAsStridedOp : public OpRewritePattern<AtenAsStridedOp> {
 public:
@@ -4599,9 +4599,9 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     auto inputType = op.getSelf().getType().dyn_cast<BaseTensorType>();
-    if (!inputType || !inputType.hasSizes()) {
+    if (!inputType || !inputType.hasSizes() || !inputType.areAllSizesKnown()) {
       return rewriter.notifyMatchFailure(
-          op, "only handle input tensor with shape information");
+          op, "only handle input tensor with static shape information");
     }
     ArrayRef<int64_t> inputSizes = inputType.getSizes();
 
@@ -4670,14 +4670,18 @@ public:
       gatherIndicies.push_back(index + storageOffset);
     }
     auto gatherOpType = inputType.getWithSizesAndDtype(
-        SmallVector<int64_t>(1, outTotalSize), inputType.getOptionalDtype());
+        {outTotalSize}, inputType.getOptionalDtype());
     Value gatherDim = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(0));
+
     Value gatherIndex = rewriter.create<Torch::ValueTensorLiteralOp>(
-        loc, DenseIntElementsAttr::get(
-                 RankedTensorType::get(static_cast<int64_t>(outTotalSize),
-                                       rewriter.getI64Type()),
-                 gatherIndicies));
+        loc,
+        inputType.getWithSizesAndDtype({outTotalSize},
+                                       rewriter.getIntegerType(64, true)),
+        DenseIntElementsAttr::get(
+            RankedTensorType::get({static_cast<int64_t>(outTotalSize)},
+                                  rewriter.getIntegerType(64, true)),
+            gatherIndicies));
     Value sparseGrad = rewriter.create<Torch::ConstantBoolOp>(loc, false);
     auto gatherOp = rewriter.create<Torch::AtenGatherOp>(
         loc, gatherOpType, flattenInput, gatherDim, gatherIndex, sparseGrad);
