@@ -975,6 +975,15 @@ func.func @torch.prim.TupleUnpack(%arg0: !torch.tensor, %arg1: !torch.tensor) ->
   return %124#0 : !torch.tensor
 }
 
+// CHECK-LABEL:   func.func @torch.prim.TupleUnpack.Derefined(
+// CHECK-SAME:                                         %[[ARG:.*]]: !torch.tensor) -> !torch.optional<tensor> {
+// CHECK:           %[[DEREFINED:.+]] = torch.derefine %[[ARG]] : !torch.tensor to !torch.optional<tensor>
+// CHECK:           return %[[DEREFINED]] : !torch.optional<tensor>
+func.func @torch.prim.TupleUnpack.Derefined(%arg: !torch.tensor) -> !torch.optional<tensor> {
+  %tuple = torch.prim.TupleConstruct %arg : !torch.tensor -> !torch.tuple<tensor>
+  %optional_tensor = torch.prim.TupleUnpack %tuple : !torch.tuple<tensor> -> !torch.optional<tensor>
+  return %optional_tensor : !torch.optional<tensor>
+}
 
 // CHECK-LABEL:   func.func @torch.aten.__contains__.str(
 // CHECK-SAME:        %[[K0:.*]]: !torch.str, %[[V0:.*]]: !torch.tensor,
