@@ -32,6 +32,11 @@ def FinalizingBackendTypeConversion
   }];
 }
 
+def UnpackTorchTensor : Pass<"torch-unpack-torch-tensor", "func::FuncOp"> {
+  let summary = "Unpack Int4 Torch Tensor";
+  let constructor = "mlir::torch::TorchConversion::createUnpackTorchTensorPass()";
+}
+
 def VerifyLinalgOnTensorsBackendContract : Pass<"torch-verify-linalg-on-tensors-backend-contract", "ModuleOp"> {
   let summary = "Verifies conformity to the linalg-on-tensors backend contract";
   let constructor = "mlir::torch::TorchConversion::createVerifyLinalgOnTensorsBackendContractPass()";

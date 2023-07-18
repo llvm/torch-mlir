@@ -194,13 +194,13 @@ static bool isValidTorchDtype(Type dtype) {
     if (type.isSignless() && type.getWidth() == 1)
       return true;
     if (type.isSigned()) {
-      for (unsigned width : {8, 16, 32, 64}) {
+      for (unsigned width : {4, 8, 16, 32, 64}) {
         if (type.getWidth() == width)
           return true;
       }
     }
     if (type.isUnsigned()) {
-      return type.getWidth() == 8;
+      return type.getWidth() == 8 || type.getWidth() == 4;
     }
   }
   return false;
