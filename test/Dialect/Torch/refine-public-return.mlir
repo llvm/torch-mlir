@@ -9,6 +9,14 @@ func.func @basic(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.tensor {
   return %2 : !torch.tensor
 }
 
+// CHECK-LABEL:   func.func @refine_optional(
+// CHECK-SAME:                %[[ARG:.*]]: !torch.vtensor<[2],f32>) -> !torch.vtensor<[2],f32> {
+// CHECK:           return %[[ARG]] : !torch.vtensor<[2],f32>
+func.func @refine_optional(%arg: !torch.vtensor<[2],f32>) -> !torch.optional<vtensor<[2],f32>> {
+  %res = torch.derefine %arg : !torch.vtensor<[2],f32> to !torch.optional<vtensor<[2],f32>>
+  return %res : !torch.optional<vtensor<[2],f32>>
+}
+
 // CHECK-LABEL:   func.func @multiple_use_non_value_tensor(
 // CHECK-SAME:                                        %[[ARG0:.*]]: !torch.vtensor,
 // CHECK-SAME:                                        %[[ARG1:.*]]: !torch.vtensor) -> !torch.vtensor {
@@ -32,6 +40,17 @@ func.func private @basic_private(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.t
   %1 = torch.copy.to_tensor %arg0 : !torch.tensor<[2,3,?],f32>
   %2 = torch.tensor_static_info_cast %1 : !torch.tensor<[2,3,?],f32> to !torch.tensor
   return %2 : !torch.tensor
+}
+
+// No conversion on private function.
+// CHECK-LABEL:   func.func private @dont_refine_private(
+// CHECK-SAME:                                %[[ARG:.+]]: !torch.vtensor<[2],f32>) -> !torch.optional<vtensor<[2],f32>> {
+// CHECK:   %[[RES:.+]] = torch.derefine %[[ARG]] : !torch.vtensor<[2],f32> to !torch.optional<vtensor<[2],f32>>
+// CHECK:   return %[[RES]] : !torch.optional<vtensor<[2],f32>>
+// CHECK: }
+func.func private @dont_refine_private(%arg: !torch.vtensor<[2],f32>) -> !torch.optional<vtensor<[2],f32>> {
+  %res = torch.derefine %arg : !torch.vtensor<[2],f32> to !torch.optional<vtensor<[2],f32>>
+  return %res : !torch.optional<vtensor<[2],f32>>
 }
 
 // -----
