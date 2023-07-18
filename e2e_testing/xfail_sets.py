@@ -814,6 +814,7 @@ STABLEHLO_PASS_SET = {
     "RandIntPinMemoryModule_basic",
     "UniformStaticShapeModule_basic",
     "UniformNoCorrelationModule_basic",
+    "TupleModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -1128,6 +1129,7 @@ TOSA_PASS_SET = {
     "SplitTensorLastSmallerModule_basic",
     "ChunkListUnpack_Module_basic",
     "ChunkListUnpackUneven_Module_basic",
+    "TupleModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {

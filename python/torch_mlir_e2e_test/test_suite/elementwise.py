@@ -3179,3 +3179,32 @@ class Fill_TensorFloat32WithInt64(torch.nn.Module):
 @register_test_case(module_factory=lambda: Fill_TensorFloat32WithInt64())
 def Fill_TensorFloat32WithInt64_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4), tu.randint())
+
+
+# ==============================================================================
+
+
+class TupleModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a, b):
+        cond = True
+        if cond:
+            tuple = a, b
+        else:
+            tuple = a + b, None
+        _, y = tuple
+        return y
+
+
+@register_test_case(module_factory=lambda: TupleModule())
+def TupleModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 2), tu.rand(2, 2))
