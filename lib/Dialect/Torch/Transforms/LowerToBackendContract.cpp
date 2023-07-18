@@ -17,8 +17,8 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "torch-lower-to-backend-contract"
 
