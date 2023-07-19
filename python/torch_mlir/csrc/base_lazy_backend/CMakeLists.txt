@@ -69,6 +69,7 @@ add_library(torch_mlir_ltc_backend SHARED
   backend_impl.cpp
   dynamic_ir.cpp
   mlir_node.cpp
+  tensor.cpp
   ops/device_data.cpp
   ops/generic.cpp
   ops/index.cpp

@@ -373,11 +373,5 @@ std::vector<torch::lazy::Shape> compute_shape_resize(
   return {Shape(self.scalar_type(), size.vec())};
 }
 
-std::vector<torch::lazy::Shape> compute_shape_bernoulli(
-    const at::Tensor& self, const at::Tensor &p,
-    c10::optional<at::Generator> generator) {
-  return {Shape(self.scalar_type(), self.sizes().vec())};
-}
-
 }  // namespace lazy
 }  // namespace torch
