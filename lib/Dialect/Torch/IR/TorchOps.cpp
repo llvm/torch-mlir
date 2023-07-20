@@ -156,6 +156,8 @@ static Value getScalarIntValue(Value input, Location loc,
   } else if (auto primNumToTensorScalarOp =
                  input.getDefiningOp<PrimNumToTensorScalarOp>()) {
     return primNumToTensorScalarOp.getA();
+  } else if (auto tensorIntOp = input.getDefiningOp<AtenTensorIntOp>()) {
+    return tensorIntOp.getT();
   }
   return nullptr;
 }
@@ -2557,6 +2559,8 @@ OpFoldResult AtenIntTensorOp::fold(FoldAdaptor adaptor) {
   // aten.Int.Tensor, fold to the scalar number.
   if (auto numToTensorScalar = getA().getDefiningOp<PrimNumToTensorScalarOp>())
     return numToTensorScalar.getA();
+  if (auto tensorIntOp = getA().getDefiningOp<AtenTensorIntOp>()) 
+    return tensorIntOp.getT();
   return nullptr;
 }
 

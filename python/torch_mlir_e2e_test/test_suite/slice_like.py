@@ -523,6 +523,42 @@ def NarrowVerticalTest2_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class NarrowTensorHorizontalModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True)
+    ])
+    def forward(self, x):
+        return torch.narrow(x, dim=1, start=torch.tensor(0), length=2)
+
+@register_test_case(module_factory=lambda: NarrowTensorHorizontalModule())
+def NarrowTensorHorizontalModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6,4))
+
+# ==============================================================================
+
+class NarrowTensorVerticalModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True)
+    ])
+    def forward(self, x):
+        return torch.narrow(x, dim=1, start=torch.tensor(1), length=2)
+
+@register_test_case(module_factory=lambda: NarrowTensorVerticalModule())
+def NarrowTensorVerticalModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6,4))
+
+# ==============================================================================
+
 class SliceCopy_Module(torch.nn.Module):
     def __init__(self):
         super().__init__()

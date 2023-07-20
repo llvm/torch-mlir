@@ -11314,6 +11314,31 @@ def Torch_AtenNarrowOp : Torch_Op<"aten.narrow", [
   }];
 }
 
+def Torch_AtenNarrowTensorOp : Torch_Op<"aten.narrow.Tensor", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::narrow.Tensor : (Tensor, int, Tensor, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim,
+    AnyTorchTensorType:$start,
+    Torch_IntType:$length
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenNarrowTensorOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenNarrowTensorOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
 def Torch_AtenScalarImplicitOp : Torch_Op<"aten.ScalarImplicit", [
     AllowsTypeRefinement,
     HasValueSemantics,
