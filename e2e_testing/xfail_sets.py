@@ -767,6 +767,7 @@ STABLEHLO_PASS_SET = {
     "ToDtypeLayoutNoneModule_basic",
     "ToDtypeLayoutStridedModule_basic",
     "TypeAsSameModule_basic",
+    "TypeAsDifferentModule_basic",
     "TypeConversionF32ToF64Module_basic",
     "TypeConversionF64ToF32Module_basic",
     "TypeConversionI1ToF32Module_basic",

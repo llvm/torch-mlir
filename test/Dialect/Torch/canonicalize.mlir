@@ -1412,14 +1412,6 @@ func.func @torch.aten.squeeze.dim$zero_rank(%arg0: !torch.tensor<[],f32>) -> !to
   return %0 : !torch.tensor<[],f32>
 }
 
-// CHECK-LABEL:   func.func @torch.aten.type_as$same(
-// CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f32> {
-// CHECK-NEXT:      return %[[ARG]] : !torch.tensor<[?,?],f32>
-func.func @torch.aten.type_as$same(%arg0: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f32> {
-  %0 = torch.aten.type_as %arg0, %arg0 : !torch.tensor<[?,?],f32>, !torch.tensor<[?,?],f32> -> !torch.tensor<[?,?],f32>
-  return %0 : !torch.tensor<[?,?],f32>
-}
-
 // CHECK-LABEL:   func.func @torch.aten.to.dtype$same_dtype(
 // CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<*,f32>) -> !torch.tensor<*,f32> {
 // CHECK-NEXT:      return %[[ARG]] : !torch.tensor<*,f32>

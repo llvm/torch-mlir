@@ -713,20 +713,6 @@ OpFoldResult AtenRoundOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
-// AtenTypeAsOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult AtenTypeAsOp::fold(FoldAdaptor adaptor) {
-  Type inType = getSelf().getType();
-  Type newType = getOther().getType();
-
-  if (inType == newType)
-    return getSelf();
-
-  return nullptr;
-}
-
-//===----------------------------------------------------------------------===//
 // AtenToDtypeOp
 //===----------------------------------------------------------------------===//
 
