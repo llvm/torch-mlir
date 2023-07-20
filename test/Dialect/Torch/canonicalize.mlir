@@ -1973,6 +1973,27 @@ func.func @torch.aten.slice.tensor$fold_full_domain_slice(%arg0: !torch.vtensor<
   return %0 : !torch.vtensor<[4],f32>
 }
 
+//  CHECK-LABEL:    @torch.aten.slice.tensor$fold_full_slice
+//   CHECK-SAME:      %[[ARG0:.+]]: !torch.vtensor<[?],f32>
+//        CHECK:        return %[[ARG0]] : !torch.vtensor<[?],f32>
+func.func @torch.aten.slice.tensor$fold_full_slice(%arg0: !torch.vtensor<[?],f32>, %dim: !torch.int) -> !torch.vtensor<[?],f32> {
+  %int1 = torch.constant.int 1
+  %int9223372036854775807  = torch.constant.int 9223372036854775807
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.slice.Tensor %arg0, %dim, %int0, %int9223372036854775807, %int1 : !torch.vtensor<[?], f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[?], f32>
+  return %0 : !torch.vtensor<[?],f32>
+}
+
+//  CHECK-LABEL:    @torch.aten.slice.tensor$no_fold_step
+//        CHECK: torch.aten.slice.Tensor
+func.func @torch.aten.slice.tensor$no_fold_step(%arg0: !torch.vtensor<[?],f32>, %dim: !torch.int) -> !torch.vtensor<[?],f32> {
+  %int2 = torch.constant.int 2
+  %int9223372036854775807  = torch.constant.int 9223372036854775807
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.slice.Tensor %arg0, %dim, %int0, %int9223372036854775807, %int2 : !torch.vtensor<[?], f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[?], f32>
+  return %0 : !torch.vtensor<[?],f32>
+}
+
 // CHECK-LABEL:   func.func @torch.aten.rsub.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
 // CHECK:             %int-1 = torch.constant.int -1
 // CHECK:             %[[VAL_0:.*]] = torch.prim.NumToTensor.Scalar %int-1 : !torch.int -> !torch.vtensor<[],si64>

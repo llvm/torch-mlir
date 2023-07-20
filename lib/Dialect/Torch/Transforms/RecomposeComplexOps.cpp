@@ -103,6 +103,9 @@ public:
         op, sliceOpInput.getType(), sliceOpInput, indices, op.getSrc(),
         /*accumulate=*/falseVal, /*unsafe=*/falseVal);
 
+    if (sliceOp->use_empty())
+      rewriter.eraseOp(sliceOp);
+
     return success();
   }
 };

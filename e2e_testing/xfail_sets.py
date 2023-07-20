@@ -631,6 +631,7 @@ STABLEHLO_PASS_SET = {
     "SliceNegIdxModule_basic",
     "SliceOutOfLowerBoundStartIndexModule_basic",
     "SliceOutOfUpperBoundIndexModule_basic",
+    "SliceOutOfUpperBoundIndexStaticModule_basic",
     "SliceStartEqEndModule_basic",
     "SliceSizeTwoStepModule_basic",
     "SliceWholeTensorModule_basic",
@@ -797,6 +798,8 @@ STABLEHLO_PASS_SET = {
     "AtenComplex64Module_basic",
     "SplitTensorGetItem_Module_basic",
     "SplitTensorListUnpackModule_basic",
+    "SplitTensorNegativeDimModule_basic",
+    "SplitTensorLastSmallerModule_basic",
     "UnbindIntListUnpack_Module_basic",
     "UnbindIntGetItem_Module_basic",
     "ChunkListUnpack_Module_basic",
@@ -1051,6 +1054,7 @@ TOSA_PASS_SET = {
     "BroadcastZeroRankInputStaticModule_basic",
     "BroadcastListConstructWithMinusOneModule_basic",
     "SliceStaticModule_basic",
+    "SliceOutOfUpperBoundIndexStaticModule_basic",
     "ArangeStartStepIntModule_basic",
     "ArangeDtypeFloatModule_basic",
     "ArangeIntModule_basic",
@@ -1117,6 +1121,8 @@ TOSA_PASS_SET = {
     "ElementwiseSqrtModule_basic",
     "SplitTensorGetItem_Module_basic",
     "SplitTensorListUnpackModule_basic",
+    "SplitTensorNegativeDimModule_basic",
+    "SplitTensorLastSmallerModule_basic",
     "ChunkListUnpack_Module_basic",
     "ChunkListUnpackUneven_Module_basic",
 }
@@ -1124,6 +1130,7 @@ TOSA_PASS_SET = {
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
 ### Tests additionally passing in make_fx_tosa
     "NativeGroupNormBackwardModule_basic",
+    "SliceWholeTensorModule_basic",
     "TensorFloatModule_basic",
     "TensorIntModule_basic",
 }) - {
@@ -1261,6 +1268,7 @@ LTC_XFAIL_SET = {
     "ScalarImplicitIntModule_basic",
     "SliceEndSleStartModule_basic",
     "SliceOutOfUpperBoundIndexModule_basic",
+    "SliceOutOfUpperBoundIndexStaticModule_basic",
     "SliceStartEqEndModule_basic",
     "SqrtIntModule_basic",
     "SubFloatModule_basic",
@@ -1344,6 +1352,8 @@ LTC_XFAIL_SET = {
     "AtenComplexViewModule_basic",
     "SplitTensorGetItem_Module_basic",
     "SplitTensorListUnpackModule_basic",
+    "SplitTensorNegativeDimModule_basic",
+    "SplitTensorLastSmallerModule_basic",
     "UnbindIntListUnpack_Module_basic",
     "UnbindIntGetItem_Module_basic",
     "ChunkListUnpack_Module_basic",
