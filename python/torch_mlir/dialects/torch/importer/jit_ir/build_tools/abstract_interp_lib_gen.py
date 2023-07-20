@@ -901,9 +901,9 @@ def aten〇narrow〡shape(self: List[int], dim: int, start: int, length: int) ->
     return upstream_shape_functions.slice(self, dim, start, start + length, 1)
 
 # This shape function is a little hacky, because we don't know the start index which is determined by a tensor param.
-# Let's assume it to be 0.
 def aten〇narrow〇Tensor〡shape(self: List[int], dim: int, start: List[int], length: int) -> List[int]:
-    return upstream_shape_functions.slice(self, dim, 0, length, 1)
+    self[dim] = length
+    return self
 
 def aten〇slice_scatter〡shape(self: List[int], src: List[int], dim: int = 0, start: Optional[int] = None, end: Optional[int] = None, step: int = 1) -> List[int]:
     return self
