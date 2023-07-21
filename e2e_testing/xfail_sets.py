@@ -1129,6 +1129,8 @@ TOSA_PASS_SET = {
     "ChunkListUnpack_Module_basic",
     "ChunkListUnpackUneven_Module_basic",
     "TupleModule_basic",
+    "NumpyTRank0Module_basic",
+    "Permute0RankModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
