@@ -307,9 +307,6 @@ TORCHDYNAMO_CRASHING_SET = {
     "TransposeIntModule_basic",
     "TransposeIntNegDimsModule_basic",
     "IndexPutImpl2DNoneIndexStaticModule_basic",
-
-    # See https://github.com/llvm/torch-mlir/issues/2178
-    "Add_Module_basic"
 }
 
 STABLEHLO_PASS_SET = {
@@ -1168,11 +1165,6 @@ if torch_version_for_comparison() < version.parse("2.1.0.dev"):
         # 'tensor.expand_shape' op expected rank expansion, but found source rank 1 >= result rank 1
         "ReshapeCollapseModule_basic",
     }
-
-LTC_CRASHING_SET = {
-    # https://github.com/llvm/torch-mlir/issues/2186
-    "Add_Module_basic"
-}
 
 LTC_XFAIL_SET = {
     "_Convolution2DAllFalseModule_basic",
