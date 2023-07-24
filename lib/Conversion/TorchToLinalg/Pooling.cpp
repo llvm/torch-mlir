@@ -78,7 +78,7 @@ checkAndGetPoolingParameters(OpTy op, ConversionPatternRewriter &rewriter,
 template <typename OpTy>
 static LogicalResult createPoolingOp(
     Operation *op, ConversionPatternRewriter &rewriter, Value self,
-    bool supportNonFPInput, bool ceilMode, int64_t dimension,
+    bool supportNonFPInput, bool ceilMode, int64_t dimensionality,
     SmallVectorImpl<Value> &kernelSizeIntValues,
     SmallVectorImpl<int64_t> &strideInts, SmallVectorImpl<int64_t> &paddingInts,
     SmallVectorImpl<int64_t> &dilationInts, Attribute initValueAttr,
@@ -93,7 +93,7 @@ static LogicalResult createPoolingOp(
   SmallVector<int64_t> highPaddingIncludingNC = lowPaddingIncludingNC;
   
   if (ceilMode) {
-    for (int64_t i = 0; i < dimension; ++i) {
+    for (int64_t i = 0; i < dimensionality; ++i) {
       highPaddingIncludingNC[i + 2] += strideInts[i];
     }
   }
@@ -114,7 +114,7 @@ static LogicalResult createPoolingOp(
       getAsConstantIntValues(rewriter, loc, strideInts);
 
   // Get dimension size for each dimension and calculate output size
-  for (int64_t i = dimension - 1; i > -1; --i) {
+  for (int64_t i = dimensionality - 1; i > -1; --i) {
     Value dimSize = getDimOp(rewriter, loc, self, i + 2);
     Value outDim = torch_to_linalg::getOutputDimForConvOps(
         rewriter, loc, dimSize, paddingIntValues[i], dilationIntValues[i],
@@ -182,7 +182,7 @@ public:
     Value maxPool2d, paddedInput;
     if (failed(createPoolingOp<linalg::PoolingNchwMaxOp>(
             op, rewriter, self, /*supportNonFPInput=*/false, ceilMode,
-            /*dimension*/2, kernelSizeIntValues, strideInts, paddingInts,
+            /*dimensionality=*/2, kernelSizeIntValues, strideInts, paddingInts,
             dilationInts, smallestFPValueAttr, outTensorShape, paddedInput,
             maxPool2d)))
       return rewriter.notifyMatchFailure(op, "unable to compute maxpool2d");
@@ -259,7 +259,7 @@ public:
     SmallVector<Value, 4> outTensorShape;
     if (failed(createPoolingOp<linalg::PoolingNchwMaxOp>(
             op, rewriter, self, /*supportNonFPInput=*/false, ceilMode,
-            /*dimension*/2, kernelSizeIntValues, strideInts, paddingInts,
+            /*dimensionality=*/2, kernelSizeIntValues, strideInts, paddingInts,
             dilationInts, smallestFPValueAttr, outTensorShape, paddedInput,
             maxPool2d)))
       return rewriter.notifyMatchFailure(op, "unable to compute maxpool2d");
@@ -419,7 +419,7 @@ public:
     SmallVector<Value, Dim+2> outTensorShape;
     if (failed(createPoolingOp<PoolingOpTy>(
             op, rewriter, self, /*supportNonFPInput=*/true, ceilMode,
-            /*dimension*/Dim, kernelSizeIntValues, strideInts, paddingInts,
+            /*dimensionality=*/Dim, kernelSizeIntValues, strideInts, paddingInts,
             dilationInts, rewriter.getZeroAttr(inputElementType), outTensorShape, 
             paddedInput, sumPool)))
       return rewriter.notifyMatchFailure(op, "unable to compute sumpool");
