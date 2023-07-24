@@ -25,6 +25,7 @@ TOSA_TO_LINALG_FUNC_PIPELINE = ",".join([
     # ones in TOSA-to-Standard and the main conversions TOSA-to-LinAlg,
     # that depend on TOSA as well as TOSA-to-Standard.
     "tosa-to-arith",
+    "tosa-to-scf",
     # Named ops must be legalized prior to general tosa-to-linalg
     "tosa-to-linalg-named",
     # TOSA-to-LinAlg may generate tosa.const() ops, so we want to lower them

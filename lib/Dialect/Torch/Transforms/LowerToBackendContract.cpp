@@ -17,8 +17,8 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "torch-lower-to-backend-contract"
 
@@ -459,6 +459,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenStdDimOp>();
   target.addIllegalOp<AtenStdCorrectionOp>();
   target.addIllegalOp<AtenNarrowOp>();
+  target.addIllegalOp<AtenNarrowTensorOp>();
   target.addIllegalOp<Aten_EmbeddingBagOp>();
   target.addIllegalOp<AtenLiftFreshCopyOp>();
   target.addIllegalOp<AtenIndexTensorHackedTwinOp>();
@@ -483,6 +484,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenTopkOp>();
   target.addIllegalOp<AtenScalarTensorOp>();
   target.addIllegalOp<AtenScatterValueOp>();
+  target.addIllegalOp<AtenTypeAsOp>();
   for (auto &opName : backendLegalOpsSet) {
     target.addLegalOp(
         OperationName(kTorchOpPrefix + opName.first().str(), context));

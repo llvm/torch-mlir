@@ -62,7 +62,8 @@ class RefinePublicReturnPass
     OpBuilder builder(returnOp);
     for (auto operand : returnOp.getOperands()) {
       Value newOperand = operand;
-      // Look through TensorStaticInfoCastOp's and CopyToNonValueTensorOp's.
+      // Look through TensorStaticInfoCastOp's, CopyToNonValueTensorOp's, and
+      // DerefineOp's.
       for (;;) {
         if (auto cast = newOperand.getDefiningOp<TensorStaticInfoCastOp>()) {
           newOperand = cast.getOperand();
@@ -76,6 +77,8 @@ class RefinePublicReturnPass
           if (users.size() != 1)
             break;
           newOperand = copy.getOperand();
+        } else if (auto derefine = newOperand.getDefiningOp<DerefineOp>()) {
+          newOperand = derefine.getOperand();
         } else {
           break;
         }

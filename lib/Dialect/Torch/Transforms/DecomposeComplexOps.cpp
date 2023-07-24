@@ -341,6 +341,27 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.narrow.Tensor` to `aten.narrow` op
+class DecomposeAtenNarrowTensorOp
+    : public OpRewritePattern<AtenNarrowTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNarrowTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto *context = op.getContext();
+    // PyTorch makes sure that `start` param is an 0-dim integral tensor.
+    // REF: https://pytorch.org/docs/stable/generated/torch.narrow.html.
+    auto start = rewriter.create<Torch::AtenScalarImplicitOp>(
+        loc, Torch::IntType::get(context), op.getStart());
+    rewriter.replaceOpWithNewOp<Torch::AtenNarrowOp>(
+        op, op.getType(), op.getSelf(), op.getDim(), start, op.getLength());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenZeroOp
     : public OpRewritePattern<AtenZeroOp> {
 public:
@@ -3162,6 +3183,11 @@ public:
       return rewriter.notifyMatchFailure(
           op, "expected result type to have a dtype");
     }
+    auto srcTy = op.getSrc().getType().cast<BaseTensorType>();
+    if (!srcTy.hasSizes() || !srcTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "expected src type to have a known rank and dtype");
+    }
     Type resultDtype = resultType.getDtype();
     Value srcToDtype =
         convertTensorToDtype(rewriter, op.getLoc(), op.getSrc(), resultDtype);
@@ -4586,6 +4612,29 @@ public:
 } // namespace
 
 namespace {
+// Unconditionally decompose `torch.type_as` into `prim.dtype` +
+// `torch.to.dtype`.
+class DecomposeAtenTypeAsOp : public OpRewritePattern<AtenTypeAsOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTypeAsOp op,
+                                PatternRewriter &rewriter) const override {
+    auto input = op.getSelf();
+    auto other = op.getOther();
+    Location loc = op.getLoc();
+
+    Value targetDtype = rewriter.create<Torch::PrimDtypeOp>(loc, other);
+    Value nonBlocking = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value copy = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value memoryFormat = rewriter.create<Torch::ConstantNoneOp>(loc);
+    rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
+        op, op.getType(), input, targetDtype, nonBlocking, copy, memoryFormat);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -4725,6 +4774,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdCorrectionOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNarrowOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenNarrowTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_EmbeddingBagOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLiftFreshCopyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorHackedTwinOp>(
@@ -4754,6 +4804,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenScalarTensor>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScatterValueOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSignOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenTypeAsOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

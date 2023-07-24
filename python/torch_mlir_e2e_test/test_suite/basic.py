@@ -4267,7 +4267,7 @@ class Add_Module(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.tensor = torch.ones(2, 3)
+        self.register_buffer('tensor', torch.ones(2, 3))
 
     @export
     @annotate_args([
