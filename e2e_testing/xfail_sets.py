@@ -310,6 +310,9 @@ TORCHDYNAMO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "TensorToBoolZeroRank_basic",
+    "TensorToIntZeroRank_basic",
+    "TensorToFloatZeroRank_basic",
     "AliasModule_basic",
     "TensorIntModule_basic",
     "AllBoolFalseModule_basic",
