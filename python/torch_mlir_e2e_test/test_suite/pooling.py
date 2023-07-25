@@ -700,3 +700,75 @@ class AvgPool2dCeilModeTrueModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AvgPool2dCeilModeTrueModule())
 def AvgPool2dCeilModeTrueModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 20, 20, low=0.5, high=1.0))
+
+
+# ==============================================================================
+
+
+class AvgPool1dFloatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap1d = torch.nn.AvgPool1d(kernel_size=6,
+                                       stride=2,
+                                       padding=3,
+                                       ceil_mode=False,
+                                       count_include_pad=True)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.ap1d(x)
+
+@register_test_case(module_factory=lambda: AvgPool1dFloatModule())
+def AvgPool1dFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 20, low=-1))
+
+
+class AvgPool1dIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap1d = torch.nn.AvgPool1d(kernel_size=6,
+                                       stride=2,
+                                       padding=3,
+                                       ceil_mode=False,
+                                       count_include_pad=True)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return self.ap1d(x)
+
+@register_test_case(module_factory=lambda: AvgPool1dIntModule())
+def AvgPool1dIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 4, 20, high=100))
+
+
+class AvgPool1dStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap1d = torch.nn.AvgPool1d(kernel_size=6,
+                                       stride=2,
+                                       padding=3,
+                                       ceil_mode=False,
+                                       count_include_pad=True)
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 4, 20], torch.int64, True),
+    ])
+    def forward(self, x):
+        return self.ap1d(x)
+
+@register_test_case(module_factory=lambda: AvgPool1dStaticModule())
+def AvgPool1dStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 4, 20, high=100))

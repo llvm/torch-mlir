@@ -5045,6 +5045,34 @@ def Torch_AtenAvgPool2dOp : Torch_Op<"aten.avg_pool2d", [
   }];
 }
 
+def Torch_AtenAvgPool1dOp : Torch_Op<"aten.avg_pool1d", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::avg_pool1d : (Tensor, int[], int[], int[], bool, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchListOfTorchIntType:$kernel_size,
+    AnyTorchListOfTorchIntType:$stride,
+    AnyTorchListOfTorchIntType:$padding,
+    Torch_BoolType:$ceil_mode,
+    Torch_BoolType:$count_include_pad
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenAvgPool1dOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 6, 1);
+    }
+    void AtenAvgPool1dOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 6, 1);
+    }
+  }];
+}
+
 def Torch_AtenSoftmaxIntOp : Torch_Op<"aten.softmax.int", [
     AllowsTypeRefinement,
     HasValueSemantics,
