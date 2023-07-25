@@ -3469,6 +3469,40 @@ class DecomposeAtenClampMaxOp : public OpRewritePattern<AtenClampMaxOp> {
 } // namespace
 
 namespace {
+class DecomposeAtenCosineSimilarityOp : public OpRewritePattern<AtenCosineSimilarityOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenCosineSimilarityOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value x1 = op.getX1();
+    Value x2 = op.getX2();
+    Value dim = op.getDim();
+    // 1. 计算 A 和 B 的点乘
+    Value dotProduct = rewriter.create<AtenMulTensorOp>(loc, op.getType(), x1, x2);
+    // 2. 计算 A 和 B 的范数
+    Value ord = rewriter.create<Torch::ConstantFloatOp>(loc, rewriter.getF64FloatAttr(2.0));
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(op.getLoc());
+    Value normA = rewriter.create<AtenLinalgVectorNormOp>(
+        loc, op.getType(), x1, ord, dim, /*keepdim=*/cstFalse,
+        /*dtype=*/cstNone);
+    Value normB = rewriter.create<AtenLinalgVectorNormOp>(
+        loc, op.getType(), x2, ord, dim, /*keepdim=*/cstFalse,
+        /*dtype=*/cstNone);
+
+    // 3. 计算范数的乘积
+    Value normProduct = rewriter.create<AtenMulTensorOp>(loc, op.getType(), normA, normB);
+    Value normProductClamp = rewriter.create<AtenClampOp>(loc, op.getType(), normProduct,
+                                             op.getEps(), /*max=*/cstNone);
+    // 4. 除法操作，计算最后的余弦相似度
+    rewriter.replaceOpWithNewOp<AtenDivTensorOp>(
+        op, op.getType(), dotProduct, normProductClamp);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.baddbmm` op into `aten.bmm`, `aten.mul.Scalar`, and
 // `aten.add.Tensor` op.
 class DecomposeAtenBaddbmmOp : public OpRewritePattern<AtenBaddbmmOp> {
