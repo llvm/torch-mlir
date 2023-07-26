@@ -4888,8 +4888,6 @@ public:
         auto end = rewriter.create<Torch::AtenSizeIntOp>(loc, newInput, dim);
         auto v = rewriter.create<Torch::AtenArangeOp>(
             loc, resultType, end, int64Dtype, none, none, none);
-        // auto vInfo = unsqueezeTensorAtTrailingDim(context, loc, rewriter, v,
-        //                                           trailingDimCnt);
         auto vInfo =
             unsqueezeTensorAtTrailingDim(op, rewriter, v, trailingDimCnt);
         if (failed(vInfo)) {
@@ -4904,8 +4902,6 @@ public:
     for (; i >= 0; --i) {
       int64_t oldI = dims[i];
       if (indexUsed[oldI]) {
-        // auto vInfo = unsqueezeTensorAtTrailingDim(
-        //     context, loc, rewriter, indices[oldI], trailingDimCnt);
         auto vInfo = unsqueezeTensorAtTrailingDim(op, rewriter, indices[oldI],
                                                   trailingDimCnt);
         if (failed(vInfo)) {
@@ -4927,8 +4923,6 @@ public:
         auto end = rewriter.create<Torch::AtenSizeIntOp>(loc, newInput, dim);
         auto v = rewriter.create<Torch::AtenArangeOp>(
             loc, resultType, end, int64Dtype, none, none, none);
-        // auto vInfo = unsqueezeTensorAtTrailingDim(context, loc, rewriter, v,
-        //                                           outputRank - 1 - i);
         auto vInfo =
             unsqueezeTensorAtTrailingDim(op, rewriter, v, outputRank - 1 - i);
         if (failed(vInfo)) {
