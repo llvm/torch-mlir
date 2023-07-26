@@ -904,6 +904,9 @@ STABLEHLO_CRASHING_SET = {
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
 
+    # LLVM ERROR: SmallVector unable to grow. Requested capacity (9223372036854775808) is larger than maximum value for size type (4294967295)
+    "SliceCopyNonZeroDim_Module_basic",
+
     "Aten_EmbeddingBagExample_basic",
     "AtenEmbeddingBagSumExample_basic"
 }
