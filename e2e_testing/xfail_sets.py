@@ -1180,6 +1180,11 @@ TOSA_PASS_SET = {
     "TupleModule_basic",
     "NumpyTRank0Module_basic",
     "Permute0RankModule_basic",
+    "Add_Module_basic",
+    "SoftmaxIntModule_basic",
+    "SoftmaxIntNegDimModule_basic",
+    "_LogSoftmaxModule_basic",
+    "_SoftmaxModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
@@ -1210,6 +1215,8 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     # Unimplemented operator 'aten._index_put_impl_.hacked_twin'
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
     "IndexPutImpl1DIntNonAccumulateModule_basic",
+    # RuntimeError: The size of tensor a (7) must match the size of tensor b (3) at non-singleton dimension 1
+    "Add_Module_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.1.0.dev"):
