@@ -341,6 +341,8 @@ STABLEHLO_PASS_SET = {
     "TensorToBoolZeroRank_basic",
     "TensorToIntZeroRank_basic",
     "TensorToFloatZeroRank_basic",
+    "IndexTensorStaticContiguousWithNoneModule_basic",
+    "IndexTensorStaticNonContiguousWithNoneModule_basic",
     "AliasModule_basic",
     "TensorIntModule_basic",
     "AllBoolFalseModule_basic",

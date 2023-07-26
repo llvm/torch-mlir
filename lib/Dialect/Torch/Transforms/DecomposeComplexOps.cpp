@@ -4745,6 +4745,209 @@ public:
 };
 } // namespace
 
+// AtenIndexTensorOp
+namespace {
+// Strictly speaking, this pattern is not a decomposition. The goal of this
+// pattern is to eliminate none index in aten.Index.Tensor's `indices` param for
+// the ease of various backend. The detailed steps are:
+//    1. reorder input tensor so that the non-none index appears at adjacent
+//    positions.
+//    2. manually generate index tensor with some ops like iota, to replace the
+//    none index in `indices`
+//    3. replace the old aten.Index.Tensor with a new aten.Index.Tensor which
+//    have no none index.
+class DecomposeAtenIndexTensorOp : public OpRewritePattern<AtenIndexTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+
+  // FIXME: It might be better to use aten.view op instead of mulitple
+  // aten.unsqueeze. But currently, torch-to-linalg pass has limited support for
+  // view on dynamic shapes, such as [?] -> [?,1,1,1]. Using aten.view op will
+  // cause relevant e2e tests fail.
+  static FailureOr<Value>
+  unsqueezeTensorAtTrailingDim(Operation *op, PatternRewriter &rewriter,
+                               Value input, int count) {
+    Location loc = op->getLoc();
+    Value constMinusOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(-1));
+    Value result = input;
+    while (count--) {
+      auto unsqzTensorInfo =
+          unsqueezeTensor(rewriter, op, result, /*dim=*/constMinusOne);
+      if (failed(unsqzTensorInfo)) {
+        return failure();
+      }
+
+      result = *unsqzTensorInfo;
+    }
+    return result;
+  }
+
+  LogicalResult matchAndRewrite(AtenIndexTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+    SmallVector<Value> indices;
+    if (!getListConstructElements(op.getIndices(), indices))
+      return failure();
+
+    auto input = op.getSelf();
+    auto inputType = input.getType().cast<BaseTensorType>();
+    if (!inputType.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "only input with shape information is supported");
+    }
+    auto inputSizes = inputType.getSizes();
+    int64_t inputRank = inputSizes.size();
+    auto outputType = op.getType().cast<BaseTensorType>();
+    if (!outputType.hasSizes()) {
+      rewriter.notifyMatchFailure(
+          op, "only output with shape information is supported");
+    }
+    auto outputRank = outputType.getSizes().size();
+
+    bool needCaninialize = false;
+    SmallVector<bool> indexUsed(inputRank, false);
+    int64_t firstUsedIndex = -1;
+    bool indexIsConsecutive = true;
+    for (auto it : llvm::enumerate(indices)) {
+      int64_t idx = static_cast<int64_t>(it.index());
+      Value v = it.value();
+      if (v.getType().isa<Torch::NoneType>()) {
+        needCaninialize = true;
+        indexUsed[idx] = false;
+      } else {
+        indexUsed[idx] = true;
+        if (firstUsedIndex == -1) {
+          firstUsedIndex = idx;
+        } else {
+          if (!indexUsed[idx - 1]) {
+            indexIsConsecutive = false;
+          }
+        }
+      }
+    }
+
+    if (!needCaninialize)
+      return failure();
+
+    // use aten.permute to reorder the input
+    Value newInput;
+    // `dims` stores the mapping from new index to the old index of input
+    // tensor.
+    SmallVector<int64_t> dims;
+    if (!indexIsConsecutive) {
+      SmallVector<Value> dimValues;
+      SmallVector<int64_t> permutedSizes;
+      for (int i = 0; i < inputRank; i++) {
+        if (indexUsed[i]) {
+          dims.emplace_back(i);
+          dimValues.emplace_back(rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(i)));
+          permutedSizes.emplace_back(inputSizes[i]);
+        }
+      }
+      for (int i = 0; i < inputRank; i++) {
+        if (!indexUsed[i]) {
+          dims.emplace_back(i);
+          dimValues.emplace_back(rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(i)));
+          permutedSizes.emplace_back(inputSizes[i]);
+        }
+      }
+      auto dimValueList = rewriter.create<Torch::PrimListConstructOp>(
+          loc, Torch::ListType::get(Torch::IntType::get(context)), dimValues);
+      newInput = rewriter.create<Torch::AtenPermuteOp>(
+          loc,
+          inputType.getWithSizesAndDtype(permutedSizes,
+                                         inputType.getOptionalDtype()),
+          input, dimValueList);
+    } else {
+      newInput = input;
+      for (int i = 0; i < inputRank; i++) {
+        dims.emplace_back(i);
+      }
+    }
+
+    // manually generate new indices.
+    SmallVector<Value> listElements(inputRank);
+    Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+    auto int64Dtype = getDtypeIntValueForType(
+        rewriter, loc, rewriter.getIntegerType(64, true));
+
+    int64_t trailingDimCnt = 0;
+    int64_t i;
+    // handle trailing none index.
+    for (i = inputRank - 1; i >= 0; --i) {
+      int64_t oldI = dims[i];
+      if (!indexUsed[oldI]) {
+        auto resultType = ValueTensorType::get(
+            context, {inputSizes[oldI]}, rewriter.getIntegerType(64, true));
+        auto dim = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(i));
+        auto end = rewriter.create<Torch::AtenSizeIntOp>(loc, newInput, dim);
+        auto v = rewriter.create<Torch::AtenArangeOp>(
+            loc, resultType, end, int64Dtype, none, none, none);
+        // auto vInfo = unsqueezeTensorAtTrailingDim(context, loc, rewriter, v,
+        //                                           trailingDimCnt);
+        auto vInfo =
+            unsqueezeTensorAtTrailingDim(op, rewriter, v, trailingDimCnt);
+        if (failed(vInfo)) {
+          return rewriter.notifyMatchFailure(op, "failed to unsqueeze tensor");
+        }
+        listElements[i] = *vInfo;
+        trailingDimCnt++;
+      } else
+        break;
+    }
+    // handle non-none index in between.
+    for (; i >= 0; --i) {
+      int64_t oldI = dims[i];
+      if (indexUsed[oldI]) {
+        // auto vInfo = unsqueezeTensorAtTrailingDim(
+        //     context, loc, rewriter, indices[oldI], trailingDimCnt);
+        auto vInfo = unsqueezeTensorAtTrailingDim(op, rewriter, indices[oldI],
+                                                  trailingDimCnt);
+        if (failed(vInfo)) {
+          return rewriter.notifyMatchFailure(op, "failed to unsqueeze tensor");
+        }
+        listElements[i] = *vInfo;
+      } else
+        break;
+    }
+
+    // handle possible leading none dimensions.
+    for (; i >= 0; --i) {
+      int64_t oldI = dims[i];
+      if (!indexUsed[oldI]) {
+        auto resultType = ValueTensorType::get(
+            context, {inputSizes[oldI]}, rewriter.getIntegerType(64, true));
+        auto dim = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(i));
+        auto end = rewriter.create<Torch::AtenSizeIntOp>(loc, newInput, dim);
+        auto v = rewriter.create<Torch::AtenArangeOp>(
+            loc, resultType, end, int64Dtype, none, none, none);
+        // auto vInfo = unsqueezeTensorAtTrailingDim(context, loc, rewriter, v,
+        //                                           outputRank - 1 - i);
+        auto vInfo =
+            unsqueezeTensorAtTrailingDim(op, rewriter, v, outputRank - 1 - i);
+        if (failed(vInfo)) {
+          return rewriter.notifyMatchFailure(op, "failed to unsqueeze tensor");
+        }
+        listElements[i] = *vInfo;
+      }
+    }
+
+    auto listElemType = ValueTensorType::get(context, std::nullopt, nullptr);
+    auto newIndexList = rewriter.create<Torch::PrimListConstructOp>(
+        loc, Torch::ListType::get(listElemType), listElements);
+    rewriter.replaceOpWithNewOp<Torch::AtenIndexTensorOp>(
+        op, op.getType(), newInput, newIndexList);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 // Unconditionally decompose `aten.tile` into `aten.repeat`.
 class DecomposeAtenTileOp : public OpRewritePattern<AtenTileOp> {
@@ -4958,6 +5161,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenSignOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTypeAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTileOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
