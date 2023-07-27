@@ -4806,7 +4806,7 @@ public:
     }
     auto outputRank = outputType.getSizes().size();
 
-    bool needCaninialize = false;
+    bool needCanonicalization = false;
     SmallVector<bool> indexUsed(inputRank, false);
     int64_t firstUsedIndex = -1;
     bool indexIsConsecutive = true;
@@ -4814,7 +4814,7 @@ public:
       int64_t idx = static_cast<int64_t>(it.index());
       Value v = it.value();
       if (v.getType().isa<Torch::NoneType>()) {
-        needCaninialize = true;
+        needCanonicalization = true;
         indexUsed[idx] = false;
       } else {
         indexUsed[idx] = true;
@@ -4828,7 +4828,7 @@ public:
       }
     }
 
-    if (!needCaninialize)
+    if (!needCanonicalization)
       return failure();
 
     // use aten.permute to reorder the input
