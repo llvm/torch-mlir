@@ -1323,6 +1323,8 @@ LTC_XFAIL_SET = {
     "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
     "IndexTensorMultiInputNonContiguousDynamic_basic",
     "IndexTensorMultiInputNonContiguousMultipleStaticDims_basic",
+    "IndexTensorStaticContiguousWithNoneModule_basic",
+    "IndexTensorStaticNonContiguousWithNoneModule_basic",
     "IndexTensorHackedTwinModule_basic",
     "IndexTensorHackedTwinModule3dInput_basic",
     "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
