@@ -410,25 +410,29 @@ MlirAttribute torch_mlir::importAttribute(MlirLocation loc,
 MlirLocation torch_mlir::getMlirLocationFromNode(MlirContext context,
                                                  torch::jit::Node *node) {
   MlirLocation loc = mlirLocationUnknownGet(context);
-  if (node->hasAttribute(c10::Symbol::attr("source_files"))) {
-    const auto& source_files = node->ss(c10::Symbol::attr("source_files"));
-    const auto& line_numbers = node->is(c10::Symbol::attr("line_numbers"));
-    const auto& functions = node->ss(c10::Symbol::attr("functions"));
 
-    for (const auto i : c10::irange(source_files.size())) {
-      MlirLocation new_loc = mlirLocationNameGet(
-        context,
-        toMlirStringRef(functions[i]),
-        mlirLocationFileLineColGet(
-          context,
-          toMlirStringRef(source_files[i]),
-          line_numbers[i],
-          0 /* column is not available */
-        )
-      );
-      loc = (i == 0 ? new_loc : mlirLocationCallSiteGet(new_loc, loc));
+  auto getLocOpName = [&](const c10::FunctionSchema * schema)->MlirLocation {
+    return mlirLocationNameGet(context,
+                               toMlirStringRef(schema->operator_name().name),
+                               /*childLoc=*/{nullptr});
+  };
+
+  if (node->hasAttribute(c10::Symbol::attr("source_files"))) {
+    const auto &sourceFiles = node->ss(c10::Symbol::attr("source_files"));
+    const auto &lineNumbers = node->is(c10::Symbol::attr("line_numbers"));
+    const auto &functions = node->ss(c10::Symbol::attr("functions"));
+
+    // Chain a sequence of calls to construct single MlirLocation.
+    for (const auto i : c10::irange(sourceFiles.size())) {
+      MlirLocation newLoc = mlirLocationNameGet(
+          context, toMlirStringRef(functions[i]),
+          mlirLocationFileLineColGet(context, toMlirStringRef(sourceFiles[i]),
+                                     lineNumbers[i],
+                                     0 /* column is not available */
+                                     ));
+      loc = (i == 0 ? newLoc : mlirLocationCallSiteGet(newLoc, loc));
     }
-    if (source_files.size() == 1) {
+    if (sourceFiles.size() == 1) {
       // Somehow a callstack depth of 1...
       // Disambiguate function name from scope name below.
       loc = mlirLocationCallSiteGet(loc, mlirLocationUnknownGet(context));
@@ -437,8 +441,14 @@ MlirLocation torch_mlir::getMlirLocationFromNode(MlirContext context,
     const std::string &file = std::get<0>(*flc);
     int line = std::get<1>(*flc);
     int col = std::get<2>(*flc);
-    loc = mlirLocationFileLineColGet(context, toMlirStringRef(file), line,
-                                      col);
+    loc = mlirLocationFileLineColGet(context, toMlirStringRef(file), line, col);
+    if (const c10::FunctionSchema *schema = node->maybeSchema()) {
+      MlirLocation locWithOpName[] = {loc, getLocOpName(schema)};
+      loc = mlirLocationFusedGet(context, /*var_name=*/2, locWithOpName,
+                                 /*metadata=*/{nullptr});
+    }
+  } else if (const c10::FunctionSchema *schema = node->maybeSchema()) {
+    loc = getLocOpName(schema);
   }
   auto scopeName = node->scopeName();
   if (!scopeName.empty()) {
