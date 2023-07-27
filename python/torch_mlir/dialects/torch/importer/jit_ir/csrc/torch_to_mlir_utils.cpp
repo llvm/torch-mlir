@@ -408,14 +408,29 @@ MlirAttribute torch_mlir::importAttribute(MlirLocation loc,
 MlirLocation torch_mlir::getMlirLocationFromNode(MlirContext context,
                                                  torch::jit::Node *node) {
   auto flc = node->sourceRange().file_line_col();
+  const c10::FunctionSchema *schema = node->maybeSchema();
+  if (!flc && !schema)
+    return mlirLocationUnknownGet(context);
+  MlirLocation loc;
   if (flc) {
     const std::string &file = std::get<0>(*flc);
     int line = std::get<1>(*flc);
     int col = std::get<2>(*flc);
-    return mlirLocationFileLineColGet(context, toMlirStringRef(file), line,
-                                      col);
+    loc = mlirLocationFileLineColGet(context, toMlirStringRef(file), line, col);
   }
-  return mlirLocationUnknownGet(context);
+  if (!schema)
+    return loc;
+  // If we get the schema of the node, attaching the operator name to the
+  // location information would be helpful for debugging.
+  MlirLocation locOpName = mlirLocationNameGet(
+      context, toMlirStringRef(schema->operator_name().name),
+      /*childLoc=*/{nullptr});
+  // If loc is non-null, attach locOperatorName to loc.
+  if (!flc)
+    return locOpName;
+  MlirLocation locWithOpName[] = {loc, locOpName};
+  return mlirLocationFusedGet(context, 2, locWithOpName,
+                              /*metadata=*/{nullptr});
 }
 
 std::vector<MlirType>

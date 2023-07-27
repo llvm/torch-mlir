@@ -19,9 +19,14 @@ mb = ModuleBuilder()
 def add3(t0, t1, t2):
   # TODO: Checks for debug info are quite hard with the new trailing debug
   # attribute print. See if this can be improved.
-  # CHECK: loc({{.*}}debug-info.py":[[# @LINE + 1]]
+  # CHECK: torch.aten.add.Tensor {{.*}} loc(#[[LOC1:loc.*]])
+  # CHECK: torch.aten.add.Tensor {{.*}} loc(#[[LOC2:loc.*]])
+  # CHECK-DAG: #[[OP_NAME:loc.*]] = loc("aten::add")
+  # CHECK-DAG: #[[LOC1]] = loc(fused[#[[FLC_1:loc.*]], #[[OP_NAME]]])
+  # CHECK-DAG: #[[LOC2]] = loc(fused[#[[FLC_2:loc.*]], #[[OP_NAME]]])
+  # CHECK-DAG: #[[FLC_1]] = loc({{.*}}debug-info.py":[[# @LINE + 1]]
   intermediate = t0 + t1
-  # CHECK: loc({{.*}}debug-info.py":[[# @LINE + 1]]
+  # CHECK-DAG: #[[FLC_2]] = loc({{.*}}debug-info.py":[[# @LINE + 1]]
   final = intermediate + t2
   return final
 
