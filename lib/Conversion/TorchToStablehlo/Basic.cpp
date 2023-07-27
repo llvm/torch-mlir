@@ -13,6 +13,7 @@
 #include "PopulatePatterns.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
@@ -1583,8 +1584,11 @@ LogicalResult ConvertAtenOp<AtenFillScalarOp>::matchAndRewrite(
   auto dtype = outType.getElementType();
   Value scalarTensor =
       hlo::scalarToStablehloTensor(rewriter, op, adaptor.getValue(), dtype);
-  Value bcastScalar = rewriter.create<stablehlo::BroadcastInDimOp>(
-      op->getLoc(), outType, scalarTensor, rewriter.getI64TensorAttr({}));
+  Value shapeTensor =
+      rewriter.create<shape::ShapeOfOp>(op->getLoc(), adaptor.getSelf());
+  Value bcastScalar = rewriter.create<stablehlo::DynamicBroadcastInDimOp>(
+      op->getLoc(), outType, scalarTensor, shapeTensor,
+      rewriter.getI64TensorAttr({}));
   rewriter.replaceOp(op, bcastScalar);
   return success();
 }
