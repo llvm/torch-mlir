@@ -31,6 +31,7 @@ from .xfail_sets import (
     LINALG_XFAIL_SET,
     MAKE_FX_TOSA_PASS_SET,
     STABLEHLO_PASS_SET,
+    STABLEHLO_CRASHING_SET,
     TOSA_PASS_SET,
     LTC_XFAIL_SET,
     TORCHDYNAMO_XFAIL_SET,
@@ -101,7 +102,7 @@ def main():
     elif args.config == "stablehlo":
         config = StablehloBackendTestConfig(LinalgOnTensorsStablehloBackend())
         xfail_set = all_test_unique_names - STABLEHLO_PASS_SET
-        crashing_set = set()
+        crashing_set = STABLEHLO_CRASHING_SET
     elif args.config == "native_torch":
         config = NativeTorchTestConfig()
         xfail_set = set()

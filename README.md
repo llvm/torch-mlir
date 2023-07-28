@@ -43,17 +43,17 @@ We have few paths to lower down to the Torch MLIR Dialect.
 
 ## Install torch-mlir snapshot
 
-At the time of writing, we release pre-built snapshot of torch-mlir for Python 3.10 on Linux and macOS.
+At the time of writing, we release pre-built snapshot of torch-mlir for Python 3.11 on Linux and macOS.
 
-If you have Python 3.10, the following commands initialize a virtual environment.
+If you have Python 3.11, the following commands initialize a virtual environment.
 ```shell
-python3.10 -m venv mlir_venv
+python3.11 -m venv mlir_venv
 source mlir_venv/bin/activate
 ```
 
-Or, if you want to switch over multiple versions of Python using conda, you can create a conda environment with Python 3.10.
+Or, if you want to switch over multiple versions of Python using conda, you can create a conda environment with Python 3.11.
 ```shell
-conda create -n torch-mlir python=3.10
+conda create -n torch-mlir python=3.11
 conda activate torch-mlir
 python -m pip install --upgrade pip
 ```

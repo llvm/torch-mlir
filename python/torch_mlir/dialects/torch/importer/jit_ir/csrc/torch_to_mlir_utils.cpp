@@ -11,6 +11,8 @@
 #include "function_importer.h"
 #include "ivalue_importer.h"
 
+#include <c10/util/irange.h>
+
 #include <ATen/TensorUtils.h>
 #include <unordered_map>
 
@@ -407,15 +409,53 @@ MlirAttribute torch_mlir::importAttribute(MlirLocation loc,
 
 MlirLocation torch_mlir::getMlirLocationFromNode(MlirContext context,
                                                  torch::jit::Node *node) {
-  auto flc = node->sourceRange().file_line_col();
-  if (flc) {
+  MlirLocation loc = mlirLocationUnknownGet(context);
+
+  if (node->hasAttribute(c10::Symbol::attr("source_files"))) {
+    const auto &sourceFiles = node->ss(c10::Symbol::attr("source_files"));
+    const auto &lineNumbers = node->is(c10::Symbol::attr("line_numbers"));
+    const auto &functions = node->ss(c10::Symbol::attr("functions"));
+
+    // Chain a sequence of calls to construct single MlirLocation.
+    for (const auto i : c10::irange(sourceFiles.size())) {
+      MlirLocation newLoc = mlirLocationNameGet(
+          context, toMlirStringRef(functions[i]),
+          mlirLocationFileLineColGet(context, toMlirStringRef(sourceFiles[i]),
+                                     lineNumbers[i],
+                                     0 /* column is not available */
+                                     ));
+      loc = (i == 0 ? newLoc : mlirLocationCallSiteGet(newLoc, loc));
+    }
+    if (sourceFiles.size() == 1) {
+      // Somehow a callstack depth of 1...
+      // Disambiguate function name from scope name below.
+      loc = mlirLocationCallSiteGet(loc, mlirLocationUnknownGet(context));
+    }
+  } else if (auto flc = node->sourceRange().file_line_col()) {
     const std::string &file = std::get<0>(*flc);
     int line = std::get<1>(*flc);
     int col = std::get<2>(*flc);
-    return mlirLocationFileLineColGet(context, toMlirStringRef(file), line,
-                                      col);
+    loc = mlirLocationFileLineColGet(context, toMlirStringRef(file), line, col);
   }
-  return mlirLocationUnknownGet(context);
+
+  std::string locationName;
+  auto scopeName = node->scopeName();
+  if (!scopeName.empty()) {
+    locationName = scopeName;
+  }
+
+  if (const c10::FunctionSchema *schema = node->maybeSchema()) {
+    if (!locationName.empty()) {
+      locationName += "/";
+    }
+    locationName += schema->operator_name().name;
+  }
+
+  if (!locationName.empty()) {
+    loc = mlirLocationNameGet(context, toMlirStringRef(locationName), loc);
+  }
+
+  return loc;
 }
 
 std::vector<MlirType>

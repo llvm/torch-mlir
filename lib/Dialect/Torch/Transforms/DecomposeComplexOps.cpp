@@ -3327,6 +3327,85 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.adaptive_avg_pool1d` op into `aten.avg_pool1d` op.
+
+// The logic of this decomposition is totally same with
+// the DecomposeAtenAdaptiveAvgPool2dOp, that means currently only following two
+// cases are supported:
+//  1. inputSize = outputSize
+//  2. outputSize = 1
+class DecomposeAtenAdaptiveAvgPool1dOp
+    : public OpRewritePattern<AtenAdaptiveAvgPool1dOp> {
+  using OpRewritePattern<AtenAdaptiveAvgPool1dOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAdaptiveAvgPool1dOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    MLIRContext *context = op.getContext();
+
+    Value input = op.getSelf();
+    std::optional<unsigned> maybeRank = getTensorRank(input);
+    if (!maybeRank) {
+      return rewriter.notifyMatchFailure(op, "expected input to have a rank");
+    }
+    unsigned rank = *maybeRank;
+    Value sizeDim = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rank - 1));
+    Value inputSize = rewriter.create<AtenSizeIntOp>(loc, input, sizeDim);
+
+    Value outputShape = op.getOutputSize();
+    SmallVector<Value> outputShapeSizesTorchInt;
+    getListConstructElements(outputShape, outputShapeSizesTorchInt);
+    Value outputSize = outputShapeSizesTorchInt[0];
+
+    Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value constantZero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value constantFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value constantTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
+
+    int64_t outputSizeInt;
+    if (!matchPattern(outputSize, m_TorchConstantInt(&outputSizeInt))) {
+      return rewriter.notifyMatchFailure(
+          op, "the output size of adaptive_pool_1d must be a constant int");
+    }
+
+    SmallVector<Value, 1> kernelSize;
+    if (outputSizeInt == 1) {
+      BaseTensorType inputTensorType = input.getType().cast<BaseTensorType>();
+      ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
+      kernelSize.push_back(
+          inputShape[rank - 1] == kUnknownSize
+              ? inputSize
+              : rewriter.create<Torch::ConstantIntOp>(
+                    loc, rewriter.getI64IntegerAttr(inputShape[rank - 1])));
+    } else {
+      Value cond = rewriter.create<AtenEqIntOp>(loc, inputSize, outputSize);
+      rewriter.create<RuntimeAssertOp>(
+          loc, cond,
+          "unimplemented: only support cases where input and output size are "
+          "equal for non-unit output size");
+      kernelSize.push_back(constantOne);
+    }
+
+    Value kernelSizeList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)), kernelSize);
+    Value strideList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)),
+        ValueRange{constantOne});
+    Value paddingSizeList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)),
+        ValueRange{constantZero});
+
+    rewriter.replaceOpWithNewOp<AtenAvgPool1dOp>(
+        op, op.getType(), input, kernelSizeList, strideList, paddingSizeList,
+        /*ceil_mode=*/constantFalse, /*count_include_pad=*/constantTrue);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.adaptiveAvgPool2d` op into `aten.avgPool2d` op.
 //
 // For AdaptiveAvgPool2d op, when the input size is an integer multiple of
@@ -4635,6 +4714,45 @@ public:
 } // namespace
 
 namespace {
+// Unconditionally decompose `aten.tile` into `aten.repeat`.
+class DecomposeAtenTileOp : public OpRewritePattern<AtenTileOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTileOp op,
+                                PatternRewriter &rewriter) const override {
+    auto input = op.getSelf();
+    auto repeats = op.getDims();
+    SmallVector<Value> dimsElements;
+    if (!getListConstructElements(repeats, dimsElements)) {
+      return rewriter.notifyMatchFailure(
+          op, "failed to get elements of `dims` param");
+    }
+    auto dimsSize = dimsElements.size();
+    auto inputType = input.getType().cast<BaseTensorType>();
+    if (!inputType.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "only support input tensor with shape information");
+    }
+    auto inputRank = inputType.getSizes().size();
+    if (dimsSize < inputRank) {
+      auto constantOne = rewriter.create<Torch::ConstantIntOp>(
+          op.getLoc(), rewriter.getI64IntegerAttr(1));
+      for (auto i = dimsSize; i < inputRank; ++i) {
+        dimsElements.insert(dimsElements.begin(), constantOne);
+      }
+      repeats = rewriter.create<Torch::PrimListConstructOp>(
+          op.getLoc(),
+          Torch::ListType::get(Torch::IntType::get(op.getContext())),
+          dimsElements);
+    }
+    rewriter.replaceOpWithNewOp<Torch::AtenRepeatOp>(op, op.getType(), input,
+                                                     repeats);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -4761,6 +4879,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenPadOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDtypeLayoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDeviceOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMaxOp>(patterns);
@@ -4805,6 +4924,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenScatterValueOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSignOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTypeAsOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenTileOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

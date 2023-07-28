@@ -772,3 +772,87 @@ class AvgPool1dStaticModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AvgPool1dStaticModule())
 def AvgPool1dStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(2, 4, 20, high=100))
+
+
+# ==============================================================================
+
+
+class AdaptiveAvgPool1dNonUnitOutputSizeStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(7)
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 512, 7], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.aap1d(x)
+
+@register_test_case(
+    module_factory=lambda: AdaptiveAvgPool1dNonUnitOutputSizeStaticModule())
+def AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(1, 512, 7))
+
+class AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(7)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.aap1d(x)
+
+@register_test_case(
+    module_factory=lambda: AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule())
+def AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(1, 512, 7))
+
+class AdaptiveAvgPool1dUnitOutputSizeStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(1)
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 512, 7], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.aap1d(x)
+
+@register_test_case(
+    module_factory=lambda: AdaptiveAvgPool1dUnitOutputSizeStaticModule())
+def AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(1, 512, 7))
+
+class AdaptiveAvgPool1dUnitOutputSizeDynamicModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(1)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.aap1d(x)
+
+@register_test_case(
+    module_factory=lambda: AdaptiveAvgPool1dUnitOutputSizeDynamicModule())
+def AdaptiveAvgPool1dUnitOutputSizeDynamicModule_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(1, 512, 7))
