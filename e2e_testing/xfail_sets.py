@@ -829,6 +829,18 @@ STABLEHLO_PASS_SET = {
     "TupleModule_basic",
 }
 
+STABLEZHLO_CRASHING_SET = {
+    # These e2e tests crash because currently mlir-hlo's shape-component-analysis
+    # only support exact one index in tensor::ExtractOp when it's related with 
+    # some tensors' shape. REF:
+    # https://github.com/tensorflow/mlir-hlo/blob/master/mhlo/analysis/shape_component_analysis.cc#L586
+    # FIXME if upstream mlir-hlo fix this.
+    "ViewCollapseDynamicWithAtenSizeIntModule_basic",
+    "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
+
+    "Aten_EmbeddingBagExample_basic"
+}
+
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
