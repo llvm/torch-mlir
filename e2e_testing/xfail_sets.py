@@ -306,13 +306,12 @@ TORCHDYNAMO_CRASHING_SET = {
     "ToCopyModule_basic",
     "TransposeIntModule_basic",
     "TransposeIntNegDimsModule_basic",
-
-    # See https://github.com/llvm/torch-mlir/issues/2178
-    "Add_Module_basic"
+    "IndexPutImpl2DNoneIndexStaticModule_basic",
 }
 
 STABLEHLO_PASS_SET = {
     "AliasModule_basic",
+    "TensorIntModule_basic",
     "AllBoolFalseModule_basic",
     "AllBoolTrueModule_basic",
     "AnyBoolFalseModule_basic",
@@ -437,6 +436,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseNeFloatScalarModule_basic",
     "ElementwiseNeFloatTensorStaticModule_basic",
     "ElementwiseNeIntTensorStaticModule_basic",
+    "ElementwiseEqBoolScalarModule_basic",
     "ElementwiseErfModule_basic",
     "ElementwiseGeluModule_basic",
     "ElementwiseGtFloatScalarModule_basic",
@@ -474,11 +474,19 @@ STABLEHLO_PASS_SET = {
     "EmbeddingModuleI32_basic",
     "EmbeddingModuleI64_basic",
     "EmbeddingModuleF16_basic",
+    "EmptyLikeMemoryFormatModule_basic",
+    "EmptyLikeModule_defaultDtype",
+    "EmptyLikeModule_falsePinMemory",
+    "EmptyLikeModule_float",
+    "EmptyLikeModule_int",
     "ExpandAsIntModule_basic",
     "ExpandModule_basic",
     "EinsumStaticModule_basic",
     "EinsumStaticTwoBatchingDimModule",
     "EinsumStaticFourDimensionModule_basic",
+    "Fill_TensorFloat64WithFloat32_basic",
+    "Fill_TensorFloat64WithFloat64_basic",
+    "Fill_TensorFloat64WithInt64_basic",
     "Fill_TensorFloat64WithFloat32Static_basic",
     "Fill_TensorFloat64WithInt64Static_basic",
     "FlipModuleStaticShape_basic",
@@ -598,6 +606,7 @@ STABLEHLO_PASS_SET = {
     "ViewOffsetBackwardTestStaticModule_basic",
     "NumToTensorFloatModule_basic",
     "AtenToDeviceModule_basic",
+    "AvgPool1dStaticModule_basic",
     "AvgPool2dStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_basic",
     "Convolution2DStaticModule_basic",
@@ -632,6 +641,7 @@ STABLEHLO_PASS_SET = {
     "SliceNegIdxModule_basic",
     "SliceOutOfLowerBoundStartIndexModule_basic",
     "SliceOutOfUpperBoundIndexModule_basic",
+    "SliceOutOfUpperBoundIndexStaticModule_basic",
     "SliceStartEqEndModule_basic",
     "SliceSizeTwoStepModule_basic",
     "SliceWholeTensorModule_basic",
@@ -673,6 +683,9 @@ STABLEHLO_PASS_SET = {
     "PermuteModule_basic",
     "PermuteNegativeIndexModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
+    "ZeroFloat32Module_basic",
+    "ZeroInt32Module_basic",
+    "ZeroInt64Module_basic",
     "ZerosLikeModule_defaultDtype",
     "ZerosLikeModule_falsePinMemory",
     "ZerosLikeModule_float",
@@ -751,6 +764,8 @@ STABLEHLO_PASS_SET = {
     "NarrowHorizontalTest_basic",
     "NarrowVerticalTest2_basic",
     "NarrowVerticalTest_basic",
+    "NarrowTensorHorizontalModule_basic",
+    "NarrowTensorVerticalModule_basic",
     "NumToTensorIntModule_basic",
     "NumpyTRank0Module_basic",
     "NumpyTRank1Module_basic",
@@ -768,6 +783,7 @@ STABLEHLO_PASS_SET = {
     "ToDtypeLayoutNoneModule_basic",
     "ToDtypeLayoutStridedModule_basic",
     "TypeAsSameModule_basic",
+    "TypeAsDifferentModule_basic",
     "TypeConversionF32ToF64Module_basic",
     "TypeConversionF64ToF32Module_basic",
     "TypeConversionI1ToF32Module_basic",
@@ -797,6 +813,8 @@ STABLEHLO_PASS_SET = {
     "AtenComplex64Module_basic",
     "SplitTensorGetItem_Module_basic",
     "SplitTensorListUnpackModule_basic",
+    "SplitTensorNegativeDimModule_basic",
+    "SplitTensorLastSmallerModule_basic",
     "UnbindIntListUnpack_Module_basic",
     "UnbindIntGetItem_Module_basic",
     "ChunkListUnpack_Module_basic",
@@ -808,11 +826,13 @@ STABLEHLO_PASS_SET = {
     "RandIntPinMemoryModule_basic",
     "UniformStaticShapeModule_basic",
     "UniformNoCorrelationModule_basic",
+    "TupleModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "IndexPutImpl2DNoneIndexStaticModule_basic",
     "AliasModule_basic",
     "MaxPool2dEmptyStrideStaticModule_basic",
     "ConstantBoolParameterModule_basic",
@@ -903,6 +923,7 @@ TOSA_PASS_SET = {
     "ElementwiseLtIntTensorModule_basic",
     "ElementwiseEqFloatScalarModule_basic",
     "ElementwiseEqIntScalarModule_basic",
+    "ElementwiseEqBoolScalarModule_basic",
     "ElementwiseEqDiffWidthScalarModule_basic",
     "ElementwiseEqFloatTensorModule_basic",
     "ElementwiseEqIntTensorModule_basic",
@@ -1011,6 +1032,7 @@ TOSA_PASS_SET = {
     "NumpyTRankNStaticModule_basic",
     "NumpyTRankNDynamicModule_basic",
     "EmbeddingModuleI32Static_basic",
+    "EmbeddingModule1DIndices_basic",
     "TModuleRank2_basic",
     "TransposeIntModule_basic",
     "TransposeIntNegDimsModule_basic",
@@ -1052,6 +1074,7 @@ TOSA_PASS_SET = {
     "BroadcastZeroRankInputStaticModule_basic",
     "BroadcastListConstructWithMinusOneModule_basic",
     "SliceStaticModule_basic",
+    "SliceOutOfUpperBoundIndexStaticModule_basic",
     "ArangeStartStepIntModule_basic",
     "ArangeDtypeFloatModule_basic",
     "ArangeIntModule_basic",
@@ -1114,15 +1137,23 @@ TOSA_PASS_SET = {
     "TensorsConcatStaticModule_basic",
     "TensorsConcatNegativeDimStaticModule_basic",
     "AtenComplex64Module_basic",
+    "ElementwiseSqrtIntModule_basic",
+    "ElementwiseSqrtModule_basic",
     "SplitTensorGetItem_Module_basic",
     "SplitTensorListUnpackModule_basic",
+    "SplitTensorNegativeDimModule_basic",
+    "SplitTensorLastSmallerModule_basic",
     "ChunkListUnpack_Module_basic",
     "ChunkListUnpackUneven_Module_basic",
+    "TupleModule_basic",
+    "NumpyTRank0Module_basic",
+    "Permute0RankModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
 ### Tests additionally passing in make_fx_tosa
     "NativeGroupNormBackwardModule_basic",
+    "SliceWholeTensorModule_basic",
     "TensorFloatModule_basic",
     "TensorIntModule_basic",
 }) - {
@@ -1154,11 +1185,6 @@ if torch_version_for_comparison() < version.parse("2.1.0.dev"):
         # 'tensor.expand_shape' op expected rank expansion, but found source rank 1 >= result rank 1
         "ReshapeCollapseModule_basic",
     }
-
-LTC_CRASHING_SET = {
-    # https://github.com/llvm/torch-mlir/issues/2186
-    "Add_Module_basic"
-}
 
 LTC_XFAIL_SET = {
     "_Convolution2DAllFalseModule_basic",
@@ -1225,6 +1251,7 @@ LTC_XFAIL_SET = {
     "IndexPutImpl2DFloatAccumulateModule_basic",
     "IndexPutImpl2DFloatNonAccumulateModule_basic",
     "IndexPutImpl2DIndexModule_basic",
+    "IndexPutImpl2DNoneIndexStaticModule_basic",
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
     "IndexPutImplIndexWithNoneModule_basic",
@@ -1259,6 +1286,7 @@ LTC_XFAIL_SET = {
     "ScalarImplicitIntModule_basic",
     "SliceEndSleStartModule_basic",
     "SliceOutOfUpperBoundIndexModule_basic",
+    "SliceOutOfUpperBoundIndexStaticModule_basic",
     "SliceStartEqEndModule_basic",
     "SqrtIntModule_basic",
     "SubFloatModule_basic",
@@ -1342,6 +1370,8 @@ LTC_XFAIL_SET = {
     "AtenComplexViewModule_basic",
     "SplitTensorGetItem_Module_basic",
     "SplitTensorListUnpackModule_basic",
+    "SplitTensorNegativeDimModule_basic",
+    "SplitTensorLastSmallerModule_basic",
     "UnbindIntListUnpack_Module_basic",
     "UnbindIntGetItem_Module_basic",
     "ChunkListUnpack_Module_basic",

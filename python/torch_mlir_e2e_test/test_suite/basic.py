@@ -3584,6 +3584,23 @@ class CumsumStaticNegativeDimModule(torch.nn.Module):
 def CumsumStaticNegativeDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 7, 4))
 
+class CumsumInputDtypeInt32Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 7, 4], torch.int32, True),
+    ])
+    def forward(self, val):
+        return torch.ops.aten.cumsum(val, 1)
+
+@register_test_case(module_factory=lambda: CumsumInputDtypeInt32Module())
+def CumsumInputDtypeInt32Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 7, 4).to(torch.int32))
+
 # ==============================================================================
 
 class AtenToDeviceModule(torch.nn.Module):
@@ -4267,7 +4284,7 @@ class Add_Module(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.tensor = torch.ones(2, 3)
+        self.register_buffer('tensor', torch.ones(2, 3))
 
     @export
     @annotate_args([

@@ -477,6 +477,26 @@ def ElementwiseEqIntScalarModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ElementwiseEqBoolScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.bool, True),
+    ])
+    def forward(self, x):
+        return torch.eq(x, 1)
+
+
+@register_test_case(module_factory=lambda: ElementwiseEqBoolScalarModule())
+def ElementwiseEqBoolScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=0, high=1, dtype=torch.bool))
+
+
+# ==============================================================================
+
 class ElementwiseEqDiffWidthScalarModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

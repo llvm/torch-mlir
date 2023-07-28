@@ -13,6 +13,7 @@
 #include "PopulatePatterns.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
@@ -759,6 +760,22 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
 
   rewriter.replaceOpWithNewOp<stablehlo::ConstantOp>(op, resultType,
                                                      adaptor.getValue());
+  return success();
+}
+
+// AtenTensorIntOp
+template <>
+LogicalResult ConvertAtenOp<AtenTensorIntOp>::matchAndRewrite(
+    AtenTensorIntOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  RankedTensorType resultType = getTypeConverter()
+                                    ->convertType(op->getResult(0).getType())
+                                    .cast<RankedTensorType>();
+  Type outElementType = resultType.getElementType();
+  Value innerValue = adaptor.getT();
+  Value stablehloTensor =
+      hlo::scalarToStablehloTensor(rewriter, op, innerValue, outElementType);
+  rewriter.replaceOp(op, stablehloTensor);
   return success();
 }
 
@@ -1567,8 +1584,11 @@ LogicalResult ConvertAtenOp<AtenFillScalarOp>::matchAndRewrite(
   auto dtype = outType.getElementType();
   Value scalarTensor =
       hlo::scalarToStablehloTensor(rewriter, op, adaptor.getValue(), dtype);
-  Value bcastScalar = rewriter.create<stablehlo::BroadcastInDimOp>(
-      op->getLoc(), outType, scalarTensor, rewriter.getI64TensorAttr({}));
+  Value shapeTensor =
+      rewriter.create<shape::ShapeOfOp>(op->getLoc(), adaptor.getSelf());
+  Value bcastScalar = rewriter.create<stablehlo::DynamicBroadcastInDimOp>(
+      op->getLoc(), outType, scalarTensor, shapeTensor,
+      rewriter.getI64TensorAttr({}));
   rewriter.replaceOp(op, bcastScalar);
   return success();
 }
@@ -1699,6 +1719,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenPermuteOp);
 
   INSERT_ATENOP_PATTERN(ValueTensorLiteralOp);
+  INSERT_ATENOP_PATTERN(AtenTensorIntOp);
   INSERT_ATENOP_PATTERN(AtenReciprocalOp);
   INSERT_ATENOP_PATTERN(AtenPowTensorScalarOp);
   INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);

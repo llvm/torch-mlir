@@ -156,6 +156,8 @@ static Value getScalarIntValue(Value input, Location loc,
   } else if (auto primNumToTensorScalarOp =
                  input.getDefiningOp<PrimNumToTensorScalarOp>()) {
     return primNumToTensorScalarOp.getA();
+  } else if (auto tensorIntOp = input.getDefiningOp<AtenTensorIntOp>()) {
+    return tensorIntOp.getT();
   }
   return nullptr;
 }
@@ -709,20 +711,6 @@ OpFoldResult AtenRoundOp::fold(FoldAdaptor adaptor) {
     if (selfType.hasDtype() && selfType.getDtype().isa<mlir::IntegerType>())
       return getSelf();
   }
-  return nullptr;
-}
-
-//===----------------------------------------------------------------------===//
-// AtenTypeAsOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult AtenTypeAsOp::fold(FoldAdaptor adaptor) {
-  Type inType = getSelf().getType();
-  Type newType = getOther().getType();
-
-  if (inType == newType)
-    return getSelf();
-
   return nullptr;
 }
 
@@ -2100,7 +2088,16 @@ void PrimTupleUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     if (!tupleConstruct)
       return failure();
 
-    rewriter.replaceOp(op, tupleConstruct.getElements());
+    llvm::SmallVector<Value> derefinedElements;
+    // The result types may be supertypes of the tuple element types.
+    // Ensure we maintain the exact type, with identity `derefine`s being
+    // folded.
+    for (auto [type, element] :
+         llvm::zip(op.getResultTypes(), tupleConstruct.getElements())) {
+      derefinedElements.push_back(
+          rewriter.createOrFold<DerefineOp>(op.getLoc(), type, element));
+    }
+    rewriter.replaceOp(op, derefinedElements);
     return success();
   });
 }
@@ -2310,8 +2307,17 @@ OpFoldResult AtenStackOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
-  auto inType = getOperand(0).getType().dyn_cast<ValueTensorType>();
-  auto outType = getResult().getType().dyn_cast<ValueTensorType>();
+    int64_t start, end, step;
+    if (matchPattern(getStart(), m_TorchConstantInt(&start)) &&
+        matchPattern(getEnd(), m_TorchConstantInt(&end)) &&
+        matchPattern(getStep(), m_TorchConstantInt(&step))
+        && step == 1
+        && start == 0
+        && end == std::numeric_limits<int64_t>::max())
+      return getOperand(0);
+
+  auto inType = getOperand(0).getType().dyn_cast<BaseTensorType>();
+  auto outType = getResult().getType().dyn_cast<BaseTensorType>();
   if (!inType || !outType || !inType.hasSizes() || !outType.hasSizes())
     return nullptr;
   if (inType.getSizes().size() != outType.getSizes().size() ||
@@ -2562,6 +2568,8 @@ OpFoldResult AtenIntTensorOp::fold(FoldAdaptor adaptor) {
   // aten.Int.Tensor, fold to the scalar number.
   if (auto numToTensorScalar = getA().getDefiningOp<PrimNumToTensorScalarOp>())
     return numToTensorScalar.getA();
+  if (auto tensorIntOp = getA().getDefiningOp<AtenTensorIntOp>()) 
+    return tensorIntOp.getT();
   return nullptr;
 }
 

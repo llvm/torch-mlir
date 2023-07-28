@@ -3,10 +3,12 @@ add_subdirectory(Conversion)
 add_subdirectory(Dialect)
 add_subdirectory(RefBackend)
 
+get_property(extension_libs GLOBAL PROPERTY MLIR_EXTENSION_LIBS)
 set(LinkedLibs
   MLIRFuncDialect
   MLIRIR
   MLIRSupport
+  ${extension_libs}
 
   TorchMLIRTorchPasses
   TorchMLIRTorchConversionDialect

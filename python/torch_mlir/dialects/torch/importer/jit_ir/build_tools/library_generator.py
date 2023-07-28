@@ -63,7 +63,7 @@ def get_priority_of_dtype(dtype: int) -> int:
         return 11
     assert False, "Cannot determine priority of dtype"
 
-def get_dtype_of_scalar(scalar: Union[int, float]) -> int:
+def get_dtype_of_scalar(scalar: Union[int, float, complex]) -> int:
     # This is hacky. `NumToTensor` is the only PyTorch op for scalars
     # that when `jit.script`ed converts a float scalar to a tensor
     # with dtype that corresponds to Python's `float`.

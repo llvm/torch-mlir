@@ -975,6 +975,15 @@ func.func @torch.prim.TupleUnpack(%arg0: !torch.tensor, %arg1: !torch.tensor) ->
   return %124#0 : !torch.tensor
 }
 
+// CHECK-LABEL:   func.func @torch.prim.TupleUnpack.Derefined(
+// CHECK-SAME:                                         %[[ARG:.*]]: !torch.tensor) -> !torch.optional<tensor> {
+// CHECK:           %[[DEREFINED:.+]] = torch.derefine %[[ARG]] : !torch.tensor to !torch.optional<tensor>
+// CHECK:           return %[[DEREFINED]] : !torch.optional<tensor>
+func.func @torch.prim.TupleUnpack.Derefined(%arg: !torch.tensor) -> !torch.optional<tensor> {
+  %tuple = torch.prim.TupleConstruct %arg : !torch.tensor -> !torch.tuple<tensor>
+  %optional_tensor = torch.prim.TupleUnpack %tuple : !torch.tuple<tensor> -> !torch.optional<tensor>
+  return %optional_tensor : !torch.optional<tensor>
+}
 
 // CHECK-LABEL:   func.func @torch.aten.__contains__.str(
 // CHECK-SAME:        %[[K0:.*]]: !torch.str, %[[V0:.*]]: !torch.tensor,
@@ -1410,14 +1419,6 @@ func.func @torch.aten.squeeze.dim$zero_rank(%arg0: !torch.tensor<[],f32>) -> !to
   %int0 = torch.constant.int 0
   %0 = torch.aten.squeeze.dim %arg0, %int0 : !torch.tensor<[],f32>, !torch.int -> !torch.tensor<[],f32>
   return %0 : !torch.tensor<[],f32>
-}
-
-// CHECK-LABEL:   func.func @torch.aten.type_as$same(
-// CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f32> {
-// CHECK-NEXT:      return %[[ARG]] : !torch.tensor<[?,?],f32>
-func.func @torch.aten.type_as$same(%arg0: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f32> {
-  %0 = torch.aten.type_as %arg0, %arg0 : !torch.tensor<[?,?],f32>, !torch.tensor<[?,?],f32> -> !torch.tensor<[?,?],f32>
-  return %0 : !torch.tensor<[?,?],f32>
 }
 
 // CHECK-LABEL:   func.func @torch.aten.to.dtype$same_dtype(
@@ -1979,6 +1980,27 @@ func.func @torch.aten.slice.tensor$fold_full_domain_slice(%arg0: !torch.vtensor<
   %int0 = torch.constant.int 0
   %0 = torch.aten.slice.Tensor %arg0, %int0, %int0, %int-1, %int1 : !torch.vtensor<[4], f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4], f32>
   return %0 : !torch.vtensor<[4],f32>
+}
+
+//  CHECK-LABEL:    @torch.aten.slice.tensor$fold_full_slice
+//   CHECK-SAME:      %[[ARG0:.+]]: !torch.vtensor<[?],f32>
+//        CHECK:        return %[[ARG0]] : !torch.vtensor<[?],f32>
+func.func @torch.aten.slice.tensor$fold_full_slice(%arg0: !torch.vtensor<[?],f32>, %dim: !torch.int) -> !torch.vtensor<[?],f32> {
+  %int1 = torch.constant.int 1
+  %int9223372036854775807  = torch.constant.int 9223372036854775807
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.slice.Tensor %arg0, %dim, %int0, %int9223372036854775807, %int1 : !torch.vtensor<[?], f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[?], f32>
+  return %0 : !torch.vtensor<[?],f32>
+}
+
+//  CHECK-LABEL:    @torch.aten.slice.tensor$no_fold_step
+//        CHECK: torch.aten.slice.Tensor
+func.func @torch.aten.slice.tensor$no_fold_step(%arg0: !torch.vtensor<[?],f32>, %dim: !torch.int) -> !torch.vtensor<[?],f32> {
+  %int2 = torch.constant.int 2
+  %int9223372036854775807  = torch.constant.int 9223372036854775807
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.slice.Tensor %arg0, %dim, %int0, %int9223372036854775807, %int2 : !torch.vtensor<[?], f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[?], f32>
+  return %0 : !torch.vtensor<[?],f32>
 }
 
 // CHECK-LABEL:   func.func @torch.aten.rsub.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {

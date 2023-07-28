@@ -403,6 +403,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::avg_pool2d : (Tensor, int[], int[], int[], bool, bool, int?) -> (Tensor)"
     )
     emit(
+        "aten::avg_pool1d : (Tensor, int[], int[], int[], bool, bool) -> (Tensor)"
+    )
+    emit(
         "aten::softmax.int : (Tensor, int, int?) -> (Tensor)"
     )
     emit(
@@ -446,6 +449,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::mse_loss_backward : (Tensor, Tensor, Tensor, int) -> (Tensor)")
     emit("aten::upsample_nearest2d_backward : (Tensor, int[], int[], float?, float?) -> (Tensor)")
     emit("aten::cross_entropy_loss : (Tensor, Tensor, Tensor?, int, int, float) -> (Tensor)")
+    emit("aten::nonzero : (Tensor) -> (Tensor)")
+    emit("aten::nonzero_numpy : (Tensor) -> (Tensor[])")
+    emit("aten::nonzero_static : (Tensor, int, int) -> (Tensor)")
 
     # Misc tensor ops.
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")
@@ -522,7 +528,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::to.other : (Tensor, Tensor, bool, bool, int?) -> (Tensor)", has_canonicalizer=True)
     emit("aten::to.prim_Device : (Tensor, Device?, int?, bool, bool) -> (Tensor)")
     emit("aten::to.device : (Tensor, Device, int, bool, bool, int?) -> (Tensor)")
-    emit("aten::type_as : (Tensor, Tensor) -> (Tensor)", has_folder=True)
+    emit("aten::type_as : (Tensor, Tensor) -> (Tensor)")
     emit("aten::view : (Tensor, int[]) -> (Tensor)", has_folder=True)
     emit("aten::_unsafe_view : (Tensor, int[]) -> (Tensor)")
     emit("aten::where.self : (Tensor, Tensor, Tensor) -> (Tensor)")
@@ -669,6 +675,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::eq.device : (Device, Device) -> (bool)")
     emit("aten::ceil.float : (float) -> (int)", has_folder=True)
     emit("aten::narrow : (Tensor, int, int, int) -> (Tensor)")
+    emit("aten::narrow.Tensor : (Tensor, int, Tensor, int) -> (Tensor)")
     emit("aten::ScalarImplicit : (Tensor) -> (Scalar)", has_canonicalizer=True)
 
     # backprop ops
