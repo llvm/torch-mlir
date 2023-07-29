@@ -852,7 +852,7 @@ STABLEHLO_PASS_SET = {
     "TupleModule_basic",
 }
 
-STABLEZHLO_CRASHING_SET = {
+STABLEHLO_CRASHING_SET = {
     # These e2e tests crash because currently mlir-hlo's shape-component-analysis
     # only support exact one index in tensor::ExtractOp when it's related with 
     # some tensors' shape. REF:
