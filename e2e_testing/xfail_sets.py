@@ -310,6 +310,32 @@ TORCHDYNAMO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "AddIntModule_basic",
+    "AtenIntBoolOpModule_basic",
+    "AtenIntTensorByteDtypeModule_basic",
+    "AtenIntTensorCharDtypeModule_basic",
+    "BoolFloatFalseModule_basic",
+    "BoolFloatTrueModule_basic",
+    "BoolIntFalseModule_basic",
+    "BoolIntTrueModule_basic",
+    "CeilFloatModule_basic",
+    "DivFloatModule_basic",
+    "DivIntModule_basic",
+    "EqIntModule_basic",
+    "GeFloatIntModule_basic",
+    "GeFloatModule_basic",
+    "GeIntModule_basic",
+    "GtFloatIntModule_basic",
+    "GtIntModule_basic",
+    "MulIntModule_basic",
+    "NeFloatIntModule_basic",
+    "NeIntModule_basic",
+    "SqrtIntModule_basic",
+    "SubFloatModule_basic",
+    "SubIntModule_basic",
+    "TensorToBoolZeroRank_basic",
+    "TensorToIntZeroRank_basic",
+    "TensorToFloatZeroRank_basic",
     "AliasModule_basic",
     "TensorIntModule_basic",
     "AllBoolFalseModule_basic",
@@ -824,6 +850,18 @@ STABLEHLO_PASS_SET = {
     "UniformStaticShapeModule_basic",
     "UniformNoCorrelationModule_basic",
     "TupleModule_basic",
+}
+
+STABLEHLO_CRASHING_SET = {
+    # These e2e tests crash because currently mlir-hlo's shape-component-analysis
+    # only support exact one index in tensor::ExtractOp when it's related with 
+    # some tensors' shape. REF:
+    # https://github.com/tensorflow/mlir-hlo/blob/master/mhlo/analysis/shape_component_analysis.cc#L586
+    # FIXME if upstream mlir-hlo fix this.
+    "ViewCollapseDynamicWithAtenSizeIntModule_basic",
+    "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
+
+    "Aten_EmbeddingBagExample_basic"
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
