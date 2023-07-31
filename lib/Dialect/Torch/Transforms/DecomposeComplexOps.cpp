@@ -201,7 +201,7 @@ static void parseEquation(const std::string &equation,
       } else {
         resultTokens.push_back(equation[index]);
       }
-    } else if (equation.substr(index, 1).find(",") != std::string::npos) {
+    } else if (equation[index] == ',') {
       inputTokens.push_back(inputToken);
       inputToken.clear();
     } else if ((index < (equation.size() - 1)) &&
@@ -210,6 +210,8 @@ static void parseEquation(const std::string &equation,
       inputToken.clear();
       currentVariable = kIsResult;
       index++;
+    } else {
+      return rewriter.notifyMatchFailure(op, "The Equations are invalid");
     }
     index++;
   }
@@ -218,20 +220,20 @@ static void parseEquation(const std::string &equation,
 
 // Helper function to process tensor shape.
 static Value processShape(
-    PatternRewriter &rewriter, Location loc, Operation *op, Value inputTensor,
+    PatternRewriter &rewriter, Operation *op, Value inputTensor,
     SmallVector<Value> &shape, SmallVector<int64_t> &contractingDims,
     SmallVector<int64_t> &batchingDims, SmallVector<Value> &finalShape,
-    SmallVector<char> &tokens) {
+    const SmallVector<char> &tokens) {
   SmallVector<int64_t> otherDims;
   Value middleDimProduct =
-      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+      rewriter.create<ConstantIntOp>(op.getLoc(), rewriter.getI64IntegerAttr(1));
   for (size_t i = 0; i < shape.size(); ++i) {
     if (std::find(batchingDims.begin(), batchingDims.end(), i) ==
             batchingDims.end() &&
         std::find(contractingDims.begin(), contractingDims.end(), i) ==
             contractingDims.end()) {
       middleDimProduct =
-          rewriter.create<AtenMulIntOp>(loc, middleDimProduct, shape[i]);
+          rewriter.create<AtenMulIntOp>(op.getLoc(), middleDimProduct, shape[i]);
       otherDims.push_back(i);
     }
   }
@@ -239,21 +241,21 @@ static Value processShape(
   if (!batchingDims.empty()) {
     int64_t usedOtherDim = 0;
     Value batchingDimProduct =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+        rewriter.create<ConstantIntOp>(op.getLoc(), rewriter.getI64IntegerAttr(1));
     int64_t batchingDimsRank = batchingDims.size();
     for (int64_t i = 0; i < batchingDimsRank; ++i) {
       batchingDimProduct =
-          rewriter.create<AtenMulIntOp>(loc, batchingDimProduct,
+          rewriter.create<AtenMulIntOp>(op.getLoc(), batchingDimProduct,
                                         shape[batchingDims[i]]);
       if (batchingDims[i] != i) {
         Value batchingDim =
-            rewriter.create<ConstantIntOp>(loc,
+            rewriter.create<ConstantIntOp>(op.getLoc(),
                                            rewriter.getI64IntegerAttr(
                                                batchingDims[i]));
         Value indexDim = rewriter.create<ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(otherDims[usedOtherDim]));
+            op.getLoc(), rewriter.getI64IntegerAttr(otherDims[usedOtherDim]));
         inputTensor = rewriter.create<AtenTransposeIntOp>(
-            loc, op->getResultTypes(), inputTensor, batchingDim, indexDim);
+            op.getLoc(), op->getResultTypes(), inputTensor, batchingDim, indexDim);
         usedOtherDim += 1;
       }
     }
@@ -265,22 +267,22 @@ static Value processShape(
     int64_t usedOtherDim = 1;
     int64_t rank = tokens.size();
     Value contractingDimProduct =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+        rewriter.create<ConstantIntOp>(op.getLoc(), rewriter.getI64IntegerAttr(1));
     int64_t contractingDimsRank = contractingDims.size();
     for (int64_t i = contractingDimsRank - 1; i > -1; --i) {
       contractingDimProduct =
-          rewriter.create<AtenMulIntOp>(loc, contractingDimProduct,
+          rewriter.create<AtenMulIntOp>(op.getLoc(), contractingDimProduct,
                                         shape[contractingDims[i]]);
       if (contractingDims[i] != rank - contractingDimsRank + i) {
         Value contractingDim =
-            rewriter.create<ConstantIntOp>(loc,
+            rewriter.create<ConstantIntOp>(op.getLoc(),
                                            rewriter.getI64IntegerAttr(
                                                contractingDims[i]));
         Value indexDim = rewriter.create<ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(
+            op.getLoc(), rewriter.getI64IntegerAttr(
                      otherDims[otherDimsSize - usedOtherDim]));
         inputTensor = rewriter.create<AtenTransposeIntOp>(
-            loc, op->getResultTypes(), inputTensor, contractingDim, indexDim);
+            op.getLoc(), op->getResultTypes(), inputTensor, contractingDim, indexDim);
         usedOtherDim += 1;
       }
     }
@@ -639,22 +641,25 @@ class DecomposeAtenEinsumOp : public OpRewritePattern<AtenEinsumOp> {
       SmallVector<Value> finalShape = dotResultShape;
       // Step 2: transpose the input tensors to [batchingDims[0,1,2],
       // otherDims[0,1,2], contractingDims[0,1,2]]
-      lhsTensor = processShape(rewriter, loc, op, lhsTensor, lhsShape,
+      lhsTensor = processShape(rewriter, op, lhsTensor, lhsShape,
                                lhsContractingDims, lhsBatchingDims,
                                lhsFinalShape, lhsTokens);
-      rhsTensor = processShape(rewriter, loc, op, rhsTensor, rhsShape,
+      rhsTensor = processShape(rewriter, op, rhsTensor, rhsShape,
                                rhsContractingDims, rhsBatchingDims,
                                rhsFinalShape, rhsTokens);
 
       // Step 3: reshape the input tensors, the final shape should
       // be[batchingDims, otherDims, contractingDims]
-      Value lhs = createReshapedTensor(rewriter, loc, op, op.getType(),
-                                       lhsTensor, lhsFinalShape);
-      Value rhs = createReshapedTensor(rewriter, loc, op, op.getType(),
-                                       rhsTensor, rhsFinalShape);
+      auto listType = Torch::ListType::get(Torch::IntType::get(op->getContext()));
+      Value lhsReshapedDims =
+          rewriter.create<PrimListConstructOp>(loc, listType, lhsFinalShape);
+      Value lhs = rewriter.create<AtenReshapeOp>(loc, op.getType(), lhsTensor, lhsReshapedDims);
+      Value rhsReshapedDims =
+          rewriter.create<PrimListConstructOp>(loc, listType, rhsFinalShape);
+      Value rhs = rewriter.create<AtenReshapeOp>(loc, op.getType(), rhsTensor, rhsReshapedDims);
       Value result;
 
-      // Step 4: use AtenMmOp/AtenBmmOp to get the result, loop util we```cpp
+      // Step 4: use AtenMmOp/AtenBmmOp to get the result, loop util we
       // get the final result
       if (!lhsBatchingDims.empty()) {
         rhs = rewriter.create<AtenTransposeIntOp>(loc, op.getType(), rhs, constOne, constTwo);

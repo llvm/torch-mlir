@@ -734,6 +734,25 @@ def EinsumStaticModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class EinsumStaticSingleModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 2, 4], torch.float32, True),
+
+    ])
+    def forward(self, tensor):
+        return torch.ops.aten.einsum('iijk->kj', [tensor])
+
+@register_test_case(module_factory=lambda: EinsumStaticModule())
+def EinsumStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 2, 4))
+
+# ==============================================================================
+
 class EinsumStaticTwoBatchingDimModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
