@@ -411,12 +411,6 @@ MlirLocation torch_mlir::getMlirLocationFromNode(MlirContext context,
                                                  torch::jit::Node *node) {
   MlirLocation loc = mlirLocationUnknownGet(context);
 
-  auto getLocOpName = [&](const c10::FunctionSchema * schema)->MlirLocation {
-    return mlirLocationNameGet(context,
-                               toMlirStringRef(schema->operator_name().name),
-                               /*childLoc=*/{nullptr});
-  };
-
   if (node->hasAttribute(c10::Symbol::attr("source_files"))) {
     const auto &sourceFiles = node->ss(c10::Symbol::attr("source_files"));
     const auto &lineNumbers = node->is(c10::Symbol::attr("line_numbers"));
@@ -442,18 +436,16 @@ MlirLocation torch_mlir::getMlirLocationFromNode(MlirContext context,
     int line = std::get<1>(*flc);
     int col = std::get<2>(*flc);
     loc = mlirLocationFileLineColGet(context, toMlirStringRef(file), line, col);
-    if (const c10::FunctionSchema *schema = node->maybeSchema()) {
-      MlirLocation locWithOpName[] = {loc, getLocOpName(schema)};
-      loc = mlirLocationFusedGet(context, /*var_name=*/2, locWithOpName,
-                                 /*metadata=*/{nullptr});
-    }
-  } else if (const c10::FunctionSchema *schema = node->maybeSchema()) {
-    loc = getLocOpName(schema);
   }
+
   auto scopeName = node->scopeName();
   if (!scopeName.empty()) {
     loc = mlirLocationNameGet(context, toMlirStringRef(scopeName), loc);
+  } else if (const c10::FunctionSchema *schema = node->maybeSchema()) {
+    loc = mlirLocationNameGet(
+        context, toMlirStringRef(schema->operator_name().name), loc);
   }
+
   return loc;
 }
 
