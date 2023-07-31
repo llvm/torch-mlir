@@ -310,6 +310,32 @@ TORCHDYNAMO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "AddIntModule_basic",
+    "AtenIntBoolOpModule_basic",
+    "AtenIntTensorByteDtypeModule_basic",
+    "AtenIntTensorCharDtypeModule_basic",
+    "BoolFloatFalseModule_basic",
+    "BoolFloatTrueModule_basic",
+    "BoolIntFalseModule_basic",
+    "BoolIntTrueModule_basic",
+    "CeilFloatModule_basic",
+    "DivFloatModule_basic",
+    "DivIntModule_basic",
+    "EqIntModule_basic",
+    "GeFloatIntModule_basic",
+    "GeFloatModule_basic",
+    "GeIntModule_basic",
+    "GtFloatIntModule_basic",
+    "GtIntModule_basic",
+    "MulIntModule_basic",
+    "NeFloatIntModule_basic",
+    "NeIntModule_basic",
+    "SqrtIntModule_basic",
+    "SubFloatModule_basic",
+    "SubIntModule_basic",
+    "TensorToBoolZeroRank_basic",
+    "TensorToIntZeroRank_basic",
+    "TensorToFloatZeroRank_basic",
     "AliasModule_basic",
     "TensorIntModule_basic",
     "AllBoolFalseModule_basic",
@@ -475,8 +501,16 @@ STABLEHLO_PASS_SET = {
     "EmbeddingModuleI32_basic",
     "EmbeddingModuleI64_basic",
     "EmbeddingModuleF16_basic",
+    "EmptyLikeMemoryFormatModule_basic",
+    "EmptyLikeModule_defaultDtype",
+    "EmptyLikeModule_falsePinMemory",
+    "EmptyLikeModule_float",
+    "EmptyLikeModule_int",
     "ExpandAsIntModule_basic",
     "ExpandModule_basic",
+    "Fill_TensorFloat64WithFloat32_basic",
+    "Fill_TensorFloat64WithFloat64_basic",
+    "Fill_TensorFloat64WithInt64_basic",
     "Fill_TensorFloat64WithFloat32Static_basic",
     "Fill_TensorFloat64WithInt64Static_basic",
     "FlipModuleStaticShape_basic",
@@ -596,6 +630,7 @@ STABLEHLO_PASS_SET = {
     "ViewOffsetBackwardTestStaticModule_basic",
     "NumToTensorFloatModule_basic",
     "AtenToDeviceModule_basic",
+    "AvgPool1dStaticModule_basic",
     "AvgPool2dStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_basic",
     "Convolution2DStaticModule_basic",
@@ -672,6 +707,9 @@ STABLEHLO_PASS_SET = {
     "PermuteModule_basic",
     "PermuteNegativeIndexModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
+    "ZeroFloat32Module_basic",
+    "ZeroInt32Module_basic",
+    "ZeroInt64Module_basic",
     "ZerosLikeModule_defaultDtype",
     "ZerosLikeModule_falsePinMemory",
     "ZerosLikeModule_float",
@@ -813,6 +851,18 @@ STABLEHLO_PASS_SET = {
     "UniformStaticShapeModule_basic",
     "UniformNoCorrelationModule_basic",
     "TupleModule_basic",
+}
+
+STABLEHLO_CRASHING_SET = {
+    # These e2e tests crash because currently mlir-hlo's shape-component-analysis
+    # only support exact one index in tensor::ExtractOp when it's related with 
+    # some tensors' shape. REF:
+    # https://github.com/tensorflow/mlir-hlo/blob/master/mhlo/analysis/shape_component_analysis.cc#L586
+    # FIXME if upstream mlir-hlo fix this.
+    "ViewCollapseDynamicWithAtenSizeIntModule_basic",
+    "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
+
+    "Aten_EmbeddingBagExample_basic"
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -1129,6 +1179,8 @@ TOSA_PASS_SET = {
     "ChunkListUnpack_Module_basic",
     "ChunkListUnpackUneven_Module_basic",
     "TupleModule_basic",
+    "NumpyTRank0Module_basic",
+    "Permute0RankModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {

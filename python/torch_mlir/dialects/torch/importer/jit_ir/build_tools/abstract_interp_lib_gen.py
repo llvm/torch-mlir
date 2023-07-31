@@ -529,6 +529,37 @@ def avg_pool2d(input: List[int], kernel_size: List[int], stride: List[int], padd
   else:
     return [nbatch, nInputPlane, outputHeight, outputWidth]
 
+# TODO: This should be upstreamed.
+# See https://github.com/pytorch/pytorch/pull/76889 for an example.
+def avg_pool1d(input: List[int], kernel_size: List[int], stride: List[int], padding: List[int], ceil_mode: bool, count_include_pad: bool):
+  assert len(kernel_size) == 1, "avg_pool1d: kernel_size must be a single int"
+  kL = kernel_size[0]
+
+  assert len(stride) == 0 or len(stride) == 1, "avg_pool1d: stride must either be omitted, or a single int"
+  dL = kL if len(stride) == 0 else stride[0]
+
+  assert len(padding) == 1, "avg_pool1d: padding must be a single int"
+  padL = padding[0]
+
+  dilationL = 1
+
+  assert len(input) == 2 or len(input) == 3
+
+  nbatch = input[-3] if len(input) == 3 else 1
+  nInputPlane = input[-2]
+  inputLength = input[-1]
+
+  outputLength = upstream_shape_functions.pooling_output_shape(
+    inputLength, kL, padL, dL, dilationL, ceil_mode)
+
+  if len(input) == 2:
+    return [nInputPlane, outputLength]
+  else:
+    return [nbatch, nInputPlane, outputLength]
+
+def aten〇avg_pool1d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), ceil_mode: bool = False, count_include_pad: bool = True) -> List[int]:
+    return avg_pool1d(self, kernel_size, stride, padding, ceil_mode, count_include_pad)
+
 def aten〇avg_pool2d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0,), ceil_mode: bool = False, count_include_pad: bool = True, divisor_override: Optional[int] = None) -> List[int]:
     return avg_pool2d(self, kernel_size, stride, padding, ceil_mode, count_include_pad, divisor_override)
 
@@ -1120,6 +1151,15 @@ def hacky_get_unknown_dimension_size():
 def aten〇bincount〡shape(self: List[int], weights: Optional[List[int]] = None, minlength: int = 0) -> List[int]:
     return [hacky_get_unknown_dimension_size()]
 
+def aten〇nonzero〡shape(self: List[int]) -> List[int]:
+    return [hacky_get_unknown_dimension_size(), len(self)]
+
+def aten〇masked_select〡shape(self: List[int], mask: List[int]) -> List[int]:
+    return [hacky_get_unknown_dimension_size()]
+
+def aten〇nonzero_static〡shape(self: List[int], size: int, fill_value: int = -1) -> List[int]:
+    return [size, len(self)]
+
 def aten〇linalg_vector_norm〡shape(self: List[int], ord: float = 2, dim: Optional[List[int]] = None, keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, dtype)
 
@@ -1360,6 +1400,11 @@ def aten〇abs〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 def aten〇cosine_similarity〡dtype(x1_rank_dtype: Tuple[int, int], x2_rank_dtype: Tuple[int, int], dim: int = 1, eps: float = 1e-08) -> int:
     x1_rank, x1_dtype = x1_rank_dtype
     return _get_dtype_of_floating_point_op(x1_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 7)], kernel_size=[2]))
+def aten〇avg_pool1d〡dtype(self_rank_dtype: Tuple[int, int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), ceil_mode: bool = False, count_include_pad: bool = True) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7)], output_size=[2, 2]))
 def aten〇adaptive_avg_pool2d〡dtype(self_rank_dtype: Tuple[int, int], output_size: List[int]) -> int:
@@ -2437,6 +2482,14 @@ def aten〇bincount〡dtype(self_rank_dtype: Tuple[int, int], weights_rank_dtype
     if weights_rank_dtype is None:
         return torch.int64
     return torch.float64
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, tensor_device=torch.device("cpu")))
+def aten〇nonzero〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    return torch.int64
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, size=5, tensor_device=torch.device("cpu")))
+def aten〇nonzero_static〡dtype(self_rank_dtype: Tuple[int, int], size: int, fill_value: int = -1) -> int:
+    return torch.int64
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1), (1, 1)]) +

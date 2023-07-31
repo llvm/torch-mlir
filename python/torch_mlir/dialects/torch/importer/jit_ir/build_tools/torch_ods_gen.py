@@ -404,6 +404,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::avg_pool2d : (Tensor, int[], int[], int[], bool, bool, int?) -> (Tensor)"
     )
     emit(
+        "aten::avg_pool1d : (Tensor, int[], int[], int[], bool, bool) -> (Tensor)"
+    )
+    emit(
         "aten::softmax.int : (Tensor, int, int?) -> (Tensor)"
     )
     emit(
@@ -447,6 +450,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::mse_loss_backward : (Tensor, Tensor, Tensor, int) -> (Tensor)")
     emit("aten::upsample_nearest2d_backward : (Tensor, int[], int[], float?, float?) -> (Tensor)")
     emit("aten::cross_entropy_loss : (Tensor, Tensor, Tensor?, int, int, float) -> (Tensor)")
+    emit("aten::nonzero : (Tensor) -> (Tensor)")
+    emit("aten::nonzero_numpy : (Tensor) -> (Tensor[])")
+    emit("aten::nonzero_static : (Tensor, int, int) -> (Tensor)")
 
     # Misc tensor ops.
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")

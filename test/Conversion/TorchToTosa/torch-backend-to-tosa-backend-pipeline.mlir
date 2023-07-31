@@ -124,3 +124,11 @@ func.func @torch.aten.pow.Tensor$mixed_type(%arg0: !torch.vtensor<[?,?],f16>) ->
   return %0 : !torch.vtensor<[?,?],f32>
 }
 
+// -----
+func.func @torch.prim.TupleConstruct() {
+  %int128 = torch.constant.int 128
+  %0 = torch.prim.TupleConstruct %int128 : !torch.int -> !torch.tuple<int>
+  // expected-error @below {{failed to legalize operation 'torch.prim.Print' that was explicitly marked illegal}}
+  torch.prim.Print(%0) : !torch.tuple<int>
+  return
+}

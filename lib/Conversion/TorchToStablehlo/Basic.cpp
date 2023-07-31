@@ -13,6 +13,7 @@
 #include "PopulatePatterns.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
@@ -229,6 +230,51 @@ public:
   }
 };
 
+} // namespace
+
+namespace {
+// Casts a tensor of exactly one element to an elemental type.
+// Many codes borrowed from
+// `lib/Conversion/TorchToLinalg/TensorScalarInterop.cpp`
+template <typename AtenOpT>
+class ConvertAtenTensorToScalarLikeOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto inputType =
+        adaptor.getA().getType().template dyn_cast<RankedTensorType>();
+    if (!inputType)
+
+      op.emitError("only Tensor types supported in StableHLO");
+    auto outType =
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType());
+    Location loc = op.getLoc();
+    Value input = adaptor.getA();
+    SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
+    int64_t inputRank = inputSizes.size();
+    Type inputDtype =
+        op.getA().getType().template cast<BaseTensorType>().getDtype();
+
+    Value constantOne =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(1));
+    for (int64_t i = 0; i < inputRank; i++)
+      checkDimEqualHelper(rewriter, loc, inputSizes[i], constantOne);
+
+    Value constantZero =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+    SmallVector<Value> indices(inputRank, constantZero);
+    Value result = rewriter.create<tensor::ExtractOp>(loc, input, indices);
+    Type resultType =
+        this->getTypeConverter()->convertType(op->getResult(0).getType());
+    rewriter.replaceOp(op, convertScalarToDtype(rewriter, loc, result,
+                                                resultType, inputDtype));
+    return success();
+  }
+};
 } // namespace
 
 // The binary broadcast patterns
@@ -1583,8 +1629,11 @@ LogicalResult ConvertAtenOp<AtenFillScalarOp>::matchAndRewrite(
   auto dtype = outType.getElementType();
   Value scalarTensor =
       hlo::scalarToStablehloTensor(rewriter, op, adaptor.getValue(), dtype);
-  Value bcastScalar = rewriter.create<stablehlo::BroadcastInDimOp>(
-      op->getLoc(), outType, scalarTensor, rewriter.getI64TensorAttr({}));
+  Value shapeTensor =
+      rewriter.create<shape::ShapeOfOp>(op->getLoc(), adaptor.getSelf());
+  Value bcastScalar = rewriter.create<stablehlo::DynamicBroadcastInDimOp>(
+      op->getLoc(), outType, scalarTensor, shapeTensor,
+      rewriter.getI64TensorAttr({}));
   rewriter.replaceOp(op, bcastScalar);
   return success();
 }
@@ -1657,6 +1706,16 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_CONSTANT_FILL_PATTERN(AtenOnesOp, 1);
   INSERT_CONSTANT_FILL_PATTERN(AtenZerosOp, 0);
 #undef INSERT_CONSTANT_FILL_PATTERN
+
+#define INSERT_TENSOR_TO_SCALAR_PATTERN(AtenOp)                                \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenTensorToScalarLikeOp<AtenOp>>(typeConverter,         \
+                                                        context)
+
+  INSERT_TENSOR_TO_SCALAR_PATTERN(AtenIntTensorOp);
+  INSERT_TENSOR_TO_SCALAR_PATTERN(AtenFloatTensorOp);
+  INSERT_TENSOR_TO_SCALAR_PATTERN(AtenBoolTensorOp);
+#undef INSERT_TENSOR_TO_SCALAR_PATTERN
 
 #define INSERT_BINARY_ADDSUB_PATTERN(AtenOp, ChloOp)                           \
   target.addIllegalOp<AtenOp>();                                               \
