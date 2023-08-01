@@ -4307,17 +4307,17 @@ class CosineSimilarityModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.register_buffer('tensor', torch.ones(2, 3))
 
     @export
     @annotate_args([
-        ([-1, -1], torch.float32, True),
-        ([-1, -1], torch.float32, True),
+        None,
+        ([2, 3], torch.float32, True),
+        ([2, 3], torch.float32, True),
     ])
     def forward(self, x1, x2):
         return torch.ops.aten.cosine_similarity(x1, x2)
 
 
-@register_test_case(module_factory=lambda: Add_Module())
+@register_test_case(module_factory=lambda: CosineSimilarityModule())
 def CosineSimilarityModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3), tu.rand(2, 3))

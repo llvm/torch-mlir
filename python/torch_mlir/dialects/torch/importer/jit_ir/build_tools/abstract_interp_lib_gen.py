@@ -1396,10 +1396,14 @@ def aten〇abs〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
         return torch.float32
     return self_dtype
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=2))   
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=2,dim=0, error_types={torch.complex128, torch.complex64, *all_integer_dtypes()}))
 def aten〇cosine_similarity〡dtype(x1_rank_dtype: Tuple[int, int], x2_rank_dtype: Tuple[int, int], dim: int = 1, eps: float = 1e-08) -> int:
     x1_rank, x1_dtype = x1_rank_dtype
-    return _get_dtype_of_floating_point_op(x1_dtype)
+    x2_rank, x2_dtype = x2_rank_dtype
+    assert x1_dtype == x2_dtype
+    assert not x1_dtype not in [torch.bfloat16, torch.float16, torch.float32, torch.float64]
+    return x1_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 7)], kernel_size=[2]))
 def aten〇avg_pool1d〡dtype(self_rank_dtype: Tuple[int, int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), ceil_mode: bool = False, count_include_pad: bool = True) -> int:

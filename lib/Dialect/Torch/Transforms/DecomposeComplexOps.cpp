@@ -3477,26 +3477,36 @@ class DecomposeAtenCosineSimilarityOp : public OpRewritePattern<AtenCosineSimila
     Value x1 = op.getX1();
     Value x2 = op.getX2();
     Value dim = op.getDim();
+    Value dimList = rewriter.create<PrimListConstructOp>(
+      loc, Torch::ListType::get(Torch::IntType::get(op->getContext())),
+      ValueRange{dim});
     // 1. 计算 A 和 B 的点乘
-    Value dotProduct = rewriter.create<AtenMulTensorOp>(loc, op.getType(), x1, x2);
-    // 2. 计算 A 和 B 的范数
-    Value ord = rewriter.create<Torch::ConstantFloatOp>(loc, rewriter.getF64FloatAttr(2.0));
+    Value dotProduct = rewriter.create<AtenMulTensorOp>(loc, x1.getType(), x1, x2);
+    llvm::outs() << dotProduct <<'\n';   
     Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
     Value cstNone = rewriter.create<Torch::ConstantNoneOp>(op.getLoc());
+    Value sumDotProduct =
+        rewriter.create<Torch::AtenSumDimIntListOp>(
+          loc, op.getType(), /*self=*/dotProduct, /*dim=*/dimList,
+          /*keepdim=*/cstFalse,
+          /*dtype=*/cstNone);
+          
+    // 2. 计算 A 和 B 的范数
+    Value ord = rewriter.create<Torch::ConstantFloatOp>(loc, rewriter.getF64FloatAttr(2.0));
     Value normA = rewriter.create<AtenLinalgVectorNormOp>(
-        loc, op.getType(), x1, ord, dim, /*keepdim=*/cstFalse,
+        loc, op.getType(), x1, ord, dimList, /*keepdim=*/cstFalse,
         /*dtype=*/cstNone);
     Value normB = rewriter.create<AtenLinalgVectorNormOp>(
-        loc, op.getType(), x2, ord, dim, /*keepdim=*/cstFalse,
+        loc, op.getType(), x2, ord, dimList, /*keepdim=*/cstFalse,
         /*dtype=*/cstNone);
-
+  
     // 3. 计算范数的乘积
     Value normProduct = rewriter.create<AtenMulTensorOp>(loc, op.getType(), normA, normB);
     Value normProductClamp = rewriter.create<AtenClampOp>(loc, op.getType(), normProduct,
                                              op.getEps(), /*max=*/cstNone);
     // 4. 除法操作，计算最后的余弦相似度
     rewriter.replaceOpWithNewOp<AtenDivTensorOp>(
-        op, op.getType(), dotProduct, normProductClamp);
+        op, op.getType(), sumDotProduct, normProductClamp);
     return success();
   }
 };
@@ -4798,6 +4808,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMaxOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenCosineSimilarityOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNumpyTOp>(patterns);
