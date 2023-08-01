@@ -93,7 +93,8 @@ def aten〇cos〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇cosine_similarity〡shape(x1: List[int], x2: List[int], dim: int = 1, eps: float = 1e-08) -> List[int]:
-    return x1[:dim] + x2[dim + 1:]
+    broadcast = upstream_shape_functions.broadcast(x1, x2)
+    return broadcast[:dim] + broadcast[dim + 1:]
 
 def aten〇hardtanh〡shape(self: List[int], min_val: float = -1, max_val: float = 1) -> List[int]:
     return upstream_shape_functions.unary(self)

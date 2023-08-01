@@ -177,6 +177,83 @@ static Value createSoftmaxBackwardCommonKernel(PatternRewriter &rewriter,
   return sub;
 }
 
+// Checks whether the `shapeA` and `shapeB` are broadcast compatible or not. If
+// yes, then computes the final broadcast shape.
+static bool computeBroadcastShape(PatternRewriter &rewriter, Location loc,
+                           const Value inputA, const Value inputB,
+                           SmallVector<int64_t> &resultShape,
+                           SmallVector<Value> &resultShapeValue) {
+  SmallVector<int64_t> shapeA{
+      inputA.getType().cast<BaseTensorType>().getSizes()};
+  SmallVector<int64_t> shapeB{
+      inputB.getType().cast<BaseTensorType>().getSizes()};
+  unsigned rankA = shapeA.size();
+  unsigned rankB = shapeB.size();
+  unsigned minRank = rankA > rankB ? rankB : rankA;
+  // Check whether the shapes of the tensors are broadcastable or not.
+  // Two tensors are “broadcastable” if the following rules hold:
+  // 1.) Each tensor has at least one dimension.
+  // 2.) When iterating over the dimension sizes, starting at the trailing
+  // dimension, the dimension sizes must either be equal, one of them is 1, or
+  // one of them does not exist.
+  for (unsigned i = 0; i < minRank; i++) {
+    Value sizeDimA = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rankA - i - 1));
+    Value sizeDimB = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rankB - i - 1));
+    Value sizeInputA =
+        rewriter.create<AtenSizeIntOp>(loc, inputA, sizeDimA);
+    Value sizeInputB =
+        rewriter.create<AtenSizeIntOp>(loc, inputB, sizeDimB);
+    Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value cmpSizeAEqualsSizeB =
+        rewriter.create<AtenEqIntOp>(loc, sizeInputA, sizeInputB);
+    Value cmpSizeAEqualsOne =
+        rewriter.create<AtenEqIntOp>(loc, sizeInputA, torchCstOne);
+    Value cmpSizeBEqualsOne =
+        rewriter.create<AtenEqIntOp>(loc, sizeInputB, torchCstOne);
+    Value anyBoolOpList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(cmpSizeAEqualsOne.getType()),
+        SmallVector<Value>{cmpSizeAEqualsSizeB, cmpSizeAEqualsOne,
+                           cmpSizeBEqualsOne});
+    Value cmp = rewriter.create<AtenAnyBoolOp>(loc, anyBoolOpList); 
+    if (!cmp)
+      return false;
+  }
+  // If we reach here then it means both the shapes are broadcast compatible.
+  resultShape = rankA >= rankB ? shapeA : shapeB;
+  Value shapeTensor = rankA >= rankB ? inputA : inputB;
+  for (unsigned i = 0; i < resultShape.size(); i++) {
+    Value sizeDim = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(i));
+    resultShapeValue.push_back(
+        rewriter.create<AtenSizeIntOp>(loc, shapeTensor, sizeDim));
+  }
+
+  unsigned resultRank = resultShape.size();
+  for (unsigned i = 0; i < minRank; i++) {
+    Value sizeDimA = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rankA - i - 1));
+    Value sizeDimB = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rankB - i - 1));
+    Value sizeInputA =
+        rewriter.create<AtenSizeIntOp>(loc, inputA, sizeDimA);
+    Value sizeInputB =
+        rewriter.create<AtenSizeIntOp>(loc, inputB, sizeDimB);
+    resultShapeValue[resultRank - i - 1] =
+        rewriter.create<PrimMaxIntOp>(loc, sizeInputA, sizeInputB);
+    if (shapeA[rankA - i - 1] == kUnknownSize ||
+        shapeB[rankB - i - 1] == kUnknownSize) {
+      resultShape[resultRank - i - 1] = kUnknownSize;
+    } else {
+      resultShape[resultRank - i - 1] =
+          std::max(shapeA[rankA - i - 1], shapeB[rankB - i - 1]);
+    }
+  }
+  return true;
+}
+
 static SmallVector<int64_t> computeDimsOrderForMoveDim(int64_t srcDimInt,
                                                        int64_t dstDimInt,
                                                        unsigned inputRank) {
@@ -3477,21 +3554,37 @@ class DecomposeAtenCosineSimilarityOp : public OpRewritePattern<AtenCosineSimila
     Value x1 = op.getX1();
     Value x2 = op.getX2();
     Value dim = op.getDim();
+
+    // Broadcast x1 and x2 to the same shape
+    SmallVector<int64_t> indexBroadcastShapeInt;
+    SmallVector<Value> indexBroadcastShapeValue;
+    bool broadcastable = computeBroadcastShape(rewriter, loc, x1, x2, indexBroadcastShapeInt, indexBroadcastShapeValue);
+    if (!broadcastable) {
+      return rewriter.notifyMatchFailure(op, "tensors are not broadcast compatible");
+    }
+    Type dtype = x1.getType().cast<ValueTensorType>().getOptionalDtype();
+    Type broadcastType =
+        ValueTensorType::get(op.getContext(), llvm::ArrayRef(indexBroadcastShapeInt), dtype);
+    Value indexBroadcastShapeTorchList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        indexBroadcastShapeValue);
+    x1 = rewriter.create<AtenBroadcastToOp>(loc, broadcastType, x1, indexBroadcastShapeTorchList);
+    x2 = rewriter.create<AtenBroadcastToOp>(loc, broadcastType, x2, indexBroadcastShapeTorchList);
+
+    // Compute the mul of A and B
+    Value dotProduct = rewriter.create<AtenMulTensorOp>(loc, broadcastType, x1, x2);
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
     Value dimList = rewriter.create<PrimListConstructOp>(
       loc, Torch::ListType::get(Torch::IntType::get(op->getContext())),
       ValueRange{dim});
-    // 1. 计算 A 和 B 的点乘
-    Value dotProduct = rewriter.create<AtenMulTensorOp>(loc, x1.getType(), x1, x2);
-    llvm::outs() << dotProduct <<'\n';   
-    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
-    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(op.getLoc());
     Value sumDotProduct =
         rewriter.create<Torch::AtenSumDimIntListOp>(
           loc, op.getType(), /*self=*/dotProduct, /*dim=*/dimList,
           /*keepdim=*/cstFalse,
           /*dtype=*/cstNone);
           
-    // 2. 计算 A 和 B 的范数
+    // Compute the norm of A and B
     Value ord = rewriter.create<Torch::ConstantFloatOp>(loc, rewriter.getF64FloatAttr(2.0));
     Value normA = rewriter.create<AtenLinalgVectorNormOp>(
         loc, op.getType(), x1, ord, dimList, /*keepdim=*/cstFalse,
@@ -3500,11 +3593,11 @@ class DecomposeAtenCosineSimilarityOp : public OpRewritePattern<AtenCosineSimila
         loc, op.getType(), x2, ord, dimList, /*keepdim=*/cstFalse,
         /*dtype=*/cstNone);
   
-    // 3. 计算范数的乘积
+    // Compute the product of the norms
     Value normProduct = rewriter.create<AtenMulTensorOp>(loc, op.getType(), normA, normB);
     Value normProductClamp = rewriter.create<AtenClampOp>(loc, op.getType(), normProduct,
                                              op.getEps(), /*max=*/cstNone);
-    // 4. 除法操作，计算最后的余弦相似度
+    // Compute the final cosine similarity by division
     rewriter.replaceOpWithNewOp<AtenDivTensorOp>(
         op, op.getType(), sumDotProduct, normProductClamp);
     return success();
