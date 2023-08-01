@@ -1180,6 +1180,11 @@ TOSA_PASS_SET = {
     "TupleModule_basic",
     "NumpyTRank0Module_basic",
     "Permute0RankModule_basic",
+    "SoftmaxIntModule_basic",
+    "SoftmaxIntNegDimModule_basic",
+    "_LogSoftmaxModule_basic",
+    "_SoftmaxModule_basic",
+    "Add_Module_basic"
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
@@ -1210,6 +1215,9 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     # Unimplemented operator 'aten._index_put_impl_.hacked_twin'
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
     "IndexPutImpl1DIntNonAccumulateModule_basic",
+
+    # Size of tensor a must equal size of tensor b
+    "Add_Module_basic"
 }
 
 if torch_version_for_comparison() < version.parse("2.1.0.dev"):
