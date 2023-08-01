@@ -10,6 +10,8 @@
 #ifndef TORCHMLIRJITIRIMPORTER_CSRC_IMPORT_OPTIONS_H
 #define TORCHMLIRJITIRIMPORTER_CSRC_IMPORT_OPTIONS_H
 
+#include "c10/util/Optional.h"
+
 namespace torch_mlir {
 // Common import options across importers. We define this as a struct to avoid
 // an unstructured proliferation of different kinds of ways to control different
@@ -33,6 +35,10 @@ struct ImportOptions {
   // In that case, the appropriate shape information is provided via the type
   // bound annotations on the function arguments instead.
   bool ignoreExistingTensorShapesAndDtypes = false;
+
+  // If this is set, then external constant references will be used when
+  // importing tensors with numel exceeding the given threshold.
+  c10::optional<unsigned> useExternalReferencesIfNumelExceeds = c10::nullopt;
 };
 } // namespace torch_mlir
 

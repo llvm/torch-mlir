@@ -957,6 +957,41 @@ def Torch_ValueTensorLiteralOp : Torch_Op<"vtensor.literal", [
   let hasFolder = 1;
 }
 
+def Torch_ResourceNonValueTensorLiteralOp : Torch_Op<"tensor.resource.literal", [
+    AllowsTypeRefinement,
+    AllowedInModuleInitializer
+  ]> {
+  let summary = "Create a value of !torch.tensor type from an external literal";
+  let description = [{
+  }];
+  let arguments = (ins
+    FlatSymbolRefAttr:$sym_name,
+    ElementsAttr:$value
+  );
+  let results = (outs Torch_NonValueTensorType:$result);
+
+  let assemblyFormat = [{
+    `(` $sym_name `=` $value `)` attr-dict `:` qualified(type($result))
+  }];
+}
+
+def Torch_ResourceValueTensorLiteralOp : Torch_Op<"vtensor.resource.literal", [
+    AllowsTypeRefinement,
+  ]> {
+  let summary = "Create a value of !torch.vtensor type from an external literal";
+  let description = [{
+  }];
+  let arguments = (ins
+    FlatSymbolRefAttr:$sym_name,
+    ElementsAttr:$value
+  );
+  let results = (outs Torch_ValueTensorType:$result);
+
+  let assemblyFormat = [{
+    `(` $sym_name `=` $value `)` attr-dict `:` qualified(type($result))
+  }];
+}
+
 def Torch_TensorStaticInfoCastOp : Torch_Op<"tensor_static_info_cast", [
     DeclareOpInterfaceMethods<CastOpInterface>,
     AllowsTypeRefinement,

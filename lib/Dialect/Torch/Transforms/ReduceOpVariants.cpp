@@ -265,6 +265,19 @@ reduceNonValueTensorLiteralOpToValueTensorLiteralOp(NonValueTensorLiteralOp op,
   return success();
 }
 
+static LogicalResult
+reduceResourceNonValueTensorLiteralOpToResourceValueTensorLiteralOp(
+    ResourceNonValueTensorLiteralOp op, PatternRewriter &rewriter) {
+  Value valueTensor = rewriter.create<ResourceValueTensorLiteralOp>(
+      op->getLoc(),
+      op.getType().cast<NonValueTensorType>().getWithValueSemantics(),
+      op.getSymName(), op.getValue());
+  Value tensor =
+      copyTensorToType(rewriter, op->getLoc(), op.getType(), valueTensor);
+  rewriter.replaceOp(op, {tensor});
+  return success();
+}
+
 namespace {
 struct ReduceOpVariantsPass
     : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
@@ -292,10 +305,14 @@ struct ReduceOpVariantsPass
         context, extraLibraryModuleSymTable);
     patterns.add<ReduceTrailingUnderscoreInplaceVariant>(context);
     patterns.add(reduceNonValueTensorLiteralOpToValueTensorLiteralOp);
+    patterns.add(
+        reduceResourceNonValueTensorLiteralOpToResourceValueTensorLiteralOp);
     patterns.add<ReduceNonValueSemanticOps>(context);
 
     ConversionTarget target(*context);
     target.addIllegalOp<NonValueTensorLiteralOp>();
+    target.addIllegalOp<ResourceNonValueTensorLiteralOp>();
+    target.addIllegalOp<AtenUniform_Op>();
     target.addIllegalOp<AtenBernoulli_FloatOp>();
     target.markUnknownOpDynamicallyLegal([&extraLibraryModuleSymTable](
                                              Operation *op) {
