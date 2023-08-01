@@ -13,6 +13,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "ReifyAbstractInterpCalculationsUtils.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/StringExtras.h"
 
 using namespace mlir;
@@ -215,6 +216,52 @@ public:
 };
 } // namespace
 
+// Reduce `torch.aten.tensor` op into corresponding `valsem.aten.tensor.<dtype>`
+// op.
+namespace {
+class ReduceAtenTensorOp : public RewritePattern {
+public:
+  ReduceAtenTensorOp(MLIRContext *context)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, context) {}
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    Operation *newOp;
+    if (isa<AtenTensorOp>(op)) {
+      auto data = op->getOperand(0);
+      SmallVector<Value, 4> dataList;
+      if (!getListConstructElements(data, dataList)) {
+        return rewriter.notifyMatchFailure(op,
+                                           "unimplemented: input data list not "
+                                           "constructed from ListConstruct");
+      }
+      if (dataList.empty()) {
+        return failure();
+      }
+      if (isa<Torch::IntType>(dataList[0].getType())) {
+        newOp = rewriter.create<ValsemVariantAtenTensorIntListOp>(
+            loc, op->getResultTypes(), op->getOperands());
+        rewriter.replaceOp(op, newOp);
+        return success();
+      } else if (isa<Torch::FloatType>(dataList[0].getType())) {
+        newOp = rewriter.create<ValsemVariantAtenTensorFloatListOp>(
+            loc, op->getResultTypes(), op->getOperands());
+        rewriter.replaceOp(op, newOp);
+        return success();
+      } else if (isa<Torch::BoolType>(dataList[0].getType())) {
+        newOp = rewriter.create<ValsemVariantAtenTensorBoolListOp>(
+            loc, op->getResultTypes(), op->getOperands());
+        rewriter.replaceOp(op, newOp);
+        return success();
+      }
+      return failure();
+    } else {
+      return failure();
+    }
+  }
+};
+} // namespace
+
 namespace {
 // Reduce the "trailing underscore inplace variant" to the value semantic
 // variant + an overwrite of the original "self" argument.
@@ -293,10 +340,12 @@ struct ReduceOpVariantsPass
     patterns.add<ReduceTrailingUnderscoreInplaceVariant>(context);
     patterns.add(reduceNonValueTensorLiteralOpToValueTensorLiteralOp);
     patterns.add<ReduceNonValueSemanticOps>(context);
+    patterns.add<ReduceAtenTensorOp>(context);
 
     ConversionTarget target(*context);
     target.addIllegalOp<NonValueTensorLiteralOp>();
     target.addIllegalOp<AtenBernoulli_FloatOp>();
+    target.addIllegalOp<AtenTensorOp>();
     target.markUnknownOpDynamicallyLegal([&extraLibraryModuleSymTable](
                                              Operation *op) {
       if (op->hasTrait<Torch::OpTrait::HasValueSemantics>() ||

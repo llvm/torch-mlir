@@ -790,6 +790,36 @@ def prims〇view_of〡dtype(a_rank_dtype: Tuple[int, int]) -> int:
 def prim〇NumToTensor〇Scalar〡shape(a: float) -> List[int]:
     return []
 
+@not_present_in_registry
+def aten〇tensor〇IntList〡shape(data: List[int], dtype: Optional[int] = None, device: Optional[device] = None, requires_grad: bool = False) -> List[int]:
+    return [len(data)]
+
+@not_present_in_registry
+def aten〇tensor〇FloatList〡shape(data: List[float], dtype: Optional[int] = None, device: Optional[device] = None, requires_grad: bool = False) -> List[int]:
+    return [len(data)]
+
+@not_present_in_registry
+def aten〇tensor〇BoolList〡shape(data: List[bool], dtype: Optional[int] = None, device: Optional[device] = None, requires_grad: bool = False) -> List[int]:
+    return [len(data)]
+
+@not_present_in_registry
+def aten〇tensor〇IntList〡dtype(data: List[int], dtype: Optional[int] = None, device: Optional[device] = None, requires_grad: bool = False) -> int:
+    if dtype is None:
+        return torch.int64
+    return dtype
+
+@not_present_in_registry
+def aten〇tensor〇FloatList〡dtype(data: List[float], dtype: Optional[int] = None, device: Optional[device] = None, requires_grad: bool = False) -> int:
+    if dtype is None:
+        return torch.float32
+    return dtype
+
+@not_present_in_registry
+def aten〇tensor〇BoolList〡dtype(data: List[bool], dtype: Optional[int] = None, device: Optional[device] = None, requires_grad: bool = False) -> int:
+    if dtype is None:
+        return torch.bool
+    return dtype
+
 def aten〇tensor〇float〡shape(t: float, dtype: Optional[int] = None, device: Optional[device] = None, requires_grad: bool = False) -> List[int]:
     return []
 

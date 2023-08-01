@@ -4298,3 +4298,60 @@ class Add_Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: Add_Module())
 def Add_Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3))
+
+
+# ==============================================================================
+
+
+class AtenTensorIntListModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.tensor([1, 2])
+
+
+@register_test_case(module_factory=lambda: AtenTensorIntListModule())
+def AtenTensorIntListModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenTensorFloatListModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.tensor([0.05, 4.56])
+
+
+@register_test_case(module_factory=lambda: AtenTensorFloatListModule())
+def AtenTensorFloatListModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenTensorBoolListModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.tensor([True, False])
+
+
+@register_test_case(module_factory=lambda: AtenTensorBoolListModule())
+def AtenTensorBoolListModule_basic(module, tu: TestUtils):
+    module.forward()

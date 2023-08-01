@@ -167,3 +167,58 @@ func.func @torch.aten.bernoulli_.float(%t: !torch.tensor) -> !torch.tensor {
   %ret = torch.aten.bernoulli_.float %t, %p, %generator : !torch.tensor, !torch.float, !torch.none -> !torch.tensor
   return %ret : !torch.tensor
 }
+
+// CHECK-LABEL:   func.func @torch.aten.tensor$IntList() -> !torch.tensor {
+// CHECK:           %[[REQUIRES_GRAD:.*]] = torch.constant.bool false
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[INT1:.*]] = torch.constant.int 1
+// CHECK:           %[[INT2:.*]] = torch.constant.int 2
+// CHECK:           %[[DATA:.*]] = torch.prim.ListConstruct %[[INT1]], %[[INT2]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[OUT:.*]] = torch.valsem.aten.tensor.IntList %[[DATA:.*]], %[[NONE]], %[[NONE]], %[[REQUIRES_GRAD]] : <int>, !torch.none, !torch.none, !torch.bool -> !torch.vtensor
+// CHECK:           %[[RESULT:.*]] = torch.copy.to_tensor %[[OUT:.*]] : !torch.tensor
+// CHECK:           return %[[RESULT]] : !torch.tensor
+func.func @torch.aten.tensor$IntList() -> !torch.tensor {
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %0 = torch.prim.ListConstruct %int1, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.tensor %0, %none, %none, %false : !torch.list<int>, !torch.none, !torch.none, !torch.bool -> !torch.tensor
+  return %1 : !torch.tensor
+}
+
+// CHECK-LABEL:   func.func @torch.aten.tensor$FloatList() -> !torch.tensor {
+// CHECK:           %[[REQUIRES_GRAD:.*]] = torch.constant.bool false
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[FLOAT5:.*]] = torch.constant.float 5.000000e+01
+// CHECK:           %[[FLOAT2:.*]] = torch.constant.float 2.000000e+01
+// CHECK:           %[[DATA:.*]] = torch.prim.ListConstruct %[[FLOAT5]], %[[FLOAT2]] : (!torch.float, !torch.float) -> !torch.list<float>
+// CHECK:           %[[OUT:.*]] = torch.valsem.aten.tensor.FloatList %[[DATA:.*]], %[[NONE]], %[[NONE]], %[[REQUIRES_GRAD]] : <float>, !torch.none, !torch.none, !torch.bool -> !torch.vtensor
+// CHECK:           %[[RESULT:.*]] = torch.copy.to_tensor %[[OUT:.*]] : !torch.tensor
+// CHECK:           return %[[RESULT]] : !torch.tensor
+func.func @torch.aten.tensor$FloatList() -> !torch.tensor {
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %float5.000000e01 = torch.constant.float 5.000000e+01
+  %float2.000000e01 = torch.constant.float 2.000000e+01
+  %0 = torch.prim.ListConstruct %float5.000000e01, %float2.000000e01 : (!torch.float, !torch.float) -> !torch.list<float>
+  %1 = torch.aten.tensor %0, %none, %none, %false : !torch.list<float>, !torch.none, !torch.none, !torch.bool -> !torch.tensor
+  return %1 : !torch.tensor
+}
+
+// CHECK-LABEL:   func.func @torch.aten.tensor$BoolList() -> !torch.tensor {
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           %[[DATA:.*]] = torch.prim.ListConstruct %[[TRUE]], %[[FALSE]] : (!torch.bool, !torch.bool) -> !torch.list<bool>
+// CHECK:           %[[OUT:.*]] = torch.valsem.aten.tensor.BoolList %[[DATA:.*]], %[[NONE]], %[[NONE]], %[[FALSE]] : <bool>, !torch.none, !torch.none, !torch.bool -> !torch.vtensor
+// CHECK:           %[[RESULT:.*]] = torch.copy.to_tensor %[[OUT:.*]] : !torch.tensor
+// CHECK:           return %[[RESULT]] : !torch.tensor
+func.func @torch.aten.tensor$BoolList() -> !torch.tensor {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %0 = torch.prim.ListConstruct %true, %false : (!torch.bool, !torch.bool) -> !torch.list<bool>
+  %1 = torch.aten.tensor %0, %none, %none, %false : !torch.list<bool>, !torch.none, !torch.none, !torch.bool -> !torch.tensor
+  return %1 : !torch.tensor
+}

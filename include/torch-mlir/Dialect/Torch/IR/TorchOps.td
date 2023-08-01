@@ -1101,6 +1101,63 @@ def Torch_ValsemVariantAtenBernoulliFloatOp: Torch_Op<"valsem.aten.bernoulli.flo
   let assemblyFormat = "$self `,` $p `,` $generator attr-dict `:` type($self) `,` type($p) `,` type($generator) `->` type($result)";
 }
 
+// The corresponding variant for `torch.aten.tensor` for integer input elements.
+def Torch_ValsemVariantAtenTensorIntListOp: Torch_Op<"valsem.aten.tensor.IntList", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "`tensor.IntList : (int[], int?, Device?, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchListOfTorchIntType:$data,
+    AnyTorchOptionalIntType:$dtype,
+    AnyTorchOptionalDeviceType:$device,
+    Torch_BoolType:$requires_grad
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$data `,` $dtype `,` $device `,` $requires_grad attr-dict `:` type($data) `,` type($dtype) `,` type($device) `,` type($requires_grad) `->` type($result)";
+}
+
+// The corresponding variant for `torch.aten.tensor` for floating-point input elements.
+def Torch_ValsemVariantAtenTensorFloatListOp: Torch_Op<"valsem.aten.tensor.FloatList", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "`tensor.FloatList : (float[], int?, Device?, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchListOfTorchFloatType:$data,
+    AnyTorchOptionalIntType:$dtype,
+    AnyTorchOptionalDeviceType:$device,
+    Torch_BoolType:$requires_grad
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$data `,` $dtype `,` $device `,` $requires_grad attr-dict `:` type($data) `,` type($dtype) `,` type($device) `,` type($requires_grad) `->` type($result)";
+}
+
+// The corresponding variant for `torch.aten.tensor` for boolean input elements.
+def Torch_ValsemVariantAtenTensorBoolListOp: Torch_Op<"valsem.aten.tensor.BoolList", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "`tensor.BoolList : (bool[], int?, Device?, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchListOfTorchBoolType:$data,
+    AnyTorchOptionalIntType:$dtype,
+    AnyTorchOptionalDeviceType:$device,
+    Torch_BoolType:$requires_grad
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$data `,` $dtype `,` $device `,` $requires_grad attr-dict `:` type($data) `,` type($dtype) `,` type($device) `,` type($requires_grad) `->` type($result)";
+}
+
 def Torch_PromoteDtypesOp: Torch_Op<"promote_dtypes", [
     AllowsTypeRefinement,
     HasValueSemantics,

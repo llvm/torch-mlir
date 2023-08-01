@@ -1685,6 +1685,64 @@ public:
 };
 } // namespace
 
+namespace {
+template <typename OpTy>
+class ConvertValsemVariantAtenTensorListOp : public OpConversionPattern<OpTy> {
+public:
+  using OpConversionPattern<OpTy>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value data = adaptor.getData();
+    TypeConverter *typeConverter = this->getTypeConverter();
+    RankedTensorType resultType =
+        typeConverter->convertType(op->getResult(0).getType())
+            .template cast<RankedTensorType>();
+    Type resultElementType = resultType.getElementType();
+
+    SmallVector<Value> inputDataListTorch;
+    if (!getListConstructElements(op.getData(), inputDataListTorch)) {
+      return rewriter.notifyMatchFailure(op,
+                                         "unimplemented: the input data is not "
+                                         "constructed from ListConstruct");
+    }
+    if (inputDataListTorch.empty()) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: the input data list can not be empty");
+    }
+    // TODO: Add support for the nested lists.
+    if (inputDataListTorch[0].getDefiningOp() == Torch::PrimListConstructOp()) {
+      return rewriter.notifyMatchFailure(
+          op,
+          "unimplemented: the input data list elements should not be a list");
+    }
+    SmallVector<Value> inputDataList = getTypeConvertedValues(
+        rewriter, loc, typeConverter, inputDataListTorch);
+    Type inputElementType = inputDataList[0].getType();
+    // Cast input list elements to the result element type.
+    if (resultElementType != inputElementType) {
+      for (unsigned i = 0; i < inputDataList.size(); i++)
+        inputDataList[i] = convertScalarToDtype(rewriter, loc, inputDataList[i],
+                                                resultElementType);
+    }
+
+    Value resultSize =
+        rewriter.create<arith::ConstantIndexOp>(loc, inputDataList.size());
+    Value resultTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(resultSize), resultElementType);
+    for (unsigned i = 0; i < inputDataList.size(); i++) {
+      Value index = rewriter.create<arith::ConstantIndexOp>(loc, i);
+      resultTensor = rewriter.create<tensor::InsertOp>(loc, inputDataList[i],
+                                                       resultTensor, index);
+    }
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, resultTensor);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -1717,4 +1775,16 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenNllLossBackwardOp>(typeConverter, context);
   patterns.add<ConvertTensorStaticInfoCastOp>(typeConverter, context);
   target.addIllegalOp<TensorStaticInfoCastOp>();
+  patterns.add<
+      ConvertValsemVariantAtenTensorListOp<ValsemVariantAtenTensorIntListOp>>(
+      typeConverter, context);
+  target.addIllegalOp<ValsemVariantAtenTensorIntListOp>();
+  patterns.add<
+      ConvertValsemVariantAtenTensorListOp<ValsemVariantAtenTensorFloatListOp>>(
+      typeConverter, context);
+  target.addIllegalOp<ValsemVariantAtenTensorFloatListOp>();
+  patterns.add<
+      ConvertValsemVariantAtenTensorListOp<ValsemVariantAtenTensorBoolListOp>>(
+      typeConverter, context);
+  target.addIllegalOp<ValsemVariantAtenTensorBoolListOp>();
 }

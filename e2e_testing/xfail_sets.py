@@ -273,6 +273,11 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
     "ScatterValueIntModule_basic",
 
+    # Exception: Unsupported op: get_attr
+    "AtenTensorBoolListModule_basic",
+    "AtenTensorFloatListModule_basic",
+    "AtenTensorIntListModule_basic",
+
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -1188,6 +1193,9 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "SliceWholeTensorModule_basic",
     "TensorFloatModule_basic",
     "TensorIntModule_basic",
+    "AtenTensorBoolListModule_basic",
+    "AtenTensorFloatListModule_basic",
+    "AtenTensorIntListModule_basic",
 }) - {
 ### Test failing in make_fx_tosa but not in tosa
 
