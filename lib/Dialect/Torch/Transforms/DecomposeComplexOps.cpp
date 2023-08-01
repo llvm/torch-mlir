@@ -3572,7 +3572,7 @@ class DecomposeAtenCosineSimilarityOp : public OpRewritePattern<AtenCosineSimila
     x2 = rewriter.create<AtenBroadcastToOp>(loc, broadcastType, x2, indexBroadcastShapeTorchList);
 
     // Compute the mul of A and B
-    Value dotProduct = rewriter.create<AtenMulTensorOp>(loc, broadcastType, x1, x2);
+    Value dotProduct = rewriter.create<AtenMulTensorOp>(loc, x1.getType(), x1, x2);
     Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
     Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
     Value dimList = rewriter.create<PrimListConstructOp>(
