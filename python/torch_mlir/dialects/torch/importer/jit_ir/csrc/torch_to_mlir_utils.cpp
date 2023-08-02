@@ -438,12 +438,21 @@ MlirLocation torch_mlir::getMlirLocationFromNode(MlirContext context,
     loc = mlirLocationFileLineColGet(context, toMlirStringRef(file), line, col);
   }
 
+  std::string locationName;
   auto scopeName = node->scopeName();
   if (!scopeName.empty()) {
-    loc = mlirLocationNameGet(context, toMlirStringRef(scopeName), loc);
-  } else if (const c10::FunctionSchema *schema = node->maybeSchema()) {
-    loc = mlirLocationNameGet(
-        context, toMlirStringRef(schema->operator_name().name), loc);
+    locationName = scopeName;
+  }
+
+  if (const c10::FunctionSchema *schema = node->maybeSchema()) {
+    if (!locationName.empty()) {
+      locationName += "/";
+    }
+    locationName += schema->operator_name().name;
+  }
+
+  if (!locationName.empty()) {
+    loc = mlirLocationNameGet(context, toMlirStringRef(locationName), loc);
   }
 
   return loc;
