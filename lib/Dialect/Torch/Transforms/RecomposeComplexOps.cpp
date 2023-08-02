@@ -110,6 +110,48 @@ public:
   }
 };
 
+class RecomposeSelectCopy_ : public OpRewritePattern<AtenCopy_Op> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenCopy_Op op,
+                                PatternRewriter &rewriter) const override {
+    // Similar to RecomposeSliceCopy_, here is also to prevent mutation
+    if (!op.use_empty())
+      return rewriter.notifyMatchFailure(
+          op, "`AtenCopy_Op` must not have any users");
+    if (!op.getSelf().getDefiningOp() ||
+        !isa<AtenSelectIntOp>(op.getSelf().getDefiningOp()))
+      return rewriter.notifyMatchFailure(
+          op, "defining op is not `AtenSelectIntOp`");
+    auto selectOp = cast<AtenSelectIntOp>(op.getSelf().getDefiningOp());
+
+    // Get indices
+    int64_t dim;
+    if (!matchPattern(selectOp.getDim(), m_TorchConstantInt(&dim)))
+      return failure();
+    int64_t index;
+    if (!matchPattern(selectOp.getIndex(), m_TorchConstantInt(&index)))
+      return failure();
+
+    Value oneVal = rewriter.create<ConstantIntOp>(op.getLoc(), 1);
+    Value newStart = selectOp.getIndex();
+    Value dimSize = rewriter.create<AtenSizeIntOp>(
+        op.getLoc(), selectOp.getSelf(), selectOp.getDim());
+    if (index < 0) {
+      newStart = rewriter.create<AtenAddIntOp>(
+        op.getLoc(), newStart, dimSize);
+    }
+    Value newEnd = rewriter.create<AtenAddIntOp>(op.getLoc(), newStart, oneVal);
+
+    Value selectOpInput = selectOp.getSelf();
+    rewriter.replaceOpWithNewOp<AtenSliceTensorOp>(
+        selectOp, selectOpInput.getType(), selectOpInput, selectOp.getDim(),
+        newStart, newEnd, oneVal);
+
+    return success();
+  }
+};
+
 class RecomposeSelectFill_ : public OpRewritePattern<AtenFill_TensorOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -432,6 +474,7 @@ public:
     RewritePatternSet patterns(context);
 
     // pattern.add calls go here
+    patterns.add<RecomposeSelectCopy_>(context);
     patterns.add<RecomposeSliceCopy_>(context);
     patterns.add<RecomposeSelectFill_>(context);
     patterns.add<RecomposeSplitTensorGetItemOp>(context);

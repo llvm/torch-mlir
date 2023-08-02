@@ -677,6 +677,30 @@ def SliceCopyNonZeroDim_Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class SelectCopyNonZeroDim_Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        x_select = x[2]
+        x_select.copy_(y)
+        return x
+
+
+@register_test_case(module_factory=lambda: SelectCopyNonZeroDim_Module())
+def SelectCopyNonZeroDim_Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 4, 4), tu.rand(4, 4))
+
+
+# ==============================================================================
+
+
 class UnbindIntListUnpack_Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
