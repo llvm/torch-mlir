@@ -942,9 +942,6 @@ def aten〇slice_scatter〡shape(self: List[int], src: List[int], dim: int = 0, 
 def aten〇masked_scatter〡shape(self: List[int], mask: List[int], source: List[int]) -> List[int]:
     return self
 
-def aten〇masked_scatter_〡shape(self: List[int], mask: List[int], source: List[int]) -> List[int]:
-    return self
-
 def aten〇select〇int〡shape(self: List[int], dim: int, index: int) -> List[int]:
     return upstream_shape_functions.select(self, dim, index)
 
@@ -1831,10 +1828,8 @@ def aten〇scatter〇value〡dtype(self_rank_dtype: Tuple[int, int], dim: int, i
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
-def aten〇masked_scatter_〡dtype(self_rank_dtype: Tuple[int, int], mask_rank_dtype: Tuple[int, int], source_rank_dtype: Tuple[int, int]) -> int:
-    self_rank, self_dtype = self_rank_dtype
-    return self_dtype
-
+@check_dtype_function(
+    [Invocation(TensorOfShape(3, dtype=dtype), TensorOfShape(3, dtype=torch.int64), TensorOfShape(3, dtype=dtype)) for dtype in _SORTED_TORCH_TYPES])
 def aten〇masked_scatter〡dtype(self_rank_dtype: Tuple[int, int], mask_rank_dtype: Tuple[int, int], source_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
