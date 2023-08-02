@@ -2347,6 +2347,30 @@ def IndexTensorStaticContiguousWithNoneModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class IndexTensorDyanmicInputContiguousWithNoneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([1, 2, 1], torch.int64, True),
+        ([2, 1], torch.int64, True),
+    ])
+    def forward(self, x, index, index1):
+        return torch.ops.aten.index(x, (None, index, index1, None))
+
+
+@register_test_case(module_factory=lambda: IndexTensorDyanmicInputContiguousWithNoneModule())
+def IndexTensorDyanmicInputContiguousWithNoneModule_basic(module, tu: TestUtils):
+
+    module.forward(tu.rand(2, 3, 4, 5, 32), torch.tensor([[[0],[1]]]), torch.tensor([[0],[1]]))
+
+# ==============================================================================
+
+
 class IndexTensorStaticNonContiguousWithNoneModule(torch.nn.Module):
 
     def __init__(self):
@@ -2366,6 +2390,30 @@ class IndexTensorStaticNonContiguousWithNoneModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: IndexTensorStaticNonContiguousWithNoneModule())
 def IndexTensorStaticNonContiguousWithNoneModule_basic(module, tu: TestUtils):
+
+    module.forward(tu.rand(2, 3, 4, 5, 32), torch.tensor([[[0],[1]]]), torch.tensor([[0],[1]]), torch.tensor([[0],[1]]))
+
+# ==============================================================================
+
+class IndexTensorDyanmicInputNonContiguousWithNoneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([1, 2, 1], torch.int64, True),
+        ([2, 1], torch.int64, True),
+        ([2, 1], torch.int64, True),
+    ])
+    def forward(self, x, index, index1, index2):
+        return torch.ops.aten.index(x, (None, index, index1, None, index2))
+
+
+@register_test_case(module_factory=lambda: IndexTensorDyanmicInputNonContiguousWithNoneModule())
+def IndexTensorDyanmicInputNonContiguousWithNoneModule_basic(module, tu: TestUtils):
 
     module.forward(tu.rand(2, 3, 4, 5, 32), torch.tensor([[[0],[1]]]), torch.tensor([[0],[1]]), torch.tensor([[0],[1]]))
 
