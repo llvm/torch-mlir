@@ -442,6 +442,17 @@ def aten〇repeat〡shape(self: List[int], repeats: List[int]) -> List[int]:
         out.append(self[i] * repeats[i + leading_rank])
     return out
 
+@check_shape_function([
+    Invocation(TensorOfShape(3, 2, 8), [2, 2]),  # dims_length < self_length
+    Invocation(TensorOfShape(3, 2, 8), [2, 2, 2])  # dims_length >= self_length
+])
+def aten〇tile〡shape(self: List[int], dims: List[int]) -> List[int]:
+    dims_length = len(dims)
+    self_length = len(self)
+    if dims_length < self_length:
+        dims = [1] * (self_length - dims_length) + dims
+    return aten〇repeat〡shape(self, dims)
+
 def aten〇roll〡shape(self: List[int], shifts: List[int], dims: List[int] = ()) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -1769,6 +1780,11 @@ def aten〇relu〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, repeats=[1]))
 def aten〇repeat〡dtype(self_rank_dtype: Tuple[int, int], repeats: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dims=[1]))
+def aten〇tile〡dtype(self_rank_dtype: Tuple[int, int], dims: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 

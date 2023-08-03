@@ -1462,6 +1462,47 @@ def RepeatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class TileSmallDimsSizeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 1, 2], torch.float32, True),
+    ])
+    def forward(self, x):
+        return x.tile([3, 4])
+
+
+@register_test_case(module_factory=lambda: TileSmallDimsSizeModule())
+def TileSmallDimsSizeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 2))
+
+# ==============================================================================
+
+class TileBigDimsSizeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 1, 2], torch.float32, True),
+    ])
+    def forward(self, x):
+        return x.tile([3, 4, 5, 6])
+
+
+@register_test_case(module_factory=lambda: TileBigDimsSizeModule())
+def TileBigDimsSizeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 2))
+
+# ==============================================================================
+
+
 class ExpandModule(torch.nn.Module):
 
     def __init__(self):

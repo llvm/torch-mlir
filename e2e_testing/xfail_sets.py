@@ -310,6 +310,8 @@ TORCHDYNAMO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "TileBigDimsSizeModule_basic",
+    "TileSmallDimsSizeModule_basic",
     "AddIntModule_basic",
     "AtenIntBoolOpModule_basic",
     "AtenIntTensorByteDtypeModule_basic",
@@ -867,6 +869,8 @@ STABLEHLO_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "TileBigDimsSizeModule_basic",
+    "TileSmallDimsSizeModule_basic",
     "IndexPutImpl2DNoneIndexStaticModule_basic",
     "AliasModule_basic",
     "MaxPool2dEmptyStrideStaticModule_basic",
