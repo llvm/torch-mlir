@@ -565,8 +565,27 @@ def avg_pool1d(input: List[int], kernel_size: List[int], stride: List[int], padd
   else:
     return [nbatch, nInputPlane, outputLength]
 
+# TODO: This should be upstreamed.
+# See https://github.com/pytorch/pytorch/pull/76889 for an example.
+def adaptive_avg_pool1d(self: List[int], out: List[int]):
+    assert len(out) == 1
+    assert len(self) == 2 or len(self) == 3
+    
+    for i in range(len(self)):
+        assert self[i] != 0
+
+    shape: List[int] = []
+    for i in range(len(self) - 1):
+        shape.append(self[i])
+    shape.append(out[0])
+
+    return shape
+
 def aten〇avg_pool1d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), ceil_mode: bool = False, count_include_pad: bool = True) -> List[int]:
     return avg_pool1d(self, kernel_size, stride, padding, ceil_mode, count_include_pad)
+
+def aten〇adaptive_avg_pool1d〡shape(self: List[int], output_size: List[int]) -> List[int]:
+    return adaptive_avg_pool1d(self, output_size)
 
 def aten〇avg_pool2d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0,), ceil_mode: bool = False, count_include_pad: bool = True, divisor_override: Optional[int] = None) -> List[int]:
     return avg_pool2d(self, kernel_size, stride, padding, ceil_mode, count_include_pad, divisor_override)
@@ -1405,6 +1424,11 @@ def aten〇abs〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
         return torch.float64
     elif self_dtype == torch.complex64:
         return torch.float32
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 7)], output_size=[2]))
+def aten〇adaptive_avg_pool1d〡dtype(self_rank_dtype: Tuple[int, int], output_size: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 7)], kernel_size=[2]))
