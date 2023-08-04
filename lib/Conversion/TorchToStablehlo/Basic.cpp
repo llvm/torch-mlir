@@ -249,9 +249,6 @@ public:
     if (!inputType)
 
       op.emitError("only Tensor types supported in StableHLO");
-    auto outType =
-        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-            op.getType());
     Location loc = op.getLoc();
     Value input = adaptor.getA();
     SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
