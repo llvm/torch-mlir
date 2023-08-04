@@ -4635,6 +4635,45 @@ public:
 } // namespace
 
 namespace {
+// Unconditionally decompose `aten.tile` into `aten.repeat`.
+class DecomposeAtenTileOp : public OpRewritePattern<AtenTileOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTileOp op,
+                                PatternRewriter &rewriter) const override {
+    auto input = op.getSelf();
+    auto repeats = op.getDims();
+    SmallVector<Value> dimsElements;
+    if (!getListConstructElements(repeats, dimsElements)) {
+      return rewriter.notifyMatchFailure(
+          op, "failed to get elements of `dims` param");
+    }
+    auto dimsSize = dimsElements.size();
+    auto inputType = input.getType().cast<BaseTensorType>();
+    if (!inputType.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "only support input tensor with shape information");
+    }
+    auto inputRank = inputType.getSizes().size();
+    if (dimsSize < inputRank) {
+      auto constantOne = rewriter.create<Torch::ConstantIntOp>(
+          op.getLoc(), rewriter.getI64IntegerAttr(1));
+      for (auto i = dimsSize; i < inputRank; ++i) {
+        dimsElements.insert(dimsElements.begin(), constantOne);
+      }
+      repeats = rewriter.create<Torch::PrimListConstructOp>(
+          op.getLoc(),
+          Torch::ListType::get(Torch::IntType::get(op.getContext())),
+          dimsElements);
+    }
+    rewriter.replaceOpWithNewOp<Torch::AtenRepeatOp>(op, op.getType(), input,
+                                                     repeats);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -4805,6 +4844,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenScatterValueOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSignOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTypeAsOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenTileOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
