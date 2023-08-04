@@ -444,15 +444,28 @@ public:
   LogicalResult matchAndRewrite(AtenSoftmaxIntOp op,
                                 PatternRewriter &rewriter) const override {
     Value self = op.getSelf();
-    if (!op.getDtype().getType().isa<Torch::NoneType>())
+    BaseTensorType resultTensorType = op.getType().cast<BaseTensorType>();
+    if (!resultTensorType.hasDtype()) {
       return rewriter.notifyMatchFailure(
-          op, "Unimplemented non-None dtype for softmax");
+          op, "expected result type to have a dtype");
+    }
+    Type resultTensorDtype = resultTensorType.getDtype();
+    if (!resultTensorDtype.isa<mlir::FloatType>())
+      return rewriter.notifyMatchFailure(op,
+                                         "Only support floating-point type");
 
-    BaseTensorType tensorType = self.getType().cast<BaseTensorType>();
-    if (!tensorType.hasDtype() || !tensorType.getDtype().isa<mlir::FloatType>())
-      return rewriter.notifyMatchFailure(op, "Only support floating type");
+    // If `dtype` arg is non-none then convert the input to `dtype`.
+    if (!op.getDtype().getType().isa<Torch::NoneType>()) {
+      Location loc = op.getLoc();
+      Value none = rewriter.create<ConstantNoneOp>(loc);
+      Value cstFalse = rewriter.create<ConstantBoolOp>(loc, false);
+      self = rewriter.create<AtenToDtypeOp>(
+          loc, resultTensorType, self,
+          getDtypeIntValueForType(rewriter, loc, resultTensorDtype),
+          /*non_blocking=*/cstFalse, /*copy=*/cstFalse, /*memory_format=*/none);
+    }
 
-    Value result = getSoftmaxResult(op, self, tensorType, rewriter);
+    Value result = getSoftmaxResult(op, self, resultTensorType, rewriter);
     if (!result)
       return failure();
     rewriter.replaceOpWithNewOp<TensorStaticInfoCastOp>(op, op.getType(),
