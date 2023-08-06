@@ -677,7 +677,7 @@ def SliceCopyNonZeroDim_Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class SelectCopyNonZeroDim_Module(torch.nn.Module):
+class SelectFloatCopyNonZeroDim_Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -685,7 +685,7 @@ class SelectCopyNonZeroDim_Module(torch.nn.Module):
     @annotate_args([
         None,
         ([-1, -1, -1], torch.float32, True),
-        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x, y):
         x_select = x[2]
@@ -693,9 +693,57 @@ class SelectCopyNonZeroDim_Module(torch.nn.Module):
         return x
 
 
-@register_test_case(module_factory=lambda: SelectCopyNonZeroDim_Module())
-def SelectCopyNonZeroDim_Module_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: SelectFloatCopyNonZeroDim_Module())
+def SelectFloatCopyNonZeroDim_Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 4, 4), tu.rand(4, 4))
+
+
+# ==============================================================================
+
+
+class SelectIntCopyNonZeroDim_Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        x_select = x[2]
+        x_select.copy_(y)
+        return x
+
+
+@register_test_case(module_factory=lambda: SelectIntCopyNonZeroDim_Module())
+def SelectIntCopyNonZeroDim_Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(10, 4, 4), tu.randint(4, 4))
+
+
+# ==============================================================================
+
+
+class SelectIntCopyFloatNonZeroDim_Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        x_select = x[2]
+        x_select.copy_(y)
+        return x
+
+
+@register_test_case(module_factory=lambda: SelectIntCopyFloatNonZeroDim_Module())
+def SelectIntCopyFloatNonZeroDim_Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(10, 4, 4), tu.rand(4, 4))
 
 
 # ==============================================================================

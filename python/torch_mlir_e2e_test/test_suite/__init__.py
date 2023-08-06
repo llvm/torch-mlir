@@ -14,6 +14,7 @@ COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "NativeGroupNormBackwardModule_basic",
     "QuantizedMLP_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
+    "SelectIntCopyFloatNonZeroDim_Module_basic",
 }
 
 # TODO: Delete once torch 2.1.0 is released
