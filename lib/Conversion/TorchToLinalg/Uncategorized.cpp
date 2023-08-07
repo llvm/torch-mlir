@@ -965,10 +965,14 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (auto atenToDtype = dyn_cast<AtenToDtypeOp>(op)) {
     Value input = payloadArgs[0];
+    Type srcOriginalDtype =
+        converter->convertType(atenToDtype.getSelf().getType())
+            .cast<RankedTensorType>()
+            .getElementType();
     Type dtype = converter->convertType(atenToDtype.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    Value result = convertScalarToDtype(b, loc, input, dtype);
+    Value result = convertScalarToDtype(b, loc, input, dtype, srcOriginalDtype);
     return result;
   }
   if (auto divScalar = dyn_cast<AtenDivScalarOp>(op)) {
