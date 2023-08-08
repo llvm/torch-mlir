@@ -27,6 +27,7 @@ std::vector<torch::lazy::Shape> compute_shape_add(const at::Tensor& self,
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
+
 std::vector<torch::lazy::Shape> compute_shape_sub(const at::Tensor& self,
                                                   const at::Scalar& other,
                                                   const at::Scalar& alpha) {
@@ -35,6 +36,47 @@ std::vector<torch::lazy::Shape> compute_shape_sub(const at::Tensor& self,
 
 std::vector<torch::lazy::Shape> compute_shape_div(const at::Tensor& self,
                                                   const at::Scalar& other) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
+std::vector<torch::lazy::Shape> compute_shape_max_pool3d_with_indices(
+    const at::Tensor& self, at::IntArrayRef kernel_size,
+    at::IntArrayRef stride, at::IntArrayRef padding, at::IntArrayRef dilation,
+    bool ceil_mode) {
+  auto in_sizes = self.sizes().vec();
+  std::vector<int64_t> dhw(3, 0);
+  std::vector<int64_t> paddings = padding.vec();
+  std::vector<int64_t> ksizes = kernel_size.vec();
+  std::vector<int64_t> dilations = dilation.vec();
+  std::vector<int64_t> strides = stride.vec();
+  TORCH_CHECK(in_sizes.size() == 5, "max_pool3d requires 5D inputs, but got ",
+      in_sizes);
+  TORCH_CHECK(kernel_size.size() == 3 &&
+      stride.size() == 3 &&
+      padding.size() == 3 &&
+      dilation.size() == 3, "max_pool3d requires 3D operands, but got ",
+      kernel_size, stride, padding, dilation);
+  int64_t batch = in_sizes[0];
+  int64_t channel = in_sizes[1]; // NCDHW
+  // https://pytorch.org/docs/stable/generated/torch.nn.MaxPool3d.html
+  for (auto i = 0UL; i<3; ++i) {
+    double out_size = (in_sizes[2+i] + 2 * paddings[i] - dilations[i] *
+                       (ksizes[i] - 1) - 1) / (double)strides[i] + 1;
+    if (ceil_mode)
+      dhw[i] = (int64_t)std::ceil(out_size);
+    else
+      dhw[i] = (int64_t)std::floor(out_size);
+  }
+  auto out_sizes = {batch, channel, dhw[0], dhw[1], dhw[2]};
+  // `with_indices` returns output and index Tensor
+  return {Shape(self.scalar_type(), out_sizes), Shape(at::kLong, out_sizes)};
+}
+
+std::vector<torch::lazy::Shape> compute_shape_max_pool3d_with_indices_backward(
+    const at::Tensor & grad_output, const at::Tensor & self,
+    at::IntArrayRef kernel_size, at::IntArrayRef stride,
+    at::IntArrayRef padding, at::IntArrayRef dilation, bool ceil_mode,
+    const at::Tensor & indices) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
