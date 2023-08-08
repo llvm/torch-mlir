@@ -14,6 +14,14 @@ static T GetEnv(const std::string& name, const T& default_value = T(0)) {
   return T(std::atoi(env));
 }
 
+static std::string GetEnvString(const std::string& name, const std::string& default_value) {
+  const char* env = std::getenv(name.c_str());
+  if (!env) {
+    return default_value;
+  }
+  return std::string(env);
+}
+
 static bool GetEnvBool(const char* name, bool defval) {
   const char* env = std::getenv(name);
   if (env == nullptr) {

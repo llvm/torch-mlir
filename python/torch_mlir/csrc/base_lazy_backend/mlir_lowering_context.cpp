@@ -15,6 +15,7 @@
 #include <torch/csrc/jit/api/compilation_unit.h>
 #include <torch/csrc/jit/passes/refine_tuple_types.h>
 #include <torch/csrc/lazy/core/lazy_graph_executor.h>
+#include <torch/csrc/lazy/core/config.h>
 #include "torch-mlir-c/Registration.h"
 #include "torch-mlir-c/Transforms.h"
 #include "mlir-c/IR.h"
@@ -205,13 +206,46 @@ void TorchMlirLoweringContext::AssignOutputOp(
     const Output& output, torch::jit::Value* op) {
   PRINT_FUNCTION();
 
-  // TODO (antoniojkim): Do we need this?
-  // auto torch_mlir_node =
-  //     NodeCast<TorchMlirNode>(output.node, output.node->op());
-  // if (!torch_mlir_node->getPythonStacktrace().empty()) {
-  //   op->node()->s_(
-  //       c10::Symbol::attr("source"), torch_mlir_node->getPythonStacktrace());
-  // }
+  auto torch_mlir_node =
+      NodeCast<TorchMlirNode>(output.node, output.node->op());
+
+  std::vector<std::string> source_files, functions;
+  std::vector<int64_t> line_numbers;
+  const auto& metadata = torch_mlir_node->metadata();
+  const auto& frames = metadata.frame_info;
+  if (!frames.empty()) {
+    static std::vector<std::string> g_roots =
+      string_split(sys_util::GetEnvString("LTC_IR_DEBUG_ROOT_PATH", ""), ":");
+
+    std::for_each(frames.rbegin(), frames.rend(),
+      [&](const torch::lazy::SourceLocation& location) {
+        functions.push_back(location.function);
+        line_numbers.push_back(location.line);
+
+        std::string file_name = location.file;
+        for (const std::string& root : g_roots) {
+          if (startswith(file_name, root)) {
+            // location.file starts with root, strip it off
+            file_name = file_name.substr(root.size());
+            break;
+          }
+        }
+        source_files.push_back(file_name);
+    });
+
+    if (!source_files.empty()) {
+      op->node()->ss_(
+          c10::Symbol::attr("source_files"), source_files);
+      op->node()->ss_(
+          c10::Symbol::attr("functions"), functions);
+      op->node()->is_(
+          c10::Symbol::attr("line_numbers"), line_numbers);
+    }
+  }
+  auto scope = ::c10::Symbol::scope(metadata.scope);
+  op->node()->setScope(
+    c10::make_intrusive<torch::jit::Scope>()->push(scope));
+
   emitted_outputs_[output] = std::move(op);
 }
 
@@ -424,7 +458,11 @@ const std::string TorchMlirComputation::to_string() const {
     *ss_ptr << std::string(part.data, part.length);
   };
   std::stringstream ss;
-  mlirOperationPrint(mlirModuleGetOperation(module_op_), print_callback, &ss);
+
+  // Setup flags for MLIR serialization.
+  MlirOpPrintingFlags flags = mlirOpPrintingFlagsCreate();
+  mlirOpPrintingFlagsEnableDebugInfo(flags, FLAGS_torch_lazy_ir_debug, false);
+  mlirOperationPrintWithFlags(mlirModuleGetOperation(module_op_), flags, print_callback, &ss);
   return ss.str();
 }
 

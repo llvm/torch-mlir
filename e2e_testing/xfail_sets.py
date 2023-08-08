@@ -310,6 +310,8 @@ TORCHDYNAMO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "TileBigDimsSizeModule_basic",
+    "TileSmallDimsSizeModule_basic",
     "AddIntModule_basic",
     "AtenIntBoolOpModule_basic",
     "AtenIntTensorByteDtypeModule_basic",
@@ -377,6 +379,7 @@ STABLEHLO_PASS_SET = {
     "ConstantBoolParameterModule_basic",
     "MaskedFillScalarIntValueStaticModule_basic",
     "MaskedFillScalarFloatValueStaticModule_basic",
+    "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AddSizeIntModule_basic",
     "AddSizeIntNegDimModule_basic",
@@ -781,6 +784,7 @@ STABLEHLO_PASS_SET = {
     "ReshapeExpandModule_basic",
     "RollModule_basic",
     "TestMultipleTensorReturn_basic",
+    "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dUnitOutputSizeStaticModule_basic",
     "BaddbmmStaticModule_basic",
     "BaddbmmBroadcast1DInputModule_basic",
@@ -869,6 +873,8 @@ STABLEHLO_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "TileBigDimsSizeModule_basic",
+    "TileSmallDimsSizeModule_basic",
     "IndexPutImpl2DNoneIndexStaticModule_basic",
     "AliasModule_basic",
     "MaxPool2dEmptyStrideStaticModule_basic",
@@ -1182,6 +1188,11 @@ TOSA_PASS_SET = {
     "TupleModule_basic",
     "NumpyTRank0Module_basic",
     "Permute0RankModule_basic",
+    "Add_Module_basic",
+    "SoftmaxIntModule_basic",
+    "SoftmaxIntNegDimModule_basic",
+    "_LogSoftmaxModule_basic",
+    "_SoftmaxModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
@@ -1190,6 +1201,8 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "SliceWholeTensorModule_basic",
     "TensorFloatModule_basic",
     "TensorIntModule_basic",
+    "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
+    "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
 }) - {
 ### Test failing in make_fx_tosa but not in tosa
 
@@ -1212,6 +1225,8 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     # Unimplemented operator 'aten._index_put_impl_.hacked_twin'
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
     "IndexPutImpl1DIntNonAccumulateModule_basic",
+    # RuntimeError: The size of tensor a (7) must match the size of tensor b (3) at non-singleton dimension 1
+    "Add_Module_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.1.0.dev"):
@@ -1230,6 +1245,8 @@ LTC_XFAIL_SET = {
     "_ConvolutionDeprecated2DBenchmarkModule_basic",
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
+    "AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule_basic",
+    "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeDynamicModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AddIntModule_basic",
