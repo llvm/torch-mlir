@@ -788,10 +788,13 @@ public:
             .getSizes()};
     SmallVector<Value> indexBroadcastShapeValue;
     if (numNonNoneIndices == 2) {
-      computeBroadcastShape(rewriter, loc,
+      bool broadcastable = computeBroadcastShape(rewriter, loc,
                             optionalIndicesList[nonNoneIndexTensorDim[0]],
                             optionalIndicesList[nonNoneIndexTensorDim[1]],
                             indexBroadcastShapeInt, indexBroadcastShapeValue);
+      if (!broadcastable) {
+        return rewriter.notifyMatchFailure(op, "tensors are not broadcast compatible");
+      }
     } else {
       // It means there's only one index tensor and broadcast shape is same as
       // that index tensor' shape.
