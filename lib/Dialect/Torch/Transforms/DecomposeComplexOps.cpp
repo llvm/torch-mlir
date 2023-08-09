@@ -3573,10 +3573,7 @@ class DecomposeAtenCosineSimilarityOp : public OpRewritePattern<AtenCosineSimila
     // Broadcast x1 and x2 to the same shape
     SmallVector<int64_t> indexBroadcastShapeInt;
     SmallVector<Value> indexBroadcastShapeValue;
-    bool broadcastable = computeBroadcastShape(rewriter, loc, x1, x2, indexBroadcastShapeInt, indexBroadcastShapeValue);
-    if (!broadcastable) {
-      return rewriter.notifyMatchFailure(op, "tensors are not broadcast compatible");
-    }
+    computeBroadcastShape(rewriter, loc, x1, x2, indexBroadcastShapeInt, indexBroadcastShapeValue);
     Type dtype = x1.getType().cast<ValueTensorType>().getOptionalDtype();
     Type broadcastType =
         ValueTensorType::get(op.getContext(), llvm::ArrayRef(indexBroadcastShapeInt), dtype);

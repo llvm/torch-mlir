@@ -57,7 +57,7 @@ Value getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
 
 // Checks whether the `inputA` and `inputB` are broadcast compatible or not. If
 // yes, then computes the final broadcast shape.
-bool computeBroadcastShape(PatternRewriter &rewriter, Location loc,
+void computeBroadcastShape(PatternRewriter &rewriter, Location loc,
                            Value inputA, Value inputB,
                            SmallVector<int64_t> &resultShape,
                            SmallVector<Value> &resultShapeValue);

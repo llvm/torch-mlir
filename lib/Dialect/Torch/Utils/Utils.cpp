@@ -328,7 +328,7 @@ FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
 
 // Checks whether the `shapeA` and `shapeB` are broadcast compatible or not. If
 // yes, then computes the final broadcast shape.
-bool Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
+void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
                            Value inputA, Value inputB,
                            SmallVector<int64_t> &resultShape,
                            SmallVector<Value> &resultShapeValue) {
@@ -367,8 +367,8 @@ bool Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
         SmallVector<Value>{cmpSizeAEqualsSizeB, cmpSizeAEqualsOne,
                            cmpSizeBEqualsOne});
     Value cmp = rewriter.create<Torch::AtenAnyBoolOp>(loc, anyBoolOpList);
-    if (!cmp)
-      return false;
+    rewriter.create<Torch::RuntimeAssertOp>(
+        loc, cmp, "tensors are not broadcast compatible");
   }
   // If we reach here then it means both the shapes are broadcast compatible.
   resultShape = rankA >= rankB ? shapeA : shapeB;
@@ -400,5 +400,4 @@ bool Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
           std::max(shapeA[rankA - i - 1], shapeB[rankB - i - 1]);
     }
   }
-  return true;
 }
