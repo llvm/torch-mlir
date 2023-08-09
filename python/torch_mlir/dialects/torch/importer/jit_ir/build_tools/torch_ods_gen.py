@@ -602,7 +602,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::slice.t : (t[], int?, int?, int) -> (t[])", has_canonicalizer=True)
     emit("aten::insert.t : (t[], int, t) -> ()")
     emit("aten::ne.int_list : (int[], int[]) -> (bool)")
-    emit("aten::any.bool : (bool[]) -> (bool)")
+    emit("aten::any.bool : (bool[]) -> (bool)", has_folder=True)
     emit("aten::sort.int : (int[], bool) -> ()", has_canonicalizer=True)
     emit("aten::sort : (Tensor, int, bool) -> (Tensor, Tensor)")
     emit("aten::split.Tensor : (Tensor, int, int) -> (Tensor[])")

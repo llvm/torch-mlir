@@ -9931,6 +9931,7 @@ def Torch_AtenAnyBoolOp : Torch_Op<"aten.any.bool", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenSortIntOp : Torch_Op<"aten.sort.int", [
