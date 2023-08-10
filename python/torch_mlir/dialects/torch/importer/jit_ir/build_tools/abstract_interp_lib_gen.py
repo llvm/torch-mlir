@@ -442,6 +442,17 @@ def aten〇repeat〡shape(self: List[int], repeats: List[int]) -> List[int]:
         out.append(self[i] * repeats[i + leading_rank])
     return out
 
+@check_shape_function([
+    Invocation(TensorOfShape(3, 2, 8), [2, 2]),  # dims_length < self_length
+    Invocation(TensorOfShape(3, 2, 8), [2, 2, 2])  # dims_length >= self_length
+])
+def aten〇tile〡shape(self: List[int], dims: List[int]) -> List[int]:
+    dims_length = len(dims)
+    self_length = len(self)
+    if dims_length < self_length:
+        dims = [1] * (self_length - dims_length) + dims
+    return aten〇repeat〡shape(self, dims)
+
 def aten〇roll〡shape(self: List[int], shifts: List[int], dims: List[int] = ()) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -554,8 +565,27 @@ def avg_pool1d(input: List[int], kernel_size: List[int], stride: List[int], padd
   else:
     return [nbatch, nInputPlane, outputLength]
 
+# TODO: This should be upstreamed.
+# See https://github.com/pytorch/pytorch/pull/76889 for an example.
+def adaptive_avg_pool1d(self: List[int], out: List[int]):
+    assert len(out) == 1
+    assert len(self) == 2 or len(self) == 3
+    
+    for i in range(len(self)):
+        assert self[i] != 0
+
+    shape: List[int] = []
+    for i in range(len(self) - 1):
+        shape.append(self[i])
+    shape.append(out[0])
+
+    return shape
+
 def aten〇avg_pool1d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), ceil_mode: bool = False, count_include_pad: bool = True) -> List[int]:
     return avg_pool1d(self, kernel_size, stride, padding, ceil_mode, count_include_pad)
+
+def aten〇adaptive_avg_pool1d〡shape(self: List[int], output_size: List[int]) -> List[int]:
+    return adaptive_avg_pool1d(self, output_size)
 
 def aten〇avg_pool2d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0,), ceil_mode: bool = False, count_include_pad: bool = True, divisor_override: Optional[int] = None) -> List[int]:
     return avg_pool2d(self, kernel_size, stride, padding, ceil_mode, count_include_pad, divisor_override)
@@ -937,6 +967,9 @@ def aten〇narrow〇Tensor〡shape(self: List[int], dim: int, start: List[int], 
     return self
 
 def aten〇slice_scatter〡shape(self: List[int], src: List[int], dim: int = 0, start: Optional[int] = None, end: Optional[int] = None, step: int = 1) -> List[int]:
+    return self
+
+def aten〇masked_scatter〡shape(self: List[int], mask: List[int], source: List[int]) -> List[int]:
     return self
 
 def aten〇select〇int〡shape(self: List[int], dim: int, index: int) -> List[int]:
@@ -1393,6 +1426,11 @@ def aten〇abs〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
         return torch.float32
     return self_dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 7)], output_size=[2]))
+def aten〇adaptive_avg_pool1d〡dtype(self_rank_dtype: Tuple[int, int], output_size: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 7)], kernel_size=[2]))
 def aten〇avg_pool1d〡dtype(self_rank_dtype: Tuple[int, int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), ceil_mode: bool = False, count_include_pad: bool = True) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -1772,6 +1810,11 @@ def aten〇repeat〡dtype(self_rank_dtype: Tuple[int, int], repeats: List[int]) 
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dims=[1]))
+def aten〇tile〡dtype(self_rank_dtype: Tuple[int, int], dims: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1], stride=[1]))
 def aten〇_reshape_alias〡dtype(self_rank_dtype: Tuple[int, int], size: List[int], stride: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -1822,6 +1865,12 @@ def aten〇scatter〇src〡dtype(self_rank_dtype: Tuple[int, int], dim: int, ind
 @check_dtype_function(
     [Invocation(TensorOfShape(3, dtype=dtype), 0, TensorOfShape(3, dtype=torch.int64), 1.0) for dtype in _SORTED_TORCH_TYPES])
 def aten〇scatter〇value〡dtype(self_rank_dtype: Tuple[int, int], dim: int, index_rank_dtype: Tuple[int, int], value: Union[int, float, complex]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(
+    [Invocation(TensorOfShape(3, dtype=dtype), TensorOfShape(3, dtype=torch.int64), TensorOfShape(3, dtype=dtype)) for dtype in _SORTED_TORCH_TYPES])
+def aten〇masked_scatter〡dtype(self_rank_dtype: Tuple[int, int], mask_rank_dtype: Tuple[int, int], source_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
@@ -3147,7 +3196,7 @@ def aten〇to〇dtype〡dtype(self_rank_dtype: Tuple[int, int], dtype: int, non_
     _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float16) +
     _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
     _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
-def nvprims〇convert_element_type〡dtype(a_rank_dtype: Tuple[int, int], dtype: int) -> int:
+def prims〇convert_element_type〡dtype(a_rank_dtype: Tuple[int, int], dtype: int) -> int:
     return dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1) +

@@ -10,7 +10,6 @@
 #ifndef PYTHON_BINDINGS_TORCH_OPS
 #define PYTHON_BINDINGS_TORCH_OPS
 
-include "mlir/Bindings/Python/Attributes.td"
 include "torch-mlir/Dialect/Torch/IR/TorchOps.td"
 
 #endif // PYTHON_BINDINGS_TORCH_OPS

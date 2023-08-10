@@ -1118,6 +1118,25 @@ def SoftmaxIntModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4))
 
 
+class SoftmaxIntNonNoneDtypeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, tensor):
+        return torch.ops.aten.softmax(tensor, dim=2, dtype=torch.float64)
+
+
+@register_test_case(module_factory=lambda: SoftmaxIntNonNoneDtypeModule())
+def SoftmaxIntNonNoneDtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
+
+
 # ==============================================================================
 
 
@@ -1457,6 +1476,47 @@ class RepeatModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: RepeatModule())
 def RepeatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 2))
+
+# ==============================================================================
+
+
+class TileSmallDimsSizeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 1, 2], torch.float32, True),
+    ])
+    def forward(self, x):
+        return x.tile([3, 4])
+
+
+@register_test_case(module_factory=lambda: TileSmallDimsSizeModule())
+def TileSmallDimsSizeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 2))
+
+# ==============================================================================
+
+class TileBigDimsSizeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 1, 2], torch.float32, True),
+    ])
+    def forward(self, x):
+        return x.tile([3, 4, 5, 6])
+
+
+@register_test_case(module_factory=lambda: TileBigDimsSizeModule())
+def TileBigDimsSizeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 2))
 
 # ==============================================================================
