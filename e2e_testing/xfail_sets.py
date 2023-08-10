@@ -379,6 +379,7 @@ STABLEHLO_PASS_SET = {
     "ConstantBoolParameterModule_basic",
     "MaskedFillScalarIntValueStaticModule_basic",
     "MaskedFillScalarFloatValueStaticModule_basic",
+    "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AddSizeIntModule_basic",
     "AddSizeIntNegDimModule_basic",
@@ -781,6 +782,7 @@ STABLEHLO_PASS_SET = {
     "ReshapeExpandModule_basic",
     "RollModule_basic",
     "TestMultipleTensorReturn_basic",
+    "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dUnitOutputSizeStaticModule_basic",
     "BaddbmmStaticModule_basic",
     "BaddbmmBroadcast1DInputModule_basic",
@@ -1197,6 +1199,8 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "SliceWholeTensorModule_basic",
     "TensorFloatModule_basic",
     "TensorIntModule_basic",
+    "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
+    "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
 }) - {
 ### Test failing in make_fx_tosa but not in tosa
 
@@ -1239,6 +1243,8 @@ LTC_XFAIL_SET = {
     "_ConvolutionDeprecated2DBenchmarkModule_basic",
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
+    "AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule_basic",
+    "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeDynamicModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AddIntModule_basic",

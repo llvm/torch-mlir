@@ -1118,6 +1118,25 @@ def SoftmaxIntModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4))
 
 
+class SoftmaxIntNonNoneDtypeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, tensor):
+        return torch.ops.aten.softmax(tensor, dim=2, dtype=torch.float64)
+
+
+@register_test_case(module_factory=lambda: SoftmaxIntNonNoneDtypeModule())
+def SoftmaxIntNonNoneDtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
+
+
 # ==============================================================================
 
 

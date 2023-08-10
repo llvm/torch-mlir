@@ -413,6 +413,7 @@ def Torch_PrimListConstructOp: Torch_Op<"prim.ListConstruct", [
   );
 
   let hasVerifier = 1;
+  let hasCanonicalizer = 1;
 
   let assemblyFormat = [{
     $elements attr-dict `:` functional-type(operands, results)
