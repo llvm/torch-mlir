@@ -1442,10 +1442,8 @@ OpFoldResult AtenBoolIntOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenAnyBoolOp::fold(FoldAdaptor adaptor) {
-  SmallVector<bool> inputList;
-  if (!matchPattern(getSelf(), m_TorchListOfConstantBools(inputList)))
-    return nullptr;
-  for (auto operand : inputList) {
+  auto inputConsturct = getSelf().getDefiningOp<Torch::PrimListConstructOp>();
+  for (auto operand : inputConsturct.getOperands()) {
     // If any operand is a constant true, return true.
     if (operand) {
       return getI1IntegerAttr(getContext(), true);
