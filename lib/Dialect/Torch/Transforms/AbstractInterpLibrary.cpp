@@ -10449,7 +10449,7 @@ StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
 "  func.func @\"__torch_mlir_dtype_fn.aten.to.dtype\"(%arg0: !torch.tuple<int, int>, %arg1: !torch.int, %arg2: !torch.bool, %arg3: !torch.bool, %arg4: !torch.optional<int>) -> !torch.int {\n"
 "    return %arg1 : !torch.int\n"
 "  }\n"
-"  func.func @\"__torch_mlir_dtype_fn.nvprims.convert_element_type\"(%arg0: !torch.tuple<int, int>, %arg1: !torch.int) -> !torch.int {\n"
+"  func.func @\"__torch_mlir_dtype_fn.prims.convert_element_type\"(%arg0: !torch.tuple<int, int>, %arg1: !torch.int) -> !torch.int {\n"
 "    return %arg1 : !torch.int\n"
 "  }\n"
 "  func.func @\"__torch_mlir_dtype_fn.aten.to.dtype_layout\"(%arg0: !torch.tuple<int, int>, %arg1: !torch.optional<int>, %arg2: !torch.optional<int>, %arg3: !torch.optional<Device>, %arg4: !torch.optional<bool>, %arg5: !torch.bool, %arg6: !torch.bool, %arg7: !torch.optional<int>) -> !torch.int {\n"
