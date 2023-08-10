@@ -3196,7 +3196,7 @@ def aten〇to〇dtype〡dtype(self_rank_dtype: Tuple[int, int], dtype: int, non_
     _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float16) +
     _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
     _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
-def nvprims〇convert_element_type〡dtype(a_rank_dtype: Tuple[int, int], dtype: int) -> int:
+def prims〇convert_element_type〡dtype(a_rank_dtype: Tuple[int, int], dtype: int) -> int:
     return dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1) +
