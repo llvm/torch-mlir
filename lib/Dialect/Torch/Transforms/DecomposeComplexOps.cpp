@@ -218,7 +218,7 @@ static bool parseEquation(const std::string &equation,
   return true;
 }
 
-// Prepare Tensor for Matmul Operations, we will transose the input tensor
+// Prepare Tensor for Matmul Operations, we will transpose the input tensor
 // to make it in order as [batchingDims, otherDims, contractingDims]
 // example: bcwd,bcdh->bcwh
 // Step1 : [b,c,h,d]
@@ -266,8 +266,7 @@ static Value prepareTensorForMatmulOperations(
     }
     finalShape.push_back(batchingDimProduct);
   }
-  if (!otherDims.empty())
-    finalShape.push_back(middleDimProduct);
+  finalShape.push_back(middleDimProduct);
   if (!contractingDims.empty()) {
     int64_t usedOtherDim = 1;
     int64_t rank = tokens.size();
@@ -552,7 +551,7 @@ class DecomposeAtenEinsumOp : public OpRewritePattern<AtenEinsumOp> {
     SmallVector<char> resultTokens;
     SmallVector<SmallVector<char>> inputTokens;
     if (!parseEquation(equation, inputTokens, resultTokens)) {
-      return rewriter.notifyMatchFailure(op, "The Equations are invalid");
+      return rewriter.notifyMatchFailure(op, "Unexpected character in equations encountered");
     }
 
     SmallVector<Value> inputTensors;
@@ -572,17 +571,10 @@ class DecomposeAtenEinsumOp : public OpRewritePattern<AtenEinsumOp> {
       ArrayRef<int64_t> inputShape = tensorType.getSizes();
       SmallVector<Value> inputValueShape;
       for (unsigned j = 0; j < inputShape.size(); j++) {
-        if (inputShape[j] == kUnknownSize) {
-          inputValueShape.push_back(rewriter.create<AtenSizeIntOp>(
-                                          loc, inputTensors[i],
-                                          rewriter.create<Torch::ConstantIntOp>(
-                                              loc, rewriter.getI64IntegerAttr(j))));
-        }
-        else {
-          inputValueShape.push_back(rewriter.create<Torch::ConstantIntOp>(
-                                          loc, rewriter.getI64IntegerAttr(
-                                                    inputShape[j])));
-        }
+        inputValueShape.push_back(rewriter.create<AtenSizeIntOp>(
+                                        loc, inputTensors[i],
+                                        rewriter.create<Torch::ConstantIntOp>(
+                                            loc, rewriter.getI64IntegerAttr(j))));
       }
       inputShapes.push_back(inputValueShape);
     }
