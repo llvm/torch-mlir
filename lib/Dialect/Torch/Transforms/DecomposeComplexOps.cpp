@@ -3558,6 +3558,25 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten._unsafe_indexPut.hackedTwin` op into `aten._index_put_impl`
+// op.
+class DecomposeAten_UnsafeIndexPutHackedTwinOp
+    : public OpRewritePattern<Aten_UnsafeIndexPutHackedTwinOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_UnsafeIndexPutHackedTwinOp op,
+                                PatternRewriter &rewriter) const override {
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    rewriter.replaceOpWithNewOp<Aten_IndexPutImplOp>(
+        op, op.getType(), op.getSelf(), op.getIndices(), op.getValues(),
+        op.getAccumulate(),
+        /*unsafe=*/cstFalse);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.pad` op into `aten.constantPadNd` op.
 class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -5193,6 +5212,7 @@ public:
     addPatternIfTargetOpIsIllegal<DeomposeAtenNativeDropoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexPutHackedTwinOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_UnsafeIndexPutHackedTwinOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenPadOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDtypeLayoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDeviceOp>(patterns);

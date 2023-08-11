@@ -273,6 +273,9 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
     "ScatterValueIntModule_basic",
 
+    # AssertionError: Unregistered operation: torch.aten._unsafe_index_put
+    "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
+
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -1437,4 +1440,5 @@ LTC_XFAIL_SET = {
     "ScatterValueIntModule_basic",
     "IndexTensorNegativeIndexModule_basic",
     "UniformStaticShapeModule_basic",
+    "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
 }

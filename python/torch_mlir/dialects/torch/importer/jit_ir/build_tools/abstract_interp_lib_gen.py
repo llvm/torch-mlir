@@ -1653,6 +1653,11 @@ def aten〇index_put〇hacked_twin〡dtype(self_rank_dtype: Tuple[int, int], ind
     return self_dtype
 
 @check_dtype_function(_index_put_invocations)
+def aten〇_unsafe_index_put〇hacked_twin〡dtype(self_rank_dtype: Tuple[int, int], indices_rank_dtype: List[Tuple[int, int]], values_rank_dtype: Tuple[int, int], accumulate: bool = False) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_index_put_invocations)
 def aten〇_index_put_impl〡dtype(self_rank_dtype: Tuple[int, int], indices_rank_dtype: List[Optional[Tuple[int, int]]], values_rank_dtype: Tuple[int, int], accumulate: bool = False, unsafe: bool = False) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
