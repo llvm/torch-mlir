@@ -843,6 +843,35 @@ def IndexPutHackedTwin3DIntAccumulateModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(10, 8, 6, high=1000), tu.randint(5, high=4),
                    tu.randint(5, 8, 6, high=1000))
 
+
+# ==============================================================================
+# UnsafeIndexPutHackedTwin tests are using the aten._unsafe_index_put.hacked_twin operator.
+
+
+class UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+        ([-1], torch.int64, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, input, index, value):
+        return torch.ops.aten._unsafe_index_put(input, [index],
+                                        value,
+                                        accumulate=False)
+
+
+@register_test_case(
+    module_factory=lambda: UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule())
+def UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(100), tu.randint(250, high=100), tu.rand(250))
+
+
 # ==============================================================================
 
 class ScatterSrcStaticModule(torch.nn.Module):
