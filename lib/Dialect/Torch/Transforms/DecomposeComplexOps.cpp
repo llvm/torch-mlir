@@ -535,7 +535,7 @@ namespace {
 // otherDims[0,1,2], contractingDims[0,1,2]]
 // Step 3: reshape the input tensors, the final shape should
 // be[batchingDims, otherDims, contractingDims]
-// Step 4: use AtenMmOp/AtenBmmOp to get the result, loop util we get the final
+// Step 4: use AtenMatmulOp to get the result, loop util we get the final
 // result
 // notice: support static shape only
 class DecomposeAtenEinsumOp : public OpRewritePattern<AtenEinsumOp> {
@@ -664,15 +664,14 @@ class DecomposeAtenEinsumOp : public OpRewritePattern<AtenEinsumOp> {
       Value rhs = rewriter.create<AtenReshapeOp>(loc, op.getType(), rhsTensor, rhsReshapedDims);
       Value result;
 
-      // Step 4: use AtenMmOp/AtenBmmOp to get the result, loop util we
+      // Step 4: use AtenMatmulOp to get the result, loop util we
       // get the final result
-      if (!lhsBatchingDims.empty()) {
+      if (!rhsContractingDims.empty() && !rhsBatchingDims.empty()){
         rhs = rewriter.create<AtenTransposeIntOp>(loc, op.getType(), rhs, constOne, constTwo);
-        result = rewriter.create<AtenBmmOp>(loc, op.getType(), lhs, rhs);
-      } else {
+      } else if (!rhsContractingDims.empty()){
         rhs = rewriter.create<AtenTransposeIntOp>(loc, op.getType(), rhs, constZero, constOne);
-        result = rewriter.create<AtenMmOp>(loc, op.getType(), lhs, rhs);
       }
+      result = rewriter.create<AtenMatmulOp>(loc, op.getType(), lhs, rhs);
       result = createReshapedTensor(rewriter, loc, op, op.getType(), result, finalShape);
 
       inputTensors.erase(inputTensors.begin(), inputTensors.begin() + 2);
