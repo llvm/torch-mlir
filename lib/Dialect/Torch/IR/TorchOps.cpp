@@ -1445,7 +1445,8 @@ OpFoldResult AtenAnyBoolOp::fold(FoldAdaptor adaptor) {
   auto inputConsturct = getSelf().getDefiningOp<Torch::PrimListConstructOp>();
   for (auto operand : inputConsturct.getOperands()) {
     // If any operand is a constant true, return true.
-    if (operand) {
+    bool b;
+    if (matchPattern(operand, m_TorchConstantBool(&b)) && b) {
       return getI1IntegerAttr(getContext(), true);
     }
   }
