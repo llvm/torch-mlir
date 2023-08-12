@@ -4832,9 +4832,24 @@ public:
     auto isTensor = [](Value v) {
       return v.getType().isa<Torch::BaseTensorType>();
     };
-    if (llvm::all_of(indices, isTensor))
-      return rewriter.notifyMatchFailure(
-          op, "there is no none-value index in `indices`");
+
+    // directly replace aten.Index.Tensor with aten.index.Tensor_hacked_twin
+    if (llvm::all_of(indices, isTensor)) {
+      if (indices.size() == 0) {
+        return rewriter.notifyMatchFailure(
+            op, "the indices is empty, it should be folded as a nop");
+      }
+      // By default, we regard the first index type as the list element type.
+      auto indexElemType = indices[0]
+                               .getType()
+                               .template cast<BaseTensorType>()
+                               .getWithSizesAndDtype(std::nullopt, nullptr);
+      auto newIndex = rewriter.create<PrimListConstructOp>(
+          loc, Torch::ListType::get(indexElemType), indices);
+      rewriter.replaceOpWithNewOp<AtenIndexTensorHackedTwinOp>(op, op.getType(),
+                                                               input, newIndex);
+      return success();
+    }
 
     SmallVector<bool> indexUsed =
         llvm::to_vector(llvm::map_range(indices, isTensor));
@@ -5134,8 +5149,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenNarrowTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_EmbeddingBagOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLiftFreshCopyOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorHackedTwinOp>(
-        patterns);
+    // addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorHackedTwinOp>(
+    //     patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMseLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNormScalarOptDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintOp>(patterns);
