@@ -3920,21 +3920,6 @@ class DecomposeAtenLiftFreshCopyOp
 } // namespace
 
 namespace {
-// Decompose `aten.index.TensorHackedTwin` op into `aten.index.Tensor` op.
-class DecomposeAtenIndexTensorHackedTwinOp
-    : public OpRewritePattern<AtenIndexTensorHackedTwinOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenIndexTensorHackedTwinOp op,
-                                PatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<AtenIndexTensorOp>(op, op.getType(), op.getSelf(),
-                                                   op.getIndices());
-    return success();
-  }
-};
-} // namespace
-
-namespace {
 class DecomposeAtenMseLossOp : public OpRewritePattern<AtenMseLossOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -4747,9 +4732,8 @@ public:
 
 // AtenIndexTensorOp
 namespace {
-// Strictly speaking, this pattern is not a decomposition. The goal of this
-// pattern is to eliminate none index in aten.Index.Tensor's `indices` param for
-// the ease of various backend. The detailed steps are:
+// The goal of this pattern is to eliminate none index in aten.Index.Tensor's
+// `indices` param for the ease of various backend. The detailed steps are:
 //    1. reorder input tensor so that the non-none index appears at adjacent
 //    positions.
 //    2. manually generate index tensor with some ops like iota, to replace the
@@ -5149,8 +5133,6 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenNarrowTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_EmbeddingBagOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLiftFreshCopyOp>(patterns);
-    // addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorHackedTwinOp>(
-    //     patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMseLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNormScalarOptDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintOp>(patterns);
