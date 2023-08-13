@@ -40,43 +40,6 @@ static bool isNoneOrFloatDtype(MLIRContext *context, Value dtype) {
   return resDtype->isa<mlir::FloatType>();
 }
 
-// Helper function to compute the return type of the reduction function.
-// `dim` specifies the dimension to reduce and `keepDim` preserves the rank of
-// the input tensor.
-static Type computeReductionType(PatternRewriter &rewriter, Operation *op,
-                                 BaseTensorType tensorType, Value dim,
-                                 bool keepDim) {
-  SmallVector<int64_t> sizes;
-  int64_t dimInt;
-  if (tensorType.hasSizes()) {
-    ArrayRef<int64_t> inputShape = tensorType.getSizes();
-    int64_t inputRank = inputShape.size();
-    if (matchPattern(dim, m_TorchConstantInt(&dimInt))) {
-      dimInt = toPositiveDim(dimInt, inputRank);
-      if (!isValidDim(dimInt, inputRank)) {
-        (void)rewriter.notifyMatchFailure(op, "dim is not a valid dim");
-        return nullptr;
-      }
-      sizes.append(inputShape.begin(), inputShape.end());
-      // The dimension to be reduced is set to 1 when `keepDim` is true else it
-      // is removed.
-      if (keepDim)
-        sizes[dimInt] = 1;
-      else
-        sizes.erase(sizes.begin() + dimInt);
-    } else {
-      unsigned reducedRank = keepDim ? inputRank : inputRank - 1;
-      sizes.resize(reducedRank, kUnknownSize);
-    }
-  }
-
-  Type resultType = tensorType.getWithSizesAndDtype(
-      sizes.size() == 0 ? std::optional<ArrayRef<int64_t>>()
-                        : llvm::ArrayRef(sizes),
-      tensorType.getOptionalDtype());
-  return resultType;
-}
-
 // Reduction function to calculate sum along given `dim`.
 static Value createSumAlongDimension(PatternRewriter &rewriter, Location loc,
                                      Operation *op, Value input, Value dim,

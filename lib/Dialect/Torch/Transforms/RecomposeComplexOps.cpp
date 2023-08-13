@@ -115,7 +115,9 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenCopy_Op op,
                                 PatternRewriter &rewriter) const override {
-    // Similar to RecomposeSliceCopy_, here is also to prevent mutation
+    // Similar to RecomposeSliceCopy_, here is also to prevent mutation. Once
+    // the select is transformed into a slice operator, it will be handled by
+    // `RecomposeSliceCopy_`.
     if (!op.use_empty())
       return rewriter.notifyMatchFailure(
           op, "`AtenCopy_Op` must not have any users");
@@ -133,20 +135,33 @@ public:
     if (!matchPattern(selectOp.getIndex(), m_TorchConstantInt(&index)))
       return failure();
 
-    Value oneVal = rewriter.create<ConstantIntOp>(op.getLoc(), 1);
+    Value oneVal = rewriter.create<ConstantIntOp>(
+        op.getLoc(), rewriter.getI64IntegerAttr(1));
     Value newStart = selectOp.getIndex();
     Value dimSize = rewriter.create<AtenSizeIntOp>(
         op.getLoc(), selectOp.getSelf(), selectOp.getDim());
     if (index < 0) {
-      newStart = rewriter.create<AtenAddIntOp>(
-        op.getLoc(), newStart, dimSize);
+      newStart = rewriter.create<AtenAddIntOp>(op.getLoc(), newStart, dimSize);
     }
-    Value newEnd = rewriter.create<AtenAddIntOp>(op.getLoc(), newStart, oneVal);
+    Value newEnd = rewriter.create<AtenAddIntOp>(op.getLoc(), oneVal.getType(),
+                                                 newStart, oneVal);
 
-    Value selectOpInput = selectOp.getSelf();
-    rewriter.replaceOpWithNewOp<AtenSliceTensorOp>(
-        selectOp, selectOpInput.getType(), selectOpInput, selectOp.getDim(),
-        newStart, newEnd, oneVal);
+    Value selectSelf = selectOp.getSelf();
+    Type sliceType = computeReductionType(
+        rewriter, selectOp, selectSelf.getType().cast<BaseTensorType>(),
+        selectOp.getDim(),
+        /*keepDim=*/true);
+    Value slice = rewriter.create<AtenSliceTensorOp>(
+        op.getLoc(), sliceType, selectSelf, selectOp.getDim(), newStart, newEnd,
+        /*step=*/oneVal);
+
+    Value falseVal = rewriter.create<ConstantBoolOp>(
+        op.getLoc(), rewriter.getBoolAttr(false));
+    rewriter.replaceOpWithNewOp<AtenCopy_Op>(op, sliceType, slice, op.getSrc(),
+                                             falseVal);
+
+    if (selectOp->use_empty())
+      rewriter.eraseOp(selectOp);
 
     return success();
   }
