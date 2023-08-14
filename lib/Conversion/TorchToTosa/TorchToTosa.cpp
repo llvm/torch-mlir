@@ -2121,7 +2121,7 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
   // reshaped so it sits on the same dim as 'C'.
   auto reshapeToNormInputDim = [&](Operation *op,
                                    ConversionPatternRewriter &rewriter,
-                                   TypeConverter *converter, Type outType,
+                                   const TypeConverter *converter, Type outType,
                                    const Value toBcast, Value &result) {
     RankedTensorType toBcastType =
         toBcast.getType().dyn_cast<RankedTensorType>();
@@ -3821,7 +3821,7 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
     AtenArangeStartStepOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
-  TypeConverter *typeConverter = this->getTypeConverter();
+  const TypeConverter *typeConverter = this->getTypeConverter();
   RankedTensorType resultType =
       typeConverter->convertType(op->getResult(0).getType())
           .cast<RankedTensorType>();
@@ -3871,7 +3871,7 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
     PrimNumToTensorScalarOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
-  TypeConverter *typeConverter = this->getTypeConverter();
+  const TypeConverter *typeConverter = this->getTypeConverter();
   RankedTensorType resultType =
       typeConverter->convertType(op->getResult(0).getType())
           .cast<RankedTensorType>();
@@ -4685,7 +4685,7 @@ template <>
 LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
     AtenCatOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  TypeConverter *typeConverter = this->getTypeConverter();
+  const TypeConverter *typeConverter = this->getTypeConverter();
   auto outType =
       typeConverter->convertType(op.getType()).cast<RankedTensorType>();
   int64_t rank = outType.getRank();

@@ -342,7 +342,7 @@ LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
     return failure();
 
   Location loc = op.getLoc();
-  TypeConverter *typeConverter = getTypeConverter();
+  const TypeConverter *typeConverter = getTypeConverter();
 
   auto input = adaptor.getSelf();
 
