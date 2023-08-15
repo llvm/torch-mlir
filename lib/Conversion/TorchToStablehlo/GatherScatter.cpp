@@ -533,8 +533,8 @@ LogicalResult ConvertAtenOp<AtenScatterSrcOp>::matchAndRewrite(
 // Output: [[3, 3, 3],
 //          [8, 8, 2]]
 template <>
-LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
-    AtenIndexTensorOp op, OpAdaptor adaptor,
+LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
+    AtenIndexTensorHackedTwinOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Location loc = op->getLoc();
   Value input = adaptor.getSelf();
@@ -560,11 +560,6 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
   // concat index tensor into to indices tensor for concat
   for (size_t i = 0; i < indexTensors.size(); i++) {
     auto indexTensor = indexTensors[i];
-    auto indexTorchTensor = indicesTorchType[i];
-    // TODO: add support for none index input
-    if (indexTorchTensor.getType().isa<Torch::NoneType>())
-      return rewriter.notifyMatchFailure(
-          op, "Only list ranked tensor types index are supported");
     auto indexTensorType = indexTensor.getType().cast<RankedTensorType>();
     for (int64_t size : makeShapeTorchCompatible(indexTensorType.getShape())) {
       if (size == kUnknownSize)
@@ -673,7 +668,7 @@ void mlir::torch::torch_to_stablehlo::
   INSERT_ATENOP_PATTERN(AtenIndexSelectOp);
   INSERT_ATENOP_PATTERN(AtenGatherOp);
   INSERT_ATENOP_PATTERN(AtenSliceScatterOp);
-  INSERT_ATENOP_PATTERN(AtenIndexTensorOp);
+  INSERT_ATENOP_PATTERN(AtenIndexTensorHackedTwinOp);
   INSERT_ATENOP_PATTERN(AtenScatterSrcOp);
 #undef INSERT_ATENOP_PATTERN
 }

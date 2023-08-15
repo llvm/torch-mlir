@@ -1088,13 +1088,15 @@ def index_tensor_like(self: List[int], indices: List[Optional[List[int]]]) -> Li
         return broadcasted_shape
 
     first_index_tensor_location = -1
+    last_used_index_location = -1
     index_tensors_are_together = True
     for e, index_tensor_shape in enumerate(indices):
         if index_tensor_shape is not None:
             if first_index_tensor_location == -1:
                 first_index_tensor_location = e
-            elif e - first_index_tensor_location != 1:
+            elif e - last_used_index_location != 1:
                 index_tensors_are_together = False
+            last_used_index_location = e
 
     if not index_tensors_are_together:
         return broadcasted_shape + unused_dim_sizes
