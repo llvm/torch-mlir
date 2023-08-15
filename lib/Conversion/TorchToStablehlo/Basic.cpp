@@ -1077,12 +1077,36 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
     Type outputTy = getTypeConverter()->convertType(op.getType());
     Type batchMeanOrVarTy =
         RankedTensorType::get(weightTy.getShape(), inputTy.getElementType());
-    auto batchNormTrainingResult =
-        rewriter.create<stablehlo::BatchNormTrainingOp>(
-            op.getLoc(), outputTy, batchMeanOrVarTy, batchMeanOrVarTy, input,
-            weight, bias, rewriter.getF32FloatAttr(eps),
-            rewriter.getI64IntegerAttr(feature_index));
-    rewriter.replaceOp(op, batchNormTrainingResult.getResult(0));
+
+    Value output;
+    // supported mixed types, like input type is fp16 and weight type is fp32.
+    if (inputTy.getElementType() != weightTy.getElementType()) {
+      RankedTensorType convertedType = inputTy;
+      if (weightTy.getElementType().cast<FloatType>().getWidth() >
+          inputTy.getElementType().cast<FloatType>().getWidth()) {
+        convertedType = RankedTensorType::get(inputTy.getShape(),
+                                              weightTy.getElementType());
+      }
+      input = hlo::promoteType(rewriter, op.getLoc(), input, convertedType);
+      weight = hlo::promoteType(rewriter, op.getLoc(), weight, convertedType);
+      bias = hlo::promoteType(rewriter, op.getLoc(), bias, convertedType);
+      auto batchNormTrainingResult =
+          rewriter.create<stablehlo::BatchNormTrainingOp>(
+              op.getLoc(), outputTy, batchMeanOrVarTy, batchMeanOrVarTy, input,
+              weight, bias, rewriter.getF32FloatAttr(eps),
+              rewriter.getI64IntegerAttr(feature_index));
+      output = hlo::promoteType(rewriter, op.getLoc(),
+                                batchNormTrainingResult.getResult(0),
+                                outputTy.cast<TensorType>());
+    } else {
+      auto batchNormTrainingResult =
+          rewriter.create<stablehlo::BatchNormTrainingOp>(
+              op.getLoc(), outputTy, batchMeanOrVarTy, batchMeanOrVarTy, input,
+              weight, bias, rewriter.getF32FloatAttr(eps),
+              rewriter.getI64IntegerAttr(feature_index));
+      output = batchNormTrainingResult.getResult(0);
+    }
+    rewriter.replaceOp(op, output);
     return success();
   } else {
     Type outputTy = getTypeConverter()->convertType(op.getType());
