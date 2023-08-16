@@ -677,6 +677,30 @@ def SliceCopyNonZeroDim_Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class SelectFloatCopy_Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        x_select = torch.ops.aten.select(x, dim=0, index=2)
+        x_select.copy_(y)
+        return x
+
+
+@register_test_case(module_factory=lambda: SelectFloatCopy_Module())
+def SelectFloatCopy_Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 4, 4), tu.rand(4, 4))
+
+
+# ==============================================================================
+
+
 class SelectFloatCopyNonZeroDim_Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -688,20 +712,20 @@ class SelectFloatCopyNonZeroDim_Module(torch.nn.Module):
         ([-1, -1], torch.float32, True),
     ])
     def forward(self, x, y):
-        x_select = x[2]
+        x_select = torch.ops.aten.select(x, dim=1, index=3)
         x_select.copy_(y)
         return x
 
 
 @register_test_case(module_factory=lambda: SelectFloatCopyNonZeroDim_Module())
 def SelectFloatCopyNonZeroDim_Module_basic(module, tu: TestUtils):
-    module.forward(tu.rand(10, 4, 4), tu.rand(4, 4))
+    module.forward(tu.rand(4, 10, 4), tu.rand(4, 4))
 
 
 # ==============================================================================
 
 
-class SelectIntCopyNonZeroDim_Module(torch.nn.Module):
+class SelectIntCopy_Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -712,20 +736,20 @@ class SelectIntCopyNonZeroDim_Module(torch.nn.Module):
         ([-1, -1], torch.int64, True),
     ])
     def forward(self, x, y):
-        x_select = x[2]
+        x_select = torch.ops.aten.select(x, dim=0, index=2)
         x_select.copy_(y)
         return x
 
 
-@register_test_case(module_factory=lambda: SelectIntCopyNonZeroDim_Module())
-def SelectIntCopyNonZeroDim_Module_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: SelectIntCopy_Module())
+def SelectIntCopy_Module_basic(module, tu: TestUtils):
     module.forward(tu.randint(10, 4, 4), tu.randint(4, 4))
 
 
 # ==============================================================================
 
 
-class SelectIntCopyFloatNonZeroDim_Module(torch.nn.Module):
+class SelectIntCopyFloat_Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -736,13 +760,13 @@ class SelectIntCopyFloatNonZeroDim_Module(torch.nn.Module):
         ([-1, -1], torch.float32, True),
     ])
     def forward(self, x, y):
-        x_select = x[2]
+        x_select = torch.ops.aten.select(x, dim=0, index=2)
         x_select.copy_(y)
         return x
 
 
-@register_test_case(module_factory=lambda: SelectIntCopyFloatNonZeroDim_Module())
-def SelectIntCopyFloatNonZeroDim_Module_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: SelectIntCopyFloat_Module())
+def SelectIntCopyFloat_Module_basic(module, tu: TestUtils):
     module.forward(tu.randint(10, 4, 4), tu.rand(4, 4))
 
 

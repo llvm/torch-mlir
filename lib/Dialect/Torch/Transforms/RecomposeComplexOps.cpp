@@ -155,10 +155,8 @@ public:
         op.getLoc(), sliceType, selectSelf, selectOp.getDim(), newStart, newEnd,
         /*step=*/oneVal);
 
-    Value falseVal = rewriter.create<ConstantBoolOp>(
-        op.getLoc(), rewriter.getBoolAttr(false));
     rewriter.replaceOpWithNewOp<AtenCopy_Op>(op, sliceType, slice, op.getSrc(),
-                                             falseVal);
+                                             op.getNonBlocking());
 
     if (selectOp->use_empty())
       rewriter.eraseOp(selectOp);

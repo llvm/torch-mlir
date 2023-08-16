@@ -16,7 +16,7 @@ from torch_mlir._version import torch_version_for_comparison, version
 LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 
 LINALG_XFAIL_SET.update({
-    "SelectIntCopyFloatNonZeroDim_Module_basic"
+    "SelectIntCopyFloat_Module_basic"
 })
 
 TORCHDYNAMO_XFAIL_SET = {
