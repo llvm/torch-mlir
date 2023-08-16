@@ -319,6 +319,7 @@ def compile(model: torch.nn.Module,
             use_tracing: bool = False,
             ignore_traced_shapes=False,
             backend_legal_ops: Optional[Sequence[str]] = None,
+            use_external_references_if_numel_exceeds: Optional[int] = 5,
             extra_library: Iterable[Callable] = [],
             verbose: bool = False,
             use_make_fx: bool = False):
@@ -346,6 +347,10 @@ def compile(model: torch.nn.Module,
         backend_legal_ops: A list of ops that should be considered legal for
             the backend. An op that is considered legal will not be decomposed.
             This option is only valid with the `"torch"` output type.
+        use_external_references_if_numel_exceeds: If non-None, then any tensors
+            with more than this number of elements will be referenced in the
+            IR with an external reference. This is useful for gigantic models
+            where materializing the weights in the IR is impractical.
         extra_library: List of abstract interpretation functions to splice
             into the abstract interpretation library. See
             `docs/adding_abstract_interpretation_functions.md` for more info
@@ -430,6 +435,7 @@ def compile(model: torch.nn.Module,
     mb = ModuleBuilder()
     import_options = ImportOptions()
     import_options.ignoreExistingTensorShapesAndDtypes = ignore_traced_shapes
+    import_options.useExternalReferencesIfNumelExceeds = use_external_references_if_numel_exceeds
     try:
         original_stderr = sys.stderr
         sys.stderr = StringIO()

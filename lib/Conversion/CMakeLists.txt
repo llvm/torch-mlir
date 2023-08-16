@@ -7,6 +7,7 @@ if(TORCH_MLIR_ENABLE_STABLEHLO)
 endif()
 add_subdirectory(TorchToTMTensor)
 add_subdirectory(TorchConversionToMLProgram)
+add_subdirectory(TorchToMLProgram)
 add_subdirectory(Utils)
 
 # TODO: Automate this with add_torch_mlir_conversion_library.
@@ -16,6 +17,7 @@ set(linked_libs TorchMLIRTorchToLinalg
                 TorchMLIRTorchToTosa
                 TorchMLIRTorchToTMTensor
                 TorchMLIRTorchConversionToMLProgram
+                TorchMLIRTorchToMLProgram
                 TorchMLIRConversionUtils)
 if(TORCH_MLIR_ENABLE_STABLEHLO)
   list(APPEND linked_libs TorchMLIRTorchToStablehlo)

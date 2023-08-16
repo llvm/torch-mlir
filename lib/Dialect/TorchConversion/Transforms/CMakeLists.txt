@@ -23,8 +23,10 @@ endif()
 
 add_mlir_library(TorchMLIRTorchConversionPasses
   BackendTypeConversion.cpp
-  BackendTypeConversionPasses.cpp  
+  BackendTypeConversionPasses.cpp
+  MultiForwardReturnConversionPass.cpp
   Passes.cpp
+  SingleTensorReturnConversionPass.cpp
   VerifyLinalgOnTensorsBackendContract.cpp
   VerifyTosaBackendContract.cpp
   VerifyStablehloBackendContract.cpp

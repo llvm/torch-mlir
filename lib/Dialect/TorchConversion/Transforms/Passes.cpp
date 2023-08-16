@@ -21,6 +21,7 @@
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
+#include "torch-mlir/Conversion/TorchToMLProgram/TorchToMLProgram.h"
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 #endif
@@ -64,6 +65,7 @@ void mlir::torch::registerTorchConversionPasses() {
 
 void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
     OpPassManager &pm) {
+  pm.addPass(createConvertTorchToMLProgramPass());
   // Lower to linalg + guards which is the input to codegen backends.
   // We do this first as it tends to involve pattern-matching against constants,
   // (e.g. dimensions which must be constant in a ranked programming model)
@@ -95,6 +97,8 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   // expect. This fails compilation (signalPassFailure) if the IR is not in the
   // correct form.
   pm.addPass(TorchConversion::createVerifyLinalgOnTensorsBackendContractPass());
+  pm.addPass(createMultiForwardReturnConversionPass(0));
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
 }
 
 void TorchConversion::createTorchBackendToTosaBackendPipeline(
