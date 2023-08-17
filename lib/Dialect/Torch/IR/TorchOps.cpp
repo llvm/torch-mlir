@@ -1439,8 +1439,10 @@ OpFoldResult AtenBoolIntOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenAnyBoolOp::fold(FoldAdaptor adaptor) {
-  auto inputConsturct = getSelf().getDefiningOp<Torch::PrimListConstructOp>();
-  for (auto operand : inputConsturct.getOperands()) {
+  auto inputConstruct = getSelf().getDefiningOp<Torch::PrimListConstructOp>();
+  if (!inputConstruct || isListPotentiallyMutated(inputConstruct))
+    return nullptr;
+  for (auto operand : inputConstruct.getOperands()) {
     // If any operand is a constant true, return true.
     bool b;
     if (matchPattern(operand, m_TorchConstantBool(&b)) && b) {
