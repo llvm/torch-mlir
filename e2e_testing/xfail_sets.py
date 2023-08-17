@@ -13,7 +13,11 @@
 from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 from torch_mlir._version import torch_version_for_comparison, version
 
-LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
+LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
+    # Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR failed
+    # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
+    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier"
+}
 
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
@@ -275,6 +279,10 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # AssertionError: Unregistered operation: torch.aten._unsafe_index_put
     "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
+
+    # Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR failed
+    # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
+    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
 
 }
 
@@ -638,6 +646,10 @@ STABLEHLO_PASS_SET = {
     "AvgPool1dStaticModule_basic",
     "AvgPool2dStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_basic",
+    "Conv2dWithPaddingDilationStrideStaticModule_depthwise",
+    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
+    "Conv2dWithPaddingDilationStrideStaticModule_grouped",
+    "Conv2dWithPaddingDilationStrideStaticModule_grouped_multiplier",
     "Convolution2DStaticModule_basic",
     "ConvolutionModule2DTransposeStridedStatic_basic",
     "ElementwiseCloneContiguousModule_basic",
@@ -987,6 +999,8 @@ TOSA_PASS_SET = {
     "ElementwiseIsnanModule_basic",
     "TypePromotionAlphaWiderModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_basic",
+    "Conv2dWithPaddingDilationStrideStaticModule_depthwise",
+    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "BatchNorm1DModule_basic",
     "BatchNorm1DWith2DInputModule_basic",
     "BatchNorm2DModule_basic",

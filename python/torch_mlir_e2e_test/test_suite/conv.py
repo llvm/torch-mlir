@@ -112,32 +112,56 @@ def Conv2dWithPaddingDilationStrideModule_basic(module, tu: TestUtils):
 
 class Conv2dWithPaddingDilationStrideStaticModule(torch.nn.Module):
 
-    def __init__(self):
+    def __init__(self, out_channels, groups):
         super().__init__()
         torch.manual_seed(0)
-        self.conv = torch.nn.Conv2d(in_channels=2,
-                                    out_channels=10,
+        self.conv = torch.nn.Conv2d(in_channels=4,
+                                    out_channels=out_channels,
                                     kernel_size=3,
                                     padding=3,
                                     stride=2,
                                     dilation=3,
-                                    bias=False)
+                                    bias=False,
+                                    groups=groups)
         self.train(False)
 
     @export
     @annotate_args([
         None,
-        ([5, 2, 10, 20], torch.float32, True),
+        ([5, 4, 10, 20], torch.float32, True),
     ])
     def forward(self, x):
         return self.conv(x)
 
 
 @register_test_case(
-    module_factory=lambda: Conv2dWithPaddingDilationStrideStaticModule())
+    module_factory=lambda: Conv2dWithPaddingDilationStrideStaticModule(out_channels=10, groups=1))
 def Conv2dWithPaddingDilationStrideStaticModule_basic(module, tu: TestUtils):
-    t = tu.rand(5, 2, 10, 20)
-    module.forward(t)
+    module.forward(tu.rand(5, 4, 10, 20))
+
+
+@register_test_case(
+    module_factory=lambda: Conv2dWithPaddingDilationStrideStaticModule(out_channels=4, groups=4))
+def Conv2dWithPaddingDilationStrideStaticModule_depthwise(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 10, 20))
+
+
+@register_test_case(
+    module_factory=lambda: Conv2dWithPaddingDilationStrideStaticModule(out_channels=8, groups=4))
+def Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 10, 20))
+
+
+@register_test_case(
+    module_factory=lambda: Conv2dWithPaddingDilationStrideStaticModule(out_channels=4, groups=2))
+def Conv2dWithPaddingDilationStrideStaticModule_grouped(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 10, 20))
+
+
+@register_test_case(
+    module_factory=lambda: Conv2dWithPaddingDilationStrideStaticModule(out_channels=8, groups=2))
+def Conv2dWithPaddingDilationStrideStaticModule_grouped_multiplier(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 10, 20))
 
 
 # ==============================================================================
