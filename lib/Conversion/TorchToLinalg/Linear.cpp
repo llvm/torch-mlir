@@ -434,7 +434,7 @@ public:
   LogicalResult
   matchAndRewrite(OperatorOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    if (op.getName().str() != "brevitas.matmul_rhs_group_quant") {
+    if (op.getName().str() != "quant.matmul_rhs_group_quant") {
       return failure();
     }
     Location loc = op->getLoc();

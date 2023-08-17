@@ -38,7 +38,7 @@ public:
     if (use->getOperandNumber() != 1)
       return failure();
 
-    if (op.getName().str() != "brevitas.matmul_rhs_group_quant") {
+    if (op.getName().str() != "quant.matmul_rhs_group_quant") {
       return failure();
     }
 
