@@ -2121,7 +2121,7 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
   // reshaped so it sits on the same dim as 'C'.
   auto reshapeToNormInputDim = [&](Operation *op,
                                    ConversionPatternRewriter &rewriter,
-                                   TypeConverter *converter, Type outType,
+                                   const TypeConverter *converter, Type outType,
                                    const Value toBcast, Value &result) {
     RankedTensorType toBcastType =
         toBcast.getType().dyn_cast<RankedTensorType>();
@@ -3554,8 +3554,8 @@ LogicalResult ConvertAtenOp<Aten_IndexPutImplOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
-    AtenIndexTensorOp op, OpAdaptor adaptor,
+LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
+    AtenIndexTensorHackedTwinOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // t        = tf.constant([[1, 2, 3, 4, 5],[6,7,8,9,10],
   //                         [11,12,13,14,15],[16,17,18,19,20]]) # 4*5
@@ -3603,12 +3603,6 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
     // concat index tensor into to indices tensor for concat
     for (size_t i = 0; i < indexTensors.size(); i++) {
       auto index = indexTensors[i];
-      auto indexTorch = tensorsTorchType[i];
-      // TODO add support for none index input like torch.ops.aten.index(x,
-      // (None, index1, index2, None))
-      if (indexTorch.getType().isa<Torch::NoneType>())
-        return rewriter.notifyMatchFailure(
-            op, "Only list ranked tensor types index are supported");
 
       auto indexType = index.getType().dyn_cast<RankedTensorType>();
       auto indexShape = indexType.getShape();
@@ -3676,12 +3670,6 @@ LogicalResult ConvertAtenOp<AtenIndexTensorOp>::matchAndRewrite(
 
   // Support for multiple index
   auto index = indexTensors[0];
-  auto indexTorch = tensorsTorchType[0];
-  // TODO add support for none index input like torch.ops.aten.index(x, (None,
-  // index1, index2, None))
-  if (indexTorch.getType().isa<Torch::NoneType>())
-    return rewriter.notifyMatchFailure(
-        op, "Only list ranked tensor types index are supported");
   auto indexType = index.getType().dyn_cast<RankedTensorType>();
   auto indexShape = indexType.getShape();
   // index i64 to i32 for tosa compatible
@@ -3821,7 +3809,7 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
     AtenArangeStartStepOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
-  TypeConverter *typeConverter = this->getTypeConverter();
+  const TypeConverter *typeConverter = this->getTypeConverter();
   RankedTensorType resultType =
       typeConverter->convertType(op->getResult(0).getType())
           .cast<RankedTensorType>();
@@ -3871,7 +3859,7 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
     PrimNumToTensorScalarOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
-  TypeConverter *typeConverter = this->getTypeConverter();
+  const TypeConverter *typeConverter = this->getTypeConverter();
   RankedTensorType resultType =
       typeConverter->convertType(op->getResult(0).getType())
           .cast<RankedTensorType>();
@@ -4685,7 +4673,7 @@ template <>
 LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
     AtenCatOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  TypeConverter *typeConverter = this->getTypeConverter();
+  const TypeConverter *typeConverter = this->getTypeConverter();
   auto outType =
       typeConverter->convertType(op.getType()).cast<RankedTensorType>();
   int64_t rank = outType.getRank();
@@ -4984,7 +4972,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
     INSERT_ATENOP_PATTERN(AtenGatherOp);
     INSERT_ATENOP_PATTERN(Aten_IndexPutImplOp);
-    INSERT_ATENOP_PATTERN(AtenIndexTensorOp);
+    INSERT_ATENOP_PATTERN(AtenIndexTensorHackedTwinOp);
     INSERT_ATENOP_PATTERN(AtenAbsOp);
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
     INSERT_ATENOP_PATTERN(AtenLeTensorOp);

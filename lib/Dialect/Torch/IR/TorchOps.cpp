@@ -302,15 +302,13 @@ LogicalResult ClassTypeOp::verify() {
 //===----------------------------------------------------------------------===//
 
 OperandRange
-PrimLoopOp::getSuccessorEntryOperands(std::optional<unsigned int> index) {
+PrimLoopOp::getEntrySuccessorOperands(std::optional<unsigned int> index) {
   assert(index.has_value() && index.value() == 0);
   return getIterArgsInit();
 }
 
 void PrimLoopOp::getSuccessorRegions(
-    std::optional<unsigned> index, ArrayRef<Attribute> operands,
-    SmallVectorImpl<RegionSuccessor> &regions) {
-  (void)operands;
+    std::optional<unsigned> index, SmallVectorImpl<RegionSuccessor> &regions) {
 
   if (!index.has_value()) {
     regions.emplace_back(&getRegion(), getRegion().getArguments().slice(1));
@@ -381,7 +379,6 @@ void PrimIfOp::print(OpAsmPrinter &p) {
 }
 
 void PrimIfOp::getSuccessorRegions(std::optional<unsigned> index,
-                                   ArrayRef<Attribute> operands,
                                    SmallVectorImpl<RegionSuccessor> &regions) {
   // The `then` and the `else` region branch back to the parent operation.
   if (index.has_value()) {
@@ -390,9 +387,9 @@ void PrimIfOp::getSuccessorRegions(std::optional<unsigned> index,
   }
 
   // If the condition is constant, we can give a more precise answer.
-  if (auto condAttr = operands.front().dyn_cast_or_null<IntegerAttr>()) {
-    Region *executedRegion =
-        condAttr.getValue().isOne() ? &getThenRegion() : &getElseRegion();
+  bool condition;
+  if (matchPattern(getCondition(), m_TorchConstantBool(&condition))) {
+    Region *executedRegion = condition ? &getThenRegion() : &getElseRegion();
     regions.push_back(RegionSuccessor(executedRegion));
     return;
   }
@@ -2736,7 +2733,6 @@ OpFoldResult PrimMinIntOp::fold(FoldAdaptor adaptor) {
 template <typename CalculateOp>
 static void
 getSuccessorRegionsForCalculateOp(CalculateOp op, std::optional<unsigned> index,
-                                  ArrayRef<Attribute> operands,
                                   SmallVectorImpl<RegionSuccessor> &regions) {
   if (!index.has_value()) {
     // First thing the op does is branch into the calculation.
@@ -2754,9 +2750,8 @@ getSuccessorRegionsForCalculateOp(CalculateOp op, std::optional<unsigned> index,
 }
 
 void ShapeCalculateOp::getSuccessorRegions(
-    std::optional<unsigned> index, ArrayRef<Attribute> operands,
-    SmallVectorImpl<RegionSuccessor> &regions) {
-  getSuccessorRegionsForCalculateOp(*this, index, operands, regions);
+    std::optional<unsigned> index, SmallVectorImpl<RegionSuccessor> &regions) {
+  getSuccessorRegionsForCalculateOp(*this, index, regions);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2764,9 +2759,8 @@ void ShapeCalculateOp::getSuccessorRegions(
 //===----------------------------------------------------------------------===//
 
 void DtypeCalculateOp::getSuccessorRegions(
-    std::optional<unsigned> index, ArrayRef<Attribute> operands,
-    SmallVectorImpl<RegionSuccessor> &regions) {
-  getSuccessorRegionsForCalculateOp(*this, index, operands, regions);
+    std::optional<unsigned> index, SmallVectorImpl<RegionSuccessor> &regions) {
+  getSuccessorRegionsForCalculateOp(*this, index, regions);
 }
 
 //===----------------------------------------------------------------------===//

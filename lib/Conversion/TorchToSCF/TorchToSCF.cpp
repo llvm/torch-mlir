@@ -77,7 +77,7 @@ public:
     if (op.isForLike())
       return failure();
 
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
     SmallVector<Type, 1> newResultTypes;
     if (failed(
             typeConverter->convertTypes(op.getResultTypes(), newResultTypes)))
@@ -217,7 +217,7 @@ public:
     if (!op.isForLike())
       return failure();
 
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
     SmallVector<Type, 1> newResultTypes;
     if (failed(
             typeConverter->convertTypes(op.getResultTypes(), newResultTypes)))

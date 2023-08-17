@@ -1555,7 +1555,7 @@ LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
   }
 
   Location loc = op.getLoc();
-  TypeConverter *typeConverter = this->getTypeConverter();
+  const TypeConverter *typeConverter = this->getTypeConverter();
   SmallVector<Value> resultSizeTorchInt, resultSize, resultSizeIndex;
   if (!getListConstructElements(op.getSize(), resultSizeTorchInt)) {
     return rewriter.notifyMatchFailure(
