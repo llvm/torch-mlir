@@ -559,7 +559,7 @@ public:
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value w = args[0], scale = args[1], zeroPoint = args[2];
                   Value extw = b.create<arith::ExtUIOp>(loc, rewriter.getI32Type(), w);
-                  Value fp_extw = b.create<arith::UIToFPOp>(loc, rewriter.getF32Type(), extw);
+                  Value fp_extw = b.create<arith::UIToFPOp>(loc, rewriter.getF16Type(), extw);
                   Value shifted = b.create<arith::SubFOp>(loc, fp_extw, zeroPoint);
                   Value dqw = b.create<arith::MulFOp>(loc, shifted, scale);
                   b.create<linalg::YieldOp>(loc, dqw);
