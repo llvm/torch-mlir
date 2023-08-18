@@ -12,14 +12,13 @@ and Clang's
 
 ### All parts not covered by anyone else
 
-- Sean Silva (@silvasean)
-- Stella Laurenzo (@stellaraccident) -- mostly emeritus
+- Stella Laurenzo (@stellaraccident)
 
 --------------------------------------------------------------------------------
 
 ### `torch` dialect and other core IR pieces, Python bindings/API, JIT IR importer
 
-- Sean Silva (@silvasean)
+- Stella Laurenzo (@stellaraccident)
 
 ### TorchToLinalg, Shape inference, Dtype refinement, MaximizeValueSemantics
 
