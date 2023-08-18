@@ -1898,6 +1898,15 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   auto biasElemTy =
       inputElemTy.isa<mlir::FloatType>() ? inputElemTy : rewriter.getI32Type();
 
+  int64_t groups;
+  if (!matchPattern(op.getGroups(), m_TorchConstantInt(&groups))) {
+    return rewriter.notifyMatchFailure(op, "non-const group size unsupported");
+  } else if (groups != 1 && weightShape[1] != 1) {
+    return rewriter.notifyMatchFailure(
+        op, "group size must be 1 (convolution) or weight.dim(1) must be 1 "
+            "(depthwise convolution)");
+  }
+
   SmallVector<int64_t, 2> stride;
   if (!matchPattern(adaptor.getStride(), m_TorchListOfConstantInts(stride)))
     return rewriter.notifyMatchFailure(op, "non-const stride list unsupported");
@@ -1918,7 +1927,8 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op,
                                        "non-const dilation list unsupported");
 
-  // TOSA works in NHWC and takes OHWI weights. Perform the necessary transpose.
+  // TOSA works in NHWC and takes OHWI (conv) / HWIM (depthwise conv) weights.
+  // Perform the necessary transformations.
   std::optional<Value> nchwToNhwcTransposeConst =
       tosa::getConstTensor<int32_t>(rewriter, op,
                                     /*vec=*/{0, 2, 3, 1},
@@ -1935,26 +1945,82 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
               nchwToNhwcTransposeConst.value())
           .getResult();
 
-  SmallVector<int64_t> transposedWeightShape(
-      {weightShape[0], weightShape[2], weightShape[3], weightShape[1]});
-  auto transposedWeightType = RankedTensorType::get(
-      makeShapeLLVMCompatible(transposedWeightShape), weightElemTy);
-  auto transposedWeight =
-      rewriter
-          .create<tosa::TransposeOp>(
-              op->getLoc(),
-              getTypeConverter()->convertType(transposedWeightType), weight,
-              nchwToNhwcTransposeConst.value())
-          .getResult();
+  SmallVector<int64_t> transformedWeightShape;
+  RankedTensorType transformedWeightType;
+  Value transformedWeight;
+  int64_t outputCDim;
+  if (groups == 1) {
+    // full convolution: O(I/G)HW-> OHWI
+    transformedWeightShape = {weightShape[0], weightShape[2], weightShape[3],
+                              weightShape[1]};
+    transformedWeightType = RankedTensorType::get(
+        makeShapeLLVMCompatible(transformedWeightShape), weightElemTy);
+    transformedWeight =
+        rewriter
+            .create<tosa::TransposeOp>(
+                op->getLoc(),
+                getTypeConverter()->convertType(transformedWeightType), weight,
+                nchwToNhwcTransposeConst.value())
+            .getResult();
+    outputCDim = transformedWeightShape[0];
+  } else if (weightShape[1] == 1) {
+    // depthwise convolution: O(I/G)HW-> HWIM)
+    // transpose: O(I/G)HW -> HWO(I/G)
+    std::optional<Value> transposeConst =
+        tosa::getConstTensor<int32_t>(rewriter, op,
+                                      /*vec=*/{2, 3, 0, 1},
+                                      /*shape=*/{static_cast<int32_t>(4)});
+    SmallVector<int64_t> transposedWeightShape = {
+        weightShape[2], weightShape[3], weightShape[0], weightShape[1]};
+    auto transposedWeightType = RankedTensorType::get(
+        makeShapeLLVMCompatible(transposedWeightShape), weightElemTy);
+    auto transposedWeight =
+        rewriter
+            .create<tosa::TransposeOp>(
+                op->getLoc(),
+                getTypeConverter()->convertType(transposedWeightType), weight,
+                transposeConst.value())
+            .getResult();
+
+    // reshape: HWO(I/G) -> HWIM
+    outputCDim = makeShapeTorchCompatible(outputTy.getShape())[1];
+    if (outputCDim == kUnknownSize) {
+      return rewriter.notifyMatchFailure(
+          op, "number of output channels must be statically known for "
+              "depthwise convolutions");
+    }
+    transformedWeightShape = {
+        transposedWeightShape[0],
+        transposedWeightShape[1],
+        groups,
+        outputCDim / groups,
+    };
+    transformedWeightType = RankedTensorType::get(
+        makeShapeLLVMCompatible(transformedWeightShape), weightElemTy);
+    transformedWeight =
+        rewriter
+            .create<tosa::ReshapeOp>(
+                op->getLoc(),
+                getTypeConverter()->convertType(transformedWeightType),
+                transposedWeight,
+                rewriter.getDenseI64ArrayAttr(transformedWeightShape))
+            .getResult();
+  } else {
+    llvm_unreachable("Unhandled convolution type");
+  }
 
   int64_t outputHDim, outputWDim;
   if (inputTy.hasStaticShape()) {
-    outputHDim = (transposedInputShape[1] + padding[0] + padding[1] -
-                  dilation[0] * (transposedWeightShape[1] - 1) - 1) /
+    int64_t inputHDim = inputShape[2];
+    int64_t inputWDim = inputShape[3];
+    int64_t weightHDim = weightShape[2];
+    int64_t weightWDim = weightShape[3];
+    outputHDim = (inputHDim + padding[0] + padding[1] -
+                  dilation[0] * (weightHDim - 1) - 1) /
                      stride[0] +
                  1;
-    outputWDim = (transposedInputShape[2] + padding[2] + padding[3] -
-                  dilation[1] * (transposedWeightShape[2] - 1) - 1) /
+    outputWDim = (inputWDim + padding[2] + padding[3] -
+                  dilation[1] * (weightWDim - 1) - 1) /
                      stride[1] +
                  1;
   } else {
@@ -1965,19 +2031,36 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   // Output shape is NHWC, to be transposed back to NCHW. Output elemTy for
   // quantized input is i32, which gets rescaled down to quantized output range.
   SmallVector<int64_t> outputShape = {transposedInputShape[0], outputHDim,
-                                      outputWDim, transposedWeightShape[0]};
+                                      outputWDim, outputCDim};
   auto convOpTy =
       RankedTensorType::get(makeShapeLLVMCompatible(outputShape), biasElemTy);
 
-  Value convOpResult =
-      rewriter
-          .create<tosa::Conv2DOp>(op->getLoc(),
-                                  getTypeConverter()->convertType(convOpTy),
-                                  transposedInput, transposedWeight, bias,
-                                  rewriter.getDenseI64ArrayAttr(padding),
-                                  rewriter.getDenseI64ArrayAttr(stride),
-                                  rewriter.getDenseI64ArrayAttr(dilation))
-          .getResult();
+  Value convOpResult;
+  if (groups == 1) {
+    // full convolution
+    convOpResult =
+        rewriter
+            .create<tosa::Conv2DOp>(op->getLoc(),
+                                    getTypeConverter()->convertType(convOpTy),
+                                    transposedInput, transformedWeight, bias,
+                                    rewriter.getDenseI64ArrayAttr(padding),
+                                    rewriter.getDenseI64ArrayAttr(stride),
+                                    rewriter.getDenseI64ArrayAttr(dilation))
+            .getResult();
+  } else if (weightShape[1] == 1) {
+    // depthwise convolution
+    convOpResult =
+        rewriter
+            .create<tosa::DepthwiseConv2DOp>(
+                op->getLoc(), getTypeConverter()->convertType(convOpTy),
+                transposedInput, transformedWeight, bias,
+                rewriter.getDenseI64ArrayAttr(padding),
+                rewriter.getDenseI64ArrayAttr(stride),
+                rewriter.getDenseI64ArrayAttr(dilation))
+            .getResult();
+  } else {
+    llvm_unreachable("Unhandled convolution type");
+  }
 
   std::optional<Value> nhwcToNchwTransposeConst =
       tosa::getConstTensor<int32_t>(rewriter, op,
