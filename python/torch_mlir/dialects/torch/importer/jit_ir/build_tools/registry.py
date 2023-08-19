@@ -204,6 +204,8 @@ class JitOperator:
         if len(ret_decls) >= 2:
             result = f"Tuple[{result}]"
 
+        if function_kind == "has_value_semantics":
+            result = "None"
         return f"def {def_name}({parameters}) -> {result}:"
 
     def get_shape_function_signature(self):
