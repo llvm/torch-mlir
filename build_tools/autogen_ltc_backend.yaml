@@ -48,11 +48,6 @@ whitelist:
 # Enabled for consistency with TS backend
 - arange.start_out
 
-# List of ops to autogen even if not supported by Torch-MLIR explicitly
-#- split_copy.Tensor
-#- split_with_sizes_copy
-#- unbind_copy.int
-
 # List of supported ops that we don't want to do the full codegen for
 supported:
 # - bernoulli
@@ -63,6 +58,9 @@ supported:
 - empty_strided
 - fill_.Scalar
 - _unsafe_view
+- unbind_copy.int
+- split_copy.Tensor
+- split_with_sizes_copy
 
 # ops required for functionalization
 - lift
@@ -92,11 +90,13 @@ symint:
 - narrow_copy
 - slice_backward
 - slice_copy.Tensor
+- split_copy.Tensor
 - slice_scatter
 - view
 - view_copy
 - as_strided_copy
 - as_strided_scatter
+- split_with_sizes_copy
 
 
 additional_ops:
