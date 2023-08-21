@@ -275,6 +275,42 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
     "ScatterValueIntModule_basic",
 
+    # Conversion for IndexPutHackedTwin doesnot exist after IndexPut decompose.
+    "IndexPut1DFloatAccumulateModule_basic",
+    "IndexPut1DFloatNonAccumulateModule_basic",
+    "IndexPut1DIntAccumulateModule_basic",
+    "IndexPut1DIntNonAccumulateModule_basic",
+    "IndexPut2DFloatAccumulateModule_basic",
+    "IndexPut2DFloatNonAccumulateModule_basic",
+    "IndexPut2DIntAccumulateModule_basic",
+    "IndexPut2DIntNonAccumulateModule_basic",
+    "IndexPut3DFloatAccumulateModule_basic",
+    "IndexPut3DFloatNonAccumulateModule_basic",
+    "IndexPut3DIntAccumulateModule_basic",
+    "IndexPut3DIntNonAccumulateModule_basic",
+    "IndexPutHackedTwin1DFloatAccumulateModule_basic",
+    "IndexPutHackedTwin1DFloatNonAccumulateModule_basic",
+    "IndexPutHackedTwin1DIntAccumulateModule_basic",
+    "IndexPutHackedTwin1DIntNonAccumulateModule_basic",
+    "IndexPutHackedTwin2DFloatAccumulateModule_basic",
+    "IndexPutHackedTwin2DFloatNonAccumulateModule_basic",
+    "IndexPutHackedTwin2DIntAccumulateModule_basic",
+    "IndexPutHackedTwin2DIntNonAccumulateModule_basic",
+    "IndexPutHackedTwin3DFloatAccumulateModule_basic",
+    "IndexPutHackedTwin3DFloatNonAccumulateModule_basic",
+    "IndexPutHackedTwin3DIntAccumulateModule_basic",
+    "IndexPutHackedTwin3DIntNonAccumulateModule_basic",
+    "IndexPutImpl1DFloatAccumulateModule_basic",
+    "IndexPutImpl1DFloatNonAccumulateModule_basic",
+    "IndexPutImpl1DIntAccumulateModule_basic",
+    "IndexPutImpl1DIntNonAccumulateModule_basic",
+    "IndexPutImpl2DFloatAccumulateModule_basic",
+    "IndexPutImpl2DFloatNonAccumulateModule_basic",
+    "IndexPutImpl2DIndexModule_basic",
+    "IndexPutImpl3DFloatAccumulateModule_basic",
+    "IndexPutImpl3DFloatNonAccumulateModule_basic",
+    "IndexPutImplIndexWithNoneModule_basic",
+
     # AssertionError: Unregistered operation: torch.aten._unsafe_index_put
     "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
 
@@ -904,9 +940,6 @@ STABLEHLO_CRASHING_SET = {
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
 
-    # LLVM ERROR: SmallVector unable to grow. Requested capacity (9223372036854775808) is larger than maximum value for size type (4294967295)
-    "SliceCopyNonZeroDim_Module_basic",
-
     "Aten_EmbeddingBagExample_basic",
     "AtenEmbeddingBagSumExample_basic"
 }
@@ -917,6 +950,7 @@ TOSA_PASS_SET = {
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
     "IndexPutImpl2DNoneIndexStaticModule_basic",
+    "SliceCopy_Module_basic",
     "AliasModule_basic",
     "MaxPool2dEmptyStrideStaticModule_basic",
     "ConstantBoolParameterModule_basic",
