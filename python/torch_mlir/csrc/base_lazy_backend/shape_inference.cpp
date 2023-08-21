@@ -18,90 +18,82 @@
 namespace torch {
 namespace lazy {
 
-// TODO(henrytu): Upstream these shape inference functions to PyTorch in the future.
+// TODO(henrytu): Upstream these shape inference functions to PyTorch in the
+// future.
 
-std::vector<torch::lazy::Shape>
-compute_shape_add(const at::Tensor& self, const at::Scalar& other, const at::Scalar& alpha) {
+std::vector<torch::lazy::Shape> compute_shape_add(const at::Tensor& self,
+                                                  const at::Scalar& other,
+                                                  const at::Scalar& alpha) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
-std::vector<torch::lazy::Shape>
-compute_shape_sub(const at::Tensor& self, const at::Scalar& other, const at::Scalar& alpha) {
-    return {Shape(self.scalar_type(), self.sizes().vec())};
-}
-
-std::vector<torch::lazy::Shape>
-compute_shape_div(const at::Tensor& self, const at::Scalar& other) {
+std::vector<torch::lazy::Shape> compute_shape_sub(const at::Tensor& self,
+                                                  const at::Scalar& other,
+                                                  const at::Scalar& alpha) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
-std::vector<torch::lazy::Shape>
-compute_shape_mse_loss_backward(
-    const at::Tensor& grad_output,
-    const at::Tensor& self,
-    const at::Tensor& target,
-    int64_t reduction) {
+std::vector<torch::lazy::Shape> compute_shape_div(const at::Tensor& self,
+                                                  const at::Scalar& other) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
-std::vector<torch::lazy::Shape>
-compute_shape_mul(const at::Tensor& self, const at::Scalar& other) {
+std::vector<torch::lazy::Shape> compute_shape_mse_loss_backward(
+    const at::Tensor& grad_output, const at::Tensor& self,
+    const at::Tensor& target, int64_t reduction) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
+std::vector<torch::lazy::Shape> compute_shape_mul(const at::Tensor& self,
+                                                  const at::Scalar& other) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
 std::vector<torch::lazy::Shape> compute_shape_var(
     const at::Tensor& self, at::OptionalIntArrayRef dim,
-    const c10::optional<int64_t>& correction, bool keepdim) {
+    const c10::optional<at::Scalar> & correction, bool keepdim) {
   // Result of variance is scalar tensor.
   return {Shape(self.scalar_type(), {})};
 }
 
 std::vector<torch::lazy::Shape> compute_shape_hardtanh(
-    const at::Tensor& self, const at::Scalar& min_val, const at::Scalar& max_val
-) {
+    const at::Tensor& self, const at::Scalar& min_val,
+    const at::Scalar& max_val) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
 std::vector<torch::lazy::Shape> compute_shape_hardtanh_backward(
-    const at::Tensor& grad_output, 
-    const at::Tensor& self, 
-    const at::Scalar& min_val, 
-    const at::Scalar& max_val
-) {
+    const at::Tensor& grad_output, const at::Tensor& self,
+    const at::Scalar& min_val, const at::Scalar& max_val) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
-std::vector<torch::lazy::Shape> compute_shape_where(
-  const at::Tensor & condition,
-  const at::Tensor & self,
-  const at::Tensor & other) {
+std::vector<torch::lazy::Shape> compute_shape_where(const at::Tensor& condition,
+                                                    const at::Tensor& self,
+                                                    const at::Tensor& other) {
   // There are cases like  -
   // torch.aten.where.self %42, %arg17, %37 : !torch.vtensor<[15,10],i1>,
   // !torch.vtensor<[],f32>, !torch.vtensor<[15,10],f32>.
   // So the result tensor would the biggest of all the three operands.
   auto condition_meta = at::native::empty_strided_meta_symint(
-      condition.sym_sizes(),
-      condition.sym_strides(),
+      condition.sym_sizes(), condition.sym_strides(),
       /*dtype=*/c10::make_optional(condition.scalar_type()),
       /*layout=*/c10::make_optional(condition.layout()),
       /*device=*/c10::make_optional(c10::Device(c10::kMeta)),
       /*pin_memory=*/c10::nullopt);
   auto self_meta = at::native::empty_strided_meta_symint(
-      self.sym_sizes(),
-      self.sym_strides(),
+      self.sym_sizes(), self.sym_strides(),
       /*dtype=*/c10::make_optional(self.scalar_type()),
       /*layout=*/c10::make_optional(self.layout()),
       /*device=*/c10::make_optional(c10::Device(c10::kMeta)),
       /*pin_memory=*/c10::nullopt);
   auto other_meta = at::native::empty_strided_meta_symint(
-      other.sym_sizes(),
-      other.sym_strides(),
+      other.sym_sizes(), other.sym_strides(),
       /*dtype=*/c10::make_optional(other.scalar_type()),
       /*layout=*/c10::make_optional(other.layout()),
       /*device=*/c10::make_optional(c10::Device(c10::kMeta)),
       /*pin_memory=*/c10::nullopt);
-  auto out_meta =
-      at::where(condition_meta, self_meta, other_meta);
+  auto out_meta = at::where(condition_meta, self_meta, other_meta);
   return {Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
 }
 
@@ -112,77 +104,64 @@ std::vector<torch::lazy::Shape> compute_shape_bucketize(
   return {Shape(dtype, self.sizes().vec())};
 }
 
-std::vector<torch::lazy::Shape> compute_shape_copy(
-  const at::Tensor& self,
-  const at::Tensor& src,
-  bool non_blocking) {
+std::vector<torch::lazy::Shape> compute_shape_copy(const at::Tensor& self,
+                                                   const at::Tensor& src,
+                                                   bool non_blocking) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
 std::vector<torch::lazy::Shape> compute_shape_floor_divide(
-  const at::Tensor & self, const at::Tensor & other) {
+    const at::Tensor& self, const at::Tensor& other) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
-std::vector<torch::lazy::Shape> compute_shape_fmod(
-  const at::Tensor & self, const at::Scalar & other) {
+std::vector<torch::lazy::Shape> compute_shape_fmod(const at::Tensor& self,
+                                                   const at::Scalar& other) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
 std::vector<torch::lazy::Shape> compute_shape_native_group_norm(
-  const at::Tensor& input,
-  const c10::optional<at::Tensor>& weight,
-  const c10::optional<at::Tensor>& bias,
-  int64_t N, int64_t C, int64_t HxW,
-  int64_t group, double eps) {
+    const at::Tensor& input, const c10::optional<at::Tensor>& weight,
+    const c10::optional<at::Tensor>& bias, int64_t N, int64_t C, int64_t HxW,
+    int64_t group, double eps) {
 
-  TORCH_CHECK(
-      input.sizes().size() >= 2,
-      "Input tensor must have at least batch and channel dimensions!");
+  TORCH_CHECK(input.sizes().size() >= 2,
+              "Input tensor must have at least batch and channel dimensions!");
   std::vector<torch::lazy::Shape> shapes;
   shapes.reserve(3);
   shapes.emplace_back(input.scalar_type(), input.sizes().vec());
 
   // A separate mean and var needs to be kept for each group per N.
-  shapes.emplace_back(
-        at::get_default_dtype_as_scalartype(),
-        std::vector<int64_t>{N, group});
+  shapes.emplace_back(at::get_default_dtype_as_scalartype(),
+                      std::vector<int64_t>{N, group});
 
-  shapes.emplace_back(
-      at::get_default_dtype_as_scalartype(),
-      std::vector<int64_t>{N, group});
+  shapes.emplace_back(at::get_default_dtype_as_scalartype(),
+                      std::vector<int64_t>{N, group});
   return shapes;
 }
 
 std::vector<torch::lazy::Shape> compute_shape_im2col(
-  const at::Tensor& self, at::IntArrayRef kernel_size, at::IntArrayRef dilation,
-  at::IntArrayRef padding, at::IntArrayRef stride) {
+    const at::Tensor& self, at::IntArrayRef kernel_size,
+    at::IntArrayRef dilation, at::IntArrayRef padding, at::IntArrayRef stride) {
 
   auto self_meta = at::native::empty_strided_meta_symint(
-      self.sym_sizes(),
-      self.sym_strides(),
+      self.sym_sizes(), self.sym_strides(),
       /*dtype=*/c10::make_optional(self.scalar_type()),
       /*layout=*/c10::make_optional(self.layout()),
       /*device=*/c10::make_optional(c10::Device(c10::kMeta)),
       /*pin_memory=*/c10::nullopt);
 
-  auto out_meta =
-      at::im2col(self_meta, kernel_size, dilation, padding, stride);
+  auto out_meta = at::im2col(self_meta, kernel_size, dilation, padding, stride);
   return {Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
 }
 
 std::vector<torch::lazy::Shape> compute_shape_native_group_norm_backward(
-  const at::Tensor& grad_out,
-  const at::Tensor& input,
-  const at::Tensor& mean,
-  const at::Tensor& rstd,
-  const c10::optional<at::Tensor>& weight,
-  int64_t N, int64_t C, int64_t HxW,
-  int64_t group, ::std::array<bool, 3> output_mask) {
+    const at::Tensor& grad_out, const at::Tensor& input, const at::Tensor& mean,
+    const at::Tensor& rstd, const c10::optional<at::Tensor>& weight, int64_t N,
+    int64_t C, int64_t HxW, int64_t group, ::std::array<bool, 3> output_mask) {
 
-  TORCH_CHECK(
-      input.sizes().size() >= 2,
-      "Input tensor must have at least batch and channel dimensions!");
+  TORCH_CHECK(input.sizes().size() >= 2,
+              "Input tensor must have at least batch and channel dimensions!");
   std::vector<torch::lazy::Shape> shapes;
   shapes.reserve(3);
   shapes.emplace_back(input.scalar_type(), input.sizes().vec());
@@ -190,38 +169,32 @@ std::vector<torch::lazy::Shape> compute_shape_native_group_norm_backward(
   int64_t num_features = input.size(1);
 
   // `weight` and `bias` are vectors of length C (number of channels)`
-  shapes.emplace_back(
-      at::get_default_dtype_as_scalartype(),
-      std::vector<int64_t>{num_features});
-  shapes.emplace_back(
-      at::get_default_dtype_as_scalartype(),
-      std::vector<int64_t>{num_features});
+  shapes.emplace_back(at::get_default_dtype_as_scalartype(),
+                      std::vector<int64_t>{num_features});
+  shapes.emplace_back(at::get_default_dtype_as_scalartype(),
+                      std::vector<int64_t>{num_features});
 
   return shapes;
 }
 std::vector<torch::lazy::Shape> compute_shape_remainder(
-  const at::Tensor & self, const at::Scalar & other) {
+    const at::Tensor& self, const at::Scalar& other) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
 std::vector<torch::lazy::Shape> compute_shape_uniform(
-  const at::Tensor & self,
-  double from,
-  double to,
-  c10::optional<at::Generator> generator) {
+    const at::Tensor& self, double from, double to,
+    c10::optional<at::Generator> generator) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
 std::vector<torch::lazy::Shape> compute_shape_normal_functional(
-    const at::Tensor & self, double mean, double std, c10::optional<at::Generator> generator) {
-    return {Shape(self.scalar_type(), self.sizes().vec())};
+    const at::Tensor& self, double mean, double std,
+    c10::optional<at::Generator> generator) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
-std::vector<torch::lazy::Shape>
-compute_shape_multinomial(
-    const at::Tensor& self,
-    int64_t num_samples,
-    bool replacement,
+std::vector<torch::lazy::Shape> compute_shape_multinomial(
+    const at::Tensor& self, int64_t num_samples, bool replacement,
     c10::optional<at::Generator> generator) {
   // Input tensor can be either 1D or 2D. The last dim of output
   // should be 'num_samples'. So the output shape can be either
@@ -233,26 +206,65 @@ compute_shape_multinomial(
 }
 
 std::vector<torch::lazy::Shape> compute_shape_eye(
-  int64_t n, c10::optional<at::ScalarType> dtype,
-  c10::optional<at::Layout> layout,
-  c10::optional<at::Device> device,
-  c10::optional<bool> pin_memory) {
-    auto out_meta = at::eye(n, dtype, layout, c10::Device(c10::kMeta),
-                            pin_memory);
-    return {Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
+    int64_t n, c10::optional<at::ScalarType> dtype,
+    c10::optional<at::Layout> layout, c10::optional<at::Device> device,
+    c10::optional<bool> pin_memory) {
+  auto out_meta =
+      at::eye(n, dtype, layout, c10::Device(c10::kMeta), pin_memory);
+  return {Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
 }
 
 std::vector<torch::lazy::Shape> compute_shape_eye(
-  int64_t n,
-  int64_t m,
-  c10::optional<at::ScalarType> dtype,
-  c10::optional<at::Layout> layout,
-  c10::optional<at::Device> device,
-  c10::optional<bool> pin_memory) {
-    auto out_meta = at::eye(n, m, dtype, layout, c10::Device(c10::kMeta),
-                            pin_memory);
-    return {Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
+    int64_t n, int64_t m, c10::optional<at::ScalarType> dtype,
+    c10::optional<at::Layout> layout, c10::optional<at::Device> device,
+    c10::optional<bool> pin_memory) {
+  auto out_meta =
+      at::eye(n, m, dtype, layout, c10::Device(c10::kMeta), pin_memory);
+  return {Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
 }
 
-} // namespace lazy
-} // namespace torch
+std::vector<torch::lazy::Shape> compute_shape_full(
+    at::IntArrayRef size, const at::Scalar& fill_value,
+    c10::optional<at::ScalarType> dtype, c10::optional<at::Layout> layout,
+    c10::optional<at::Device> device, c10::optional<bool> pin_memory) {
+  return {
+      Shape(dtype.value_or(at::get_default_dtype_as_scalartype()), size.vec())};
+}
+
+std::vector<torch::lazy::Shape> compute_shape_fill(const at::Tensor& self,
+                                                   const at::Tensor& value) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
+std::vector<torch::lazy::Shape> compute_shape_randn(
+    at::IntArrayRef size, c10::optional<at::ScalarType> dtype,
+    c10::optional<at::Layout> layout, c10::optional<at::Device> device,
+    c10::optional<bool> pin_memory) {
+  return {
+      Shape(dtype.value_or(at::get_default_dtype_as_scalartype()), size.vec())};
+}
+
+std::vector<torch::lazy::Shape> compute_shape_randint(
+    int64_t high, at::IntArrayRef size, c10::optional<at::ScalarType> dtype,
+    c10::optional<at::Layout> layout, c10::optional<at::Device> device,
+    c10::optional<bool> pin_memory) {
+  return {
+      Shape(dtype.value_or(at::get_default_dtype_as_scalartype()), size.vec())};
+}
+
+std::vector<torch::lazy::Shape> compute_shape_randint(
+    int64_t low, int64_t high, at::IntArrayRef size,
+    c10::optional<at::ScalarType> dtype, c10::optional<at::Layout> layout,
+    c10::optional<at::Device> device, c10::optional<bool> pin_memory) {
+  return {
+      Shape(dtype.value_or(at::get_default_dtype_as_scalartype()), size.vec())};
+}
+
+std::vector<torch::lazy::Shape> compute_shape_bernoulli(
+    const at::Tensor& self, const at::Tensor &p,
+    c10::optional<at::Generator> generator) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
+}  // namespace lazy
+}  // namespace torch
