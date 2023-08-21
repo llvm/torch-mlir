@@ -4808,7 +4808,7 @@ public:
     int64_t inputRank = inputSizes.size();
     auto outputType = op.getType().cast<BaseTensorType>();
     if (!outputType.hasSizes()) {
-      rewriter.notifyMatchFailure(
+      return rewriter.notifyMatchFailure(
           op, "only output with shape information is supported");
     }
     auto outputRank = outputType.getSizes().size();
