@@ -13,6 +13,7 @@ and Clang's
 ### All parts not covered by anyone else
 
 - Stella Laurenzo (@stellaraccident)
+- Sean Silva (@silvasean) - emeritus
 
 --------------------------------------------------------------------------------
 
