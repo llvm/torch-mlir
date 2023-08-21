@@ -17,6 +17,8 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR failed
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
+    "IndexPutImplIndexWithNoneModule_basic",
+    "SliceCopyNonZeroDim_Module_basic",
 }
 
 TORCHDYNAMO_XFAIL_SET = {
@@ -274,6 +276,9 @@ TORCHDYNAMO_XFAIL_SET = {
     "ScatterValueFloatModule_basic",
     # ERROR: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
     "ScatterValueIntModule_basic",
+
+    # After decompose, the IndexputHackedTwin lowered to linalg fail
+    "IndexPutImplIndexWithNoneModule_basic",
 
     # AssertionError: Unregistered operation: torch.aten._unsafe_index_put
     "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
@@ -904,9 +909,6 @@ STABLEHLO_CRASHING_SET = {
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
 
-    # LLVM ERROR: SmallVector unable to grow. Requested capacity (9223372036854775808) is larger than maximum value for size type (4294967295)
-    "SliceCopyNonZeroDim_Module_basic",
-
     "Aten_EmbeddingBagExample_basic",
     "AtenEmbeddingBagSumExample_basic"
 }
@@ -917,6 +919,7 @@ TOSA_PASS_SET = {
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
     "IndexPutImpl2DNoneIndexStaticModule_basic",
+    "SliceCopy_Module_basic",
     "AliasModule_basic",
     "MaxPool2dEmptyStrideStaticModule_basic",
     "ConstantBoolParameterModule_basic",
