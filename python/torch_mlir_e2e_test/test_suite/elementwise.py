@@ -473,6 +473,26 @@ class ElementwiseLeakyReluStaticModule(torch.nn.Module):
 def ElementwiseLeakyReluStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 5, 6, low=-1))
 
+# ==============================================================================
+
+
+class ElementwiseEluModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.elu(x)
+
+@register_test_case(module_factory=lambda: ElementwiseEluModule())
+def ElementwiseEluModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5,3, low=-1, high=1))
+
 
 # ==============================================================================
 

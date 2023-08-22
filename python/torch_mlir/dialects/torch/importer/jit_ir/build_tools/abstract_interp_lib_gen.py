@@ -279,6 +279,9 @@ def aten〇rsub〇Scalar〡shape(self: List[int], other: float, alpha: float = 1
 def aten〇leaky_relu〡shape(self: List[int], negative_slope: float = 0.01) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇elu〡shape(self: List[int], alpha: float = 1, scale: float = 1, input_scale: float = 1) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇prelu〡shape(self: List[int], weight: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -2717,6 +2720,28 @@ def aten〇leaky_relu〡dtype(self_rank_dtype: Tuple[int, int], negative_slope: 
     if is_float_dtype(negative_slope_dtype):
         assert not is_integer_dtype(self_dtype)
     dtypes = [self_dtype, negative_slope_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+# @check_dtype_function(
+#     _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}, alpha=1, scale=1, input_scale=2) +
+#     _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool, torch.int8, torch.uint8, torch.int16, torch.int32, torch.int64}, alpha=1.0, scale=1.0, input_scale=1.0))
+def aten〇elu〡dtype(self_rank_dtype: Tuple[int, int], alpha: Union[int, float, complex] = 1, scale: Union[int, float, complex] = 1, input_scale: Union[int, float, complex] = 1) -> int:
+    # return torch.float64
+    self_rank, self_dtype = self_rank_dtype
+    assert self_dtype != torch.bool
+    ranks: List[Optional[int]] = [self_rank, None]
+    alpha_dtype = get_dtype_of_scalar(alpha)
+    scale_dtype = get_dtype_of_scalar(scale)
+    input_scale_dtype = get_dtype_of_scalar(input_scale)
+
+    if is_float_dtype(alpha_dtype):
+        assert not is_integer_dtype(self_dtype)
+    if is_float_dtype(scale_dtype):
+        assert not is_integer_dtype(self_dtype)
+    if is_float_dtype(input_scale_dtype):
+        assert not is_integer_dtype(self_dtype)
+
+    dtypes = [self_dtype, input_scale_dtype] #[self_dtype] + param_dtypes
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
