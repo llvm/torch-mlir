@@ -6,6 +6,28 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
+class RandModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1024, 512], torch.float, True)
+    ])
+    def forward(self, x):
+        size = x.size()
+        a = torch.rand(size)
+        return torch.std(a), torch.mean(a)
+
+
+@register_test_case(module_factory=lambda: RandModule())
+def RandModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1024, 512))
+
+# ==============================================================================
+
 class UniformModule(torch.nn.Module):
 
     def __init__(self):
