@@ -1292,8 +1292,8 @@ public:
 
     SmallVector<Value> unsqueezedSizes, expandedSizes, reshapedSizes;
     SmallVector<int64_t> unsqueezedIntSizes, expandedIntSizes;
+    assert(repeats.size() >= rank && "leadingRank should greater than 0");
     auto leadingRank = repeats.size() - rank;
-    assert(leadingRank >= 0 && "leadingRank should greater than 0");
     for (size_t i = 0; i < leadingRank; ++i) {
       insertDimSizes(unsqueezedSizes, unsqueezedIntSizes, ArrayRef<Value>{one});
       insertDimSizes(expandedSizes, expandedIntSizes,
@@ -4808,7 +4808,7 @@ public:
     int64_t inputRank = inputSizes.size();
     auto outputType = op.getType().cast<BaseTensorType>();
     if (!outputType.hasSizes()) {
-      rewriter.notifyMatchFailure(
+      return rewriter.notifyMatchFailure(
           op, "only output with shape information is supported");
     }
     auto outputRank = outputType.getSizes().size();
