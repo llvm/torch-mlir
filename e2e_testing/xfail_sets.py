@@ -62,6 +62,7 @@ TORCHDYNAMO_XFAIL_SET = {
     # error: failed to legalize operation 'torch.aten.view' that was explicitly marked illegal
     "ElementwiseFlattenBroadcastModule_basic",
     "FlattenRank0Module_basic",
+    "RandModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
     # error: unsupported by backend contract: tensor with unknown rank
