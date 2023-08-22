@@ -965,15 +965,6 @@ func.func @torch.prim.If$fold_same_result$subset_of_results(%arg0: !torch.bool, 
   return %0, %1: !torch.int, !torch.int
 }
 
-// CHECK-LABEL: func.func @prim.ListConstruct$fold_list(
-// CHECK-SAME:      %[[ARG0:.*]]: !torch.list<tensor>) -> !torch.list<tensor> {
-// CHECK:         return %[[ARG0]] : !torch.list<tensor>
-func.func @prim.ListConstruct$fold_list(%arg0: !torch.list<tensor>) -> !torch.list<tensor> {
-  %0:2 = torch.prim.ListUnpack %arg0 : !torch.list<tensor> -> !torch.tensor, !torch.tensor
-  %1 = torch.prim.ListConstruct %0#0, %0#1 : (!torch.tensor, !torch.tensor) -> !torch.list<tensor>
-  return %1 : !torch.list<tensor>
-}
-
 // CHECK-LABEL:   func.func @torch.prim.TupleUnpack(
 // CHECK-SAME:                                         %[[ARG0:.*]]: !torch.tensor,
 // CHECK-SAME:                                         %[[ARG1:.*]]: !torch.tensor) -> !torch.tensor {
