@@ -32,9 +32,14 @@ def FinalizingBackendTypeConversion
   }];
 }
 
-def UnpackTorchTensor : Pass<"torch-unpack-torch-tensor", "func::FuncOp"> {
-  let summary = "Unpack Int4 Torch Tensor";
-  let constructor = "mlir::torch::TorchConversion::createUnpackTorchTensorPass()";
+def UnpackQuantTensor : Pass<"torch-unpack-quant-tensor", "func::FuncOp"> {
+  let summary = "Unpack quantized int4 tensor from int8 containter";
+  let constructor = "mlir::torch::TorchConversion::createUnpackQuantTensorPass()";
+}
+
+def ConvertCustomQuantOp : Pass<"torch-convert-custom-quant-op", "func::FuncOp"> {
+  let summary = "Convert torch custom quant op to linalg";
+  let constructor = "mlir::torch::TorchConversion::createConvertCustomQuantOpPass()";
 }
 
 def VerifyLinalgOnTensorsBackendContract : Pass<"torch-verify-linalg-on-tensors-backend-contract", "ModuleOp"> {
