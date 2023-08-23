@@ -2724,7 +2724,7 @@ def aten〇leaky_relu〡dtype(self_rank_dtype: Tuple[int, int], negative_slope: 
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}, alpha=1, scale=1, input_scale=2) +
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool, torch.int8, torch.uint8, torch.int16, torch.int32, torch.int64}, alpha=1.0, scale=1.0, input_scale=2))
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool, torch.int8, torch.uint8, torch.int16, torch.int32, torch.int64}, alpha=1.0, scale=1.0, input_scale=2.0))
 def aten〇elu〡dtype(self_rank_dtype: Tuple[int, int], alpha: Union[int, float, complex] = 1, scale: Union[int, float, complex] = 1, input_scale: Union[int, float, complex] = 1) -> int:
     self_rank, self_dtype = self_rank_dtype
     assert self_dtype != torch.bool
