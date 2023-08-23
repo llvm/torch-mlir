@@ -1,4 +1,4 @@
-// RUN: torch-mlir-opt %s -convert-torch-to-linalg -verify-diagnostics | FileCheck %s
+// RUN: torch-mlir-opt %s -torch-convert-custom-quant-op -verify-diagnostics | FileCheck %s
 
 // CHECK-LABEL: func @forward
 func.func @forward(%arg0: !torch.vtensor<[1,1,2],f16>) -> !torch.vtensor<[1,1,2],f16> {

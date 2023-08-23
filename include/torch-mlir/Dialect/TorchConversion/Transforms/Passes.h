@@ -57,8 +57,8 @@ std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();
 std::unique_ptr<OperationPass<func::FuncOp>>
 createFinalizingBackendTypeConversionPass();
 
-std::unique_ptr<OperationPass<func::FuncOp>>
-createUnpackTorchTensorPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createUnpackQuantTensorPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createConvertCustomQuantOpPass();
 
 std::unique_ptr<OperationPass<ModuleOp>>
 createVerifyLinalgOnTensorsBackendContractPass();

@@ -1,4 +1,4 @@
-// RUN: torch-mlir-opt %s -torch-unpack-torch-tensor | FileCheck %s
+// RUN: torch-mlir-opt %s -torch-unpack-quant-tensor | FileCheck %s
 
 // CHECK-LABEL: func @forward
 func.func @forward(%arg0: !torch.vtensor<[1,1,8],f16>) -> !torch.vtensor<[1,1,8],f16> {

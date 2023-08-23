@@ -25,7 +25,8 @@ add_mlir_library(TorchMLIRTorchConversionPasses
   BackendTypeConversion.cpp
   BackendTypeConversionPasses.cpp  
   Passes.cpp
-  UnpackTensor.cpp
+  ConvertCustomQuantOp.cpp
+  UnpackQuantTensor.cpp
   VerifyLinalgOnTensorsBackendContract.cpp
   VerifyTosaBackendContract.cpp
   VerifyStablehloBackendContract.cpp

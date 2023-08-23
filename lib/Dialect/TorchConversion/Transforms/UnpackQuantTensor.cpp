@@ -115,9 +115,9 @@ public:
 } // namespace
 
 namespace {
-class UnpackTorchTensorPass
-    : public TorchConversion::UnpackTorchTensorBase<UnpackTorchTensorPass> {
-  using UnpackTorchTensorBase<UnpackTorchTensorPass>::UnpackTorchTensorBase;
+class UnpackQuantTensorPass
+    : public TorchConversion::UnpackQuantTensorBase<UnpackQuantTensorPass> {
+  using UnpackQuantTensorBase<UnpackQuantTensorPass>::UnpackQuantTensorBase;
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<func::FuncDialect>();
     registry.insert<Torch::TorchDialect>();
@@ -136,6 +136,6 @@ class UnpackTorchTensorPass
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::TorchConversion::createUnpackTorchTensorPass() {
-  return std::make_unique<UnpackTorchTensorPass>();
+mlir::torch::TorchConversion::createUnpackQuantTensorPass() {
+  return std::make_unique<UnpackQuantTensorPass>();
 }
