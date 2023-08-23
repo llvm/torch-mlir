@@ -367,32 +367,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     auto added = b.create<arith::AddFOp>(loc, exp, one);
     return b.create<arith::DivFOp>(loc, one, added);
   }
-  if (auto elu = dyn_cast<AtenEluOp>(op)) {
-    if (!elu.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
-      elu.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
-    Type elementType = payloadArgs[0].getType();
-    Value constZero =
-        b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
-    Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
-                                         payloadArgs[0], constZero);
-
-    Value one = b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 1.0));
-    Value alpha = convertScalarToDtype(b, loc, operands[1], elementType);
-    Value scale = convertScalarToDtype(b, loc, operands[2], elementType);
-    Value inputScale = convertScalarToDtype(b, loc, operands[3], elementType);
-    Value scaledX = b.create<arith::MulFOp>(loc, scale, payloadArgs[0]);
-    Value scaledAlpha = b.create<arith::MulFOp>(loc, scale, alpha);
-    Value inputScaledX = b.create<arith::MulFOp>(loc, inputScale, payloadArgs[0]);
-    Value exp = b.create<math::ExpOp>(loc, inputScaledX);
-    Value expm1 = b.create<arith::SubFOp>(loc, exp, one);
-    Value scaledExp = b.create<arith::MulFOp>(loc, scaledAlpha, expm1);
-    return b.create<arith::SelectOp>(loc, pred, scaledX, scaledExp);
-  }
   if (auto relu = dyn_cast<AtenReluOp>(op)) {
     if (!relu.getType()
              .cast<ValueTensorType>()
@@ -1182,7 +1156,7 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    if (!isa<AtenTanhOp, AtenEluOp, AtenReluOp, AtenPreluOp, AtenGeluOp,
+    if (!isa<AtenTanhOp, AtenReluOp, AtenPreluOp, AtenGeluOp,
              AtenGeluBackwardOp, AtenAddTensorOp, AtenMulTensorOp,
              AtenDivTensorOp, AtenDivTensorModeOp, AtenSubTensorOp, AtenAtan2Op,
              AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenExpm1Op,
@@ -1718,7 +1692,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     ConversionTarget &target) {
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<
-      AtenTanhOp, AtenEluOp, AtenReluOp, AtenGeluOp, AtenGeluBackwardOp, AtenAddTensorOp,
+      AtenTanhOp, AtenReluOp, AtenGeluOp, AtenGeluBackwardOp, AtenAddTensorOp,
       AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp, AtenSubTensorOp,
       AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp, AtenAtan2Op,
       AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenRsubScalarOp, AtenLogOp,

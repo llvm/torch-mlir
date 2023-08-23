@@ -1075,6 +1075,46 @@ public:
 };
 } // namespace
 
+// Elu = scale * max(0,x) + alpha * scale * (exp(min(0,x) * input_scale) - 1)
+namespace {
+class DecomposeAtenEluOp : public OpRewritePattern<AtenEluOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenEluOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    Value alpha = op.getAlpha();
+    Value scale = op.getScale();
+    Value inputScale = op.getInputScale();
+    auto resType = op.getType().cast<BaseTensorType>();
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+
+    Value constantZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value constantOne =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value zeroTensor = createRank0Tensor(rewriter, loc, resType, constantZero);
+    Value maxZeroX = rewriter.create<AtenMaximumOp>(loc, resType, zeroTensor, input);
+    Value positiveOutput = rewriter.create<AtenMulScalarOp>(loc, resType, maxZeroX, scale);
+    Value minZeroX = rewriter.create<AtenMinimumOp>(loc, resType, zeroTensor, input);
+    Value scaledMinZeroX = rewriter.create<AtenMulScalarOp>(loc, resType, minZeroX, inputScale);
+    Value expX = rewriter.create<AtenExpOp>(loc, resType, scaledMinZeroX);
+    Value expXM1 = rewriter.create<AtenSubScalarOp>(loc, resType, expX, constantOne, constantOne);
+    Value scaledExpXM1 = rewriter.create<AtenMulScalarOp>(loc, resType, expXM1, scale);
+    Value negativeOutput = rewriter.create<AtenMulScalarOp>(loc, resType, scaledExpXM1, alpha);
+
+    Value eluOutput = rewriter.create<AtenAddTensorOp>(
+        loc, resType, positiveOutput, negativeOutput, constantOne);
+
+    rewriter.replaceOp(op, eluOutput);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeAtenTOp : public OpRewritePattern<AtenTOp> {
 public:
@@ -5145,6 +5185,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnGeneratorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenEluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluBackwardOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyStridedOp>(patterns);
