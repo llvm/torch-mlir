@@ -8,6 +8,7 @@ from torch_mlir_e2e_test.framework import TestUtils
 from torch_mlir_e2e_test.registry import register_test_case
 from torch_mlir_e2e_test.annotations import annotate_args, export
 
+
 # ==============================================================================
 
 class ViewExpandModule(torch.nn.Module):
@@ -754,15 +755,13 @@ class ViewAsRealModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([6, 4], torch.cfloat, True),
+        ([-1, -1, -1], torch.complex64, True),
     ])
     def forward(self, x):
-        print("X complex tensor", x)
-        a = torch.view_as_real(x)
-        print("VIEWASREAL", a)
-        return a
+        return torch.view_as_real(x)
 
 
 @register_test_case(module_factory=lambda: ViewAsRealModule())
 def ViewAsRealModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(6, 4, dtype=torch.cfloat))
+    module.forward(tu.rand(6, 4, dtype=torch.complex64))
+

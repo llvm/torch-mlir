@@ -570,7 +570,7 @@ def avg_pool1d(input: List[int], kernel_size: List[int], stride: List[int], padd
 def adaptive_avg_pool1d(self: List[int], out: List[int]):
     assert len(out) == 1
     assert len(self) == 2 or len(self) == 3
-    
+
     for i in range(len(self)):
         assert self[i] != 0
 
@@ -832,7 +832,7 @@ def aten〇tensor〇bool〡shape(t: bool, dtype: Optional[int] = None, device: O
 def aten〇scalar_tensor〡shape(s: float, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return []
 
-@check_dtype_function([Invocation(-1), Invocation(-1.0)]) 
+@check_dtype_function([Invocation(-1), Invocation(-1.0)])
 def aten〇scalar_tensor〡dtype(s: Union[int, float, complex], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
     if dtype is not None:
         return dtype
@@ -923,6 +923,21 @@ def aten〇view_as_complex〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
         return torch.complex64
     else:
         assert False, "Unsupported dtype"
+
+def aten〇view_as_real〡shape(self: List[int]) -> List[int]:
+    self.append(2)
+    return self
+
+def aten〇view_as_real〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert is_complex_dtype(self_dtype)
+    if self_dtype == torch.complex128:
+        return torch.float64
+    else:
+        return torch.float32
+
+def aten〇view_as_real〡has_value_semantics() -> None:
+    return
 
 def aten〇conv2d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1,), padding: List[int] = (0, 0,), dilation: List[int] = (1, 1,), groups: int = 1) -> List[int]:
     return upstream_shape_functions.conv2d(input, weight, bias, stride, padding, dilation, groups)
@@ -2083,7 +2098,7 @@ def aten〇logical_and〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtyp
 def aten〇logical_not〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     return torch.bool
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(3, 4, 32, 16), (3, 4, 32, 16), (3, 4, 32, 16)])) 
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(3, 4, 32, 16), (3, 4, 32, 16), (3, 4, 32, 16)]))
 def aten〇scaled_dot_product_attention〡dtype(query_rank_dtype: Tuple[int, int], key_rank_dtype: Tuple[int, int], value_rank_dtype: Tuple[int, int], attn_mask_rank_dtype: Optional[Tuple[int, int]] = None, dropout_p: float = 0., is_causal: bool = False, scale: Optional[float] = None) -> int:
     _, query_dtype = query_rank_dtype
     return query_dtype
