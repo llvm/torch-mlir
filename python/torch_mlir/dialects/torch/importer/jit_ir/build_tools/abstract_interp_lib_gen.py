@@ -2728,16 +2728,10 @@ def aten〇leaky_relu〡dtype(self_rank_dtype: Tuple[int, int], negative_slope: 
 def aten〇elu〡dtype(self_rank_dtype: Tuple[int, int], alpha: Union[int, float, complex] = 1, scale: Union[int, float, complex] = 1, input_scale: Union[int, float, complex] = 1) -> int:
     self_rank, self_dtype = self_rank_dtype
     assert self_dtype != torch.bool
-    ranks: List[Optional[int]] = [self_rank, None]
-    alpha_dtype = get_dtype_of_scalar(alpha)
-    scale_dtype = get_dtype_of_scalar(scale)
-    input_scale_dtype = get_dtype_of_scalar(input_scale)
-
-    if any([is_float_dtype(d) for d in [alpha_dtype, scale_dtype, input_scale_dtype]]):
+    param_dtypes = [get_dtype_of_scalar(p) for p in [alpha, scale, input_scale]]
+    if any([is_float_dtype(d) for d in param_dtypes]):
         assert not is_integer_dtype(self_dtype)
-
-    dtypes = [self_dtype, input_scale_dtype]
-    return promote_dtypes(ranks, dtypes)
+    return self_dtype
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=1, other=1) +
