@@ -32,13 +32,14 @@ public:
 
     OpOperand *use = constOp.getResult().use_begin().getOperand();
     auto op = dyn_cast<OperatorOp>(use->getOwner());
-    if (!op)
+    if (!op) {
       return failure();
-
-    if (use->getOperandNumber() != 1)
-      return failure();
-
+    }
     if (op.getName().str() != "quant.matmul_rhs_group_quant") {
+      return failure();
+    }
+
+    if (use->getOperandNumber() != 1) {
       return failure();
     }
 
@@ -93,7 +94,8 @@ public:
 
     auto attrType = RankedTensorType::get(tensorShape, unpackedElementType);
 
-    // This is terrible but idk what else to do.
+    // TODO: Materialize IR that does the conversion from quantized type to
+    //       pure integer type which relys on constant evaluation in backends
     auto data = elements.getRawData();
     std::vector<APInt> newData(data.size() * packRatio,
                                APInt(unpackedBitWidth, 0));

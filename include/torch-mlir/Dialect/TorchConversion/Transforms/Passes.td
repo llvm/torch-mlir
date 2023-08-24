@@ -32,16 +32,6 @@ def FinalizingBackendTypeConversion
   }];
 }
 
-def UnpackQuantTensor : Pass<"torch-unpack-quant-tensor", "func::FuncOp"> {
-  let summary = "Unpack quantized int4 tensor from int8 containter";
-  let constructor = "mlir::torch::TorchConversion::createUnpackQuantTensorPass()";
-}
-
-def ConvertCustomQuantOp : Pass<"torch-convert-custom-quant-op", "func::FuncOp"> {
-  let summary = "Convert torch custom quant op to linalg";
-  let constructor = "mlir::torch::TorchConversion::createConvertCustomQuantOpPass()";
-}
-
 def VerifyLinalgOnTensorsBackendContract : Pass<"torch-verify-linalg-on-tensors-backend-contract", "ModuleOp"> {
   let summary = "Verifies conformity to the linalg-on-tensors backend contract";
   let constructor = "mlir::torch::TorchConversion::createVerifyLinalgOnTensorsBackendContractPass()";
@@ -58,4 +48,16 @@ def VerifyStablehloBackendContract : Pass<"torch-verify-stablehlo-backend-contra
   let constructor = "mlir::torch::TorchConversion::createVerifyStablehloBackendContractPass()";
 }
 #endif // TORCH_MLIR_ENABLE_STABLEHLO
+
+// The following passes are for a one-off conversion of a specific kind of quantized group matmul.
+// They should not be included in default lowering flows until further along.
+def UnpackQuantTensor : Pass<"torch-unpack-quant-tensor", "func::FuncOp"> {
+  let summary = "Unpack quantized int4 tensor from int8 containter";
+  let constructor = "mlir::torch::TorchConversion::createUnpackQuantTensorPass()";
+}
+
+def ConvertCustomQuantOp : Pass<"torch-convert-custom-quant-op", "func::FuncOp"> {
+  let summary = "Convert torch custom quant op to linalg";
+  let constructor = "mlir::torch::TorchConversion::createConvertCustomQuantOpPass()";
+}
 #endif // TORCHMLIR_TORCHCONVERSION_PASSES
