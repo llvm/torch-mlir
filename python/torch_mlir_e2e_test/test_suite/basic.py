@@ -4432,9 +4432,25 @@ class AtenComplexViewModule(torch.nn.Module):
 def AtenComplexViewModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5,2))
 
+# ==============================================================================
+class AtenRealViewModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.complex64, True),
+    ])
+    def forward(self, x):
+        return torch.view_as_real(x)
+
+
+@register_test_case(module_factory=lambda: AtenRealViewModule())
+def AtenRealViewModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 6, 1).to(torch.complex64))
 
 # ==============================================================================
-
 
 class Add_Module(torch.nn.Module):
 
