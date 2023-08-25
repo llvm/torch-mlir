@@ -294,6 +294,26 @@ class ReduceSumDimIntListKeepDimIntModule(torch.nn.Module):
 def ReduceSumDimIntListKeepDimIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, 5, high=100))
 
+
+# ==============================================================================
+
+class ReduceProdDimIntFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.prod(a, 1, dtype=torch.float32)
+
+
+@register_test_case(module_factory=lambda: ReduceProdDimIntFloatModule())
+def ReduceProdDimIntFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.float32))
+
 # ==============================================================================
 
 class ReduceMaxAlongDim(torch.nn.Module):
