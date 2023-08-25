@@ -286,7 +286,16 @@ TORCHDYNAMO_XFAIL_SET = {
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
 
+    # Exception: Unsupported: node.meta['val'] is not a FakeTensor or list of FakeTensor's: _scaled_dot_product_flash_attention;
+    "ScaledDotProductAttentionSameModule_basic",
+    "ScaledDotProductAttentionDifferentModule_basic",
 }
+
+if torch_version_for_comparison() < version.parse("2.1.0.dev"):
+    TORCHDYNAMO_XFAIL_SET -= {
+        "ScaledDotProductAttentionSameModule_basic",
+        "ScaledDotProductAttentionDifferentModule_basic",
+    }
 
 TORCHDYNAMO_CRASHING_SET = {
     # No upstream decompositions.
@@ -1234,13 +1243,6 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
 }) - {
 ### Test failing in make_fx_tosa but not in tosa
 
-    # failed to lower torch.aten.empty.memory_format
-    "BatchNorm1DModule_basic",
-    "BatchNorm1DWith2DInputModule_basic",
-    "BatchNorm2DModule_basic",
-    "BatchNorm3DModule_basic",
-    "BatchNorm1DStaticShapeModule_basic",
-
     # Dynamic shape, has extra unsupported broadcast ops
     "Matmul_3d",
 
@@ -1261,6 +1263,13 @@ if torch_version_for_comparison() < version.parse("2.1.0.dev"):
     MAKE_FX_TOSA_PASS_SET -= {
         # 'tensor.expand_shape' op expected rank expansion, but found source rank 1 >= result rank 1
         "ReshapeCollapseModule_basic",
+
+        # failed to lower torch.aten.empty.memory_format
+        "BatchNorm1DModule_basic",
+        "BatchNorm1DWith2DInputModule_basic",
+        "BatchNorm2DModule_basic",
+        "BatchNorm3DModule_basic",
+        "BatchNorm1DStaticShapeModule_basic",
     }
 
 LTC_CRASHING_SET = {
