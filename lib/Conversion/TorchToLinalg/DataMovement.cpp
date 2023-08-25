@@ -1454,11 +1454,7 @@ public:
     auto inputElementType = getElementTypeOrSelf(input.getType());
     Type elementType;
     if (inputElementType.isa<ComplexType>()) {
-      if (inputElementType.isF128()) {
-        elementType = rewriter.getF64Type();
-      } else {
-        elementType = rewriter.getF32Type();
-      }
+      elementType = resultType.getElementType();
     } else {
       return op.emitError("only ComplexType is allowed as input type");
     }

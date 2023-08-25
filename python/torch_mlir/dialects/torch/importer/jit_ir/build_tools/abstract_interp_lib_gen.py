@@ -934,8 +934,12 @@ def aten〇view_as_real〡shape(self: List[int]) -> List[int]:
 
 def aten〇view_as_real〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert is_complex_dtype(self_dtype)
-    return complex_to_float(self_dtype)
+    if self_dtype == torch.complex64:
+        return torch.float
+    elif self_dtype == torch.complex128:
+        return torch.double
+    else:
+        assert False, "Unsupported dtype"
 
 def aten〇view_as_real〡has_value_semantics() -> None:
     return
