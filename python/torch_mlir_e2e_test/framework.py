@@ -182,10 +182,8 @@ class TestUtils:
 
     # TODO: Add zeros/ones/etc. as convenient.
 
-    # def rand(self, *sizes, low=0.0, high=1.0):
-    #     return torch.empty(sizes).uniform_(low, high)
-    def rand(self, *sizes, low=0.0, high=1.0, dtype=None):
-        return torch.empty(sizes, dtype=dtype).uniform_(low, high)
+    def rand(self, *sizes, low=0.0, high=1.0):
+        return torch.empty(sizes).uniform_(low, high)
 
     def randint(self, *sizes, low=0, high=10, dtype=torch.int64):
         return torch.randint(low, high, sizes, dtype=dtype)

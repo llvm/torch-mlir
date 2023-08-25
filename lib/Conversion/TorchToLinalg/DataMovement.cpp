@@ -30,11 +30,6 @@
 
 #include <numeric>
 
-#include "llvm/ADT/Twine.h"
-#include "llvm/Support/Debug.h"
-#include <string>
-
-
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
@@ -1456,14 +1451,7 @@ public:
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
 
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
-
-//    Twine("result ").print(llvm::dbgs());
-//    Twine(std::to_string(resultType.getRank())).print(llvm::dbgs());
-//    Twine(" input ").print(llvm::dbgs());
-//    Twine(std::to_string(inputType.getRank())).print(llvm::dbgs());
-
     auto inputElementType = getElementTypeOrSelf(input.getType());
-
     Type elementType;
     if (inputElementType.isa<ComplexType>()) {
       if (inputElementType.isF128()) {
@@ -1472,53 +1460,36 @@ public:
         elementType = rewriter.getF32Type();
       }
     } else {
-      return op.emitError("Only ComplexTypes are allowed as input");
+      return op.emitError("only ComplexType is allowed as input type");
     }
 
-    SmallVector<OpFoldResult> resultShape = tensor::getMixedSizes(rewriter, loc, input);
-    // resultType.getRank() will have the same dim of input tensor
-    // result shape after the loop will have the same length with the n_dim of input?
-//    for (int64_t i = 0; i < resultType.getRank(); i++) {
-//      auto currentDimSize = rewriter.create<tensor::DimOp>(loc, input, i);
-//      resultShape.push_back(currentDimSize);
-//    }
+    SmallVector<OpFoldResult> resultShape =
+        tensor::getMixedSizes(rewriter, loc, input);
+    resultShape.push_back(
+        rewriter.createOrFold<arith::ConstantIndexOp>(loc, 2));
 
-    // Look into LLVM tensor::util
-    // this increases resultShape length by 1, with size 2 (== n_dim + 1)
-    resultShape.push_back(rewriter.createOrFold<arith::ConstantIndexOp>(loc, 2));
-
-    //This makes the outTensor have the n_dim = input_n_dim + 1
-    Value outTensor = rewriter.create<tensor::EmptyOp>(
-        loc, resultShape, elementType);
-
-    // Output Tensor Dimension should be input dim + 1 (with last dim size of 2)
+    Value outTensor =
+        rewriter.create<tensor::EmptyOp>(loc, resultShape, elementType);
     SmallVector<AffineExpr> outputExpr;
     for (unsigned i = 0; i < resultType.getRank(); i++) {
       outputExpr.push_back(getAffineDimExpr(i, context));
     }
-//    outputExpr.push_back(rewriter.getAffineConstantExpr(2));
-
-    AffineMap outputMap = AffineMap::get(resultType.getRank(), 0,
-                                         outputExpr, op->getContext());
+    AffineMap outputMap =
+        AffineMap::get(resultType.getRank(), 0, outputExpr, op->getContext());
 
     SmallVector<AffineExpr> inputExpr;
     for (unsigned i = 0; i < resultType.getRank() - 1; i++) {
       inputExpr.push_back(getAffineDimExpr(i, context));
     }
-
-    AffineMap inputMap = AffineMap::get(resultType.getRank(), 0,
-                                         inputExpr, op->getContext());
-
-
+    AffineMap inputMap =
+        AffineMap::get(resultType.getRank(), 0, inputExpr, op->getContext());
     SmallVector<AffineMap> indexingMaps{inputMap, outputMap};
 
-    // confused. should it match input? or output? Probably Output
     SmallVector<utils::IteratorType> iteratorTypes(
         resultType.getRank(), utils::IteratorType::parallel);
 
     Value constantZero =
         getConstant(rewriter, loc, 0, mlir::IndexType::get(context));
-
     auto realVar =
         rewriter
             .create<linalg::GenericOp>(
@@ -1530,16 +1501,16 @@ public:
                     indices.push_back(b.create<linalg::IndexOp>(loc, i));
                   }
 
-//                  Value complexVal =
-//                      b.create<tensor::ExtractOp>(loc, input, indices); // nice to avoid. pessimistic lowering: two generic of rep
-
                   Value realVal =
                       b.create<complex::ReOp>(loc, elementType, args[0]);
                   Value imagVal =
                       b.create<complex::ImOp>(loc, elementType, args[0]);
-                  Value lastIndex = b.create<linalg::IndexOp>(loc, inputType.getRank());
-                  Value cmpResult = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, lastIndex, constantZero);
-                  Value yieldValue = b.create<arith::SelectOp>(loc, cmpResult, realVal, imagVal);
+                  Value lastIndex =
+                      b.create<linalg::IndexOp>(loc, inputType.getRank());
+                  Value cmpResult = b.create<arith::CmpIOp>(
+                      loc, arith::CmpIPredicate::eq, lastIndex, constantZero);
+                  Value yieldValue = b.create<arith::SelectOp>(
+                      loc, cmpResult, realVal, imagVal);
 
                   b.create<linalg::YieldOp>(loc, yieldValue);
                 })
