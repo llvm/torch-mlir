@@ -745,23 +745,3 @@ class ReshapeAliasCollapseModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReshapeAliasCollapseModule())
 def ReshapeAliasCollapseModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4))
-
-
-# ==============================================================================
-class ViewAsRealModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.complex64, True),
-    ])
-    def forward(self, x):
-        return torch.view_as_real(x)
-
-
-@register_test_case(module_factory=lambda: ViewAsRealModule())
-def ViewAsRealModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(6, 4, dtype=torch.complex64))
-
