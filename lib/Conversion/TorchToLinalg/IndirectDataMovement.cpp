@@ -552,11 +552,11 @@ static Value makeIndexValuePositive(OpBuilder &b, Location loc, Value index,
 // e.g. x: [2, 3]
 //      x[[4], [6, 1]] -> x[6, 4]
 namespace {
-class ConvertAtenIndexTensorOp : public OpConversionPattern<AtenIndexTensorOp> {
+class ConvertAtenIndexTensorHackedTwinOp : public OpConversionPattern<AtenIndexTensorHackedTwinOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenIndexTensorOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenIndexTensorHackedTwinOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1107,8 +1107,8 @@ void mlir::torch::torch_to_linalg::
   patterns.add<ConvertAtenEmbeddingOp>(typeConverter, context);
   target.addIllegalOp<AtenIndexSelectOp>();
   patterns.add<ConvertAtenIndexSelectOp>(typeConverter, context);
-  target.addIllegalOp<AtenIndexTensorOp>();
-  patterns.add<ConvertAtenIndexTensorOp>(typeConverter, context);
+  target.addIllegalOp<AtenIndexTensorHackedTwinOp>();
+  patterns.add<ConvertAtenIndexTensorHackedTwinOp>(typeConverter, context);
   target.addIllegalOp<AtenEmbeddingBagPaddingIdxOp>();
   patterns.add<ConvertAtenEmbeddingBagPaddingIdxOp>(typeConverter, context);
   target.addIllegalOp<AtenUpsampleNearest2dOp>();

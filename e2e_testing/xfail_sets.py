@@ -13,7 +13,11 @@
 from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 from torch_mlir._version import torch_version_for_comparison, version
 
-LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
+LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
+    # Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR failed
+    # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
+    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier"
+}
 
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
@@ -273,6 +277,13 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
     "ScatterValueIntModule_basic",
 
+    # AssertionError: Unregistered operation: torch.aten._unsafe_index_put
+    "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
+
+    # Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR failed
+    # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
+    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
+
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -306,13 +317,42 @@ TORCHDYNAMO_CRASHING_SET = {
     "ToCopyModule_basic",
     "TransposeIntModule_basic",
     "TransposeIntNegDimsModule_basic",
-
-    # See https://github.com/llvm/torch-mlir/issues/2178
-    "Add_Module_basic"
+    "IndexPutImpl2DNoneIndexStaticModule_basic",
 }
 
 STABLEHLO_PASS_SET = {
+    "TileBigDimsSizeModule_basic",
+    "TileSmallDimsSizeModule_basic",
+    "AddIntModule_basic",
+    "AtenIntBoolOpModule_basic",
+    "AtenIntTensorByteDtypeModule_basic",
+    "AtenIntTensorCharDtypeModule_basic",
+    "BoolFloatFalseModule_basic",
+    "BoolFloatTrueModule_basic",
+    "BoolIntFalseModule_basic",
+    "BoolIntTrueModule_basic",
+    "CeilFloatModule_basic",
+    "DivFloatModule_basic",
+    "DivIntModule_basic",
+    "EqIntModule_basic",
+    "GeFloatIntModule_basic",
+    "GeFloatModule_basic",
+    "GeIntModule_basic",
+    "GtFloatIntModule_basic",
+    "GtIntModule_basic",
+    "MulIntModule_basic",
+    "NeFloatIntModule_basic",
+    "NeIntModule_basic",
+    "SqrtIntModule_basic",
+    "SubFloatModule_basic",
+    "SubIntModule_basic",
+    "TensorToBoolZeroRank_basic",
+    "TensorToIntZeroRank_basic",
+    "TensorToFloatZeroRank_basic",
+    "IndexTensorStaticContiguousWithNoneModule_basic",
+    "IndexTensorStaticNonContiguousWithNoneModule_basic",
     "AliasModule_basic",
+    "TensorIntModule_basic",
     "AllBoolFalseModule_basic",
     "AllBoolTrueModule_basic",
     "AnyBoolFalseModule_basic",
@@ -352,6 +392,7 @@ STABLEHLO_PASS_SET = {
     "ConstantBoolParameterModule_basic",
     "MaskedFillScalarIntValueStaticModule_basic",
     "MaskedFillScalarFloatValueStaticModule_basic",
+    "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AddSizeIntModule_basic",
     "AddSizeIntNegDimModule_basic",
@@ -437,6 +478,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseNeFloatScalarModule_basic",
     "ElementwiseNeFloatTensorStaticModule_basic",
     "ElementwiseNeIntTensorStaticModule_basic",
+    "ElementwiseEqBoolScalarModule_basic",
     "ElementwiseErfModule_basic",
     "ElementwiseGeluModule_basic",
     "ElementwiseGtFloatScalarModule_basic",
@@ -474,8 +516,16 @@ STABLEHLO_PASS_SET = {
     "EmbeddingModuleI32_basic",
     "EmbeddingModuleI64_basic",
     "EmbeddingModuleF16_basic",
+    "EmptyLikeMemoryFormatModule_basic",
+    "EmptyLikeModule_defaultDtype",
+    "EmptyLikeModule_falsePinMemory",
+    "EmptyLikeModule_float",
+    "EmptyLikeModule_int",
     "ExpandAsIntModule_basic",
     "ExpandModule_basic",
+    "Fill_TensorFloat64WithFloat32_basic",
+    "Fill_TensorFloat64WithFloat64_basic",
+    "Fill_TensorFloat64WithInt64_basic",
     "Fill_TensorFloat64WithFloat32Static_basic",
     "Fill_TensorFloat64WithInt64Static_basic",
     "FlipModuleStaticShape_basic",
@@ -595,8 +645,13 @@ STABLEHLO_PASS_SET = {
     "ViewOffsetBackwardTestStaticModule_basic",
     "NumToTensorFloatModule_basic",
     "AtenToDeviceModule_basic",
+    "AvgPool1dStaticModule_basic",
     "AvgPool2dStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_basic",
+    "Conv2dWithPaddingDilationStrideStaticModule_depthwise",
+    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
+    "Conv2dWithPaddingDilationStrideStaticModule_grouped",
+    "Conv2dWithPaddingDilationStrideStaticModule_grouped_multiplier",
     "Convolution2DStaticModule_basic",
     "ConvolutionModule2DTransposeStridedStatic_basic",
     "ElementwiseCloneContiguousModule_basic",
@@ -629,6 +684,7 @@ STABLEHLO_PASS_SET = {
     "SliceNegIdxModule_basic",
     "SliceOutOfLowerBoundStartIndexModule_basic",
     "SliceOutOfUpperBoundIndexModule_basic",
+    "SliceOutOfUpperBoundIndexStaticModule_basic",
     "SliceStartEqEndModule_basic",
     "SliceSizeTwoStepModule_basic",
     "SliceWholeTensorModule_basic",
@@ -670,6 +726,9 @@ STABLEHLO_PASS_SET = {
     "PermuteModule_basic",
     "PermuteNegativeIndexModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
+    "ZeroFloat32Module_basic",
+    "ZeroInt32Module_basic",
+    "ZeroInt64Module_basic",
     "ZerosLikeModule_defaultDtype",
     "ZerosLikeModule_falsePinMemory",
     "ZerosLikeModule_float",
@@ -740,6 +799,7 @@ STABLEHLO_PASS_SET = {
     "ReshapeExpandModule_basic",
     "RollModule_basic",
     "TestMultipleTensorReturn_basic",
+    "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dUnitOutputSizeStaticModule_basic",
     "BaddbmmStaticModule_basic",
     "BaddbmmBroadcast1DInputModule_basic",
@@ -748,6 +808,8 @@ STABLEHLO_PASS_SET = {
     "NarrowHorizontalTest_basic",
     "NarrowVerticalTest2_basic",
     "NarrowVerticalTest_basic",
+    "NarrowTensorHorizontalModule_basic",
+    "NarrowTensorVerticalModule_basic",
     "NumToTensorIntModule_basic",
     "NumpyTRank0Module_basic",
     "NumpyTRank1Module_basic",
@@ -765,6 +827,7 @@ STABLEHLO_PASS_SET = {
     "ToDtypeLayoutNoneModule_basic",
     "ToDtypeLayoutStridedModule_basic",
     "TypeAsSameModule_basic",
+    "TypeAsDifferentModule_basic",
     "TypeConversionF32ToF64Module_basic",
     "TypeConversionF64ToF32Module_basic",
     "TypeConversionI1ToF32Module_basic",
@@ -794,6 +857,8 @@ STABLEHLO_PASS_SET = {
     "AtenComplex64Module_basic",
     "SplitTensorGetItem_Module_basic",
     "SplitTensorListUnpackModule_basic",
+    "SplitTensorNegativeDimModule_basic",
+    "SplitTensorLastSmallerModule_basic",
     "UnbindIntListUnpack_Module_basic",
     "UnbindIntGetItem_Module_basic",
     "ChunkListUnpack_Module_basic",
@@ -805,6 +870,19 @@ STABLEHLO_PASS_SET = {
     "RandIntPinMemoryModule_basic",
     "UniformStaticShapeModule_basic",
     "UniformNoCorrelationModule_basic",
+    "TupleModule_basic",
+}
+
+STABLEHLO_CRASHING_SET = {
+    # These e2e tests crash because currently mlir-hlo's shape-component-analysis
+    # only support exact one index in tensor::ExtractOp when it's related with 
+    # some tensors' shape. REF:
+    # https://github.com/tensorflow/mlir-hlo/blob/master/mhlo/analysis/shape_component_analysis.cc#L586
+    # FIXME if upstream mlir-hlo fix this.
+    "ViewCollapseDynamicWithAtenSizeIntModule_basic",
+    "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
+
+    "Aten_EmbeddingBagExample_basic"
 }
 
 TCP_PASS_SET = {
@@ -932,6 +1010,9 @@ TCP_PASS_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "TileBigDimsSizeModule_basic",
+    "TileSmallDimsSizeModule_basic",
+    "IndexPutImpl2DNoneIndexStaticModule_basic",
     "AliasModule_basic",
     "MaxPool2dEmptyStrideStaticModule_basic",
     "ConstantBoolParameterModule_basic",
@@ -1019,6 +1100,7 @@ TOSA_PASS_SET = {
     "ElementwiseLtIntTensorModule_basic",
     "ElementwiseEqFloatScalarModule_basic",
     "ElementwiseEqIntScalarModule_basic",
+    "ElementwiseEqBoolScalarModule_basic",
     "ElementwiseEqDiffWidthScalarModule_basic",
     "ElementwiseEqFloatTensorModule_basic",
     "ElementwiseEqIntTensorModule_basic",
@@ -1041,6 +1123,8 @@ TOSA_PASS_SET = {
     "ElementwiseIsnanModule_basic",
     "TypePromotionAlphaWiderModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_basic",
+    "Conv2dWithPaddingDilationStrideStaticModule_depthwise",
+    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "BatchNorm1DModule_basic",
     "BatchNorm1DWith2DInputModule_basic",
     "BatchNorm2DModule_basic",
@@ -1127,6 +1211,7 @@ TOSA_PASS_SET = {
     "NumpyTRankNStaticModule_basic",
     "NumpyTRankNDynamicModule_basic",
     "EmbeddingModuleI32Static_basic",
+    "EmbeddingModule1DIndices_basic",
     "TModuleRank2_basic",
     "TransposeIntModule_basic",
     "TransposeIntNegDimsModule_basic",
@@ -1168,6 +1253,7 @@ TOSA_PASS_SET = {
     "BroadcastZeroRankInputStaticModule_basic",
     "BroadcastListConstructWithMinusOneModule_basic",
     "SliceStaticModule_basic",
+    "SliceOutOfUpperBoundIndexStaticModule_basic",
     "ArangeStartStepIntModule_basic",
     "ArangeDtypeFloatModule_basic",
     "ArangeIntModule_basic",
@@ -1234,15 +1320,28 @@ TOSA_PASS_SET = {
     "ElementwiseSqrtModule_basic",
     "SplitTensorGetItem_Module_basic",
     "SplitTensorListUnpackModule_basic",
+    "SplitTensorNegativeDimModule_basic",
+    "SplitTensorLastSmallerModule_basic",
     "ChunkListUnpack_Module_basic",
     "ChunkListUnpackUneven_Module_basic",
+    "TupleModule_basic",
+    "NumpyTRank0Module_basic",
+    "Permute0RankModule_basic",
+    "Add_Module_basic",
+    "SoftmaxIntModule_basic",
+    "SoftmaxIntNegDimModule_basic",
+    "_LogSoftmaxModule_basic",
+    "_SoftmaxModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
 ### Tests additionally passing in make_fx_tosa
     "NativeGroupNormBackwardModule_basic",
+    "SliceWholeTensorModule_basic",
     "TensorFloatModule_basic",
     "TensorIntModule_basic",
+    "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
+    "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
 }) - {
 ### Test failing in make_fx_tosa but not in tosa
 
@@ -1265,6 +1364,8 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     # Unimplemented operator 'aten._index_put_impl_.hacked_twin'
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
     "IndexPutImpl1DIntNonAccumulateModule_basic",
+    # RuntimeError: The size of tensor a (7) must match the size of tensor b (3) at non-singleton dimension 1
+    "Add_Module_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.1.0.dev"):
@@ -1272,11 +1373,6 @@ if torch_version_for_comparison() < version.parse("2.1.0.dev"):
         # 'tensor.expand_shape' op expected rank expansion, but found source rank 1 >= result rank 1
         "ReshapeCollapseModule_basic",
     }
-
-LTC_CRASHING_SET = {
-    # https://github.com/llvm/torch-mlir/issues/2186
-    "Add_Module_basic"
-}
 
 LTC_XFAIL_SET = {
     "_Convolution2DAllFalseModule_basic",
@@ -1288,6 +1384,8 @@ LTC_XFAIL_SET = {
     "_ConvolutionDeprecated2DBenchmarkModule_basic",
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
+    "AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule_basic",
+    "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeDynamicModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AddIntModule_basic",
@@ -1302,8 +1400,6 @@ LTC_XFAIL_SET = {
     "BoolIntTrueModule_basic",
     "CeilFloatModule_basic",
     "DivFloatModule_basic",
-    "ElementwiseAtenFloorDivideBroadcastModule_basic",
-    "ElementwiseAtenFloorDivideModule_basic",
     "EqIntModule_basic",
     "GeFloatIntModule_basic",
     "GeFloatModule_basic",
@@ -1311,7 +1407,6 @@ LTC_XFAIL_SET = {
     "GtFloatIntModule_basic",
     "GtIntModule_basic",
     "HBC_basic",
-    "HardtanhBackward_basic",
     "IndexPut1DFloatAccumulateModule_basic",
     "IndexPut1DFloatNonAccumulateModule_basic",
     "IndexPut1DIntAccumulateModule_basic",
@@ -1343,6 +1438,7 @@ LTC_XFAIL_SET = {
     "IndexPutImpl2DFloatAccumulateModule_basic",
     "IndexPutImpl2DFloatNonAccumulateModule_basic",
     "IndexPutImpl2DIndexModule_basic",
+    "IndexPutImpl2DNoneIndexStaticModule_basic",
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
     "IndexPutImplIndexWithNoneModule_basic",
@@ -1360,9 +1456,13 @@ LTC_XFAIL_SET = {
     "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
     "IndexTensorMultiInputNonContiguousDynamic_basic",
     "IndexTensorMultiInputNonContiguousMultipleStaticDims_basic",
+    "IndexTensorStaticContiguousWithNoneModule_basic",
+    "IndexTensorStaticNonContiguousWithNoneModule_basic",
     "IndexTensorHackedTwinModule_basic",
     "IndexTensorHackedTwinModule3dInput_basic",
     "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
+    "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
+    "IndexTensorDyanmicInputNonContiguousWithNoneModule_basic",
     "LiftFreshCopyModule_basic",
     "Matmul_dot",
     "MulIntModule_basic",
@@ -1370,19 +1470,16 @@ LTC_XFAIL_SET = {
     "NeFloatIntModule_basic",
     "NeIntModule_basic",
     "QuantizedMLP_basic",
-    "RandLikeDtypeModule_basic",
-    "RandLikeModule_basic",
     "RollModule_basic",
     "ScalarImplicitFloatModule_basic",
     "ScalarImplicitIntModule_basic",
     "SliceEndSleStartModule_basic",
     "SliceOutOfUpperBoundIndexModule_basic",
+    "SliceOutOfUpperBoundIndexStaticModule_basic",
     "SliceStartEqEndModule_basic",
     "SqrtIntModule_basic",
     "SubFloatModule_basic",
     "SubIntModule_basic",
-    "TensorsConcatNegativeDimModule_basic",
-    "TensorsConcatPromoteDTypeModule_basic",
     "TensorsStackPromoteDTypeModule_basic",
     "TensorToBoolZeroRank_basic",
     "TensorToBool_basic",
@@ -1390,24 +1487,15 @@ LTC_XFAIL_SET = {
     "TensorToFloat_basic",
     "TensorToIntZeroRank_basic",
     "TensorToInt_basic",
-    "TensorsConcatModule_basic",
-    "TensorsConcatStaticModule_basic",
-    "TensorsConcatNegativeDimStaticModule_basic",
     "UniformModule_basic",
-    "UniformNoCorrelationModule_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "AtenEmbeddingBagSumExample_basic",
     "Aten_EmbeddingBagExample_basic",
     "ElementwiseRemainderScalarModule_Int_Float_basic",
-    "ElementwiseRemainderScalarModule_Float_basic",
-    "ElementwiseRemainderScalarModule_Int_basic",
     "ElementwiseRemainderScalarModule_Bool_basic",
     "AtenIntTensorByteDtypeModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
-    "Fill_TensorFloat32WithFloat32_basic",
-    "Fill_TensorFloat32WithFloat64_basic",
-    "Fill_TensorFloat32WithInt64_basic",
     "UpSampleNearest2dBackwardVec_basic",
     "UpSampleNearest2dBackwardOutputSizeNone_basic",
     "ConvolutionBackwardModule2D_basic",
@@ -1429,24 +1517,8 @@ LTC_XFAIL_SET = {
     "NativeDropoutTrainStaticShapeModule_basic",
     "StdCorrectionKeepDimModule_basic",
     "StdCorrectionNoneModule_basic",
-    "VarBiasedModule_basic",
-    "VarCorrectionAllDimReduceModule_basic",
-    "VarCorrectionEmptyDimModule_basic",
     "VarCorrectionKeepDimModule_basic",
-    "VarCorrectionLargeInputModule_basic",
-    "VarCorrectionModule_basic",
     "VarCorrectionNoneModule_basic",
-    "VarCorrectionSingleDimReduceModule_basic",
-    "VarDimAllDimReduceModule_basic",
-    "VarDimBiasedModule_basic",
-    "VarDimEmptyDimModule_basic",
-    "VarDimModule_basic",
-    "VarDimMultiDimModule_basic",
-    "VarDimNegativeModule_basic",
-    "VarDimNoneDimModule_basic",
-    "VarDimSingleDimModule_basic",
-    "VarDimUnbiasedModule_basic",
-    "VarUnbiasedModule_basic",
     "AtenFloatScalarModule_basic",
     "PrimsSqueezeModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
@@ -1458,16 +1530,9 @@ LTC_XFAIL_SET = {
     "AtenComplexImagModule_basic",
     "AtenComplexRealModule_basic",
     "AtenComplexViewModule_basic",
-    "SplitTensorGetItem_Module_basic",
-    "SplitTensorListUnpackModule_basic",
-    "UnbindIntListUnpack_Module_basic",
-    "UnbindIntGetItem_Module_basic",
-    "ChunkListUnpack_Module_basic",
-    "ChunkListUnpackUneven_Module_basic",
-    "ChunkListUnpackDynamic_Module_basic",
-    "ChunkListUnpackUnevenDynamic_Module_basic",
     "ScatterValueFloatModule_basic",
     "ScatterValueIntModule_basic",
     "IndexTensorNegativeIndexModule_basic",
     "UniformStaticShapeModule_basic",
+    "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
 }

@@ -116,7 +116,7 @@ torch::lazy::TorchMlirOpVector TorchMlirTensorList::Lower(
   }
   auto graph = function->graph();
   auto listnode =
-      graph->insertNode(graph->createList(tensor_list[0]->type(), tensor_list));
+      graph->insertNode(graph->createList(c10::TensorType::get(), tensor_list));
   return {listnode->output()};
 }
 

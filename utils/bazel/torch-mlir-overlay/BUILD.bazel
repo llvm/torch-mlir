@@ -817,6 +817,7 @@ cc_library(
         ":TorchMLIRTorchConversionPasses",
         ":TorchMLIRTorchDialect",
         ":TorchMLIRTorchPasses",
+        "@llvm-project//mlir:AllExtensions",
         "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:DialectUtils",
         "@llvm-project//mlir:IR",

@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch/csrc/jit/python/pybind.h"
+#include "torch/csrc/lazy/core/config.h"
 #include "torch/csrc/lazy/backend/backend_interface.h"
 
 #include <torch_mlir/csrc/base_lazy_backend/mlir_lowering_context.h>
@@ -25,6 +26,7 @@ namespace py = pybind11;
 
 namespace {
 bool verbose = sys_util::GetEnv("VERBOSE", false);
+bool ir_debug = sys_util::GetEnv("LTC_IR_DEBUG", false);
 
 struct NoGilSection {
   NoGilSection() : state(PyEval_SaveThread()) {}
@@ -51,6 +53,11 @@ void Initialize() {
 
   if (verbose) {
     std::cout << "MLIR LTC PyTorch Plugin Initialized." << std::endl;
+  }
+
+  if (ir_debug) {
+      FLAGS_torch_lazy_ir_debug = true;
+      std::cout << "Enabled lazy tensor IR debugging." << std::endl;
   }
 }
 

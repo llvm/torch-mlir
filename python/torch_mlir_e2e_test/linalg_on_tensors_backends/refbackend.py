@@ -163,10 +163,11 @@ LOWERING_PIPELINE = "builtin.module(" + ",".join([
     "func.func(convert-math-to-llvm)",
     # Handle some complex mlir::math ops (e.g. atan2)
     "convert-math-to-libm",
-    "convert-linalg-to-llvm",
     "expand-strided-metadata",
     "finalize-memref-to-llvm",
     "lower-affine",
+    "convert-bufferization-to-memref",
+    "finalize-memref-to-llvm",
     "func.func(convert-arith-to-llvm)",
     "convert-func-to-llvm",
     "convert-cf-to-llvm",

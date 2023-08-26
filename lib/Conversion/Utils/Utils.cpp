@@ -230,7 +230,7 @@ SmallVector<Value> getAsConstantIndexValues(OpBuilder &b, Location loc,
 // convert their elements to valid target type.
 // TODO: remove this when list gets full support.
 SmallVector<Value> getTypeConvertedValues(OpBuilder &b, Location loc,
-                                          TypeConverter *converter,
+                                          const TypeConverter *converter,
                                           SmallVectorImpl<Value> &vs) {
   return llvm::to_vector<4>(llvm::map_range(vs, [&](Value v) {
     return converter->materializeTargetConversion(

@@ -163,7 +163,7 @@ setup(
     ext_modules=[
         CMakeExtension("torch_mlir._mlir_libs._jit_ir_importer"),
     ] if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else [CMakeExtension("torch_mlir._mlir_libs._torchMlir")],
-    install_requires=["numpy", ] + (
+    install_requires=["numpy", "packaging"] + (
         [f"torch=={torch.__version__}".split("+", 1)[0], ] if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else []),
     zip_safe=False,
 )

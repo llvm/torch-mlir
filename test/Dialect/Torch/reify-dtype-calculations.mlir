@@ -72,3 +72,18 @@ func.func @turn_tensors_into_rank_and_dtype_args(%arg0: !torch.vtensor, %arg1: !
   %0 = torch.aten.floor_divide %arg0, %arg1 : !torch.vtensor, !torch.vtensor -> !torch.vtensor
   return %0 : !torch.vtensor
 }
+
+// -----
+
+// CHECK-LABEL:   func.func private @__torch_mlir_dtype_fn.aten.arange(
+
+// CHECK-LABEL:   func.func @derefine_int_to_number() -> !torch.vtensor {
+// CHECK:           %[[INT1:.*]] = torch.constant.int 1
+// CHECK:             %[[NUMBER:.*]] = torch.derefine %[[INT1]] : !torch.int to !torch.number
+// CHECK:             {{.*}} = func.call @__torch_mlir_dtype_fn.aten.arange(%[[NUMBER]], {{.*}}) : (!torch.number, {{.*}}) -> !torch.int
+func.func @derefine_int_to_number() -> !torch.vtensor {
+  %int1 = torch.constant.int 1
+  %none = torch.constant.none
+  %0 = torch.aten.arange %int1, %none, %none, %none, %none : !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor
+  return %0 : !torch.vtensor
+}

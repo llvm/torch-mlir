@@ -58,6 +58,12 @@ std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter,
                                         Value params_value,
                                         Value indices_value);
 
+std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
+                                        Operation *op, Type outType,
+                                        Value paramsValue, Value indicesValue,
+                                        Value fillValues);
+
+
 // Lowers ReduceAll to a sequence of TOSA ops.
 std::optional<Value>
 convertReduceAllOp(PatternRewriter &rewriter, Operation *op,

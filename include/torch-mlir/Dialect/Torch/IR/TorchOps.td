@@ -506,7 +506,7 @@ def Torch_PrimCallMethodOp : Torch_Op<"prim.CallMethod", []> {
 }
 
 def Torch_PrimLoopOp : Torch_Op<"prim.Loop", [
-  DeclareOpInterfaceMethods<RegionBranchOpInterface, ["getSuccessorEntryOperands"]>]> {
+  DeclareOpInterfaceMethods<RegionBranchOpInterface, ["getEntrySuccessorOperands"]>]> {
   let summary = "TorchScript prim::Loop op";
   let description = [{
     This op (together with prim.Loop.condition) define a looping construct

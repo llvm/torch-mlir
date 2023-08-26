@@ -61,6 +61,30 @@ class IndexPutImpl2DFloatNonAccumulateModule(torch.nn.Module):
 def IndexPutImpl2DFloatNonAccumulateModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 8), tu.randint(5, high=4), tu.rand(5, 8))
 
+class IndexPutImpl2DNoneIndexStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 4], torch.int64, True),
+        ([3], torch.int64, True),
+        ([1, 3], torch.int64, True),
+    ])
+    def forward(self, input, index, value):
+        return torch.ops.aten._index_put_impl_(input, (None, index),
+                                               value,
+                                               accumulate=False,
+                                               unsafe=False)
+
+
+@register_test_case(
+    module_factory=lambda: IndexPutImpl2DNoneIndexStaticModule())
+def IndexPutImpl2DNoneIndexStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(1, 4, high=3), tu.randint(3, high=3), tu.randint(1, 3, high=1))
+
 
 class IndexPutImpl3DFloatNonAccumulateModule(torch.nn.Module):
 
@@ -818,6 +842,35 @@ class IndexPutHackedTwin3DIntAccumulateModule(torch.nn.Module):
 def IndexPutHackedTwin3DIntAccumulateModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(10, 8, 6, high=1000), tu.randint(5, high=4),
                    tu.randint(5, 8, 6, high=1000))
+
+
+# ==============================================================================
+# UnsafeIndexPutHackedTwin tests are using the aten._unsafe_index_put.hacked_twin operator.
+
+
+class UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+        ([-1], torch.int64, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, input, index, value):
+        return torch.ops.aten._unsafe_index_put(input, [index],
+                                        value,
+                                        accumulate=False)
+
+
+@register_test_case(
+    module_factory=lambda: UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule())
+def UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(100), tu.randint(250, high=100), tu.rand(250))
+
 
 # ==============================================================================
 

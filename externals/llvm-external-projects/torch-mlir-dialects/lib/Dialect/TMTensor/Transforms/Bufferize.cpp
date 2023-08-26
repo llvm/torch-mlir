@@ -31,7 +31,7 @@ using namespace ::mlir::torch::TMTensor;
 static Value cloneMemref(Location loc, Value memref, OpBuilder &b) {
   auto memrefType = memref.getType().cast<MemRefType>();
   auto alloc = b.create<memref::AllocOp>(
-      loc, memrefType, linalg::createDynamicDimensions(b, loc, memref));
+      loc, memref::getMixedSizes(b, loc, memref), memrefType.getElementType());
   b.create<memref::CopyOp>(loc, memref, alloc);
   return alloc;
 }
@@ -73,8 +73,8 @@ allocateBuffersForResults(Location loc, TMTensorOp tmtensorOp,
     }
 
     resultBuffers.push_back(b.create<memref::AllocOp>(
-        loc, memrefType,
-        linalg::createDynamicDimensions(b, loc, resultTensor)));
+        loc, memref::getMixedSizes(b, loc, resultTensor),
+        memrefType.getElementType()));
   }
   return success();
 }

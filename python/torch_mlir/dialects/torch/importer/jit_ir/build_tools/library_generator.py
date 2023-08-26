@@ -6,6 +6,7 @@
 import inspect
 import re
 from typing import List, Optional, Union, Any, Dict
+import codecs
 
 import torch
 
@@ -63,7 +64,7 @@ def get_priority_of_dtype(dtype: int) -> int:
         return 11
     assert False, "Cannot determine priority of dtype"
 
-def get_dtype_of_scalar(scalar: Union[int, float]) -> int:
+def get_dtype_of_scalar(scalar: Union[int, float, complex]) -> int:
     # This is hacky. `NumToTensor` is the only PyTorch op for scalars
     # that when `jit.script`ed converts a float scalar to a tensor
     # with dtype that corresponds to Python's `float`.
@@ -234,10 +235,22 @@ def generate_library(functions: Dict[str, Any]) -> str:
     # defined symbols. Since all of our shape functions conveniently have
     # a `〇` in them, we replace the torch namespace with our prefix. E.g.:
     # __torch__.aten〇add〇Scalar -> __torch_mlir_shape_fn.aten〇add〇Scalar
-    asm = re.sub(r"__torch__\.([^.(]+)\\E3\\80\\87([^.(]+)\\E3\\80\\A1([^.(\"]+)",
-                 r"__torch_mlir_\3_fn.\1\\E3\\80\\87\2",
+
+    # Encoding for: 〇
+    circle = r"\\E3\\80\\87"
+    # Encoding for: 〡
+    line = r"\\E3\\80\\A1"
+    name = r"[^.(]+"
+    # Sometimes PyTorch will insert namespaces to the function name in
+    # the format: `__torch__.{namespace_1}.{namespace_2}...{op_name}`
+    # The extra namespaces are not part of the abstract interpretation
+    # function name, so here we simply drop the extra namespaces.
+    namespace = fr"(?:{name}\.)"
+
+    asm = re.sub(fr'@"__torch__\.{namespace}*({name}){circle}({name}){line}({name})"',
+                 fr'@"__torch_mlir_\3_fn.\1{circle}\2"',
                  asm)
 
     # Put the `〇` back to a regular `.`.
-    asm = asm.replace("\\E3\\80\\87", ".")
+    asm = asm.replace(codecs.decode(circle, "unicode_escape"), ".")
     return asm

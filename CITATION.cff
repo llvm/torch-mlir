@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+title: Torch-MLIR
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - name: LLVM
+repository-code: 'https://github.com/llvm/torch-mlir'
+abstract: >-
+  The Torch-MLIR project aims to provide first class support
+  from the PyTorch ecosystem to the MLIR ecosystem.
+keywords:
+  - Compiler
+  - PyTorch
+  - MLIR
+license:
+  - Apache-2.0 with LLVM Exceptions
+  - BSD

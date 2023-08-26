@@ -97,20 +97,3 @@ func.func @call_tuple_return(%arg0: !torch.tensor {torch.type_bound = !torch.vte
   %0 = call @tuple_return(%arg0, %arg1) : (!torch.tensor, !torch.tensor) -> !torch.tuple<tensor, tensor>
   return %0 : !torch.tuple<tensor, tensor>
 }
-
-// -----
-
-// Single tensor tuple return
-// expected-error @+1 {{Functions must return}}
-func.func @single_tensor_tuple_return(%arg0: !torch.tensor) -> !torch.tuple<tensor> {
-  %0 = torch.prim.TupleConstruct %arg0 : !torch.tensor -> !torch.tuple<tensor>
-  return %0 : !torch.tuple<tensor>
-}
-
-// -----
-
-// Multiple, non-tuple return
-// expected-error @+1 {{should only ever return one item}}
-func.func @multiple_non_tuple_return(%arg0: !torch.tensor) -> (!torch.tensor, !torch.tensor) {
-  return %arg0, %arg0 : !torch.tensor, !torch.tensor
-}

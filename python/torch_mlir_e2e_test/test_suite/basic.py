@@ -1118,6 +1118,25 @@ def SoftmaxIntModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4))
 
 
+class SoftmaxIntNonNoneDtypeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, tensor):
+        return torch.ops.aten.softmax(tensor, dim=2, dtype=torch.float64)
+
+
+@register_test_case(module_factory=lambda: SoftmaxIntNonNoneDtypeModule())
+def SoftmaxIntNonNoneDtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
+
+
 # ==============================================================================
 
 
@@ -1457,6 +1476,47 @@ class RepeatModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: RepeatModule())
 def RepeatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 2))
+
+# ==============================================================================
+
+
+class TileSmallDimsSizeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 1, 2], torch.float32, True),
+    ])
+    def forward(self, x):
+        return x.tile([3, 4])
+
+
+@register_test_case(module_factory=lambda: TileSmallDimsSizeModule())
+def TileSmallDimsSizeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 2))
+
+# ==============================================================================
+
+class TileBigDimsSizeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 1, 2], torch.float32, True),
+    ])
+    def forward(self, x):
+        return x.tile([3, 4, 5, 6])
+
+
+@register_test_case(module_factory=lambda: TileBigDimsSizeModule())
+def TileBigDimsSizeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 2))
 
 # ==============================================================================
@@ -2260,6 +2320,102 @@ class IndexTensorModule3dInput(torch.nn.Module):
 def IndexTensorModule3dInput_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 4, 3), tu.randint(2, 3, high=3))
 
+
+# ==============================================================================
+
+class IndexTensorStaticContiguousWithNoneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3, 4, 5, 32], torch.float32, True),
+        ([1, 2, 1], torch.int64, True),
+        ([2, 1], torch.int64, True),
+    ])
+    def forward(self, x, index, index1):
+        return torch.ops.aten.index(x, (None, index, index1, None))
+
+
+@register_test_case(module_factory=lambda: IndexTensorStaticContiguousWithNoneModule())
+def IndexTensorStaticContiguousWithNoneModule_basic(module, tu: TestUtils):
+
+    module.forward(tu.rand(2, 3, 4, 5, 32), torch.tensor([[[0],[1]]]), torch.tensor([[0],[1]]))
+
+# ==============================================================================
+
+
+class IndexTensorDyanmicInputContiguousWithNoneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([1, 2, 1], torch.int64, True),
+        ([2, 1], torch.int64, True),
+    ])
+    def forward(self, x, index, index1):
+        return torch.ops.aten.index(x, (None, index, index1, None))
+
+
+@register_test_case(module_factory=lambda: IndexTensorDyanmicInputContiguousWithNoneModule())
+def IndexTensorDyanmicInputContiguousWithNoneModule_basic(module, tu: TestUtils):
+
+    module.forward(tu.rand(2, 3, 4, 5, 32), torch.tensor([[[0],[1]]]), torch.tensor([[0],[1]]))
+
+# ==============================================================================
+
+
+class IndexTensorStaticNonContiguousWithNoneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3, 4, 5, 32], torch.float32, True),
+        ([1, 2, 1], torch.int64, True),
+        ([2, 1], torch.int64, True),
+        ([2, 1], torch.int64, True),
+    ])
+    def forward(self, x, index, index1, index2):
+        return torch.ops.aten.index(x, (None, index, index1, None, index2))
+
+
+@register_test_case(module_factory=lambda: IndexTensorStaticNonContiguousWithNoneModule())
+def IndexTensorStaticNonContiguousWithNoneModule_basic(module, tu: TestUtils):
+
+    module.forward(tu.rand(2, 3, 4, 5, 32), torch.tensor([[[0],[1]]]), torch.tensor([[0],[1]]), torch.tensor([[0],[1]]))
+
+# ==============================================================================
+
+class IndexTensorDyanmicInputNonContiguousWithNoneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([1, 2, 1], torch.int64, True),
+        ([2, 1], torch.int64, True),
+        ([2, 1], torch.int64, True),
+    ])
+    def forward(self, x, index, index1, index2):
+        return torch.ops.aten.index(x, (None, index, index1, None, index2))
+
+
+@register_test_case(module_factory=lambda: IndexTensorDyanmicInputNonContiguousWithNoneModule())
+def IndexTensorDyanmicInputNonContiguousWithNoneModule_basic(module, tu: TestUtils):
+
+    module.forward(tu.rand(2, 3, 4, 5, 32), torch.tensor([[[0],[1]]]), torch.tensor([[0],[1]]), torch.tensor([[0],[1]]))
 
 # ==============================================================================
 
@@ -3584,6 +3740,23 @@ class CumsumStaticNegativeDimModule(torch.nn.Module):
 def CumsumStaticNegativeDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 7, 4))
 
+class CumsumInputDtypeInt32Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 7, 4], torch.int32, True),
+    ])
+    def forward(self, val):
+        return torch.ops.aten.cumsum(val, 1)
+
+@register_test_case(module_factory=lambda: CumsumInputDtypeInt32Module())
+def CumsumInputDtypeInt32Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 7, 4).to(torch.int32))
+
 # ==============================================================================
 
 class AtenToDeviceModule(torch.nn.Module):
@@ -4267,7 +4440,7 @@ class Add_Module(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.tensor = torch.ones(2, 3)
+        self.register_buffer('tensor', torch.ones(2, 3))
 
     @export
     @annotate_args([

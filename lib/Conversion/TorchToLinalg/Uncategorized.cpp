@@ -48,6 +48,8 @@ static Value createComparisonTemplate(OpBuilder &b, Location loc, Type type,
       return b.create<arith::CmpIOp>(loc, iupred, lhs, rhs);
     if (intType.isSigned())
       return b.create<arith::CmpIOp>(loc, ispred, lhs, rhs);
+    assert(intType.getWidth() == 1);
+    return b.create<arith::CmpIOp>(loc, iupred, lhs, rhs);
   }
   llvm_unreachable("Unhandled element type for comparison");
 }
@@ -125,8 +127,10 @@ static Value buildUnitNormalCdf(OpBuilder &b, Location &loc, Value x) {
 }
 
 template <typename MathOpTy>
-static Value createCalculationForMathOpWithDtypeConversion(
-    OpBuilder &b, TypeConverter *converter, Value payloadArg, Operation *op) {
+static Value
+createCalculationForMathOpWithDtypeConversion(OpBuilder &b,
+                                              const TypeConverter *converter,
+                                              Value payloadArg, Operation *op) {
   Type dtype = converter->convertType(op->getResult(0).getType())
                    .template cast<RankedTensorType>()
                    .getElementType();
@@ -205,7 +209,7 @@ createTriangularMatrix(OpBuilder &b, Location loc, ValueRange payloadArgs,
 }
 
 static Value createLinalgPayloadCalculationForElementwiseOp(
-    OpBuilder &b, Location loc, TypeConverter *converter,
+    OpBuilder &b, Location loc, const TypeConverter *converter,
     ValueRange payloadArgs, Operation *op, ArrayRef<Value> operands) {
   if (isa<AtenFloorOp>(op))
     return b.create<math::FloorOp>(loc, payloadArgs[0]);
