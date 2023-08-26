@@ -1971,6 +1971,18 @@ func.func @torch.aten.cat$fold_single_operand(%arg0: !torch.tensor) -> !torch.te
   return %1: !torch.tensor
 }
 
+// CHECK-LABEL:   func.func @torch.aten.broadcast_to$fold(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[3,4,2],f32>) -> !torch.vtensor<[3,4,2],f32> {
+// CHECK-NEXT:      return %[[ARG]] : !torch.vtensor<[3,4,2],f32>
+func.func @torch.aten.broadcast_to$fold(%arg0: !torch.vtensor<[3,4,2],f32>) -> !torch.vtensor<[3,4,2],f32> {
+  %int3 = torch.constant.int 3
+  %int4 = torch.constant.int 4
+  %int2 = torch.constant.int 2
+  %list = torch.prim.ListConstruct %int3, %int4, %int2 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.broadcast_to %arg0, %list : !torch.vtensor<[3,4,2],f32>, !torch.list<int> -> !torch.vtensor<[3,4,2],f32>
+  return %0 : !torch.vtensor<[3,4,2],f32>
+}
+
 //  CHECK-LABEL:    @torch.aten.slice.tensor$fold_full_domain_slice
 //   CHECK-SAME:      %[[ARG0:.+]]: !torch.vtensor<[4],f32>
 //        CHECK:        return %[[ARG0]] : !torch.vtensor<[4],f32>
