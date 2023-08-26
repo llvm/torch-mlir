@@ -328,6 +328,61 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
   }];
 }
 
+def TMTensor_NumpyBroadcastOp : TMTensor_Op<"npbroadcast",
+    [DeclareOpInterfaceMethods<TMTensorInterface,
+        ["payloadUsesValueFromOperand"]>,
+    DeclareOpInterfaceMethods<ScalarLoopOpInterface,
+        ["generateScalarImplementation"]>]> {
+  let summary = "Broadcast with Numpy semantics";
+  let description = [{
+  }];
+  let arguments = (ins
+      Variadic<AnyRankedTensorOrMemRefType>:$inputs,
+      Variadic<AnyRankedTensorOrMemRefType>:$outputs
+  );
+  let results = (outs Variadic<AnyRankedTensorOrMemRefType>:$results);
+  let regions = (region AnyRegion:$region);
+  let assemblyFormat = [{
+    attr-dict
+    `ins` `(` $inputs `:` type($inputs) `)`
+    `outs` `(` $outputs `:` type($outputs) `)`
+    $region (`->` type($results)^)?
+  }];
+
+  let extraClassDeclaration = extraTMTensorOpClassDeclaration # [{
+    Value getInput() {
+      return getInputOperand(0)->get();
+    }
+    Value getOutput() {
+      return getOutputOperand(0)->get();
+    }
+    ShapedType getInputType() {
+      return getInput().getType().cast<ShapedType>();
+    }
+    ShapedType getOutputType() {
+      return getOutput().getType().cast<ShapedType>();
+    }
+    int64_t getInputRank() {
+      return getInputType().getRank();
+    }
+    int64_t getOutputRank() {
+      return getOutputType().getRank();
+    }
+    int64_t getIterationDomainRank() {
+      return getOutputRank();
+    };
+    // Method to implement for specifying output range for
+    // DestinationStyleOpInterface
+    std::pair<int64_t, int64_t> getDpsInitsPositionRange() {
+      std::pair<unsigned, unsigned> outputsIndexAndLength =
+        getODSOperandIndexAndLength(1);
+      return std::make_pair<int64_t, int64_t>(
+          outputsIndexAndLength.first,
+          outputsIndexAndLength.first + outputsIndexAndLength.second);
+    }
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // Pure ops
 //===----------------------------------------------------------------------===//

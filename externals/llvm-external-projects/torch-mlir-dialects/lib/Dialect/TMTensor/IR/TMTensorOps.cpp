@@ -873,6 +873,57 @@ bool SortOp::payloadUsesValueFromOperand(OpOperand *opOperand) {
   return true;
 }
 
+//===----------------------------------------------------------------------===//
+// AttentionOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult NumpyBroadcastOp::verify() {
+  if (getNumInputs() != 1) {
+    return emitOpError("expected one input operand");
+  }
+  if (getNumOutputs() != 1) {
+    return emitOpError("expected one output operand");
+  }
+
+  if (getInputRank() != getOutputRank()) {
+    return emitOpError("expected input and output ranks to be the same");
+  }
+
+  return success();
+}
+
+SmallVector<Range> NumpyBroadcastOp::getIterationDomain(OpBuilder &builder) {
+  int64_t iterationDomainRank = getIterationDomainRank();
+  SmallVector<Range> loopBounds(iterationDomainRank);
+  Location loc = getLoc();
+  Value zero = builder.create<arith::ConstantIndexOp>(loc, 0);
+  Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
+  Value output = getOutput();
+  for (auto dim : llvm::seq<int64_t>(0, iterationDomainRank)) {
+    loopBounds[dim].offset = zero;
+    loopBounds[dim].size = getDimValue(builder, loc, output, dim);
+    loopBounds[dim].stride = one;
+  }
+  return loopBounds;
+}
+
+SmallVector<utils::IteratorType> NumpyBroadcastOp::getLoopIteratorTypes() {
+  SmallVector<utils::IteratorType> iteratorTypes(getIterationDomainRank(),
+                                                 utils::IteratorType::parallel);
+  return iteratorTypes;
+}
+
+bool NumpyBroadcastOp::payloadUsesValueFromOperand(OpOperand *opOperand) {
+  Value operand = opOperand->get();
+  return operand == getOutput() || operand == getInput();
+}
+
+LogicalResult NumpyBroadcastOp::generateScalarImplementation(OpBuilder &b,
+                                                             Location loc,
+                                                             ValueRange ivs) {
+  return success();
+}
+
 #define DEFINE_OP_GET_EFFECTS(OP_NAME)                                         \
   void OP_NAME::getEffects(                                                    \
       SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>      \
@@ -887,6 +938,7 @@ DEFINE_OP_GET_EFFECTS(AttentionOp)
 DEFINE_OP_GET_EFFECTS(ScanOp)
 DEFINE_OP_GET_EFFECTS(ScatterOp)
 DEFINE_OP_GET_EFFECTS(SortOp)
+DEFINE_OP_GET_EFFECTS(NumpyBroadcastOp)
 
 namespace {
 /// This is derived from mlir/lib/Dialect/Linalg/IR/LinalgOps.cpp without any
