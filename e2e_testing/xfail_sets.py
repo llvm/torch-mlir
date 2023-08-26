@@ -1005,6 +1005,8 @@ TCP_PASS_SET = {
     "BatchNorm1DStaticShapeModule_basic",
     "BroadcastListConstructWithMinusOneModule_basic",
     "ElementwiseAtenDivIntScalarModule_basic",
+    "TupleModule_basic",
+    "TypeAsDifferentModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
