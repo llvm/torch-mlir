@@ -884,11 +884,6 @@ LogicalResult NumpyBroadcastOp::verify() {
   if (getNumOutputs() != 1) {
     return emitOpError("expected one output operand");
   }
-
-  if (getInputRank() != getOutputRank()) {
-    return emitOpError("expected input and output ranks to be the same");
-  }
-
   return success();
 }
 

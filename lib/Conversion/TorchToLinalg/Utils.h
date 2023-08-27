@@ -1,4 +1,3 @@
-//===------------------------------------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -71,12 +70,6 @@ Value createElementwiseLinalgGeneric(
     OpBuilder &b, Location loc, ValueRange tensorOperands,
     Type resultElementType,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild);
-
-// Broadcasts input tensor based on the broadcastToShape.
-LogicalResult
-broadcastToGivenShape(Operation *op, PatternRewriter &rewriter, Value input,
-                      SmallVector<Value> broadcastToShape, Value &result,
-                      SmallVector<bool> useBroadcastToShape = {});
 
 // Cast a tensor to a rank-equivalent tensor of unknown size, i.e. <1x2xf32> ->
 // <?x?xf32>

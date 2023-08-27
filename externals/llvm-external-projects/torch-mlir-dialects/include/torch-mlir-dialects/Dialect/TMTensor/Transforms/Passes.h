@@ -17,6 +17,8 @@ namespace mlir {
 namespace torch {
 namespace TMTensor {
 
+std::unique_ptr<OperationPass<func::FuncOp>>
+createTMTensorBroadcastToLinalgPass();
 std::unique_ptr<OperationPass<func::FuncOp>> createTMTensorToLoopsPass();
 std::unique_ptr<OperationPass<func::FuncOp>> createTMTensorBufferizePass();
 

@@ -337,16 +337,15 @@ def TMTensor_NumpyBroadcastOp : TMTensor_Op<"npbroadcast",
   let description = [{
   }];
   let arguments = (ins
-      Variadic<AnyRankedTensorOrMemRefType>:$inputs,
-      Variadic<AnyRankedTensorOrMemRefType>:$outputs
+      Variadic<AnyShaped>:$inputs,
+      Variadic<AnyShaped>:$outputs
   );
-  let results = (outs Variadic<AnyRankedTensorOrMemRefType>:$results);
-  let regions = (region AnyRegion:$region);
+  let results = (outs Variadic<AnyShaped>:$results);
   let assemblyFormat = [{
     attr-dict
     `ins` `(` $inputs `:` type($inputs) `)`
     `outs` `(` $outputs `:` type($outputs) `)`
-    $region (`->` type($results)^)?
+    (`->` type($results)^)?
   }];
 
   let extraClassDeclaration = extraTMTensorOpClassDeclaration # [{

@@ -12,6 +12,12 @@
 
 include "mlir/Pass/PassBase.td"
 
+def TMTensorBroadcastToLinalg :
+    Pass<"tm-tensor-broadcast-to-linalg", "func::FuncOp"> {
+  let summary = "Convert TMTensor NumpyBroadcastOps to linalg.";
+  let constructor = "mlir::torch::TMTensor::createTMTensorBroadcastToLinalgPass()";
+}
+
 def TMTensorToLoops :
     Pass<"tm-tensor-to-loops", "func::FuncOp"> {
   let summary = "Convert TMTensor ops to loops and Linalg ops.";

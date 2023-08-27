@@ -1,4 +1,5 @@
 add_mlir_library(TorchMLIRTMTensorPasses
+  ConvertBroadcastToLinalg.cpp
   ConvertToLoops.cpp
   Bufferize.cpp
   Passes.cpp

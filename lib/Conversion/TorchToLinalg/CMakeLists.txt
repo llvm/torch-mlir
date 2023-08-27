@@ -26,6 +26,7 @@ add_mlir_conversion_library(TorchMLIRTorchToLinalg
   MLIRLinalgDialect
   MLIRMathDialect
   TorchMLIRTorchDialect
+  TorchMLIRTMTensorDialect
 )
 
 torch_mlir_target_includes(TorchMLIRTorchToLinalg)

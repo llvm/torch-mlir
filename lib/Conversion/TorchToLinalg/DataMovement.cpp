@@ -1163,57 +1163,6 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenBroadcastToOp : public OpConversionPattern<AtenBroadcastToOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenBroadcastToOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
-    Value self = adaptor.getSelf();
-
-    SmallVector<Value> inShape;
-    if (!getListConstructElements(adaptor.getSize(), inShape)) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: the size list is not from list construct");
-    }
-    // For dynamic input dimension we need to use the `broadcastToShape`
-    // which in this case is `inShapeConverted` because this shape will yield
-    // us the dimension size of the output.
-    SmallVector<bool> useBroadcastToShape;
-    for (auto x : inShape) {
-      int64_t dim;
-      if (!matchPattern(x, m_TorchConstantInt(&dim))) {
-        Operation* defOp = x.getDefiningOp();
-        if (isa<AtenSizeOp, AtenSizeIntOp>(defOp))
-          useBroadcastToShape.push_back(true);
-        else
-          useBroadcastToShape.push_back(false);
-      } else {
-        useBroadcastToShape.push_back(false);
-      }
-    }
-
-    SmallVector<Value> inShapeConverted = getTypeConvertedValues(
-        rewriter, op.getLoc(), getTypeConverter(), inShape);
-    Value result;
-    if (failed(torch_to_linalg::broadcastToGivenShape(op, rewriter, self,
-                                                      inShapeConverted, result,
-                                                      useBroadcastToShape))) {
-      return rewriter.notifyMatchFailure(
-          op, "unable to perform broadcast operation");
-    }
-
-    Type newResultType = getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, result);
-    return success();
-  }
-};
-} // namespace
-
-namespace {
 class ConvertAtenContiguousOp : public OpConversionPattern<AtenContiguousOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -1226,74 +1175,6 @@ public:
 
     Type resultType = getTypeConverter()->convertType(op.getType());
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, adaptor.getSelf());
-    return success();
-  }
-};
-} // namespace
-
-namespace {
-class ConvertAtenCopyOp : public OpConversionPattern<AtenCopyOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenCopyOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
-
-    Location loc = op.getLoc();
-    Value self = adaptor.getSelf();
-    Value src = adaptor.getSrc();
-    RankedTensorType selfType = self.getType().cast<RankedTensorType>();
-
-    // The non_blocking should be a constant `False`.
-    bool nonBlocking;
-    if (!matchPattern(op.getNonBlocking(), m_TorchConstantBool(&nonBlocking))) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: non_blocking must be a constant");
-    } else if (nonBlocking) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: non_blocking is expected to be false");
-    }
-
-    // The size of the src tensor can be different from the self but should be
-    // broadcastable. Therefore, broadcasting the src tensor to match the size
-    // of the self tensor.
-    SmallVector<Value> selfSizes = getTensorSizes(rewriter, loc, self);
-    for (unsigned i = 0; i < selfSizes.size(); i++)
-      selfSizes[i] = castIndexToInt64(rewriter, loc, selfSizes[i]);
-    Value broadcastedSrc;
-    if (failed(torch_to_linalg::broadcastToGivenShape(
-            op, rewriter, src, selfSizes, broadcastedSrc))) {
-      return rewriter.notifyMatchFailure(
-          op, "unable to perform broadcast operation");
-    }
-
-    AffineMap id = AffineMap::getMultiDimIdentityMap(selfType.getRank(),
-                                                     rewriter.getContext());
-    SmallVector<utils::IteratorType> iteratorTypes(
-        selfType.getRank(), utils::IteratorType::parallel);
-    Value result = rewriter
-                       .create<linalg::GenericOp>(
-                           loc,
-                           /*resultType=*/selfType,
-                           /*inputs=*/broadcastedSrc,
-                           /*outputs=*/self,
-                           /*indexingMaps=*/llvm::ArrayRef({id, id}),
-                           /*iteratorTypes=*/iteratorTypes,
-                           [](OpBuilder &b, Location loc, ValueRange args) {
-                             Value result = args[0];
-                             if (args[0].getType() != args[1].getType()) {
-                               result = convertScalarToDtype(b, loc, args[0],
-                                                             args[1].getType());
-                             }
-                             b.create<linalg::YieldOp>(loc, result);
-                           })
-                       ->getResult(0);
-
-    Type resultType = getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
     return success();
   }
 };
@@ -1449,12 +1330,8 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   patterns.add<ConvertAtenSliceTensorOp>(typeConverter, context);
   target.addIllegalOp<AtenCatOp>();
   patterns.add<ConvertAtenCatOp>(typeConverter, context);
-  target.addIllegalOp<AtenBroadcastToOp>();
-  patterns.add<ConvertAtenBroadcastToOp>(typeConverter, context);
   target.addIllegalOp<AtenContiguousOp>();
   patterns.add<ConvertAtenContiguousOp>(typeConverter, context);
-  target.addIllegalOp<AtenCopyOp>();
-  patterns.add<ConvertAtenCopyOp>(typeConverter, context);
   target.addIllegalOp<AtenSliceScatterOp>();
   patterns.add<ConvertAtenSliceScatterOp>(typeConverter, context);
   target.addIllegalOp<AtenViewAsComplexOp>();

@@ -18,6 +18,7 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
@@ -47,6 +48,7 @@ public:
     registry.insert<arith::ArithDialect>();
     registry.insert<cf::ControlFlowDialect>();
     registry.insert<complex::ComplexDialect>();
+    registry.insert<TMTensor::TMTensorDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
 
