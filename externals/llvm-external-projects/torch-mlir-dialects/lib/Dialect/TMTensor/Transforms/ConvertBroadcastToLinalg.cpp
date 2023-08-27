@@ -55,7 +55,7 @@ public:
       }
       FailureOr<bool> isUnit =
           ValueBoundsConstraintSet::areEqual(input, oneIndex, i, std::nullopt);
-      if (succeeded(isUnit) || *isUnit) {
+      if (succeeded(isUnit) && *isUnit) {
         broadcastedStatus.push_back(true);
         continue;
       }
