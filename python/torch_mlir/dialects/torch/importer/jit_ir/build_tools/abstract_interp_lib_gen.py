@@ -300,6 +300,9 @@ def aten〇any〡shape(self: List[int]) -> List[int]:
 def aten〇all〡shape(self: List[int]) -> List[int]:
     return []
 
+def aten〇min〡shape(self: List[int]) -> List[int]:
+    return []
+
 def aten〇max〡shape(self: List[int]) -> List[int]:
     return []
 
@@ -2980,6 +2983,11 @@ def aten〇any〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: int, keepdim
     if self_dtype == torch.uint8:
         return self_dtype
     return torch.bool
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇min〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇max〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
