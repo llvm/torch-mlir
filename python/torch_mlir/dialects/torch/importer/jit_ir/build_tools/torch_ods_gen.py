@@ -347,6 +347,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     # Random number generation
     emit_with_mutating_variants("aten::uniform : (Tensor, float, float, Generator?) -> (Tensor)")
     emit("aten::rand_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
+    emit("aten::rand : (int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::bernoulli : (Tensor, Generator?) -> (Tensor)")
     emit("aten::bernoulli_.float : (Tensor, float, Generator?) -> (Tensor)")
     emit("aten::bernoulli.p : (Tensor, float, Generator?) -> (Tensor)")

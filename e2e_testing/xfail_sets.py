@@ -16,7 +16,8 @@ from torch_mlir._version import torch_version_for_comparison, version
 LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR failed
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
-    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier"
+    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
+    "RandModule_basic"
 }
 
 TORCHDYNAMO_XFAIL_SET = {
@@ -62,6 +63,7 @@ TORCHDYNAMO_XFAIL_SET = {
     # error: failed to legalize operation 'torch.aten.view' that was explicitly marked illegal
     "ElementwiseFlattenBroadcastModule_basic",
     "FlattenRank0Module_basic",
+    "RandModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
     # error: unsupported by backend contract: tensor with unknown rank
@@ -451,6 +453,8 @@ STABLEHLO_PASS_SET = {
     "ElementwiseExpModule_basic",
     "ElementwiseFlattenBroadcastModule_basic",
     "ElementwiseLeakyReluModule_basic",
+    "ElementwiseEluModule_basic",
+    "ElementwiseEluNonDefaultModule_basic",
     "ElementwiseLogModule_basic",
     "ElementwiseNegModule_basic",
     "ElementwiseRsqrtModule_basic",
@@ -868,6 +872,7 @@ STABLEHLO_PASS_SET = {
     "RandIntLowModule_basic",
     "RandIntModule_basic",
     "RandIntPinMemoryModule_basic",
+    "RandModule_basic",
     "UniformStaticShapeModule_basic",
     "UniformNoCorrelationModule_basic",
     "TupleModule_basic",
@@ -903,6 +908,8 @@ TOSA_PASS_SET = {
     "ElementwiseExpModule_basic",
     "ElementwiseReluModule_basic",
     "ElementwiseLeakyReluModule_basic",
+    "ElementwiseEluModule_basic",
+    "ElementwiseEluNonDefaultModule_basic",
     "ElementwiseFloorModule_basic",
     "ElementwiseLogModule_basic",
     "ElementwiseBinaryStaticShapeModule_basic",

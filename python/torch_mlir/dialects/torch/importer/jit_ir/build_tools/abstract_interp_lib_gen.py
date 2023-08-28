@@ -279,6 +279,9 @@ def aten〇rsub〇Scalar〡shape(self: List[int], other: float, alpha: float = 1
 def aten〇leaky_relu〡shape(self: List[int], negative_slope: float = 0.01) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇elu〡shape(self: List[int], alpha: float = 1, scale: float = 1, input_scale: float = 1) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇prelu〡shape(self: List[int], weight: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -670,6 +673,9 @@ def aten〇copy〡shape(self: List[int], src: List[int], non_blocking: bool = Fa
 
 def aten〇uniform〡shape(self: List[int], from_: float = 0., to: float = 1., generator: Any = None) -> List[int]:
     return self
+
+def aten〇rand〡shape(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    return size
 
 @not_present_in_registry
 def aten〇bernoulli〇float〡shape(self: List[int], p: float = 0.5, generator: Any = None) -> List[int]:
@@ -1965,6 +1971,12 @@ def aten〇uniform〡dtype(self_rank_dtype: Tuple[int, int], from_: float = 0., 
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
+@check_dtype_function([Invocation([1]),
+                       Invocation([1], dtype=torch.float16),
+                       Invocation([1], dtype=torch.complex64)])
+def aten〇rand〡dtype(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    return torch.float32 if dtype is None else dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1]))
 def aten〇_unsafe_view〡dtype(self_rank_dtype: Tuple[int, int], size: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -2709,6 +2721,17 @@ def aten〇leaky_relu〡dtype(self_rank_dtype: Tuple[int, int], negative_slope: 
         assert not is_integer_dtype(self_dtype)
     dtypes = [self_dtype, negative_slope_dtype]
     return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}, alpha=1, scale=1, input_scale=2) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool, torch.int8, torch.uint8, torch.int16, torch.int32, torch.int64}, alpha=1.0, scale=1.0, input_scale=2.0))
+def aten〇elu〡dtype(self_rank_dtype: Tuple[int, int], alpha: Union[int, float, complex] = 1, scale: Union[int, float, complex] = 1, input_scale: Union[int, float, complex] = 1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert self_dtype != torch.bool
+    param_dtypes = [get_dtype_of_scalar(p) for p in [alpha, scale, input_scale]]
+    if any([is_float_dtype(d) for d in param_dtypes]):
+        assert not is_integer_dtype(self_dtype)
+    return self_dtype
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=1, other=1) +
