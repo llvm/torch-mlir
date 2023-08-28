@@ -53,6 +53,14 @@ public:
         broadcastedStatus.push_back(false);
         continue;
       }
+      // If the dim is non-unit, then it is an assert + non-broadcasted dim.
+      FailureOr<int64_t> lb = ValueBoundsConstraintSet::computeConstantBound(
+              presburger::BoundType::LB, input, i);
+      if (succeeded(lb) && *lb > 1) {
+        // TODO: Insert appropriate assert here.
+        broadcastedStatus.push_back(false);
+        continue;
+      }
       FailureOr<bool> isUnit =
           ValueBoundsConstraintSet::areEqual(input, oneIndex, i, std::nullopt);
       if (succeeded(isUnit) && *isUnit) {
