@@ -1553,6 +1553,36 @@ LogicalResult ConvertAtenOp<AtenUniformOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenRandOp>::matchAndRewrite(
+    AtenRandOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Location loc = op.getLoc();
+  SmallVector<int64_t> size;
+  if (!matchPattern(adaptor.getSize(), m_TorchListOfConstantInts(size))) {
+    return rewriter.notifyMatchFailure(op,
+                                       "only constant integer size supported");
+  }
+  auto shapeTensor = rewriter.create<stablehlo::ConstantOp>(
+      loc, rewriter.getI64TensorAttr(size));
+  auto outTy = getTypeConverter()->convertType(op.getType());
+  auto outElemTy = outTy.cast<RankedTensorType>().getElementType();
+
+  if (!outElemTy.isa<FloatType>()) {
+    return rewriter.notifyMatchFailure(op, "only float type supported");
+  }
+
+  Value from = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getFloatAttr(outElemTy, 0.0));
+  from = hlo::scalarToStablehloTensor(rewriter, op, from, outElemTy);
+  Value to = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getFloatAttr(outElemTy, 1.0));
+  to = hlo::scalarToStablehloTensor(rewriter, op, to, outElemTy);
+  rewriter.replaceOpWithNewOp<stablehlo::RngOp>(
+      op, outTy, from, to, shapeTensor, stablehlo::RngDistribution::UNIFORM);
+  return success();
+}
+
 // Converts `aten.empty.memory_format` to `tensor.empty` op.
 template <>
 LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
@@ -1844,6 +1874,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
   INSERT_ATENOP_PATTERN(AtenPowTensorTensorOp);
   INSERT_ATENOP_PATTERN(AtenUniformOp);
+  INSERT_ATENOP_PATTERN(AtenRandOp);
   INSERT_ATENOP_PATTERN(AtenEmptyMemoryFormatOp);
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);
   INSERT_ATENOP_PATTERN(AtenFlipOp);
