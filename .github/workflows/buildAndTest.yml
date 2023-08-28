@@ -22,7 +22,6 @@ concurrency:
 # macos  - arm64  - llvm in-tree     - pytorch binary - build only    # cross compile, can't test arm64
 jobs:
   build-test:
-    continue-on-error: ${{ matrix.torch-version == 'stable' }}
     strategy:
       fail-fast: true
       matrix:
