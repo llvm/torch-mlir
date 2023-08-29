@@ -1449,7 +1449,7 @@ OpFoldResult AtenAnyBoolOp::fold(FoldAdaptor adaptor) {
       return getI1IntegerAttr(getContext(), true);
     }
   }
-  return getI1IntegerAttr(getContext(), false);
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
