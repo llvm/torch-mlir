@@ -417,6 +417,15 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::max_pool2d_with_indices_backward : (Tensor, Tensor, int[], int[], int[], int[], bool, Tensor) -> (Tensor)"
     )
     emit(
+        "aten::max_pool3d : (Tensor, int[], int[], int[], int[], bool) -> (Tensor)"
+    )
+    emit(
+        "aten::max_pool3d_with_indices : (Tensor, int[], int[], int[], int[], bool) -> (Tensor, Tensor)"
+    )
+    emit(
+        "aten::max_pool3d_with_indices_backward : (Tensor, Tensor, int[], int[], int[], int[], bool, Tensor) -> (Tensor)"
+    )
+    emit(
         "aten::avg_pool2d : (Tensor, int[], int[], int[], bool, bool, int?) -> (Tensor)"
     )
     emit(

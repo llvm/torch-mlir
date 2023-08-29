@@ -224,6 +224,22 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
                                     elementType.getIntOrFloatBitWidth())));
   }
 
+  if (isa<AtenMinOp>(op)) {
+    if (elementType.isa<mlir::FloatType>())
+      return b.create<arith::ConstantOp>(
+          loc, b.getFloatAttr(
+                   elementType,
+                   APFloat::getInf(
+                       elementType.cast<mlir::FloatType>().getFloatSemantics(),
+                       /*Negative=*/false)));
+    else if (elementType.isa<mlir::IntegerType>() &&
+             elementType.getIntOrFloatBitWidth() != 8)
+      return b.create<arith::ConstantOp>(
+          loc, b.getIntegerAttr(elementType,
+                                APSInt::getSignedMaxValue(
+                                    elementType.getIntOrFloatBitWidth())));
+  }
+
   if (isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op))
     return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
 
@@ -260,6 +276,23 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
         return b.create<arith::MaxUIOp>(loc, self, result);
       if (intType.isSigned())
         return b.create<arith::MaxSIOp>(loc, self, result);
+    }
+  } else if (auto min = dyn_cast<AtenMinOp>(op)) {
+    Value self =
+        convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
+    Value result = payloadArgs[1];
+    if (resultElementType.isa<mlir::FloatType>())
+      return b.create<arith::MinFOp>(loc, self, result);
+    else if (resultElementType.isa<mlir::IntegerType>()) {
+      IntegerType intType = min.getSelf()
+                                .getType()
+                                .cast<BaseTensorType>()
+                                .getDtype()
+                                .dyn_cast<mlir::IntegerType>();
+      if (intType.isUnsigned())
+        return b.create<arith::MinUIOp>(loc, self, result);
+      if (intType.isSigned())
+        return b.create<arith::MinSIOp>(loc, self, result);
     }
   } else if (isa<AtenLinalgVectorNormOp>(op)) {
     // This creates payload for only the first of the two linalg.generic ops.
@@ -340,11 +373,11 @@ private:
                          ConversionPatternRewriter &rewriter) const {
     auto opInfo = torch_to_linalg::ReductionOpInfo{false, Value{}, {}};
 
-    if (isa<AtenMaxOp, AtenSumOp>(op)) {
+    if (isa<AtenMaxOp, AtenMinOp, AtenSumOp>(op)) {
       opInfo.tensorOperand = operands[0];
       auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
 
-      // `AtenSumOp` and `AtenMaxOp` reduces along all the dimensions of the
+      // `AtenSumOp`, `AtenMaxOp`, and `AtenMinOp` each reduce along all the dimensions of the
       // input tensor.
       for (int64_t i = 0; i < inputType.getRank(); i++)
         opInfo.dimSet.insert(i);
@@ -520,6 +553,7 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   target.addIllegalOp<AtenSumOp>();
   target.addIllegalOp<AtenSumDimIntListOp>();
   target.addIllegalOp<AtenMaxOp>();
+  target.addIllegalOp<AtenMinOp>();
   target.addIllegalOp<AtenLinalgVectorNormOp>();
   target.addIllegalOp<AtenFrobeniusNormDimOp>();
   patterns.add<ConvertReductionOp>(typeConverter, context);

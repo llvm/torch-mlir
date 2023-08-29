@@ -572,6 +572,58 @@ def ReduceAmaxKeepDim_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ReduceMinFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.min(a)
+@register_test_case(module_factory=lambda: ReduceMinFloatModule())
+def ReduceMinFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
+class ReduceMinSignedIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.min(a)
+
+@register_test_case(module_factory=lambda: ReduceMinSignedIntModule())
+def ReduceMinSignedIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, low=-100, high=100))
+
+# ==============================================================================
+
+class ReduceMinUnsignedIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.min(a)
+
+@register_test_case(module_factory=lambda: ReduceMinUnsignedIntModule())
+def ReduceMinUnsignedIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, high=100))
+
+# ==============================================================================
 class ReduceL1NormModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
