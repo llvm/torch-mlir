@@ -3167,6 +3167,33 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.new_full` op into `aten.full` op.
+class DecomposeAtenNewFullOp : public OpRewritePattern<AtenNewFullOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNewFullOp op,
+                                PatternRewriter &rewriter) const override {
+    Value dtype = op.getDtype();
+    if (dtype.getType().isa<Torch::NoneType>()) {
+      BaseTensorType tensorType = op.getSelf().getType().cast<BaseTensorType>();
+      if (!tensorType.hasDtype()) {
+        return rewriter.notifyMatchFailure(
+            op, "expected input tensor to have a dtype");
+      }
+      dtype =
+          getDtypeIntValueForType(rewriter, op.getLoc(), tensorType.getDtype());
+    }
+    rewriter.replaceOpWithNewOp<AtenFullOp>(
+        op, op.getType(), op.getSize(), op.getFillValue(), dtype, op.getLayout(), op.getDevice(),
+        op.getPinMemory());
+
+    return success();
+
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.indexPut` op into `valsem.aten.indexPutImpl` op.
 class DecomposeAtenIndexPutOp : public OpRewritePattern<AtenIndexPutOp> {
 public:
@@ -5144,6 +5171,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinearOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFullLikeOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenNewFullOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexPutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenExpandAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_ToCopyOp>(patterns);

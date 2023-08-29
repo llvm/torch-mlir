@@ -9729,6 +9729,35 @@ def Torch_AtenFullLikeOp : Torch_Op<"aten.full_like", [
   }];
 }
 
+def Torch_AtenNewFullOp : Torch_Op<"aten.new_full", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::new_full : (Tensor, int[], Scalar, int?, int?, Device?, bool?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchListOfTorchIntType:$size,
+    AnyTorchScalarType:$fill_value,
+    AnyTorchOptionalIntType:$dtype,
+    AnyTorchOptionalIntType:$layout,
+    AnyTorchOptionalDeviceType:$device,
+    AnyTorchOptionalBoolType:$pin_memory
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenNewFullOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 7, 1);
+    }
+    void AtenNewFullOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 7, 1);
+    }
+  }];
+}
+
 def Torch_AtenBaddbmmOp : Torch_Op<"aten.baddbmm", [
     AllowsTypeRefinement,
     HasValueSemantics,
