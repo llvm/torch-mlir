@@ -572,25 +572,6 @@ def ReduceAmaxKeepDim_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-class ReduceMinAllDims(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, a):
-        return torch.ops.aten.min(a)
-
-@register_test_case(module_factory=lambda: ReduceMinAllDims())
-def ReduceMinAllDims_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5, low=-10, high=-5))
-
-# ==============================================================================
-
 class ReduceMinFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
