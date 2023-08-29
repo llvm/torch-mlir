@@ -54,6 +54,8 @@ createVerifyStablehloBackendContractPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();
 
+std::unique_ptr<OperationPass<ModuleOp>> createSingleTensorReturnConversionPass(unsigned valueIndex);
+
 std::unique_ptr<OperationPass<func::FuncOp>>
 createFinalizingBackendTypeConversionPass();
 
