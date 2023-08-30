@@ -2087,3 +2087,14 @@ func.func @torch.aten.add$fold() -> !torch.float {
     %0 = torch.aten.add %float1, %float2 : !torch.float, !torch.float -> !torch.float
     return %0 : !torch.float
 }
+
+// CHECK-LABEL:   func.func @torch.aten.any.bool$fold() -> !torch.bool {
+// CHECK:           %[[CST_TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[CST_TRUE]] : !torch.bool
+func.func @torch.aten.any.bool$fold() -> !torch.bool {
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %input = torch.prim.ListConstruct %false, %true, %false : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
+  %0 = torch.aten.any.bool %input : !torch.list<bool> -> !torch.bool
+  return %0 : !torch.bool
+}
