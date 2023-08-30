@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <ATen/CompositeExplicitAutogradNonFunctionalFunctions.h>
+#include <ATen/CompositeExplicitAutogradFunctions.h>
 #include <ATen/FunctionalTensorWrapper.h>
 #include <ATen/InferSize.h>
 #include <ATen/MetaFunctions.h>
@@ -34,6 +35,8 @@
 #include "ops/to_copy.h"
 #include "ops/unbind_int.h"
 #include "ops/split.h"
+#include "ops/index.h"
+#include "ops/ivalue.h"
 #include "utils/exception.h"
 #include "utils/sys_utils.h"
 
@@ -65,6 +68,15 @@ c10::optional<at::Tensor> to_meta(const c10::optional<at::Tensor>& tensor) {
 
 std::vector<at::Tensor> to_meta(at::ITensorListRef t_list) {
   std::vector<at::Tensor> outs;
+  outs.reserve(t_list.size());
+  for (const auto& tensor : t_list) {
+    outs.push_back(to_meta(tensor));
+  }
+  return outs;
+}
+
+c10::List<c10::optional<at::Tensor>> to_meta(const c10::List<c10::optional<at::Tensor>>& t_list) {
+  c10::List<c10::optional<at::Tensor>> outs;
   outs.reserve(t_list.size());
   for (const auto& tensor : t_list) {
     outs.push_back(to_meta(tensor));
@@ -514,6 +526,89 @@ std::vector<at::Tensor> LazyNativeFunctions::split_copy_symint(const at::Tensor 
       )
     );
   }
+  return result;
+}
+
+at::Tensor LazyNativeFunctions::index(const at::Tensor & self, const c10::List<c10::optional<at::Tensor>> & indices) {
+  TORCH_LAZY_FN_COUNTER("lazy::");
+  auto common_device = torch::lazy::GetBackendDevice(self);
+  TORCH_INTERNAL_ASSERT(common_device);
+  LazyTensorPtr lazy_self = torch::lazy::GetLtcTensorOrCreateForWrappedNumber(self, *common_device);
+
+  std::vector<torch::lazy::Value> values;
+  for (const auto & it : indices) {
+    c10::optional<at::Tensor> tensor = it;
+    LazyTensorPtr lazy_tensor = torch::lazy::TryGetLtcTensor(tensor.value_or(at::Tensor()));
+    values.push_back(lazy_tensor ? lazy_tensor->GetIrValue() : torch::lazy::Value(MakeNode<IValueConstant>(c10::IValue()), 0));
+  }
+
+  auto list = MakeNode<TorchMlirOptionalTensorList>(values);
+
+  torch::lazy::NodePtr node = torch::lazy::ReuseNode<IndexTensor>(lazy_self->GetIrValue(), list);
+
+  if (!node) {
+    auto self_meta = to_meta(self);
+    auto indices_meta = to_meta(indices);
+    auto out_meta = at::meta::index(self_meta, indices_meta);
+
+    std::vector<torch::lazy::Shape> shapes{torch::lazy::Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
+    TORCH_INTERNAL_ASSERT(shapes.size() == 1);
+    if(torch::lazy::symbolicShapeEnabled()) {
+      std::vector<torch::jit::IValue> inputs = { self, indices };
+      const char* schema_str = "aten::index.Tensor(Tensor self, Tensor?[] indices) -> Tensor";
+      applySymbolicShapesOnLT(schema_str, inputs, shapes);
+    }
+
+    node = torch::lazy::MakeNode<IndexTensor>(lazy_self->GetIrValue(), list, std::move(shapes));
+    CacheNode(node);
+  }
+
+  auto result = torch::lazy::CreateAtenFromLtcTensor(
+          torch::lazy::LazyTensor::Create(std::move(node), *common_device));
+
+  return result;
+}
+
+at::Tensor LazyNativeFunctions::index_put(const at::Tensor & self, const c10::List<c10::optional<at::Tensor>> & indices, const at::Tensor & values, bool accumulate) {
+  TORCH_LAZY_FN_COUNTER("lazy::");
+  auto common_device = torch::lazy::GetBackendDevice(self);
+  TORCH_INTERNAL_ASSERT(common_device);
+  LazyTensorPtr lazy_self = torch::lazy::GetLtcTensorOrCreateForWrappedNumber(self, *common_device);
+  LazyTensorPtr lazy_valeus = torch::lazy::GetLtcTensorOrCreateForWrappedNumber(values, *common_device);
+
+  std::vector<torch::lazy::Value> indices_vector;
+  for (const auto & it : indices) {
+    c10::optional<at::Tensor> tensor = it;
+    LazyTensorPtr lazy_tensor = torch::lazy::TryGetLtcTensor(tensor.value_or(at::Tensor()));
+    indices_vector.push_back(lazy_tensor ? lazy_tensor->GetIrValue() : torch::lazy::Value(MakeNode<IValueConstant>(c10::IValue()), 0));
+  }
+
+  auto indices_list = MakeNode<TorchMlirOptionalTensorList>(indices_vector);
+
+  torch::lazy::NodePtr node = torch::lazy::ReuseNode<IndexPut>(lazy_self->GetIrValue(), indices_list, lazy_valeus->GetIrValue(), accumulate);
+
+  if (!node) {
+    auto self_meta = to_meta(self);
+    auto indices_meta = to_meta(indices);
+    auto values_meta = to_meta(values);
+
+    auto out_meta = at::compositeexplicitautograd::index_put(self_meta, indices_meta, values_meta, accumulate);
+
+    std::vector<torch::lazy::Shape> shapes{torch::lazy::Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
+    TORCH_INTERNAL_ASSERT(shapes.size() == 1);
+    if(torch::lazy::symbolicShapeEnabled()) {
+      std::vector<torch::jit::IValue> inputs = { self, indices, values };
+      const char* schema_str = "aten::index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor";
+      applySymbolicShapesOnLT(schema_str, inputs, shapes);
+    }
+
+    node = torch::lazy::MakeNode<IndexPut>(lazy_self->GetIrValue(), indices_list, lazy_valeus->GetIrValue(), accumulate, std::move(shapes));
+    CacheNode(node);
+  }
+
+  auto result = torch::lazy::CreateAtenFromLtcTensor(
+          torch::lazy::LazyTensor::Create(std::move(node), *common_device));
+
   return result;
 }
 
