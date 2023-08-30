@@ -91,5 +91,18 @@ struct TORCH_API TorchMlirTensorList : public TorchMlirNode {
       TorchMlirLoweringContext* loctx) const override;
 };
 
+// TorchMlirOptionalTensorList is similar to TorchMlirTensorList but it can also represent
+// optional tensors, so the output type for this op is !torch.list<optional<vtensor>>.
+struct TORCH_API TorchMlirOptionalTensorList : public TorchMlirNode {
+  static OpKind ClassOpKind();
+
+  TorchMlirOptionalTensorList() = delete;
+  TorchMlirOptionalTensorList(OpList values);
+
+  torch::lazy::TorchMlirOpVector Lower(
+      TorchMlirFunction function,
+      TorchMlirLoweringContext* loctx) const override;
+};
+
 } // namespace lazy
 } // namespace torch

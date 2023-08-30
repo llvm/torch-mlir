@@ -43,7 +43,12 @@ TorchMlirOpVector LowerTorchMlirBuiltin(
   for (auto arg : arguments) {
     torch::jit::Value* value = arg.value(dummy_graph);
     if (value->type()->kind() == c10::TypeKind::ListType) {
-      value->setType(c10::ListType::create(c10::TensorType::get()));
+      auto list_element_type = value->type()->cast<c10::ListType>()->getElementType();
+      if (list_element_type->cast<c10::OptionalType>()) {
+        value->setType(c10::ListType::create(c10::OptionalType::create(c10::TensorType::get())));
+      } else {
+        value->setType(c10::ListType::create(c10::TensorType::get()));
+      }
     }
   }
 
@@ -55,8 +60,17 @@ TorchMlirOpVector LowerTorchMlirBuiltin(
   CHECK(sv);
 
   TorchMlirOpVector results;
-  if (sv->getValue()->type()->kind() == c10::TypeKind::TupleType) {
-    // Op returns multiple values.
+  if (sv->getValue()->type()->kind() == c10::TypeKind::ListType) {
+    // Unpack dynamic multi-output operations like aten::split with Tensor[] output type.
+    // This is required to have consistent input types for multi-output node consumers.
+    torch::jit::Node * node = function->graph()->createListUnpack(sv->getValue(), tensor_types.size());
+    function->graph()->insertNode(node);
+    for (const auto & output : node->outputs()) {
+      results.push_back(output);
+    }
+  } else if (sv->getValue()->type()->kind() == c10::TypeKind::TupleType) {
+    // Op returns multiple values and the number of outputs is static and defined
+    // by the operation schema.
     const auto tuple_call_result = sv->asTuple({}, *function);
     for (const auto& tuple_component : tuple_call_result) {
       auto tuple_component_sv =

@@ -965,15 +965,6 @@ func.func @torch.prim.If$fold_same_result$subset_of_results(%arg0: !torch.bool, 
   return %0, %1: !torch.int, !torch.int
 }
 
-// CHECK-LABEL: func.func @prim.ListConstruct$fold_list(
-// CHECK-SAME:      %[[ARG0:.*]]: !torch.list<tensor>) -> !torch.list<tensor> {
-// CHECK:         return %[[ARG0]] : !torch.list<tensor>
-func.func @prim.ListConstruct$fold_list(%arg0: !torch.list<tensor>) -> !torch.list<tensor> {
-  %0:2 = torch.prim.ListUnpack %arg0 : !torch.list<tensor> -> !torch.tensor, !torch.tensor
-  %1 = torch.prim.ListConstruct %0#0, %0#1 : (!torch.tensor, !torch.tensor) -> !torch.list<tensor>
-  return %1 : !torch.list<tensor>
-}
-
 // CHECK-LABEL:   func.func @torch.prim.TupleUnpack(
 // CHECK-SAME:                                         %[[ARG0:.*]]: !torch.tensor,
 // CHECK-SAME:                                         %[[ARG1:.*]]: !torch.tensor) -> !torch.tensor {
@@ -2095,4 +2086,15 @@ func.func @torch.aten.add$fold() -> !torch.float {
     %float2 = torch.constant.float 2.0
     %0 = torch.aten.add %float1, %float2 : !torch.float, !torch.float -> !torch.float
     return %0 : !torch.float
+}
+
+// CHECK-LABEL:   func.func @torch.aten.any.bool$fold() -> !torch.bool {
+// CHECK:           %[[CST_TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[CST_TRUE]] : !torch.bool
+func.func @torch.aten.any.bool$fold() -> !torch.bool {
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %input = torch.prim.ListConstruct %false, %true, %false : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
+  %0 = torch.aten.any.bool %input : !torch.list<bool> -> !torch.bool
+  return %0 : !torch.bool
 }

@@ -328,7 +328,7 @@ public:
     SmallVector<int64_t> inputShape =
         makeShapeTorchCompatible(inputType.getShape());
     int64_t inputRank = inputType.getRank();
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
     auto resultType =
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
     int64_t resultRank = resultType.getRank();
@@ -695,7 +695,7 @@ public:
     Value input = adaptor.getSelf();
     auto inputType = input.getType().cast<RankedTensorType>();
     int64_t inputRank = inputType.getRank();
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
     auto resultType =
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
     int64_t resultRank = resultType.getRank();
@@ -804,7 +804,7 @@ public:
           op, "unimplemented: dim(th) dimension is not expected to be dynamic");
     }
 
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
     auto resultType =
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
     int64_t resultRank = resultType.getRank();
@@ -1046,7 +1046,7 @@ public:
       return failure();
 
     Location loc = op.getLoc();
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
 
     auto input = adaptor.getSelf();
     RankedTensorType resultType =
@@ -1081,7 +1081,7 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
 
     // Collect all the tensors to be concatenated.
     auto tensorList = op.getTensors();
@@ -1312,7 +1312,7 @@ public:
       return failure();
 
     Location loc = op.getLoc();
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
 
     auto input = adaptor.getSelf();
 
@@ -1361,7 +1361,7 @@ public:
       return failure();
 
     Location loc = op.getLoc();
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
     MLIRContext *context = rewriter.getContext();
 
     auto input = adaptor.getSelf();
