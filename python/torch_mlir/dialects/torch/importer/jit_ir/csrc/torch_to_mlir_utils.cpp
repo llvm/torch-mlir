@@ -57,12 +57,11 @@ static MlirType getMlirTypeForTorchScalarTypeRaw(MlirContext context,
   case ScalarType::QUInt8:
     return torchMlirTorchQUInt8TypeGet(context);
   case ScalarType::ComplexHalf:
-    return mlirComplexTypeGet(mlirF32TypeGet(context));
+    return mlirComplexTypeGet(mlirF16TypeGet(context));
   case ScalarType::ComplexFloat:
-    return mlirComplexTypeGet(mlirF64TypeGet(context));
-  // Created MLIR C API locally in LLVM, need to make separate PR to LLVM
+    return mlirComplexTypeGet(mlirF32TypeGet(context));
   case ScalarType::ComplexDouble:
-    return mlirComplexTypeGet(mlirF128TypeGet(context));
+    return mlirComplexTypeGet(mlirF64TypeGet(context));
 
   default: {
     return {nullptr};

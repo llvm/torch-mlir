@@ -146,12 +146,12 @@ def _convert_dtype_to_mlir_type(dtype: torch.dtype) -> str:
         return "!torch.qint8"
     if dtype == torch.quint8:
         return "!torch.quint8"
-    if dtype == torch.complex32:
-        return "complex<f32>"
+    # if dtype == torch.complex32:
+    #     return "complex<f32>"
     if dtype == torch.complex64:
-        return "complex<f64>"
+        return "complex<f32>"
     if dtype == torch.complex128:
-        return "complex<f128>"
+        return "complex<f64>"
 
 
     raise Exception(f"Unsupported dtype: {dtype}")
@@ -209,8 +209,6 @@ DTYPE_TO_INT = {
     torch.float64:
     7,
     # torch.complex_half 8
-    torch.complex32:
-    8,
     torch.complex64:
     9,
     torch.complex128:
