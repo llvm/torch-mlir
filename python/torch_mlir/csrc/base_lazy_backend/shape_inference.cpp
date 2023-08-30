@@ -93,7 +93,7 @@ std::vector<torch::lazy::Shape> compute_shape_mul(const at::Tensor& self,
 
 std::vector<torch::lazy::Shape> compute_shape_var(
     const at::Tensor& self, at::OptionalIntArrayRef dim,
-    c10::optional<int64_t> correction, bool keepdim) {
+    const c10::optional<at::Scalar> & correction, bool keepdim) {
   // Result of variance is scalar tensor.
   return {Shape(self.scalar_type(), {})};
 }
@@ -371,6 +371,12 @@ std::vector<torch::lazy::Shape> compute_shape_resize(
     const at::Tensor & self, at::IntArrayRef size,
     c10::optional<at::MemoryFormat> memory_format) {
   return {Shape(self.scalar_type(), size.vec())};
+}
+
+std::vector<torch::lazy::Shape> compute_shape_bernoulli(
+    const at::Tensor& self, const at::Tensor &p,
+    c10::optional<at::Generator> generator) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
 }  // namespace lazy

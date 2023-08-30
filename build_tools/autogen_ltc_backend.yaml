@@ -25,6 +25,10 @@ blacklist:
 - unsqueeze
 - view
 - slice.Tensor
+- split.Tensor
+- split_with_sizes
+- unbind.int
+
 
 # List of supported ops that we don't want to do the full codegen for
 supported:
