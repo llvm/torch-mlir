@@ -1468,6 +1468,28 @@ def ElementwisePowTensorBroadcastStaticModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwisePowScalarModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.float32, True),
+    ])
+    def forward(self, exp):
+        return torch.pow(2.0, exp)
+
+
+@register_test_case(module_factory=lambda: ElementwisePowScalarModule())
+def ElementwisePowScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
 class ElementwiseToDtypeF32ToI64Module(torch.nn.Module):
 
     def __init__(self):
