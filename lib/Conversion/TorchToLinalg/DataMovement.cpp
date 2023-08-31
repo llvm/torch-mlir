@@ -1227,8 +1227,7 @@ public:
       return failure();
 
     Type resultType = getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
-                                                adaptor.getSelf());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, adaptor.getSelf());
     return success();
   }
 };
@@ -1452,13 +1451,12 @@ public:
 
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
     auto inputElementType = getElementTypeOrSelf(input.getType());
-    Type elementType;
-    if (inputElementType.isa<ComplexType>()) {
-      elementType = resultType.getElementType();
-    } else {
+    if (!inputElementType.isa<ComplexType>()) {
       return op.emitError("only ComplexType is allowed as input type");
     }
+    Type elementType = resultType.getElementType();
 
+    // returned real tensor has a size increase, where the last dim has size 2
     SmallVector<OpFoldResult> resultShape =
         tensor::getMixedSizes(rewriter, loc, input);
     resultShape.push_back(
