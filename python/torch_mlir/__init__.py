@@ -446,7 +446,6 @@ PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
     if output_type == OutputType.RAW:
         return mb.module
 
-    # mb.module.dump()
     option_string = "{backend-legal-ops=" + ",".join(backend_legal_ops) + \
         " extra-library=" + extra_library_file_name + "}"
     run_pipeline_with_repro_report(

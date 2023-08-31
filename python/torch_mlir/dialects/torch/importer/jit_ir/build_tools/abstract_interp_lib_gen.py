@@ -267,6 +267,9 @@ def aten〇remainder〇Scalar〡shape(self: List[int], other: float) -> List[int
 def aten〇floor_divide〇Scalar〡shape(self: List[int], other: float) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇pow〇Scalar〡shape(self: float, exponent: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(exponent)
+
 def aten〇pow〇Tensor_Scalar〡shape(self: List[int], exponent: float) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -2702,6 +2705,12 @@ def aten〇floor_divide〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other
     assert not is_complex_dtype(self_dtype)
     ranks: List[Optional[int]] = [self_rank, None]
     dtypes = [self_dtype, get_dtype_of_scalar(other)]
+    return promote_dtypes(ranks, dtypes)
+
+def aten〇pow〇Scalar〡dtype(self: Union[int, float, complex], exponent_rank_dtype: Tuple[int, int]) -> int:
+    exponent_rank, exponent_dtype = exponent_rank_dtype
+    ranks: List[Optional[int]] = [None, exponent_rank]
+    dtypes = [get_dtype_of_scalar(self), exponent_dtype]
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, exponent=1) +
