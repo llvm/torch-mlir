@@ -13,6 +13,7 @@
 #include "PopulatePatterns.h"
 #include "Utils.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
@@ -343,6 +344,136 @@ public:
 };
 } // namespace
 
+namespace {
+// Refer to:
+// https://github.com/pytorch/pytorch/blob/8f1c3c68d3aba5c8898bfb3144988aab6776d549/aten/src/ATen/native/cpu/RangeFactoriesKernel.cpp#L45
+class ConvertAtenLinspaceOp : public OpConversionPattern<AtenLinspaceOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenLinspaceOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    // TODO: Add support for pin_memory features.
+    // At this point all tensors should have value semantics, and hence the
+    // `layout` check can be ignored.
+
+    // The pin_memory should be either `False` or `none`.
+    bool pinMemory;
+    if (!op.getPinMemory().getType().isa<Torch::NoneType>() &&
+        (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
+         pinMemory)) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: pin_memory must be either None or false");
+    }
+
+    Location loc = op.getLoc();
+    const TypeConverter *typeConverter = this->getTypeConverter();
+    RankedTensorType resultType =
+        typeConverter->convertType(op->getResult(0).getType())
+            .cast<RankedTensorType>();
+    Type dtype = resultType.getElementType();
+
+    // If dtype is not a float type, use float64.
+    Type floatType;
+    if (dtype.isa<mlir::FloatType>())
+      floatType = dtype;
+    else if(dtype.isa<mlir::ComplexType>())
+      floatType = dtype.cast<mlir::ComplexType>().getElementType();
+    else
+      floatType = rewriter.getF64Type();
+
+    Value start =
+        convertScalarToDtype(rewriter, loc, adaptor.getStart(), floatType);
+    Value end =
+        convertScalarToDtype(rewriter, loc, adaptor.getEnd(), floatType);
+    Value steps = convertScalarToDtype(rewriter, loc, adaptor.getSteps(),
+                                       rewriter.getI64Type());
+
+    // The result will always be a 1-d tensor with size `steps`.
+    Value resultShape = castIntToIndex(rewriter, loc, steps);
+
+    Value resultTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(resultShape), dtype);
+
+    auto iteratorType = utils::IteratorType::parallel;
+    AffineMap indexingMap =
+        AffineMap::getMultiDimIdentityMap(1, op->getContext());
+
+    Value zero = rewriter.create<arith::ConstantOp>(loc, rewriter.getZeroAttr(floatType));
+    Value one =
+        rewriter.create<arith::ConstantIntOp>(loc, 1, rewriter.getI64Type());
+    Value two =
+        rewriter.create<arith::ConstantIntOp>(loc, 2, rewriter.getI64Type());
+    Value oneFP = rewriter.create<arith::SIToFPOp>(loc, floatType, one);
+
+    Value endMinusStart = rewriter.create<arith::SubFOp>(loc, end, start);
+
+    Value stepsMinusOne = rewriter.create<arith::SubIOp>(loc, steps, one);
+    Value stepsMinusOneFloat =
+        rewriter.create<arith::SIToFPOp>(loc, floatType, stepsMinusOne);
+    Value astep =
+        rewriter.create<arith::DivFOp>(loc, endMinusStart, stepsMinusOneFloat);
+
+    // The halfway implementation is used to avoid round-off errors.
+    Value halfway = rewriter.create<arith::FloorDivSIOp>(loc, steps, two);
+
+    // If index is < halfway, yield start + astep * idx.
+    // Otherwise, yield end - astep * (steps - idx - 1).
+    Value finalRes =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, /*resultTensorTypes=*/resultTensor.getType(),
+                /*inputs=*/ValueRange({}),
+                /*outputs=*/resultTensor,
+                /*indexingMaps=*/indexingMap,
+                /*iteratorTypes=*/iteratorType,
+                [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
+                  Value index = b.create<linalg::IndexOp>(loc, 0);
+                  index = castIndexToInt64(b, loc, index);
+
+                  // cond = index < halfway.
+                  Value cond = b.create<arith::CmpIOp>(
+                      loc, arith::CmpIPredicate::slt, index, halfway);
+
+                  index = convertScalarToDtype(b, loc, index, floatType);
+                  steps = convertScalarToDtype(b, loc, steps, floatType);
+
+                  Value mulOut = b.create<arith::MulFOp>(loc, astep, index);
+                  Value result1 = b.create<arith::AddFOp>(loc, start, mulOut);
+
+                  // If cond is true, yield result.
+                  // Otherwise, yield end - astep * (steps - idx - 1).
+                  Value stepsMinusIdx =
+                      b.create<arith::SubFOp>(loc, steps, index);
+                  Value stepsMinusIdxMinusOne =
+                      b.create<arith::SubFOp>(loc, stepsMinusIdx, oneFP);
+                  Value mulOut2 = b.create<arith::MulFOp>(
+                      loc, astep, stepsMinusIdxMinusOne);
+                  Value result2 = b.create<arith::SubFOp>(loc, end, mulOut2);
+
+                  Value result =
+                      b.create<arith::SelectOp>(loc, cond, result1, result2);
+
+                  // Do type conversions if dtype is integer.
+                  if (dtype.isa<mlir::IntegerType>())
+                    result = b.create<arith::FPToSIOp>(loc, dtype, result);
+
+                  if (dtype.isa<mlir::ComplexType>()) {
+                    result = b.create<complex::CreateOp>(loc, dtype, result, zero);
+                  }
+
+                  b.create<linalg::YieldOp>(loc, result);
+                })
+            .getResult(0);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, finalRes);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::
     populateTensorConstructorsPatternsAndLegality(TypeConverter &typeConverter,
                                                   RewritePatternSet &patterns,
@@ -359,4 +490,6 @@ void mlir::torch::torch_to_linalg::
   patterns.add<ConvertAtenEmptyMemoryFormatOp>(typeConverter, context);
   patterns.add<ConvertAtenArangeStartStepOp>(typeConverter, context);
   target.addIllegalOp<AtenArangeStartStepOp>();
+  patterns.add<ConvertAtenLinspaceOp>(typeConverter, context);
+  target.addIllegalOp<AtenLinspaceOp>();
 }

@@ -726,6 +726,9 @@ def aten〇arange〇start〡shape(start: float, end: float, dtype: Optional[int]
 def aten〇arange〡shape(end: float, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return upstream_shape_functions.arange_end(end, dtype, layout, device, pin_memory)
 
+def aten〇linspace〡shape(start: float, end: float, steps: int, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    return [steps]
+
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), TensorOfShape(2, 3)), # Basic case.
     Invocation(TensorOfShape(2, 3), TensorOfShape(3)), # Rank broadcasting.
@@ -2939,6 +2942,16 @@ def aten〇arange〇start_step〡dtype(start: Union[int, float, complex], end: U
        is_float_dtype(get_dtype_of_scalar(step)):
         return torch.float32
     return torch.int64
+
+@check_dtype_function([Invocation(start=0, end=10, steps=1, dtype=None),
+                       Invocation(start=0, end=10, steps=1, dtype=torch.int64),
+                       Invocation(start=0, end=10, steps=1, dtype=torch.complex64),
+                       Invocation(start=0.0, end=10.0, steps=2, dtype=None),
+                       Invocation(start=0.0, end=10.0, steps=2, dtype=torch.int32)])
+def aten〇linspace〡dtype(start: Union[int, float, complex], end: Union[int, float, complex], steps: int, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    if dtype is not None:
+        return dtype
+    return torch.float32
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1) +
                       _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float32) +
