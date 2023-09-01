@@ -146,8 +146,6 @@ def _convert_dtype_to_mlir_type(dtype: torch.dtype) -> str:
         return "!torch.qint8"
     if dtype == torch.quint8:
         return "!torch.quint8"
-    # if dtype == torch.complex32:
-    #     return "complex<f32>"
     if dtype == torch.complex64:
         return "complex<f32>"
     if dtype == torch.complex128:

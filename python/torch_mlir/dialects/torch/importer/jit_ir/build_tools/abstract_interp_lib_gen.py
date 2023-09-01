@@ -1340,6 +1340,18 @@ def _get_dtype_of_floating_point_op(input_dtype: int) -> int:
         return input_dtype
     return torch.float32
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types=[
+    torch.float64, torch.float32, torch.float16, torch.bfloat16,
+    torch.int64, torch.int32, torch.int16, torch.int8, torch.uint8, torch.bool
+]))
+def aten〇view_as_real〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert is_complex_dtype(self_dtype)
+    if self_dtype == torch.complex64:
+        return torch.float
+    else:
+        return torch.double
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇tanh〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
