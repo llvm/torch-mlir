@@ -4294,6 +4294,39 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenRandOp : public OpRewritePattern<AtenRandOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRandOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    auto resultType = op.getType().cast<BaseTensorType>();
+
+    if (!resultType.hasDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "expected result type to have a dtype");
+    }
+    Value noneVal = rewriter.create<Torch::ConstantNoneOp>(loc);
+    Value low = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr((double)0.0));
+    Value high = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr((double)1.0));
+    Value emptyTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
+        loc, resultType, op.getSize(), /*dtype=*/op.getDtype(),
+        /*layout=*/op.getLayout(),
+        /*device=*/op.getDevice(), /*pin_memory=*/op.getPinMemory(),
+        /*memory_format=*/noneVal);
+    rewriter.replaceOpWithNewOp<AtenUniformOp>(op, resultType, emptyTensor,
+                                               /*from=*/low,
+                                               /*to=*/high,
+                                               /*generator=*/noneVal);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenVarMeanOp : public OpRewritePattern<AtenVarMeanOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -5181,6 +5214,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposePrimsConvertElementTypeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposePrimsVarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposePrimsSqrtOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRandOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnGeneratorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnLikeOp>(patterns);
