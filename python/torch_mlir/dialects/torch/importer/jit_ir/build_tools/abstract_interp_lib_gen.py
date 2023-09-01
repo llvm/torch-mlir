@@ -3343,7 +3343,10 @@ def aten〇atan〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 def aten〇linear〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None) -> int:
     input_rank, input_dtype = input_rank_dtype
     weight_rank, weight_dtype = weight_rank_dtype
-    return input_dtype
+    ranks: List[Optional[int]] = [input_rank, weight_rank]
+    dtypes = [input_dtype, weight_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    return promoted_dtype
 
 @check_dtype_function(
     [Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32)]),
