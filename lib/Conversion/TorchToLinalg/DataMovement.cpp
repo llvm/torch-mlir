@@ -1464,12 +1464,11 @@ public:
 
     Value outTensor =
         rewriter.create<tensor::EmptyOp>(loc, resultShape, elementType);
-    SmallVector<AffineExpr> outputExpr;
-    for (unsigned i = 0; i < resultType.getRank(); i++) {
-      outputExpr.push_back(getAffineDimExpr(i, context));
-    }
-    AffineMap outputMap =
-        AffineMap::get(resultType.getRank(), 0, outputExpr, op->getContext());
+
+//    SmallVector<AffineExpr> outputExpr;
+//    for (unsigned i = 0; i < resultType.getRank(); i++) {
+//      outputExpr.push_back(getAffineDimExpr(i, context));
+//    }
 
     SmallVector<AffineExpr> inputExpr;
     for (unsigned i = 0; i < resultType.getRank() - 1; i++) {
@@ -1477,6 +1476,11 @@ public:
     }
     AffineMap inputMap =
         AffineMap::get(resultType.getRank(), 0, inputExpr, op->getContext());
+
+    inputExpr.push_back(getAffineDimExpr(resultType.getRank(), context));
+    AffineMap outputMap =
+        AffineMap::get(resultType.getRank(), 0, inputExpr, op->getContext());
+
     SmallVector<AffineMap> indexingMaps{inputMap, outputMap};
 
     SmallVector<utils::IteratorType> iteratorTypes(
@@ -1490,10 +1494,6 @@ public:
                 loc, outTensor.getType(), input, outTensor, indexingMaps,
                 iteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
-                  SmallVector<Value> indices;
-                  for (int i = 0; i < inputType.getRank(); i++) {
-                    indices.push_back(b.create<linalg::IndexOp>(loc, i));
-                  }
 
                   Value realVal =
                       b.create<complex::ReOp>(loc, elementType, args[0]);

@@ -286,7 +286,7 @@ func.func @refine_dtype$derefine_result_type(%arg0: !torch.int, %arg1: !torch.in
 
 // CHECK-LABEL:   func.func @refine_dtype$complex_type(
 // CHECK:             {{.*}} = torch.aten.fft_fft{{.*}}-> !torch.vtensor<*,complex<f32>>
-func.func @refine_dtype$complex_type(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor<*,complex<f32>> {
+func.func @refine_dtype$complex_type(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor {
     // dtype for ComplexFloat, a.k.a Complex64
     %int9 = torch.constant.int 9
     %none = torch.constant.none
