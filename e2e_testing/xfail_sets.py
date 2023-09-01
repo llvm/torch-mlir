@@ -264,8 +264,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "RandnGeneratorModule_basic",
 
     # START tests failing due to: complex floating point ops
-    "AtenComplexImagModule_basic",
-    "AtenComplexRealModule_basic",
     # END tests failing due to: complex floating point ops
 
     # ERROR: Exception: Unsupported: return type List[Tensor] in schema for aten.unbind.int
