@@ -1408,6 +1408,8 @@ LTC_XFAIL_SET = {
     "AtenComplexImagModule_basic",
     "AtenComplexRealModule_basic",
     "AtenComplexViewModule_basic",
+    "AtenRealView128Module_basic",
+    "AtenRealView64Module_basic",
     "ScatterValueFloatModule_basic",
     "ScatterValueIntModule_basic",
     "IndexTensorNegativeIndexModule_basic",
