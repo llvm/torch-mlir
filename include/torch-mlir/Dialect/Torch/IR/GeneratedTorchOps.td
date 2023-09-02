@@ -4001,6 +4001,28 @@ def Torch_AtenViewAsComplexOp : Torch_Op<"aten.view_as_complex", [
   }];
 }
 
+def Torch_AtenViewAsRealOp : Torch_Op<"aten.view_as_real", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::view_as_real : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenViewAsRealOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenViewAsRealOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenUnbindCopyIntOp : Torch_Op<"aten.unbind_copy.int", [
     AllowsTypeRefinement,
     HasValueSemantics,

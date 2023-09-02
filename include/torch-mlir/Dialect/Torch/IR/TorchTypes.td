@@ -128,7 +128,8 @@ class AnyTorchTensorType<string name, string typeMnemonic>
     | torch.bool        | i1                 |
     | torch.qint8       | !torch.qint8       |
     | torch.quint8      | !torch.quint8      |
-    | torch.complex*    | complex<*>         |
+    | torch.complex64   | complex<f32>       |
+    | torch.complex128  | complex<f64>       |
     |-------------------|--------------------|
     ```
 
