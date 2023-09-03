@@ -893,6 +893,15 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
   return success();
 }
 
+// AtenScalarImplicitOp
+template <>
+LogicalResult ConvertAtenOp<AtenScalarImplicitOp>::matchAndRewrite(
+    AtenScalarImplicitOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  rewriter.replaceOpWithNewOp<tensor::ExtractOp>(op, adaptor.getA());
+  return success();
+}
+
 // AtenContiguousOp
 // Ref: TosaToTosa.cpp for implementation details
 template <>
@@ -1825,6 +1834,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenReciprocalOp);
   INSERT_ATENOP_PATTERN(AtenPowTensorScalarOp);
   INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
+  INSERT_ATENOP_PATTERN(AtenScalarImplicitOp);
   INSERT_ATENOP_PATTERN(AtenContiguousOp);
 
   INSERT_ATENOP_PATTERN(AtenReluOp);

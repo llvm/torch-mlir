@@ -366,6 +366,8 @@ STABLEHLO_PASS_SET = {
     "AnyBoolTrueModule_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
+    "ScalarImplicitFloatModule_basic",
+    "ScalarImplicitIntModule_basic",
     "AtenSubFloatModule_basic",
     "BoolFloatConstantModule_basic",
     "BoolIntConstantModule_basic",
