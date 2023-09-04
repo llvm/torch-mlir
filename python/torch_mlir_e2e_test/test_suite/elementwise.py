@@ -699,6 +699,52 @@ def ElementwiseMaximumIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseMaxOtherModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return x.max(y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMaxOtherModule())
+def ElementwiseMaxOtherModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5), tu.rand(3, 5))
+
+
+# ==============================================================================
+
+
+class ElementwiseMaxOtherIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return x.max(y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMaxOtherIntModule())
+def ElementwiseMaxOtherIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, high=10), tu.randint(3, 5, high=10))
+
+
+# ==============================================================================
+
+
 class ElementwiseClampModule(torch.nn.Module):
 
     def __init__(self):

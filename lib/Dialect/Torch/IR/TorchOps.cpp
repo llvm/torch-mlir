@@ -931,6 +931,20 @@ void AtenLenTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenMaxOtherOp
+//===----------------------------------------------------------------------===//
+
+void AtenMaxOtherOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                 MLIRContext *context) {
+  // `aten.max.other` -> `aten.maximum`
+  patterns.add(+[](AtenMaxOtherOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenMaximumOp>(op, op.getType(), op.getSelf(),
+                                                op.getOther());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenLenStrOp
 //===----------------------------------------------------------------------===//
 

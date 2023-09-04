@@ -561,6 +561,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::sum : (Tensor, int?) -> (Tensor)")
     emit("aten::sum.dim_IntList : (Tensor, int[]?, bool, int?) -> (Tensor)")
     emit("aten::max : (Tensor) -> (Tensor)")
+    emit("aten::max.other : (Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
     emit("aten::max.dim : (Tensor, int, bool) -> (Tensor, Tensor)")
     emit("aten::amax : (Tensor, int[], bool) -> (Tensor)")
     emit("aten::min : (Tensor) -> (Tensor)")
