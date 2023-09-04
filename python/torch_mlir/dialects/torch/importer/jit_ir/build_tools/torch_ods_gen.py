@@ -651,6 +651,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::sort.int : (int[], bool) -> ()", has_canonicalizer=True)
     emit("aten::sort : (Tensor, int, bool) -> (Tensor, Tensor)")
     emit("aten::split.Tensor : (Tensor, int, int) -> (Tensor[])")
+    emit("aten::split_with_sizes : (Tensor, int[], int) -> (Tensor[])")
     emit("aten::unbind.int : (Tensor, int) -> (Tensor[])")
     emit("aten::chunk : (Tensor, int, int) -> (Tensor[])")
 
