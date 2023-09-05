@@ -386,5 +386,11 @@ std::vector<torch::lazy::Shape> compute_shape_scalar_tensor(
   return {Shape(dtype.value_or(s.type()), c10::ArrayRef<int64_t>{})};
 }
 
+std::vector<torch::lazy::Shape> compute_shape_roll(
+    const at::Tensor& self, at::IntArrayRef shifts, at::IntArrayRef dims) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
+
 }  // namespace lazy
 }  // namespace torch
