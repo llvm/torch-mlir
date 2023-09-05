@@ -2027,6 +2027,7 @@ def ElementwiseOrTensorStaticShapeModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+
 class ElementwiseBitwiseXorModule(torch.nn.Module):
 
     def __init__(self):
