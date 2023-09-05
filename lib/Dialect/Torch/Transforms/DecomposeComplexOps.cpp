@@ -3628,12 +3628,12 @@ class DecomposeAtenCosineSimilarityOp : public OpRewritePattern<AtenCosineSimila
     Value x1 = op.getX1();
     Value x2 = op.getX2();
     Value dim = op.getDim();
-
+ 
     // Broadcast x1 and x2 to the same shape
     SmallVector<int64_t> indexBroadcastShapeInt;
     SmallVector<Value> indexBroadcastShapeValue;
     computeBroadcastShape(rewriter, loc, x1, x2, indexBroadcastShapeInt, indexBroadcastShapeValue);
-    Type dtype = x1.getType().cast<ValueTensorType>().getOptionalDtype();
+    Type dtype = x1.getType().cast<BaseTensorType>().getOptionalDtype();
     Type broadcastType =
         ValueTensorType::get(op.getContext(), llvm::ArrayRef(indexBroadcastShapeInt), dtype);
     Value indexBroadcastShapeTorchList = rewriter.create<PrimListConstructOp>(
@@ -3643,7 +3643,7 @@ class DecomposeAtenCosineSimilarityOp : public OpRewritePattern<AtenCosineSimila
     x2 = rewriter.create<AtenBroadcastToOp>(loc, broadcastType, x2, indexBroadcastShapeTorchList);
 
     // Compute the mul of A and B
-    Value dotProduct = rewriter.create<AtenMulTensorOp>(loc, x1.getType(), x1, x2);
+    Value dotProduct = rewriter.create<AtenMulTensorOp>(loc, broadcastType, x1, x2);
     Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
     Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
     Value dimList = rewriter.create<PrimListConstructOp>(
