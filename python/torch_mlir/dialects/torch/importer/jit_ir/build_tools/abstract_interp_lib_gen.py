@@ -759,6 +759,9 @@ def aten〇atan2〡shape(self: List[int], other: List[int]) -> List[int]:
 def aten〇__and__〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
+def aten〇__or__〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, other)
+
 def aten〇minimum〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
@@ -2203,6 +2206,14 @@ def aten〇rsub〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[
 
 @check_dtype_function(_check_two_tensor_op())
 def aten〇__and__〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    other_rank, other_dtype = other_rank_dtype
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, other_rank]
+    dtypes = [self_dtype, other_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(_check_two_tensor_op())
+def aten〇__or__〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
     other_rank, other_dtype = other_rank_dtype
     self_rank, self_dtype = self_rank_dtype
     ranks: List[Optional[int]] = [self_rank, other_rank]

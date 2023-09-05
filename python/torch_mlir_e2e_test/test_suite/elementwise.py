@@ -1978,6 +1978,55 @@ def ElementwiseBitwiseOrStaticShapeModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseOrTensorModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.__or__(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseOrTensorModule())
+def ElementwiseOrTensorModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=-10, high=10).to(torch.int32),
+        tu.randint(3, 4, low=-10, high=10))
+
+
+# ==============================================================================
+
+
+class ElementwiseOrTensorStaticShapeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.int32, True),
+        ([4], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.__or__(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseOrTensorStaticShapeModule())
+def ElementwiseOrTensorStaticShapeModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=-10, high=10).to(torch.int32),
+        tu.randint(4, low=-10, high=10))
+
+
+# ==============================================================================
+
 class ElementwiseBitwiseXorModule(torch.nn.Module):
 
     def __init__(self):

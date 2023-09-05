@@ -1111,6 +1111,19 @@ void AtenDivTensorModeOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// Aten__Or__TensorOp
+//===----------------------------------------------------------------------===//
+
+void Aten__Or__TensorOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](Aten__Or__TensorOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenBitwiseOrTensorOp>(op, op.getSelf(),
+                                                 op.getOther());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenScalarImplicitOp
 //===----------------------------------------------------------------------===//
 void AtenScalarImplicitOp::getCanonicalizationPatterns(
