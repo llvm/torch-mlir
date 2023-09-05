@@ -394,6 +394,9 @@ def aten〇mean〇dim〡shape(self: List[int], dim: Optional[List[int]], keepdim
 def aten〇sum〇dim_IntList〡shape(self: List[int], dim: Optional[List[int]], keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, dtype)
 
+def aten〇prod〇dim_int〡shape(self: List[int], dim: int, keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
+    return upstream_shape_functions.sum_mean_dim(self, [dim], keepdim, dtype)
+
 def aten〇permute〡shape(self: List[int], dims: List[int]) -> List[int]:
     return upstream_shape_functions.permute(self, dims)
 
@@ -3002,6 +3005,18 @@ def aten〇sum〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[int] = 
                       _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=None, dtype=torch.complex64))
 def aten〇sum〇dim_IntList〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[List[int]], keepdim: bool = False, dtype: Optional[int] = None) -> int:
     return aten〇sum〡dtype(self_rank_dtype, dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0, dtype=torch.float32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0, dtype=torch.int32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0, dtype=torch.complex64))
+def aten〇prod〇dim_int〡dtype(self_rank_dtype: Tuple[int, int], dim: int, keepdim: bool = False, dtype: Optional[int] = None) -> int:
+    if dtype is not None:
+        return dtype
+    self_rank, self_dtype = self_rank_dtype
+    if is_integer_dtype(self_dtype):
+        return torch.int64
+    return self_dtype
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(
