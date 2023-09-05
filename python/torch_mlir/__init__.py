@@ -274,7 +274,6 @@ def _lower_mlir_module(verbose, output_type, module):
         print("Torch Backend IR")
         print(module)
 
-    # module.dump()
     if output_type == OutputType.TORCH:
         return module
 
@@ -293,7 +292,6 @@ def _lower_mlir_module(verbose, output_type, module):
             module,
             "builtin.module(torch-backend-to-linalg-on-tensors-backend-pipeline)",
             "Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR")
-        # module.dump()
         if verbose:
             print("\n====================")
             print("LINALG Backend IR")
@@ -448,7 +446,6 @@ PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
     if output_type == OutputType.RAW:
         return mb.module
 
-    # mb.module.dump()
     option_string = "{backend-legal-ops=" + ",".join(backend_legal_ops) + \
         " extra-library=" + extra_library_file_name + "}"
     run_pipeline_with_repro_report(

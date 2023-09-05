@@ -363,6 +363,94 @@ public:
   }
 };
 
+class RecomposeSplitWithSizesListUnpack
+    : public OpRewritePattern<PrimListUnpackOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimListUnpackOp op,
+                                PatternRewriter &rewriter) const override {
+    // recompose AtenSplitWithSizesOp + PrimListUnpackOp to AtenSliceTensorOps
+    auto splitOp =
+        dyn_cast<AtenSplitWithSizesOp>(op.getOperand().getDefiningOp());
+    if (!splitOp) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Input is not AtenSplitWithSizesOp");
+    }
+    if (isListPotentiallyMutated(splitOp.getResult())) {
+      return rewriter.notifyMatchFailure(
+          op, "splitWithSizesOp result is potentially mutated");
+    }
+    if (isListPotentiallyMutated(splitOp.getSplitSizes())) {
+      return rewriter.notifyMatchFailure(
+          op, "splitWithSizesOp's split_sizes is potentially mutated");
+    }
+    auto splitSizesConstruct =
+        splitOp.getSplitSizes().getDefiningOp<Torch::PrimListConstructOp>();
+    if (!splitSizesConstruct) {
+      return rewriter.notifyMatchFailure(
+          op, "split_sizes is not from PrimListConstructOp");
+    }
+
+    int64_t sumSplitSize = 0;
+    SmallVector<int64_t> splitSizes;
+    for (auto operand : splitSizesConstruct.getOperands()) {
+      int64_t value = -1;
+      // TODO: support when split_sizes are not constant int
+      if (!matchPattern(operand, m_TorchConstantInt(&value))) {
+        return rewriter.notifyMatchFailure(
+            op, "one of split_sizes is not constant int");
+      }
+      if (value < 0) {
+        return rewriter.notifyMatchFailure(op, "all of split_sizes must > 0");
+      }
+      sumSplitSize += value;
+      splitSizes.push_back(value);
+    }
+    if (splitSizes.size() != op.getNumResults()) {
+      return rewriter.notifyMatchFailure(
+          op, "split_sizes must be same as splitOp result size");
+    }
+
+    Location loc = op.getLoc();
+    Value input = splitOp.getSelf();
+    Value dim = splitOp.getDim();
+
+    // add runtime.assert to check rank constraint
+    Value totalSize = rewriter.create<AtenSizeIntOp>(loc, input, dim);
+    Value cstSumSplitSize = rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(sumSplitSize));
+    Value eqOrNot =
+        rewriter.create<AtenEqIntOp>(loc, totalSize, cstSumSplitSize);
+    rewriter.create<RuntimeAssertOp>(
+        loc, eqOrNot,
+        rewriter.getStringAttr("split dim must be sum of split_sizes"));
+
+    // calculate slice op's lower bound and up bound
+    SmallVector<int64_t> boundaryOfSliceOp(splitSizes.size() + 1, 0);
+    for (size_t i = 1; i < boundaryOfSliceOp.size(); i++) {
+      boundaryOfSliceOp[i] = boundaryOfSliceOp[i - 1] + splitSizes[i - 1];
+    }
+    SmallVector<Value> slices;
+    Value cstOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    for (size_t i = 0; i < op.getNumResults(); i++) {
+      auto resultTy = op.getResult(i).getType();
+      auto start = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(boundaryOfSliceOp[i]));
+      auto end = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr((boundaryOfSliceOp[i + 1])));
+      Value sliceTensorOp = rewriter.create<AtenSliceTensorOp>(
+          loc, resultTy, input, dim, start, end, /*step=*/cstOne);
+      slices.push_back(sliceTensorOp);
+    }
+    rewriter.replaceOp(op, slices);
+    // erase splitOp if no user left
+    if (splitOp.getResult().use_empty())
+      rewriter.eraseOp(splitOp);
+    return success();
+  }
+};
+
 class RecomposeChunkListUnpack : public OpRewritePattern<PrimListUnpackOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -436,6 +524,7 @@ public:
     patterns.add<RecomposeSelectFill_>(context);
     patterns.add<RecomposeSplitTensorGetItemOp>(context);
     patterns.add<RecomposeSplitTensorListUnpack>(context);
+    patterns.add<RecomposeSplitWithSizesListUnpack>(context);
     patterns.add<RecomposeUnbindListUnpack>(context);
     patterns.add<RecomposeUnbindGetItem>(context);
     patterns.add<RecomposeChunkListUnpack>(context);

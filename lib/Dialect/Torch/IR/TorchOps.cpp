@@ -931,6 +931,20 @@ void AtenLenTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenMaxOtherOp
+//===----------------------------------------------------------------------===//
+
+void AtenMaxOtherOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                 MLIRContext *context) {
+  // `aten.max.other` -> `aten.maximum`
+  patterns.add(+[](AtenMaxOtherOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenMaximumOp>(op, op.getType(), op.getSelf(),
+                                                op.getOther());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenLenStrOp
 //===----------------------------------------------------------------------===//
 
@@ -1444,7 +1458,7 @@ OpFoldResult AtenAnyBoolOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   // If any operand is a constant true, return true.
   for (auto operand : inputConstruct.getOperands()) {
-    bool b;
+    bool b = false;
     if (matchPattern(operand, m_TorchConstantBool(&b)) && b) {
       return getI1IntegerAttr(getContext(), true);
     }
@@ -2315,6 +2329,25 @@ OpFoldResult AtenStackOp::fold(FoldAdaptor adaptor) {
   if (!list || !list->hasOneUse() || list.getElements().size() != 1)
     return nullptr;
   return list.getElements()[0];
+}
+
+//===----------------------------------------------------------------------===//
+// AtenBroadcastToOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenBroadcastToOp::fold(FoldAdaptor adaptor) {
+  auto inType = getOperand(0).getType().dyn_cast<BaseTensorType>();
+  auto outType = getResult().getType().dyn_cast<BaseTensorType>();
+  if (!inType || !outType || !inType.hasSizes() || !outType.hasSizes())
+    return nullptr;
+  if (inType.getSizes().size() != outType.getSizes().size() ||
+      !inType.areAllSizesKnown() || !outType.areAllSizesKnown())
+    return nullptr;
+  for (size_t i = 0; i < inType.getSizes().size(); ++i) {
+    if (inType.getSizes()[i] != outType.getSizes()[i])
+      return nullptr;
+  }
+  return getOperand(0);
 }
 
 //===----------------------------------------------------------------------===//

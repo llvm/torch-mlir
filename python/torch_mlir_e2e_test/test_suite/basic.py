@@ -3643,6 +3643,42 @@ class NumpyTRank0Module(torch.nn.Module):
 def NumpyTRank0Module_basic(module, tu: TestUtils):
     module.forward(torch.tensor(7, dtype=torch.float32))
 
+
+# ==============================================================================
+
+
+class AtenEmbeddingBagStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4, 2], torch.float32, True),
+        ([3], torch.int64, True),
+        ([1], torch.int64, True),
+    ])
+    def forward(self, weight, indices, offsets):
+        return torch.ops.aten.embedding_bag(weight,
+                                            indices,
+                                            offsets,
+                                            scale_grad_by_freq=False,
+                                            mode=0,
+                                            sparse=False,
+                                            per_sample_weights=None,
+                                            include_last_offset=False,
+                                            padding_idx=None)
+
+
+@register_test_case(module_factory=lambda: AtenEmbeddingBagStaticModule())
+def AtenEmbeddingBagStaticModule_basic(module, tu: TestUtils):
+    weight = tu.rand(4, 2)
+    indices = torch.LongTensor([3, 0, 1])
+    offsets = torch.LongTensor([0])
+    module.forward(weight, indices, offsets)
+
+
 class AtenEmbeddingBagSumExample(torch.nn.Module):
 
     def __init__(self):
@@ -3656,14 +3692,25 @@ class AtenEmbeddingBagSumExample(torch.nn.Module):
         ([-1], torch.int64, True),
     ])
     def forward(self, weight, indices, offsets):
-        return torch.ops.aten.embedding_bag(weight, indices, offsets, scale_grad_by_freq=False, mode=0, sparse=False, per_sample_weights=None, include_last_offset=False, padding_idx=None)
+        return torch.ops.aten.embedding_bag(weight,
+                                            indices,
+                                            offsets,
+                                            scale_grad_by_freq=False,
+                                            mode=0,
+                                            sparse=False,
+                                            per_sample_weights=None,
+                                            include_last_offset=False,
+                                            padding_idx=None)
+
 
 @register_test_case(module_factory=lambda: AtenEmbeddingBagSumExample())
 def AtenEmbeddingBagSumExample_basic(module, tu: TestUtils):
-    weight  = tu.rand(100, 10)
-    indices = torch.LongTensor([0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
+    weight = tu.rand(100, 10)
+    indices = torch.LongTensor(
+        [0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
     offsets = torch.LongTensor([0, 3, 5, 7, 9, 10, 15])
     module.forward(weight, indices, offsets)
+
 
 class Aten_EmbeddingBagExample(torch.nn.Module):
 
@@ -3680,12 +3727,15 @@ class Aten_EmbeddingBagExample(torch.nn.Module):
     def forward(self, weight, indices, offsets):
         return torch.ops.aten._embedding_bag(weight, indices, offsets)
 
+
 @register_test_case(module_factory=lambda: Aten_EmbeddingBagExample())
 def Aten_EmbeddingBagExample_basic(module, tu: TestUtils):
-    weight  = tu.rand(100, 10)
-    indices = torch.LongTensor([0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
+    weight = tu.rand(100, 10)
+    indices = torch.LongTensor(
+        [0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
     offsets = torch.LongTensor([0, 3, 5, 7, 9, 10, 15])
     module.forward(weight, indices, offsets)
+
 
 # ==============================================================================
 
@@ -4432,9 +4482,43 @@ class AtenComplexViewModule(torch.nn.Module):
 def AtenComplexViewModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5,2))
 
+# ==============================================================================
+class AtenRealView128Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.complex128, True),
+    ])
+    def forward(self, x):
+        return torch.view_as_real(x)
+
+
+@register_test_case(module_factory=lambda: AtenRealView128Module())
+def AtenRealView128Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 6, 1).to(torch.complex128))
 
 # ==============================================================================
+class AtenRealView64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
 
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.complex64, True),
+    ])
+    def forward(self, x):
+        return torch.view_as_real(x)
+
+
+@register_test_case(module_factory=lambda: AtenRealView64Module())
+def AtenRealView64Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 6, 1).to(torch.complex64))
+
+# ==============================================================================
 
 class Add_Module(torch.nn.Module):
 

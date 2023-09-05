@@ -893,6 +893,24 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
   return success();
 }
 
+// AtenScalarImplicitOp
+template <>
+LogicalResult ConvertAtenOp<AtenScalarImplicitOp>::matchAndRewrite(
+    AtenScalarImplicitOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Location loc = op.getLoc();
+  Type inputDtype =
+      op.getA().getType().template cast<BaseTensorType>().getDtype();
+  Type resultType =
+      this->getTypeConverter()->convertType(op->getResult(0).getType());
+  auto result =
+      rewriter.create<tensor::ExtractOp>(loc, adaptor.getA());
+
+  rewriter.replaceOp(
+      op, convertScalarToDtype(rewriter, loc, result, resultType, inputDtype));
+  return success();
+}
+
 // AtenContiguousOp
 // Ref: TosaToTosa.cpp for implementation details
 template <>
@@ -1553,36 +1571,6 @@ LogicalResult ConvertAtenOp<AtenUniformOp>::matchAndRewrite(
   return success();
 }
 
-template <>
-LogicalResult ConvertAtenOp<AtenRandOp>::matchAndRewrite(
-    AtenRandOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  Location loc = op.getLoc();
-  SmallVector<int64_t> size;
-  if (!matchPattern(adaptor.getSize(), m_TorchListOfConstantInts(size))) {
-    return rewriter.notifyMatchFailure(op,
-                                       "only constant integer size supported");
-  }
-  auto shapeTensor = rewriter.create<stablehlo::ConstantOp>(
-      loc, rewriter.getI64TensorAttr(size));
-  auto outTy = getTypeConverter()->convertType(op.getType());
-  auto outElemTy = outTy.cast<RankedTensorType>().getElementType();
-
-  if (!outElemTy.isa<FloatType>()) {
-    return rewriter.notifyMatchFailure(op, "only float type supported");
-  }
-
-  Value from = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getFloatAttr(outElemTy, 0.0));
-  from = hlo::scalarToStablehloTensor(rewriter, op, from, outElemTy);
-  Value to = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getFloatAttr(outElemTy, 1.0));
-  to = hlo::scalarToStablehloTensor(rewriter, op, to, outElemTy);
-  rewriter.replaceOpWithNewOp<stablehlo::RngOp>(
-      op, outTy, from, to, shapeTensor, stablehlo::RngDistribution::UNIFORM);
-  return success();
-}
-
 // Converts `aten.empty.memory_format` to `tensor.empty` op.
 template <>
 LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
@@ -1855,6 +1843,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenReciprocalOp);
   INSERT_ATENOP_PATTERN(AtenPowTensorScalarOp);
   INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
+  INSERT_ATENOP_PATTERN(AtenScalarImplicitOp);
   INSERT_ATENOP_PATTERN(AtenContiguousOp);
 
   INSERT_ATENOP_PATTERN(AtenReluOp);
@@ -1874,7 +1863,6 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
   INSERT_ATENOP_PATTERN(AtenPowTensorTensorOp);
   INSERT_ATENOP_PATTERN(AtenUniformOp);
-  INSERT_ATENOP_PATTERN(AtenRandOp);
   INSERT_ATENOP_PATTERN(AtenEmptyMemoryFormatOp);
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);
   INSERT_ATENOP_PATTERN(AtenFlipOp);

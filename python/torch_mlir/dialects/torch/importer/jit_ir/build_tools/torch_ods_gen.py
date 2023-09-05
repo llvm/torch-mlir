@@ -338,6 +338,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::real : (Tensor) -> (Tensor)")
     emit("aten::imag : (Tensor) -> (Tensor)")
     emit("aten::view_as_complex : (Tensor) -> (Tensor)")
+    emit("aten::view_as_real : (Tensor) -> (Tensor)")
 
     # Ops with dynamic number of outputs
     emit("aten::unbind_copy.int : (Tensor, int) -> (Tensor[])")
@@ -543,7 +544,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::empty.memory_format : (int[], int?, int?, Device?, bool?, int?) -> (Tensor)")
     emit("aten::expand : (Tensor, int[], bool) -> (Tensor)")
     emit("aten::expand_as : (Tensor, Tensor) -> (Tensor)")
-    emit("aten::broadcast_to : (Tensor, int[]) -> (Tensor)")
+    emit("aten::broadcast_to : (Tensor, int[]) -> (Tensor)", has_folder=True)
     emit("aten::index.Tensor : (Tensor, Tensor?[]) -> (Tensor)")
     emit("aten::index.Tensor_hacked_twin : (Tensor, Tensor[]) -> (Tensor)")
     emit("aten::index_select : (Tensor, int, Tensor) -> (Tensor)")
@@ -561,6 +562,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::sum : (Tensor, int?) -> (Tensor)")
     emit("aten::sum.dim_IntList : (Tensor, int[]?, bool, int?) -> (Tensor)")
     emit("aten::max : (Tensor) -> (Tensor)")
+    emit("aten::max.other : (Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
     emit("aten::max.dim : (Tensor, int, bool) -> (Tensor, Tensor)")
     emit("aten::amax : (Tensor, int[], bool) -> (Tensor)")
     emit("aten::min : (Tensor) -> (Tensor)")
@@ -651,6 +653,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::sort.int : (int[], bool) -> ()", has_canonicalizer=True)
     emit("aten::sort : (Tensor, int, bool) -> (Tensor, Tensor)")
     emit("aten::split.Tensor : (Tensor, int, int) -> (Tensor[])")
+    emit("aten::split_with_sizes : (Tensor, int[], int) -> (Tensor[])")
     emit("aten::unbind.int : (Tensor, int) -> (Tensor[])")
     emit("aten::chunk : (Tensor, int, int) -> (Tensor[])")
 

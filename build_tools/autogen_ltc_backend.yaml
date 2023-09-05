@@ -5,6 +5,7 @@ blacklist:
 
 # Ops with list of tensors output
 - split.Tensor
+- split_with_sizes
 - unbind.int
 - chunk
 
