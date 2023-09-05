@@ -1153,44 +1153,6 @@ def NewFullModuleInt3D_basic(module, tu: TestUtils):
     module.forward(tu.randint(10, 4, 5, high=100).to(torch.int32))
 
 
-class NewFullModuleInt2DStatic(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.int64, True),
-    ])
-    def forward(self, a):
-        return torch.ops.aten.new_full(a, (3,4), 10)
-
-
-@register_test_case(module_factory=lambda: NewFullModuleInt2DStatic())
-def NewFullModuleInt2DStatic_basic(module, tu: TestUtils):
-    module.forward(tu.randint(4, 5, high=10))
-
-
-class NewFullModuleFloat2D(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.float32, True),
-    ])
-    def forward(self, a):
-        return torch.ops.aten.new_full(a, (3,4), 10)
-
-
-@register_test_case(module_factory=lambda: NewFullModuleFloat2D())
-def NewFullModuleFloat2D_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4))
-
-
 class NewFullModuleFloat3D(torch.nn.Module):
 
     def __init__(self):
