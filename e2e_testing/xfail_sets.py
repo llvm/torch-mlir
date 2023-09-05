@@ -285,6 +285,9 @@ TORCHDYNAMO_XFAIL_SET = {
     # Exception: Unsupported: node.meta['val'] is not a FakeTensor or list of FakeTensor's: _scaled_dot_product_flash_attention;
     "ScaledDotProductAttentionSameModule_basic",
     "ScaledDotProductAttentionDifferentModule_basic",
+
+    # AssertionError: Unregistered operation: torch.aten._embedding_bag_forward_only
+    "AtenEmbeddingBagStaticModule_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.1.0.dev"):
@@ -889,6 +892,7 @@ STABLEHLO_PASS_SET = {
     "UniformStaticShapeModule_basic",
     "UniformNoCorrelationModule_basic",
     "TupleModule_basic",
+    "AtenEmbeddingBagStaticModule_basic",
 }
 
 STABLEHLO_CRASHING_SET = {
@@ -900,7 +904,8 @@ STABLEHLO_CRASHING_SET = {
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
 
-    "Aten_EmbeddingBagExample_basic"
+    "Aten_EmbeddingBagExample_basic",
+    "AtenEmbeddingBagSumExample_basic"
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -1394,4 +1399,5 @@ LTC_XFAIL_SET = {
     "ScatterValueFloatModule_basic",
     "ScatterValueIntModule_basic",
     "UniformStaticShapeModule_basic",
+    "AtenEmbeddingBagStaticModule_basic",
 }

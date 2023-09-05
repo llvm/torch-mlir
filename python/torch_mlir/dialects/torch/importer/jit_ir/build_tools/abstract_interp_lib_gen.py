@@ -19,7 +19,10 @@ from .library_generator import generate_library, not_present_in_registry, promot
 # ==============================================================================
 
 # TODO: upstream this
-def _embedding_bag_helper(weight: List[int], indices: List[int], offsets: List[int], include_last_offset: bool, mode: int):
+def _embedding_bag_helper(weight: List[int], indices: List[int],
+                          offsets: List[int], include_last_offset: bool,
+                          mode: int, per_sample_weights: Optional[List[int]],
+                          padding_idx: Optional[int]):
     assert len(weight) == 2
     assert len(indices) == 1
     assert len(offsets) == 1
@@ -35,7 +38,10 @@ def _embedding_bag_helper(weight: List[int], indices: List[int], offsets: List[i
     if mode == 1:
         offset2bag_shape.append(0)
     else:
-        offset2bag_shape = upstream_shape_functions._copy(indices)
+        if per_sample_weights is None and padding_idx is None:
+            offset2bag_shape = [0]
+        else:
+            offset2bag_shape = upstream_shape_functions._copy(indices)
 
     bag_size_shape = upstream_shape_functions._copy(offsets)
 
@@ -1024,10 +1030,12 @@ def aten〇embedding〡shape(weight: List[int], indices: List[int], padding_idx:
     return upstream_shape_functions.embedding(weight, indices, padding_idx, scale_grad_by_freq, sparse)
 
 def aten〇embedding_bag〇padding_idx〡shape(weight: List[int], indices: List[int], offsets: List[int], scale_grad_by_freq: bool, mode: int, sparse: bool, per_sample_weights: Optional[List[int]], include_last_offset: bool, padding_idx: Optional[int]) -> Tuple[List[int], List[int], List[int], List[int]]:
-    return _embedding_bag_helper(weight, indices, offsets, include_last_offset, mode)
+    return _embedding_bag_helper(weight, indices, offsets, include_last_offset,
+                                 mode, per_sample_weights, padding_idx)
 
 def aten〇_embedding_bag〡shape(weight: List[int], indices: List[int], offsets: List[int], scale_grad_by_freq: bool = False, mode: int = 0, sparse: bool = False, per_sample_weights: Optional[List[int]] = None, include_last_offset: bool = False, padding_idx: int = -1) -> Tuple[List[int], List[int], List[int], List[int]]:
-    return _embedding_bag_helper(weight, indices, offsets, include_last_offset, mode)
+     return _embedding_bag_helper(weight, indices, offsets, include_last_offset,
+                                 mode, per_sample_weights, padding_idx)
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), LongTensorOfShape(2), None, 1, -100), # Basic case.
