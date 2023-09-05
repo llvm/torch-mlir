@@ -898,7 +898,16 @@ template <>
 LogicalResult ConvertAtenOp<AtenScalarImplicitOp>::matchAndRewrite(
     AtenScalarImplicitOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  rewriter.replaceOpWithNewOp<tensor::ExtractOp>(op, adaptor.getA());
+  Location loc = op.getLoc();
+  Type inputDtype =
+      op.getA().getType().template cast<BaseTensorType>().getDtype();
+  Type resultType =
+      this->getTypeConverter()->convertType(op->getResult(0).getType());
+  auto result =
+      rewriter.create<tensor::ExtractOp>(loc, adaptor.getA());
+
+  rewriter.replaceOp(
+      op, convertScalarToDtype(rewriter, loc, result, resultType, inputDtype));
   return success();
 }
 
