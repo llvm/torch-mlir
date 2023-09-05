@@ -43,6 +43,22 @@ def Torch_Dialect : Dialect {
     Type parseType(DialectAsmParser &parser) const override;
     /// Print a type registered to this dialect.
     void printType(Type type, DialectAsmPrinter &printer) const override;
+
+    private:
+      /// Registers operations specified as template parameters with this
+      /// dialect. Checks that they implement the required interfaces.
+      template <typename... OpTys>
+      void addOperationsChecked() {
+        (addOperationIfNotRegistered<OpTys>(), ...);
+      }
+      template <typename OpTy>
+      void addOperationIfNotRegistered();
+
+      /// Reports a repeated registration error of an op with the given name.
+      [[noreturn]] void reportDuplicateOpRegistration(StringRef opName);
+
+      template <typename, typename...>
+      friend class TorchDialectExtension;
   }];
 }
 

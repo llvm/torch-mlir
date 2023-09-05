@@ -1609,6 +1609,97 @@ OpFoldResult ValueTensorLiteralOp::fold(FoldAdaptor adaptor) {
   return getValueAttr();
 }
 
+void ValueTensorLiteralOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](ValueTensorLiteralOp constOp, PatternRewriter &rewriter) {
+    if (!constOp->hasOneUse())
+      return failure();
+
+    OpOperand *use = constOp.getResult().use_begin().getOperand();
+    auto op = dyn_cast<OperatorOp>(use->getOwner());
+    if (!op)
+      return failure();
+
+    if (use->getOperandNumber() != 1)
+      return failure();
+
+    if (op.getName().str() != "brevitas.matmul_rhs_group_quant") {
+      return failure();
+    }
+
+    Value rhs = op.getOperand(1);
+    Value bitWidth = op.getOperand(4);
+
+    auto getConstantIntegerFromDefiningOp = [](Value operand,
+                                               int &extractedInt) {
+      auto constOp = dyn_cast<Torch::ConstantIntOp>(operand.getDefiningOp());
+      if (!constOp) {
+        return failure();
+      }
+      extractedInt = constOp.getValue();
+      return success();
+    };
+    int unpackedBitWidth;
+    if (failed(getConstantIntegerFromDefiningOp(bitWidth, unpackedBitWidth)))
+      return failure();
+
+    auto rhsType = rhs.getType().dyn_cast<ValueTensorType>();
+    if (!rhsType)
+      return failure();
+
+    if (!rhsType.hasDtype())
+      return failure();
+
+    Type dType = rhsType.getDtype();
+    int dTypeWidth = dType.getIntOrFloatBitWidth();
+    if (dTypeWidth == unpackedBitWidth)
+      return failure();
+
+    if (!rhsType.hasSizes())
+      return failure();
+
+    SmallVector<int64_t> tensorShape(rhsType.getSizes());
+    if (tensorShape.back() == kUnknownSize)
+      return failure();
+    int packRatio = dTypeWidth / unpackedBitWidth;
+
+    tensorShape[tensorShape.size() - 1] *= packRatio;
+    Type unpackedElementType;
+    if (dType.isSignedInteger())
+      unpackedElementType = rewriter.getIntegerType(unpackedBitWidth, true);
+    else
+      unpackedElementType = rewriter.getIntegerType(unpackedBitWidth, false);
+    ValueTensorType newRhsType = ValueTensorType::get(
+        rewriter.getContext(), tensorShape, unpackedElementType);
+
+    auto elements = constOp.getValueAttr().dyn_cast<DenseIntElementsAttr>();
+    if (!elements)
+      return failure();
+
+    auto attrType = RankedTensorType::get(tensorShape, unpackedElementType);
+
+    // This is terrible but idk what else to do.
+    auto data = elements.getRawData();
+    // std::vector<APInt> newData;
+    // newData.reserve(data.size() * packRatio);
+    std::vector<APInt> newData(data.size() * packRatio,
+                               APInt(unpackedBitWidth, 0));
+    for (int i = 0, e = data.size(); i < e; ++i) {
+      auto el = data[i];
+      char mask = (1 << unpackedBitWidth) - 1;
+      for (int b = 0; b < packRatio; b++) {
+        newData[i * packRatio + (packRatio - b - 1)] =
+            APInt(unpackedBitWidth, (el & mask) >> (unpackedBitWidth * b));
+        mask = mask << unpackedBitWidth;
+      }
+    }
+    rewriter.replaceOpWithNewOp<ValueTensorLiteralOp>(
+        constOp, newRhsType,
+        DenseElementsAttr::get(attrType, ArrayRef<APInt>(newData)));
+    return success();
+  });
+}
+
 //----------------------------------------------------------------------------//
 // TensorStaticInfoCast
 //----------------------------------------------------------------------------//
