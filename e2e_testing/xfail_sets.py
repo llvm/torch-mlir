@@ -1332,7 +1332,6 @@ LTC_XFAIL_SET = {
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
     "IndexPutImplIndexWithNoneModule_basic",
-    "LiftFreshCopyModule_basic",
     "Matmul_dot",
     "MulIntModule_basic",
     "DivIntModule_basic",
