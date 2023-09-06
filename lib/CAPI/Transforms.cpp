@@ -9,6 +9,11 @@
 #include "mlir/CAPI/Pass.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
+namespace {
+#define GEN_PASS_REGISTRATION
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
+} // namespace
+
 // Must include the declarations as they carry important visibility attributes.
 #include "torch-mlir/Dialect/Torch/Transforms/Transforms.capi.h.inc"
 

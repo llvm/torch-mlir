@@ -11,8 +11,17 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 
+//===----------------------------------------------------------------------===//
+// Pass registration
+//===----------------------------------------------------------------------===//
+
+namespace {
+#define GEN_PASS_REGISTRATION
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
+} // namespace
+
 void mlir::torch::registerTorchPasses() {
-  mlir::torch::registerPasses();
+  ::registerPasses();
   mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
       "torchscript-module-to-torch-backend-pipeline",
       "Pipeline lowering TorchScript object graph IR to Torch backend form.",

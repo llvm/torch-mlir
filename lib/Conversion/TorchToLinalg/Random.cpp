@@ -7,9 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
+#include "torch-mlir/Conversion/TorchToLinalg/Passes.h"
 
-#include "../PassDetail.h"
+#include "./PassDetail.h"
 #include "PopulatePatterns.h"
 #include "Utils.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"

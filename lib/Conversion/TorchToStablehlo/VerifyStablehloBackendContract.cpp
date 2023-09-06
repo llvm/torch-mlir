@@ -6,8 +6,9 @@
 // Also available under a BSD-style license. See LICENSE.
 //
 //===----------------------------------------------------------------------===//
-#ifdef TORCH_MLIR_ENABLE_STABLEHLO
-#include "PassDetail.h"
+
+#include "./PassDetail.h"
+#include "torch-mlir/Conversion/TorchToStablehlo/Passes.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -18,11 +19,9 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
-#include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 
 using namespace mlir;
 using namespace mlir::torch;
-using namespace mlir::torch::TorchConversion;
 
 namespace {
 class VerifyStablehloBackendContractPass
@@ -45,7 +44,8 @@ class VerifyStablehloBackendContractPass
     ConversionTarget target(*context);
 
     // Structural operations.
-    target.addDynamicallyLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>(opHasLegalTypes);
+    target.addDynamicallyLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>(
+        opHasLegalTypes);
     // Shape operations.
     target.addDynamicallyLegalOp<shape::ShapeOfOp>(opHasLegalTypes);
 
@@ -58,7 +58,6 @@ class VerifyStablehloBackendContractPass
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::TorchConversion::createVerifyStablehloBackendContractPass() {
+mlir::torch::createVerifyStablehloBackendContractPass() {
   return std::make_unique<VerifyStablehloBackendContractPass>();
 }
-#endif // TORCH_MLIR_ENABLE_STABLEHLO

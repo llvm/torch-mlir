@@ -7,6 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef TORCHMLIR_CONVERSION_TOSA_PASSES_H
+#define TORCHMLIR_CONVERSION_TOSA_PASSES_H
+
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
@@ -15,13 +18,18 @@
 namespace mlir {
 namespace torch {
 
-std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToArithPass();
-std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToSCFPass();
+/// Creates a pipeline that lowers from the torch backend contract to the
+/// TOSA backend contract.
+void createTorchBackendToTosaBackendPipeline(OpPassManager &pm);
 
-// Note that this only registers common conversion passes. Backend
-// specific passes with their own Passes.h in a subdirectory must be
-// included/registered explicitly as they are all optional.
-void registerConversionPasses();
+std::unique_ptr<OperationPass<ModuleOp>> createVerifyTosaBackendContractPass();
+
+std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToTosaPass();
+
+/// Registers all torch-mlir conversion passes.
+void registerTosaConversionPasses();
 
 } // namespace torch
 } // namespace mlir
+
+#endif // TORCHMLIR_CONVERSION_PASSES_H

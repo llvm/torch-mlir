@@ -22,36 +22,6 @@ class ModuleOp;
 namespace torch {
 namespace TorchConversion {
 
-/// Creates a pipeline that lowers from the torch backend contract to the
-/// linalg-on-tensors backend contract.
-void createTorchBackendToLinalgOnTensorsBackendPipeline(OpPassManager &pm);
-
-/// Creates a pipeline that lowers from the torch backend contract to the
-/// TOSA backend contract.
-void createTorchBackendToTosaBackendPipeline(OpPassManager &pm);
-
-// Do not register the stablehlo options if the stablehlo target is disabled
-#ifdef TORCH_MLIR_ENABLE_STABLEHLO
-struct StablehloBackendPipelineOptions
-    : public PassPipelineOptions<StablehloBackendPipelineOptions> {
-  Option<bool> enableStaticShape{
-      *this, "enable-static-shape",
-      llvm::cl::desc("Enable static shape conversion."), llvm::cl::init(false)};
-  // The i64 calculation is much slower than i32 on some devices, such as
-  // Nvidia GPU. One can truncate from i64 to i32 since dimension sizes
-  // are unlikely to exceed the range of i32(4GiB)
-  Option<bool> enableI32Index{
-      *this, "enable-i32-index",
-      llvm::cl::desc("Enable truncate index from i64 to i32(unsafely)"),
-      llvm::cl::init(false)};
-};
-
-void createTorchBackendToStablehloBackendPipeline(
-    OpPassManager &pm, const StablehloBackendPipelineOptions &options);
-std::unique_ptr<OperationPass<ModuleOp>>
-createVerifyStablehloBackendContractPass();
-#endif
-
 std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();
 
 std::unique_ptr<OperationPass<func::FuncOp>>
@@ -64,11 +34,6 @@ createFinalizingBackendTypeConversionPass();
 // the plan to support a more generalized lowering for these graphs.
 std::unique_ptr<OperationPass<func::FuncOp>> createUnpackQuantTensorPass();
 std::unique_ptr<OperationPass<func::FuncOp>> createConvertCustomQuantOpPass();
-
-std::unique_ptr<OperationPass<ModuleOp>>
-createVerifyLinalgOnTensorsBackendContractPass();
-
-std::unique_ptr<OperationPass<ModuleOp>> createVerifyTosaBackendContractPass();
 
 } // namespace TorchConversion
 

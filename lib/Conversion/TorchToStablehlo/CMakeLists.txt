@@ -1,4 +1,5 @@
 add_mlir_conversion_library(TorchMLIRTorchToStablehlo
+  Passes.cpp
   TorchToStablehlo.cpp
   StablehloLegalizeUtils.cpp
   Basic.cpp
@@ -7,21 +8,25 @@ add_mlir_conversion_library(TorchMLIRTorchToStablehlo
   ViewLike.cpp
   Reduction.cpp
   Pooling.cpp
+  VerifyStablehloBackendContract.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/torch-mlir/Conversion/TorchToStablehlo
 
   DEPENDS
-  TorchMLIRConversionPassIncGen
+  TorchMLIRConversionStablehloPassIncGen
 
   LINK_COMPONENTS
   Core
 
   LINK_LIBS PUBLIC
+  MLIRBufferTransforms
   MLIRIR
   MLIRPass
-  MLIRBufferTransforms
+  MLIRTransforms
   StablehloOps
+  TorchMLIRConversionCommon
+  TorchMLIRTorchConversionPasses
   TorchMLIRTorchDialect
   TorchMLIRConversionUtils
 )
