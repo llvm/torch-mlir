@@ -16,16 +16,6 @@ include "mlir/Pass/PassBase.td"
 // Torch conversions
 //===----------------------------------------------------------------------===//
 
-def ConvertTorchToArith : Pass<"convert-torch-to-arith", "func::FuncOp"> {
-  let summary = "Convert recognized Torch ops to Std ops";
-  let constructor = "mlir::torch::createConvertTorchToArithPass()";
-}
-
-def ConvertTorchToSCF: Pass<"convert-torch-to-scf", "func::FuncOp"> {
-  let summary = "Convert recognized Torch ops to SCF ops";
-  let constructor = "mlir::torch::createConvertTorchToSCFPass()";
-}
-
 def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "func::FuncOp"> {
   let summary = "Convert recognized Torch ops to Linalg ops";
   let description = [{
