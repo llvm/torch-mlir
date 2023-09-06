@@ -7,7 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
+#include "./PassDetail.h"
+#include "torch-mlir/Conversion/TorchToLinalg/Passes.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -24,7 +25,6 @@
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 
 #include "mlir/IR/BuiltinOps.h"
 
@@ -32,7 +32,6 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::TorchConversion;
 using namespace TMTensor;
-
 
 namespace {
 class VerifyLinalgOnTensorsBackendContractPass
@@ -96,7 +95,8 @@ class VerifyLinalgOnTensorsBackendContractPass
       // We avoid `module.emitError()` so that mlir-print-op-on-diagnostics
       // doesn't unnecessarily spew out the entire module.
       emitError(module.getLoc())
-          << "Module does not conform to the linalg-on-tensors backend contract. "
+          << "Module does not conform to the linalg-on-tensors backend "
+             "contract. "
              "See dialect conversion legality information above.";
       return signalPassFailure();
     }
@@ -105,6 +105,6 @@ class VerifyLinalgOnTensorsBackendContractPass
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::TorchConversion::createVerifyLinalgOnTensorsBackendContractPass() {
+mlir::torch::createVerifyLinalgOnTensorsBackendContractPass() {
   return std::make_unique<VerifyLinalgOnTensorsBackendContractPass>();
 }

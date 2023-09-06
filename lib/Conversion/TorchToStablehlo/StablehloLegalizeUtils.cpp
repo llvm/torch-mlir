@@ -11,7 +11,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/StablehloOps.h"
-#include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
+#include "torch-mlir/Conversion/TorchToStablehlo/Passes.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include <numeric>

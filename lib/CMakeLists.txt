@@ -23,8 +23,16 @@ set(LinkedLibs
   TorchMLIRRefBackend
 )
 
+# Conditionally link in backends if enabled.
+if(TORCH_MLIR_ENABLE_LINALG)
+  list(APPEND LinkedLibs TorchMLIRTorchToLinalg)
+endif()
+if(TORCH_MLIR_ENABLE_TOSA)
+  list(APPEND LinkedLibs TorchMLIRTorchToTosa)
+endif()
 if(TORCH_MLIR_ENABLE_STABLEHLO)
   list(APPEND LinkedLibs
+    TorchMLIRTorchToStablehlo
     MhloPasses
     MhloToLinalg
     StablehloToMhlo

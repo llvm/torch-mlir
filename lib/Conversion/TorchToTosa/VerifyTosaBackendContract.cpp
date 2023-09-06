@@ -7,7 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
+#include "./PassDetail.h"
+#include "torch-mlir/Conversion/TorchToTosa/Passes.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -16,11 +17,9 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 
 using namespace mlir;
 using namespace mlir::torch;
-using namespace mlir::torch::TorchConversion;
 
 namespace {
 class VerifyTosaBackendContractPass
@@ -62,6 +61,6 @@ class VerifyTosaBackendContractPass
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::TorchConversion::createVerifyTosaBackendContractPass() {
+mlir::torch::createVerifyTosaBackendContractPass() {
   return std::make_unique<VerifyTosaBackendContractPass>();
 }

@@ -7,9 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
+#include "torch-mlir/Conversion/TorchToLinalg/Passes.h"
 
-#include "../PassDetail.h"
+#include "./PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MLProgram/IR/MLProgram.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -82,7 +82,8 @@ public:
     // temp = multiplier * currentSeed + incrementStep
     Value mul = rewriter.create<arith::MulIOp>(loc, currentSeed, multiplier);
     Value seed = rewriter.create<arith::AddIOp>(loc, mul, incrementStep);
-    globalVar = rewriter.create<tensor::InsertOp>(loc, seed, globalVar, ValueRange());
+    globalVar =
+        rewriter.create<tensor::InsertOp>(loc, seed, globalVar, ValueRange());
     rewriter.create<ml_program::GlobalStoreOp>(
         loc, SymbolRefAttr::get(op->getContext(), getSeedGobalVarName()),
         globalVar);

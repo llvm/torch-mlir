@@ -1,4 +1,4 @@
-//===------------------------------------------------------------*- C++ -*-===//
+//===- PassDetail.h - Conversion Pass class details -------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,18 +7,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TORCHMLIR_CONVERSION_ATENTOLINALG_ATENTOLINALG_H
-#define TORCHMLIR_CONVERSION_ATENTOLINALG_ATENTOLINALG_H
+#ifndef TORCHMLIR_CONVERSION_LINALG_PASSDETAIL_H
+#define TORCHMLIR_CONVERSION_LINALG_PASSDETAIL_H
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
-#include <memory>
 
 namespace mlir {
 namespace torch {
-std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToLinalgPass();
-}
-} // namespace mlir
 
-#endif // TORCHMLIR_CONVERSION_ATENTOLINALG_ATENTOLINALG_H
+#define GEN_PASS_CLASSES
+#include "torch-mlir/Conversion/TorchToLinalg/Passes.h.inc"
+
+} // namespace torch
+} // end namespace mlir
+
+#endif // TORCHMLIR_CONVERSION_LINALG_PASSDETAIL_H

@@ -1,13 +1,15 @@
 add_mlir_conversion_library(TorchMLIRTorchToTosa
+  Passes.cpp
   TorchToTosa.cpp
   TosaLegalizeUtils.cpp
   TosaLegalizeCommon.cpp
+  VerifyTosaBackendContract.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/torch-mlir/Conversion/TorchToTosa
 
   DEPENDS
-  TorchMLIRConversionPassIncGen
+  TorchMLIRConversionTosaPassIncGen
 
   LINK_COMPONENTS
   Core
@@ -16,6 +18,8 @@ add_mlir_conversion_library(TorchMLIRTorchToTosa
   MLIRIR
   MLIRPass
   MLIRTosaDialect
+  MLIRTransforms
+  TorchMLIRTorchConversionPasses
   TorchMLIRConversionUtils
   TorchMLIRTorchDialect
 )

@@ -32,23 +32,6 @@ def FinalizingBackendTypeConversion
   }];
 }
 
-def VerifyLinalgOnTensorsBackendContract : Pass<"torch-verify-linalg-on-tensors-backend-contract", "ModuleOp"> {
-  let summary = "Verifies conformity to the linalg-on-tensors backend contract";
-  let constructor = "mlir::torch::TorchConversion::createVerifyLinalgOnTensorsBackendContractPass()";
-}
-
-def VerifyTosaBackendContract : Pass<"torch-verify-tosa-backend-contract", "ModuleOp"> {
-  let summary = "Verifies conformity to the linalg-on-tensors backend contract";
-  let constructor = "mlir::torch::TorchConversion::createVerifyTosaBackendContractPass()";
-}
-
-#ifdef TORCH_MLIR_ENABLE_STABLEHLO
-def VerifyStablehloBackendContract : Pass<"torch-verify-stablehlo-backend-contract", "ModuleOp"> {
-  let summary = "Verifies conformity to the stablehlo backend contract";
-  let constructor = "mlir::torch::TorchConversion::createVerifyStablehloBackendContractPass()";
-}
-#endif // TORCH_MLIR_ENABLE_STABLEHLO
-
 // The following passes are for a one-off conversion of a specific kind of quantized group matmul.
 // They should not be included in default lowering flows until further along.
 def UnpackQuantTensor : Pass<"torch-unpack-quant-tensor", "func::FuncOp"> {

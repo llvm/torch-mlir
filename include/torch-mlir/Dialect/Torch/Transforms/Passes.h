@@ -21,8 +21,6 @@ class ModuleOp;
 namespace torch {
 namespace Torch {
 
-#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
-
 std::unique_ptr<OperationPass<ModuleOp>> createGlobalizeObjectGraphPass();
 
 std::unique_ptr<OperationPass<ModuleOp>>
@@ -140,13 +138,6 @@ static const char kTorchOpPrefix[] = R"(torch.)";
 
 /// Registers all Torch transformation passes.
 void registerTorchPasses();
-
-//===----------------------------------------------------------------------===//
-// Pass registration
-//===----------------------------------------------------------------------===//
-
-#define GEN_PASS_REGISTRATION
-#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 } // namespace torch
 } // namespace mlir

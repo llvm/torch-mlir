@@ -9,22 +9,6 @@
 
 #include "torch-mlir/Conversion/Passes.h"
 
-#ifdef TORCH_MLIR_ENABLE_STABLEHLO
-#include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
-#include "transforms/passes.h"
-#endif // TORCH_MLIR_ENABLE_STABLEHLO
-
-#include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
-#include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
-#include "torch-mlir/Conversion/TorchToArith/TorchToArith.h"
-#include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
-#include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
-#include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
-
-//===----------------------------------------------------------------------===//
-// Pass registration
-//===----------------------------------------------------------------------===//
-
 namespace {
 #define GEN_PASS_REGISTRATION
 #include "torch-mlir/Conversion/Passes.h.inc"
