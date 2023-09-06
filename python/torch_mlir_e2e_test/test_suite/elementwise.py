@@ -1042,6 +1042,28 @@ def ElementwiseMulTensorIntModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ElementwiseMulTensorComplexModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.complex64, True),
+        ([-1], torch.complex64, True),
+    ])
+    def forward(self, a, b):
+        return torch.mul(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMulTensorComplexModule())
+def ElementwiseMulTensorComplexModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, high=10).type(torch.complex64), tu.randint(4, high=10).type(torch.complex64))
+
+
+# ==============================================================================
 
 class ElementwiseMishModule(torch.nn.Module):
 
