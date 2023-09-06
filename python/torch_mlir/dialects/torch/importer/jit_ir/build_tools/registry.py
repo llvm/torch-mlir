@@ -199,8 +199,11 @@ class JitOperator:
         parameter_decls = list(map(parameter_decl_builder, self.arguments))
         parameter_decls = list(filter(None, parameter_decls))
         ret_decls = list(map(ret_decl_builder, self.returns))
+        ret_decls = list(filter(None, ret_decls))
         parameters = ", ".join(parameter_decls)
         result = ", ".join(ret_decls)
+        if len(ret_decls) == 0:
+            result = "None"
         if len(ret_decls) >= 2:
             result = f"Tuple[{result}]"
 
@@ -286,7 +289,7 @@ class JitOperator:
             return ""
 
         def ret_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
-            return "None"
+            return ""
 
         return self._get_function_signature(
             "has_value_semantics", parameter_decl_builder, ret_decl_builder)

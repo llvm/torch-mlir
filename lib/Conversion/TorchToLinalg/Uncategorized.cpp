@@ -127,8 +127,10 @@ static Value buildUnitNormalCdf(OpBuilder &b, Location &loc, Value x) {
 }
 
 template <typename MathOpTy>
-static Value createCalculationForMathOpWithDtypeConversion(
-    OpBuilder &b, TypeConverter *converter, Value payloadArg, Operation *op) {
+static Value
+createCalculationForMathOpWithDtypeConversion(OpBuilder &b,
+                                              const TypeConverter *converter,
+                                              Value payloadArg, Operation *op) {
   Type dtype = converter->convertType(op->getResult(0).getType())
                    .template cast<RankedTensorType>()
                    .getElementType();
@@ -207,7 +209,7 @@ createTriangularMatrix(OpBuilder &b, Location loc, ValueRange payloadArgs,
 }
 
 static Value createLinalgPayloadCalculationForElementwiseOp(
-    OpBuilder &b, Location loc, TypeConverter *converter,
+    OpBuilder &b, Location loc, const TypeConverter *converter,
     ValueRange payloadArgs, Operation *op, ArrayRef<Value> operands) {
   if (isa<AtenFloorOp>(op))
     return b.create<math::FloorOp>(loc, payloadArgs[0]);
@@ -658,6 +660,18 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     divTensorMode.emitError("invalid rounding mode");
     return nullptr;
   }
+
+  if (auto pow = dyn_cast<AtenPowScalarOp>(op)) {
+    Type dtype = pow.getType().cast<ValueTensorType>().getDtype();
+    if (!dtype.isa<mlir::FloatType>()) {
+      pow.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Value selfPromoted = convertScalarToDtype(b, loc, operands[0], dtype);
+    Value expPromoted = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    return b.create<math::PowFOp>(loc, selfPromoted, expPromoted);
+  }
+
   if (auto pow = dyn_cast<AtenPowTensorScalarOp>(op)) {
     if (!pow.getType()
              .cast<ValueTensorType>()
@@ -1160,20 +1174,20 @@ public:
              AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenExpm1Op,
              AtenMinimumOp, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
              AtenRsubScalarOp, AtenMulScalarOp, AtenLogOp, AtenErfOp,
-             AtenSqrtOp, AtenFloorOp, AtenPowTensorScalarOp,
+             AtenSqrtOp, AtenFloorOp, AtenPowScalarOp, AtenPowTensorScalarOp,
              AtenPowTensorTensorOp, AtenLog2Op, AtenLog1pOp, AtenRsqrtOp,
              AtenDivScalarOp, AtenRemainderScalarOp, AtenAbsOp,
              AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenBitwiseOrTensorOp,
              AtenBitwiseXorTensorOp, AtenGtScalarOp, AtenGeScalarOp,
              AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp,
-             AtenCeilOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp,
-             AtenLtTensorOp, AtenLeTensorOp, AtenSubScalarOp, AtenAddScalarOp,
-             AtenThresholdOp, AtenThresholdBackwardOp, AtenHardtanhBackwardOp,
-             AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenNegOp,
-             AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
-             AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenTrilOp,
-             AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
-             AtenAtanOp, AtenRealOp, AtenImagOp>(op))
+             AtenCeilOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
+             AtenNeTensorOp, AtenLtTensorOp, AtenLeTensorOp, AtenSubScalarOp,
+             AtenAddScalarOp, AtenThresholdOp, AtenThresholdBackwardOp,
+             AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp,
+             AtenNeScalarOp, AtenNegOp, AtenMaskedFillTensorOp, AtenLogicalOrOp,
+             AtenLogicalAndOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp,
+             AtenTrilOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
+             AtenFillTensorOp, AtenAtanOp, AtenRealOp, AtenImagOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1695,17 +1709,18 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp, AtenAtan2Op,
       AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenRsubScalarOp, AtenLogOp,
       AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenCeilOp, AtenPreluOp,
-      AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op, AtenLog1pOp,
-      AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
-      AtenBitwiseOrTensorOp, AtenBitwiseXorTensorOp, AtenGtScalarOp,
-      AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp,
-      AtenWhereSelfOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp,
-      AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
-      AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
-      AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp,
-      AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenTrilOp,
-      AtenRemainderScalarOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
-      AtenFillTensorOp, AtenRealOp, AtenImagOp>();
+      AtenPowScalarOp, AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op,
+      AtenLog1pOp, AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp,
+      AtenBitwiseAndTensorOp, AtenBitwiseOrTensorOp, AtenBitwiseXorTensorOp,
+      AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp,
+      AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp, AtenGeTensorOp,
+      AtenEqTensorOp, AtenNeTensorOp, AtenLtTensorOp, AtenLeTensorOp,
+      AtenThresholdOp, AtenThresholdBackwardOp, AtenHardtanhBackwardOp,
+      AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillTensorOp,
+      AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp, AtenLogicalXorOp,
+      AtenLogicalNotOp, AtenTriuOp, AtenTrilOp, AtenRemainderScalarOp,
+      AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
+      AtenRealOp, AtenImagOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);

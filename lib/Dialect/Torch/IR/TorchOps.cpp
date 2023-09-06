@@ -302,15 +302,13 @@ LogicalResult ClassTypeOp::verify() {
 //===----------------------------------------------------------------------===//
 
 OperandRange
-PrimLoopOp::getSuccessorEntryOperands(std::optional<unsigned int> index) {
+PrimLoopOp::getEntrySuccessorOperands(std::optional<unsigned int> index) {
   assert(index.has_value() && index.value() == 0);
   return getIterArgsInit();
 }
 
 void PrimLoopOp::getSuccessorRegions(
-    std::optional<unsigned> index, ArrayRef<Attribute> operands,
-    SmallVectorImpl<RegionSuccessor> &regions) {
-  (void)operands;
+    std::optional<unsigned> index, SmallVectorImpl<RegionSuccessor> &regions) {
 
   if (!index.has_value()) {
     regions.emplace_back(&getRegion(), getRegion().getArguments().slice(1));
@@ -381,7 +379,6 @@ void PrimIfOp::print(OpAsmPrinter &p) {
 }
 
 void PrimIfOp::getSuccessorRegions(std::optional<unsigned> index,
-                                   ArrayRef<Attribute> operands,
                                    SmallVectorImpl<RegionSuccessor> &regions) {
   // The `then` and the `else` region branch back to the parent operation.
   if (index.has_value()) {
@@ -390,9 +387,9 @@ void PrimIfOp::getSuccessorRegions(std::optional<unsigned> index,
   }
 
   // If the condition is constant, we can give a more precise answer.
-  if (auto condAttr = operands.front().dyn_cast_or_null<IntegerAttr>()) {
-    Region *executedRegion =
-        condAttr.getValue().isOne() ? &getThenRegion() : &getElseRegion();
+  bool condition;
+  if (matchPattern(getCondition(), m_TorchConstantBool(&condition))) {
+    Region *executedRegion = condition ? &getThenRegion() : &getElseRegion();
     regions.push_back(RegionSuccessor(executedRegion));
     return;
   }
@@ -934,6 +931,20 @@ void AtenLenTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenMaxOtherOp
+//===----------------------------------------------------------------------===//
+
+void AtenMaxOtherOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                 MLIRContext *context) {
+  // `aten.max.other` -> `aten.maximum`
+  patterns.add(+[](AtenMaxOtherOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenMaximumOp>(op, op.getType(), op.getSelf(),
+                                                op.getOther());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenLenStrOp
 //===----------------------------------------------------------------------===//
 
@@ -1434,6 +1445,24 @@ OpFoldResult AtenBoolIntOp::fold(FoldAdaptor adaptor) {
   int64_t c;
   if (matchPattern(getOperand(), m_TorchConstantInt(&c)))
     return getI1IntegerAttr(getContext(), c != 0);
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenAnyBoolOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenAnyBoolOp::fold(FoldAdaptor adaptor) {
+  auto inputConstruct = getSelf().getDefiningOp<Torch::PrimListConstructOp>();
+  if (!inputConstruct || isListPotentiallyMutated(inputConstruct))
+    return nullptr;
+  // If any operand is a constant true, return true.
+  for (auto operand : inputConstruct.getOperands()) {
+    bool b = false;
+    if (matchPattern(operand, m_TorchConstantBool(&b)) && b) {
+      return getI1IntegerAttr(getContext(), true);
+    }
+  }
   return nullptr;
 }
 
@@ -2103,32 +2132,6 @@ void PrimTupleUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
-// PrimListConstructOp
-//===----------------------------------------------------------------------===//
-
-void PrimListConstructOp::getCanonicalizationPatterns(
-    RewritePatternSet &patterns, MLIRContext *context) {
-  patterns.add(+[](PrimListConstructOp op, PatternRewriter &rewriter) {
-    if (isListPotentiallyMutated(op.getResult())) 
-      return failure();
-    SmallVector<Value> elements = llvm::to_vector<4>(op.getElements());
-    if (elements.size() == 0)
-      return failure();
-
-    auto listUnpackOp = elements[0].getDefiningOp<PrimListUnpackOp>();
-    if (!listUnpackOp)
-      return failure();
-    if (listUnpackOp.getResults() != elements)
-      return failure();
-    if (isListPotentiallyMutated(listUnpackOp.getOperand()))
-      return failure();
-
-    rewriter.replaceOp(op, listUnpackOp.getOperand());
-    return success();
-  });
-}
-
-//===----------------------------------------------------------------------===//
 // PrimListUnpackOp
 //===----------------------------------------------------------------------===//
 
@@ -2326,6 +2329,25 @@ OpFoldResult AtenStackOp::fold(FoldAdaptor adaptor) {
   if (!list || !list->hasOneUse() || list.getElements().size() != 1)
     return nullptr;
   return list.getElements()[0];
+}
+
+//===----------------------------------------------------------------------===//
+// AtenBroadcastToOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenBroadcastToOp::fold(FoldAdaptor adaptor) {
+  auto inType = getOperand(0).getType().dyn_cast<BaseTensorType>();
+  auto outType = getResult().getType().dyn_cast<BaseTensorType>();
+  if (!inType || !outType || !inType.hasSizes() || !outType.hasSizes())
+    return nullptr;
+  if (inType.getSizes().size() != outType.getSizes().size() ||
+      !inType.areAllSizesKnown() || !outType.areAllSizesKnown())
+    return nullptr;
+  for (size_t i = 0; i < inType.getSizes().size(); ++i) {
+    if (inType.getSizes()[i] != outType.getSizes()[i])
+      return nullptr;
+  }
+  return getOperand(0);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2720,7 +2742,6 @@ OpFoldResult PrimMinIntOp::fold(FoldAdaptor adaptor) {
 template <typename CalculateOp>
 static void
 getSuccessorRegionsForCalculateOp(CalculateOp op, std::optional<unsigned> index,
-                                  ArrayRef<Attribute> operands,
                                   SmallVectorImpl<RegionSuccessor> &regions) {
   if (!index.has_value()) {
     // First thing the op does is branch into the calculation.
@@ -2738,9 +2759,8 @@ getSuccessorRegionsForCalculateOp(CalculateOp op, std::optional<unsigned> index,
 }
 
 void ShapeCalculateOp::getSuccessorRegions(
-    std::optional<unsigned> index, ArrayRef<Attribute> operands,
-    SmallVectorImpl<RegionSuccessor> &regions) {
-  getSuccessorRegionsForCalculateOp(*this, index, operands, regions);
+    std::optional<unsigned> index, SmallVectorImpl<RegionSuccessor> &regions) {
+  getSuccessorRegionsForCalculateOp(*this, index, regions);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2748,9 +2768,8 @@ void ShapeCalculateOp::getSuccessorRegions(
 //===----------------------------------------------------------------------===//
 
 void DtypeCalculateOp::getSuccessorRegions(
-    std::optional<unsigned> index, ArrayRef<Attribute> operands,
-    SmallVectorImpl<RegionSuccessor> &regions) {
-  getSuccessorRegionsForCalculateOp(*this, index, operands, regions);
+    std::optional<unsigned> index, SmallVectorImpl<RegionSuccessor> &regions) {
+  getSuccessorRegionsForCalculateOp(*this, index, regions);
 }
 
 //===----------------------------------------------------------------------===//

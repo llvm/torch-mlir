@@ -309,7 +309,7 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
     Value self = adaptor.getSelf();
     Value index = adaptor.getIndex();
     Value src = adaptor.getSrc();
@@ -361,7 +361,7 @@ public:
       return failure();
     Location loc = op.getLoc();
     MLIRContext *context = op->getContext();
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
     Value input = adaptor.getSelf();
     Value torchTypeInput = op.getSelf();
     Value minlength = adaptor.getMinlength();

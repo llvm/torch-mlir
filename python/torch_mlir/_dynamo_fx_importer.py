@@ -147,6 +147,8 @@ def _convert_dtype_to_mlir_type(dtype: torch.dtype) -> str:
     if dtype == torch.quint8:
         return "!torch.quint8"
     if dtype == torch.complex64:
+        return "complex<f32>"
+    if dtype == torch.complex128:
         return "complex<f64>"
 
 
@@ -205,9 +207,9 @@ DTYPE_TO_INT = {
     torch.float64:
     7,
     # torch.complex_half 8
-    torch.complex32:
-    9,
     torch.complex64:
+    9,
+    torch.complex128:
     10,
     torch.bool:
     11,

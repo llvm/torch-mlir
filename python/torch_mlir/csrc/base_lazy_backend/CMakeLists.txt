@@ -71,6 +71,10 @@ add_library(torch_mlir_ltc_backend SHARED
   mlir_node.cpp
   ops/device_data.cpp
   ops/generic.cpp
+  ops/index.cpp
+  ops/ivalue.cpp
+  ops/split.cpp
+  ops/unbind_int.cpp
   utils/jit_utils.cpp
   utils/tensor_utils.cpp
 )

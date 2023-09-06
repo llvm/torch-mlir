@@ -800,6 +800,26 @@ def SplitTensorNegativeDimModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class SplitWithSizesListUnpackModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([10, 12], torch.float32, True)
+    ])
+    def forward(self, x):
+        s0, s1, s2 = torch.ops.aten.split_with_sizes(x, [3, 4, 5], -1)
+        return (s0, s1, s2)
+
+@register_test_case(module_factory=lambda: SplitWithSizesListUnpackModule())
+def SplitWithSizesListUnpackModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 12))
+
+# ==============================================================================
+
 class ChunkListUnpack_Module(torch.nn.Module):
     def __init__(self):
         super().__init__()

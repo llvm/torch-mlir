@@ -32,7 +32,7 @@ using namespace mlir::torch::Torch;
 template <typename OpTy>
 static LogicalResult
 checkAndGetPoolingParameters(OpTy op, ConversionPatternRewriter &rewriter,
-                             TypeConverter *typeConverter, bool &ceilMode,
+                             const TypeConverter *typeConverter, bool &ceilMode,
                              SmallVectorImpl<Value> &kernelSizeIntValues,
                              SmallVectorImpl<int64_t> &strideInts,
                              SmallVectorImpl<int64_t> &paddingInts) {
@@ -71,7 +71,6 @@ checkAndGetPoolingParameters(OpTy op, ConversionPatternRewriter &rewriter,
                                        "only support constant bool ceil_mode");
   return success();
 }
-
 
 // Creates a pooling operation based on the type specified by `OpTy` and
 // arguments passed.
@@ -153,7 +152,7 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
     Value self = adaptor.getSelf();
     int64_t selfRank = self.getType().cast<RankedTensorType>().getRank();
     // TODO: Add support for 3D inputs.
@@ -225,7 +224,7 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op->getLoc();
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
     Value self = adaptor.getSelf();
     RankedTensorType selfType = self.getType().cast<RankedTensorType>();
     Type elementType = selfType.getElementType();
@@ -386,7 +385,7 @@ public:
       return failure();
     
     Location loc = op->getLoc();
-    TypeConverter *typeConverter = this->getTypeConverter();
+    const TypeConverter *typeConverter = this->getTypeConverter();
     Value self = adaptor.getSelf();
 
     Type inputElementType =

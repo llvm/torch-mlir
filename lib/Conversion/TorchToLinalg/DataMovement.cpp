@@ -328,7 +328,7 @@ public:
     SmallVector<int64_t> inputShape =
         makeShapeTorchCompatible(inputType.getShape());
     int64_t inputRank = inputType.getRank();
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
     auto resultType =
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
     int64_t resultRank = resultType.getRank();
@@ -649,8 +649,9 @@ public:
         intermediateShape.push_back(sum);
       }
 
-      Type intermediateResultType = RankedTensorType::get(
-          makeShapeLLVMCompatible(intermediateShape), resultType.getElementType());
+      Type intermediateResultType =
+          RankedTensorType::get(makeShapeLLVMCompatible(intermediateShape),
+                                resultType.getElementType());
 
       expandedInput =
           rewriter
@@ -695,7 +696,7 @@ public:
     Value input = adaptor.getSelf();
     auto inputType = input.getType().cast<RankedTensorType>();
     int64_t inputRank = inputType.getRank();
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
     auto resultType =
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
     int64_t resultRank = resultType.getRank();
@@ -804,7 +805,7 @@ public:
           op, "unimplemented: dim(th) dimension is not expected to be dynamic");
     }
 
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
     auto resultType =
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
     int64_t resultRank = resultType.getRank();
@@ -1014,10 +1015,10 @@ public:
     for (unsigned i = 0; i < inputRank; i++)
       swapExprs.push_back(idExprs[dimensions[i]]);
 
-    AffineMap inputMap = AffineMap::get(inputRank, /*symbolCount=*/0, idExprs,
-                                        op->getContext());
-    AffineMap outputMap = AffineMap::get(inputRank, /*symbolCount=*/0, swapExprs,
-                                         op->getContext());
+    AffineMap inputMap =
+        AffineMap::get(inputRank, /*symbolCount=*/0, idExprs, op->getContext());
+    AffineMap outputMap = AffineMap::get(inputRank, /*symbolCount=*/0,
+                                         swapExprs, op->getContext());
     SmallVector<AffineMap> indexingMaps{inputMap, outputMap};
     SmallVector<utils::IteratorType> iteratorTypes(
         inputRank, utils::IteratorType::parallel);
@@ -1046,7 +1047,7 @@ public:
       return failure();
 
     Location loc = op.getLoc();
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
 
     auto input = adaptor.getSelf();
     RankedTensorType resultType =
@@ -1081,7 +1082,7 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
 
     // Collect all the tensors to be concatenated.
     auto tensorList = op.getTensors();
@@ -1097,8 +1098,9 @@ public:
 
     auto outElemType = newResultType.getElementType();
     auto dtypePromoteBody = [&](OpBuilder &builder, Location loc,
-                        ValueRange payloadArgs) {
-      Value elem = convertScalarToDtype(builder, loc, payloadArgs[0], outElemType);
+                                ValueRange payloadArgs) {
+      Value elem =
+          convertScalarToDtype(builder, loc, payloadArgs[0], outElemType);
       builder.create<linalg::YieldOp>(loc, elem);
     };
     for (size_t i = 0; i < tensors.size(); ++i) {
@@ -1114,7 +1116,7 @@ public:
     dim = toPositiveDim(dim, rank);
     if (!isValidDim(dim, rank))
       return rewriter.notifyMatchFailure(op, "dim is statically invalid");
-      
+
     SmallVector<Value> offsets, sizes, strides;
     sizes.reserve(rank);
     strides.resize(rank, rewriter.create<arith::ConstantIndexOp>(loc, 1));
@@ -1186,7 +1188,7 @@ public:
     for (auto x : inShape) {
       int64_t dim;
       if (!matchPattern(x, m_TorchConstantInt(&dim))) {
-        Operation* defOp = x.getDefiningOp();
+        Operation *defOp = x.getDefiningOp();
         if (isa<AtenSizeOp, AtenSizeIntOp>(defOp))
           useBroadcastToShape.push_back(true);
         else
@@ -1312,7 +1314,7 @@ public:
       return failure();
 
     Location loc = op.getLoc();
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
 
     auto input = adaptor.getSelf();
 
@@ -1361,7 +1363,7 @@ public:
       return failure();
 
     Location loc = op.getLoc();
-    TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = getTypeConverter();
     MLIRContext *context = rewriter.getContext();
 
     auto input = adaptor.getSelf();
@@ -1427,6 +1429,89 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenViewAsRealOp : public OpConversionPattern<AtenViewAsRealOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenViewAsRealOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Location loc = op.getLoc();
+    const TypeConverter *typeConverter = getTypeConverter();
+    MLIRContext *context = rewriter.getContext();
+
+    auto input = adaptor.getSelf();
+
+    RankedTensorType resultType =
+        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+
+    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+    auto inputElementType = getElementTypeOrSelf(input.getType());
+    if (!inputElementType.isa<ComplexType>()) {
+      return op.emitError("only ComplexType is allowed as input type");
+    }
+    Type elementType = resultType.getElementType();
+
+    // returned real tensor has a size increase, where the last dim has size 2
+    SmallVector<OpFoldResult> resultShape =
+        tensor::getMixedSizes(rewriter, loc, input);
+    resultShape.push_back(
+        rewriter.createOrFold<arith::ConstantIndexOp>(loc, 2));
+
+    Value outTensor =
+        rewriter.create<tensor::EmptyOp>(loc, resultShape, elementType);
+
+    SmallVector<AffineExpr> inputExpr;
+    for (unsigned i = 0; i < resultType.getRank() - 1; i++) {
+      inputExpr.push_back(getAffineDimExpr(i, context));
+    }
+
+    AffineMap inputMap =
+        AffineMap::get(resultType.getRank(), 0, inputExpr, op->getContext());
+
+    inputExpr.push_back(getAffineDimExpr(resultType.getRank() - 1, context));
+
+    AffineMap outputMap =
+        AffineMap::get(resultType.getRank(), 0, inputExpr, op->getContext());
+
+    SmallVector<AffineMap> indexingMaps{inputMap, outputMap};
+
+    SmallVector<utils::IteratorType> iteratorTypes(resultType.getRank(), utils::IteratorType::parallel);
+
+    Value constantZero =
+        getConstant(rewriter, loc, 0, mlir::IndexType::get(context));
+    auto realVar =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, outTensor.getType(), input, outTensor, indexingMaps,
+                iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+
+                  Value realVal =
+                      b.create<complex::ReOp>(loc, elementType, args[0]);
+                  Value imagVal =
+                      b.create<complex::ImOp>(loc, elementType, args[0]);
+                  Value lastIndex =
+                      b.create<linalg::IndexOp>(loc, inputType.getRank());
+                  Value cmpResult = b.create<arith::CmpIOp>(
+                      loc, arith::CmpIPredicate::eq, lastIndex, constantZero);
+                  Value yieldValue = b.create<arith::SelectOp>(
+                      loc, cmpResult, realVal, imagVal);
+
+                  b.create<linalg::YieldOp>(loc, yieldValue);
+                })
+            .getResult(0);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, realVar);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -1459,4 +1544,6 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   patterns.add<ConvertAtenSliceScatterOp>(typeConverter, context);
   target.addIllegalOp<AtenViewAsComplexOp>();
   patterns.add<ConvertAtenViewAsComplexOp>(typeConverter, context);
+  target.addIllegalOp<AtenViewAsRealOp>();
+  patterns.add<ConvertAtenViewAsRealOp>(typeConverter, context);
 }

@@ -57,6 +57,14 @@ std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();
 std::unique_ptr<OperationPass<func::FuncOp>>
 createFinalizingBackendTypeConversionPass();
 
+// These passes do a one-off conversion of a specific kind of quantized group
+// matmul as a prototype. Generalized quantized operation handling will likely
+// obviate them but that are being carried for now in order to unblock progress
+// on full integrations. See https://github.com/llvm/torch-mlir/issues/2417 for
+// the plan to support a more generalized lowering for these graphs.
+std::unique_ptr<OperationPass<func::FuncOp>> createUnpackQuantTensorPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createConvertCustomQuantOpPass();
+
 std::unique_ptr<OperationPass<ModuleOp>>
 createVerifyLinalgOnTensorsBackendContractPass();
 

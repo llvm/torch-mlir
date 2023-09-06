@@ -285,18 +285,18 @@ func.func @refine_dtype$derefine_result_type(%arg0: !torch.int, %arg1: !torch.in
 }
 
 // CHECK-LABEL:   func.func @refine_dtype$complex_type(
-// CHECK:             {{.*}} = torch.aten.fft_fft{{.*}}-> !torch.vtensor<*,complex<f64>>
+// CHECK:             {{.*}} = torch.aten.fft_fft{{.*}}-> !torch.vtensor<*,complex<f32>>
 func.func @refine_dtype$complex_type(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor {
     // dtype for ComplexFloat, a.k.a Complex64
     %int9 = torch.constant.int 9
     %none = torch.constant.none
     %int-1 = torch.constant.int -1
     %0 = torch.dtype.calculate {
-      %2 = torch.aten.fft_fft %arg0, %none, %int-1, %none : !torch.vtensor<*,f32>, !torch.none, !torch.int, !torch.none -> !torch.vtensor<*,unk>
-      torch.dtype.calculate.yield %2 : !torch.vtensor<*,unk>
+      %2 = torch.aten.fft_fft %arg0, %none, %int-1, %none : !torch.vtensor<*,f32>, !torch.none, !torch.int, !torch.none -> !torch.vtensor<*,complex<f32>>
+      torch.dtype.calculate.yield %2 : !torch.vtensor<*,complex<f32>>
     } dtypes {
       torch.dtype.calculate.yield.dtypes %int9 : !torch.int
-    } : !torch.vtensor<*,unk>
-    %1 = torch.tensor_static_info_cast %0 : !torch.vtensor<*,unk> to !torch.vtensor
+    } : !torch.vtensor<*,complex<f32>>
+    %1 = torch.tensor_static_info_cast %0 : !torch.vtensor<*,complex<f32>> to !torch.vtensor
     return %1 : !torch.vtensor
   }

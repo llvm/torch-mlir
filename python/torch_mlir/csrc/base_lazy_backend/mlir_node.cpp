@@ -116,7 +116,40 @@ torch::lazy::TorchMlirOpVector TorchMlirTensorList::Lower(
   }
   auto graph = function->graph();
   auto listnode =
-      graph->insertNode(graph->createList(tensor_list[0]->type(), tensor_list));
+      graph->insertNode(graph->createList(c10::TensorType::get(), tensor_list));
+  return {listnode->output()};
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// TorchMlirOptionalTensorList
+///////////////////////////////////////////////////////////////////////////////
+
+OpKind TorchMlirOptionalTensorList::ClassOpKind() {
+  // Note: this OpKind is separate from ltc_ops.h since it would be a circular
+  // import otherwise
+  static const OpKind tensor_list_opkind =
+      OpKind::Get("lazy_tensors::optional_tensor_list");
+  return tensor_list_opkind;
+}
+
+TorchMlirOptionalTensorList::TorchMlirOptionalTensorList(OpList values)
+    : TorchMlirNode(
+          /*op=*/TorchMlirOptionalTensorList::ClassOpKind(),
+          /*operands=*/values,
+          /*shapes=*/std::vector<Shape>(),
+          /*num_outputs=*/1,
+          /*hash_seed=*/kHashSeed) {}
+
+torch::lazy::TorchMlirOpVector TorchMlirOptionalTensorList::Lower(
+    TorchMlirFunction function, TorchMlirLoweringContext* loctx) const {
+  std::vector<torch::jit::Value*> tensor_list;
+  CHECK(!operands().empty());
+  for (const torch::lazy::Output& operand : operands()) {
+    tensor_list.emplace_back(loctx->GetOutputOp(operand));
+  }
+  auto graph = function->graph();
+  auto listnode =
+      graph->insertNode(graph->createList(c10::OptionalType::create(c10::TensorType::get()), tensor_list));
   return {listnode->output()};
 }
 

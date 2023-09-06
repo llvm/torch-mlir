@@ -41,7 +41,8 @@ if [ ! -z ${TORCH_MLIR_EXT_MODULES} ]; then
   ext_module="${TORCH_MLIR_EXT_MODULES}"
 fi
 
-PYTHONPATH="${pypath}" python \
+set +u
+PYTHONPATH="${PYTHONPATH}:${pypath}" python \
   -m torch_mlir.dialects.torch.importer.jit_ir.build_tools.torch_ods_gen \
   --torch_ir_include_dir="${torch_ir_include_dir}" \
   --pytorch_op_extensions="${ext_module}" \

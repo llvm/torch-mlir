@@ -473,6 +473,47 @@ class ElementwiseLeakyReluStaticModule(torch.nn.Module):
 def ElementwiseLeakyReluStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 5, 6, low=-1))
 
+# ==============================================================================
+
+
+class ElementwiseEluNonDefaultModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.elu(x, scale=1.5, alpha=2.0, input_scale=3.0)
+
+@register_test_case(module_factory=lambda: ElementwiseEluNonDefaultModule())
+def ElementwiseEluNonDefaultModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5,3, low=-1, high=1))
+
+
+# ==============================================================================
+
+
+class ElementwiseEluModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.elu(x)
+
+@register_test_case(module_factory=lambda: ElementwiseEluModule())
+def ElementwiseEluModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5,3, low=-1, high=1))
+
 
 # ==============================================================================
 
@@ -652,6 +693,52 @@ class ElementwiseMaximumIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseMaximumIntModule())
 def ElementwiseMaximumIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, high=10), tu.randint(3, 5, high=10))
+
+
+# ==============================================================================
+
+
+class ElementwiseMaxOtherModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return x.max(y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMaxOtherModule())
+def ElementwiseMaxOtherModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5), tu.rand(3, 5))
+
+
+# ==============================================================================
+
+
+class ElementwiseMaxOtherIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return x.max(y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMaxOtherIntModule())
+def ElementwiseMaxOtherIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 5, high=10), tu.randint(3, 5, high=10))
 
 
@@ -1422,6 +1509,28 @@ class ElementwisePowTensorBroadcastStaticModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwisePowTensorBroadcastStaticModule())
 def ElementwisePowTensorBroadcastStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1), tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwisePowScalarModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.float32, True),
+    ])
+    def forward(self, exp):
+        return torch.pow(2.0, exp)
+
+
+@register_test_case(module_factory=lambda: ElementwisePowScalarModule())
+def ElementwisePowScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
 
 
 # ==============================================================================
