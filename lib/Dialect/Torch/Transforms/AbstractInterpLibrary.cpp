@@ -17,7 +17,7 @@
 using namespace mlir;
 
 StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
-#ifndef _MSC_VER
+#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Woverlength-strings"
 #endif
@@ -10984,7 +10984,7 @@ StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
 "}\n"
 "";
   // clang-format on
-#ifndef _MSC_VER
+#if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
 }
