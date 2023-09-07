@@ -567,6 +567,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
     if (dtype.isa<mlir::FloatType>()) {
       return b.create<arith::MulFOp>(loc, lhs, rhs);
+    } else if(dtype.isa<mlir::ComplexType>()) {
+      return b.create<complex::MulOp>(loc, lhs, rhs);
     } else {
       return b.create<arith::MulIOp>(loc, lhs, rhs);
     }
