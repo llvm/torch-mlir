@@ -733,10 +733,6 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "accumulate argument of AtenIndexPutHackedTwinOp must be a boolean "
             "constant.");
-  if (accumulate)
-    return rewriter.notifyMatchFailure(op,
-                                       "Only accumulate=false is supported for "
-                                       "lowering AtenIndexPutHackedTwinOp.");
 
   // Deal with torch.prim.ListConstruct of non const value to get the index
   auto tensorList = op.getIndices();
@@ -890,6 +886,12 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
   auto indicesFlattenReshapeOp = rewriter.create<stablehlo::ReshapeOp>(
       loc, reshapeIndicesType, indices.getResult());
 
+  // broadcast indicesFlattenReshapeOp to scatterUpdatesShape
+  RankedTensorType bcastIndicesFlattenType =
+      RankedTensorType::get(scatterUpdatesShape, indicesElemTy);
+  auto indicesBcast = hlo::promoteAndBroadcast(
+      rewriter, indicesFlattenReshapeOp.getResult(), bcastIndicesFlattenType);
+
   // Generate ScatterDimensionNumbers for stablehlo::Scatter op.
   // index_vector_dim = 1 means the values in scatter_indices like [0,2] is
   // started from dim=1 of scatter_indices. In python, we will use : to slice
@@ -936,9 +938,8 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
       /*indexVectorDim=*/indexVecDim);
 
   auto stablehloScatterOp = rewriter.create<stablehlo::ScatterOp>(
-      loc, input, indicesFlattenReshapeOp.getResult(),
-      scatterUpdatesReshapeOp.getResult(), scatterDimensionNumbers, false,
-      false);
+      loc, input, indicesBcast, scatterUpdatesReshapeOp.getResult(),
+      scatterDimensionNumbers, false, false);
 
   // config update computation function: just return the element from src.
   Block &block = stablehloScatterOp.getUpdateComputation().emplaceBlock();
@@ -954,7 +955,13 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
   {
     OpBuilder::InsertionGuard guard(rewriter);
     rewriter.setInsertionPointToStart(&block);
-    rewriter.create<stablehlo::ReturnOp>(loc, *rhsArg);
+    if (accumulate) {
+      Value addResult = rewriter.create<stablehlo::AddOp>(
+          op->getLoc(), blockArgumentType, *lhsArg, *rhsArg);
+      rewriter.create<stablehlo::ReturnOp>(loc, addResult);
+    } else {
+      rewriter.create<stablehlo::ReturnOp>(loc, *rhsArg);
+    }
   }
 
   rewriter.replaceOp(op, stablehloScatterOp.getResults());
