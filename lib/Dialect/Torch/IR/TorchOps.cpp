@@ -1594,7 +1594,9 @@ LogicalResult NonValueTensorLiteralOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
-  auto attr = attributes.get("value").dyn_cast_or_null<ElementsAttr>();
+  auto attr = properties.as<Properties *>()
+                  ->getValue()
+                  .dyn_cast_or_null<ElementsAttr>();
   if (!attr)
     return failure();
   RankedTensorType tensorType = attr.getType().cast<RankedTensorType>();
@@ -1620,6 +1622,8 @@ static bool areSizesAndDtypesCompatible(BaseTensorType a, BaseTensorType b) {
 
 bool NonValueTensorLiteralOp::isCompatibleReturnTypes(TypeRange inferred,
                                                       TypeRange actual) {
+  llvm::errs() << "isCompatibleReturnTypes:";
+  actual[0].dump();
   if (!actual[0].isa<BaseTensorType>())
     return false;
   return areSizesAndDtypesCompatible(inferred[0].cast<BaseTensorType>(),
@@ -1634,7 +1638,9 @@ LogicalResult ValueTensorLiteralOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
-  auto attr = attributes.get("value").dyn_cast_or_null<ElementsAttr>();
+  auto attr = properties.as<Properties *>()
+                  ->getValue()
+                  .dyn_cast_or_null<ElementsAttr>();
   if (!attr)
     return failure();
   RankedTensorType tensorType = attr.getType().cast<RankedTensorType>();
