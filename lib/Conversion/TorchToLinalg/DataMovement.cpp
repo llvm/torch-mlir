@@ -1097,15 +1097,9 @@ public:
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
 
     auto outElemType = newResultType.getElementType();
-    auto dtypePromoteBody = [&](OpBuilder &builder, Location loc,
-                                ValueRange payloadArgs) {
-      Value elem =
-          convertScalarToDtype(builder, loc, payloadArgs[0], outElemType);
-      builder.create<linalg::YieldOp>(loc, elem);
-    };
     for (size_t i = 0; i < tensors.size(); ++i) {
-      tensors[i] = torch_to_linalg::createElementwiseLinalgGeneric(
-          rewriter, loc, {tensors[i]}, outElemType, dtypePromoteBody);
+      tensors[i] = torch_to_linalg::convertTensorToElementType(
+          rewriter, loc, tensors[i], outElemType);
     }
 
     int rank = newResultType.getRank();

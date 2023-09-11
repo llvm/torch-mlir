@@ -441,16 +441,28 @@ public:
     Value rhs = adaptor.getMat2();
     RankedTensorType lhsType = lhs.getType().cast<RankedTensorType>();
     RankedTensorType rhsType = rhs.getType().cast<RankedTensorType>();
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+    Type resultElementType = newResultType.cast<RankedTensorType>().getElementType();
+    Type lhsElementType = lhsType.cast<RankedTensorType>().getElementType();
+    Type rhsElementType = rhsType.cast<RankedTensorType>().getElementType();
 
     if (lhsType.getRank() != 3 || rhsType.getRank() != 3) {
       return rewriter.notifyMatchFailure(
           op, "expected both operands to aten.bmm to be rank 3");
     }
-    if (!lhsType.getElementType().isa<mlir::FloatType>() ||
-        lhsType.getElementType() != rhsType.getElementType())
-      return op.emitError(
-          "unimplemented: non floating point operands or operands of "
-          "different types");
+
+    // Convert the inputs element type equivalent to the result' element type.
+    if (lhsElementType != rhsElementType) {
+      if (lhsElementType != resultElementType) {
+        // True if the lhs element type is not equal to the result' element type.
+        lhs = torch_to_linalg::convertTensorToElementType(
+            rewriter, loc, lhs, resultElementType);
+      } else {
+        // True if the rhs element type is not equal to the result' element type.
+        rhs = torch_to_linalg::convertTensorToElementType(
+            rewriter, loc, rhs, resultElementType);
+      }
+    }
 
     Value lhsDim0 = getDimOp(rewriter, loc, lhs, 0);
     Value lhsDim1 = getDimOp(rewriter, loc, lhs, 1);
@@ -465,10 +477,8 @@ public:
     // Check the matrixs shapes are valid for mulplication.
     checkDimEqualHelper(rewriter, loc, lhsDim2, rhsDim1);
 
-    Type newResultType = getTypeConverter()->convertType(op.getType());
-    Type elementType = newResultType.cast<TensorType>().getElementType();
     Value initTensor0 = createZeroInitTensor(
-        rewriter, loc, ValueRange{lhsDim0, lhsDim1, rhsDim2}, elementType);
+        rewriter, loc, ValueRange{lhsDim0, lhsDim1, rhsDim2}, resultElementType);
 
     Value bmm =
         rewriter
