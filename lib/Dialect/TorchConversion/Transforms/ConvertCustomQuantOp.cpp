@@ -86,7 +86,8 @@ public:
     if (failed(getConstantIntegerFromDefiningOp(unpackedTypeWidth, unpackedBitWidth))) {
       return failure();
     }
-    if (unpackedBitWidth != rhsElementType.getIntOrFloatBitWidth()) {
+    if (unpackedBitWidth !=
+        static_cast<int>(rhsElementType.getIntOrFloatBitWidth())) {
       return failure();
     }
 

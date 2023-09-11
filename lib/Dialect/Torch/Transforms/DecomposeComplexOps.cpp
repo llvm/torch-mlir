@@ -4910,7 +4910,7 @@ public:
 
     SmallVector<bool> indexUsed =
         llvm::to_vector(llvm::map_range(indices, isTensor));
-    for (size_t i = indices.size(); i < inputRank; ++i) 
+    for (int64_t i = indices.size(); i < inputRank; ++i)
       indexUsed.emplace_back(false);
     bool indexIsConsecutive = true;
     int64_t firstUsedIndex = -1;
