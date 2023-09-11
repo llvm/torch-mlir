@@ -16,6 +16,9 @@ add_mlir_library(TorchMLIRTorchDialect
   Core
 
   LINK_LIBS PUBLIC
+  MLIRBytecodeOpInterface
+  MLIRBytecodeReader
+  MLIRBytecodeWriter
   MLIRFuncDialect
   MLIRIR
   MLIRSupport
