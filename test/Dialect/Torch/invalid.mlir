@@ -25,7 +25,7 @@ torch.class_type @c {
 }
 %c0 = torch.constant.int 0
 %0 = torch.nn_module {
-  // expected-error @+1 {{'torch.slot' op is expected to match type and name of '"torch.attr"() {name = "g", type = !torch.int} : () -> ()}}
+  // expected-error @+1 {{'torch.slot' op is expected to match type and name of '"torch.attr"() <{name = "g", type = !torch.int}> : () -> ()}}
   torch.slot "f", %c0 : !torch.int
 } : !torch.nn.Module<"c">
 
