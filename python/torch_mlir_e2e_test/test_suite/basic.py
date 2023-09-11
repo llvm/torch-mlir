@@ -60,7 +60,7 @@ def MmModule_chained(module, tu: TestUtils):
 # ==============================================================================
 
 
-class BmmModule(torch.nn.Module):
+class BmmFloatModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -75,9 +75,29 @@ class BmmModule(torch.nn.Module):
         return torch.bmm(lhs, rhs)
 
 
-@register_test_case(module_factory=lambda: BmmModule())
-def BmmModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: BmmFloatModule())
+def BmmFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5), tu.rand(3, 5, 4))
+
+
+class BmmIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.bmm(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: BmmIntModule())
+def BmmIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, high=100), tu.randint(3, 5, 4, high=100))
 
 
 # ==============================================================================

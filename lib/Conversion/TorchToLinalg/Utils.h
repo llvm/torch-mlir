@@ -81,6 +81,11 @@ broadcastToGivenShape(Operation *op, PatternRewriter &rewriter, Value input,
 // Cast a tensor to a rank-equivalent tensor of unknown size, i.e. <1x2xf32> ->
 // <?x?xf32>
 Value removeSizeInformation(OpBuilder &b, Location loc, Value tensor);
+
+// Converts a tensor' element type to the specified `elementType`.
+Value convertTensorToElementType(OpBuilder &b, Location loc, Value tensor,
+                                 Type elementType);
+
 } // namespace torch_to_linalg
 } // namespace torch
 } // namespace mlir
