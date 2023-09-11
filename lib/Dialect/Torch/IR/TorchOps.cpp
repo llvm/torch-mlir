@@ -931,6 +931,20 @@ void AtenLenTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenMinOtherOp
+//===----------------------------------------------------------------------===//
+
+void AtenMinOtherOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                 MLIRContext *context) {
+  // `aten.min.other` -> `aten.minimum`
+  patterns.add(+[](AtenMinOtherOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenMinimumOp>(op, op.getType(), op.getSelf(),
+                                               op.getOther());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenMaxOtherOp
 //===----------------------------------------------------------------------===//
 

@@ -567,6 +567,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::max.dim : (Tensor, int, bool) -> (Tensor, Tensor)")
     emit("aten::amax : (Tensor, int[], bool) -> (Tensor)")
     emit("aten::min : (Tensor) -> (Tensor)")
+    emit("aten::min.other : (Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
     emit("aten::min.dim : (Tensor, int, bool) -> (Tensor, Tensor)")
     emit("aten::amin : (Tensor, int[], bool) -> (Tensor)")
     emit("aten::to.dtype : (Tensor, int, bool, bool, int?) -> (Tensor)", has_folder=True)

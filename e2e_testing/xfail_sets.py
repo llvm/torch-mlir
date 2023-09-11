@@ -934,6 +934,8 @@ TOSA_PASS_SET = {
     "ElementwiseBinaryStaticShapeModule_basic",
     "ElementwiseMinimumModule_basic",
     "ElementwiseMinimumIntModule_basic",
+    "ElementwiseMinOtherIntModule_basic",
+    "ElementwiseMinOtherModule_basic",
     "ElementwiseMaximumModule_basic",
     "ElementwiseMaximumIntModule_basic",
     "ElementwiseMaxOtherIntModule_basic",

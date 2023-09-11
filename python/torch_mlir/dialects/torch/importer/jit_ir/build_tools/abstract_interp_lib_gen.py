@@ -312,6 +312,9 @@ def aten〇all〡shape(self: List[int]) -> List[int]:
 def aten〇min〡shape(self: List[int]) -> List[int]:
     return []
 
+def aten〇min〇other〡shape(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, other)
+
 def aten〇max〡shape(self: List[int]) -> List[int]:
     return []
 
@@ -3058,6 +3061,10 @@ def aten〇any〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: int, keepdim
 def aten〇min〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
+
+@check_dtype_function(_check_two_tensor_op())
+def aten〇min〇other〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    return aten〇minimum〡dtype(self_rank_dtype, other_rank_dtype)
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇max〡dtype(self_rank_dtype: Tuple[int, int]) -> int:

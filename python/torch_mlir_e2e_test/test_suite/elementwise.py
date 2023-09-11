@@ -653,6 +653,52 @@ def ElementwiseMinimumIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseMinOtherModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return x.min(y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMinOtherModule())
+def ElementwiseMinOtherModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5), tu.rand(3, 5))
+
+
+# ==============================================================================
+
+
+class ElementwiseMinOtherIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return x.min(y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMinOtherIntModule())
+def ElementwiseMinOtherIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, high=10), tu.randint(3, 5, high=10))
+
+
+# ==============================================================================
+
+
 class ElementwiseMaximumModule(torch.nn.Module):
 
     def __init__(self):
