@@ -20,7 +20,8 @@ add_mlir_conversion_library(TorchMLIRTorchToStablehlo
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
-  MLIRBufferTransforms
+  MLIRComplexDialect
+  ChloOps
   StablehloOps
   TorchMLIRTorchDialect
   TorchMLIRConversionUtils
