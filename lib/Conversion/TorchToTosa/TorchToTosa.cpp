@@ -718,7 +718,7 @@ class ConvertAtenMultipleDimsReductionOp
         return rewriter.notifyMatchFailure(op,
                                            "reduce dim is statically invalid");
     }
-    auto reduceDimsType = RankedTensorType::get({N}, rewriter.getI32Type());
+    auto reduceDimsType = RankedTensorType::get({N}, rewriter.getI64Type());
     reduceDimsAttr =
         DenseIntElementsAttr::get(reduceDimsType, llvm::ArrayRef(reduceDims));
 
