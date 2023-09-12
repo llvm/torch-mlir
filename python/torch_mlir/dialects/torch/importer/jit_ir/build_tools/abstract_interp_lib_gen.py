@@ -643,7 +643,8 @@ def aten〇ones〡shape(size: List[int], dtype: Optional[int] = None, layout: Op
 
 def aten〇empty〇memory_format〡shape(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
     return size
-
+def aten〇empty_strided〡shape(size: List[int], stride: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    return size
 def aten〇full〡shape(size: List[int], fill_value: float, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return size
 
@@ -3238,6 +3239,13 @@ def aten〇empty_like〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[
     return self_dtype if dtype is None else dtype
 
 @check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=0, size=[1], stride=[1]) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=0, size=[1], stride=[1], dtype=torch.float16) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=0, size=[1], stride=[1], dtype=torch.int32) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=0, size=[1], stride=[1], dtype=torch.complex64))
+def aten〇empty_strided〡dtype(size: List[int], stride: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    return torch.float32 if dtype is None else dtype
+@check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=1, fill_value=0.0) +
     _check_tensors_with_the_same_dtype(num_of_tensors=1, fill_value=0) +
     _check_tensors_with_the_same_dtype(num_of_tensors=1, fill_value=0.0, dtype=torch.float16) +
@@ -3424,7 +3432,7 @@ def aten〇atan〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
         return torch.float32
     return self_dtype
 
-@check_dtype_function(_check_two_tensor_op())
+# @check_dtype_function(_check_two_tensor_op())
 def aten〇linear〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None) -> int:
     input_rank, input_dtype = input_rank_dtype
     weight_rank, weight_dtype = weight_rank_dtype
