@@ -2346,7 +2346,7 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
           op.getLoc(),
           RankedTensorType::get(makeShapeLLVMCompatible(toReduceShape),
                                 inputType.getElementType()),
-          sumDiv, rewriter.getI64IntegerAttr(i));
+          sumDiv, rewriter.getI32IntegerAttr(i));
     }
 
     return rewriter.create<tosa::ReshapeOp>(
@@ -3214,7 +3214,7 @@ LogicalResult ConvertAtenOp<AtenMaxDimOp>::matchAndRewrite(
     prunedShape.push_back(en.value());
   }
 
-  auto dimAttr = rewriter.getIntegerAttr(rewriter.getI64Type(), dim);
+  auto dimAttr = rewriter.getIntegerAttr(rewriter.getI32Type(), dim);
   auto prunedShapeAttr = rewriter.getDenseI64ArrayAttr(prunedShape);
 
   Value reduceMax = rewriter.create<tosa::ReduceMaxOp>(
@@ -4787,7 +4787,7 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
       getTypeConvertedValues(rewriter, loc, typeConverter, tensorsTorchType);
 
   auto result = tosa::CreateOpAndInfer<tosa::ConcatOp>(
-      rewriter, loc, outType, builtinTensors, rewriter.getI64IntegerAttr(dim));
+      rewriter, loc, outType, builtinTensors, rewriter.getI32IntegerAttr(dim));
   rewriter.replaceOp(op, result.getResult());
   return success();
 }

@@ -301,21 +301,20 @@ LogicalResult ClassTypeOp::verify() {
 // PrimLoopOp
 //===----------------------------------------------------------------------===//
 
-OperandRange
-PrimLoopOp::getEntrySuccessorOperands(std::optional<unsigned int> index) {
-  assert(index.has_value() && index.value() == 0);
+OperandRange PrimLoopOp::getEntrySuccessorOperands(RegionBranchPoint point) {
+  assert(point == getRegion());
   return getIterArgsInit();
 }
 
 void PrimLoopOp::getSuccessorRegions(
-    std::optional<unsigned> index, SmallVectorImpl<RegionSuccessor> &regions) {
-
-  if (!index.has_value()) {
-    regions.emplace_back(&getRegion(), getRegion().getArguments().slice(1));
+    RegionBranchPoint point, SmallVectorImpl<RegionSuccessor> &regions) {
+  Region &region = getRegion();
+  if (!point.getRegionOrNull()) {
+    regions.emplace_back(&region, region.getArguments().slice(1));
     return;
   }
-  assert(*index == 0);
-  regions.emplace_back(&getRegion(), getRegion().getArguments().slice(1));
+  assert(point == region);
+  regions.emplace_back(&region, region.getArguments().slice(1));
   regions.emplace_back(getResults());
 }
 
@@ -328,8 +327,8 @@ bool PrimLoopOp::isForLike() {
 // PrimLoopConditionOp
 //===----------------------------------------------------------------------===//
 
-MutableOperandRange PrimLoopConditionOp::getMutableSuccessorOperands(
-    std::optional<unsigned> index) {
+MutableOperandRange
+PrimLoopConditionOp::getMutableSuccessorOperands(RegionBranchPoint point) {
   // Pass all operands except the condition to the successor which is the
   // parent loop op.
   return getIterArgsMutable();
@@ -378,10 +377,10 @@ void PrimIfOp::print(OpAsmPrinter &p) {
   p.printOptionalAttrDict((*this)->getAttrs());
 }
 
-void PrimIfOp::getSuccessorRegions(std::optional<unsigned> index,
+void PrimIfOp::getSuccessorRegions(RegionBranchPoint point,
                                    SmallVectorImpl<RegionSuccessor> &regions) {
   // The `then` and the `else` region branch back to the parent operation.
-  if (index.has_value()) {
+  if (point.getRegionOrNull()) {
     regions.push_back(RegionSuccessor(getResults()));
     return;
   }
@@ -1595,7 +1594,9 @@ LogicalResult NonValueTensorLiteralOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
-  auto attr = attributes.get("value").dyn_cast_or_null<ElementsAttr>();
+  auto attr = properties.as<Properties *>()
+                  ->getValue()
+                  .dyn_cast_or_null<ElementsAttr>();
   if (!attr)
     return failure();
   RankedTensorType tensorType = attr.getType().cast<RankedTensorType>();
@@ -1635,7 +1636,9 @@ LogicalResult ValueTensorLiteralOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
-  auto attr = attributes.get("value").dyn_cast_or_null<ElementsAttr>();
+  auto attr = properties.as<Properties *>()
+                  ->getValue()
+                  .dyn_cast_or_null<ElementsAttr>();
   if (!attr)
     return failure();
   RankedTensorType tensorType = attr.getType().cast<RankedTensorType>();
@@ -2768,26 +2771,26 @@ OpFoldResult PrimMinIntOp::fold(FoldAdaptor adaptor) {
 
 template <typename CalculateOp>
 static void
-getSuccessorRegionsForCalculateOp(CalculateOp op, std::optional<unsigned> index,
+getSuccessorRegionsForCalculateOp(CalculateOp op, RegionBranchPoint point,
                                   SmallVectorImpl<RegionSuccessor> &regions) {
-  if (!index.has_value()) {
+  if (!point.getRegionOrNull()) {
     // First thing the op does is branch into the calculation.
     regions.emplace_back(&op.getCalculation());
     return;
   }
-  if (*index == 0) {
+  if (point == op.getBody()) {
     // Body returns control to the outer op, passing through results.
     regions.emplace_back(op.getResults());
     return;
   }
-  assert(*index == 1);
+  assert(point == op.getCalculation());
   // Calculation branches to the body.
   regions.emplace_back(&op.getBody());
 }
 
 void ShapeCalculateOp::getSuccessorRegions(
-    std::optional<unsigned> index, SmallVectorImpl<RegionSuccessor> &regions) {
-  getSuccessorRegionsForCalculateOp(*this, index, regions);
+    RegionBranchPoint point, SmallVectorImpl<RegionSuccessor> &regions) {
+  getSuccessorRegionsForCalculateOp(*this, point, regions);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2795,8 +2798,8 @@ void ShapeCalculateOp::getSuccessorRegions(
 //===----------------------------------------------------------------------===//
 
 void DtypeCalculateOp::getSuccessorRegions(
-    std::optional<unsigned> index, SmallVectorImpl<RegionSuccessor> &regions) {
-  getSuccessorRegionsForCalculateOp(*this, index, regions);
+    RegionBranchPoint point, SmallVectorImpl<RegionSuccessor> &regions) {
+  getSuccessorRegionsForCalculateOp(*this, point, regions);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2804,7 +2807,7 @@ void DtypeCalculateOp::getSuccessorRegions(
 //===----------------------------------------------------------------------===//
 
 MutableOperandRange ShapeCalculateYieldShapesOp::getMutableSuccessorOperands(
-    std::optional<unsigned> index) {
+    RegionBranchPoint point) {
   // The shape operands don't get forwarded to the body.
   // MutableOperandRange always has an owning operation, even if empty, so
   // create a 0-length range.
@@ -2823,7 +2826,7 @@ LogicalResult ShapeCalculateYieldShapesOp::verify() {
 //===----------------------------------------------------------------------===//
 
 MutableOperandRange DtypeCalculateYieldDtypesOp::getMutableSuccessorOperands(
-    std::optional<unsigned> index) {
+    RegionBranchPoint point) {
   // The dtype operands don't get forwarded to the body.
   // MutableOperandRange always has an owning operation, even if empty, so
   // create a 0-length range.
