@@ -1644,10 +1644,11 @@ class EmptyStridedModule(torch.nn.Module):
         ([2, 3, 4], torch.float32, True),
     ])
     def forward(self, a):
-
-        return torch.ops.aten.empty_strided(a.size(), (1, 2))
+        x = torch.ops.aten.empty_strided(a.size(), stride=[12, 4, 1])
+        y = x.copy_(a)
+        return y
 
 
 @register_test_case(module_factory=lambda: EmptyStridedModule())
 def EmptyStridedModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 3))
+    module.forward(tu.rand(2, 3, 4))
