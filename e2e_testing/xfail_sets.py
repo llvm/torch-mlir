@@ -748,7 +748,6 @@ STABLEHLO_PASS_SET = {
     "NewEmptyModuleNonDefaultFloatDtype_basic",
     "NewEmptyModuleNonDefaultIntDtype_basic",
     "NewEmptyStridedModuleDefaultDtype_basic",
-    "EmptyStridedModule_basic",
     "PermuteModule_basic",
     "PermuteNegativeIndexModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
@@ -1422,5 +1421,4 @@ LTC_XFAIL_SET = {
     "ScatterValueIntModule_basic",
     "UniformStaticShapeModule_basic",
     "AtenEmbeddingBagStaticModule_basic",
-    "EmptyStridedModule_basic",
 }

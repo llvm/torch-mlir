@@ -8335,34 +8335,6 @@ def Torch_AtenEmptyMemoryFormatOp : Torch_Op<"aten.empty.memory_format", [
   }];
 }
 
-def Torch_AtenEmptyStridedOp : Torch_Op<"aten.empty_strided", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::empty_strided : (int[], int[], int?, int?, Device?, bool?) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchListOfTorchIntType:$size,
-    AnyTorchListOfTorchIntType:$stride,
-    AnyTorchOptionalIntType:$dtype,
-    AnyTorchOptionalIntType:$layout,
-    AnyTorchOptionalDeviceType:$device,
-    AnyTorchOptionalBoolType:$pin_memory
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenEmptyStridedOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 6, 1);
-    }
-    void AtenEmptyStridedOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 6, 1);
-    }
-  }];
-}
-
 def Torch_AtenExpandOp : Torch_Op<"aten.expand", [
     AllowsTypeRefinement,
     ReadOnly

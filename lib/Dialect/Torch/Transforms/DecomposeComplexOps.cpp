@@ -4417,53 +4417,6 @@ public:
 } // namespace
 
 namespace {
-class DecomposeAtenEmptyStridedOp
-    : public OpRewritePattern<AtenEmptyStridedOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenEmptyStridedOp op,
-                                PatternRewriter &rewriter) const override {
-    SmallVector<int64_t> sizeListInts, strideListInts;
-    if (!matchPattern(op.getSize(), m_TorchListOfConstantInts(sizeListInts)))
-      return rewriter.notifyMatchFailure(
-          op, "all size list elements must be constant ints");
-    if (!matchPattern(op.getStride(),
-                      m_TorchListOfConstantInts(strideListInts)))
-      return rewriter.notifyMatchFailure(
-          op, "all stride list elements must be constant ints");
-
-    // We only support the cases with default stride values.
-    // For ex: aten.new_empty_strided(self, size=[2, 3, 4], stride=[12, 4, 1])
-    // Here the stride[0] == size[1] * size[2], stride[1] == size[2], and
-    // stride[2] == 1.
-    bool isDefaultStride = true;
-    for (unsigned i = 0; i < strideListInts.size(); i++) {
-      int64_t defaultStride = 1;
-      for (unsigned j = i + 1; j < sizeListInts.size(); j++)
-        defaultStride *= sizeListInts[j];
-      if (defaultStride != strideListInts[i]) {
-        isDefaultStride = false;
-        break;
-      }
-    }
-    if (!isDefaultStride)
-      return rewriter.notifyMatchFailure(
-          op, "only default strides supported for new_empty_strided op");
-
-    Value noneVal = rewriter.create<ConstantNoneOp>(op.getLoc());
-
-    rewriter.replaceOpWithNewOp<AtenEmptyMemoryFormatOp>(
-        op, op.getType(), op.getSize(), op.getDtype(), op.getLayout(), op.getDevice(),
-        op.getPinMemory(), /*memoryFormat=*/noneVal);
-
-    return success();
-
-
-  }
-};
-} // namespace
-
-namespace {
 class DecomposePrimsSqueezeOp : public OpRewritePattern<PrimsSqueezeOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -5298,7 +5251,6 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluBackwardOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyStridedOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenEmptyStridedOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBucketizeTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposePrimsSqueezeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMovedimIntOp>(patterns);
