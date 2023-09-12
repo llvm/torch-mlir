@@ -3432,7 +3432,7 @@ def aten〇atan〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
         return torch.float32
     return self_dtype
 
-# @check_dtype_function(_check_two_tensor_op())
+@check_dtype_function(_check_two_tensor_op())
 def aten〇linear〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None) -> int:
     input_rank, input_dtype = input_rank_dtype
     weight_rank, weight_dtype = weight_rank_dtype
