@@ -1622,8 +1622,6 @@ static bool areSizesAndDtypesCompatible(BaseTensorType a, BaseTensorType b) {
 
 bool NonValueTensorLiteralOp::isCompatibleReturnTypes(TypeRange inferred,
                                                       TypeRange actual) {
-  llvm::errs() << "isCompatibleReturnTypes:";
-  actual[0].dump();
   if (!actual[0].isa<BaseTensorType>())
     return false;
   return areSizesAndDtypesCompatible(inferred[0].cast<BaseTensorType>(),
