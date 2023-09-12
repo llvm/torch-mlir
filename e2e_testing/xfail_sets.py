@@ -1422,4 +1422,5 @@ LTC_XFAIL_SET = {
     "ScatterValueIntModule_basic",
     "UniformStaticShapeModule_basic",
     "AtenEmbeddingBagStaticModule_basic",
+    "EmptyStridedModule_basic",
 }
