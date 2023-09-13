@@ -24,7 +24,6 @@ from torch_mlir_e2e_test.configs import (
 )
 
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
-from torch_mlir_e2e_test.stablehlo_backends.linalg_on_tensors import LinalgOnTensorsStablehloBackend
 from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import LinalgOnTensorsTosaBackend
 
 from .xfail_sets import (
@@ -44,7 +43,7 @@ from torch_mlir_e2e_test.test_suite import register_all_tests
 register_all_tests()
 
 def _get_argparse():
-    config_choices = ["native_torch", "torchscript", "linalg", "stablehlo", "make_fx_tosa", "tosa", "lazy_tensor_core", "torchdynamo"]
+    config_choices = ["native_torch", "torchscript", "linalg", "make_fx_tosa", "tosa", "lazy_tensor_core", "torchdynamo"]
     parser = argparse.ArgumentParser(description="Run torchscript e2e tests.")
     parser.add_argument("-c", "--config",
         choices=config_choices,
@@ -52,7 +51,6 @@ def _get_argparse():
         help=f"""
 Meaning of options:
 "linalg": run through torch-mlir"s default Linalg-on-Tensors backend.
-"stablehlo": run through torch-mlir"s default StableHLO backend.
 "tosa": run through torch-mlir"s default TOSA backend.
 "native_torch": run the torch.nn.Module as-is without compiling (useful for verifying model is deterministic; ALL tests should pass in this configuration).
 "torchscript": compile the model to a torch.jit.ScriptModule, and then run that as-is (useful for verifying TorchScript is modeling the program correctly).
@@ -100,10 +98,6 @@ def main():
         config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend(), use_make_fx=True)
         xfail_set = all_test_unique_names - MAKE_FX_TOSA_PASS_SET
         crashing_set = set()
-    elif args.config == "stablehlo":
-        config = StablehloBackendTestConfig(LinalgOnTensorsStablehloBackend())
-        xfail_set = all_test_unique_names - STABLEHLO_PASS_SET
-        crashing_set = STABLEHLO_CRASHING_SET
     elif args.config == "native_torch":
         config = NativeTorchTestConfig()
         xfail_set = set()

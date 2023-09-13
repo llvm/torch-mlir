@@ -21,10 +21,6 @@
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 #include "torch-mlir/RefBackend/Passes.h"
 
-#ifdef TORCH_MLIR_ENABLE_STABLEHLO
-#include "mhlo/transforms/passes.h"
-#endif
-
 void mlir::torch::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<mlir::func::FuncDialect>();
   registry.insert<mlir::torch::Torch::TorchDialect>();
@@ -40,12 +36,4 @@ void mlir::torch::registerAllPasses() {
   mlir::torch::registerConversionPasses();
   mlir::torch::RefBackend::registerRefBackendPasses();
   mlir::torch::TMTensor::registerPasses();
-
-#ifdef TORCH_MLIR_ENABLE_STABLEHLO
-  mlir::mhlo::registerSymbolicShapeOptimizationPass();
-  mlir::mhlo::registerStablehloLegalizeToHloPass();
-  mlir::mhlo::registerChloLegalizeToHloPass();
-  mlir::mhlo::registerHloLegalizeToLinalgPass();
-  mlir::mhlo::registerTestUnfuseBatchNormPass();
-#endif // TORCH_MLIR_ENABLE_STABLEHLO
 }
