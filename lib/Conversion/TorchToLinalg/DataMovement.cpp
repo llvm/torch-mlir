@@ -218,50 +218,40 @@ public:
   collapseToSingleDimHelper2(ArrayRef<int64_t> xs, ArrayRef<int64_t> ys,
                              ReassociationIndices &xIndices,
                              ReassociationIndices &yIndices) {
-    int64_t expectedReductionProduct;
-    ArrayRef<int64_t> singletonArray;
-    ArrayRef<int64_t> arrayToReduce;
-    ReassociationIndices &reductionIndices = xIndices;
-    // TODO(ramiro050): this is not that ugly, but maybe we can remove
-    // duplication with a lambda
+    // TODO(ramiro050): name variable
+    auto blah = [](int64_t expectedReductionProduct,
+                   ArrayRef<int64_t> arrayToReduce,
+                   ReassociationIndices &reductionIndices) -> LogicalResult {
+      int64_t reductionProduct = 1;
+      for (auto [index, elem] : llvm::enumerate(arrayToReduce)) {
+        reductionIndices.push_back(index);
+        if (elem == kUnknownSize)
+          reductionProduct = kUnknownSize;
+        if (reductionProduct != kUnknownSize)
+          reductionProduct *= elem;
+      }
+      if (reductionProduct != kUnknownSize &&
+          expectedReductionProduct != kUnknownSize &&
+          reductionProduct != expectedReductionProduct) {
+        return failure();
+      }
+
+      // TODO(ramiro050): not a fan of this random mutation, but right
+      // now it's all I can come up with
+      // TODO(ramiro050): cannot mutate because `ArrayRef`s are const
+      // singletonArray[0] = reductionProduct;
+      return success();
+    };
+
     if (xs.size() == 1) {
       xIndices.push_back(0);
-      expectedReductionProduct = xs[0];
-      singletonArray = xs;
-      arrayToReduce = ys;
-      reductionIndices = yIndices;
+      return blah(xs[0], ys, yIndices);
     } else if (ys.size() == 1) {
       yIndices.push_back(0);
-      expectedReductionProduct = ys[0];
-      singletonArray = ys;
-      arrayToReduce = xs;
-      // TODO(ramiro050): awkward because ReassociationIndices  requires
-      // initialization reductionIndices = xIndices;
+      return blah(ys[0], xs, xIndices);
     } else {
       return failure();
     }
-
-    int64_t reductionProduct = 1;
-    for (auto [index, elem] : llvm::enumerate(arrayToReduce)) {
-      reductionIndices.push_back(index);
-      if (elem == kUnknownSize)
-        reductionProduct = kUnknownSize;
-
-      if (reductionProduct != kUnknownSize)
-        reductionProduct *= elem;
-    }
-
-    if (reductionProduct != kUnknownSize &&
-        expectedReductionProduct != kUnknownSize &&
-        reductionProduct != expectedReductionProduct) {
-      return failure();
-    }
-
-    // TODO(ramiro050): not a fan of this random mutation, but right
-    // now it's all I can come up with
-    // TODO(ramiro050): cannot mutate because `ArrayRef`s are const
-    // singletonArray[0] = reductionProduct;
-    return success();
   }
 
   // Helper to find the minimum set of dims to collapse with the
@@ -358,11 +348,11 @@ public:
     yIndices.push_back(0);
     size_t nextXIndex = 1;
     size_t nextYIndex = 1;
-    do {
-      if (xTotalSize == yTotalSize)
-        return success();
+    while (xTotalSize != yTotalSize) {
       // TODO(ramiro050): handle trailing 1s
       if (xTotalSize < yTotalSize) {
+        if (nextXIndex == xs.size())
+          break;
         // TODO(ramiro050): should this be an assert? This seems to assume that
         // dynamic dims are size 1
         int64_t x = xs[nextXIndex];
@@ -371,6 +361,8 @@ public:
         xIndices.push_back(nextXIndex);
         nextXIndex++;
       } else {
+        if (nextYIndex == ys.size())
+          break;
         // TODO(ramiro050): should this be an assert?
         int64_t y = ys[nextYIndex];
         if (y != kUnknownSize)
@@ -378,8 +370,8 @@ public:
         yIndices.push_back(nextYIndex);
         nextYIndex++;
       }
-    } while (nextXIndex < xs.size() && nextYIndex < ys.size());
-    return failure();
+    }
+    return success(xTotalSize == yTotalSize);
   }
 
   // TODO(ramiro050): this can be half the szie
@@ -654,6 +646,8 @@ public:
           // know this dimension, why would we need to set it to
           // kUnknownSize?
           outputShape[outputDim] = kUnknownSize;
+          inputAssociations.back().push_back(inputDim);
+          outputAssociations.back().push_back(outputDim);
           hasDynamic = true;
         } else if (succeeded(allDynamicCase(inputShapeSlice, outputShapeSlice,
                                             inputAssociations.back(),
@@ -667,9 +661,16 @@ public:
           // the current index that we are in
           hasDynamic = false;
         } else {
-          return rewriter.notifyMatchFailure(op, "TODO");
+          return rewriter.notifyMatchFailure(op, "TODO2");
         }
 
+        // TODO(ramiro050): ducument this step
+        for (size_t i = 0; i < inputAssociations.back().size(); i++) {
+          inputAssociations.back()[i] += inputDim;
+        }
+        for (size_t i = 0; i < outputAssociations.back().size(); i++) {
+          outputAssociations.back()[i] += outputDim;
+        }
         inputDim = inputAssociations.back().back() + 1;
         outputDim = outputAssociations.back().back() + 1;
       }
