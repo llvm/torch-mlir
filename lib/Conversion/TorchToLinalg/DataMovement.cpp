@@ -619,26 +619,26 @@ public:
         inputAssociations.emplace_back();
         outputAssociations.emplace_back();
 
-        // TODO(ramiro050): current approach is to check for failure
-        // and return error. This should be a bunch of `success`
-        // checks, and if none of the succeed, return error, since
-        // sometimes a future step can handle a failure from a
-        // previous step.  outputDim is next to the boundary
-        if (outputDim == nextUnchangedOutput - 1 ||
-            inputDim == nextUnchangedInput - 1) {
-          // TODO(ramiro050): is this needed here?
-          if (hasDynamic && (inputDim != nextUnchangedInput - 1 ||
-                             inputShape[inputDim] == kUnknownSize)) {
-            return rewriter.notifyMatchFailure(
-                op, "found ambiguous collapse of dynamic input sizes (e.g. "
-                    "[-1, -1, -1] -> [-1, -1])");
-          }
+        // TODO(ramiro050): I don't like the `hasDynamic` variable. Improve it
+        if ((hasDynamic && outputDim == nextUnchangedOutput - 1 &&
+             inputDim != nextUnchangedInput - 1) ||
+            (hasDynamic && outputDim != nextUnchangedOutput - 1 &&
+             inputDim == nextUnchangedInput - 1 &&
+             inputShape[inputDim] == kUnknownSize)) {
+          return rewriter.notifyMatchFailure(
+              op, "found ambiguous collapse of dynamic input sizes (e.g. "
+                  "[-1, -1, -1] -> [-1, -1])");
         }
 
         if (succeeded(collapseToSingleDimHelper2(
                 inputShapeSlice, outputShapeSlice, inputAssociations.back(),
                 outputAssociations.back()))) {
+          // TODO(ramiro050): should this have a `hasDynamic = false`?
         } else if (inputShapeSlice[0] == kUnknownSize) {
+          // TODO(ramiro050): the use of slice-indices and global
+          // input/outputDim indices is confusing here. Maybe create a helper
+          // for this case too
+          //
           // If the input is dynamic, first assume it is not split
           checkDimEqualHelper(rewriter, loc, inputSize[inputDim],
                               outputSizeInt[outputDim]);
@@ -646,8 +646,8 @@ public:
           // know this dimension, why would we need to set it to
           // kUnknownSize?
           outputShape[outputDim] = kUnknownSize;
-          inputAssociations.back().push_back(inputDim);
-          outputAssociations.back().push_back(outputDim);
+          inputAssociations.back().push_back(0);
+          outputAssociations.back().push_back(0);
           hasDynamic = true;
         } else if (succeeded(allDynamicCase(inputShapeSlice, outputShapeSlice,
                                             inputAssociations.back(),
