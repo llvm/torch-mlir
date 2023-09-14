@@ -25,7 +25,6 @@ from torch_mlir_e2e_test.configs import (
 )
 
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
-from torch_mlir_e2e_test.stablehlo_backends.linalg_on_tensors import LinalgOnTensorsStablehloBackend
 from torch_mlir_e2e_test.tcp_backends.linalg_on_tensors import LinalgOnTensorsTcpBackend
 from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import LinalgOnTensorsTosaBackend
 
@@ -37,6 +36,7 @@ from .xfail_sets import (
     TCP_PASS_SET,
     TOSA_PASS_SET,
     LTC_XFAIL_SET,
+    LTC_CRASHING_SET,
     TORCHDYNAMO_XFAIL_SET,
     TORCHDYNAMO_CRASHING_SET
 )
@@ -46,7 +46,7 @@ from torch_mlir_e2e_test.test_suite import register_all_tests
 register_all_tests()
 
 def _get_argparse():
-    config_choices = ["native_torch", "torchscript", "linalg", "stablehlo", "tcp", "make_fx_tosa", "tosa", "lazy_tensor_core", "torchdynamo"]
+    config_choices = ["native_torch", "torchscript", "linalg", "tcp", "make_fx_tosa", "tosa", "lazy_tensor_core", "torchdynamo"]
     parser = argparse.ArgumentParser(description="Run torchscript e2e tests.")
     parser.add_argument("-c", "--config",
         choices=config_choices,
@@ -54,7 +54,6 @@ def _get_argparse():
         help=f"""
 Meaning of options:
 "linalg": run through torch-mlir"s default Linalg-on-Tensors backend.
-"stablehlo": run through torch-mlir"s default StableHLO backend.
 "tcp": run through torch-mlir's default TCP backend.
 "tosa": run through torch-mlir"s default TOSA backend.
 "native_torch": run the torch.nn.Module as-is without compiling (useful for verifying model is deterministic; ALL tests should pass in this configuration).
@@ -107,10 +106,6 @@ def main():
         config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend(), use_make_fx=True)
         xfail_set = all_test_unique_names - MAKE_FX_TOSA_PASS_SET
         crashing_set = set()
-    elif args.config == "stablehlo":
-        config = StablehloBackendTestConfig(LinalgOnTensorsStablehloBackend())
-        xfail_set = all_test_unique_names - STABLEHLO_PASS_SET
-        crashing_set = STABLEHLO_CRASHING_SET
     elif args.config == "native_torch":
         config = NativeTorchTestConfig()
         xfail_set = set()
@@ -122,7 +117,7 @@ def main():
     elif args.config == "lazy_tensor_core":
         config = LazyTensorCoreTestConfig()
         xfail_set = LTC_XFAIL_SET
-        crashing_set = set()
+        crashing_set = LTC_CRASHING_SET
     elif args.config == "torchdynamo":
         config = TorchDynamoTestConfig(RefBackendLinalgOnTensorsBackend())
         xfail_set = TORCHDYNAMO_XFAIL_SET

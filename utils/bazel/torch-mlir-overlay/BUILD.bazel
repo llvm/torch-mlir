@@ -450,9 +450,8 @@ cc_library(
         ":TorchMLIRTorchBackendTypeConversion",
         ":TorchMLIRTorchConversionDialect",
         "@llvm-project//mlir:Dialect",
-        "@mlir-hlo//:mlir_hlo",
-        "@mlir-hlo//:transforms_passes",
-        "@mlir-hlo//stablehlo:register",
+        "@stablehlo//:register",
+        "@stablehlo//:stablehlo_passes",
     ],
 )
 

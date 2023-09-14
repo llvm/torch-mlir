@@ -43,7 +43,12 @@ TorchMlirOpVector LowerTorchMlirBuiltin(
   for (auto arg : arguments) {
     torch::jit::Value* value = arg.value(dummy_graph);
     if (value->type()->kind() == c10::TypeKind::ListType) {
-      value->setType(c10::ListType::create(c10::TensorType::get()));
+      auto list_element_type = value->type()->cast<c10::ListType>()->getElementType();
+      if (list_element_type->cast<c10::OptionalType>()) {
+        value->setType(c10::ListType::create(c10::OptionalType::create(c10::TensorType::get())));
+      } else {
+        value->setType(c10::ListType::create(c10::TensorType::get()));
+      }
     }
   }
 

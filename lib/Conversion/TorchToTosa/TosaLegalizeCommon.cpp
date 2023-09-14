@@ -382,7 +382,7 @@ std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter,
       rewriter, op->getLoc(),
       GetTypeFromTensorShape(indicesMatrixReducesumShape,
                              indicesType.getElementType()),
-      flattenedIndicesMulOp.getResult(), rewriter.getI64IntegerAttr(1));
+      flattenedIndicesMulOp.getResult(), rewriter.getI32IntegerAttr(1));
 
   // And reshape to [N, W]
   // %7 = "tosa.reshape"(%6) {new_shape = [1, 8]} : (tensor<8x1xi32>) ->
@@ -648,7 +648,7 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
       rewriter, op->getLoc(),
       GetTypeFromTensorShape(indicesMatrixReducesumShape,
                              indicesType.getElementType()),
-      flattenedIndicesMulOp.getResult(), rewriter.getI64IntegerAttr(1));
+      flattenedIndicesMulOp.getResult(), rewriter.getI32IntegerAttr(1));
 
   // And reshape to [N, W]
   // [[1],[2],[3]] -> [[1,2,3]]
@@ -717,7 +717,7 @@ std::optional<Value> convertReduceOpCommon(
       int64_t axis_val = axes_elems.getValues<IntegerAttr>()[i].getInt();
       if (axis_val < 0)
         axis_val += input_rank;
-      auto axis_attr = rewriter.getI64IntegerAttr(axis_val);
+      auto axis_attr = rewriter.getI32IntegerAttr(axis_val);
 
       shape_vec[axis_val] = 1;
       RankedTensorType reduce_type = RankedTensorType::get(

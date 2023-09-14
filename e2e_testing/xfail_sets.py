@@ -16,7 +16,7 @@ from torch_mlir._version import torch_version_for_comparison, version
 LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR failed
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
-    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier"
+    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
 }
 
 TORCHDYNAMO_XFAIL_SET = {
@@ -264,8 +264,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "RandnGeneratorModule_basic",
 
     # START tests failing due to: complex floating point ops
-    "AtenComplexImagModule_basic",
-    "AtenComplexRealModule_basic",
     # END tests failing due to: complex floating point ops
 
     # ERROR: Exception: Unsupported: return type List[Tensor] in schema for aten.unbind.int
@@ -284,7 +282,19 @@ TORCHDYNAMO_XFAIL_SET = {
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
 
+    # Exception: Unsupported: node.meta['val'] is not a FakeTensor or list of FakeTensor's: _scaled_dot_product_flash_attention;
+    "ScaledDotProductAttentionSameModule_basic",
+    "ScaledDotProductAttentionDifferentModule_basic",
+
+    # AssertionError: Unregistered operation: torch.aten._embedding_bag_forward_only
+    "AtenEmbeddingBagStaticModule_basic",
 }
+
+if torch_version_for_comparison() < version.parse("2.1.0.dev"):
+    TORCHDYNAMO_XFAIL_SET -= {
+        "ScaledDotProductAttentionSameModule_basic",
+        "ScaledDotProductAttentionDifferentModule_basic",
+    }
 
 TORCHDYNAMO_CRASHING_SET = {
     # No upstream decompositions.
@@ -359,6 +369,9 @@ STABLEHLO_PASS_SET = {
     "AnyBoolTrueModule_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
+    "AtenFloatScalarModule_basic",
+    "ScalarImplicitFloatModule_basic",
+    "ScalarImplicitIntModule_basic",
     "AtenSubFloatModule_basic",
     "BoolFloatConstantModule_basic",
     "BoolIntConstantModule_basic",
@@ -417,7 +430,8 @@ STABLEHLO_PASS_SET = {
     "BatchNorm3DModule_basic",
     "BatchNorm1DStaticShapeModule_basic",
     "ResNet18StaticModule_basic",
-    "BmmModule_basic",
+    "BmmFloatModule_basic",
+    "BmmIntModule_basic",
     "BroadcastToModule_basic",
     "BroadcastToSameRankStaticModule_basic",
     "BroadcastZeroRankInputStaticModule_basic",
@@ -439,6 +453,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseBitwiseAndStaticShapeModule_basic",
     "ElementwiseBitwiseNotInt64Module_basic",
     "ElementwiseBitwiseNotInt32Module_basic",
+    "ElementwiseOrTensorStaticShapeModule_basic",
     "ElementwiseBitwiseOrStaticShapeModule_basic",
     "ElementwiseBitwiseXorStaticShapeModule_basic",
     "ElementwiseClampModule_basic",
@@ -451,6 +466,8 @@ STABLEHLO_PASS_SET = {
     "ElementwiseExpModule_basic",
     "ElementwiseFlattenBroadcastModule_basic",
     "ElementwiseLeakyReluModule_basic",
+    "ElementwiseEluModule_basic",
+    "ElementwiseEluNonDefaultModule_basic",
     "ElementwiseLogModule_basic",
     "ElementwiseNegModule_basic",
     "ElementwiseRsqrtModule_basic",
@@ -544,6 +561,14 @@ STABLEHLO_PASS_SET = {
     "FullModuleFloat3D_basic",
     "FullModuleInt2D_basic",
     "FullModuleInt3D_basic",
+    "NewFullModuleDefaultDtype_basic",
+    "NewFullModuleFalsePinMemory_basic",
+    "NewFullModuleFloat2D_basic",
+    "NewFullModuleFloat3DStatic_basic",
+    "NewFullModuleFloat3D_basic",
+    "NewFullModuleInt2DStatic_basic",
+    "NewFullModuleInt2D_basic",
+    "NewFullModuleInt3D_basic",
     "GatherStaticModule_basic",
     "GatherModule_basic",
     "Gather2DInputModdule_basic",
@@ -723,6 +748,7 @@ STABLEHLO_PASS_SET = {
     "NewEmptyModuleNonDefaultFloatDtype_basic",
     "NewEmptyModuleNonDefaultIntDtype_basic",
     "NewEmptyStridedModuleDefaultDtype_basic",
+    "EmptyStridedModule_basic",
     "PermuteModule_basic",
     "PermuteNegativeIndexModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
@@ -788,6 +814,10 @@ STABLEHLO_PASS_SET = {
     "ReduceMaxFloatModule_basic",
     "ReduceMaxSignedIntModule_basic",
     "ReduceMaxUnsignedIntModule_basic",
+    "ReduceMinAllDims_basic",
+    "ReduceMinFloatModule_basic",
+    "ReduceMinSignedIntModule_basic",
+    "ReduceMinUnsignedIntModule_basic",
     "ReduceSumDimIntListFloatModule_basic",
     "ReduceSumDimIntListIntModule_basic",
     "ReduceSumFloatModule_basic",
@@ -859,6 +889,7 @@ STABLEHLO_PASS_SET = {
     "SplitTensorListUnpackModule_basic",
     "SplitTensorNegativeDimModule_basic",
     "SplitTensorLastSmallerModule_basic",
+    "SplitWithSizesListUnpackModule_basic",
     "UnbindIntListUnpack_Module_basic",
     "UnbindIntGetItem_Module_basic",
     "ChunkListUnpack_Module_basic",
@@ -868,9 +899,11 @@ STABLEHLO_PASS_SET = {
     "RandIntLowModule_basic",
     "RandIntModule_basic",
     "RandIntPinMemoryModule_basic",
+    "RandModule_basic",
     "UniformStaticShapeModule_basic",
     "UniformNoCorrelationModule_basic",
     "TupleModule_basic",
+    "AtenEmbeddingBagStaticModule_basic",
 }
 
 STABLEHLO_CRASHING_SET = {
@@ -882,7 +915,8 @@ STABLEHLO_CRASHING_SET = {
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
 
-    "Aten_EmbeddingBagExample_basic"
+    "Aten_EmbeddingBagExample_basic",
+    "AtenEmbeddingBagSumExample_basic"
 }
 
 TCP_PASS_SET = {
@@ -1027,13 +1061,19 @@ TOSA_PASS_SET = {
     "ElementwiseExpModule_basic",
     "ElementwiseReluModule_basic",
     "ElementwiseLeakyReluModule_basic",
+    "ElementwiseEluModule_basic",
+    "ElementwiseEluNonDefaultModule_basic",
     "ElementwiseFloorModule_basic",
     "ElementwiseLogModule_basic",
     "ElementwiseBinaryStaticShapeModule_basic",
     "ElementwiseMinimumModule_basic",
     "ElementwiseMinimumIntModule_basic",
+    "ElementwiseMinOtherIntModule_basic",
+    "ElementwiseMinOtherModule_basic",
     "ElementwiseMaximumModule_basic",
     "ElementwiseMaximumIntModule_basic",
+    "ElementwiseMaxOtherIntModule_basic",
+    "ElementwiseMaxOtherModule_basic",
     "ViewDoubleMergeStaticModule_basic",
     "ViewCollapseOnesMiddleModule_basic",
     "ViewFiveTestStaticModule_basic",
@@ -1070,7 +1110,7 @@ TOSA_PASS_SET = {
     "ReturnTwoTensorF32I64_basic",
     "ElementwiseSignModule_basic",
     "ElementwisePowModule_basic",
-    "BmmModule_basic",
+    "BmmFloatModule_basic",
     "MmDagModule_basic",
     "Matmul4dStatic_basic",
     "Matmul_dot",
@@ -1082,6 +1122,8 @@ TOSA_PASS_SET = {
     "ElementwiseBitwiseAndStaticShapeModule_basic",
     "ElementwiseBitwiseNotInt32Module_basic",
     "ElementwiseBitwiseNotInt64Module_basic",
+    "ElementwiseOrTensorStaticShapeModule_basic",
+    "ElementwiseOrTensorModule_basic",
     "ElementwiseBitwiseOrModule_basic",
     "ElementwiseBitwiseOrStaticShapeModule_basic",
     "ElementwiseBitwiseXorModule_basic",
@@ -1240,6 +1282,12 @@ TOSA_PASS_SET = {
     "FullLikeModuleFloat3DStatic_basic",
     "FullModuleDefaultDtype_basic",
     "FullModuleFloat3D_basic",
+    "NewFullModuleDefaultDtype_basic",
+    "NewFullModuleFalsePinMemory_basic",
+    "NewFullModuleFloat2D_basic",
+    "NewFullModuleFloat3DStatic_basic",
+    "NewFullModuleFloat3D_basic",
+    "NewFullModuleInt2DStatic_basic",
     "MaskedFillScalarDefaultModule_basic",
     "NumToTensorFloatModule_basic",
     "LiftFreshCopyModule_basic",
@@ -1324,6 +1372,7 @@ TOSA_PASS_SET = {
     "SplitTensorListUnpackModule_basic",
     "SplitTensorNegativeDimModule_basic",
     "SplitTensorLastSmallerModule_basic",
+    "SplitWithSizesListUnpackModule_basic",
     "ChunkListUnpack_Module_basic",
     "ChunkListUnpackUneven_Module_basic",
     "TupleModule_basic",
@@ -1347,13 +1396,6 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
 }) - {
 ### Test failing in make_fx_tosa but not in tosa
 
-    # failed to lower torch.aten.empty.memory_format
-    "BatchNorm1DModule_basic",
-    "BatchNorm1DWith2DInputModule_basic",
-    "BatchNorm2DModule_basic",
-    "BatchNorm3DModule_basic",
-    "BatchNorm1DStaticShapeModule_basic",
-
     # Dynamic shape, has extra unsupported broadcast ops
     "Matmul_3d",
 
@@ -1374,7 +1416,20 @@ if torch_version_for_comparison() < version.parse("2.1.0.dev"):
     MAKE_FX_TOSA_PASS_SET -= {
         # 'tensor.expand_shape' op expected rank expansion, but found source rank 1 >= result rank 1
         "ReshapeCollapseModule_basic",
+
+        # failed to lower torch.aten.empty.memory_format
+        "BatchNorm1DModule_basic",
+        "BatchNorm1DWith2DInputModule_basic",
+        "BatchNorm2DModule_basic",
+        "BatchNorm3DModule_basic",
+        "BatchNorm1DStaticShapeModule_basic",
     }
+
+LTC_CRASHING_SET = {
+    # TODO: update test to move all inputs to the lazy device. Otherwise test fails with:
+    # Check failed: lazy_tensor Input tensor is not a lazy tensor: CPUBoolType.
+    "HBC_basic",
+}
 
 LTC_XFAIL_SET = {
     "_Convolution2DAllFalseModule_basic",
@@ -1408,31 +1463,6 @@ LTC_XFAIL_SET = {
     "GeIntModule_basic",
     "GtFloatIntModule_basic",
     "GtIntModule_basic",
-    "HBC_basic",
-    "IndexPut1DFloatAccumulateModule_basic",
-    "IndexPut1DFloatNonAccumulateModule_basic",
-    "IndexPut1DIntAccumulateModule_basic",
-    "IndexPut1DIntNonAccumulateModule_basic",
-    "IndexPut2DFloatAccumulateModule_basic",
-    "IndexPut2DFloatNonAccumulateModule_basic",
-    "IndexPut2DIntAccumulateModule_basic",
-    "IndexPut2DIntNonAccumulateModule_basic",
-    "IndexPut3DFloatAccumulateModule_basic",
-    "IndexPut3DFloatNonAccumulateModule_basic",
-    "IndexPut3DIntAccumulateModule_basic",
-    "IndexPut3DIntNonAccumulateModule_basic",
-    "IndexPutHackedTwin1DFloatAccumulateModule_basic",
-    "IndexPutHackedTwin1DFloatNonAccumulateModule_basic",
-    "IndexPutHackedTwin1DIntAccumulateModule_basic",
-    "IndexPutHackedTwin1DIntNonAccumulateModule_basic",
-    "IndexPutHackedTwin2DFloatAccumulateModule_basic",
-    "IndexPutHackedTwin2DFloatNonAccumulateModule_basic",
-    "IndexPutHackedTwin2DIntAccumulateModule_basic",
-    "IndexPutHackedTwin2DIntNonAccumulateModule_basic",
-    "IndexPutHackedTwin3DFloatAccumulateModule_basic",
-    "IndexPutHackedTwin3DFloatNonAccumulateModule_basic",
-    "IndexPutHackedTwin3DIntAccumulateModule_basic",
-    "IndexPutHackedTwin3DIntNonAccumulateModule_basic",
     "IndexPutImpl1DFloatAccumulateModule_basic",
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
     "IndexPutImpl1DIntAccumulateModule_basic",
@@ -1444,28 +1474,6 @@ LTC_XFAIL_SET = {
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
     "IndexPutImplIndexWithNoneModule_basic",
-    "IndexTensorModule3dInput_basic",
-    "IndexTensorModule_basic",
-    "IndexTensorStaticModule_basic",
-    "IndexTensorMultiIndexStaticModule_basic",
-    "IndexTensorMultiInputContiguousCenter_basic",
-    "IndexTensorMultiInputNonContiguous_basic",
-    "IndexTensorMultiInputOneDim_basic",
-    "IndexTensorMultiInputThreeIndexers_basic",
-    "IndexTensorMultiInput_basic",
-    "IndexTensorSelectDimModule_basic",
-    "IndexTensorMultiInputContiguousOneDimDynamic_basic",
-    "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
-    "IndexTensorMultiInputNonContiguousDynamic_basic",
-    "IndexTensorMultiInputNonContiguousMultipleStaticDims_basic",
-    "IndexTensorStaticContiguousWithNoneModule_basic",
-    "IndexTensorStaticNonContiguousWithNoneModule_basic",
-    "IndexTensorHackedTwinModule_basic",
-    "IndexTensorHackedTwinModule3dInput_basic",
-    "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
-    "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
-    "IndexTensorDyanmicInputNonContiguousWithNoneModule_basic",
-    "LiftFreshCopyModule_basic",
     "Matmul_dot",
     "MulIntModule_basic",
     "DivIntModule_basic",
@@ -1532,9 +1540,11 @@ LTC_XFAIL_SET = {
     "AtenComplexImagModule_basic",
     "AtenComplexRealModule_basic",
     "AtenComplexViewModule_basic",
+    "AtenRealView128Module_basic",
+    "AtenRealView64Module_basic",
     "ScatterValueFloatModule_basic",
     "ScatterValueIntModule_basic",
-    "IndexTensorNegativeIndexModule_basic",
     "UniformStaticShapeModule_basic",
-    "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
+    "AtenEmbeddingBagStaticModule_basic",
+    "EmptyStridedModule_basic",
 }

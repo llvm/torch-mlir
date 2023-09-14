@@ -104,8 +104,8 @@ void checkDimEqualHelper(OpBuilder &b, Location loc, Value lhsDim,
   Type lhsType = lhsDim.getType();
   Type rhsType = rhsDim.getType();
   auto checkIntOrIndex = [](Type type) {
-    assert(type.isa<IntegerType>() ||
-           type.isa<IndexType>() && "must be either integer or index type");
+    assert((type.isa<IntegerType>() || type.isa<IndexType>()) &&
+           "must be either integer or index type");
   };
   checkIntOrIndex(lhsType);
   checkIntOrIndex(rhsType);

@@ -300,6 +300,11 @@ function test_in_tree() {
 
       echo ":::: Run Linalg e2e integration tests"
       python -m e2e_testing.main --config=linalg -v
+
+      # Dynamo is changing a lot in nightly versions, and thus the implementation
+      # tends to become incompatible to the stable version.
+      echo ":::: Run TorchDynamo e2e integration tests"
+      python -m e2e_testing.main --config=torchdynamo -v
       ;;
     stable)
       echo ":::: Test with stable torch"
@@ -316,12 +321,6 @@ function test_in_tree() {
 
   echo ":::: Run make_fx + TOSA e2e integration tests"
   python -m e2e_testing.main --config=make_fx_tosa -v
-
-  echo ":::: Run TorchDynamo e2e integration tests"
-  python -m e2e_testing.main --config=torchdynamo -v
-
-  echo ":::: Run StableHLO e2e integration tests"
-  python -m e2e_testing.main --config=stablehlo -v
 
   echo ":::: Run TOSA e2e integration tests"
   python -m e2e_testing.main --config=tosa -v

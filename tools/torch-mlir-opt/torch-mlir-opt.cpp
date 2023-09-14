@@ -14,8 +14,6 @@
 #include "torch-mlir/InitAll.h"
 
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
-#include "mhlo/IR/hlo_ops.h"
-#include "mhlo/transforms/passes.h"
 #include "stablehlo/dialect/Register.h"
 #endif
 
@@ -32,12 +30,6 @@ int main(int argc, char **argv) {
   
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
   mlir::stablehlo::registerAllDialects(registry);
-  registry.insert<mlir::mhlo::MhloDialect>();
-  mlir::mhlo::registerSymbolicShapeOptimizationPass();
-  mlir::mhlo::registerStablehloLegalizeToHloPass();
-  mlir::mhlo::registerChloLegalizeToHloPass();
-  mlir::mhlo::registerHloLegalizeToLinalgPass();
-  mlir::mhlo::registerTestUnfuseBatchNormPass();
 #endif
   return mlir::asMainReturnCode(mlir::MlirOptMain(
       argc, argv, "MLIR modular optimizer driver\n", registry));

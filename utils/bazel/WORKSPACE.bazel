@@ -37,8 +37,8 @@ llvm_configure(
 )
 
 local_repository(
-    name = "mlir-hlo",
-    path = "../../externals/mlir-hlo/",
+    name = "stablehlo",
+    path = "../../externals/stablehlo/",
 )
 
 new_local_repository(

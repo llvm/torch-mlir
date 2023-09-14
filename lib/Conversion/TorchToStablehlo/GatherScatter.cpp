@@ -29,6 +29,32 @@ using namespace mlir::torch::Torch;
 using namespace mlir::torch::torch_to_stablehlo;
 
 namespace {
+static Value createInitialValueForGatherScatterOp(Operation *op,
+                                           RankedTensorType constType,
+                                           PatternRewriter &rewriter) {
+  auto elementTy = constType.getElementType();
+  if (isa<AtenEmbeddingBagPaddingIdxOp>(op)) {
+    if (elementTy.isa<mlir::FloatType>()) {
+      auto constAttr = DenseElementsAttr::get(
+          constType, {APFloat::getZero(
+                         elementTy.cast<mlir::FloatType>().getFloatSemantics(),
+                         /*negative=*/false)});
+      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
+                                                    constAttr);
+    } else if (elementTy.isa<mlir::IntegerType>() &&
+               elementTy.getIntOrFloatBitWidth() != 8) {
+      auto constAttr = DenseElementsAttr::get(
+          constType, {APInt::getZero(elementTy.getIntOrFloatBitWidth())});
+      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
+                                                    constAttr);
+    }
+  }
+
+  op->emitError("unimplemented lowering in "
+                "createInitialValueForGatherScatterOp");
+  return nullptr;
+}
+
 Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
                                   Value input, Value indices, int64_t axis,
                                   size_t dimSizeIndexBits) {
@@ -214,6 +240,162 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
   rewriter.replaceOpWithNewOp<stablehlo::ConvertOp>(
       op, getTypeConverter()->convertType(op.getType()), output);
 
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenEmbeddingBagPaddingIdxOp>::matchAndRewrite(
+    AtenEmbeddingBagPaddingIdxOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Location loc = op->getLoc();
+  Value weight = adaptor.getWeight();
+  Value indices = adaptor.getIndices();
+  Value offsets = adaptor.getOffsets();
+
+  auto weightTy = weight.getType().cast<RankedTensorType>();
+  if (weightTy && weightTy.hasStaticShape() && weightTy.getRank() != 2)
+    return rewriter.notifyMatchFailure(
+        op, "weight must be rank 2 tensor with static shapes");
+
+  auto indicesTy = indices.getType().cast<RankedTensorType>();
+  if (indicesTy && indicesTy.hasStaticShape() && indicesTy.getRank() != 1)
+    return rewriter.notifyMatchFailure(
+        op, "indices must be a vector with static shapes");
+
+  auto offsetsTy = offsets.getType().cast<RankedTensorType>();
+  if (offsetsTy && offsetsTy.getRank() != 1 && offsetsTy.hasStaticShape() &&
+      offsetsTy.getShape()[0] == 1)
+    return rewriter.notifyMatchFailure(
+        op, "offsets must be a vector with static shape equal to 1");
+
+  if (!op.getPaddingIdx().getType().isa<Torch::NoneType>())
+    return rewriter.notifyMatchFailure(
+        op, "Unimplemented: padding_idx should be none");
+
+  if (!op.getPerSampleWeights().getType().isa<Torch::NoneType>())
+    return rewriter.notifyMatchFailure(
+        op, "Unimplemented: per_sample_weights should be none");
+
+  bool includeLastOffset;
+  if (!matchPattern(op.getIncludeLastOffset(),
+                    m_TorchConstantBool(&includeLastOffset))) {
+    return rewriter.notifyMatchFailure(
+        op, "include_last_offset is expected to be a constant boolean value.");
+  }
+  if (includeLastOffset)
+    return rewriter.notifyMatchFailure(
+        op, "include_last_offset is currently not supported");
+
+  bool scaleGradByFreq;
+  if (!matchPattern(op.getScaleGradByFreq(),
+                    m_TorchConstantBool(&scaleGradByFreq)))
+    return rewriter.notifyMatchFailure(
+        op, "only constant scale_grad_by_freq is currently supported");
+  if (scaleGradByFreq)
+    return rewriter.notifyMatchFailure(
+        op, "scale gradients is currently not supported");
+
+  bool sparse;
+  if (!matchPattern(op.getSparse(), m_TorchConstantBool(&sparse)))
+    return rewriter.notifyMatchFailure(
+        op, "only constant sparse is currently supported");
+  if (sparse)
+    return rewriter.notifyMatchFailure(
+        op, "sparse gradients is currently not supported");
+
+  int64_t modeInt;
+  if (!matchPattern(op.getMode(), m_TorchConstantInt(&modeInt))) {
+    return rewriter.notifyMatchFailure(
+        op, "mode is expected to be a constant integer value.");
+  }
+  if (modeInt != torch_upstream::EmbeddingBagMode::MODE_SUM) {
+    return rewriter.notifyMatchFailure(op,
+                                       "Unimplemented: Mean and Max mode are "
+                                       "not supported yet for EmbeddingBag.");
+  }
+
+  const auto &options =
+      ConvertAtenOp<AtenEmbeddingBagPaddingIdxOp>::getOptions();
+  auto weightDimSizes =
+      *hlo::getDimSizesOfTensor(rewriter, op, weight, options.dimSizeIndexBits);
+  auto indicesDimSizes = *hlo::getDimSizesOfTensor(rewriter, op, indices,
+                                                   options.dimSizeIndexBits);
+  auto offsetsDimSizes = *hlo::getDimSizesOfTensor(rewriter, op, offsets,
+                                                   options.dimSizeIndexBits);
+
+  Value gatherOutput = gatherTensorAlongSingleAxis(
+      rewriter, op, weight, indices, 0, options.dimSizeIndexBits);
+
+  Type elementTy = weightTy.getElementType();
+  auto constType = RankedTensorType::get({}, elementTy);
+  Value initValue =
+      createInitialValueForGatherScatterOp(op, constType, rewriter);
+  if (!initValue)
+    return failure();
+
+  auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
+      op.getLoc(), gatherOutput, initValue, rewriter.getI64TensorAttr({0}));
+
+  Region &region = stablehloReduceOp.getBody();
+  Block &block = region.emplaceBlock();
+  auto blockArgumentTy = RankedTensorType::get({}, elementTy);
+
+  block.addArgument(blockArgumentTy, op->getLoc());
+  block.addArgument(blockArgumentTy, op->getLoc());
+
+  auto *firstArgument = block.args_begin();
+  auto secondArgument = block.args_rbegin();
+
+  {
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(&block);
+    Value addResult = rewriter.create<stablehlo::AddOp>(
+        op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
+    rewriter.create<stablehlo::ReturnOp>(op->getLoc(), addResult);
+  }
+
+  auto outShapeInfo =
+      hlo::getDimSizesOfTensor(rewriter, op, weight, options.dimSizeIndexBits);
+  if (failed(outShapeInfo)) {
+    return rewriter.notifyMatchFailure(
+        op, "failed to get dimension sizes of the input");
+  }
+  auto outShapeVec = *outShapeInfo;
+  auto one = rewriter.create<mlir::arith::ConstantOp>(
+      op->getLoc(), rewriter.getIntegerAttr(
+                        rewriter.getIntegerType(options.dimSizeIndexBits), 1));
+  outShapeVec[0] = one;
+  auto outShapeTensor =
+      rewriter.create<mlir::tensor::FromElementsOp>(op->getLoc(), outShapeVec);
+  auto resultA = rewriter.create<stablehlo::DynamicReshapeOp>(
+      loc, getTypeConverter()->convertType(op.getType(0)),
+      stablehloReduceOp.getResult(0), outShapeTensor);
+
+  RankedTensorType resultType = getTypeConverter()
+                                    ->convertType(op->getResult(1).getType())
+                                    .cast<RankedTensorType>();
+  Value resultB =
+      createInitialValueForGatherScatterOp(op, resultType, rewriter);
+  if (!resultB)
+    return failure();
+
+  resultType = getTypeConverter()
+                   ->convertType(op->getResult(2).getType())
+                   .cast<RankedTensorType>();
+  Value resultC =
+      createInitialValueForGatherScatterOp(op, resultType, rewriter);
+  if (!resultC)
+    return failure();
+
+  resultType = getTypeConverter()
+                   ->convertType(op->getResult(3).getType())
+                   .cast<RankedTensorType>();
+  Value resultD =
+      createInitialValueForGatherScatterOp(op, resultType, rewriter);
+  if (!resultD)
+    return failure();
+
+  rewriter.replaceOp(op, {resultA, resultB, resultC, resultD});
   return success();
 }
 
@@ -665,6 +847,7 @@ void mlir::torch::torch_to_stablehlo::
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context, options)
   INSERT_ATENOP_PATTERN(AtenEmbeddingOp);
+  INSERT_ATENOP_PATTERN(AtenEmbeddingBagPaddingIdxOp);
   INSERT_ATENOP_PATTERN(AtenIndexSelectOp);
   INSERT_ATENOP_PATTERN(AtenGatherOp);
   INSERT_ATENOP_PATTERN(AtenSliceScatterOp);

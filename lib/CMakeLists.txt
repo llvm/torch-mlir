@@ -23,14 +23,6 @@ set(LinkedLibs
   TorchMLIRRefBackend
 )
 
-if(TORCH_MLIR_ENABLE_STABLEHLO)
-  list(APPEND LinkedLibs
-    MhloPasses
-    MhloToLinalg
-    StablehloToMhlo
-  )
-endif()
-
 add_mlir_library(TorchMLIRInitAll
   InitAll.cpp
 
