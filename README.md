@@ -61,7 +61,7 @@ python -m pip install --upgrade pip
 Then, we can install torch-mlir with the corresponding torch and torchvision nightlies.
 ```
 pip install --pre torch-mlir torchvision \
-  -f https://llvm.github.io/torch-mlir/package-index/
+  -f https://llvm.github.io/torch-mlir/package-index/ \
   --extra-index-url https://download.pytorch.org/whl/nightly/cpu
 ```
 
