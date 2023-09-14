@@ -283,68 +283,27 @@ public:
   // `getStaticInformation`?
   static void solveDynamicSize(SmallVector<int64_t> &inputShape,
                                SmallVector<int64_t> &outputShape) {
-    int64_t inputProduct = 1;
-    int64_t outputProduct = 1;
+    int64_t inputDynamicDimCount = llvm::count(inputShape, kUnknownSize);
+    int64_t outputDynamicDimCount = llvm::count(outputShape, kUnknownSize);
+    if (inputDynamicDimCount + outputDynamicDimCount != 1)
+      return;
 
-    int64_t inputDynamicValues = 0;
-    int64_t outputDynamicValues = 0;
+    auto productReduce = [](ArrayRef<int64_t> a) -> int64_t {
+      return accumulate(a.begin(), a.end(), /*init=*/1,
+                        std::multiplies<int64_t>());
+    };
 
-    for (int64_t value : inputShape) {
-      if (value == kUnknownSize) {
-        ++inputDynamicValues;
-      } else {
-        inputProduct *= value;
-      }
+    int64_t inputProduct = productReduce(inputShape);
+    int64_t outputProduct = productReduce(outputShape);
+
+    if (inputDynamicDimCount == 1) {
+      inputProduct /= kUnknownSize;
+      *llvm::find(inputShape, kUnknownSize) = outputProduct / inputProduct;
+    } else {
+      outputProduct /= kUnknownSize;
+      *llvm::find(outputShape, kUnknownSize) = inputProduct / outputProduct;
     }
-    for (int64_t value : outputShape) {
-      if (value == kUnknownSize) {
-        ++outputDynamicValues;
-      } else {
-        outputProduct *= value;
-      }
-    }
-
-    if (inputDynamicValues + outputDynamicValues == 1) {
-      if (inputDynamicValues) {
-        int64_t missingValue = outputProduct / inputProduct;
-        for (size_t i = 0; i < inputShape.size(); i++) {
-          if (inputShape[i] == -1) {
-            inputShape[i] = missingValue;
-            break;
-          }
-        }
-      } else {
-        int64_t missingValue = inputProduct / outputProduct;
-        for (size_t i = 0; i < outputShape.size(); i++) {
-          if (outputShape[i] == -1) {
-            outputShape[i] = missingValue;
-            break;
-          }
-        }
-      }
-    }
-
-    // auto productReduceKnownSizes = [](const ArrayRef<int64_t> sizes) {
-    //   auto knownSizes = llvm::make_filter_range(
-    //                                             sizes, [](int64_t val) {
-    //                                             return val != kUnknownSize;
-    //                                             });
-    //   return std::accumulate(knownSizes.begin(), knownSizes.end(),
-    //   /*init=*/1,
-    //                          std::multiplies<int64_t>());
-    // };
-
-    // int64_t numOfElements = productReduceKnownSizes(inputShape);
-    // int64_t outputKnownNumOfElements = productReduceKnownSizes(outputShape);
-    // if (numOfElements % outputKnownNumOfElements != 0) {
-    //   return rewriter.notifyMatchFailure(
-    //                                      op, "number of elements in input
-    //                                      tensor must be divisible by "
-    //                                      "product of non-inferred dimensions
-    //                                      in size list");
-    // }
-    // outputShape[*inferredDimension] =
-    //   numOfElements / outputKnownNumOfElements;
+    return;
   }
 
   // TODO(ramiro050): choose a good name for this function
