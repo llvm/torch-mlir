@@ -182,14 +182,14 @@ public:
   // computes the size of a collapsed dynamic dim if necessary.
   // TODO(ramiro050): returning product here feels awkward, but I
   // can't think of better way
-  static LogicalResult
+  static FailureOr<int64_t>
   collapseToSingleDimHelper2(ArrayRef<int64_t> xs, ArrayRef<int64_t> ys,
                              ReassociationIndices &xIndices,
                              ReassociationIndices &yIndices) {
     // TODO(ramiro050): name variable
     auto blah = [](int64_t expectedReductionProduct,
                    ArrayRef<int64_t> arrayToReduce,
-                   ReassociationIndices &reductionIndices) -> LogicalResult {
+                   ReassociationIndices &reductionIndices) -> FailureOr<int64_t> {
       int64_t reductionProduct = 1;
       for (auto [index, elem] : llvm::enumerate(arrayToReduce)) {
         reductionIndices.push_back(index);
@@ -208,7 +208,7 @@ public:
       // now it's all I can come up with
       // TODO(ramiro050): cannot mutate because `ArrayRef`s are const
       // singletonArray[0] = reductionProduct;
-      return success();
+      return reductionProduct;
     };
 
     if (xs.size() == 1) {
@@ -536,10 +536,16 @@ public:
                   "[-1, -1, -1] -> [-1, -1])");
         }
 
-        if (succeeded(collapseToSingleDimHelper2(
+        FailureOr<int64_t> reductionProduct = collapseToSingleDimHelper2(
                 inputShapeSlice, outputShapeSlice, inputAssociations.back(),
-                outputAssociations.back()))) {
+                outputAssociations.back());
+        if (succeeded(reductionProduct)) {
           // TODO(ramiro050): should this have a `hasDynamic = false`?
+          if (inputShapeSlice.size() == 1) {
+            inputShape[inputDim] = *reductionProduct;
+          } else if (outputShapeSlice.size() == 1) {
+            outputShape[outputDim] = *reductionProduct;
+          }
         } else if (inputShapeSlice[0] == kUnknownSize) {
           // TODO(ramiro050): the use of slice-indices and global
           // input/outputDim indices is confusing here. Maybe create a helper
