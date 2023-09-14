@@ -1066,7 +1066,7 @@ cc_library(
         "@llvm-project//mlir:LinalgDialect",
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:Transforms",
-        "@mlir-hlo//stablehlo:stablehlo_ops",
+        "@stablehlo//:stablehlo_ops",
     ],
 )
 
