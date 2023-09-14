@@ -177,43 +177,11 @@ namespace {
 class ConvertAtenViewOp : public OpConversionPattern<AtenViewOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
-
   // Helper for filling in remaining un-collapsed dims when the
   // input/output dim is next to the next boundary dim. Additionally
   // computes the size of a collapsed dynamic dim if necessary.
-  static LogicalResult
-  collapseToSingleDimHelper(AtenViewOp op, ConversionPatternRewriter &rewriter,
-                            int64_t collapseDim, int64_t maxCollapseDim,
-                            int64_t startExpandDim, int64_t maxExpandDim,
-                            SmallVector<int64_t> &collapseShape,
-                            const SmallVector<int64_t> &expandShape,
-                            ReassociationIndices &expandIndices) {
-    int64_t collapseDimSize = 1;
-    for (auto i : llvm::seq<int64_t>(startExpandDim, maxExpandDim)) {
-      expandIndices.push_back(i);
-      if (collapseDimSize == kUnknownSize)
-        continue;
-
-      int64_t expandedDimSize = expandShape[i];
-      if (expandedDimSize == kUnknownSize) {
-        collapseDimSize = kUnknownSize;
-        continue;
-      }
-      collapseDimSize *= expandedDimSize;
-    }
-    int64_t rawCollapseDimSize = collapseShape[collapseDim];
-    if (rawCollapseDimSize != kUnknownSize && collapseDimSize != kUnknownSize &&
-        collapseDimSize != rawCollapseDimSize) {
-      return rewriter.notifyMatchFailure(
-          op, "desired size is not compatible with the input tensor size");
-    }
-    collapseShape[collapseDim] = collapseDimSize;
-    return success();
-  }
-
-  // Helper for filling in remaining un-collapsed dims when the
-  // input/output dim is next to the next boundary dim. Additionally
-  // computes the size of a collapsed dynamic dim if necessary.
+  // TODO(ramiro050): returning product here feels awkward, but I
+  // can't think of better way
   static LogicalResult
   collapseToSingleDimHelper2(ArrayRef<int64_t> xs, ArrayRef<int64_t> ys,
                              ReassociationIndices &xIndices,
@@ -254,70 +222,6 @@ public:
     }
   }
 
-  // Helper to find the minimum set of dims to collapse with the
-  // same number of elements as that of collapseDim. This function assumes
-  // the size of the collapsed dim is never dynamic.
-  static LogicalResult minimallyCollapseDimHelper(
-      AtenViewOp op, ConversionPatternRewriter &rewriter, int64_t collapseDim,
-      int64_t maxCollapseDim, int64_t startExpandDim, int64_t maxExpandDim,
-      SmallVector<int64_t> &collapseShape, SmallVector<int64_t> &expandShape,
-      ReassociationIndices &collapseIndices,
-      ReassociationIndices &expandIndices) {
-
-    int64_t collapseDimSize = collapseShape[collapseDim];
-
-    int64_t expandedSize = 1;
-    int64_t collapsedSize = collapseDimSize;
-
-    int64_t expandIndex = startExpandDim;
-    int64_t collapseIndex = collapseDim + 1;
-
-    // TODO(ramiro050): should this come with a warning? Maybe
-    // `checkDimEqualHelper` takes care of it?
-    if (collapseDimSize == kUnknownSize) {
-      if (llvm::all_of(collapseShape,
-                       [](int64_t value) { return value == kUnknownSize; }) &&
-          llvm::all_of(expandShape,
-                       [](int64_t value) { return value == kUnknownSize; })) {
-
-        for (size_t i = 0; i < collapseShape.size(); i++) {
-          collapseIndices.push_back(i);
-        }
-
-        for (size_t i = 0; i < expandShape.size(); i++) {
-          expandIndices.push_back(i);
-        }
-
-        return success();
-      }
-    }
-
-    while (expandIndex != maxExpandDim || collapseIndex != maxCollapseDim) {
-      if (expandIndex != maxExpandDim && expandedSize <= collapsedSize) {
-        int64_t expandDimSize = expandShape[expandIndex];
-        if (expandDimSize != kUnknownSize) {
-          expandedSize *= expandDimSize;
-        }
-        expandIndices.push_back(expandIndex);
-        expandIndex++;
-
-      } else if (collapseIndex != maxCollapseDim &&
-                 collapsedSize < expandedSize) {
-        collapseDimSize = collapseShape[collapseIndex];
-        if (collapseDimSize != kUnknownSize) {
-          collapsedSize *= collapseDimSize;
-        }
-        collapseIndices.push_back(collapseIndex);
-        collapseIndex++;
-      }
-
-      if (expandedSize == collapsedSize)
-        return success();
-    }
-    return rewriter.notifyMatchFailure(
-        op, "total number of elements mismatch in the expansion");
-  }
-
   static LogicalResult allDynamicCase(ArrayRef<int64_t> xs,
                                       ArrayRef<int64_t> ys,
                                       ReassociationIndices &xIndices,
@@ -342,6 +246,7 @@ public:
   minimallyCollapseDimHelper2(ArrayRef<int64_t> xs, ArrayRef<int64_t> ys,
                               ReassociationIndices &xIndices,
                               ReassociationIndices &yIndices) {
+    // TODO(ramiro050): use lambda to make this half the size
     int64_t xTotalSize = xs[0];
     int64_t yTotalSize = ys[0];
     xIndices.push_back(0);
@@ -374,7 +279,8 @@ public:
     return success(xTotalSize == yTotalSize);
   }
 
-  // TODO(ramiro050): this can be half the szie
+  // TODO(ramiro050): this can be half the szie and can it be merged with
+  // `getStaticInformation`?
   static void solveDynamicSize(SmallVector<int64_t> &inputShape,
                                SmallVector<int64_t> &outputShape) {
     int64_t inputProduct = 1;
@@ -652,13 +558,10 @@ public:
         } else if (succeeded(allDynamicCase(inputShapeSlice, outputShapeSlice,
                                             inputAssociations.back(),
                                             outputAssociations.back()))) {
-          // TODO(ramiro050): figure out a way ot share this with below
           hasDynamic = false;
         } else if (succeeded(minimallyCollapseDimHelper2(
                        inputShapeSlice, outputShapeSlice,
                        inputAssociations.back(), outputAssociations.back()))) {
-          // TODO(ramiro050): we need to shift the resulting indices by
-          // the current index that we are in
           hasDynamic = false;
         } else {
           return rewriter.notifyMatchFailure(op, "TODO2");
