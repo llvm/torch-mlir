@@ -34,6 +34,10 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
+static int64_t productReduce(ArrayRef<int64_t> a) {
+  return accumulate(a.begin(), a.end(), /*init=*/1, std::multiplies<int64_t>());
+}
+
 template <typename OpTy, typename OpAdaptor>
 LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
                                            ConversionPatternRewriter &rewriter,
@@ -177,11 +181,6 @@ namespace {
 class ConvertAtenViewOp : public OpConversionPattern<AtenViewOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
-  static int64_t productReduce(ArrayRef<int64_t> a) {
-    return accumulate(a.begin(), a.end(), /*init=*/1,
-                      std::multiplies<int64_t>());
-  }
-
   // TODO(ramiro050): update doc string
   static LogicalResult mapAllDimsToSingleDim(ArrayRef<int64_t> xDims,
                                              ArrayRef<int64_t> yDims,
@@ -199,14 +198,12 @@ public:
       if (!isValidReduction(xDims[0], yDims))
         return failure();
       xIndices.assign({0});
-      yIndices.assign(llvm::to_vector(
-          llvm::iota_range<int64_t>(0, yDims.size(), /*inclusive=*/false)));
+      yIndices.assign(llvm::to_vector(llvm::seq(0l, (int64_t)yDims.size())));
     } else if (yDims.size() == 1) {
       if (!isValidReduction(yDims[0], xDims))
         return failure();
       yIndices.assign({0});
-      xIndices.assign(llvm::to_vector(
-          llvm::iota_range<int64_t>(0, xDims.size(), /*inclusive=*/false)));
+      xIndices.assign(llvm::to_vector(llvm::seq(0l, (int64_t)xDims.size())));
     } else {
       return failure();
     }
@@ -356,7 +353,6 @@ public:
     // [6] => [3, 2].
     auto [inputShape, outputShape] =
         getInputAndOutputShape(op.getSelf(), outputSizeTorchInt);
-    solveSingleDynamicSize(inputShape, outputShape);
 
     SmallVector<std::pair<int64_t, int64_t>> unchangedDims;
     for (auto [outputDim, outputDimSize] :
@@ -418,10 +414,6 @@ public:
         MutableArrayRef<int64_t> outputShapeSlice(outputShape);
         outputShapeSlice =
             outputShapeSlice.slice(outputDim, nextUnchangedOutput - outputDim);
-
-        // TODO(ramiro050); can doing this here remove one of the if cases
-        // below? solveSingleDynamicSize(inputShapeSlice, outputShapeSlice);
-
         SmallVector<int64_t> inputIndices;
         SmallVector<int64_t> outputIndices;
 
@@ -483,6 +475,7 @@ public:
         outputDim = outputAssociations.back().back() + 1;
       }
 
+      // TODO(ramiro050): what is this case?
       if (inputDim != nextUnchangedInput) {
         hasDynamic = true;
         if (inputAssociations.size() < 1) {
