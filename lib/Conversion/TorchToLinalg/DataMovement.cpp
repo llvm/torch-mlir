@@ -240,7 +240,7 @@ public:
     return success();
   }
 
-  // TODO(ramiro050): improve naming
+  // TODO(ramiro050): improve naming + docstring
   static void solveSingleDynamicSize(MutableArrayRef<int64_t> inputShape,
                                      MutableArrayRef<int64_t> outputShape) {
     int64_t inputDynamicDimCount = llvm::count(inputShape, kUnknownSize);
@@ -260,18 +260,7 @@ public:
     }
   }
 
-  // TODO(ramiro050): choose a good name for this function
-  // Iterate through the view op size list to do the following:
-  //
-  // 1. Combine output size list and input tensor type info to get the most
-  // static outputShape.
-  //
-  // 2. Mark dims in unchangedDims for size list items where the output dim
-  // size comes from a `torch.aten.size.int(inputTensor, inputDim)`. We
-  // naively assume this means the corresponding dimension is not expanded or
-  // collapsed. Note this may technically not always be true.
-  // TODO: think of a way better way to at least detect when this assumption
-  // is violated for the cases of dynamic dimensions.
+  // TODO(ramiro050): docstring
   static std::pair<SmallVector<int64_t>, SmallVector<int64_t>>
   getInputAndOutputShape(Value inputTorchTensor,
                          SmallVector<Value> outputSizeTorchInt) {
@@ -414,8 +403,8 @@ public:
         MutableArrayRef<int64_t> outputShapeSlice(outputShape);
         outputShapeSlice =
             outputShapeSlice.slice(outputDim, nextUnchangedOutput - outputDim);
-        SmallVector<int64_t> inputIndices;
-        SmallVector<int64_t> outputIndices;
+        SmallVector<int64_t> inputSliceIndices;
+        SmallVector<int64_t> outputSliceIndices;
 
         // TODO(ramiro050): I don't like the `hasDynamic` variable. Improve it
         if ((hasDynamic && outputDim == nextUnchangedOutput - 1 &&
@@ -430,7 +419,7 @@ public:
         }
 
         if (succeeded(mapAllDimsToSingleDim(inputShapeSlice, outputShapeSlice,
-                                            inputIndices, outputIndices))) {
+                                            inputSliceIndices, outputSliceIndices))) {
           // TODO(ramiro050): is there a way to do this type-updating at the end
           // of while loop?
           solveSingleDynamicSize(inputShapeSlice, outputShapeSlice);
@@ -444,21 +433,17 @@ public:
           hasDynamic = false;
         } else if (succeeded(
                        mapStaticallyKnownDims(inputShapeSlice, outputShapeSlice,
-                                              inputIndices, outputIndices))) {
+                                              inputSliceIndices, outputSliceIndices))) {
           hasDynamic = false;
         } else if (inputShapeSlice[0] == kUnknownSize) {
-          // TODO(ramiro050): the use of slice-indices and global
-          // input/outputDim indices is confusing here. Maybe create a helper
-          // for this case too
-          //
           // If the input is dynamic, first assume it is not split
           checkDimEqualHelper(rewriter, loc, inputSize[inputDim],
                               outputSizeInt[outputDim]);
           // If output dimension is not dynamic, improve static information of
           // input
           inputShape[inputDim] = outputShape[outputDim];
-          inputIndices.push_back(0);
-          outputIndices.push_back(0);
+          inputSliceIndices.push_back(0);
+          outputSliceIndices.push_back(0);
           hasDynamic = true;
         } else {
           return rewriter.notifyMatchFailure(op, "TODO2");
@@ -467,9 +452,9 @@ public:
         // TODO(ramiro050): ducument this step
         inputAssociations.emplace_back();
         outputAssociations.emplace_back();
-        for (int64_t inputIndex : inputIndices)
+        for (int64_t inputIndex : inputSliceIndices)
           inputAssociations.back().push_back(inputIndex + inputDim);
-        for (int64_t outputIndex : outputIndices)
+        for (int64_t outputIndex : outputSliceIndices)
           outputAssociations.back().push_back(outputIndex + outputDim);
         inputDim = inputAssociations.back().back() + 1;
         outputDim = outputAssociations.back().back() + 1;
