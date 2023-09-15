@@ -217,23 +217,6 @@ public:
     }
   }
 
-  static LogicalResult allDynamicCase(ArrayRef<int64_t> xs,
-                                      ArrayRef<int64_t> ys,
-                                      SmallVector<int64_t> &xIndices,
-                                      SmallVector<int64_t> &yIndices) {
-    // TODO(ramiro050): should this come with a warning? Maybe
-    // `checkDimEqualHelper` takes care of it?
-    auto isStatic = [](int64_t value) { return value != kUnknownSize; };
-    if (llvm::any_of(xs, isStatic) && llvm::any_of(ys, isStatic))
-      return failure();
-
-    xIndices.append(llvm::to_vector(
-        llvm::iota_range<int64_t>(0, xs.size(), /*inclusive=*/false)));
-    yIndices.append(llvm::to_vector(
-        llvm::iota_range<int64_t>(0, ys.size(), /*inclusive=*/false)));
-    return success();
-  }
-
   // TODO(ramiro050): add better description
   // Returns error when total number of elements does not match expansion total
   // TODO(ramiro050): don't mutate results until you know there's success
@@ -504,10 +487,6 @@ public:
           inputIndices.push_back(0);
           outputIndices.push_back(0);
           hasDynamic = true;
-        } else if (succeeded(allDynamicCase(inputShapeSlice, outputShapeSlice,
-                                            inputIndices, outputIndices))) {
-          assert(false);
-          hasDynamic = false;
         } else if (succeeded(minimallyCollapseDimHelper2(
                        inputShapeSlice, outputShapeSlice, inputIndices,
                        outputIndices))) {
