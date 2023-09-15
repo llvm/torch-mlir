@@ -129,12 +129,12 @@ def Tcp_MulOp : Tcp_BinaryElementwiseOp<"mul", [SameOperandsAndResultElementType
   }];
 
   let arguments = (ins
-    Tcp_Tensor:$in1,
-    Tcp_Tensor:$in2
+    Tcp_FloatOrIntTensor:$in1,
+    Tcp_FloatOrIntTensor:$in2
   );
 
   let results = (outs
-    Tcp_Tensor:$out
+    Tcp_FloatOrIntTensor:$out
   );
 
   let assemblyFormat = "$in1 `,` $in2 attr-dict `:` type($in1) `,` type($in2) `->` type($out)";
