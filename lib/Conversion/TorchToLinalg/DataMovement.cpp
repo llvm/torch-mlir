@@ -177,96 +177,79 @@ namespace {
 class ConvertAtenViewOp : public OpConversionPattern<AtenViewOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
-  // Helper for filling in remaining un-collapsed dims when the
-  // input/output dim is next to the next boundary dim. Additionally
-  // computes the size of a collapsed dynamic dim if necessary.
-  // TODO(ramiro050): returning product here feels awkward, but I
-  // can't think of better way
-  static LogicalResult
-  collapseToSingleDimHelper2(ArrayRef<int64_t> xs, ArrayRef<int64_t> ys,
-                             SmallVector<int64_t> &xIndices,
-                             SmallVector<int64_t> &yIndices) {
-    // TODO(ramiro050): name variable
-    auto blah = [](int64_t expectedReductionProduct,
-                   ArrayRef<int64_t> arrayToReduce,
-                   SmallVector<int64_t> &reductionIndices) -> LogicalResult {
-      int64_t reductionProduct = 1;
-      for (auto [index, elem] : llvm::enumerate(arrayToReduce)) {
-        reductionIndices.push_back(index);
-        if (elem == kUnknownSize)
-          reductionProduct = kUnknownSize;
-        if (reductionProduct != kUnknownSize)
-          reductionProduct *= elem;
-      }
-      if (reductionProduct != kUnknownSize &&
-          expectedReductionProduct != kUnknownSize &&
-          reductionProduct != expectedReductionProduct) {
-        return failure();
-      }
-      return success();
+  static int64_t productReduce(ArrayRef<int64_t> a) {
+    return accumulate(a.begin(), a.end(), /*init=*/1,
+                      std::multiplies<int64_t>());
+  }
+
+  // TODO(ramiro050): update doc string
+  static LogicalResult mapAllDimsToSingleDim(ArrayRef<int64_t> xDims,
+                                             ArrayRef<int64_t> yDims,
+                                             SmallVector<int64_t> &xIndices,
+                                             SmallVector<int64_t> &yIndices) {
+    auto isValidReduction = [](int64_t expectedReductionProduct,
+                               ArrayRef<int64_t> arrayToReduce) -> bool {
+      if (llvm::count(arrayToReduce, kUnknownSize) > 0 ||
+          expectedReductionProduct == kUnknownSize)
+        return true;
+      return productReduce(arrayToReduce) == expectedReductionProduct;
     };
 
-    if (xs.size() == 1) {
-      xIndices.push_back(0);
-      return blah(xs[0], ys, yIndices);
-    } else if (ys.size() == 1) {
-      yIndices.push_back(0);
-      return blah(ys[0], xs, xIndices);
+    if (xDims.size() == 1) {
+      if (!isValidReduction(xDims[0], yDims))
+        return failure();
+      xIndices.assign({0});
+      yIndices.assign(llvm::to_vector(
+          llvm::iota_range<int64_t>(0, yDims.size(), /*inclusive=*/false)));
+    } else if (yDims.size() == 1) {
+      if (!isValidReduction(yDims[0], xDims))
+        return failure();
+      yIndices.assign({0});
+      xIndices.assign(llvm::to_vector(
+          llvm::iota_range<int64_t>(0, xDims.size(), /*inclusive=*/false)));
     } else {
       return failure();
     }
+    return success();
   }
 
   // TODO(ramiro050): add better description
-  // Returns error when total number of elements does not match expansion total
-  // TODO(ramiro050): don't mutate results until you know there's success
-  static LogicalResult
-  minimallyCollapseDimHelper2(ArrayRef<int64_t> xs, ArrayRef<int64_t> ys,
-                              SmallVector<int64_t> &xIndices,
-                              SmallVector<int64_t> &yIndices) {
-    // TODO(ramiro050): use lambda to make this half the size
-    int64_t xTotalSize = xs[0];
-    int64_t yTotalSize = ys[0];
-    xIndices.push_back(0);
-    yIndices.push_back(0);
+  static LogicalResult mapStaticallyKnownDims(ArrayRef<int64_t> xDims,
+                                              ArrayRef<int64_t> yDims,
+                                              SmallVector<int64_t> &xIndices,
+                                              SmallVector<int64_t> &yIndices) {
+    int64_t xTotalSize = xDims[0];
+    int64_t yTotalSize = yDims[0];
+    SmallVector<int64_t> xIndicesResult({0});
+    SmallVector<int64_t> yIndicesResult({0});
     size_t nextXIndex = 1;
     size_t nextYIndex = 1;
     while (xTotalSize != yTotalSize) {
       if (xTotalSize < yTotalSize) {
-        if (nextXIndex == xs.size())
-          break;
-        // TODO(ramiro050): should this be an assert? This seems to assume that
-        // dynamic dims are size 1
-        int64_t x = xs[nextXIndex];
-        if (x != kUnknownSize)
-          xTotalSize *= x;
-        xIndices.push_back(nextXIndex);
-        nextXIndex++;
+        if (nextXIndex == xDims.size() || xDims[nextXIndex] == kUnknownSize)
+          return failure();
+        xTotalSize *= xDims[nextXIndex];
+        xIndicesResult.push_back(nextXIndex++);
       } else {
-        if (nextYIndex == ys.size())
-          break;
-        // TODO(ramiro050): should this be an assert?
-        int64_t y = ys[nextYIndex];
-        if (y != kUnknownSize)
-          yTotalSize *= y;
-        yIndices.push_back(nextYIndex);
-        nextYIndex++;
+        if (nextYIndex == yDims.size() || yDims[nextYIndex] == kUnknownSize)
+          return failure();
+        yTotalSize *= yDims[nextYIndex];
+        yIndicesResult.push_back(nextYIndex++);
       }
     }
-    return success(xTotalSize == yTotalSize);
+
+    xIndices.assign(std::move(xIndicesResult));
+    yIndices.assign(std::move(yIndicesResult));
+    return success();
   }
 
+  // TODO(ramiro050): improve naming
   static void solveSingleDynamicSize(MutableArrayRef<int64_t> inputShape,
                                      MutableArrayRef<int64_t> outputShape) {
     int64_t inputDynamicDimCount = llvm::count(inputShape, kUnknownSize);
     int64_t outputDynamicDimCount = llvm::count(outputShape, kUnknownSize);
     if (inputDynamicDimCount + outputDynamicDimCount != 1)
       return;
-
-    auto productReduce = [](ArrayRef<int64_t> a) -> int64_t {
-      return accumulate(a.begin(), a.end(), /*init=*/1,
-                        std::multiplies<int64_t>());
-    };
 
     int64_t inputProduct = productReduce(inputShape);
     int64_t outputProduct = productReduce(outputShape);
@@ -278,7 +261,6 @@ public:
       outputProduct /= kUnknownSize;
       *llvm::find(outputShape, kUnknownSize) = inputProduct / outputProduct;
     }
-    return;
   }
 
   // TODO(ramiro050): choose a good name for this function
@@ -293,38 +275,30 @@ public:
   // collapsed. Note this may technically not always be true.
   // TODO: think of a way better way to at least detect when this assumption
   // is violated for the cases of dynamic dimensions.
-  static FailureOr<SmallVector<int64_t>>
-  getStaticInformation(MutableArrayRef<int64_t> inputShape,
-                       SmallVector<Value> outputSizeTorchInt, AtenViewOp op,
-                       PatternRewriter &rewriter) {
+  static std::pair<SmallVector<int64_t>, SmallVector<int64_t>>
+  getInputAndOutputShape(Value inputTorchTensor,
+                         SmallVector<Value> outputSizeTorchInt) {
+    SmallVector<int64_t> inputShape(
+        inputTorchTensor.getType().cast<BaseTensorType>().getSizes());
     SmallVector<int64_t> outputShape(outputSizeTorchInt.size(), kUnknownSize);
-    std::optional<int64_t> inferredDimension;
     for (auto [outputDim, outputDimSize] :
          llvm::enumerate(outputSizeTorchInt)) {
       int64_t inputDim;
       int64_t outputDimSizeInt;
       // Match torch.aten.size.int(inputTensor, inputDim) with constant inputDim
       if (matchPattern(outputDimSize,
-                       m_TorchTensorSizeInt(op.getSelf(), &inputDim))) {
+                       m_TorchTensorSizeInt(inputTorchTensor, &inputDim))) {
         outputShape[outputDim] = inputShape[inputDim];
       } else if (matchPattern(outputDimSize,
                               m_TorchConstantInt(&outputDimSizeInt))) {
         if (outputDimSizeInt != -1) {
           outputShape[outputDim] = outputDimSizeInt;
-        } else {
-          if (inferredDimension.has_value()) {
-            return rewriter.notifyMatchFailure(
-                op, "at most one element in size list is allowed to be -1");
-          }
-          inferredDimension = outputDim;
         }
       }
     }
 
-    // TODO(ramiro050): passing mutable reference to inputshape in
-    // `getStaticInformation is a bit awkward.
     solveSingleDynamicSize(inputShape, outputShape);
-    return outputShape;
+    return std::make_pair(inputShape, outputShape);
   }
 
   LogicalResult
@@ -335,8 +309,6 @@ public:
     Location loc = op.getLoc();
     Value input = adaptor.getSelf();
     auto inputType = input.getType().cast<RankedTensorType>();
-    SmallVector<int64_t> inputShape =
-        makeShapeTorchCompatible(inputType.getShape());
     SmallVector<Value> inputSize = getTensorSizes(rewriter, loc, input);
     int64_t inputRank = inputType.getRank();
     const TypeConverter *typeConverter = getTypeConverter();
@@ -360,6 +332,15 @@ public:
                                          "unimplemented: the target size is "
                                          "not constructed from ListConstruct");
     }
+    if (llvm::count_if(outputSizeTorchInt, [](Value size) -> bool {
+          int64_t sizeInt;
+          if (matchPattern(size, m_TorchConstantInt(&sizeInt)))
+            return sizeInt == -1;
+          return false;
+        }) > 1) {
+      return rewriter.notifyMatchFailure(
+          op, "at most one element in size list is allowed to be -1");
+    }
     SmallVector<Value> outputSizeInt = getTypeConvertedValues(
         rewriter, loc, typeConverter, outputSizeTorchInt);
     if (resultRank != (int64_t)outputSizeInt.size()) {
@@ -373,11 +354,8 @@ public:
     // TODO: For neither collapsing nor expanding, we could find a intermediate
     // shape to collapse and then expanded to the target shape. Like [2,3] =>
     // [6] => [3, 2].
-    FailureOr<SmallVector<int64_t>> failureOrOutputShape =
-        getStaticInformation(inputShape, outputSizeTorchInt, op, rewriter);
-    if (failed(failureOrOutputShape))
-      return rewriter.notifyMatchFailure(op, "TODO");
-    SmallVector<int64_t> outputShape(std::move(*failureOrOutputShape));
+    auto [inputShape, outputShape] =
+        getInputAndOutputShape(op.getSelf(), outputSizeTorchInt);
     solveSingleDynamicSize(inputShape, outputShape);
 
     SmallVector<std::pair<int64_t, int64_t>> unchangedDims;
@@ -459,9 +437,8 @@ public:
               "[-1, -1, -1] -> [-1, -1])");
         }
 
-        if (succeeded(collapseToSingleDimHelper2(inputShapeSlice,
-                                                 outputShapeSlice, inputIndices,
-                                                 outputIndices))) {
+        if (succeeded(mapAllDimsToSingleDim(inputShapeSlice, outputShapeSlice,
+                                            inputIndices, outputIndices))) {
           // TODO(ramiro050): is there a way to do this type-updating at the end
           // of while loop?
           solveSingleDynamicSize(inputShapeSlice, outputShapeSlice);
@@ -472,6 +449,10 @@ public:
                      llvm::count(inputShapeSlice, kUnknownSize) > 0) {
             outputShapeSlice[0] = kUnknownSize;
           }
+          hasDynamic = false;
+        } else if (succeeded(
+                       mapStaticallyKnownDims(inputShapeSlice, outputShapeSlice,
+                                              inputIndices, outputIndices))) {
           hasDynamic = false;
         } else if (inputShapeSlice[0] == kUnknownSize) {
           // TODO(ramiro050): the use of slice-indices and global
@@ -487,10 +468,6 @@ public:
           inputIndices.push_back(0);
           outputIndices.push_back(0);
           hasDynamic = true;
-        } else if (succeeded(minimallyCollapseDimHelper2(
-                       inputShapeSlice, outputShapeSlice, inputIndices,
-                       outputIndices))) {
-          hasDynamic = false;
         } else {
           return rewriter.notifyMatchFailure(op, "TODO2");
         }
