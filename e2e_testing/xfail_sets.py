@@ -19,6 +19,10 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
 }
 
+LINALG_XFAIL_SET.update({
+    "SelectIntCopyFloat_Module_basic"
+})
+
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
 

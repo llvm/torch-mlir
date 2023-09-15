@@ -11,6 +11,7 @@
 
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 
 namespace mlir {
@@ -85,6 +86,9 @@ FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
 // Return the unsqueezed tensor or failure.
 FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
                                  Value input, Value dim);
+
+Type computeReductionType(PatternRewriter &rewriter, Operation *op,
+                          BaseTensorType tensorType, Value dim, bool keepDim);
 
 } // namespace Torch
 } // namespace torch
