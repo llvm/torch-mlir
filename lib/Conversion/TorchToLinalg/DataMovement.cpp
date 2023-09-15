@@ -182,14 +182,14 @@ public:
   // computes the size of a collapsed dynamic dim if necessary.
   // TODO(ramiro050): returning product here feels awkward, but I
   // can't think of better way
-  static FailureOr<int64_t>
+  static LogicalResult
   collapseToSingleDimHelper2(ArrayRef<int64_t> xs, ArrayRef<int64_t> ys,
                              SmallVector<int64_t> &xIndices,
                              SmallVector<int64_t> &yIndices) {
     // TODO(ramiro050): name variable
     auto blah = [](int64_t expectedReductionProduct,
                    ArrayRef<int64_t> arrayToReduce,
-                   SmallVector<int64_t> &reductionIndices) -> FailureOr<int64_t> {
+                   SmallVector<int64_t> &reductionIndices) -> LogicalResult {
       int64_t reductionProduct = 1;
       for (auto [index, elem] : llvm::enumerate(arrayToReduce)) {
         reductionIndices.push_back(index);
@@ -203,7 +203,7 @@ public:
           reductionProduct != expectedReductionProduct) {
         return failure();
       }
-      return reductionProduct;
+      return success();
     };
 
     if (xs.size() == 1) {
@@ -273,8 +273,8 @@ public:
     return success(xTotalSize == yTotalSize);
   }
 
-  static void solveDynamicSize(SmallVector<int64_t> &inputShape,
-                               SmallVector<int64_t> &outputShape) {
+  static void solveSingleDynamicSize(MutableArrayRef<int64_t> inputShape,
+                                     MutableArrayRef<int64_t> outputShape) {
     int64_t inputDynamicDimCount = llvm::count(inputShape, kUnknownSize);
     int64_t outputDynamicDimCount = llvm::count(outputShape, kUnknownSize);
     if (inputDynamicDimCount + outputDynamicDimCount != 1)
@@ -311,7 +311,7 @@ public:
   // TODO: think of a way better way to at least detect when this assumption
   // is violated for the cases of dynamic dimensions.
   static FailureOr<SmallVector<int64_t>>
-  getStaticInformation(SmallVector<int64_t> &inputShape,
+  getStaticInformation(MutableArrayRef<int64_t> inputShape,
                        SmallVector<Value> outputSizeTorchInt, AtenViewOp op,
                        PatternRewriter &rewriter) {
     SmallVector<int64_t> outputShape(outputSizeTorchInt.size(), kUnknownSize);
@@ -340,7 +340,7 @@ public:
 
     // TODO(ramiro050): passing mutable reference to inputshape in
     // `getStaticInformation is a bit awkward.
-    solveDynamicSize(inputShape, outputShape);
+    solveSingleDynamicSize(inputShape, outputShape);
     return outputShape;
   }
 
@@ -395,7 +395,7 @@ public:
     if (failed(failureOrOutputShape))
       return rewriter.notifyMatchFailure(op, "TODO");
     SmallVector<int64_t> outputShape(std::move(*failureOrOutputShape));
-    solveDynamicSize(inputShape, outputShape);
+    solveSingleDynamicSize(inputShape, outputShape);
 
     SmallVector<std::pair<int64_t, int64_t>> unchangedDims;
     for (auto [outputDim, outputDimSize] :
@@ -451,12 +451,15 @@ public:
       // TODO(ramiro050): what is this for?
       bool hasDynamic = false;
       while (inputDim < nextUnchangedInput && outputDim < nextUnchangedOutput) {
-        ArrayRef<int64_t> inputShapeSlice(inputShape);
+        MutableArrayRef<int64_t> inputShapeSlice(inputShape);
         inputShapeSlice =
             inputShapeSlice.slice(inputDim, nextUnchangedInput - inputDim);
-        ArrayRef<int64_t> outputShapeSlice(outputShape);
+        MutableArrayRef<int64_t> outputShapeSlice(outputShape);
         outputShapeSlice =
             outputShapeSlice.slice(outputDim, nextUnchangedOutput - outputDim);
+
+        // TODO(ramiro050); can doing this here remove one of the if cases
+        // below? solveSingleDynamicSize(inputShapeSlice, outputShapeSlice);
 
         SmallVector<int64_t> inputIndices;
         SmallVector<int64_t> outputIndices;
@@ -473,16 +476,18 @@ public:
               "[-1, -1, -1] -> [-1, -1])");
         }
 
-        FailureOr<int64_t> reductionProduct = collapseToSingleDimHelper2(
-                inputShapeSlice, outputShapeSlice, inputIndices,
-                outputIndices);
-        if (succeeded(reductionProduct)) {
-          // TODO(ramiro050): can we do this type of static info updating using
-          // `solveDynamicDims`?
-          if (inputShapeSlice.size() == 1) {
-            inputShape[inputDim] = *reductionProduct;
-          } else if (outputShapeSlice.size() == 1) {
-            outputShape[outputDim] = *reductionProduct;
+        if (succeeded(collapseToSingleDimHelper2(inputShapeSlice,
+                                                 outputShapeSlice, inputIndices,
+                                                 outputIndices))) {
+          // TODO(ramiro050): is there a way to do this type-updating at the end
+          // of while loop?
+          solveSingleDynamicSize(inputShapeSlice, outputShapeSlice);
+          if (inputShapeSlice.size() == 1 &&
+              llvm::count(outputShapeSlice, kUnknownSize) > 0) {
+            inputShapeSlice[0] = kUnknownSize;
+          } else if (outputShapeSlice.size() == 1 &&
+                     llvm::count(inputShapeSlice, kUnknownSize) > 0) {
+            outputShapeSlice[0] = kUnknownSize;
           }
           hasDynamic = false;
         } else if (inputShapeSlice[0] == kUnknownSize) {
@@ -500,12 +505,12 @@ public:
           outputIndices.push_back(0);
           hasDynamic = true;
         } else if (succeeded(allDynamicCase(inputShapeSlice, outputShapeSlice,
-                                            inputIndices,
-                                            outputIndices))) {
+                                            inputIndices, outputIndices))) {
+          assert(false);
           hasDynamic = false;
         } else if (succeeded(minimallyCollapseDimHelper2(
-                       inputShapeSlice, outputShapeSlice,
-                       inputIndices, outputIndices))) {
+                       inputShapeSlice, outputShapeSlice, inputIndices,
+                       outputIndices))) {
           hasDynamic = false;
         } else {
           return rewriter.notifyMatchFailure(op, "TODO2");
