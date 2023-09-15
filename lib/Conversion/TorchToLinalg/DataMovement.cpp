@@ -184,12 +184,12 @@ public:
   // can't think of better way
   static FailureOr<int64_t>
   collapseToSingleDimHelper2(ArrayRef<int64_t> xs, ArrayRef<int64_t> ys,
-                             ReassociationIndices &xIndices,
-                             ReassociationIndices &yIndices) {
+                             SmallVector<int64_t> &xIndices,
+                             SmallVector<int64_t> &yIndices) {
     // TODO(ramiro050): name variable
     auto blah = [](int64_t expectedReductionProduct,
                    ArrayRef<int64_t> arrayToReduce,
-                   ReassociationIndices &reductionIndices) -> FailureOr<int64_t> {
+                   SmallVector<int64_t> &reductionIndices) -> FailureOr<int64_t> {
       int64_t reductionProduct = 1;
       for (auto [index, elem] : llvm::enumerate(arrayToReduce)) {
         reductionIndices.push_back(index);
@@ -203,11 +203,6 @@ public:
           reductionProduct != expectedReductionProduct) {
         return failure();
       }
-
-      // TODO(ramiro050): not a fan of this random mutation, but right
-      // now it's all I can come up with
-      // TODO(ramiro050): cannot mutate because `ArrayRef`s are const
-      // singletonArray[0] = reductionProduct;
       return reductionProduct;
     };
 
@@ -224,8 +219,8 @@ public:
 
   static LogicalResult allDynamicCase(ArrayRef<int64_t> xs,
                                       ArrayRef<int64_t> ys,
-                                      ReassociationIndices &xIndices,
-                                      ReassociationIndices &yIndices) {
+                                      SmallVector<int64_t> &xIndices,
+                                      SmallVector<int64_t> &yIndices) {
     // TODO(ramiro050): should this come with a warning? Maybe
     // `checkDimEqualHelper` takes care of it?
     auto isStatic = [](int64_t value) { return value != kUnknownSize; };
@@ -244,8 +239,8 @@ public:
   // TODO(ramiro050): don't mutate results until you know there's success
   static LogicalResult
   minimallyCollapseDimHelper2(ArrayRef<int64_t> xs, ArrayRef<int64_t> ys,
-                              ReassociationIndices &xIndices,
-                              ReassociationIndices &yIndices) {
+                              SmallVector<int64_t> &xIndices,
+                              SmallVector<int64_t> &yIndices) {
     // TODO(ramiro050): use lambda to make this half the size
     int64_t xTotalSize = xs[0];
     int64_t yTotalSize = ys[0];
@@ -254,7 +249,6 @@ public:
     size_t nextXIndex = 1;
     size_t nextYIndex = 1;
     while (xTotalSize != yTotalSize) {
-      // TODO(ramiro050): handle trailing 1s
       if (xTotalSize < yTotalSize) {
         if (nextXIndex == xs.size())
           break;
@@ -279,8 +273,6 @@ public:
     return success(xTotalSize == yTotalSize);
   }
 
-  // TODO(ramiro050): this can be half the szie and can it be merged with
-  // `getStaticInformation`?
   static void solveDynamicSize(SmallVector<int64_t> &inputShape,
                                SmallVector<int64_t> &outputShape) {
     int64_t inputDynamicDimCount = llvm::count(inputShape, kUnknownSize);
@@ -466,8 +458,8 @@ public:
         outputShapeSlice =
             outputShapeSlice.slice(outputDim, nextUnchangedOutput - outputDim);
 
-        inputAssociations.emplace_back();
-        outputAssociations.emplace_back();
+        SmallVector<int64_t> inputIndices;
+        SmallVector<int64_t> outputIndices;
 
         // TODO(ramiro050): I don't like the `hasDynamic` variable. Improve it
         if ((hasDynamic && outputDim == nextUnchangedOutput - 1 &&
@@ -482,8 +474,8 @@ public:
         }
 
         FailureOr<int64_t> reductionProduct = collapseToSingleDimHelper2(
-                inputShapeSlice, outputShapeSlice, inputAssociations.back(),
-                outputAssociations.back());
+                inputShapeSlice, outputShapeSlice, inputIndices,
+                outputIndices);
         if (succeeded(reductionProduct)) {
           // TODO(ramiro050): can we do this type of static info updating using
           // `solveDynamicDims`?
@@ -504,28 +496,28 @@ public:
           // If output dimension is not dynamic, improve static information of
           // input
           inputShape[inputDim] = outputShape[outputDim];
-          inputAssociations.back().push_back(0);
-          outputAssociations.back().push_back(0);
+          inputIndices.push_back(0);
+          outputIndices.push_back(0);
           hasDynamic = true;
         } else if (succeeded(allDynamicCase(inputShapeSlice, outputShapeSlice,
-                                            inputAssociations.back(),
-                                            outputAssociations.back()))) {
+                                            inputIndices,
+                                            outputIndices))) {
           hasDynamic = false;
         } else if (succeeded(minimallyCollapseDimHelper2(
                        inputShapeSlice, outputShapeSlice,
-                       inputAssociations.back(), outputAssociations.back()))) {
+                       inputIndices, outputIndices))) {
           hasDynamic = false;
         } else {
           return rewriter.notifyMatchFailure(op, "TODO2");
         }
 
         // TODO(ramiro050): ducument this step
-        for (size_t i = 0; i < inputAssociations.back().size(); i++) {
-          inputAssociations.back()[i] += inputDim;
-        }
-        for (size_t i = 0; i < outputAssociations.back().size(); i++) {
-          outputAssociations.back()[i] += outputDim;
-        }
+        inputAssociations.emplace_back();
+        outputAssociations.emplace_back();
+        for (int64_t inputIndex : inputIndices)
+          inputAssociations.back().push_back(inputIndex + inputDim);
+        for (int64_t outputIndex : outputIndices)
+          outputAssociations.back().push_back(outputIndex + outputDim);
         inputDim = inputAssociations.back().back() + 1;
         outputDim = outputAssociations.back().back() + 1;
       }
