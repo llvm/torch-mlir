@@ -35,8 +35,8 @@ public:
       return rewriter.notifyMatchFailure(
           catOp, "aten.cat operands must be a list of tensors");
 
-    SmallVector tensorInputs = getTypeConvertedValues(
-        rewriter, catOp->getLoc(), getTypeConverter(), inputs);
+    auto tensorInputs = getTypeConvertedValues(rewriter, catOp->getLoc(),
+                                               getTypeConverter(), inputs);
 
     int64_t dim;
     if (!matchPattern(catOp.getDim(), m_TorchConstantInt(&dim)))

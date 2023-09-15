@@ -15,7 +15,7 @@ include "torch-mlir-dialects/Dialect/Tcp/IR/TcpEnums.td"
 
 include "mlir/IR/OpBase.td"
 
-def Tcp_TanhOp : Tcp_UnaryElementwiseOp<"tanh"> {
+def Tcp_TanhOp : Tcp_UnaryElementwiseOp<"tanh", [SameOperandsAndResultElementType]> {
   let summary = "Computes tanh of input, elementwise";
 
   let description = [{
@@ -33,7 +33,7 @@ def Tcp_TanhOp : Tcp_UnaryElementwiseOp<"tanh"> {
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
 }
 
-def Tcp_ClampOp : Tcp_UnaryElementwiseOp<"clamp"> {
+def Tcp_ClampOp : Tcp_UnaryElementwiseOp<"clamp", [SameOperandsAndResultElementType]> {
   let summary = "Clamps input tensor to the given min and/or max";
 
   let description = [{
@@ -65,7 +65,7 @@ def Tcp_ClampOp : Tcp_UnaryElementwiseOp<"clamp"> {
   let hasVerifier = 1;
 }
 
-def Tcp_SigmoidOp : Tcp_UnaryElementwiseOp<"sigmoid"> {
+def Tcp_SigmoidOp : Tcp_UnaryElementwiseOp<"sigmoid", [SameOperandsAndResultElementType]> {
   let summary = "Computes sigmoid of input, elementwise";
 
   let description = [{
@@ -312,7 +312,7 @@ def Tcp_IsolatedGroupOp : Tcp_Op<"isolated_group", [
   let hasVerifier = 1;
 }
 
-def Tcp_SqrtOp : Tcp_UnaryElementwiseOp<"sqrt", [SameOperandsAndResultElementType]> {
+def Tcp_SqrtOp : Tcp_UnaryElementwiseOp<"sqrt"> {
   let summary = "Computes square root of input, elementwise";
 
   let description = [{
@@ -320,11 +320,11 @@ def Tcp_SqrtOp : Tcp_UnaryElementwiseOp<"sqrt", [SameOperandsAndResultElementTyp
   }];
 
   let arguments = (ins
-    Tcp_FloatOrComplexTensor:$in
+    Tcp_FloatOrIntTensor:$in
   );
 
   let results = (outs
-    Tcp_FloatOrComplexTensor:$out
+    Tcp_FloatTensor:$out
   );
 
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
@@ -351,7 +351,7 @@ def Tcp_ConcatOp : Tcp_Op<"concat", [SameOperandsAndResultElementType]> {
   let hasVerifier = 1;
 }
 
-def Tcp_CeilOp : Tcp_UnaryElementwiseOp<"ceil"> {
+def Tcp_CeilOp : Tcp_UnaryElementwiseOp<"ceil", [SameOperandsAndResultElementType]> {
   let summary = "Computes ceil of input, elementwise";
 
   let description = [{
@@ -369,7 +369,7 @@ def Tcp_CeilOp : Tcp_UnaryElementwiseOp<"ceil"> {
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
 }
 
-def Tcp_FloorOp : Tcp_UnaryElementwiseOp<"floor"> {
+def Tcp_FloorOp : Tcp_UnaryElementwiseOp<"floor", [SameOperandsAndResultElementType]> {
   let summary = "Computes floor of input, elementwise";
 
   let description = [{
@@ -387,7 +387,7 @@ def Tcp_FloorOp : Tcp_UnaryElementwiseOp<"floor"> {
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
 }
 
-def Tcp_CosOp : Tcp_UnaryElementwiseOp<"cos"> {
+def Tcp_CosOp : Tcp_UnaryElementwiseOp<"cos", [SameOperandsAndResultElementType]> {
   let summary = "Computes cosine of input, elementwise";
 
   let description = [{
@@ -405,7 +405,7 @@ def Tcp_CosOp : Tcp_UnaryElementwiseOp<"cos"> {
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
 }
 
-def Tcp_SinOp : Tcp_UnaryElementwiseOp<"sin"> {
+def Tcp_SinOp : Tcp_UnaryElementwiseOp<"sin", [SameOperandsAndResultElementType]> {
   let summary = "Computes sine of input, elementwise";
 
   let description = [{
@@ -423,7 +423,7 @@ def Tcp_SinOp : Tcp_UnaryElementwiseOp<"sin"> {
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
 }
 
-def Tcp_AbsOp : Tcp_UnaryElementwiseOp<"abs"> {
+def Tcp_AbsOp : Tcp_UnaryElementwiseOp<"abs", [SameOperandsAndResultElementType]> {
   let summary = "Computes absolute of input, elementwise";
 
   let description = [{
@@ -441,7 +441,7 @@ def Tcp_AbsOp : Tcp_UnaryElementwiseOp<"abs"> {
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
 }
 
-def Tcp_LogOp : Tcp_UnaryElementwiseOp<"log"> {
+def Tcp_LogOp : Tcp_UnaryElementwiseOp<"log", [SameOperandsAndResultElementType]> {
   let summary = "Computes natural logarithm of input, elementwise";
 
   let description = [{
@@ -459,7 +459,7 @@ def Tcp_LogOp : Tcp_UnaryElementwiseOp<"log"> {
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
 }
 
-def Tcp_NegOp : Tcp_UnaryElementwiseOp<"neg"> {
+def Tcp_NegOp : Tcp_UnaryElementwiseOp<"neg", [SameOperandsAndResultElementType]> {
   let summary = "Computes the negation of input, elementwise";
 
   let description = [{
@@ -477,7 +477,7 @@ def Tcp_NegOp : Tcp_UnaryElementwiseOp<"neg"> {
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
 }
 
-def Tcp_AtanOp : Tcp_UnaryElementwiseOp<"atan"> {
+def Tcp_AtanOp : Tcp_UnaryElementwiseOp<"atan", [SameOperandsAndResultElementType]> {
   let summary = "Computes the arcus tangent value of input, elementwise";
 
   let description = [{
