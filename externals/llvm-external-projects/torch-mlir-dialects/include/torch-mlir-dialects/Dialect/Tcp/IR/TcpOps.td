@@ -23,11 +23,11 @@ def Tcp_TanhOp : Tcp_UnaryElementwiseOp<"tanh", [SameOperandsAndResultElementTyp
   }];
 
   let arguments = (ins
-    Tcp_FloatOrComplexTensor:$in
+    Tcp_FloatTensor:$in
   );
 
   let results = (outs
-    Tcp_FloatOrComplexTensor:$out
+    Tcp_FloatTensor:$out
   );
 
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
@@ -73,11 +73,11 @@ def Tcp_SigmoidOp : Tcp_UnaryElementwiseOp<"sigmoid", [SameOperandsAndResultElem
   }];
 
   let arguments = (ins
-    Tcp_FloatOrComplexTensor:$in
+    Tcp_FloatTensor:$in
   );
 
   let results = (outs
-    Tcp_FloatOrComplexTensor:$out
+    Tcp_FloatTensor:$out
   );
 
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
@@ -359,11 +359,11 @@ def Tcp_CeilOp : Tcp_UnaryElementwiseOp<"ceil", [SameOperandsAndResultElementTyp
   }];
 
   let arguments = (ins
-    Tcp_FloatOrComplexTensor:$in
+    Tcp_FloatTensor:$in
   );
 
   let results = (outs
-    Tcp_FloatOrComplexTensor:$out
+    Tcp_FloatTensor:$out
   );
 
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
@@ -377,11 +377,11 @@ def Tcp_FloorOp : Tcp_UnaryElementwiseOp<"floor", [SameOperandsAndResultElementT
   }];
 
   let arguments = (ins
-    Tcp_FloatOrComplexTensor:$in
+    Tcp_FloatTensor:$in
   );
 
   let results = (outs
-    Tcp_FloatOrComplexTensor:$out
+    Tcp_FloatTensor:$out
   );
 
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
@@ -395,11 +395,11 @@ def Tcp_CosOp : Tcp_UnaryElementwiseOp<"cos", [SameOperandsAndResultElementType]
   }];
 
   let arguments = (ins
-    Tcp_FloatOrComplexTensor:$in
+    Tcp_FloatTensor:$in
   );
 
   let results = (outs
-    Tcp_FloatOrComplexTensor:$out
+    Tcp_FloatTensor:$out
   );
 
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
@@ -413,11 +413,11 @@ def Tcp_SinOp : Tcp_UnaryElementwiseOp<"sin", [SameOperandsAndResultElementType]
   }];
 
   let arguments = (ins
-    Tcp_FloatOrComplexTensor:$in
+    Tcp_FloatTensor:$in
   );
 
   let results = (outs
-    Tcp_FloatOrComplexTensor:$out
+    Tcp_FloatTensor:$out
   );
 
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
@@ -449,11 +449,11 @@ def Tcp_LogOp : Tcp_UnaryElementwiseOp<"log", [SameOperandsAndResultElementType]
   }];
 
   let arguments = (ins
-    Tcp_FloatOrComplexTensor:$in
+    Tcp_FloatTensor:$in
   );
 
   let results = (outs
-    Tcp_FloatOrComplexTensor:$out
+    Tcp_FloatTensor:$out
   );
 
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
@@ -467,11 +467,11 @@ def Tcp_NegOp : Tcp_UnaryElementwiseOp<"neg", [SameOperandsAndResultElementType]
   }];
 
   let arguments = (ins
-    Tcp_FloatOrComplexTensor:$in
+    Tcp_FloatTensor:$in
   );
 
   let results = (outs
-    Tcp_FloatOrComplexTensor:$out
+    Tcp_FloatTensor:$out
   );
 
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
@@ -485,11 +485,11 @@ def Tcp_AtanOp : Tcp_UnaryElementwiseOp<"atan", [SameOperandsAndResultElementTyp
   }];
 
   let arguments = (ins
-    Tcp_FloatOrComplexTensor:$in
+    Tcp_FloatTensor:$in
   );
 
   let results = (outs
-    Tcp_FloatOrComplexTensor:$out
+    Tcp_FloatTensor:$out
   );
 
   let assemblyFormat = "$in attr-dict `:` type($in) `->` type($out)";
@@ -504,12 +504,12 @@ def Tcp_Atan2Op : Tcp_BinaryElementwiseOp<"atan2", [SameOperandsAndResultElement
   }];
 
   let arguments = (ins
-    Tcp_FloatOrComplexTensor:$in1,
-    Tcp_FloatOrComplexTensor:$in2
+    Tcp_FloatTensor:$in1,
+    Tcp_FloatTensor:$in2
   );
 
   let results = (outs
-    Tcp_FloatOrComplexTensor:$out
+    Tcp_FloatTensor:$out
   );
 
   let assemblyFormat = "$in1 `,` $in2 attr-dict `:` type($in1) `,` type($in2) `->` type($out)";
