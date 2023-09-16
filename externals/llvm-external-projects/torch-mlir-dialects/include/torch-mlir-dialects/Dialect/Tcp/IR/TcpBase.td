@@ -88,8 +88,7 @@ class Tcp_UnaryElementwiseOp<string mnemonic, list<Trait> traits = []> :
     Tcp_Op<mnemonic, !listconcat(traits, [
         Pure,
         Elementwise,
-        SameOperandsAndResultShape,
-        SameOperandsAndResultElementType])> {
+        SameOperandsAndResultShape])> {
 }
 
 class Tcp_BinaryElementwiseOp<string mnemonic, list<Trait> traits = []> :
