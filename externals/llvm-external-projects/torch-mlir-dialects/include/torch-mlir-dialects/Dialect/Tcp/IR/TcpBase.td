@@ -68,13 +68,12 @@ def TCP_QuantizedInt	: AnyTypeOf<[ TCP_QuantizedType<"q8ua", [8], 0>,
                                      TCP_QuantizedType<"q8ss", [8, 0], 1>,
                                      TCP_QuantizedType<"q16ss", [16, 0], 1>]>;
 
-def Tcp_Scalar : AnyTypeOf<[AnyFloat, AnySignlessInteger, AnyComplex, TCP_QuantizedInt]>;
+def Tcp_Scalar : AnyTypeOf<[AnyFloat, AnySignlessInteger, TCP_QuantizedInt]>;
 def Tcp_Tensor : RankedTensorOf<[Tcp_Scalar]>;
 def Tcp_TensorOrScalar : AnyTypeOf<[Tcp_Tensor, Tcp_Scalar]>;
 
 def Tcp_FloatTensor : RankedTensorOf<[AnyFloat]>;
 def Tcp_FloatOrIntTensor : RankedTensorOf<[AnyFloat, AnySignlessInteger]>;
-def Tcp_FloatOrComplexTensor : RankedTensorOf<[AnyFloat, AnyComplex]>;
 
 //===----------------------------------------------------------------------===//
 // Tcp Ops Base.
