@@ -398,12 +398,12 @@ public:
       // ambiguous case below
       bool hasDynamic = false;
       while (inputDim < nextUnchangedInput && outputDim < nextUnchangedOutput) {
-        MutableArrayRef<int64_t> inputShapeSlice(inputShape);
-        inputShapeSlice =
-            inputShapeSlice.slice(inputDim, nextUnchangedInput - inputDim);
-        MutableArrayRef<int64_t> outputShapeSlice(outputShape);
-        outputShapeSlice =
-            outputShapeSlice.slice(outputDim, nextUnchangedOutput - outputDim);
+        auto inputShapeSlice =
+            MutableArrayRef<int64_t>(inputShape)
+                .slice(inputDim, nextUnchangedInput - inputDim);
+        auto outputShapeSlice =
+            MutableArrayRef<int64_t>(outputShape)
+                .slice(outputDim, nextUnchangedOutput - outputDim);
         SmallVector<int64_t> inputSliceIndices;
         SmallVector<int64_t> outputSliceIndices;
 
