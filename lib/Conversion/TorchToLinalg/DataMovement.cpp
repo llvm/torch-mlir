@@ -394,7 +394,8 @@ public:
     //    dynamic, at least one of the related dimensions need to be dynamic.
     int64_t inputDim = 0, outputDim = 0;
     for (auto [nextUnchangedInput, nextUnchangedOutput] : unchangedDims) {
-      // TODO(ramiro050): what is this for?
+      // TODO(ramiro050): what is this for? it is for checking that there is no
+      // ambiguous case below
       bool hasDynamic = false;
       while (inputDim < nextUnchangedInput && outputDim < nextUnchangedOutput) {
         MutableArrayRef<int64_t> inputShapeSlice(inputShape);
@@ -407,22 +408,28 @@ public:
         SmallVector<int64_t> outputSliceIndices;
 
         // TODO(ramiro050): I don't like the `hasDynamic` variable. Improve it
-        if ((hasDynamic && outputDim == nextUnchangedOutput - 1 &&
-             inputDim != nextUnchangedInput - 1) ||
-            (hasDynamic && outputDim != nextUnchangedOutput - 1 &&
-             inputDim == nextUnchangedInput - 1 &&
-             inputShape[inputDim] == kUnknownSize)) {
-          return rewriter.notifyMatchFailure(
-              op,
-              "found ambiguous collapse/expand of dynamic input sizes (e.g. "
-              "[-1, -1, -1] -> [-1, -1])");
+        // TODO(ramiro050): this can be removed by replacing it with a
+        // checkDimEqualHelper that takes into account the product of all the
+        // dimensions being reduced
+        if (hasDynamic) {
+          if ((inputShapeSlice.size() != 1 && outputShapeSlice.size() == 1 &&
+               outputShapeSlice[0] == kUnknownSize) ||
+              (inputShapeSlice.size() == 1 && outputShapeSlice.size() != 1 &&
+               inputShapeSlice[0] == kUnknownSize)) {
+            return rewriter.notifyMatchFailure(
+                op, "found ambiguous collapse/expand of dynamic input sizes "
+                    "(e.g. [-1, -1, -1] -> [-1, -1])");
+          }
         }
 
         if (succeeded(mapAllDimsToSingleDim(inputShapeSlice, outputShapeSlice,
-                                            inputSliceIndices, outputSliceIndices))) {
-          // TODO(ramiro050): is there a way to do this type-updating at the end
-          // of while loop?
+                                            inputSliceIndices,
+                                            outputSliceIndices))) {
           solveSingleDynamicSize(inputShapeSlice, outputShapeSlice);
+          // Update shape to pass the tensor.expand_shape and
+          // tensor.collapse_shape verifiers. If one of the dimensions of the
+          // tensor being flattened is dynamic, the size of the flattened tensor
+          // must also be dynamic.
           if (inputShapeSlice.size() == 1 &&
               llvm::count(outputShapeSlice, kUnknownSize) > 0) {
             inputShapeSlice[0] = kUnknownSize;
@@ -430,13 +437,11 @@ public:
                      llvm::count(inputShapeSlice, kUnknownSize) > 0) {
             outputShapeSlice[0] = kUnknownSize;
           }
-          hasDynamic = false;
-        } else if (succeeded(
-                       mapStaticallyKnownDims(inputShapeSlice, outputShapeSlice,
-                                              inputSliceIndices, outputSliceIndices))) {
-          hasDynamic = false;
+        } else if (succeeded(mapStaticallyKnownDims(
+                       inputShapeSlice, outputShapeSlice, inputSliceIndices,
+                       outputSliceIndices))) {
         } else if (inputShapeSlice[0] == kUnknownSize) {
-          // If the input is dynamic, first assume it is not split
+          // If the input is dynamic, assume it is not split
           checkDimEqualHelper(rewriter, loc, inputSize[inputDim],
                               outputSizeInt[outputDim]);
           // If output dimension is not dynamic, improve static information of
@@ -462,7 +467,6 @@ public:
 
       // TODO(ramiro050): what is this case?
       if (inputDim != nextUnchangedInput) {
-        hasDynamic = true;
         if (inputAssociations.size() < 1) {
           inputAssociations.emplace_back();
           outputAssociations.emplace_back();
