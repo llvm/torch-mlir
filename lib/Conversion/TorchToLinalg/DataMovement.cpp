@@ -353,12 +353,6 @@ public:
           op, "desired size list length mismatches with the result type rank");
     }
 
-    // Currently, we only handle the cases where each dimension is either
-    // being expanded or collapsed. We do not handle cases where it's neither
-    // collapsing nor expanding like view of [2,3] for 3x2 tensor.
-    // TODO: For neither collapsing nor expanding, we could find a intermediate
-    // shape to collapse and then expanded to the target shape. Like [2,3] =>
-    // [6] => [3, 2].
     auto [inputShape, outputShape] =
         getInputAndOutputShape(op.getSelf(), outputSizeTorchInt);
 
@@ -460,7 +454,9 @@ public:
           outputSliceIndices.push_back(0);
           assumedDynamicDimNotSplit = true;
         } else {
-          return rewriter.notifyMatchFailure(op, "TODO(ramiro050)");
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: found unhandled case of expansion/collapse "
+                  "in `aten.view`");
         }
 
         inputAssociations.emplace_back();
