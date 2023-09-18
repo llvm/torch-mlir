@@ -205,12 +205,12 @@ public:
       if (!isValidReduction(xDims[0], yDims))
         return failure();
       xIndices.assign({0});
-      yIndices.assign(llvm::to_vector(llvm::seq(0l, (int64_t)yDims.size())));
+      yIndices.assign(llvm::to_vector(llvm::seq<int64_t>(0, yDims.size())));
     } else if (yDims.size() == 1) {
       if (!isValidReduction(yDims[0], xDims))
         return failure();
       yIndices.assign({0});
-      xIndices.assign(llvm::to_vector(llvm::seq(0l, (int64_t)xDims.size())));
+      xIndices.assign(llvm::to_vector(llvm::seq<int64_t>(0, xDims.size())));
     } else {
       return failure();
     }
