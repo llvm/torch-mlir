@@ -253,9 +253,13 @@ public:
     return success();
   }
 
-  // TODO(ramiro050): improve naming + docstring
-  static void solveSingleDynamicSize(MutableArrayRef<int64_t> inputShape,
-                                     MutableArrayRef<int64_t> outputShape) {
+  // Calculates the size of a dynamic dimension if all other dimensions are
+  // statically known, and rewrites that dynamic dimension with the static size.
+  //
+  // Note: this function assumes that all the dimensions in `inputShape` map to
+  // all the dimensions in `outputShape`.
+  static void calculateSingleDynamicSize(MutableArrayRef<int64_t> inputShape,
+                                         MutableArrayRef<int64_t> outputShape) {
     int64_t inputDynamicDimCount = llvm::count(inputShape, kUnknownSize);
     int64_t outputDynamicDimCount = llvm::count(outputShape, kUnknownSize);
     if (inputDynamicDimCount + outputDynamicDimCount != 1)
@@ -298,7 +302,7 @@ public:
       }
     }
 
-    solveSingleDynamicSize(inputShape, outputShape);
+    calculateSingleDynamicSize(inputShape, outputShape);
     return std::make_pair(inputShape, outputShape);
   }
 
@@ -430,7 +434,7 @@ public:
         if (succeeded(mapAllDimsToSingleDim(inputShapeSlice, outputShapeSlice,
                                             inputSliceIndices,
                                             outputSliceIndices))) {
-          solveSingleDynamicSize(inputShapeSlice, outputShapeSlice);
+          calculateSingleDynamicSize(inputShapeSlice, outputShapeSlice);
           // Update shape to pass the tensor.expand_shape and
           // tensor.collapse_shape verifiers. If one of the dimensions of the
           // tensor being flattened is dynamic, the size of the flattened tensor
