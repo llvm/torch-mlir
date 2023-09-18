@@ -181,7 +181,14 @@ namespace {
 class ConvertAtenViewOp : public OpConversionPattern<AtenViewOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
-  // TODO(ramiro050): update doc string
+  // If one of the two dims arrays has size 1, a mapping is created from the one
+  // dimension of the size-1 array to all the dimensions of the other array. For
+  // example for inputs: xDims = [6], yDims = [2, 3] the result in the indices
+  // arrays will be: xIndices = [0], yIndices = [0, 1].
+  //
+  // An error is returned if the dimension size of the size-1 array is not equal
+  // to the product of all the dimension sizes in the other array, or if neither
+  // of the arrays is size-1.
   static LogicalResult mapAllDimsToSingleDim(ArrayRef<int64_t> xDims,
                                              ArrayRef<int64_t> yDims,
                                              SmallVector<int64_t> &xIndices,
@@ -210,7 +217,13 @@ public:
     return success();
   }
 
-  // TODO(ramiro050): add better description
+  // Starting from the beginning of the dims arrays, this helper finds the
+  // smallest set of consecutive dims in each array such that the product of the
+  // dim sizes in the two subsets is equal. The indices arrays are populated
+  // with the indices of the dims arrays that correspond to the subsets found.
+  //
+  // An error is returned if two subsets of dims with total number of elements
+  // equal to each other is not found.
   static LogicalResult mapStaticallyKnownDims(ArrayRef<int64_t> xDims,
                                               ArrayRef<int64_t> yDims,
                                               SmallVector<int64_t> &xIndices,
@@ -260,7 +273,9 @@ public:
     }
   }
 
-  // TODO(ramiro050): docstring
+  // Gets the shapes of the input and output tensors, making a best-effort
+  // attempt to extract static shape information given the inputs to
+  // `aten.view`.
   static std::pair<SmallVector<int64_t>, SmallVector<int64_t>>
   getInputAndOutputShape(Value inputTorchTensor,
                          SmallVector<Value> outputSizeTorchInt) {
@@ -385,18 +400,12 @@ public:
     // the dynamic dimension with the one across from it and give up if we can't
     // reason about how the dimensions are associated.
     //      e.g. [-1, -1] -> [2, 3, 4]
-    // 3. Set inputShapeVec and outputShape following the requirements by
-    // tensor.expand_shape verification code:
-    //    a. As long as one or more of the related dimensions in the expanded
-    //    shape is dynamic the collapsed dimension is dynamic.
-    //    b. If all of the related dimensions are static, the collapsed
-    //    dimension must be static. In other words, if a collapsed dimension is
-    //    dynamic, at least one of the related dimensions need to be dynamic.
+    // For more information, see description of helper functions used in the
+    // `if-else` cases inside the while loop.
     int64_t inputDim = 0, outputDim = 0;
     for (auto [nextUnchangedInput, nextUnchangedOutput] : unchangedDims) {
-      // TODO(ramiro050): what is this for? it is for checking that there is no
-      // ambiguous case below
-      bool hasDynamic = false;
+      // Used for ensuring that we don't have an ambiguous expansion
+      bool assumedDynamicDimNotSplit = false;
       while (inputDim < nextUnchangedInput && outputDim < nextUnchangedOutput) {
         auto inputShapeSlice =
             MutableArrayRef<int64_t>(inputShape)
@@ -407,19 +416,15 @@ public:
         SmallVector<int64_t> inputSliceIndices;
         SmallVector<int64_t> outputSliceIndices;
 
-        // TODO(ramiro050): I don't like the `hasDynamic` variable. Improve it
-        // TODO(ramiro050): this can be removed by replacing it with a
-        // checkDimEqualHelper that takes into account the product of all the
-        // dimensions being reduced
-        if (hasDynamic) {
-          if ((inputShapeSlice.size() != 1 && outputShapeSlice.size() == 1 &&
-               outputShapeSlice[0] == kUnknownSize) ||
-              (inputShapeSlice.size() == 1 && outputShapeSlice.size() != 1 &&
-               inputShapeSlice[0] == kUnknownSize)) {
-            return rewriter.notifyMatchFailure(
-                op, "found ambiguous collapse/expand of dynamic input sizes "
-                    "(e.g. [-1, -1, -1] -> [-1, -1])");
-          }
+        // TODO: this can be removed by replacing it with a checkDimEqualHelper
+        // that takes into account the product of all the dimensions being
+        // reduced
+        if (assumedDynamicDimNotSplit && inputShapeSlice.size() == 1 &&
+            outputShapeSlice.size() != 1 &&
+            inputShapeSlice[0] == kUnknownSize) {
+          return rewriter.notifyMatchFailure(
+              op, "found ambiguous expand of dynamic input sizes "
+                  "(e.g. [-1, -1] -> [-1, -1, -1])");
         }
 
         if (succeeded(mapAllDimsToSingleDim(inputShapeSlice, outputShapeSlice,
@@ -449,31 +454,19 @@ public:
           inputShape[inputDim] = outputShape[outputDim];
           inputSliceIndices.push_back(0);
           outputSliceIndices.push_back(0);
-          hasDynamic = true;
+          assumedDynamicDimNotSplit = true;
         } else {
-          return rewriter.notifyMatchFailure(op, "TODO2");
+          return rewriter.notifyMatchFailure(op, "TODO(ramiro050)");
         }
 
-        // TODO(ramiro050): ducument this step
         inputAssociations.emplace_back();
         outputAssociations.emplace_back();
-        for (int64_t inputIndex : inputSliceIndices)
-          inputAssociations.back().push_back(inputIndex + inputDim);
-        for (int64_t outputIndex : outputSliceIndices)
-          outputAssociations.back().push_back(outputIndex + outputDim);
+        for (int64_t inputSliceIndex : inputSliceIndices)
+          inputAssociations.back().push_back(inputSliceIndex + inputDim);
+        for (int64_t outputSliceIndex : outputSliceIndices)
+          outputAssociations.back().push_back(outputSliceIndex + outputDim);
         inputDim = inputAssociations.back().back() + 1;
         outputDim = outputAssociations.back().back() + 1;
-      }
-
-      // TODO(ramiro050): what is this case?
-      if (inputDim != nextUnchangedInput) {
-        if (inputAssociations.size() < 1) {
-          inputAssociations.emplace_back();
-          outputAssociations.emplace_back();
-        }
-        inputAssociations.back().push_back(inputDim++);
-        outputAssociations.back().push_back(outputDim++);
-        continue;
       }
 
       // Append the associations for the dims matching `aten.size.int`
