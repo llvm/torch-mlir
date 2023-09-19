@@ -605,6 +605,27 @@ def adaptive_avg_pool1d(self: List[int], out: List[int]):
 
     return shape
 
+
+# TODO: This should be upstreamed.
+# See https://github.com/pytorch/pytorch/pull/76889 for an example.
+def unflatten(self: List[int], dim: int, sizes: List[int]):
+    if dim < 0:
+        dim += len(shape)
+    assert dim >= 0 and dim < len(shape)
+    total_size = 1
+    negative_one_count = sizes.count(-1)
+    assert negative_one_count <= 1
+    for size in sizes:
+        if size != -1:
+            total_size *= size
+    if -1 in sizes:
+        inferred_size = shape[dim] // total_size
+        assert shape[dim] % total_size == 0
+        sizes[sizes.index(-1)] = inferred_size
+        total_size *= inferred_size
+    assert total_size == shape[dim]
+    return shape[:dim] + sizes + shape[dim + 1:]
+
 def aten〇avg_pool1d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), ceil_mode: bool = False, count_include_pad: bool = True) -> List[int]:
     return avg_pool1d(self, kernel_size, stride, padding, ceil_mode, count_include_pad)
 
@@ -619,6 +640,9 @@ def aten〇adaptive_avg_pool2d〡shape(self: List[int], output_size: List[int]) 
 
 def aten〇flatten〇using_ints〡shape(self: List[int], start_dim: int = 0, end_dim: int = -1) -> List[int]:
     return upstream_shape_functions.flatten(self, start_dim, end_dim)
+
+def aten〇unflatten〇int〡shape(self: List[int], dim: int, sizes: List[int]) -> List[int]:
+    return unflatten(self, dim, sizes)
 
 def aten〇linear〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None) -> List[int]:
     return upstream_shape_functions.linear(input, weight, bias)
@@ -1642,7 +1666,7 @@ def aten〇flatten〇using_ints〡dtype(self_rank_dtype: Tuple[int, int], start_
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0, sizes=[-1]))
 def aten〇unflatten〇int〡dtype(self_rank_dtype: Tuple[int, int], dim: int, sizes: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
