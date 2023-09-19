@@ -424,6 +424,61 @@ void computeBroadcastShape(ConversionPatternRewriter &rewriter, Location loc,
   }
 }
 
+// https://github.com/pytorch/pytorch/blob/0cfc5899f9bade72c7e18666e2006b003b5848bc/aten/src/ATen/ExpandUtils.cpp#L17C8-L17C8
+SmallVector<int64_t> inferSizesFromTwoTensor(PatternRewriter &rewriter,
+                                             Location loc,
+                                             SmallVector<int64_t> a,
+                                             SmallVector<int64_t> b) {
+  size_t dimsA = a.size();
+  size_t dimsB = b.size();
+  size_t ndim = dimsA > dimsB ? dimsA : dimsB;
+  SmallVector<int64_t> expandedSizes(ndim);
+
+  // Use ptrdiff_t to ensure signed comparison.
+  for (ptrdiff_t i = (ptrdiff_t)ndim - 1; i >= 0; --i) {
+    ptrdiff_t offset = ndim - 1 - i;
+    ptrdiff_t dimA = dimsA - 1 - offset;
+    ptrdiff_t dimB = dimsB - 1 - offset;
+    auto sizeA = (dimA >= 0) ? a[dimA] : 1;
+    auto sizeB = (dimB >= 0) ? b[dimB] : 1;
+
+    if (!(sizeA == sizeB || sizeA == 1 || sizeB == 1)) {
+      mlir::emitError(loc) << "The size of tensor a ( " << sizeA
+                           << ") must match the size of tensor b (" << sizeB
+                           << ") at non-singleton dimension " << i;
+    }
+
+    // 1s map to the other size (even 0).
+    expandedSizes[i] = sizeA == 1 ? std::move(sizeB) : std::move(sizeA);
+  }
+
+  return expandedSizes;
+}
+
+// https://github.com/pytorch/pytorch/blob/6648880aca3914cc7995535fa0813ae580582492/aten/src/ATen/native/TensorAdvancedIndexingUtils.h#L64
+SmallVector<SmallVector<int64_t>> expandSizes(PatternRewriter &rewriter,
+                                              Location loc,
+                                              SmallVector<Value> &toExpand) {
+  // Expands a list of Tensors; The input tensors should not be none.
+  bool first = true;
+  SmallVector<int64_t> sizes;
+  for (int64_t i = 0; i < (int64_t)toExpand.size(); i++) {
+    auto index = toExpand[i];
+    RankedTensorType indexType = index.getType().dyn_cast<RankedTensorType>();
+    SmallVector<int64_t> shapeOne =
+        makeShapeLLVMCompatible(indexType.getShape());
+    if (first) {
+      sizes = shapeOne;
+      first = false;
+    } else {
+      sizes = inferSizesFromTwoTensor(rewriter, loc, sizes, shapeOne);
+    }
+  }
+
+  SmallVector<SmallVector<int64_t>> resultSizes(toExpand.size(), sizes);
+  return resultSizes;
+}
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

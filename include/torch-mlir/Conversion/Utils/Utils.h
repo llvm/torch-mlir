@@ -100,6 +100,27 @@ void computeBroadcastShape(ConversionPatternRewriter &rewriter, Location loc,
                            SmallVector<int64_t> &resultShape,
                            SmallVector<Value> &resultShapeValue);
 
+// Input a/b are 2 different shapes of index tensor. We will broadcast them to
+// same shape. The return is the final same broadcast shape. This is a helper
+// function for expandSizes which can broadcast more than 2 input index tensor.
+// Example: a = 1x1,  b = 1x3 -> return = 1x3.
+SmallVector<int64_t> inferSizesFromTwoTensor(PatternRewriter &rewriter,
+                                             Location loc,
+                                             SmallVector<int64_t> a,
+                                             SmallVector<int64_t> b);
+
+// Expand index tentors shape into same size.
+// toExpand: A list of index tensor, will will be broadcast to same shape.
+// The return is a list of same shape size.
+// Example:
+// toExpand:[[0]], [[1,2,3]] -> [[0,0,0]], [[1,2,3]].
+// toExpand shapes: 1x1, 1x3.
+// broadcast shape: 1x3.
+// return shape: (1x3,1x3).
+SmallVector<SmallVector<int64_t>> expandSizes(PatternRewriter &rewriter,
+                                              Location loc,
+                                              SmallVector<Value> &toExpand);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

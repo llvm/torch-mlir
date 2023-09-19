@@ -577,7 +577,9 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
   // fillK: range of each index, total number of fillInput(could be scatter)
   // after flattened k = 1*1*3 = 3
   for (int i = 0; i < ND; i++) {
-    fillK *= fillValuesType.getShape()[i];
+    if (i < (int)fillValuesType.getShape().size()) {
+      fillK *= fillValuesType.getShape()[i];
+    }
   }
   SmallVector<int64_t, 3> tosaFillValuesShape({N, fillK, C}); // {1,3,1}
 
