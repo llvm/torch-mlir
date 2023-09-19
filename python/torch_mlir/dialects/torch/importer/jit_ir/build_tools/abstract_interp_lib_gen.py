@@ -610,8 +610,8 @@ def adaptive_avg_pool1d(self: List[int], out: List[int]):
 # See https://github.com/pytorch/pytorch/pull/76889 for an example.
 def unflatten(self: List[int], dim: int, sizes: List[int]):
     if dim < 0:
-        dim += len(shape)
-    assert dim >= 0 and dim < len(shape)
+        dim += len(self)
+    assert dim >= 0 and dim < len(self)
     total_size = 1
     negative_one_count = sizes.count(-1)
     assert negative_one_count <= 1
@@ -619,12 +619,12 @@ def unflatten(self: List[int], dim: int, sizes: List[int]):
         if size != -1:
             total_size *= size
     if -1 in sizes:
-        inferred_size = shape[dim] // total_size
-        assert shape[dim] % total_size == 0
+        inferred_size = self[dim] // total_size
+        assert self[dim] % total_size == 0
         sizes[sizes.index(-1)] = inferred_size
         total_size *= inferred_size
-    assert total_size == shape[dim]
-    return shape[:dim] + sizes + shape[dim + 1:]
+    assert total_size == self[dim]
+    return self[:dim] + sizes + self[dim + 1:]
 
 def aten〇avg_pool1d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), ceil_mode: bool = False, count_include_pad: bool = True) -> List[int]:
     return avg_pool1d(self, kernel_size, stride, padding, ceil_mode, count_include_pad)
