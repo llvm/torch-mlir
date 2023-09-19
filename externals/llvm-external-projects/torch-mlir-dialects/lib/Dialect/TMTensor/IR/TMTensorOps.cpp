@@ -233,7 +233,7 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
                  loc, init,
                  [&](OpBuilder &b, Location loc, Value elem, Value acc) {
                    Value x = b.create<memref::LoadOp>(loc, weight, localIVs);
-                   Value max = b.create<arith::MaxFOp>(loc, x, acc);
+                   Value max = b.create<arith::MaximumFOp>(loc, x, acc);
                    b.create<scf::ReduceReturnOp>(loc, max);
                  });
            })

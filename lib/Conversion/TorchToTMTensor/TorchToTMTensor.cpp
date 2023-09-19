@@ -1332,7 +1332,7 @@ public:
             if (update.getType().isa<mlir::IntegerType>()) {
               result = b.create<arith::MaxSIOp>(loc, update, current);
             } else if (update.getType().isa<mlir::FloatType>()) {
-              result = b.create<arith::MaxFOp>(loc, update, current);
+              result = b.create<arith::MaximumFOp>(loc, update, current);
             } else {
               llvm_unreachable("Only integer/float types supported!");
             }
@@ -1340,7 +1340,7 @@ public:
             if (update.getType().isa<mlir::IntegerType>()) {
               result = b.create<arith::MinSIOp>(loc, update, current);
             } else if (update.getType().isa<mlir::FloatType>()) {
-              result = b.create<arith::MinFOp>(loc, update, current);
+              result = b.create<arith::MinimumFOp>(loc, update, current);
             } else {
               llvm_unreachable("Only integer/float types supported!");
             }
