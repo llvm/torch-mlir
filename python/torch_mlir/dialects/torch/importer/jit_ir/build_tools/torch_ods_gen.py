@@ -427,10 +427,19 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::max_pool3d_with_indices_backward : (Tensor, Tensor, int[], int[], int[], int[], bool, Tensor) -> (Tensor)"
     )
     emit(
+        "aten::avg_pool1d : (Tensor, int[], int[], int[], bool, bool) -> (Tensor)"
+    )
+    emit(
         "aten::avg_pool2d : (Tensor, int[], int[], int[], bool, bool, int?) -> (Tensor)"
     )
     emit(
-        "aten::avg_pool1d : (Tensor, int[], int[], int[], bool, bool) -> (Tensor)"
+        "aten::avg_pool2d_backward : (Tensor, Tensor, int[], int[], int[], bool, bool, int?) -> (Tensor)"
+    )
+    emit(
+        "aten::avg_pool3d : (Tensor, int[], int[], int[], bool, bool, int?) -> (Tensor)"
+    )
+    emit(
+        "aten::avg_pool3d_backward : (Tensor, Tensor, int[], int[], int[], bool, bool, int?) -> (Tensor)"
     )
     emit(
         "aten::softmax.int : (Tensor, int, int?) -> (Tensor)"
@@ -444,8 +453,13 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit_with_mutating_variants("aten::scatter.src : (Tensor, int, Tensor, Tensor) -> (Tensor)")
     emit_with_mutating_variants("aten::scatter.value : (Tensor, int, Tensor, Scalar) -> (Tensor)")
     emit_with_mutating_variants("aten::masked_scatter : (Tensor, Tensor, Tensor) -> (Tensor)")
-    emit("aten::adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)")
     emit("aten::adaptive_avg_pool1d : (Tensor, int[]) -> (Tensor)")
+    emit("aten::adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)")
+    emit("aten::_adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)")
+    emit("aten::_adaptive_avg_pool2d_backward : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::adaptive_avg_pool3d : (Tensor, int[]) -> (Tensor)")
+    emit("aten::_adaptive_avg_pool3d : (Tensor, int[]) -> (Tensor)")
+    emit("aten::_adaptive_avg_pool3d_backward : (Tensor, Tensor) -> (Tensor)")
     emit("aten::topk : (Tensor, int, int, bool, bool) -> (Tensor, Tensor)")
     emit("aten::transpose.int : (Tensor, int, int) -> (Tensor)")
     emit("aten::permute : (Tensor, int[]) -> (Tensor)")
