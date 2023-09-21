@@ -379,5 +379,12 @@ std::vector<torch::lazy::Shape> compute_shape_bernoulli(
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
+std::vector<torch::lazy::Shape> compute_shape_scalar_tensor(
+    const at::Scalar & s, c10::optional<at::ScalarType> dtype,
+    c10::optional<at::Layout> layout, c10::optional<at::Device> device,
+    c10::optional<bool> pin_memory) {
+  return {Shape(dtype.value_or(s.type()), c10::ArrayRef<int64_t>{})};
+}
+
 }  // namespace lazy
 }  // namespace torch

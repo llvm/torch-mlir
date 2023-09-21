@@ -1368,7 +1368,6 @@ LTC_XFAIL_SET = {
     "ConvolutionBackwardModule2DPadded_basic",
     "VarMeanCorrectionModule_basic",
     "VarMeanCorrectionNoneModule_basic",
-    "PrimsConvertElementTypeModule_basic",
     "ElementwisePreluModule_basic",
     "VarMeanBiasedModule_basic",
     "VarMeanUnbiasedModule_basic",
