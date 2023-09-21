@@ -467,7 +467,8 @@ class GenTorchMlirLTC:
             node_base="torch::lazy::TorchMlirNode",
             node_base_hdr=str(self.backend_path.joinpath("mlir_node.h")),
             tensor_class=self.tensor_class,
-            tensor_class_hdr="torch/csrc/lazy/core/tensor.h",
+            tensor_class_hdr="torch_mlir/csrc/base_lazy_backend/tensor.h",
+            create_aten_from_ltc_tensor="CreateFunctionalizedAtenFromLtcTensor",
             shape_inference_hdr=str(self.generated_path.joinpath("shape_inference.h")),
             lazy_ir_generator=GenMlirLazyIr,
         )
