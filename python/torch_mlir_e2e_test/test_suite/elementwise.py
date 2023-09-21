@@ -1685,6 +1685,48 @@ def ElementwiseLog2IntModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ElementwiseLog10Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.log10(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLog10Module())
+def ElementwiseLog10Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+class ElementwiseLog10IntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.log10(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLog10IntModule())
+def ElementwiseLog10IntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
 
 class ElementwiseRsqrtModule(torch.nn.Module):
 
