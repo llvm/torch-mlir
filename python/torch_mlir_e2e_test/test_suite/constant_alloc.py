@@ -215,6 +215,186 @@ def OnesModuleCPUDevice_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class AtenEyeModuleDefaultDtype(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.eye(3)
+
+
+@register_test_case(module_factory=lambda: AtenEyeModuleDefaultDtype())
+def AtenEyeModuleDefaultDtype_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenEyeModuleInt2D(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.eye(3, dtype=torch.int64)
+
+
+@register_test_case(module_factory=lambda: AtenEyeModuleInt2D())
+def AtenEyeModuleInt2D_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenEyeModuleFloat2D(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.eye(3, dtype=torch.float32)
+
+
+@register_test_case(module_factory=lambda: AtenEyeModuleFloat2D())
+def AtenEyeModuleFloat2D_basic(module, tu: TestUtils):
+    module.forward()
+
+class AtenEyeModuleFalsePinMemory(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ones(3, dtype=torch.float32, pin_memory=False)
+
+
+@register_test_case(module_factory=lambda: AtenEyeModuleFalsePinMemory())
+def AtenEyeModuleFalsePinMemory_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenEyeModuleCPUDevice(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ones(3, device="cpu")
+
+
+@register_test_case(module_factory=lambda: AtenEyeModuleCPUDevice())
+def AtenEyeModuleCPUDevice_basic(module, tu: TestUtils):
+    module.forward()
+
+# ==============================================================================
+
+class AtenEyeMModuleDefaultDtype(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.eye(3, 4)
+
+
+@register_test_case(module_factory=lambda: AtenEyeMModuleDefaultDtype())
+def AtenEyeMModuleDefaultDtype_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenEyeMModuleInt2D(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.eye(3, 4, dtype=torch.int64)
+
+
+@register_test_case(module_factory=lambda: AtenEyeMModuleInt2D())
+def AtenEyeMModuleInt2D_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenEyeMModuleFloat2D(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.eye(3, 4, dtype=torch.float32)
+
+
+@register_test_case(module_factory=lambda: AtenEyeMModuleFloat2D())
+def AtenEyeMModuleFloat2D_basic(module, tu: TestUtils):
+    module.forward()
+
+class AtenEyeMModuleFalsePinMemory(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ones(3, 4, dtype=torch.float32, pin_memory=False)
+
+
+@register_test_case(module_factory=lambda: AtenEyeMModuleFalsePinMemory())
+def AtenEyeMModuleFalsePinMemory_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenEyeMModuleCPUDevice(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ones(3, 4, device="cpu")
+
+
+@register_test_case(module_factory=lambda: AtenEyeMModuleCPUDevice())
+def AtenEyeMModuleCPUDevice_basic(module, tu: TestUtils):
+    module.forward()
+
+# ==============================================================================
+
 
 class EmptyContiguousModule(torch.nn.Module):
 
