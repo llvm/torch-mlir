@@ -6440,6 +6440,31 @@ def Torch_AtenCumsumOp : Torch_Op<"aten.cumsum", [
   }];
 }
 
+def Torch_AtenCumprodOp : Torch_Op<"aten.cumprod", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::cumprod : (Tensor, int, int?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim,
+    AnyTorchOptionalIntType:$dtype
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenCumprodOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void AtenCumprodOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
 def Torch_AtenFloorDivideScalarOp : Torch_Op<"aten.floor_divide.Scalar", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -10460,6 +10485,35 @@ def Torch_AtenUniqueConsecutiveOp : Torch_Op<"aten.unique_consecutive", [
     }
     void AtenUniqueConsecutiveOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 4, 3);
+    }
+  }];
+}
+
+def Torch_AtenLinspaceOp : Torch_Op<"aten.linspace", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::linspace : (Scalar, Scalar, int, int?, int?, Device?, bool?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchScalarType:$start,
+    AnyTorchScalarType:$end,
+    Torch_IntType:$steps,
+    AnyTorchOptionalIntType:$dtype,
+    AnyTorchOptionalIntType:$layout,
+    AnyTorchOptionalDeviceType:$device,
+    AnyTorchOptionalBoolType:$pin_memory
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenLinspaceOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 7, 1);
+    }
+    void AtenLinspaceOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 7, 1);
     }
   }];
 }

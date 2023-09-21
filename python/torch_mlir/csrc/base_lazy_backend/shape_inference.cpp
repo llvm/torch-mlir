@@ -391,6 +391,12 @@ std::vector<torch::lazy::Shape> compute_shape_roll(
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
+std::vector<torch::lazy::Shape> compute_shape_linspace(const at::Scalar & start, const at::Scalar & end, int64_t steps, c10::optional<at::ScalarType> dtype, c10::optional<at::Layout> layout, c10::optional<at::Device> device, c10::optional<bool> pin_memory) {
+  auto out_meta =
+      at::linspace(start, end, steps, dtype, layout, c10::Device(c10::kMeta), pin_memory);
+  return {Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
+}
+
 
 }  // namespace lazy
 }  // namespace torch
