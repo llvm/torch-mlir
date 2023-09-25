@@ -206,15 +206,15 @@ public:
         return failure();
       xIndices.assign({0});
       yIndices.assign(llvm::to_vector(llvm::seq<int64_t>(0, yDims.size())));
+      return success();
     } else if (yDims.size() == 1) {
       if (!isValidReduction(yDims[0], xDims))
         return failure();
       yIndices.assign({0});
       xIndices.assign(llvm::to_vector(llvm::seq<int64_t>(0, xDims.size())));
-    } else {
-      return failure();
+      return success();
     }
-    return success();
+    return failure();
   }
 
   // Starting from the beginning of the dims arrays, this helper finds the
@@ -228,6 +228,8 @@ public:
                                               ArrayRef<int64_t> yDims,
                                               SmallVector<int64_t> &xIndices,
                                               SmallVector<int64_t> &yIndices) {
+    if (xDims.empty() || yDims.empty())
+      return failure();
     int64_t xTotalSize = xDims[0];
     int64_t yTotalSize = yDims[0];
     SmallVector<int64_t> xIndicesResult({0});
@@ -355,7 +357,21 @@ public:
 
     auto [inputShape, outputShape] =
         getInputAndOutputShape(op.getSelf(), outputSizeTorchInt);
+    
+    // Currently, we only handle the cases where each dimension is either
+    // being expanded or collapsed. We do not handle cases where it's neither
+    // collapsing nor expanding like view of [2,3] for 3x2 tensor.
+    // TODO: For neither collapsing nor expanding, we could find a intermediate
+    // shape to collapse and then expanded to the target shape. Like [2,3] =>
+    // [6] => [3, 2].
 
+    // Iterate through the view op size list to do the following:
+    //   Mark dims in unchangedDims for size list items where the output dim
+    // size comes from a `torch.aten.size.int(inputTensor, inputDim)`. We
+    // naively assume this means the corresponding dimension is not expanded or
+    // collapsed. Note this may technically not always be true.
+    // TODO: think of a way better way to at least detect when this assumption
+    // is violated for the cases of dynamic dimensions.
     SmallVector<std::pair<int64_t, int64_t>> unchangedDims;
     for (auto [outputDim, outputDimSize] :
          llvm::enumerate(outputSizeTorchInt)) {
