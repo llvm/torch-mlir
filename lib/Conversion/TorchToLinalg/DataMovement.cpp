@@ -459,6 +459,9 @@ public:
         } else if (succeeded(mapStaticallyKnownDims(
                        inputShapeSlice, outputShapeSlice, inputSliceIndices,
                        outputSliceIndices))) {
+          /// `mapStaticallyKnownDims` maps the smallest number of
+          /// input and output dimensions in the slice statically
+          /// known to have the same number of elements.
         } else if (inputShapeSlice[0] == kUnknownSize) {
           // If the input is dynamic, assume it is not split
           checkDimEqualHelper(rewriter, loc, inputSize[inputDim],
