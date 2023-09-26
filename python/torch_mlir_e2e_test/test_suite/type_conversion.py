@@ -169,6 +169,28 @@ class ToDtypeLayoutNoneModule(torch.nn.Module):
 def ToDtypeLayoutNoneModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
 
+class ToDtypeLayoutCPUModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.to(x,
+                                 dtype=torch.float64,
+                                 layout=None,
+                                 device="cpu",
+                                 pin_memory=None,
+                                 non_blocking=False,
+                                 copy=False,
+                                 memory_format=None)
+
+
+@register_test_case(module_factory=lambda: ToDtypeLayoutCPUModule())
+def ToDtypeLayoutCPUModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5))
+
 
 class ToDtypeLayoutStridedModule(torch.nn.Module):
 
