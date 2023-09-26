@@ -605,10 +605,28 @@ def adaptive_avg_pool1d(self: List[int], out: List[int]):
 
     return shape
 
+def aten〇avg_pool1d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), ceil_mode: bool = False, count_include_pad: bool = True) -> List[int]:
+    return avg_pool1d(self, kernel_size, stride, padding, ceil_mode, count_include_pad)
 
-# TODO: This should be upstreamed.
-# See https://github.com/pytorch/pytorch/pull/76889 for an example.
-def unflatten(self: List[int], dim: int, sizes: List[int]):
+def aten〇adaptive_avg_pool1d〡shape(self: List[int], output_size: List[int]) -> List[int]:
+    return adaptive_avg_pool1d(self, output_size)
+
+def aten〇avg_pool2d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0,), ceil_mode: bool = False, count_include_pad: bool = True, divisor_override: Optional[int] = None) -> List[int]:
+    return avg_pool2d(self, kernel_size, stride, padding, ceil_mode, count_include_pad, divisor_override)
+
+def aten〇adaptive_avg_pool2d〡shape(self: List[int], output_size: List[int]) -> List[int]:
+    return upstream_shape_functions.adaptive_avg_pool2d(self, output_size)
+
+def aten〇flatten〇using_ints〡shape(self: List[int], start_dim: int = 0, end_dim: int = -1) -> List[int]:
+    return upstream_shape_functions.flatten(self, start_dim, end_dim)
+
+@check_shape_function([
+    Invocation(TensorOfShape(3, 6, 8), 1, [3, 2]),
+    Invocation(TensorOfShape(3, 6, 8), 1, [3, -1]),  # contain one -1 in sizes
+    Invocation(TensorOfShape(3, 6, 8), -1, [2, -1, 2]),  # dim = -1
+    ErrorInvocation(TensorOfShape(3, 6, 8), 1, [-1, -1, 2]), # contain two -1 in sizes
+])
+def aten〇unflatten〇int〡shape(self: List[int], dim: int, sizes: List[int]) -> List[int]:
     if dim < 0:
         dim += len(self)
     assert dim >= 0 and dim < len(self)
@@ -625,24 +643,6 @@ def unflatten(self: List[int], dim: int, sizes: List[int]):
         total_size *= inferred_size
     assert total_size == self[dim]
     return self[:dim] + sizes + self[dim + 1:]
-
-def aten〇avg_pool1d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), ceil_mode: bool = False, count_include_pad: bool = True) -> List[int]:
-    return avg_pool1d(self, kernel_size, stride, padding, ceil_mode, count_include_pad)
-
-def aten〇adaptive_avg_pool1d〡shape(self: List[int], output_size: List[int]) -> List[int]:
-    return adaptive_avg_pool1d(self, output_size)
-
-def aten〇avg_pool2d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0,), ceil_mode: bool = False, count_include_pad: bool = True, divisor_override: Optional[int] = None) -> List[int]:
-    return avg_pool2d(self, kernel_size, stride, padding, ceil_mode, count_include_pad, divisor_override)
-
-def aten〇adaptive_avg_pool2d〡shape(self: List[int], output_size: List[int]) -> List[int]:
-    return upstream_shape_functions.adaptive_avg_pool2d(self, output_size)
-
-def aten〇flatten〇using_ints〡shape(self: List[int], start_dim: int = 0, end_dim: int = -1) -> List[int]:
-    return upstream_shape_functions.flatten(self, start_dim, end_dim)
-
-def aten〇unflatten〇int〡shape(self: List[int], dim: int, sizes: List[int]) -> List[int]:
-    return unflatten(self, dim, sizes)
 
 def aten〇linear〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None) -> List[int]:
     return upstream_shape_functions.linear(input, weight, bias)

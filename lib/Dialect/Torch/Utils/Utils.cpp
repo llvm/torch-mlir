@@ -199,10 +199,10 @@ bool Torch::isViewLikeOp(Operation *op) {
   // that it does not return a view and treat those as having value
   // semantics.
   return isa<AtenBroadcastToOp, AtenContiguousOp, AtenDetachOp, AtenExpandAsOp,
-             AtenExpandOp, AtenFlattenUsingIntsOp, AtenUnflattenIntOp, AtenPermuteOp, AtenReshapeOp,
-             Aten_ReshapeAliasOp, AtenSelectIntOp, AtenSliceTensorOp,
-             AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp, AtenToDtypeOp,
-             AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
+             AtenExpandOp, AtenUnflattenIntOp, AtenFlattenUsingIntsOp,
+             AtenPermuteOp, AtenReshapeOp, Aten_ReshapeAliasOp, AtenSelectIntOp,
+             AtenSliceTensorOp, AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp,
+             AtenToDtypeOp, AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
              TensorStaticInfoCastOp, AtenToDtypeLayoutOp, AtenNumpyTOp,
              AtenNarrowOp, AtenNarrowTensorOp, AtenToDeviceOp, PrimsSqueezeOp,
              AtenMovedimIntOp, PrimsViewOfOp, AtenRealOp, AtenImagOp,

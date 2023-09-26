@@ -1466,52 +1466,56 @@ public:
     std::optional<unsigned> maybeRank = getTensorRank(self);
     if (!maybeRank)
       return rewriter.notifyMatchFailure(op, "unimplemented: unranked tensor");
-    unsigned rank = *maybeRank;
+    unsigned inputRank = *maybeRank;
     BaseTensorType inputTensorType = self.getType().cast<BaseTensorType>();
-    if (!inputTensorType.hasSizes()) {
+    if (!inputTensorType.hasSizes())
       return rewriter.notifyMatchFailure(
           op, "unimplemented: input must have known sizes");
-    }
     ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
 
-    int64_t dim;
-    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim))) {
+    SmallVector<int64_t> sizesInts;
+    if (!matchPattern(op.getSizes(), m_TorchListOfConstantInts(sizesInts)))
+      return rewriter.notifyMatchFailure(
+          op, "sizes must be a list of constant ints");
+
+    bool inferred = false;
+    if (llvm::count(sizesInts, -1) > 1)
+      return rewriter.notifyMatchFailure(
+          op, "only one of sizes' elements can be -1");
+
+    int64_t dimInt;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dimInt)))
       return rewriter.notifyMatchFailure(
           op, "unimplemented: requires dim to be constants");
-    }
-    dim = toPositiveDim(dim, rank);
 
-    Value sizes = op.getSizes();
+    dimInt = toPositiveDim(dimInt, inputRank);
+    if (!isValidDim(dimInt, inputRank))
+      return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
+
     SmallVector<Value> sizesTorchInt;
-    getListConstructElements(sizes, sizesTorchInt);
+    if (!getListConstructElements(op.getSizes(), sizesTorchInt))
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: sizes not list of Scalar");
 
     // Create new sizes based on the unflattened dimension.
     SmallVector<Value> newSizes;
-    for (int64_t i = 0; i < rank; ++i) {
+    for (int64_t i = 0; i < inputRank; ++i) {
       Value dimValue =
           rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i));
       Value dimSize =
           rewriter.create<AtenSizeIntOp>(loc, self, /*dim=*/dimValue);
-      if (i == dim) {
-        bool inferred = false;
+      if (i == dimInt) {
         int64_t inferredSizeInt = inputShape[i]; 
         int64_t inferredDim;
-        for (unsigned j = 0; j < sizesTorchInt.size(); ++j) {
-          int64_t sizeInt;
-          if (!matchPattern(sizesTorchInt[j], m_TorchConstantInt(&sizeInt))) {
-            return rewriter.notifyMatchFailure(
-                op, "Size is expected to be a constant");
-          }
-          if (sizeInt == -1) {
-            if (inferred) {
-              return rewriter.notifyMatchFailure(
-                  op, "Only One of Sizes' elements can be -1");
-            };
+        for (unsigned j = 0; j < sizesInts.size(); ++j) {
+          if (sizesInts[j] == -1) {
             inferred = true;
             inferredDim = j;
           } else {
-            newSizes.push_back(sizesTorchInt[j]);
-            inferredSizeInt = inferredSizeInt / sizeInt;
+            Value sizeValue = rewriter.create<ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(sizesInts[j]));
+            newSizes.push_back(sizeValue);
+            inferredSizeInt = inferredSizeInt / sizesInts[j];
           }
         }
         if (inferred) {
