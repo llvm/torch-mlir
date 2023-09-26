@@ -25,8 +25,7 @@ static bool haveSameSizeAndElementType(TensorType lhs, TensorType rhs) {
   if (lhs.hasRank() != rhs.hasRank())
     return false;
   bool sameSize = lhs.hasRank() ? lhs.getShape().equals(rhs.getShape()) : true;
-  bool sameElementType = lhs.getElementType() == rhs.getElementType();
-  return sameElementType && sameSize;
+  return sameSize;
 }
 
 //===----------------------------------------------------------------------===//
