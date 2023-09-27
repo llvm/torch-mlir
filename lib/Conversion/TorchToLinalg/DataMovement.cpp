@@ -193,6 +193,9 @@ public:
                                              ArrayRef<int64_t> yDims,
                                              SmallVector<int64_t> &xIndices,
                                              SmallVector<int64_t> &yIndices) {
+    if (xDims.empty() || yDims.empty())
+      return failure();
+
     auto isValidReduction = [](int64_t expectedReductionProduct,
                                ArrayRef<int64_t> arrayToReduce) -> bool {
       if (llvm::count(arrayToReduce, kUnknownSize) > 0 ||
@@ -255,6 +258,25 @@ public:
     return success();
   }
 
+  // If one of the two dims arrays has size 0 and the other array only
+  // has dims of size 1, a mapping is created from no dimensions to
+  // all the dimensions of the other array.
+  static LogicalResult mapTrailingSizeOneDims(ArrayRef<int64_t> xDims,
+                                              ArrayRef<int64_t> yDims,
+                                              SmallVector<int64_t> &xIndices,
+                                              SmallVector<int64_t> &yIndices) {
+    SmallVector<int64_t> ignoredIndices;
+    if (xDims.empty()) {
+      return mapAllDimsToSingleDim(ArrayRef<int64_t>({1}), yDims,
+                                   ignoredIndices, yIndices);
+    } else if (yDims.empty()) {
+      return mapAllDimsToSingleDim(xDims, ArrayRef<int64_t>({1}), xIndices,
+                                   ignoredIndices);
+    } else {
+      return failure();
+    }
+  }
+
   // Calculates the size of a dynamic dimension if all other dimensions are
   // statically known, and rewrites that dynamic dimension with the static size.
   //
@@ -262,6 +284,8 @@ public:
   // all the dimensions in `outputShape`.
   static void calculateSingleDynamicSize(MutableArrayRef<int64_t> inputShape,
                                          MutableArrayRef<int64_t> outputShape) {
+    if (inputShape.empty() || outputShape.empty())
+      return;
     int64_t inputDynamicDimCount = llvm::count(inputShape, kUnknownSize);
     int64_t outputDynamicDimCount = llvm::count(outputShape, kUnknownSize);
     if (inputDynamicDimCount + outputDynamicDimCount != 1)
@@ -420,7 +444,7 @@ public:
     for (auto [nextUnchangedInput, nextUnchangedOutput] : unchangedDims) {
       // Used for ensuring that we don't have an ambiguous expansion
       bool assumedDynamicDimNotSplit = false;
-      while (inputDim < nextUnchangedInput && outputDim < nextUnchangedOutput) {
+      while (inputDim < nextUnchangedInput || outputDim < nextUnchangedOutput) {
         auto inputShapeSlice =
             MutableArrayRef<int64_t>(inputShape)
                 .slice(inputDim, nextUnchangedInput - inputDim);
@@ -441,9 +465,15 @@ public:
                   "(e.g. [-1, -1] -> [-1, -1, -1])");
         }
 
-        if (succeeded(mapAllDimsToSingleDim(inputShapeSlice, outputShapeSlice,
-                                            inputSliceIndices,
-                                            outputSliceIndices))) {
+        if (succeeded(mapTrailingSizeOneDims(inputShapeSlice, outputShapeSlice,
+                                             inputSliceIndices,
+                                             outputSliceIndices))) {
+        } else if (outputShapeSlice.empty()) {
+          inputSliceIndices.assign(
+              llvm::to_vector(llvm::seq<int64_t>(0, inputShapeSlice.size())));
+        } else if (succeeded(mapAllDimsToSingleDim(
+                       inputShapeSlice, outputShapeSlice, inputSliceIndices,
+                       outputSliceIndices))) {
           calculateSingleDynamicSize(inputShapeSlice, outputShapeSlice);
           // Update shape to pass the tensor.expand_shape and
           // tensor.collapse_shape verifiers. If one of the dimensions of the
@@ -462,7 +492,8 @@ public:
           /// `mapStaticallyKnownDims` maps the smallest number of
           /// input and output dimensions in the slice statically
           /// known to have the same number of elements.
-        } else if (inputShapeSlice[0] == kUnknownSize) {
+        } else if (inputShapeSlice.size() > 0 &&
+                   inputShapeSlice[0] == kUnknownSize) {
           // If the input is dynamic, assume it is not split
           checkDimEqualHelper(rewriter, loc, inputSize[inputDim],
                               outputSizeInt[outputDim]);
@@ -478,8 +509,14 @@ public:
                   "in `aten.view`");
         }
 
-        inputAssociations.emplace_back();
-        outputAssociations.emplace_back();
+        // If one of the slices is empty, this means we are handling
+        // the case of trailing dimensions, which does not require a
+        // new reassociation; the trailing dimensions get added to the
+        // last reassociation created.
+        if (inputShapeSlice.size() > 0 && outputShapeSlice.size() > 0) {
+          inputAssociations.emplace_back();
+          outputAssociations.emplace_back();
+        }
         for (int64_t inputSliceIndex : inputSliceIndices)
           inputAssociations.back().push_back(inputSliceIndex + inputDim);
         for (int64_t outputSliceIndex : outputSliceIndices)
