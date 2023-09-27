@@ -3140,6 +3140,47 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.mish` op into `aten.tanh` and `aten.softplus` ops.
+// Mish(x) = x * Tanh(Softplus(x))
+class DecomposeAtenXlogyTensorOp : public OpRewritePattern<AtenXlogyTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenXlogyTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto context = op.getContext();
+    auto resultType = op.getType().cast<BaseTensorType>();
+    Value constZero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+
+    auto eqType = ValueTensorType::get(
+        context, op.getType().cast<BaseTensorType>().getSizes(),
+        IntegerType::get(context, 1));
+    Value eqTensor = rewriter.create<AtenEqScalarOp>(
+          loc, eqType, op.getSelf(), constZero);
+
+    Value logOther = rewriter.create<AtenLogOp>(loc, resultType, op.getOther());
+    Value selfMulLogOther = rewriter.create<AtenMulTensorOp>(loc, resultType, op.getSelf(), logOther);
+    Value rhs = rewriter.create<AtenWhereScalarSelfOp>(
+        loc, resultType, eqTensor, constZero, selfMulLogOther);
+
+    auto isnanType = ValueTensorType::get(
+        context, op.getType().cast<BaseTensorType>().getSizes(),
+        IntegerType::get(context, 1));
+    Value isnan = rewriter.create<AtenIsnanOp>(loc, isnanType, op.getOther());
+    Value constantNan = rewriter.create<Torch::ConstantFloatOp>(
+      loc, rewriter.getF64FloatAttr(NAN));
+    Value res = rewriter.create<AtenWhereScalarSelfOp>(
+        loc, resultType, isnan, constantNan, rhs);
+
+    rewriter.replaceOp(op, res);
+    
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.fullLike` op into `aten.emptyLike` and `aten.fill` ops.
 class DecomposeAtenFullLikeOp : public OpRewritePattern<AtenFullLikeOp> {
 public:
@@ -5273,6 +5314,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMaxOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenXlogyTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNumpyTOp>(patterns);

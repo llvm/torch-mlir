@@ -763,6 +763,9 @@ def aten〇sub〇Tensor〡shape(self: List[int], other: List[int], alpha: float 
 def aten〇mul〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
+def aten〇xlogy〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, other)
+
 def aten〇div〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
@@ -2404,6 +2407,19 @@ def aten〇mul〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dty
     ranks: List[Optional[int]] = [self_rank, other_rank]
     dtypes = [self_dtype, other_dtype]
     return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(_check_two_tensor_op())
+def aten〇xlogy〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    other_rank, other_dtype = other_rank_dtype
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [other_rank, self_rank]
+    dtypes = [other_dtype, self_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    if is_complex_dtype(promoted_dtype):
+        return promoted_dtype
+    if is_float_dtype(promoted_dtype):
+        return promoted_dtype
+    return torch.float32
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(3, 4), (4,)]) +
     # Different width
