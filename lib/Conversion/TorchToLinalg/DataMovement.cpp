@@ -366,11 +366,7 @@ public:
 
     auto [inputShape, outputShape] =
         getInputAndOutputShape(op.getSelf(), outputSizeTorchInt, resultType.getShape());
-    llvm::errs() << "inputShape: ";
-    llvm::interleaveComma(inputShape, llvm::errs());
 
-    llvm::errs() << " \noutput shape: ";
-    llvm::interleaveComma(outputShape, llvm::errs());
 
     // Currently, we only handle the cases where each dimension is either
     // being expanded or collapsed. We do not handle cases where it's neither
@@ -395,10 +391,6 @@ public:
                        m_TorchTensorSizeInt(op.getSelf(), &inputDim))) {
         unchangedDims.push_back(std::make_pair(inputDim, outputDim));
 
-        llvm::errs() << "inputDim: ";
-	llvm::errs() << inputDim;
-        llvm::errs() << " \noutput Dim: ";
-        llvm::errs() << outputDim;
       }
     }
     // Mark the end of the input/output shapes
@@ -440,10 +432,10 @@ public:
       // Used for ensuring that we don't have an ambiguous expansion
       bool assumedDynamicDimNotSplit = false;
       while (inputDim < nextUnchangedInput && outputDim < nextUnchangedOutput) {
-        auto inputShapeSlice = // 1, ?, 4096
+        auto inputShapeSlice = //  ?, 4096
             MutableArrayRef<int64_t>(inputShape)
                 .slice(inputDim, nextUnchangedInput - inputDim);
-        auto outputShapeSlice = // ?, 4096
+        auto outputShapeSlice = //1, ?, 4096
             MutableArrayRef<int64_t>(outputShape)
                 .slice(outputDim, nextUnchangedOutput - outputDim);
         SmallVector<int64_t> inputSliceIndices;
@@ -483,13 +475,21 @@ public:
           /// known to have the same number of elements.
         } else if (inputShapeSlice[0] == kUnknownSize) {
           // If the input is dynamic, assume it is not split
-          checkDimEqualHelper(rewriter, loc, inputSize[inputDim],
-                              outputSizeInt[outputDim]);
+	  // Elide any unit dims in the output and checkDimEqual on dynamic dims
+
+	  int64_t idx = 0;
+          while (idx < outputShapeSlice.size() && outputShapeSlice[idx] == 1) {
+            outputSliceIndices.push_back(idx++);
+	  }
+
+
+//checkDimEqualHelper(rewriter, loc, inputSize[inputDim],
+  //                            outputSizeInt[idx]);
           // If output dimension is not dynamic, improve static information of
           // input
-          inputShape[inputDim] = outputShape[outputDim];
+          inputShape[inputDim] = outputShape[idx];
           inputSliceIndices.push_back(0);
-          outputSliceIndices.push_back(0);
+          outputSliceIndices.push_back(idx);
           assumedDynamicDimNotSplit = true;
         } else if (inputShapeSlice[0] == 1 && outputShapeSlice[0] == kUnknownSize) {
 	  int64_t idx = 0;

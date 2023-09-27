@@ -227,12 +227,14 @@ public:
     if (!op->hasTrait<Torch::OpTrait::IsTrailingUnderscoreInplaceVariant>())
       return rewriter.notifyMatchFailure(op, "is not trailing_ variant");
 
+    llvm::errs() << "dbg op name: " << op->getName().getStringRef() << "\n";
     SmallVector<StringRef> fragments;
     llvm::SplitString(op->getName().getStringRef(), fragments, ".");
     assert(fragments.size() >= 3 && fragments[2].endswith("_") &&
            "IsTrailingUnderscoreInplaceVariant incorrectly applied");
     fragments[2] = fragments[2].drop_back();
     std::string noUnderscoreName = llvm::join(fragments, ".");
+    llvm::errs() << "dbg fragments good\n";
 
     OperationState state(op->getLoc(), noUnderscoreName);
     state.addTypes(op->getResultTypes());
@@ -241,14 +243,19 @@ public:
     // Note: No successors or regions. Torch JIT operators don't have any.
     assert(op->getNumRegions() == 0 && op->getNumSuccessors() == 0 &&
            "Torch JIT operators shouldn't have regions or successors");
+    llvm::errs() << "dbg good regions, good successors\n";
 
     Operation *newOp = rewriter.create(state);
     auto tensor =
         rewriter.create<CopyToValueTensorOp>(op->getLoc(), newOp->getResult(0));
+    
+    llvm::errs() << "dbg create copy_to_value_tensor\n"; 
     createOverwriteTensorContents(rewriter, op->getLoc(), tensor,
                                   op->getOperand(0));
+
     rewriter.replaceOp(op, op->getOperand(0));
 
+    llvm::errs() << "dbg success\n"; 
     return success();
   }
 };

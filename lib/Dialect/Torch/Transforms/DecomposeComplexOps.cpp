@@ -1543,6 +1543,8 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenMaskedFillScalarOp op,
                                 PatternRewriter &rewriter) const override {
+    
+    llvm::errs() << "dbg decompose fill_scalar\n";
     Location loc = op.getLoc();
     auto resType = op.getType().cast<BaseTensorType>();
     if (!resType.hasDtype()) {
@@ -4429,13 +4431,18 @@ public:
   LogicalResult matchAndRewrite(AtenEmptyStridedOp op,
                                 PatternRewriter &rewriter) const override {
     SmallVector<int64_t> sizeListInts, strideListInts;
-    if (!matchPattern(op.getSize(), m_TorchListOfConstantInts(sizeListInts)))
-      return rewriter.notifyMatchFailure(
-          op, "all size list elements must be constant ints");
-    if (!matchPattern(op.getStride(),
-                      m_TorchListOfConstantInts(strideListInts)))
-      return rewriter.notifyMatchFailure(
-          op, "all stride list elements must be constant ints");
+    llvm::errs() << "dbg Try decompose empty strided\n";
+    //if (!matchPattern(op.getSize(), m_TorchListOfConstantInts(sizeListInts))){
+
+    //  llvm::errs() << "dbg all size list ele const ints\n";
+    //  return rewriter.notifyMatchFailure(
+    //      op, "all size list elements must be constant ints");
+    //}
+    //if (!matchPattern(op.getStride(),
+    //                  m_TorchListOfConstantInts(strideListInts))){
+    //  llvm::errs() << "dbg all stride list ele const ints\n";
+    //  return rewriter.notifyMatchFailure(
+    //      op, "all stride list elements must be constant ints");}
 
     // We only support the cases with default stride values.
     // For ex: aten.new_empty_strided(self, size=[2, 3, 4], stride=[12, 4, 1])
@@ -4451,16 +4458,18 @@ public:
         break;
       }
     }
-    if (!isDefaultStride)
+    if (!isDefaultStride){
+      llvm::errs() << "dbg non default strides\n";
       return rewriter.notifyMatchFailure(
           op, "only default strides supported for new_empty_strided op");
-
+    }
     Value noneVal = rewriter.create<ConstantNoneOp>(op.getLoc());
 
     rewriter.replaceOpWithNewOp<AtenEmptyMemoryFormatOp>(
         op, op.getType(), op.getSize(), op.getDtype(), op.getLayout(), op.getDevice(),
         op.getPinMemory(), /*memoryFormat=*/noneVal);
 
+    llvm::errs() << "dbg success\n";
     return success();
 
 
