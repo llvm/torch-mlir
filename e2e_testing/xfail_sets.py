@@ -1421,4 +1421,6 @@ LTC_XFAIL_SET = {
     "UniformStaticShapeModule_basic",
     "AtenEmbeddingBagStaticModule_basic",
     "EmptyStridedModule_basic",
+    "ElementwiseBitwiseAndScalarInt64Module_basic",
+    "ElementwiseBitwiseAndScalarInt32Module_basic",
 }
