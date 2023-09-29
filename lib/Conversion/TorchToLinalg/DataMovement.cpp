@@ -656,20 +656,23 @@ public:
       reassociation[0].push_back(headOnesCount++);
     }
 
-    // TODO: Add support for size-1 dynamic dimensions.
     Value one = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
     int64_t j = -1;
+    bool elideDynamicBroadcastDimCheck =
+        isAssumingStrictSymbolicShapes(rewriter);
     for (auto i : llvm::seq<int64_t>(headOnesCount, inputRank)) {
       if (inputType.isDynamicDim(i)) {
-        // Make sure that size-1 dynamic dimension does not exist.
-        Value dimSize = getDimOp(rewriter, loc, input, i);
-        Value dimSizeNotOne = rewriter.create<arith::CmpIOp>(
-            loc, arith::CmpIPredicate::ne, dimSize, one);
-        rewriter.create<cf::AssertOp>(
-            loc, dimSizeNotOne,
-            rewriter.getStringAttr(
-                "unimplemented: size 1 dynamic dimension is not supported"));
+        if (!elideDynamicBroadcastDimCheck) {
+          // Make sure that size-1 dynamic dimension does not exist.
+          Value dimSize = getDimOp(rewriter, loc, input, i);
+          Value dimSizeNotOne = rewriter.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::ne, dimSize, one);
+          rewriter.create<cf::AssertOp>(
+              loc, dimSizeNotOne,
+              rewriter.getStringAttr(
+                  "unimplemented: size 1 dynamic dimension is not supported"));
+        }
         ++j;
       } else if (inputType.getDimSize(i) != 1) {
         ++j;
