@@ -2822,7 +2822,7 @@ def aten〇remainder〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: U
 
 # TODO: This should be fixed by switching to FakeTensor instead of Meta tensor
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1, 1), (1, 1, 1), (1, 1, 1)], tensor_device="cpu", error_types={torch.bool, torch.float16}) +
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1, 1), (1, 1, 1), (1, 1, 1)], tensor_device="cpu", error_types={torch.bool}) +
     [ErrorInvocation(TensorOfShape(
         1, 1, 1, dtype=torch.float64, device="cpu"), TensorOfShape(1, 1, 1, dtype=torch.int16, device="cpu"), TensorOfShape(1, 1, 1, dtype=torch.int32, device="cpu")),
     ErrorInvocation(
@@ -2834,8 +2834,8 @@ def aten〇remainder〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: U
 def aten〇baddbmm〡dtype(self_rank_dtype: Tuple[int, int], batch1_rank_dtype: Tuple[int, int], batch2_rank_dtype: Tuple[int, int], beta: Union[int, float, complex] = 1, alpha: Union[int, float, complex] = 1) -> int:
     batch1_rank, batch1_dtype = batch1_rank_dtype
     batch2_rank, batch2_dtype = batch2_rank_dtype
-    assert batch1_dtype not in [torch.bool, torch.float16]
-    assert batch2_dtype not in [torch.bool, torch.float16]
+    assert batch1_dtype is not torch.bool
+    assert batch2_dtype is not torch.bool
     assert batch1_dtype == batch2_dtype
     ranks: List[Optional[int]] = [batch1_rank, batch2_rank]
     dtypes = [batch1_dtype, batch2_dtype]
