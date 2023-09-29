@@ -1477,10 +1477,12 @@ public:
           rewriter.getStringAttr(
               "expect the size of dim 0 equal to the number of features"));
     };
-    contractingDim0EqualsNumFeatures(weight);
-    contractingDim0EqualsNumFeatures(bias);
-    contractingDim0EqualsNumFeatures(runningMean);
-    contractingDim0EqualsNumFeatures(runningVar);
+    if (!isAssumingStrictSymbolicShapes(rewriter)) {
+      contractingDim0EqualsNumFeatures(weight);
+      contractingDim0EqualsNumFeatures(bias);
+      contractingDim0EqualsNumFeatures(runningMean);
+      contractingDim0EqualsNumFeatures(runningVar);
+    }
 
     auto indexingMap = AffineMap::get(
         /*dimCount=*/inputRank,

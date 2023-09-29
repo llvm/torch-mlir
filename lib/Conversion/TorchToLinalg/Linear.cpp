@@ -58,15 +58,18 @@ public:
     }
 
     Value lhsDim0 = rewriter.create<tensor::DimOp>(loc, lhs, 0);
-    Value lhsDim1 = rewriter.create<tensor::DimOp>(loc, lhs, 1);
-    Value rhsDim0 = rewriter.create<tensor::DimOp>(loc, rhs, 0);
     Value rhsDim1 = rewriter.create<tensor::DimOp>(loc, rhs, 1);
-    Value contractingDimEqual = rewriter.create<arith::CmpIOp>(
-        loc, arith::CmpIPredicate::eq, lhsDim1, rhsDim0);
-    rewriter.create<cf::AssertOp>(
-        loc, contractingDimEqual,
-        rewriter.getStringAttr(
-            "mismatching contracting dimension for torch.aten.mm"));
+
+    if (!isAssumingStrictSymbolicShapes(rewriter)) {
+      Value lhsDim1 = rewriter.create<tensor::DimOp>(loc, lhs, 1);
+      Value rhsDim0 = rewriter.create<tensor::DimOp>(loc, rhs, 0);
+      Value contractingDimEqual = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::eq, lhsDim1, rhsDim0);
+      rewriter.create<cf::AssertOp>(
+          loc, contractingDimEqual,
+          rewriter.getStringAttr(
+              "mismatching contracting dimension for torch.aten.mm"));
+    }
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
     Type elementType = newResultType.cast<TensorType>().getElementType();
