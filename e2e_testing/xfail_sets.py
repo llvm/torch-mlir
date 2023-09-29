@@ -288,6 +288,9 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # AssertionError: Unregistered operation: torch.aten._embedding_bag_forward_only
     "AtenEmbeddingBagStaticModule_basic",
+
+    # Lowering not present for this case
+    "ElementwiseToDtypeI64ToUI8Module_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.1.0.dev"):

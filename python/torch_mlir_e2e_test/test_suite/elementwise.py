@@ -1642,6 +1642,44 @@ def ElementwiseToDtypeIdentityModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseToDtypeI64ToI8Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.int64, True)])
+    def forward(self, x):
+        return x.to(torch.int8)
+
+
+@register_test_case(module_factory=lambda: ElementwiseToDtypeI64ToI8Module())
+def ElementwiseToDtypeI64ToI8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-100, high=100))
+
+
+# ==============================================================================
+
+
+class ElementwiseToDtypeI64ToUI8Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.int64, True)])
+    def forward(self, x):
+        return x.to(torch.uint8)
+
+
+@register_test_case(module_factory=lambda: ElementwiseToDtypeI64ToUI8Module())
+def ElementwiseToDtypeI64ToUI8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-100, high=100))
+
+
+# ==============================================================================
+
+
 class ElementwiseLog2Module(torch.nn.Module):
 
     def __init__(self):
