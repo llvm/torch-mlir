@@ -309,8 +309,14 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
           "bitwise_and.Scalar does not support non-integer input dtype.");
       return nullptr;
     }
-    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-    Value other = convertScalarToDtype(b, loc, operands[1], dtype);
+    Type resultElementType =
+        bitwiseAndScalar.getType().cast<BaseTensorType>().getDtype();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
+                                      /*srcOriginalDtype=*/std::nullopt,
+                                      /*dstOriginalDtype=*/resultElementType);
+    Value other = convertScalarToDtype(b, loc, operands[1], dtype,
+                                       /*srcOriginalDtype=*/std::nullopt,
+                                       /*dstOriginalDtype=*/resultElementType);
     return b.create<arith::AndIOp>(loc, self, other);
   }
   if (auto bitwiseOrTensor = dyn_cast<AtenBitwiseOrTensorOp>(op)) {
@@ -542,9 +548,16 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(sub.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
-    Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), dtype);
+    Type resultElementType = sub.getType().cast<BaseTensorType>().getDtype();
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
+                                     /*srcOriginalDtype=*/std::nullopt,
+                                     /*dstOriginalDtype=*/resultElementType);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype,
+                                     /*srcOriginalDtype=*/std::nullopt,
+                                     /*dstOriginalDtype=*/resultElementType);
+    Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), dtype,
+                                       /*srcOriginalDtype=*/std::nullopt,
+                                       /*dstOriginalDtype=*/resultElementType);
     if (dtype.isa<mlir::FloatType>()) {
       Value scaled = b.create<arith::MulFOp>(loc, rhs, alpha);
       return b.create<arith::SubFOp>(loc, lhs, scaled);
@@ -575,9 +588,17 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(addScalar.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-    Value other = convertScalarToDtype(b, loc, operands[1], dtype);
-    Value alpha = convertScalarToDtype(b, loc, operands[2], dtype);
+    Type resultElementType =
+        addScalar.getType().cast<BaseTensorType>().getDtype();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
+                                      /*srcOriginalDtype=*/std::nullopt,
+                                      /*dstOriginalDtype=*/resultElementType);
+    Value other = convertScalarToDtype(b, loc, operands[1], dtype,
+                                       /*srcOriginalDtype=*/std::nullopt,
+                                       /*dstOriginalDtype=*/resultElementType);
+    Value alpha = convertScalarToDtype(b, loc, operands[2], dtype,
+                                       /*srcOriginalDtype=*/std::nullopt,
+                                       /*dstOriginalDtype=*/resultElementType);
     if (dtype.isa<mlir::FloatType>()) {
       Value mult = b.create<arith::MulFOp>(loc, other, alpha);
       return b.create<arith::AddFOp>(loc, self, mult);

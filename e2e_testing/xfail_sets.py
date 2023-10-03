@@ -291,6 +291,9 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # Lowering not present for this case
     "ElementwiseToDtypeI64ToUI8Module_basic",
+
+    # torch._dynamo.exc.TorchRuntimeError: Failed running call_function <built-in method add of type object at 0x7f4f8b05a720>(*(FakeTensor(..., size=(3, 4), dtype=torch.int8), 3, 2), **{}): Tensor with dtype torch.int64 is not the expected dtype of torch.int8!
+    "ElementwiseAddScalarInt8Module_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.1.0.dev"):
@@ -1262,6 +1265,8 @@ TOSA_PASS_SET = {
     "SoftmaxIntNegDimModule_basic",
     "_LogSoftmaxModule_basic",
     "_SoftmaxModule_basic",
+    "ElementwiseAddScalarInt8Module_basic",
+    "ElementwiseSubTensorInt8Module_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
@@ -1423,4 +1428,5 @@ LTC_XFAIL_SET = {
     "EmptyStridedModule_basic",
     "ElementwiseBitwiseAndScalarInt64Module_basic",
     "ElementwiseBitwiseAndScalarInt32Module_basic",
+    "ElementwiseBitwiseAndScalarInt8Module_basic",
 }
