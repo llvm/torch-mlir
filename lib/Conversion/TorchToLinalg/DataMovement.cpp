@@ -193,6 +193,9 @@ public:
                                              ArrayRef<int64_t> yDims,
                                              SmallVector<int64_t> &xIndices,
                                              SmallVector<int64_t> &yIndices) {
+    if (xDims.empty() || yDims.empty())
+      return failure();
+
     auto isValidReduction = [](int64_t expectedReductionProduct,
                                ArrayRef<int64_t> arrayToReduce) -> bool {
       if (llvm::count(arrayToReduce, kUnknownSize) > 0 ||
@@ -262,6 +265,8 @@ public:
   // all the dimensions in `outputShape`.
   static void calculateSingleDynamicSize(MutableArrayRef<int64_t> inputShape,
                                          MutableArrayRef<int64_t> outputShape) {
+    if (inputShape.empty() || outputShape.empty())
+      return;
     int64_t inputDynamicDimCount = llvm::count(inputShape, kUnknownSize);
     int64_t outputDynamicDimCount = llvm::count(outputShape, kUnknownSize);
     if (inputDynamicDimCount + outputDynamicDimCount != 1)
@@ -488,12 +493,29 @@ public:
         outputDim = outputAssociations.back().back() + 1;
       }
 
-      // Append the associations for the dims matching `aten.size.int`
-      if (nextUnchangedInput != inputRank &&
-          nextUnchangedOutput != resultRank) {
+      // Handle any leading or trailing size-1 dimensions and append the
+      // associations for the dims matching `aten.size.int`.
+      if (nextUnchangedInput != inputRank) {
+        assert(nextUnchangedOutput != resultRank &&
+               "`nextUnchangedInput` and `nextUnchangedOutput` should equal "
+               "the respective input and output rank at the same time");
         inputAssociations.emplace_back();
         outputAssociations.emplace_back();
+      }
+      while (inputDim <= nextUnchangedInput && inputDim < inputRank) {
+        if (inputDim != nextUnchangedInput && inputShape[inputDim] != 1) {
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: only collapsing of static size-1 into "
+                  "unchanged dim supported");
+        }
         inputAssociations.back().push_back(inputDim++);
+      }
+      while (outputDim <= nextUnchangedOutput && outputDim < resultRank) {
+        if (outputDim != nextUnchangedOutput && outputShape[outputDim] != 1) {
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: only expanding of static size-1 out of "
+                  "unchanged dim supported");
+        }
         outputAssociations.back().push_back(outputDim++);
       }
     }
@@ -619,20 +641,23 @@ public:
       reassociation[0].push_back(headOnesCount++);
     }
 
-    // TODO: Add support for size-1 dynamic dimensions.
     Value one = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
     int64_t j = -1;
+    bool elideDynamicBroadcastDimCheck =
+        isAssumingStrictSymbolicShapes(rewriter);
     for (auto i : llvm::seq<int64_t>(headOnesCount, inputRank)) {
       if (inputType.isDynamicDim(i)) {
-        // Make sure that size-1 dynamic dimension does not exist.
-        Value dimSize = getDimOp(rewriter, loc, input, i);
-        Value dimSizeNotOne = rewriter.create<arith::CmpIOp>(
-            loc, arith::CmpIPredicate::ne, dimSize, one);
-        rewriter.create<cf::AssertOp>(
-            loc, dimSizeNotOne,
-            rewriter.getStringAttr(
-                "unimplemented: size 1 dynamic dimension is not supported"));
+        if (!elideDynamicBroadcastDimCheck) {
+          // Make sure that size-1 dynamic dimension does not exist.
+          Value dimSize = getDimOp(rewriter, loc, input, i);
+          Value dimSizeNotOne = rewriter.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::ne, dimSize, one);
+          rewriter.create<cf::AssertOp>(
+              loc, dimSizeNotOne,
+              rewriter.getStringAttr(
+                  "unimplemented: size 1 dynamic dimension is not supported"));
+        }
         ++j;
       } else if (inputType.getDimSize(i) != 1) {
         ++j;

@@ -1687,6 +1687,44 @@ def ElementwiseToDtypeIdentityModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseToDtypeI64ToI8Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.int64, True)])
+    def forward(self, x):
+        return x.to(torch.int8)
+
+
+@register_test_case(module_factory=lambda: ElementwiseToDtypeI64ToI8Module())
+def ElementwiseToDtypeI64ToI8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-100, high=100))
+
+
+# ==============================================================================
+
+
+class ElementwiseToDtypeI64ToUI8Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.int64, True)])
+    def forward(self, x):
+        return x.to(torch.uint8)
+
+
+@register_test_case(module_factory=lambda: ElementwiseToDtypeI64ToUI8Module())
+def ElementwiseToDtypeI64ToUI8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-100, high=100))
+
+
+# ==============================================================================
+
+
 class ElementwiseLog2Module(torch.nn.Module):
 
     def __init__(self):
@@ -1725,6 +1763,48 @@ class ElementwiseLog2IntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseLog2IntModule())
 def ElementwiseLog2IntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+class ElementwiseLog10Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.log10(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLog10Module())
+def ElementwiseLog10Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+class ElementwiseLog10IntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.log10(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLog10IntModule())
+def ElementwiseLog10IntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
 
 
@@ -2281,6 +2361,31 @@ def ElementwiseBitwiseNotInt32Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseSubTensorInt8Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int8, True),
+        ([-1, -1], torch.int8, True),
+    ])
+    def forward(self, x, y):
+        return torch.sub(x, y, alpha=2)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSubTensorInt8Module())
+def ElementwiseSubTensorInt8Module_basic(module, tu: TestUtils):
+        module.forward(
+        tu.randint(3, 4, high=10).to(dtype=torch.int8),
+        tu.randint(3, 4, high=10).to(dtype=torch.int8))
+
+
+# ==============================================================================
+
+
 class ElementwiseSubScalarIntModule(torch.nn.Module):
 
     def __init__(self):
@@ -2432,6 +2537,28 @@ class ElementwiseAddScalar_TensorLiteralInt32_Module(torch.nn.Module):
     module_factory=lambda: ElementwiseAddScalar_TensorLiteralInt32_Module())
 def ElementwiseAddScalar_TensorLiteralInt32_Module_basic(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+
+class ElementwiseAddScalarInt8Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int8, True),
+    ])
+    def forward(self, x):
+        return torch.add(x, 3, 2)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAddScalarInt8Module())
+def ElementwiseAddScalarInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, high=10).to(torch.int8))
 
 
 # ==============================================================================
@@ -3480,3 +3607,126 @@ class TupleModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: TupleModule())
 def TupleModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 2), tu.rand(2, 2))
+
+
+# ==============================================================================
+
+
+class ElementwiseBitwiseRightShiftInt64Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.bitwise_right_shift(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseRightShiftInt64Module())
+def ElementwiseBitwiseRightShiftInt64Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-1000, high=1000), tu.randint(3, 4, low=0, high=64))
+
+
+class ElementwiseBitwiseRightShiftInt32Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, 4], torch.int32, True),
+        ([-1, 1], torch.int32, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.bitwise_right_shift(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseRightShiftInt32Module())
+def ElementwiseBitwiseRightShiftInt32Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-1000, high=1000).to(torch.int32), tu.randint(3, 1, low=0, high=32).to(torch.int32))
+
+
+class ElementwiseBitwiseRightShiftInt8Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int8, True),
+        ([-1, -1], torch.int8, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.bitwise_right_shift(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseRightShiftInt8Module())
+def ElementwiseBitwiseRightShiftInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-100, high=100).to(torch.int8), tu.randint(3, 4, low=0, high=8).to(torch.int8))
+
+
+# ==============================================================================
+
+
+class ElementwiseBitwiseAndScalarInt64Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.bitwise_and(x, 15)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseAndScalarInt64Module())
+def ElementwiseBitwiseAndScalarInt64Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-1000, high=1000))
+
+
+class ElementwiseBitwiseAndScalarInt32Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, x):
+        return torch.bitwise_and(x, 100)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseAndScalarInt32Module())
+def ElementwiseBitwiseAndScalarInt32Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-1000, high=1000).to(torch.int32))
+
+
+class ElementwiseBitwiseAndScalarInt8Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int8, True),
+    ])
+    def forward(self, x):
+        return torch.bitwise_and(x, 100)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseAndScalarInt8Module())
+def ElementwiseBitwiseAndScalarInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-1000, high=1000).to(torch.int8))

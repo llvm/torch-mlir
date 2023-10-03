@@ -644,14 +644,16 @@ public:
             return rewriter.notifyMatchFailure(
                 op,
                 "unimplemented: index tensors with overlapping dynamic dims");
-          if (staticDimSize > 1) {
-            Value cstStaticDimSize = getConstant(rewriter, loc, staticDimSize,
-                                                 rewriter.getIndexType());
-            auto equalToRunning = rewriter.create<arith::CmpIOp>(
-                loc, arith::CmpIPredicate::eq, cstStaticDimSize,
-                dynamicDims[0]);
-            rewriter.create<cf::AssertOp>(loc, equalToRunning,
-                                          "mismatched size for broadcast");
+          if (!isAssumingStrictSymbolicShapes(rewriter)) {
+            if (staticDimSize > 1) {
+              Value cstStaticDimSize = getConstant(rewriter, loc, staticDimSize,
+                                                   rewriter.getIndexType());
+              auto equalToRunning = rewriter.create<arith::CmpIOp>(
+                  loc, arith::CmpIPredicate::eq, cstStaticDimSize,
+                  dynamicDims[0]);
+              rewriter.create<cf::AssertOp>(loc, equalToRunning,
+                                            "mismatched size for broadcast");
+            }
           }
           broadcastedIndexShape.push_back(dynamicDims[0]);
         } else {

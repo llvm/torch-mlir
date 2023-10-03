@@ -231,7 +231,8 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
   //     if this is the first tensor operand that didn't continue above:
   //       take its dimension size as the size of the non-broadcasted
   //       traversal along this dimension (this may include a dynamic size-1,
-  //       **non-broadcasted** traversal!)
+  //       **non-broadcasted** traversal unless if
+  //       isAssumingStrictSymbolicShapes!)
   //     emit error check "if the size does not match the non-broadcasted
   //     traversal size along this dimension, error"
   // ```
@@ -251,6 +252,7 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
   auto c1 = b.create<arith::ConstantIndexOp>(loc, /*value=*/1);
   SmallVector<Value> resultShape(resultRank, c1);
   SmallVector<AffineMap> indexingMaps;
+  bool elideDynamicBroadcastCheck = isAssumingStrictSymbolicShapes(b);
   for (Value tensorOperand : tensorOperands) {
     SmallVector<AffineExpr> exprs;
     auto type = tensorOperand.getType().cast<RankedTensorType>();
@@ -294,11 +296,13 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
       // This is the check which protects against the undefined behavior of
       // the generated linalg op in the case of iterating two operands with
       // dimensions sizes that are expected to match.
-      auto equalToRunning =
-          b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-                                  resultShape[resultDim], currentDimSize);
-      b.create<cf::AssertOp>(loc, equalToRunning,
-                             "mismatched size for broadcast");
+      if (!elideDynamicBroadcastCheck) {
+        auto equalToRunning =
+            b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
+                                    resultShape[resultDim], currentDimSize);
+        b.create<cf::AssertOp>(loc, equalToRunning,
+                               "mismatched size for broadcast");
+      }
     }
     indexingMaps.push_back(AffineMap::get(
         /*dimCount=*/resultRank, /*symbolCount=*/0, exprs, b.getContext()));
@@ -337,6 +341,7 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
   Type elementType = inputType.getElementType();
   Location loc = op->getLoc();
   SmallVector<Value> outShape;
+  bool elideDynamicBroadcastCheck = isAssumingStrictSymbolicShapes(rewriter);
 
   // Create affine map and shapes for tensor initialization.
   SmallVector<AffineExpr> outExpr;
@@ -351,12 +356,14 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
     Value shapeValue = broadcastToShape[i];
     size_t j = i - diff;
     if (i < diff) {
-      Value isValid = rewriter.create<arith::CmpIOp>(
-          loc, arith::CmpIPredicate::sge, shapeValue, zero);
-      rewriter.create<cf::AssertOp>(
-          loc, isValid,
-          rewriter.getStringAttr(
-              "negative values not allowed in new dimensions"));
+      if (!elideDynamicBroadcastCheck) {
+        Value isValid = rewriter.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::sge, shapeValue, zero);
+        rewriter.create<cf::AssertOp>(
+            loc, isValid,
+            rewriter.getStringAttr(
+                "negative values not allowed in new dimensions"));
+      }
       outShape.push_back(castIntToIndex(rewriter, loc, shapeValue));
       continue;
     }
