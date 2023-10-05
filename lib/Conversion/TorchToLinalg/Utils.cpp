@@ -389,7 +389,6 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
                                   !isDynamic);
       continue;
     }
-    llvm::errs() << "Has dynamic out\n";
 
     if (i < diff) {
       if (!elideDynamicBroadcastCheck) {
@@ -419,9 +418,7 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
     Value dim;
     if (!useBroadcastToShape.empty() && useBroadcastToShape[i]) {
       dim = castIntToIndex(rewriter, loc, broadcastToShape[j]);
-      llvm::errs() << "Has use broadcast shape\n";
       if (isDynamic) {
-        llvm::errs() << "Has dynamic broadcast\n";
         hasDynamicNumpyBroadcast = true;
       }
       if (!elideDynamicBroadcastCheck) {
