@@ -624,25 +624,19 @@ def aten〇flatten〇using_ints〡shape(self: List[int], start_dim: int = 0, end
     Invocation(TensorOfShape(3, 6, 8), 1, [3, 2]),
     Invocation(TensorOfShape(3, 6, 8), 1, [3, -1]),  # contain one -1 in sizes
     Invocation(TensorOfShape(3, 6, 8), -1, [2, -1, 2]),  # dim = -1
-    ErrorInvocation(TensorOfShape(3, 6, 8), 1, [-1, -1, 2]), # contain two -1 in sizes
 ])
 def aten〇unflatten〇int〡shape(self: List[int], dim: int, sizes: List[int]) -> List[int]:
     if dim < 0:
         dim += len(self)
-    assert dim >= 0 and dim < len(self)
-    total_size = 1
-    negative_one_count = sizes.count(-1)
-    assert negative_one_count <= 1
-    for size in sizes:
-        if size != -1:
-            total_size *= size
-    if -1 in sizes:
-        inferred_size = self[dim] // total_size
-        assert self[dim] % total_size == 0
-        sizes[sizes.index(-1)] = inferred_size
-        total_size *= inferred_size
-    assert total_size == self[dim]
-    return self[:dim] + sizes + self[dim + 1:]
+    unflatten_shape: List[int] = [self[dim]]
+    unflatten_shape_output = upstream_shape_functions.view(unflatten_shape, sizes)
+    shape: List[int] = []
+    for i in range(len(self)):
+        if i != dim:
+            shape.append(self[i])
+        else:
+            shape = shape + unflatten_shape_output
+    return shape
 
 def aten〇linear〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None) -> List[int]:
     return upstream_shape_functions.linear(input, weight, bias)

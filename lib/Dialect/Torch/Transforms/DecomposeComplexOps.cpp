@@ -1463,6 +1463,11 @@ public:
     Location loc = op.getLoc();
     Value self = op.getSelf();
     MLIRContext *context = op.getContext();
+    BaseTensorType outputTensorType = op.getType().cast<BaseTensorType>();
+    if (!outputTensorType.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: output must have known sizes");
+
     std::optional<unsigned> maybeRank = getTensorRank(self);
     if (!maybeRank)
       return rewriter.notifyMatchFailure(op, "unimplemented: unranked tensor");
