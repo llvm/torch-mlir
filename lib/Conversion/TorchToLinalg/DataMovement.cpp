@@ -1095,31 +1095,35 @@ public:
     // which in this case is `inShapeConverted` because this shape will yield
     // us the dimension size of the output.
     SmallVector<bool> useBroadcastToShape;
-    for (auto x : inShape) {
+    int64_t inputRank = self.getType().cast<RankedTensorType>().getRank();
+    for (size_t i = inShape.size() - inputRank, e = inShape.size(); i < e;
+         ++i) {
       int64_t dim;
-      if (!matchPattern(x, m_TorchConstantInt(&dim))) {
-        Operation *defOp = x.getDefiningOp();
-        if (isa<AtenSizeOp, AtenSizeIntOp>(defOp))
-          useBroadcastToShape.push_back(true);
-        else
+      if (matchPattern(inShape[i], m_TorchConstantInt(&dim))) {
+        if (dim < 0) {
           useBroadcastToShape.push_back(false);
+        } else {
+          useBroadcastToShape.push_back(true);
+        }
       } else {
-        useBroadcastToShape.push_back(false);
+        // Note: Dynamic -1 (inferred) broadcast shapes are unimplemented.
+        useBroadcastToShape.push_back(true);
       }
     }
 
     SmallVector<Value> inShapeConverted = getTypeConvertedValues(
         rewriter, op.getLoc(), getTypeConverter(), inShape);
+    auto newResultType =
+        getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
     Value result;
-    if (failed(torch_to_linalg::broadcastToGivenShape(op, rewriter, self,
-                                                      inShapeConverted, result,
-                                                      useBroadcastToShape))) {
+    if (failed(torch_to_linalg::broadcastToGivenShape(
+            op, rewriter, self, inShapeConverted, newResultType, result,
+            useBroadcastToShape))) {
       return rewriter.notifyMatchFailure(
           op, "unable to perform broadcast operation");
     }
 
-    Type newResultType = getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, result);
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
@@ -1177,7 +1181,7 @@ public:
       selfSizes[i] = castIndexToInt64(rewriter, loc, selfSizes[i]);
     Value broadcastedSrc;
     if (failed(torch_to_linalg::broadcastToGivenShape(
-            op, rewriter, src, selfSizes, broadcastedSrc))) {
+            op, rewriter, src, selfSizes, selfType, broadcastedSrc))) {
       return rewriter.notifyMatchFailure(
           op, "unable to perform broadcast operation");
     }
