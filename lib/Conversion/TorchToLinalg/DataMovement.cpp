@@ -1095,16 +1095,18 @@ public:
     // which in this case is `inShapeConverted` because this shape will yield
     // us the dimension size of the output.
     SmallVector<bool> useBroadcastToShape;
-    for (auto x : inShape) {
+    int64_t inputRank = self.getType().cast<RankedTensorType>().getRank();
+    for (size_t i = inShape.size() - inputRank, e = inShape.size(); i < e;
+         ++i) {
       int64_t dim;
-      if (matchPattern(x, m_TorchConstantInt(&dim))) {
+      if (matchPattern(inShape[i], m_TorchConstantInt(&dim))) {
         if (dim < 0) {
           useBroadcastToShape.push_back(false);
         } else {
           useBroadcastToShape.push_back(true);
         }
       } else {
-        // Note: Dynamic -1 broadcast shapes are unimplemented.
+        // Note: Dynamic -1 (inferred) broadcast shapes are unimplemented.
         useBroadcastToShape.push_back(true);
       }
     }

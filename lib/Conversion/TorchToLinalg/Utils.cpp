@@ -362,7 +362,7 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
   for (size_t i = 0, e = outputRank; i < e; i++) {
     Value shapeValue = broadcastToShape[i];
     size_t j = i - diff;
-    bool isDynamic = inputShape[j] == kUnknownSize;
+    bool isDynamic = i >= diff && inputShape[j] == kUnknownSize;
 
     // Inherit static output shapes if present.
     if (outputShape[i] != ShapedType::kDynamic) {
@@ -416,8 +416,8 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
     // Case of dynamic input dimension wherein the shape to broadcast will
     // yield us the dimension size of the output.
     Value dim;
-    if (!useBroadcastToShape.empty() && useBroadcastToShape[i]) {
-      dim = castIntToIndex(rewriter, loc, broadcastToShape[j]);
+    if (!useBroadcastToShape.empty() && useBroadcastToShape[j]) {
+      dim = castIntToIndex(rewriter, loc, broadcastToShape[i]);
       if (isDynamic) {
         hasDynamicNumpyBroadcast = true;
       }
