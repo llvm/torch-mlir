@@ -813,7 +813,6 @@ class ReshapeAliasCollapseModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReshapeAliasCollapseModule())
 def ReshapeAliasCollapseModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4))
-<<<<<<< HEAD
 
 # ==============================================================================
 
@@ -867,5 +866,3 @@ class UnflattenIntNegativeOneSizeStaticModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: UnflattenIntNegativeOneSizeStaticModule())
 def UnflattenIntNegativeOneSizeStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 12, 3))
-=======
->>>>>>> main
