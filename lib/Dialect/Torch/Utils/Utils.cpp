@@ -324,3 +324,12 @@ FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
       op->getLoc(), unsqueezedType, input, dim);
   return unsqueezed;
 }
+
+bool Torch::isAssumingStrictSymbolicShapes(Block *block) {
+  for (Operation *parentOp = block->getParentOp(); parentOp;
+       parentOp = parentOp->getParentOp()) {
+    if (parentOp->hasAttr("torch.assume_strict_symbolic_shapes"))
+      return true;
+  }
+  return false;
+}

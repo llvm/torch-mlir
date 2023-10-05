@@ -86,6 +86,24 @@ FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
 FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
                                  Value input, Value dim);
 
+// In Dynamo import paths, we can assume that dynamic dimensions are strictly
+// quantities and are not ambiguous with '1' symbols that can be interpreted
+// to signal an expansion in various broadcasting scenarios. In the
+// torch.compile eager path, this precondition is assured by guards on 0/1
+// dimension values, and on the torch.export graph-capture path, the shape
+// solver guarantees this.
+//
+// We let lowerings assume this on a per-scope basis if the
+// torch.assume_strict_symbolic_shapes unit attribute is present on any parent
+// of the block.
+bool isAssumingStrictSymbolicShapes(Block *scope);
+
+// Helper that uses the block from an OpBuilder for determining whether we
+// are assuming strict symbolic shapes.
+inline bool isAssumingStrictSymbolicShapes(OpBuilder &builder) {
+  return isAssumingStrictSymbolicShapes(builder.getBlock());
+}
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
