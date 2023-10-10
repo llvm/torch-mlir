@@ -2526,6 +2526,60 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenUnflattenIntOp>::matchAndRewrite(
+    AtenUnflattenIntOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a ranked tensor type
+  auto selfType = adaptor.getSelf().getType().dyn_cast<RankedTensorType>();
+  if (!selfType || !selfType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op,
+        "Only ranked tensor types with static shapes are currently supported");
+
+  int64_t selfRank = selfType.getRank();
+  int64_t dim;
+
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(op, "dim must be a Scalar constant");
+
+  SmallVector<int64_t> sizes;
+  if (!matchPattern(op.getSizes(), m_TorchListOfConstantInts(sizes)))
+    return rewriter.notifyMatchFailure(
+        op, "Only constant sizes are currently supported");
+
+  if (selfRank > 0 && !isValidDim(dim, selfRank))
+    return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+
+  SmallVector<int64_t> newShape;
+  for (auto s :
+       llvm::enumerate(makeShapeTorchCompatible(selfType.getShape()))) {
+    int64_t idx = s.index();
+    if (idx < dim || idx > dim) {
+      newShape.push_back(s.value());
+    } else {
+      auto sum = 1;
+      for (auto newDims : sizes) {
+        newShape.push_back(newDims);
+        sum *= newDims;
+      }
+      if (sum != s.value())
+        return rewriter.notifyMatchFailure(op,
+                                           "sizes mismatch with original dim");
+    }
+  }
+
+  auto newType = RankedTensorType::get(makeShapeLLVMCompatible(newShape),
+                                       selfType.getElementType());
+
+  rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
+      op, getTypeConverter()->convertType(newType), adaptor.getSelf(),
+      rewriter.getDenseI64ArrayAttr(newShape));
+
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewrite(
     AtenPermuteOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -5050,6 +5104,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenBatchNormOp);
     INSERT_ATENOP_PATTERN(AtenNativeLayerNormOp);
     INSERT_ATENOP_PATTERN(AtenFlattenUsingIntsOp);
+    INSERT_ATENOP_PATTERN(AtenUnflattenIntOp);
     INSERT_ATENOP_PATTERN(AtenPermuteOp);
     INSERT_ATENOP_PATTERN(AtenLog2Op);
     INSERT_ATENOP_PATTERN(AtenThresholdOp);

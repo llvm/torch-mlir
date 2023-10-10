@@ -623,6 +623,9 @@ def aten〇adaptive_avg_pool2d〡shape(self: List[int], output_size: List[int]) 
 def aten〇flatten〇using_ints〡shape(self: List[int], start_dim: int = 0, end_dim: int = -1) -> List[int]:
     return upstream_shape_functions.flatten(self, start_dim, end_dim)
 
+def aten〇unflatten〇int〡shape(self: List[int], dim: int, sizes: List[int]) -> List[int]:
+    return self[:dim] + sizes + self[dim + 1:]
+
 def aten〇linear〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None) -> List[int]:
     return upstream_shape_functions.linear(input, weight, bias)
 
@@ -1653,6 +1656,11 @@ def aten〇fill〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], value_rank_dt
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇flatten〇using_ints〡dtype(self_rank_dtype: Tuple[int, int], start_dim: int = 0, end_dim: int = -1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0, sizes=[1]))
+def aten〇unflatten〇int〡dtype(self_rank_dtype: Tuple[int, int], dim: int, sizes: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
