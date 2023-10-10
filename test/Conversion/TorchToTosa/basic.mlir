@@ -558,12 +558,12 @@ func.func @forward(%arg0: !torch.vtensor<[10,3,8,9,3,4],f32> ) -> !torch.vtensor
 
 // CHECK-LABEL:   func.func @forward(
 // CHECK-SAME:                  %[[VAL_0:.*]]: !torch.vtensor<[1,6,4],f32>) -> !torch.vtensor<[1,2,3,4],f32> {
-// CHECK:           %[[VAL_0:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,6,4],f32> -> tensor<1x6x4xf32>
+// CHECK:           %[[VAL:.*]]   = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,6,4],f32> -> tensor<1x6x4xf32>
 // CHECK:           %[[VAL_1:.*]] = torch.constant.int 1
 // CHECK:           %[[VAL_2:.*]] = torch.constant.int 2
 // CHECK:           %[[VAL_3:.*]] = torch.constant.int 3
 // CHECK:           %[[VAL_4:.*]] = torch.prim.ListConstruct %[[VAL_2]], %[[VAL_3]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_5:.*]] = tosa.reshape %[[VAL_0]] {new_shape = array<i64: 1, 2, 3, 4>} : (tensor<1x6x4xf32>) -> tensor<1x2x3x4xf32>
+// CHECK:           %[[VAL_5:.*]] = tosa.reshape %[[VAL]] {new_shape = array<i64: 1, 2, 3, 4>} : (tensor<1x6x4xf32>) -> tensor<1x2x3x4xf32>
 // CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<1x2x3x4xf32> -> !torch.vtensor<[1,2,3,4],f32>
 // CHECK:           return %[[VAL_6]] : !torch.vtensor<[1,2,3,4],f32>
 // CHECK:         }
