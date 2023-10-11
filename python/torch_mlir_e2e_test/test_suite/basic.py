@@ -3399,7 +3399,7 @@ def ScalarImplicitIntModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-class PowIntFloat(torch.nn.Module):
+class PowIntFloatModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -3413,7 +3413,7 @@ class PowIntFloat(torch.nn.Module):
     def forward(self):
         return torch.ops.aten.pow(self.value, self.power_value)
 
-@register_test_case(module_factory=lambda: IntFloatModule())
+@register_test_case(module_factory=lambda: PowIntFloatModule())
 def PowIntFloatModule_basic(module, tu: TestUtils):
     module.forward()
 
