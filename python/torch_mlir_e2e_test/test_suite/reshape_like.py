@@ -124,6 +124,25 @@ def ViewDynamicExpandModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ViewDynamicCollapseAndExpandModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([64, 64], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(1, 4096, 1)
+
+@register_test_case(module_factory=lambda: ViewDynamicCollapseAndExpandModule())
+def ViewDynamicCollapseAndExpandModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(64, 64))
+
+# ==============================================================================
+
 class ViewDynamicExpandWithAtenSizeIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
