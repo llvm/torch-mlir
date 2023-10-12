@@ -304,6 +304,29 @@ def AddmmModule_differentRankBroadcastable(module, tu: TestUtils):
 # ==============================================================================
 
 
+class UnflattenStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.unflat = torch.nn.Unflatten(1, (2, 3))
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 6, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.unflat(x)
+
+
+@register_test_case(module_factory=lambda: UnflattenStaticModule())
+def UnflattenStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 6, 4))
+
+
+# ==============================================================================
+
+
 class FlattenStaticModule(torch.nn.Module):
 
     def __init__(self):
