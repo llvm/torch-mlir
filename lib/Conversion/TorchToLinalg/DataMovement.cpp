@@ -333,16 +333,20 @@ public:
 
     // TODO: add support for case inputRank 0 expanded to size 1
     if (inputRank == 0)
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: input rank 0 is not supported");
+      // return rewriter.notifyMatchFailure(
+      //     op, "unimplemented: input rank 0 is not supported");
+      rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input);
+      return success();
 
     // Extract the desired output size as a list of integers. This list should
     // have been created using the operation `torch.prim.ListConstruct`.
     SmallVector<Value> outputSizeTorchInt;
     if (!getListConstructElements(op.getSize(), outputSizeTorchInt)) {
-      return rewriter.notifyMatchFailure(op,
-                                         "unimplemented: the target size is "
-                                         "not constructed from ListConstruct");
+      // return rewriter.notifyMatchFailure(op,
+      //                                    "unimplemented: the target size is "
+      //                                    "not constructed from ListConstruct");
+      rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input);
+      return success();
     }
     if (llvm::count_if(outputSizeTorchInt, [](Value size) -> bool {
           int64_t sizeInt;
@@ -478,9 +482,11 @@ public:
           outputSliceIndices.push_back(0);
           assumedDynamicDimNotSplit = true;
         } else {
-          return rewriter.notifyMatchFailure(
-              op, "unimplemented: found unhandled case of expansion/collapse "
-                  "in `aten.view`");
+          // return rewriter.notifyMatchFailure(
+          //     op, "unimplemented: found unhandled case of expansion/collapse "
+          //         "in `aten.view`");
+          rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input);
+          return success();
         }
 
         inputAssociations.emplace_back();
@@ -504,17 +510,21 @@ public:
       }
       while (inputDim <= nextUnchangedInput && inputDim < inputRank) {
         if (inputDim != nextUnchangedInput && inputShape[inputDim] != 1) {
-          return rewriter.notifyMatchFailure(
-              op, "unimplemented: only collapsing of static size-1 into "
-                  "unchanged dim supported");
+          // return rewriter.notifyMatchFailure(
+          //     op, "unimplemented: only collapsing of static size-1 into "
+          //         "unchanged dim supported");
+          rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input);
+          return success();
         }
         inputAssociations.back().push_back(inputDim++);
       }
       while (outputDim <= nextUnchangedOutput && outputDim < resultRank) {
         if (outputDim != nextUnchangedOutput && outputShape[outputDim] != 1) {
-          return rewriter.notifyMatchFailure(
-              op, "unimplemented: only expanding of static size-1 out of "
-                  "unchanged dim supported");
+          // return rewriter.notifyMatchFailure(
+          //     op, "unimplemented: only expanding of static size-1 out of "
+          //         "unchanged dim supported");
+          rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input);
+          return success();
         }
         outputAssociations.back().push_back(outputDim++);
       }
