@@ -308,7 +308,6 @@ class UnflattenStaticModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.unflat = torch.nn.Unflatten(1, (2, 3))
 
     @export
     @annotate_args([
@@ -316,7 +315,7 @@ class UnflattenStaticModule(torch.nn.Module):
         ([1, 6, 4], torch.float32, True),
     ])
     def forward(self, x):
-        return self.unflat(x)
+        return torch.ops.aten.unflatten(x, 1, (2, 3))
 
 
 @register_test_case(module_factory=lambda: UnflattenStaticModule())
