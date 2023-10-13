@@ -3957,16 +3957,12 @@ LogicalResult ConvertAtenOp<AtenIscloseOp>::matchAndRewrite(
 
   auto lhsAbsOp =
       rewriter.create<tosa::AbsOp>(op->getLoc(), otherType, adaptor.getOther());
-  auto constType =
-      RankedTensorType::get(otherType.getShape(), rewriter.getF32Type());
-  auto rtolAttr = DenseElementsAttr::get(constType, static_cast<float>(rtol));
   auto rtolConstOp =
-      rewriter.create<tosa::ConstOp>(op->getLoc(), constType, rtolAttr);
+      tosa::getTosaConstTensorSingleF32(rewriter, op, static_cast<float>(rtol));
   auto mulOp = rewriter.create<tosa::MulOp>(op->getLoc(), otherType,
                                             rtolConstOp, lhsAbsOp, /*shift=*/0);
-  auto atolAttr = DenseElementsAttr::get(constType, static_cast<float>(atol));
   auto atolConstOp =
-      rewriter.create<tosa::ConstOp>(op->getLoc(), constType, atolAttr);
+      tosa::getTosaConstTensorSingleF32(rewriter, op, static_cast<float>(atol));
   auto addOp =
       rewriter.create<tosa::AddOp>(op->getLoc(), otherType, atolConstOp, mulOp);
 
