@@ -19,6 +19,7 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "UnflattenStaticModule_basic",
     "IscloseStaticModule_basic",
+    "IscloseStaticModuleTrue_basic",
 }
 
 TORCHDYNAMO_XFAIL_SET = {
@@ -930,6 +931,7 @@ STABLEHLO_CRASHING_SET = {
 # and very few tests work yet.
 TOSA_PASS_SET = {
     "IscloseStaticModule_basic",
+    "IscloseStaticModuleTrue_basic",
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
     "IndexPutImpl2DNoneIndexStaticModule_basic",
