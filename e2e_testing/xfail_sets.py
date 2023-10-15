@@ -18,6 +18,7 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "UnflattenStaticModule_basic",
+    "IscloseStaticModule_basic",
 }
 
 TORCHDYNAMO_XFAIL_SET = {
@@ -928,6 +929,7 @@ STABLEHLO_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "IscloseStaticModule_basic",
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
     "IndexPutImpl2DNoneIndexStaticModule_basic",
