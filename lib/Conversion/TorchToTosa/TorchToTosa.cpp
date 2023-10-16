@@ -3984,19 +3984,37 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "only tensor types input are currently supported");
 
-  int64_t int_min, int_max;
-  if (!matchPattern(op.getMin(), m_TorchConstantInt(&int_min)))
-    return rewriter.notifyMatchFailure(
-        op, "unimplemented: value `int_min` should be a torch constant int");
+  IntegerAttr min_int, max_int;
+  FloatAttr min_fp, max_fp;
+  if (selfType.getElementType().isa<mlir::FloatType>()) {
+    double fp_min, fp_max;
+    if (!matchPattern(op.getMin(), m_TorchConstantFloat(&fp_min)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: value `fp_min` should be a torch constant float");
 
-  if (!matchPattern(op.getMax(), m_TorchConstantInt(&int_max)))
-    return rewriter.notifyMatchFailure(
-        op, "unimplemented: value `int_max` should be a torch constant int");
+    if (!matchPattern(op.getMax(), m_TorchConstantFloat(&fp_max)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: value `fp_max` should be a torch constant float");
 
-  IntegerAttr min_int = rewriter.getI64IntegerAttr(int_min);
-  IntegerAttr max_int = rewriter.getI64IntegerAttr(int_max);
-  FloatAttr min_fp = rewriter.getF32FloatAttr(float(int_min));
-  FloatAttr max_fp = rewriter.getF32FloatAttr(float(int_max));
+    min_int = rewriter.getI64IntegerAttr(int64_t(fp_min));
+    max_int = rewriter.getI64IntegerAttr(int64_t(fp_max));
+    min_fp = rewriter.getF32FloatAttr(float(fp_min));
+    max_fp = rewriter.getF32FloatAttr(float(fp_max));
+  } else {
+    int64_t int_min, int_max;
+    if (!matchPattern(op.getMin(), m_TorchConstantInt(&int_min)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: value `int_min` should be a torch constant int");
+
+    if (!matchPattern(op.getMax(), m_TorchConstantInt(&int_max)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: value `int_max` should be a torch constant int");
+
+    min_int = rewriter.getI64IntegerAttr(int_min);
+    max_int = rewriter.getI64IntegerAttr(int_max);
+    min_fp = rewriter.getF32FloatAttr(float(int_min));
+    max_fp = rewriter.getF32FloatAttr(float(int_max));
+  }
 
   auto outType = getTypeConverter()->convertType(op.getType());
   rewriter.replaceOpWithNewOp<tosa::ClampOp>(op, outType, adaptor.getSelf(),
