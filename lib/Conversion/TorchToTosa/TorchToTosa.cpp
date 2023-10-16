@@ -3921,6 +3921,59 @@ LogicalResult ConvertAtenOp<AtenLeTensorOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenIscloseOp>::matchAndRewrite(
+    AtenIscloseOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // check args
+  double rtol, atol;
+  bool equalNan;
+  if (!matchPattern(op.getRtol(), m_TorchConstantFloat(&rtol)))
+    return rewriter.notifyMatchFailure(op, "rtol must be a scalar constant");
+  if (!matchPattern(op.getAtol(), m_TorchConstantFloat(&atol)))
+    return rewriter.notifyMatchFailure(op, "atol must be a scalar constant");
+  if (!matchPattern(op.getEqualNan(), m_TorchConstantBool(&equalNan)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: equal_nan is expected to be false");
+
+  // check tensor type.
+  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto otherType = adaptor.getOther().getType().dyn_cast<TensorType>();
+  if (!selfType || !otherType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+  if (!selfType.hasStaticShape() || !otherType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types with static shape are supported");
+  if (!selfType.getElementType().isa<mlir::FloatType>() ||
+      !otherType.getElementType().isa<mlir::FloatType>()) {
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: only FP element type is supported");
+  }
+
+  auto rhsSubOp = rewriter.create<tosa::SubOp>(
+      op->getLoc(), selfType, adaptor.getSelf(), adaptor.getOther());
+  auto rhsAbsOp =
+      rewriter.create<tosa::AbsOp>(op->getLoc(), selfType, rhsSubOp);
+
+  auto lhsAbsOp =
+      rewriter.create<tosa::AbsOp>(op->getLoc(), otherType, adaptor.getOther());
+  auto rtolConstOp =
+      tosa::getTosaConstTensorSingleF32(rewriter, op, static_cast<float>(rtol));
+  auto mulOp = rewriter.create<tosa::MulOp>(op->getLoc(), otherType,
+                                            rtolConstOp, lhsAbsOp, /*shift=*/0);
+  auto atolConstOp =
+      tosa::getTosaConstTensorSingleF32(rewriter, op, static_cast<float>(atol));
+  auto addOp =
+      rewriter.create<tosa::AddOp>(op->getLoc(), otherType, atolConstOp, mulOp);
+
+  auto outType = getTypeConverter()->convertType(op.getType());
+  rewriter.replaceOpWithNewOp<tosa::GreaterEqualOp>(op, outType, addOp,
+                                                    rhsAbsOp);
+
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
     AtenClampOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -5134,6 +5187,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenRemainderScalarOp);
     INSERT_ATENOP_PATTERN(AtenCatOp);
     INSERT_ATENOP_PATTERN(AtenSqrtOp);
+    INSERT_ATENOP_PATTERN(AtenIscloseOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \

@@ -4580,3 +4580,48 @@ class Add_Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: Add_Module())
 def Add_Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3))
+
+
+# ==============================================================================
+
+
+class IscloseStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 5], torch.float32, True),
+        ([5, 5], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.isclose(x, y)
+
+
+@register_test_case(module_factory=lambda: IscloseStaticModule())
+def IscloseStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 5), tu.rand(5, 5))
+
+
+# ==============================================================================
+
+
+class IscloseStaticModuleTrue(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.register_buffer('tensor', torch.ones(1))
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.isclose(x, self.tensor)
+
+@register_test_case(module_factory=lambda: IscloseStaticModuleTrue())
+def IscloseStaticModuleTrue_basic(module, tu: TestUtils):
+    module.forward(torch.ones(5, 5))
