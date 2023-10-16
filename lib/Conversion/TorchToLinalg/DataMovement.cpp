@@ -330,12 +330,16 @@ public:
     if (resultRank == 0)
       return rewriter.notifyMatchFailure(op,
                                          "result shape of rank 0 is invalid");
+    
+    auto sizeType = op.getSize().getType();
+    Value sizeTensor = rewriter.create<tensor::FromElementsOp>(loc, RankedTensorType::get({}, sizeType), op.getSize())
+              .getResult();
 
     // TODO: add support for case inputRank 0 expanded to size 1
     if (inputRank == 0)
       // return rewriter.notifyMatchFailure(
       //     op, "unimplemented: input rank 0 is not supported");
-      rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input);
+      rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input, sizeTensor);
       return success();
 
     // Extract the desired output size as a list of integers. This list should
@@ -345,7 +349,7 @@ public:
       // return rewriter.notifyMatchFailure(op,
       //                                    "unimplemented: the target size is "
       //                                    "not constructed from ListConstruct");
-      rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input);
+      rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input, sizeTensor);
       return success();
     }
     if (llvm::count_if(outputSizeTorchInt, [](Value size) -> bool {
@@ -485,7 +489,7 @@ public:
           // return rewriter.notifyMatchFailure(
           //     op, "unimplemented: found unhandled case of expansion/collapse "
           //         "in `aten.view`");
-          rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input);
+          rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input, sizeTensor);
           return success();
         }
 
@@ -513,7 +517,7 @@ public:
           // return rewriter.notifyMatchFailure(
           //     op, "unimplemented: only collapsing of static size-1 into "
           //         "unchanged dim supported");
-          rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input);
+          rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input, sizeTensor);
           return success();
         }
         inputAssociations.back().push_back(inputDim++);
@@ -523,7 +527,7 @@ public:
           // return rewriter.notifyMatchFailure(
           //     op, "unimplemented: only expanding of static size-1 out of "
           //         "unchanged dim supported");
-          rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input);
+          rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input, sizeTensor);
           return success();
         }
         outputAssociations.back().push_back(outputDim++);
