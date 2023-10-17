@@ -3996,10 +3996,10 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
       return rewriter.notifyMatchFailure(
           op, "unimplemented: value `fp_max` should be a torch constant float");
 
-    min_int = rewriter.getI64IntegerAttr(int64_t(fp_min));
-    max_int = rewriter.getI64IntegerAttr(int64_t(fp_max));
-    min_fp = rewriter.getF32FloatAttr(float(fp_min));
-    max_fp = rewriter.getF32FloatAttr(float(fp_max));
+    min_int = rewriter.getI64IntegerAttr(static_cast<int64_t>(fp_min));
+    max_int = rewriter.getI64IntegerAttr(static_cast<int64_t>(fp_max));
+    min_fp = rewriter.getF32FloatAttr(static_cast<float>(fp_min));
+    max_fp = rewriter.getF32FloatAttr(static_cast<float>(fp_max));
   } else {
     int64_t int_min, int_max;
     if (!matchPattern(op.getMin(), m_TorchConstantInt(&int_min)))
@@ -4012,8 +4012,8 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
 
     min_int = rewriter.getI64IntegerAttr(int_min);
     max_int = rewriter.getI64IntegerAttr(int_max);
-    min_fp = rewriter.getF32FloatAttr(float(int_min));
-    max_fp = rewriter.getF32FloatAttr(float(int_max));
+    min_fp = rewriter.getF32FloatAttr(static_cast<float>(int_min));
+    max_fp = rewriter.getF32FloatAttr(static_cast<float>(int_max));
   }
 
   auto outType = getTypeConverter()->convertType(op.getType());
