@@ -336,11 +336,12 @@ public:
               .getResult();
 
     // TODO: add support for case inputRank 0 expanded to size 1
-    if (inputRank == 0)
+    if (inputRank == 0) {
       // return rewriter.notifyMatchFailure(
       //     op, "unimplemented: input rank 0 is not supported");
       rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input, sizeTensor);
       return success();
+    }
 
     // Extract the desired output size as a list of integers. This list should
     // have been created using the operation `torch.prim.ListConstruct`.
