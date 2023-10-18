@@ -1030,6 +1030,8 @@ TCP_PASS_SET = {
     "TypePromotionSameCategoryDifferentWidthModule_basic",
     "TypePromotionSameCategoryZeroRankWider_basic",
     "TypePromotionZeroRankHigherCategoryModule_basic",
+    "ElementwiseAddScalarInt8Module_basic",
+    "ElementwiseSubTensorInt8Module_basic",
     "ElementwiseMulScalarModule_basic",
     "ElementwiseMulScalarModule_float",
     "ElementwiseMulScalarModule_int",
@@ -1047,6 +1049,8 @@ TCP_PASS_SET = {
     "BatchNorm1DStaticShapeModule_basic",
     "BroadcastListConstructWithMinusOneModule_basic",
     "ElementwiseAtenDivIntScalarModule_basic",
+    "ElementwiseToDtypeI64ToI8Module_basic",
+    "ToDtypeLayoutCPUModule_basic",
     "TupleModule_basic",
     "TypeAsDifferentModule_basic",
 }
