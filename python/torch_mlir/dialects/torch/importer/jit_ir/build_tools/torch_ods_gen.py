@@ -342,6 +342,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::imag : (Tensor) -> (Tensor)")
     emit("aten::view_as_complex : (Tensor) -> (Tensor)")
     emit("aten::view_as_real : (Tensor) -> (Tensor)")
+    emit("aten::isclose : (Tensor, Tensor, float, float, bool) -> (Tensor)")
 
     # Ops with dynamic number of outputs
     emit("aten::unbind_copy.int : (Tensor, int) -> (Tensor[])")
@@ -516,6 +517,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::squeeze.dim : (Tensor, int) -> (Tensor)", has_folder=True)
     emit("aten::squeeze : (Tensor) -> (Tensor)", has_folder=True)
     emit("aten::flatten.using_ints : (Tensor, int, int) -> (Tensor)")
+    emit("aten::unflatten.int : (Tensor, int, int[]) -> (Tensor)")
     emit("aten::dim : (Tensor) -> (int)", has_folder=True)
     emit("aten::size : (Tensor) -> (int[])", has_canonicalizer=True)
     emit("aten::Bool.Tensor : (Tensor) -> (bool)")
