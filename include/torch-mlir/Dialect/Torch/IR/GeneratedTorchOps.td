@@ -48,10 +48,10 @@ def Torch_AtenTanh_Op : Torch_Op<"aten.tanh_", [
   ]> {
   let summary = "Generated op for `aten::tanh_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -95,12 +95,12 @@ def Torch_AtenHardtanh_Op : Torch_Op<"aten.hardtanh_", [
   ]> {
   let summary = "Generated op for `aten::hardtanh_ : (Tensor, Scalar, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$min_val,
     AnyTorchScalarType:$max_val
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -145,13 +145,13 @@ def Torch_AtenElu_Op : Torch_Op<"aten.elu_", [
   ]> {
   let summary = "Generated op for `aten::elu_ : (Tensor, Scalar, Scalar, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$alpha,
     AnyTorchScalarType:$scale,
     AnyTorchScalarType:$input_scale
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -193,10 +193,10 @@ def Torch_AtenRelu_Op : Torch_Op<"aten.relu_", [
   ]> {
   let summary = "Generated op for `aten::relu_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -238,10 +238,10 @@ def Torch_AtenRelu6_Op : Torch_Op<"aten.relu6_", [
   ]> {
   let summary = "Generated op for `aten::relu6_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -284,11 +284,11 @@ def Torch_AtenLeakyRelu_Op : Torch_Op<"aten.leaky_relu_", [
   ]> {
   let summary = "Generated op for `aten::leaky_relu_ : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$negative_slope
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -330,10 +330,10 @@ def Torch_AtenLog_Op : Torch_Op<"aten.log_", [
   ]> {
   let summary = "Generated op for `aten::log_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -375,10 +375,10 @@ def Torch_AtenSigmoid_Op : Torch_Op<"aten.sigmoid_", [
   ]> {
   let summary = "Generated op for `aten::sigmoid_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -420,10 +420,10 @@ def Torch_AtenSign_Op : Torch_Op<"aten.sign_", [
   ]> {
   let summary = "Generated op for `aten::sign_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -465,10 +465,10 @@ def Torch_AtenSgn_Op : Torch_Op<"aten.sgn_", [
   ]> {
   let summary = "Generated op for `aten::sgn_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -510,10 +510,10 @@ def Torch_AtenHardsigmoid_Op : Torch_Op<"aten.hardsigmoid_", [
   ]> {
   let summary = "Generated op for `aten::hardsigmoid_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -555,10 +555,10 @@ def Torch_AtenHardswish_Op : Torch_Op<"aten.hardswish_", [
   ]> {
   let summary = "Generated op for `aten::hardswish_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -600,10 +600,10 @@ def Torch_AtenErf_Op : Torch_Op<"aten.erf_", [
   ]> {
   let summary = "Generated op for `aten::erf_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -645,10 +645,10 @@ def Torch_AtenErfinv_Op : Torch_Op<"aten.erfinv_", [
   ]> {
   let summary = "Generated op for `aten::erfinv_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -690,10 +690,10 @@ def Torch_AtenSilu_Op : Torch_Op<"aten.silu_", [
   ]> {
   let summary = "Generated op for `aten::silu_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -735,10 +735,10 @@ def Torch_AtenSin_Op : Torch_Op<"aten.sin_", [
   ]> {
   let summary = "Generated op for `aten::sin_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -780,10 +780,10 @@ def Torch_AtenExp_Op : Torch_Op<"aten.exp_", [
   ]> {
   let summary = "Generated op for `aten::exp_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -825,10 +825,10 @@ def Torch_AtenExpm1_Op : Torch_Op<"aten.expm1_", [
   ]> {
   let summary = "Generated op for `aten::expm1_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -870,10 +870,10 @@ def Torch_AtenCos_Op : Torch_Op<"aten.cos_", [
   ]> {
   let summary = "Generated op for `aten::cos_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -915,10 +915,10 @@ def Torch_AtenAtan_Op : Torch_Op<"aten.atan_", [
   ]> {
   let summary = "Generated op for `aten::atan_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -961,11 +961,11 @@ def Torch_AtenAtan2_Op : Torch_Op<"aten.atan2_", [
   ]> {
   let summary = "Generated op for `aten::atan2_ : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1007,10 +1007,10 @@ def Torch_AtenNeg_Op : Torch_Op<"aten.neg_", [
   ]> {
   let summary = "Generated op for `aten::neg_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1052,10 +1052,10 @@ def Torch_AtenFloor_Op : Torch_Op<"aten.floor_", [
   ]> {
   let summary = "Generated op for `aten::floor_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1097,10 +1097,10 @@ def Torch_AtenCeil_Op : Torch_Op<"aten.ceil_", [
   ]> {
   let summary = "Generated op for `aten::ceil_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1142,10 +1142,10 @@ def Torch_AtenBitwiseNot_Op : Torch_Op<"aten.bitwise_not_", [
   ]> {
   let summary = "Generated op for `aten::bitwise_not_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1188,11 +1188,11 @@ def Torch_AtenDiv_TensorOp : Torch_Op<"aten.div_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::div_.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1235,11 +1235,11 @@ def Torch_AtenLogicalOr_Op : Torch_Op<"aten.logical_or_", [
   ]> {
   let summary = "Generated op for `aten::logical_or_ : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1282,11 +1282,11 @@ def Torch_AtenLogicalAnd_Op : Torch_Op<"aten.logical_and_", [
   ]> {
   let summary = "Generated op for `aten::logical_and_ : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1329,11 +1329,11 @@ def Torch_AtenLogicalXor_Op : Torch_Op<"aten.logical_xor_", [
   ]> {
   let summary = "Generated op for `aten::logical_xor_ : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1375,10 +1375,10 @@ def Torch_AtenLogicalNot_Op : Torch_Op<"aten.logical_not_", [
   ]> {
   let summary = "Generated op for `aten::logical_not_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1422,12 +1422,12 @@ def Torch_AtenLerp_TensorOp : Torch_Op<"aten.lerp_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::lerp_.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$end,
-    AnyTorchTensorType:$weight
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$end,
+    Torch_NonValueTensorType:$weight
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1470,11 +1470,11 @@ def Torch_AtenEq_TensorOp : Torch_Op<"aten.eq_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::eq_.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1517,11 +1517,11 @@ def Torch_AtenGt_TensorOp : Torch_Op<"aten.gt_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::gt_.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1564,11 +1564,11 @@ def Torch_AtenGe_TensorOp : Torch_Op<"aten.ge_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::ge_.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1611,11 +1611,11 @@ def Torch_AtenLt_TensorOp : Torch_Op<"aten.lt_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::lt_.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1658,11 +1658,11 @@ def Torch_AtenLe_TensorOp : Torch_Op<"aten.le_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::le_.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1705,11 +1705,11 @@ def Torch_AtenNe_TensorOp : Torch_Op<"aten.ne_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::ne_.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1752,11 +1752,11 @@ def Torch_AtenDiv_ScalarOp : Torch_Op<"aten.div_.Scalar", [
   ]> {
   let summary = "Generated op for `aten::div_.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1799,11 +1799,11 @@ def Torch_AtenNe_ScalarOp : Torch_Op<"aten.ne_.Scalar", [
   ]> {
   let summary = "Generated op for `aten::ne_.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1846,11 +1846,11 @@ def Torch_AtenEq_ScalarOp : Torch_Op<"aten.eq_.Scalar", [
   ]> {
   let summary = "Generated op for `aten::eq_.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1893,11 +1893,11 @@ def Torch_AtenGt_ScalarOp : Torch_Op<"aten.gt_.Scalar", [
   ]> {
   let summary = "Generated op for `aten::gt_.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1940,11 +1940,11 @@ def Torch_AtenGe_ScalarOp : Torch_Op<"aten.ge_.Scalar", [
   ]> {
   let summary = "Generated op for `aten::ge_.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -1987,11 +1987,11 @@ def Torch_AtenLt_ScalarOp : Torch_Op<"aten.lt_.Scalar", [
   ]> {
   let summary = "Generated op for `aten::lt_.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2034,11 +2034,11 @@ def Torch_AtenLe_ScalarOp : Torch_Op<"aten.le_.Scalar", [
   ]> {
   let summary = "Generated op for `aten::le_.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2081,11 +2081,11 @@ def Torch_AtenFmod_ScalarOp : Torch_Op<"aten.fmod_.Scalar", [
   ]> {
   let summary = "Generated op for `aten::fmod_.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2129,12 +2129,12 @@ def Torch_AtenMaskedFill_ScalarOp : Torch_Op<"aten.masked_fill_.Scalar", [
   ]> {
   let summary = "Generated op for `aten::masked_fill_.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$mask,
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$mask,
     AnyTorchScalarType:$value
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2178,12 +2178,12 @@ def Torch_AtenMaskedFill_TensorOp : Torch_Op<"aten.masked_fill_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::masked_fill_.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$mask,
-    AnyTorchTensorType:$value
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$mask,
+    Torch_NonValueTensorType:$value
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2227,12 +2227,12 @@ def Torch_AtenClamp_Op : Torch_Op<"aten.clamp_", [
   ]> {
   let summary = "Generated op for `aten::clamp_ : (Tensor, Scalar?, Scalar?) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchOptionalScalarType:$min,
     AnyTorchOptionalScalarType:$max
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2276,12 +2276,12 @@ def Torch_AtenClamp_TensorOp : Torch_Op<"aten.clamp_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::clamp_.Tensor : (Tensor, Tensor?, Tensor?) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchOptionalTensorType:$min,
-    AnyTorchOptionalTensorType:$max
+    Torch_NonValueTensorType:$self,
+    AnyTorchOptionalNonValueTensorType:$min,
+    AnyTorchOptionalNonValueTensorType:$max
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2324,11 +2324,11 @@ def Torch_AtenClampMin_Op : Torch_Op<"aten.clamp_min_", [
   ]> {
   let summary = "Generated op for `aten::clamp_min_ : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$min
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2371,11 +2371,11 @@ def Torch_AtenClampMin_TensorOp : Torch_Op<"aten.clamp_min_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::clamp_min_.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$min
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$min
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2418,11 +2418,11 @@ def Torch_AtenClampMax_Op : Torch_Op<"aten.clamp_max_", [
   ]> {
   let summary = "Generated op for `aten::clamp_max_ : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$max
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2465,11 +2465,11 @@ def Torch_AtenClampMax_TensorOp : Torch_Op<"aten.clamp_max_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::clamp_max_.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$max
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$max
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2511,10 +2511,10 @@ def Torch_AtenLog2_Op : Torch_Op<"aten.log2_", [
   ]> {
   let summary = "Generated op for `aten::log2_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2556,10 +2556,10 @@ def Torch_AtenLog10_Op : Torch_Op<"aten.log10_", [
   ]> {
   let summary = "Generated op for `aten::log10_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2601,10 +2601,10 @@ def Torch_AtenSqrt_Op : Torch_Op<"aten.sqrt_", [
   ]> {
   let summary = "Generated op for `aten::sqrt_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2646,10 +2646,10 @@ def Torch_AtenLog1p_Op : Torch_Op<"aten.log1p_", [
   ]> {
   let summary = "Generated op for `aten::log1p_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2691,10 +2691,10 @@ def Torch_AtenRsqrt_Op : Torch_Op<"aten.rsqrt_", [
   ]> {
   let summary = "Generated op for `aten::rsqrt_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2736,10 +2736,10 @@ def Torch_AtenAbs_Op : Torch_Op<"aten.abs_", [
   ]> {
   let summary = "Generated op for `aten::abs_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2781,10 +2781,10 @@ def Torch_AtenReciprocal_Op : Torch_Op<"aten.reciprocal_", [
   ]> {
   let summary = "Generated op for `aten::reciprocal_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2827,11 +2827,11 @@ def Torch_AtenBitwiseAnd_TensorOp : Torch_Op<"aten.bitwise_and_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::bitwise_and_.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2874,11 +2874,11 @@ def Torch_AtenBitwiseAnd_ScalarOp : Torch_Op<"aten.bitwise_and_.Scalar", [
   ]> {
   let summary = "Generated op for `aten::bitwise_and_.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2921,11 +2921,11 @@ def Torch_AtenBitwiseOr_TensorOp : Torch_Op<"aten.bitwise_or_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::bitwise_or_.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -2968,11 +2968,11 @@ def Torch_AtenBitwiseXor_TensorOp : Torch_Op<"aten.bitwise_xor_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::bitwise_xor_.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3015,11 +3015,11 @@ def Torch_AtenBitwiseRightShift_TensorOp : Torch_Op<"aten.bitwise_right_shift_.T
   ]> {
   let summary = "Generated op for `aten::bitwise_right_shift_.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3063,12 +3063,12 @@ def Torch_AtenThreshold_Op : Torch_Op<"aten.threshold_", [
   ]> {
   let summary = "Generated op for `aten::threshold_ : (Tensor, Scalar, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$threshold,
     AnyTorchScalarType:$value
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3110,10 +3110,10 @@ def Torch_AtenSquare_Op : Torch_Op<"aten.square_", [
   ]> {
   let summary = "Generated op for `aten::square_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3155,11 +3155,11 @@ def Torch_AtenUnsqueeze_Op : Torch_Op<"aten.unsqueeze_", [
   ]> {
   let summary = "Generated op for `aten::unsqueeze_ : (Tensor, int) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     Torch_IntType:$dim
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3201,10 +3201,10 @@ def Torch_AtenZero_Op : Torch_Op<"aten.zero_", [
   ]> {
   let summary = "Generated op for `aten::zero_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3247,11 +3247,11 @@ def Torch_AtenFill_ScalarOp : Torch_Op<"aten.fill_.Scalar", [
   ]> {
   let summary = "Generated op for `aten::fill_.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$value
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3294,11 +3294,11 @@ def Torch_AtenFill_TensorOp : Torch_Op<"aten.fill_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::fill_.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$value
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$value
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3343,12 +3343,12 @@ def Torch_AtenDiv_TensorModeOp : Torch_Op<"aten.div_.Tensor_mode", [
   ]> {
   let summary = "Generated op for `aten::div_.Tensor_mode : (Tensor, Tensor, str?) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other,
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other,
     AnyTorchOptionalStringType:$rounding_mode
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3392,11 +3392,11 @@ def Torch_AtenMul_TensorOp : Torch_Op<"aten.mul_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::mul_.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3441,12 +3441,12 @@ def Torch_AtenAdd_TensorOp : Torch_Op<"aten.add_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::add_.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other,
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other,
     AnyTorchScalarType:$alpha
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3491,12 +3491,12 @@ def Torch_AtenSub_TensorOp : Torch_Op<"aten.sub_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::sub_.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other,
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$other,
     AnyTorchScalarType:$alpha
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3541,12 +3541,12 @@ def Torch_AtenAdd_ScalarOp : Torch_Op<"aten.add_.Scalar", [
   ]> {
   let summary = "Generated op for `aten::add_.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$other,
     AnyTorchScalarType:$alpha
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3591,12 +3591,12 @@ def Torch_AtenSub_ScalarOp : Torch_Op<"aten.sub_.Scalar", [
   ]> {
   let summary = "Generated op for `aten::sub_.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$other,
     AnyTorchScalarType:$alpha
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3640,11 +3640,11 @@ def Torch_AtenMul_ScalarOp : Torch_Op<"aten.mul_.Scalar", [
   ]> {
   let summary = "Generated op for `aten::mul_.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     AnyTorchScalarType:$other
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3689,13 +3689,13 @@ def Torch_AtenAddcmul_Op : Torch_Op<"aten.addcmul_", [
   ]> {
   let summary = "Generated op for `aten::addcmul_ : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$tensor1,
-    AnyTorchTensorType:$tensor2,
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$tensor1,
+    Torch_NonValueTensorType:$tensor2,
     AnyTorchScalarType:$value
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -3740,13 +3740,13 @@ def Torch_AtenAddcdiv_Op : Torch_Op<"aten.addcdiv_", [
   ]> {
   let summary = "Generated op for `aten::addcdiv_ : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$tensor1,
-    AnyTorchTensorType:$tensor2,
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$tensor1,
+    Torch_NonValueTensorType:$tensor2,
     AnyTorchScalarType:$value
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -4295,13 +4295,13 @@ def Torch_AtenUniform_Op : Torch_Op<"aten.uniform_", [
   ]> {
   let summary = "Generated op for `aten::uniform_ : (Tensor, float, float, Generator?) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     Torch_FloatType:$from,
     Torch_FloatType:$to,
     AnyTorchOptionalGeneratorType:$generator
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -4555,12 +4555,12 @@ def Torch_AtenBernoulli_TensorOp : Torch_Op<"aten.bernoulli_.Tensor", [
   ]> {
   let summary = "Generated op for `aten::bernoulli_.Tensor : (Tensor, Tensor, Generator?) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$p,
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$p,
     AnyTorchOptionalGeneratorType:$generator
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -4736,11 +4736,11 @@ def Torch_AtenTriu_Op : Torch_Op<"aten.triu_", [
   ]> {
   let summary = "Generated op for `aten::triu_ : (Tensor, int) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     Torch_IntType:$diagonal
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -4783,11 +4783,11 @@ def Torch_AtenTril_Op : Torch_Op<"aten.tril_", [
   ]> {
   let summary = "Generated op for `aten::tril_ : (Tensor, int) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     Torch_IntType:$diagonal
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -4830,10 +4830,10 @@ def Torch_AtenRound_Op : Torch_Op<"aten.round_", [
   ]> {
   let summary = "Generated op for `aten::round_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    Torch_NonValueTensorType:$self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -4878,13 +4878,13 @@ def Torch_AtenIndexPut_Op : Torch_Op<"aten.index_put_", [
   ]> {
   let summary = "Generated op for `aten::index_put_ : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchListOfOptionalTensorType:$indices,
-    AnyTorchTensorType:$values,
+    Torch_NonValueTensorType:$self,
+    AnyTorchListOfOptionalNonValueTensorType:$indices,
+    Torch_NonValueTensorType:$values,
     Torch_BoolType:$accumulate
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -4929,13 +4929,13 @@ def Torch_AtenIndexPut_HackedTwinOp : Torch_Op<"aten.index_put_.hacked_twin", [
   ]> {
   let summary = "Generated op for `aten::index_put_.hacked_twin : (Tensor, Tensor[], Tensor, bool) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchListOfTensorType:$indices,
-    AnyTorchTensorType:$values,
+    Torch_NonValueTensorType:$self,
+    AnyTorchListOfNonValueTensorType:$indices,
+    Torch_NonValueTensorType:$values,
     Torch_BoolType:$accumulate
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -6032,13 +6032,13 @@ def Torch_AtenScatter_SrcOp : Torch_Op<"aten.scatter_.src", [
   ]> {
   let summary = "Generated op for `aten::scatter_.src : (Tensor, int, Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     Torch_IntType:$dim,
-    AnyTorchTensorType:$index,
-    AnyTorchTensorType:$src
+    Torch_NonValueTensorType:$index,
+    Torch_NonValueTensorType:$src
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -6083,13 +6083,13 @@ def Torch_AtenScatter_ValueOp : Torch_Op<"aten.scatter_.value", [
   ]> {
   let summary = "Generated op for `aten::scatter_.value : (Tensor, int, Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     Torch_IntType:$dim,
-    AnyTorchTensorType:$index,
+    Torch_NonValueTensorType:$index,
     AnyTorchScalarType:$value
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -6133,12 +6133,12 @@ def Torch_AtenMaskedScatter_Op : Torch_Op<"aten.masked_scatter_", [
   ]> {
   let summary = "Generated op for `aten::masked_scatter_ : (Tensor, Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$mask,
-    AnyTorchTensorType:$source
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$mask,
+    Torch_NonValueTensorType:$source
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -8427,12 +8427,12 @@ def Torch_AtenCopy_Op : Torch_Op<"aten.copy_", [
   ]> {
   let summary = "Generated op for `aten::copy_ : (Tensor, Tensor, bool) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$src,
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$src,
     Torch_BoolType:$non_blocking
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -9014,14 +9014,14 @@ def Torch_Aten_IndexPutImpl_Op : Torch_Op<"aten._index_put_impl_", [
   ]> {
   let summary = "Generated op for `aten::_index_put_impl_ : (Tensor, Tensor?[], Tensor, bool, bool) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchListOfOptionalTensorType:$indices,
-    AnyTorchTensorType:$values,
+    Torch_NonValueTensorType:$self,
+    AnyTorchListOfOptionalNonValueTensorType:$indices,
+    Torch_NonValueTensorType:$values,
     Torch_BoolType:$accumulate,
     Torch_BoolType:$unsafe
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -10010,13 +10010,13 @@ def Torch_AtenScatterAdd_Op : Torch_Op<"aten.scatter_add_", [
   ]> {
   let summary = "Generated op for `aten::scatter_add_ : (Tensor, int, Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     Torch_IntType:$dim,
-    AnyTorchTensorType:$index,
-    AnyTorchTensorType:$src
+    Torch_NonValueTensorType:$index,
+    Torch_NonValueTensorType:$src
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -10063,15 +10063,15 @@ def Torch_AtenScatterReduce_TwoOp : Torch_Op<"aten.scatter_reduce_.two", [
   ]> {
   let summary = "Generated op for `aten::scatter_reduce_.two : (Tensor, int, Tensor, Tensor, str, bool) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     Torch_IntType:$dim,
-    AnyTorchTensorType:$index,
-    AnyTorchTensorType:$src,
+    Torch_NonValueTensorType:$index,
+    Torch_NonValueTensorType:$src,
     Torch_StringType:$reduce,
     Torch_BoolType:$include_self
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -10235,12 +10235,12 @@ def Torch_AtenDropout_Op : Torch_Op<"aten.dropout_", [
   ]> {
   let summary = "Generated op for `aten::dropout_ : (Tensor, float, bool) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
+    Torch_NonValueTensorType:$self,
     Torch_FloatType:$p,
     Torch_BoolType:$train
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
@@ -10442,14 +10442,14 @@ def Torch_AtenBaddbmm_Op : Torch_Op<"aten.baddbmm_", [
   ]> {
   let summary = "Generated op for `aten::baddbmm_ : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$batch1,
-    AnyTorchTensorType:$batch2,
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$batch1,
+    Torch_NonValueTensorType:$batch2,
     AnyTorchScalarType:$beta,
     AnyTorchScalarType:$alpha
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
