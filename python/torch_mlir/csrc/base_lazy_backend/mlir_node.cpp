@@ -83,7 +83,7 @@ hash_t TorchMlirNode::hash() const { return dag_hash_; }
 hash_t TorchMlirNode::shapeHash() const { return shape_hash_; }
 
 
-TorchMlirNode* TorchMlirNode::mlir_node(int index) {
+TorchMlirNode* TorchMlirNode::mlir_node(int index) const {
   return dynamic_cast<TorchMlirNode*>(operands_.at(index).get());
 }
 

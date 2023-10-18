@@ -3380,10 +3380,15 @@ public:
             op, "unimplemented: pinMemory is expected to be false");
     }
 
-    // TODO: Add support for non-None device arg.
+    // TODO: Add support for device arg other than cpu.
     if (!op.getDevice().getType().isa<Torch::NoneType>()) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: device arg must be None");
+      std::string device;
+      if (!matchPattern(op.getDevice(), m_TorchConstantDevice(device)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: device must be a constant str");
+      else if (device != "cpu")
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: device is expected to be cpu");
     }
 
     // TODO: Add support for non-strided layout.
@@ -3479,11 +3484,13 @@ class DecomposeAtenAdaptiveAvgPool1dOp
               : rewriter.create<Torch::ConstantIntOp>(
                     loc, rewriter.getI64IntegerAttr(inputShape[rank - 1])));
     } else {
-      Value cond = rewriter.create<AtenEqIntOp>(loc, inputSize, outputSize);
-      rewriter.create<RuntimeAssertOp>(
-          loc, cond,
-          "unimplemented: only support cases where input and output size are "
-          "equal for non-unit output size");
+      if (!isAssumingStrictSymbolicShapes(rewriter)) {
+        Value cond = rewriter.create<AtenEqIntOp>(loc, inputSize, outputSize);
+        rewriter.create<RuntimeAssertOp>(
+            loc, cond,
+            "unimplemented: only support cases where input and output size are "
+            "equal for non-unit output size");
+      }
       kernelSize.push_back(constantOne);
     }
 
@@ -3581,13 +3588,14 @@ class DecomposeAtenAdaptiveAvgPool2dOp
                                        loc, rewriter.getI64IntegerAttr(
                                                 inputShape[rank - 2 + i])));
       } else {
-        Value cond = rewriter.create<AtenEqIntOp>(loc, inputHW[i],
-                                                  outputShapeSizesTorchInt[i]);
-        rewriter.create<RuntimeAssertOp>(
-            loc, cond,
-            "unimplemented: only support cases where input and output size are "
-            "equal for non-unit output size");
-
+        if (!isAssumingStrictSymbolicShapes(rewriter)) {
+          Value cond = rewriter.create<AtenEqIntOp>(
+              loc, inputHW[i], outputShapeSizesTorchInt[i]);
+          rewriter.create<RuntimeAssertOp>(loc, cond,
+                                           "unimplemented: only support cases "
+                                           "where input and output size are "
+                                           "equal for non-unit output size");
+        }
         Value outMinusOne = rewriter.create<AtenSubIntOp>(
             loc, outputShapeSizesTorchInt[i], constantOne);
         kernelSize.push_back(
@@ -3817,13 +3825,15 @@ static LogicalResult calculateVariance(OpTy op, PatternRewriter &rewriter,
       loc, rewriter.getF64FloatAttr(correction));
   // The `correction` value should be less than or equal to `productDimSize +
   // 1`.
-  Value productDimSizePlusOne = rewriter.create<AtenAddOp>(
-      loc, productDimSize.getType(), productDimSize, constantOne);
-  Value cond =
-      rewriter.create<AtenGeFloatOp>(loc, productDimSizePlusOne, cstCorrection);
-  rewriter.create<RuntimeAssertOp>(
-      loc, cond,
-      "correction value should be less than or equal to productDimSize + 1");
+  if (!isAssumingStrictSymbolicShapes(rewriter)) {
+    Value productDimSizePlusOne = rewriter.create<AtenAddOp>(
+        loc, productDimSize.getType(), productDimSize, constantOne);
+    Value cond = rewriter.create<AtenGeFloatOp>(loc, productDimSizePlusOne,
+                                                cstCorrection);
+    rewriter.create<RuntimeAssertOp>(
+        loc, cond,
+        "correction value should be less than or equal to productDimSize + 1");
+  }
   Value productDimSizeSubCorrection =
       rewriter.create<AtenSubFloatOp>(loc, productDimSize, cstCorrection);
   Value result = rewriter.create<AtenDivScalarOp>(loc, newOutputType, squareSum,

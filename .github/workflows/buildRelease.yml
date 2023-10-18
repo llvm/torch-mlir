@@ -115,7 +115,7 @@ jobs:
         cd $GITHUB_WORKSPACE
         TM_PACKAGE_VERSION=${{ github.event.inputs.python_package_version }}
         printf "TORCH_MLIR_PYTHON_PACKAGE_VERSION=%s\n" $TM_PACKAGE_VERSION > ./torch_mlir_package_version
-        TM_PYTHON_VERSIONS=${{ matrix.py_version }} TM_PACKAGES=${{ matrix.package }} TM_TORCH_VERSION="stable" ./build_tools/python_deploy/build_linux_packages.sh
+        TM_PYTHON_VERSIONS=${{ matrix.py_version }} TM_PACKAGES=${{ matrix.package }} TORCH_MLIR_ENABLE_LTC='0' ./build_tools/python_deploy/build_linux_packages.sh
 
     # If we were given a release_id, then upload the package we just built
     # to the github releases page.

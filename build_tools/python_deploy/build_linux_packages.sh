@@ -178,6 +178,12 @@ function run_in_docker() {
         out-of-tree)
           setup_venv "$python_version" "$TM_TORCH_VERSION"
           build_out_of_tree "$TM_USE_PYTORCH_BINARY" "$python_version" "$TM_TORCH_VERSION"
+          if [ "${TM_UPDATE_ODS_AND_ABSTRACT_INTERP_LIB}" == "ON" ]; then
+            pushd /main_checkout/torch-mlir
+            TORCH_MLIR_BUILD_DIR=/main_checkout/torch-mlir/build_oot ./build_tools/update_torch_ods.sh
+            TORCH_MLIR_BUILD_DIR=/main_checkout/torch-mlir/build_oot ./build_tools/update_abstract_interp_lib.sh
+            popd
+          fi
           if [ "${TM_SKIP_TESTS}" == "OFF" ]; then
             test_out_of_tree
           fi

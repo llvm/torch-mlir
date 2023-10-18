@@ -176,8 +176,8 @@ public:
 
           Value resultMax, predicate;
           if (inElementType.isa<mlir::FloatType>()) {
-            resultMax =
-                rewriter.create<arith::MaxFOp>(nestedLoc, newValue, oldValue);
+            resultMax = rewriter.create<arith::MaximumFOp>(nestedLoc, newValue,
+                                                           oldValue);
             predicate = rewriter.create<arith::CmpFOp>(
                 nestedLoc, arith::CmpFPredicate::OGT, newValue, oldValue);
           } else {
@@ -280,7 +280,7 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
     if (resultElementType.isa<mlir::FloatType>())
-      return b.create<arith::MaxFOp>(loc, self, result);
+      return b.create<arith::MaximumFOp>(loc, self, result);
     else if (resultElementType.isa<mlir::IntegerType>()) {
       IntegerType intType = max.getSelf()
                                 .getType()
@@ -297,7 +297,7 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
     if (resultElementType.isa<mlir::FloatType>())
-      return b.create<arith::MinFOp>(loc, self, result);
+      return b.create<arith::MinimumFOp>(loc, self, result);
     else if (resultElementType.isa<mlir::IntegerType>()) {
       IntegerType intType = min.getSelf()
                                 .getType()

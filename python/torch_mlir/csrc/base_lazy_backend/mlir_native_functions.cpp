@@ -30,6 +30,7 @@
 #include <torch/csrc/lazy/core/tensor_util.h>
 #include <torch/library.h>
 
+#include "generated/LazyIr.h"
 #include "generated/LazyNativeFunctions.h"
 #include "generated/shape_inference.h"
 #include "ops/to_copy.h"
@@ -142,32 +143,6 @@ void copy_(torch::lazy::LazyTensorPtr& input, torch::lazy::LazyTensorPtr& src) {
 }
 
 } // namespace
-
-// at::Tensor LazyNativeFunctions::bernoulli(
-//     const at::Tensor& self, c10::optional<at::Generator> generator) {
-//   TORCH_LAZY_FN_COUNTER("lazy::");
-//   if (generator.has_value() && generator->defined()) {
-//     UNSUPPORTED_ERROR("LazyNativeFunctions::bernoulli has generator value");
-//   }
-//   auto self_tensor = torch::lazy::TryGetLtcTensor(self);
-
-//   UNIMPLEMENTED_FUNCTION_ERROR();
-//   // return torch::lazy::CreateAtenFromLtcTensor(
-//   //     torch::lazy::bernoulli(self_tensor));
-// }
-
-// at::Tensor& LazyNativeFunctions::bernoulli_(
-//     at::Tensor& self, double p, c10::optional<at::Generator> generator) {
-//   TORCH_LAZY_FN_COUNTER("lazy::");
-//   if (generator.has_value() && generator->defined()) {
-//     UNSUPPORTED_ERROR("LazyNativeFunctions::bernoulli_ has generator value");
-//   }
-//   auto self_tensor = torch::lazy::TryGetLtcTensor(self);
-
-//   UNIMPLEMENTED_FUNCTION_ERROR();
-//   // torch::lazy::bernoulli_(self_tensor, p);
-//   // return self;
-// }
 
 // clone is special in LT because we make it a no-op.
 // This should be safe to do, because every operator in the LT is functional.
@@ -352,62 +327,15 @@ at::Tensor LazyNativeFunctions::_to_copy(
   }
 };
 
-at::Tensor LazyNativeFunctions::empty_symint(
-    at::SymIntArrayRef sym_size,
-    c10::optional<at::ScalarType> dtype,
-    c10::optional<at::Layout> layout,
-    c10::optional<at::Device> device,
-    c10::optional<bool> pin_memory,
-    c10::optional<at::MemoryFormat> memory_format) {
-  // TODO: support this directly
-  auto size = C10_AS_INTARRAYREF_SLOW(sym_size);
-  const auto device_type = torch::lazy::getBackend()->EagerFallbackDeviceType();
-  at::TensorOptions options = at::TensorOptions()
-                                  .device(c10::Device(device_type))
-                                  .layout(layout)
-                                  .pinned_memory(pin_memory)
-                                  .dtype(dtype);
-  auto x_result = at::empty(size, options, memory_format);
-  auto tensor = CreateLtcTensor(x_result, GetLtcDevice(device));
-  // See Note [Lazy Tensor Functionalization]
-  if (c10::impl::tls_local_dispatch_key_set().excluded_.has(
-          c10::DispatchKey::Functionalize)) {
-    // Invariant: if the functionalization key is in the exclude set, then we're expected
-    // to return an ordinary tensor, which will be "lifted" into a functional wrapper later.
-    return tensor;
-  } else {
-    auto wrapped = at::functionalization::impl::to_functional_tensor(tensor);
-    return wrapped;
-  }
-}
-
-at::Tensor LazyNativeFunctions::empty_strided(
-    at::IntArrayRef size, at::IntArrayRef stride,
-    c10::optional<at::ScalarType> dtype, c10::optional<at::Layout> layout,
-    c10::optional<at::Device> device, c10::optional<bool> pin_memory) {
-  TORCH_LAZY_FN_COUNTER("lazy::");
-  at::Tensor t = empty_symint(
-    c10::fromIntArrayRefSlow(size),
-    dtype, layout, device, pin_memory, c10::nullopt);
-  return t.as_strided(size, stride, /*storage_offset=*/0);
-}
-
-at::Tensor&
-LazyNativeFunctions::fill_(at::Tensor& self, const at::Scalar& value) {
-  TORCH_LAZY_FN_COUNTER("lazy::");
-  auto self_tensor = torch::lazy::TryGetLtcTensor(self);
-
-  torch::lazy::Value constant =
-      torch::lazy::LazyGraphExecutor::Get()->GetIrValueForExpandedScalar(
-          value, self_tensor->shape(), self_tensor->GetDevice());
-  self_tensor->SetInPlaceIrValue(std::move(constant));
-  return self;
-}
-
 at::Tensor LazyNativeFunctions::_unsafe_view(
     const at::Tensor& self, at::IntArrayRef size) {
   TORCH_LAZY_FN_COUNTER("lazy::");
   return LazyNativeFunctions::view_copy_symint(self, c10::fromIntArrayRefSlow(size));
+}
+
+at::Tensor LazyNativeFunctions::t(const at::Tensor& self) {
+  TORCH_LAZY_FN_COUNTER("lazy::");
+  return at::functionalization::functionalize_aten_op<ATEN_OP(t)>::call(self);
 }
 
 std::vector<at::Tensor> LazyNativeFunctions::unbind_copy(const at::Tensor & self, int64_t dim) {
@@ -643,9 +571,18 @@ at::Tensor LazyNativeFunctions::new_empty_strided_symint(
     c10::optional<at::Layout> layout,
     c10::optional<at::Device> device,
     c10::optional<bool> pin_memory) {
-  return at::functionalization::
-      functionalize_aten_op_symint<ATEN_OP(new_empty_strided)>::call(
-          self, size, stride, dtype, layout, device, pin_memory);
+  if (!device || device->type() == c10::DeviceType::Lazy) {
+    return at::functionalization::functionalize_aten_op_symint<
+        ATEN_OP(new_empty_strided)>::call(self, size, stride, dtype, layout,
+                                          device, pin_memory);
+  }
+  // For cases when device != lazy, for example: lazy_tensor.new_empty_strided(..., "cpu")
+  // we need to avoid explicit functionalization. To do that we create regular cpu tensors.
+  at::Tensor t = at::empty_symint(
+      size, (dtype ? dtype : c10::optional<at::ScalarType>(self.scalar_type())),
+      (layout ? layout : c10::optional<at::Layout>(self.layout())), device,
+      pin_memory, c10::nullopt);
+  return t.as_strided_symint(size, stride, /*storage_offset=*/0);
 }
 
 at::Tensor LazyNativeFunctions::narrow_copy_symint(

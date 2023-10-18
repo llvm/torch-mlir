@@ -1983,6 +1983,15 @@ func.func @torch.aten.broadcast_to$fold(%arg0: !torch.vtensor<[3,4,2],f32>) -> !
   return %0 : !torch.vtensor<[3,4,2],f32>
 }
 
+// CHECK-LABEL:   func.func @torch.aten.broadcast_to_strict$fold(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[?],f32>, {{.*}}) -> !torch.vtensor<[?],f32>
+// CHECK-NEXT:      return %[[ARG]] : !torch.vtensor<[?],f32>
+func.func @torch.aten.broadcast_to_strict$fold(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.int) -> !torch.vtensor<[?],f32> attributes {torch.assume_strict_symbolic_shapes} {
+  %list = torch.prim.ListConstruct %arg1 : (!torch.int) -> !torch.list<int>
+  %0 = torch.aten.broadcast_to %arg0, %list : !torch.vtensor<[?],f32>, !torch.list<int> -> !torch.vtensor<[?],f32>
+  return %0 : !torch.vtensor<[?],f32>
+}
+
 //  CHECK-LABEL:    @torch.aten.slice.tensor$fold_full_domain_slice
 //   CHECK-SAME:      %[[ARG0:.+]]: !torch.vtensor<[4],f32>
 //        CHECK:        return %[[ARG0]] : !torch.vtensor<[4],f32>

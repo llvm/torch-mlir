@@ -3,12 +3,6 @@ blacklist:
 # It also doesn't have confusing `unsafe` argument.
 - _index_put_impl
 
-# Ops with list of tensors output
-- split.Tensor
-- split_with_sizes
-- unbind.int
-- chunk
-
 # Additional ops which autogen is supported for but don't compile yet
 - _convolution
 - detach
@@ -18,42 +12,28 @@ blacklist:
 
 # Disabled for consistency with TS backend
 - lift_fresh_copy
-- new_empty
 - rsub
-- slice.Tensor  # Disabled in favour of slice_copy.Tensor
-- zeros
-- ones
-- arange
-- arange.start
-- arange.start_step
-- fill.Scalar
-- scalar_tensor
 
 # Disabled in favour of functionalized alternatives
 - _reshape_alias
-- expand
 - permute
 - select.int
-- squeeze
 - squeeze.dim
-- t
 - transpose.int
+- expand
+- squeeze
 - unsqueeze
 - view
+- slice.Tensor
+- split.Tensor
+- split_with_sizes
+- unbind.int
 
-whitelist:
-# Enabled for consistency with TS backend
-- arange.start_out
 
 # List of supported ops that we don't want to do the full codegen for
 supported:
-# - bernoulli
-# - bernoulli_
 - _to_copy
 - clone
-- empty.memory_format
-- empty_strided
-- fill_.Scalar
 - _unsafe_view
 - unbind_copy.int
 - split_copy.Tensor
@@ -80,10 +60,10 @@ supported:
 - _trilinear
 - linalg_pinv.atol_rtol_tensor
 - logsumexp.out
+- t
 
 # List of ops that will take in symints for the size instead of ints
 symint:
-- empty.memory_format
 - new_empty_strided
 - expand_copy
 - narrow_copy
@@ -91,7 +71,6 @@ symint:
 - slice_copy.Tensor
 - split_copy.Tensor
 - slice_scatter
-- view
 - view_copy
 - as_strided_copy
 - as_strided_scatter

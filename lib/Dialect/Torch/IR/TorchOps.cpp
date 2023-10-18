@@ -2371,7 +2371,8 @@ OpFoldResult AtenBroadcastToOp::fold(FoldAdaptor adaptor) {
   if (!inType || !outType || !inType.hasSizes() || !outType.hasSizes())
     return nullptr;
   if (inType.getSizes().size() != outType.getSizes().size() ||
-      !inType.areAllSizesKnown() || !outType.areAllSizesKnown())
+      (!isAssumingStrictSymbolicShapes((*this)->getBlock()) &&
+       (!inType.areAllSizesKnown() || !outType.areAllSizesKnown())))
     return nullptr;
   for (size_t i = 0; i < inType.getSizes().size(); ++i) {
     if (inType.getSizes()[i] != outType.getSizes()[i])
