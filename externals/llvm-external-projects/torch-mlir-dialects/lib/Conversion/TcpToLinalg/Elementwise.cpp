@@ -72,11 +72,11 @@ createLinalgPayloadForElementwiseOp(Operation *op,
       auto minFloat = clampOp.getMinFloat();
       auto maxFloat = clampOp.getMaxFloat();
       if (minFloat)
-        result = b.create<arith::MaxFOp>(
+        result = b.create<arith::MaximumFOp>(
             loc, result,
             b.create<arith::ConstantFloatOp>(loc, *minFloat, b.getF32Type()));
       if (maxFloat)
-        result = b.create<arith::MinFOp>(
+        result = b.create<arith::MinimumFOp>(
             loc, result,
             b.create<arith::ConstantFloatOp>(loc, *maxFloat, b.getF32Type()));
     } else if (elemType.isa<mlir::IntegerType>()) {

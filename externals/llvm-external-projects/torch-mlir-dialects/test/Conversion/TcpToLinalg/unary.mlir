@@ -43,9 +43,9 @@ func.func @tanh(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
 // CHECK-SAME:                        outs(%[[EMPTY_TENSOR]] : tensor<?x?xf32>) {
 // CHECK:         ^bb0(%[[BBARG0:.*]]: f32, %{{.*}}: f32):
 // CHECK:           %[[CST0:.*]] = arith.constant 1.000000e-01 : f32
-// CHECK:           %[[MAX:.*]] = arith.maxf %[[BBARG0]], %[[CST0]] : f32
+// CHECK:           %[[MAX:.*]] = arith.maximumf %[[BBARG0]], %[[CST0]] : f32
 // CHECK:           %[[CST1:.*]] = arith.constant 1.024000e+03 : f32
-// CHECK:           %[[MIN:.*]] = arith.minf %[[MAX]], %[[CST1]] : f32
+// CHECK:           %[[MIN:.*]] = arith.minimumf %[[MAX]], %[[CST1]] : f32
 // CHECK:           linalg.yield %[[MIN]] : f32
 // CHECK:         } -> tensor<?x?xf32>
 // CHECK:         return %[[GENERIC]] : tensor<?x?xf32>
