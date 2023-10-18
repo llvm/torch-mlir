@@ -199,10 +199,10 @@ bool Torch::isViewLikeOp(Operation *op) {
   // that it does not return a view and treat those as having value
   // semantics.
   return isa<AtenBroadcastToOp, AtenContiguousOp, AtenDetachOp, AtenExpandAsOp,
-             AtenExpandOp, AtenFlattenUsingIntsOp, AtenPermuteOp, AtenReshapeOp,
-             Aten_ReshapeAliasOp, AtenSelectIntOp, AtenSliceTensorOp,
-             AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp, AtenToDtypeOp,
-             AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
+             AtenExpandOp, AtenFlattenUsingIntsOp, AtenUnflattenIntOp,
+             AtenPermuteOp, AtenReshapeOp, Aten_ReshapeAliasOp, AtenSelectIntOp,
+             AtenSliceTensorOp, AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp,
+             AtenToDtypeOp, AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
              TensorStaticInfoCastOp, AtenToDtypeLayoutOp, AtenNumpyTOp,
              AtenNarrowOp, AtenNarrowTensorOp, AtenToDeviceOp, PrimsSqueezeOp,
              AtenMovedimIntOp, PrimsViewOfOp, AtenRealOp, AtenImagOp,
@@ -323,4 +323,13 @@ FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
   Value unsqueezed = rewriter.create<AtenUnsqueezeOp>(
       op->getLoc(), unsqueezedType, input, dim);
   return unsqueezed;
+}
+
+bool Torch::isAssumingStrictSymbolicShapes(Block *block) {
+  for (Operation *parentOp = block->getParentOp(); parentOp;
+       parentOp = parentOp->getParentOp()) {
+    if (parentOp->hasAttr("torch.assume_strict_symbolic_shapes"))
+      return true;
+  }
+  return false;
 }

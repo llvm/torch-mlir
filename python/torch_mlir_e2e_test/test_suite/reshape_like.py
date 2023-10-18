@@ -672,6 +672,108 @@ class ViewNegativeStaticModule(torch.nn.Module):
 def ViewNegativeStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 128))
 
+class ViewSizeDimFollowedByExpandedOnesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(a.size(0), 1, 1, 1)
+
+@register_test_case(module_factory=lambda: ViewSizeDimFollowedByExpandedOnesModule())
+def ViewSizeDimFollowedByExpandedOnesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(128))
+
+class ViewSizeDimFollowedByCollapsedOnesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, 1, 1, 1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(a.size(0))
+
+@register_test_case(module_factory=lambda: ViewSizeDimFollowedByCollapsedOnesModule())
+def ViewSizeDimFollowedByCollapsedOnesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(128, 1, 1, 1))
+
+class ViewSizeDimLedByExpandedOnesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(1, 1, 1, a.size(0))
+
+@register_test_case(module_factory=lambda: ViewSizeDimLedByExpandedOnesModule())
+def ViewSizeDimLedByExpandedOnesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(128))
+
+class ViewSizeDimLedByCollapsedOnesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(a.size(3))
+
+@register_test_case(module_factory=lambda: ViewSizeDimLedByCollapsedOnesModule())
+def ViewSizeDimLedByCollapsedOnesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 1, 128))
+
+class ViewSizeDimLedAndFollowedByExpandedOnesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(1, 1, 1, a.size(0), 1, 1, 1)
+
+@register_test_case(module_factory=lambda: ViewSizeDimLedAndFollowedByExpandedOnesModule())
+def ViewSizeDimLedAndFollowedByExpandedOnesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(128))
+
+class ViewSizeDimLedAndFollowedByCollapsedOnesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 1, -1, 1, 1, 1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(a.size(3))
+
+@register_test_case(module_factory=lambda: ViewSizeDimLedAndFollowedByCollapsedOnesModule())
+def ViewSizeDimLedAndFollowedByCollapsedOnesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 1, 128, 1, 1, 1))
+
 # ==============================================================================
 
 class ReshapeAliasExpandModule(torch.nn.Module):

@@ -294,14 +294,17 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::clamp_max : (Tensor, Scalar) -> (Tensor)",
             "aten::clamp_max.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::log2 : (Tensor) -> (Tensor)",
+            "aten::log10 : (Tensor) -> (Tensor)",
             "aten::sqrt : (Tensor) -> (Tensor)",
             "aten::log1p : (Tensor) -> (Tensor)",
             "aten::rsqrt : (Tensor) -> (Tensor)",
             "aten::abs : (Tensor) -> (Tensor)",
             "aten::reciprocal : (Tensor) -> (Tensor)",
             "aten::bitwise_and.Tensor : (Tensor, Tensor) -> (Tensor)",
+            "aten::bitwise_and.Scalar : (Tensor, Scalar) -> (Tensor)",
             "aten::bitwise_or.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::bitwise_xor.Tensor : (Tensor, Tensor) -> (Tensor)",
+            "aten::bitwise_right_shift.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::threshold : (Tensor, Scalar, Scalar) -> (Tensor)",
             "aten::square : (Tensor) -> (Tensor)",
             "aten::unsqueeze : (Tensor, int) -> (Tensor)",
@@ -339,6 +342,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::imag : (Tensor) -> (Tensor)")
     emit("aten::view_as_complex : (Tensor) -> (Tensor)")
     emit("aten::view_as_real : (Tensor) -> (Tensor)")
+    emit("aten::isclose : (Tensor, Tensor, float, float, bool) -> (Tensor)")
 
     # Ops with dynamic number of outputs
     emit("aten::unbind_copy.int : (Tensor, int) -> (Tensor[])")
@@ -468,6 +472,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::movedim.int : (Tensor, int, int) -> (Tensor)")
     emit("aten::bmm : (Tensor, Tensor) -> (Tensor)")
     emit("aten::cumsum : (Tensor, int, int?) -> (Tensor)")
+    emit("aten::cumprod : (Tensor, int, int?) -> (Tensor)")
     emit("aten::floor_divide.Scalar : (Tensor, Scalar) -> (Tensor)")
     emit("aten::logsumexp : (Tensor, int[], bool) -> (Tensor)")
     emit("aten::mean.dim : (Tensor, int[]?, bool, int?) -> (Tensor)")
@@ -512,6 +517,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::squeeze.dim : (Tensor, int) -> (Tensor)", has_folder=True)
     emit("aten::squeeze : (Tensor) -> (Tensor)", has_folder=True)
     emit("aten::flatten.using_ints : (Tensor, int, int) -> (Tensor)")
+    emit("aten::unflatten.int : (Tensor, int, int[]) -> (Tensor)")
     emit("aten::dim : (Tensor) -> (int)", has_folder=True)
     emit("aten::size : (Tensor) -> (int[])", has_canonicalizer=True)
     emit("aten::Bool.Tensor : (Tensor) -> (bool)")
@@ -622,6 +628,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::fft_fft : (Tensor, int?, int, str?) -> (Tensor)")
     emit("aten::fmod.Tensor : (Tensor, Tensor) -> (Tensor)")
     emit("aten::unique_consecutive : (Tensor, bool, bool, int?) -> (Tensor, Tensor, Tensor)")
+    emit("aten::linspace : (Scalar, Scalar, int, int?, int?, Device?, bool?) -> (Tensor)")
 
     # Functionalization ops
     emit("aten::alias_copy : (Tensor) -> (Tensor)")

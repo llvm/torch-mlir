@@ -38,8 +38,17 @@ We have few paths to lower down to the Torch MLIR Dialect.
 - `#torch-mlir` channel on the LLVM [Discord](https://discord.gg/xS7Z362) - this is the most active communication channel
 - Github issues [here](https://github.com/llvm/torch-mlir/issues)
 - [`torch-mlir` section](https://llvm.discourse.group/c/projects-that-want-to-become-official-llvm-projects/torch-mlir/41) of LLVM Discourse
-- Weekly meetings on Mondays 9AM PST. See [here](https://discourse.llvm.org/t/community-meeting-developer-hour-refactoring-recurring-meetings/62575) for more information.
-- Weekly op office hours on Thursdays 8:30-9:30AM PST. See [here](https://discourse.llvm.org/t/announcing-torch-mlir-office-hours/63973/2) for more information.
+
+### Meetings
+
+Community Meeting / Developer Hour:
+- 1st and 3rd Monday of the month at 9 am PST
+- 2nd and 4th Monday of the month at 5 pm PST
+
+Office Hours:
+- Every Thursday at 8:30 am PST
+
+Meeting links can be found [here](https://discourse.llvm.org/t/new-community-meeting-developer-hour-schedule/73868).
 
 ## Install torch-mlir snapshot
 
