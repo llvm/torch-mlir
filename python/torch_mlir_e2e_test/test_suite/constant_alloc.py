@@ -278,7 +278,7 @@ class AtenEyeModuleFalsePinMemory(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return torch.ones(3, dtype=torch.float32, pin_memory=False)
+        return torch.eye(3, dtype=torch.float32, pin_memory=False)
 
 
 @register_test_case(module_factory=lambda: AtenEyeModuleFalsePinMemory())
@@ -296,7 +296,7 @@ class AtenEyeModuleCPUDevice(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return torch.ones(3, device="cpu")
+        return torch.eye(3, device="cpu")
 
 
 @register_test_case(module_factory=lambda: AtenEyeModuleCPUDevice())
@@ -368,7 +368,7 @@ class AtenEyeMModuleFalsePinMemory(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return torch.ones(3, 4, dtype=torch.float32, pin_memory=False)
+        return torch.eye(3, 4, dtype=torch.float32, pin_memory=False)
 
 
 @register_test_case(module_factory=lambda: AtenEyeMModuleFalsePinMemory())
@@ -386,7 +386,7 @@ class AtenEyeMModuleCPUDevice(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return torch.ones(3, 4, device="cpu")
+        return torch.eye(3, 4, device="cpu")
 
 
 @register_test_case(module_factory=lambda: AtenEyeMModuleCPUDevice())

@@ -417,10 +417,10 @@ public:
       return rewriter.notifyMatchFailure(op, "result should have dtype");
     }
     if (n < 0) {
-      return op.emitError("n must be greater or equal to 0");
+      return rewriter.notifyMatchFailure(op, "n must be greater or equal to 0");
     }
     if (m < 0) {
-      return op.emitError("m must be greater or equal to 0");
+      return rewriter.notifyMatchFailure(op, "m must be greater or equal to 0");
     }
 
     auto context = op.getContext();
@@ -430,45 +430,35 @@ public:
     auto si64Type = IntegerType::get(context, 64, IntegerType::Signed);
     auto arangeType =
         ValueTensorType::get(context, llvm::ArrayRef(n), si64Type);
-    Value range_n = rewriter.create<AtenArangeOp>(
+    Value rangeN = rewriter.create<AtenArangeOp>(
         loc, arangeType, op.getN(), /*dtype=*/int64Dtype, /*layout=*/none,
         /*device=*/op.getDevice(), /*pin_memory=*/none);
     
 
     auto arangeType1 =
         ValueTensorType::get(context, llvm::ArrayRef(m), si64Type);
-    Value range_m = rewriter.create<AtenArangeOp>(
+    Value rangeM = rewriter.create<AtenArangeOp>(
         loc, arangeType1, op.getM(), /*dtype=*/int64Dtype, /*layout=*/none,
         /*device=*/none, /*pin_memory=*/none);
-    auto range_mType = range_m.getType().cast<BaseTensorType>();
-    if (!range_mType.hasSizes()) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: input must have known sizes");
-    }
 
       
     
     Value constMinusOne = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(-1));
     auto unsqzTensorInfo =
-        unsqueezeTensor(rewriter, op, range_n, /*dim=*/constMinusOne);
+        unsqueezeTensor(rewriter, op, rangeN, /*dim=*/constMinusOne);
     if (failed(unsqzTensorInfo)) {
       return rewriter.notifyMatchFailure(op,
                                          "cannot generate unsqueeze tensor");
     }
     Value unsqzRangeN = *unsqzTensorInfo;
-    auto range_nType = unsqzRangeN.getType().cast<BaseTensorType>();
-    if (!range_nType.hasSizes()) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: input must have known sizes");
-    }
 
     // compare unsqueezed input with boundaries
     auto eqType = ValueTensorType::get(
         context, op.getType().cast<BaseTensorType>().getSizes(),
         IntegerType::get(context, 1));
     Value eqTensor = rewriter.create<AtenEqTensorOp>(
-          loc, eqType, unsqzRangeN, range_m);
+          loc, eqType, unsqzRangeN, rangeM);
     
     Value dtype = op.getDtype();
     if (dtype.getType().isa<Torch::BoolType>()) {
