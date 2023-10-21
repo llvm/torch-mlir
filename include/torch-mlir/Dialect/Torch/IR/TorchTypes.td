@@ -366,6 +366,8 @@ class OptionalOf<Type type, string descr> :
 
 def AnyTorchOptionalTensorType :
       OptionalOf<AnyTorchTensorType, "Optional torch tensor type">;
+def AnyTorchOptionalNonValueTensorType :
+      OptionalOf<Torch_NonValueTensorType, "Optional torch non value tensor type">;
 def AnyTorchOptionalIntType: OptionalOf<Torch_IntType, "Optional torch int type">;
 def AnyTorchOptionalFloatType: OptionalOf<Torch_FloatType, "Optional torch float type">;
 def AnyTorchOptionalBoolType:
@@ -390,8 +392,13 @@ def AnyTorchListOfTorchFloatType : ListOf<[Torch_FloatType], "Float list type (f
 def AnyTorchListOfTorchStringType : ListOf<[Torch_StringType], "Str list type (str[])">;
 def AnyTorchListOfTensorType:
       ListOf<[AnyTorchTensorType], "Any int list type (Tensor[])">;
+def AnyTorchListOfNonValueTensorType:
+      ListOf<[Torch_NonValueTensorType], "Any int list type (Tensor[])">;
 def AnyTorchListOfOptionalTensorType :
       ListOf<[AnyTorchOptionalTensorType],
+             "Any optional tensor list type (Tensor?[])">;
+def AnyTorchListOfOptionalNonValueTensorType :
+      ListOf<[AnyTorchOptionalNonValueTensorType],
              "Any optional tensor list type (Tensor?[])">;
 def AnyTorchListOfOptionalIntType :
       ListOf<[AnyTorchOptionalIntType],
