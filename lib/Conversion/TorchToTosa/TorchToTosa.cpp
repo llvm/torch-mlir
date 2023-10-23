@@ -3986,7 +3986,7 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
 
   IntegerAttr min_int, max_int;
   FloatAttr min_fp, max_fp;
-  if (op.getMin().getType().isa<mlir::FloatType>()) {
+  if (op.getMin().getType().isa<Torch::FloatType>()) {
     double fp_min, fp_max;
     if (!matchPattern(op.getMin(), m_TorchConstantFloat(&fp_min)))
       return rewriter.notifyMatchFailure(
