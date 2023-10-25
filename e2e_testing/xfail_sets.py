@@ -17,6 +17,9 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR failed
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
+    "UnflattenStaticModule_basic",
+    "IscloseStaticModule_basic",
+    "IscloseStaticModuleTrue_basic",
 }
 
 TORCHDYNAMO_XFAIL_SET = {
@@ -294,6 +297,9 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # torch._dynamo.exc.TorchRuntimeError: Failed running call_function <built-in method add of type object at 0x7f4f8b05a720>(*(FakeTensor(..., size=(3, 4), dtype=torch.int8), 3, 2), **{}): Tensor with dtype torch.int64 is not the expected dtype of torch.int8!
     "ElementwiseAddScalarInt8Module_basic",
+
+    # ERROR: dtype (torch.int64) is not equal to golden dtype (torch.float32)
+    "ThresholdBackward2dMixedModule_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.1.0.dev"):
@@ -930,6 +936,8 @@ STABLEHLO_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "IscloseStaticModule_basic",
+    "IscloseStaticModuleTrue_basic",
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
     "IndexPutImpl2DNoneIndexStaticModule_basic",
@@ -1062,6 +1070,7 @@ TOSA_PASS_SET = {
     "BatchNorm3DModule_basic",
     "BatchNorm1DStaticShapeModule_basic",
     "FlattenStaticModule_basic",
+    "UnflattenStaticModule_basic",
     "FlattenRank0Module_basic",
     "ElementwiseFlattenBroadcastModule_basic",
     "SquareModule_basic",

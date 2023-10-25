@@ -2526,6 +2526,60 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenUnflattenIntOp>::matchAndRewrite(
+    AtenUnflattenIntOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a ranked tensor type
+  auto selfType = adaptor.getSelf().getType().dyn_cast<RankedTensorType>();
+  if (!selfType || !selfType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op,
+        "Only ranked tensor types with static shapes are currently supported");
+
+  int64_t selfRank = selfType.getRank();
+  int64_t dim;
+
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(op, "dim must be a Scalar constant");
+
+  SmallVector<int64_t> sizes;
+  if (!matchPattern(op.getSizes(), m_TorchListOfConstantInts(sizes)))
+    return rewriter.notifyMatchFailure(
+        op, "Only constant sizes are currently supported");
+
+  if (selfRank > 0 && !isValidDim(dim, selfRank))
+    return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+
+  SmallVector<int64_t> newShape;
+  for (auto s :
+       llvm::enumerate(makeShapeTorchCompatible(selfType.getShape()))) {
+    int64_t idx = s.index();
+    if (idx < dim || idx > dim) {
+      newShape.push_back(s.value());
+    } else {
+      auto sum = 1;
+      for (auto newDims : sizes) {
+        newShape.push_back(newDims);
+        sum *= newDims;
+      }
+      if (sum != s.value())
+        return rewriter.notifyMatchFailure(op,
+                                           "sizes mismatch with original dim");
+    }
+  }
+
+  auto newType = RankedTensorType::get(makeShapeLLVMCompatible(newShape),
+                                       selfType.getElementType());
+
+  rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
+      op, getTypeConverter()->convertType(newType), adaptor.getSelf(),
+      rewriter.getDenseI64ArrayAttr(newShape));
+
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewrite(
     AtenPermuteOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -3867,6 +3921,59 @@ LogicalResult ConvertAtenOp<AtenLeTensorOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenIscloseOp>::matchAndRewrite(
+    AtenIscloseOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // check args
+  double rtol, atol;
+  bool equalNan;
+  if (!matchPattern(op.getRtol(), m_TorchConstantFloat(&rtol)))
+    return rewriter.notifyMatchFailure(op, "rtol must be a scalar constant");
+  if (!matchPattern(op.getAtol(), m_TorchConstantFloat(&atol)))
+    return rewriter.notifyMatchFailure(op, "atol must be a scalar constant");
+  if (!matchPattern(op.getEqualNan(), m_TorchConstantBool(&equalNan)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: equal_nan is expected to be false");
+
+  // check tensor type.
+  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto otherType = adaptor.getOther().getType().dyn_cast<TensorType>();
+  if (!selfType || !otherType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+  if (!selfType.hasStaticShape() || !otherType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types with static shape are supported");
+  if (!selfType.getElementType().isa<mlir::FloatType>() ||
+      !otherType.getElementType().isa<mlir::FloatType>()) {
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: only FP element type is supported");
+  }
+
+  auto rhsSubOp = rewriter.create<tosa::SubOp>(
+      op->getLoc(), selfType, adaptor.getSelf(), adaptor.getOther());
+  auto rhsAbsOp =
+      rewriter.create<tosa::AbsOp>(op->getLoc(), selfType, rhsSubOp);
+
+  auto lhsAbsOp =
+      rewriter.create<tosa::AbsOp>(op->getLoc(), otherType, adaptor.getOther());
+  auto rtolConstOp =
+      tosa::getTosaConstTensorSingleF32(rewriter, op, static_cast<float>(rtol));
+  auto mulOp = rewriter.create<tosa::MulOp>(op->getLoc(), otherType,
+                                            rtolConstOp, lhsAbsOp, /*shift=*/0);
+  auto atolConstOp =
+      tosa::getTosaConstTensorSingleF32(rewriter, op, static_cast<float>(atol));
+  auto addOp =
+      rewriter.create<tosa::AddOp>(op->getLoc(), otherType, atolConstOp, mulOp);
+
+  auto outType = getTypeConverter()->convertType(op.getType());
+  rewriter.replaceOpWithNewOp<tosa::GreaterEqualOp>(op, outType, addOp,
+                                                    rhsAbsOp);
+
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
     AtenClampOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -3877,19 +3984,37 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "only tensor types input are currently supported");
 
-  int64_t int_min, int_max;
-  if (!matchPattern(op.getMin(), m_TorchConstantInt(&int_min)))
-    return rewriter.notifyMatchFailure(
-        op, "unimplemented: value `int_min` should be a torch constant int");
+  IntegerAttr min_int, max_int;
+  FloatAttr min_fp, max_fp;
+  if (op.getMin().getType().isa<Torch::FloatType>()) {
+    double fp_min, fp_max;
+    if (!matchPattern(op.getMin(), m_TorchConstantFloat(&fp_min)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: value `fp_min` should be a torch constant float");
 
-  if (!matchPattern(op.getMax(), m_TorchConstantInt(&int_max)))
-    return rewriter.notifyMatchFailure(
-        op, "unimplemented: value `int_max` should be a torch constant int");
+    if (!matchPattern(op.getMax(), m_TorchConstantFloat(&fp_max)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: value `fp_max` should be a torch constant float");
 
-  IntegerAttr min_int = rewriter.getI64IntegerAttr(int_min);
-  IntegerAttr max_int = rewriter.getI64IntegerAttr(int_max);
-  FloatAttr min_fp = rewriter.getF32FloatAttr(float(int_min));
-  FloatAttr max_fp = rewriter.getF32FloatAttr(float(int_max));
+    min_int = rewriter.getI64IntegerAttr(static_cast<int64_t>(fp_min));
+    max_int = rewriter.getI64IntegerAttr(static_cast<int64_t>(fp_max));
+    min_fp = rewriter.getF32FloatAttr(static_cast<float>(fp_min));
+    max_fp = rewriter.getF32FloatAttr(static_cast<float>(fp_max));
+  } else {
+    int64_t int_min, int_max;
+    if (!matchPattern(op.getMin(), m_TorchConstantInt(&int_min)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: value `int_min` should be a torch constant int");
+
+    if (!matchPattern(op.getMax(), m_TorchConstantInt(&int_max)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: value `int_max` should be a torch constant int");
+
+    min_int = rewriter.getI64IntegerAttr(int_min);
+    max_int = rewriter.getI64IntegerAttr(int_max);
+    min_fp = rewriter.getF32FloatAttr(static_cast<float>(int_min));
+    max_fp = rewriter.getF32FloatAttr(static_cast<float>(int_max));
+  }
 
   auto outType = getTypeConverter()->convertType(op.getType());
   rewriter.replaceOpWithNewOp<tosa::ClampOp>(op, outType, adaptor.getSelf(),
@@ -5050,6 +5175,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenBatchNormOp);
     INSERT_ATENOP_PATTERN(AtenNativeLayerNormOp);
     INSERT_ATENOP_PATTERN(AtenFlattenUsingIntsOp);
+    INSERT_ATENOP_PATTERN(AtenUnflattenIntOp);
     INSERT_ATENOP_PATTERN(AtenPermuteOp);
     INSERT_ATENOP_PATTERN(AtenLog2Op);
     INSERT_ATENOP_PATTERN(AtenThresholdOp);
@@ -5079,6 +5205,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenRemainderScalarOp);
     INSERT_ATENOP_PATTERN(AtenCatOp);
     INSERT_ATENOP_PATTERN(AtenSqrtOp);
+    INSERT_ATENOP_PATTERN(AtenIscloseOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
