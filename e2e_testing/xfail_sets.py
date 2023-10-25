@@ -705,6 +705,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseToDtypeIdentityModule_basic",
     "View1DFoldModule_basic",
     "UnsafeView1DFoldModule_basic",
+    "UnflattenStaticModule_basic",
     "UnflattenIntStaticModule_basic",
     "UnflattenIntNegativeOneDimStaticModule_basic",
     "UnflattenIntNegativeOneSizeStaticModule_basic",
