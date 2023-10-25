@@ -6384,7 +6384,7 @@ StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
 "  }\n"
 "  func.func @\"__torch_mlir_shape_fn.aten.glu\"(%arg0: !torch.list<int>, %arg1: !torch.int) -> !torch.list<int> {\n"
 "    %none = torch.constant.none\n"
-"    %str = torch.constant.str \"AssertionError: glu's split dim must be multiply of 2\"\n"
+"    %str = torch.constant.str \"AssertionError: glu's dim size must be multiply of 2\"\n"
 "    %int0 = torch.constant.int 0\n"
 "    %int2 = torch.constant.int 2\n"
 "    %int1 = torch.constant.int 1\n"
