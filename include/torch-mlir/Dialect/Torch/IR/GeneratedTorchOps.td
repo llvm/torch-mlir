@@ -4189,6 +4189,30 @@ def Torch_AtenIscloseOp : Torch_Op<"aten.isclose", [
   }];
 }
 
+def Torch_AtenGluOp : Torch_Op<"aten.glu", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::glu : (Tensor, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenGluOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenGluOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_AtenUnbindCopyIntOp : Torch_Op<"aten.unbind_copy.int", [
     AllowsTypeRefinement,
     HasValueSemantics,
