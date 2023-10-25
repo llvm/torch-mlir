@@ -1677,11 +1677,7 @@ def aten〇flatten〇using_ints〡dtype(self_rank_dtype: Tuple[int, int], start_
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
-<<<<<<< HEAD
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0, sizes=[-1]))
-=======
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0, sizes=[1]))
->>>>>>> main
 def aten〇unflatten〇int〡dtype(self_rank_dtype: Tuple[int, int], dim: int, sizes: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
