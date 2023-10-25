@@ -1472,10 +1472,11 @@ public:
     if (!maybeRank)
       return rewriter.notifyMatchFailure(op, "unimplemented: unranked tensor");
     unsigned inputRank = *maybeRank;
-    BaseTensorType inputTensorType = self.getType().cast<BaseTensorType>();
-    if (!inputTensorType.hasSizes())
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: input must have known sizes");
+    auto inputTensorType = self.getType().cast<Torch::ValueTensorType>();
+    if (!inputTensorType || !inputTensorType.hasSizes()) {
+      return rewriter.notifyMatchFailure(op,
+                                            "Expected input type having sizes");
+    }
     ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
 
     SmallVector<int64_t> sizesInts;
