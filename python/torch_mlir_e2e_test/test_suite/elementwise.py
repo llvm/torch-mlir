@@ -3685,3 +3685,21 @@ class ElementwiseBitwiseAndScalarInt8Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseBitwiseAndScalarInt8Module())
 def ElementwiseBitwiseAndScalarInt8Module_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-1000, high=1000).to(torch.int8))
+
+# ==============================================================================
+
+class GluStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+        ([3, 24, 5], torch.float32, True)
+    ])
+    def forward(self, x):
+        return torch.ops.aten.glu(x, dim=1)
+
+@register_test_case(module_factory=lambda: GluStaticModule())
+def  GluStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 24, 5))
