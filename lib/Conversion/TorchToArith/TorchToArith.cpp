@@ -189,13 +189,18 @@ public:
               RankedTensorType::get(type.getShape(), builtinTensorElemTy);
           AsmResourceBlob *blob = elements.getRawHandle().getBlob();
           assert(blob && "Expecting dense resource with a valid blob");
-          if (elements.getType().getElementTypeBitWidth() < 8) {
+          auto elType = elements.getType().getElementType();
+          if ((elType.isF32()) ||
+              (elType.isInteger(1) || elType.isInteger(8) ||
+               elType.isInteger(16) || elType.isInteger(32) ||
+               elType.isInteger(64))) {
             rewriter.replaceOpWithNewOp<arith::ConstantOp>(
-              op, DenseElementsAttr::get(shapedType, blob->getData()));
+                op, DenseResourceElementsAttr::get(shapedType,
+                                                   elements.getRawHandle()));
+          } else {
+            rewriter.replaceOpWithNewOp<arith::ConstantOp>(
+                op, DenseElementsAttr::get(shapedType, blob->getData()));
           }
-          else {
-            rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, DenseResourceElementsAttr::get(shapedType, elements.getRawHandle()));
-          }   
           return success();
         }
       }
