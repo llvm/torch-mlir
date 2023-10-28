@@ -1629,7 +1629,6 @@ class NewEmptyStridedModuleDefaultDtype(torch.nn.Module):
 def NewEmptyStridedModuleDefaultDtype_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))
 
-
 # ==============================================================================
 
 
@@ -1651,4 +1650,27 @@ class EmptyStridedModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: EmptyStridedModule())
 def EmptyStridedModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 3, 4))
+
+# ==============================================================================
+
+
+class EmptyStridedSizeIntStrideModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        x = torch.ops.aten.empty_strided(a.size(), stride=[12, a.size(2), 1])
+        y = x.copy_(a)
+        return y
+
+
+@register_test_case(module_factory=lambda: EmptyStridedSizeIntStrideModule())
+def EmptyStridedSizeIntStrideModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))
