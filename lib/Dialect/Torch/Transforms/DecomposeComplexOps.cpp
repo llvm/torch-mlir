@@ -362,6 +362,48 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenGluOp : public OpRewritePattern<AtenGluOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenGluOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value dim = op.getDim();
+
+    auto outputTy = op.getType().dyn_cast<Torch::ValueTensorType>();
+    if (!outputTy || !outputTy.hasSizes() || !outputTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "Expected output type having sizes and dtype");
+    }
+
+    Value zero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value dimSize = rewriter.create<AtenSizeIntOp>(loc, self, dim);
+    Value two =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2));
+
+    Value remainder = rewriter.create<AtenRemainderIntOp>(loc, dimSize, two);
+    Value eqOrNot = rewriter.create<AtenEqIntOp>(loc, remainder, zero);
+    rewriter.create<RuntimeAssertOp>(
+        loc, eqOrNot,
+        rewriter.getStringAttr("AtenGluOp's dim size must be multiply of 2"));
+
+    Value splitLength = rewriter.create<AtenFloordivIntOp>(loc, dimSize, two);
+    Value a = rewriter.create<AtenNarrowOp>(loc, outputTy, self, dim, zero,
+                                            splitLength);
+    Value b = rewriter.create<AtenNarrowOp>(loc, outputTy, self, dim,
+                                            splitLength, splitLength);
+    // a⊗σ(b)
+    Value sigmoidB = rewriter.create<AtenSigmoidOp>(loc, outputTy, b);
+    Value result = rewriter.create<AtenMulTensorOp>(loc, outputTy, a, sigmoidB);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenZeroOp
     : public OpRewritePattern<AtenZeroOp> {
 public:
@@ -5384,6 +5426,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdCorrectionOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNarrowOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNarrowTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenGluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_EmbeddingBagOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLiftFreshCopyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMseLossOp>(patterns);

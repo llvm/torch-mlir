@@ -966,6 +966,7 @@ TOSA_PASS_SET = {
     "ElementwiseMaximumIntModule_basic",
     "ElementwiseMaxOtherIntModule_basic",
     "ElementwiseMaxOtherModule_basic",
+    "GluStaticModule_basic",
     "ViewDoubleMergeStaticModule_basic",
     "ViewCollapseOnesMiddleModule_basic",
     "ViewFiveTestStaticModule_basic",

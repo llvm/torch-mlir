@@ -167,6 +167,12 @@ def aten〇relu6〡shape(self: List[int]) -> List[int]:
 def aten〇round〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇glu〡shape(self: List[int], dim: int = -1) -> List[int]:
+    if dim < 0:
+        dim += len(self)
+    assert self[dim] % 2 == 0, "glu's dim size must be multiply of 2"
+    return self[:dim] + [self[dim] // 2] + self[dim+1:]
+
 def aten〇_softmax〡shape(self: List[int], dim: int, half_to_float: bool) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -1939,6 +1945,11 @@ def aten〇roll〡dtype(self_rank_dtype: Tuple[int, int], shifts: List[int], dim
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇round〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(100,)], dim=0))
+def aten〇glu〡dtype(self_rank_dtype: Tuple[int, int], dim: int = -1) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
