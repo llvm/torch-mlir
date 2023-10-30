@@ -634,12 +634,7 @@ def aten〇unflatten〇int〡shape(self: List[int], dim: int, sizes: List[int]) 
     unflatten_shape: List[int] = [self[dim]]
     unflatten_shape_output = upstream_shape_functions.view(unflatten_shape, sizes)
     shape: List[int] = []
-    for i in range(len(self)):
-        if i != dim:
-            shape.append(self[i])
-        else:
-            shape = shape + unflatten_shape_output
-    return shape
+    return self[:dim] + unflatten_shape_output + self[dim+1:]
 
 def aten〇linear〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None) -> List[int]:
     return upstream_shape_functions.linear(input, weight, bias)
