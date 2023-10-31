@@ -190,9 +190,9 @@ public:
           AsmResourceBlob *blob = elements.getRawHandle().getBlob();
           assert(blob && "Expecting dense resource with a valid blob");
           auto elType = elements.getType().getElementType();
-          if (elType.isF32() || elType.isF16() || elType.isInteger(1) ||
-              elType.isInteger(8) || elType.isInteger(16) ||
-              elType.isInteger(32) || elType.isInteger(64)) {
+          if (elType.isInteger(1) || elType.isInteger(8) ||
+              elType.isInteger(16) || elType.isInteger(32) ||
+              elType.isInteger(64)) {
             rewriter.replaceOpWithNewOp<arith::ConstantOp>(
                 op, DenseResourceElementsAttr::get(shapedType,
                                                    elements.getRawHandle()));
