@@ -813,3 +813,56 @@ class ReshapeAliasCollapseModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReshapeAliasCollapseModule())
 def ReshapeAliasCollapseModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4))
+
+# ==============================================================================
+
+class UnflattenIntStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 24, 5], torch.float32, True),
+    ])
+
+    def forward(self, inputs):
+        return torch.ops.aten.unflatten(inputs, 1, [2, 4, 3])
+
+@register_test_case(module_factory=lambda: UnflattenIntStaticModule())
+def UnflattenIntStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 24, 5))
+
+class UnflattenIntNegativeOneDimStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 12, 3], torch.float32, True),
+    ])
+
+    def forward(self, inputs):
+        return torch.ops.aten.unflatten(inputs, -2, [2, 2, 3, 1, 1])
+
+@register_test_case(module_factory=lambda: UnflattenIntNegativeOneDimStaticModule())
+def UnflattenIntNegativeOneDimStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 12, 3))
+
+class UnflattenIntNegativeOneSizeStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 12, 3], torch.float32, True),
+    ])
+
+    def forward(self, inputs):
+        return torch.ops.aten.unflatten(inputs, -2, [2, -1, 3, 1, 1])
+
+@register_test_case(module_factory=lambda: UnflattenIntNegativeOneSizeStaticModule())
+def UnflattenIntNegativeOneSizeStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 12, 3))

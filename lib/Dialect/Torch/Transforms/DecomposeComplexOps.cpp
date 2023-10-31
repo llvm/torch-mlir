@@ -1494,6 +1494,100 @@ public:
 };
 } // namespace
 
+// Decompose aten.unflatten.int into aten.view op.
+namespace {
+class DecomposeAtenUnflattenIntOp
+    : public OpRewritePattern<AtenUnflattenIntOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenUnflattenIntOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    MLIRContext *context = op.getContext();
+    BaseTensorType outputTensorType = op.getType().cast<BaseTensorType>();
+    if (!outputTensorType.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: output must have known sizes");
+
+    std::optional<unsigned> maybeRank = getTensorRank(self);
+    if (!maybeRank)
+      return rewriter.notifyMatchFailure(op, "unimplemented: unranked tensor");
+    unsigned inputRank = *maybeRank;
+    auto inputTensorType = self.getType().cast<Torch::ValueTensorType>();
+    if (!inputTensorType || !inputTensorType.hasSizes()) {
+      return rewriter.notifyMatchFailure(op,
+                                            "Expected input type having sizes");
+    }
+    ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
+
+    SmallVector<int64_t> sizesInts;
+    if (!matchPattern(op.getSizes(), m_TorchListOfConstantInts(sizesInts)))
+      return rewriter.notifyMatchFailure(
+          op, "sizes must be a list of constant ints");
+
+    bool inferred = false;
+    if (llvm::count(sizesInts, -1) > 1)
+      return rewriter.notifyMatchFailure(
+          op, "only one of sizes' elements can be -1");
+
+    int64_t dimInt;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dimInt)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: requires dim to be constants");
+
+    dimInt = toPositiveDim(dimInt, inputRank);
+    if (!isValidDim(dimInt, inputRank))
+      return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
+
+    SmallVector<Value> sizesTorchInt;
+    if (!getListConstructElements(op.getSizes(), sizesTorchInt))
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: sizes not list of Scalar");
+
+    // Create new sizes based on the unflattened dimension.
+    SmallVector<Value> newSizes;
+    for (int64_t i = 0; i < inputRank; ++i) {
+      Value dimValue =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i));
+      Value dimSize =
+          rewriter.create<AtenSizeIntOp>(loc, self, /*dim=*/dimValue);
+      if (i == dimInt) {
+        int64_t inferredSizeInt = inputShape[i]; 
+        int64_t inferredDim;
+        for (unsigned j = 0; j < sizesInts.size(); ++j) {
+          if (sizesInts[j] == -1) {
+            inferred = true;
+            inferredDim = j;
+          } else {
+            Value sizeValue = rewriter.create<ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(sizesInts[j]));
+            newSizes.push_back(sizeValue);
+            inferredSizeInt = inferredSizeInt / sizesInts[j];
+          }
+        }
+        if (inferred) {
+          Value inferredSize =
+            rewriter.create<ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(inferredSizeInt));
+          newSizes.insert(
+            newSizes.begin() + inferredDim + i, inferredSize);
+        }
+      } else {
+        newSizes.push_back(dimSize);
+      }
+    }
+
+    // Create the AtenViewOp to replace the original op.
+    Value newSizeList = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)), newSizes);
+    rewriter.replaceOpWithNewOp<AtenViewOp>(op, op.getType(), op.getSelf(),
+                                            newSizeList);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.expand into aten.broadcast_to op.
 namespace {
 class DecomposeAtenExpandOp : public OpRewritePattern<AtenExpandOp> {
@@ -5237,6 +5331,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenExpandOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFlattenUsingIntsOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenUnflattenIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarOtherOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarSelfOp>(patterns);
