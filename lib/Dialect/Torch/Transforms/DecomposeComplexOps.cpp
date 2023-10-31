@@ -378,23 +378,23 @@ public:
 } // namespace
 
 namespace {
-class DecomposeAtenEyeOp
-    : public OpRewritePattern<AtenEyeOp> {
+class DecomposeAtenEyeOp : public OpRewritePattern<AtenEyeOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenEyeOp op,
                                 PatternRewriter &rewriter) const override {
     Value n = op.getN();
     Value m = op.getN();
-    rewriter.replaceOpWithNewOp<AtenEyeMOp>(op, op.getType(), n, m, op.getDtype(), op.getLayout(), op.getDevice(), op.getPinMemory());
+    rewriter.replaceOpWithNewOp<AtenEyeMOp>(op, op.getType(), n, m,
+                                            op.getDtype(), op.getLayout(),
+                                            op.getDevice(), op.getPinMemory());
     return success();
   }
 };
 } // namespace
 
 namespace {
-class DecomposeAtenEyeMOp
-    : public OpRewritePattern<AtenEyeMOp> {
+class DecomposeAtenEyeMOp : public OpRewritePattern<AtenEyeMOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenEyeMOp op,
@@ -402,12 +402,12 @@ public:
     Location loc = op.getLoc();
     int64_t n;
     if (!matchPattern(op.getN(), m_TorchConstantInt(&n)))
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: n must be constant");
+      return rewriter.notifyMatchFailure(op,
+                                         "unimplemented: n must be constant");
     int64_t m;
     if (!matchPattern(op.getM(), m_TorchConstantInt(&m)))
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: m must be constant");
+      return rewriter.notifyMatchFailure(op,
+                                         "unimplemented: m must be constant");
     Value none = rewriter.create<ConstantNoneOp>(loc);
     auto outType = op.getType().dyn_cast<BaseTensorType>();
     if (!outType)
@@ -428,21 +428,17 @@ public:
         rewriter, loc,
         rewriter.getIntegerType(/*width=*/64, /*isSigned=*/true));
     auto si64Type = IntegerType::get(context, 64, IntegerType::Signed);
-    auto arangeType =
-        ValueTensorType::get(context, llvm::ArrayRef(n), si64Type);
+    auto arangeType = outType.getWithSizesAndDtype(llvm::ArrayRef(n), si64Type);
     Value rangeN = rewriter.create<AtenArangeOp>(
         loc, arangeType, op.getN(), /*dtype=*/int64Dtype, /*layout=*/none,
         /*device=*/op.getDevice(), /*pin_memory=*/none);
-    
 
     auto arangeType1 =
-        ValueTensorType::get(context, llvm::ArrayRef(m), si64Type);
+        outType.getWithSizesAndDtype(llvm::ArrayRef(m), si64Type);
     Value rangeM = rewriter.create<AtenArangeOp>(
         loc, arangeType1, op.getM(), /*dtype=*/int64Dtype, /*layout=*/none,
         /*device=*/none, /*pin_memory=*/none);
 
-      
-    
     Value constMinusOne = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(-1));
     auto unsqzTensorInfo =
@@ -457,20 +453,20 @@ public:
     auto eqType = ValueTensorType::get(
         context, op.getType().cast<BaseTensorType>().getSizes(),
         IntegerType::get(context, 1));
-    Value eqTensor = rewriter.create<AtenEqTensorOp>(
-          loc, eqType, unsqzRangeN, rangeM);
-    
+    Value eqTensor =
+        rewriter.create<AtenEqTensorOp>(loc, eqType, unsqzRangeN, rangeM);
+
     Value dtype = op.getDtype();
     if (dtype.getType().isa<Torch::BoolType>()) {
       rewriter.replaceOp(op, eqTensor);
       return success();
-    }
-    else {
+    } else {
       auto zero =
           rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
       auto one =
           rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
-      Value outTensor = rewriter.create<AtenWhereScalarOp>(loc, outType, eqTensor, one, zero);
+      Value outTensor =
+          rewriter.create<AtenWhereScalarOp>(loc, outType, eqTensor, one, zero);
       rewriter.replaceOp(op, outTensor);
       return success();
     }
