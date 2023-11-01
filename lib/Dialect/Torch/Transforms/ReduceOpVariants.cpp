@@ -243,8 +243,13 @@ public:
            "Torch JIT operators shouldn't have regions or successors");
 
     Operation *newOp = rewriter.create(state);
-    auto tensor =
-        rewriter.create<CopyToValueTensorOp>(op->getLoc(), newOp->getResult(0));
+    Value none = rewriter.create<ConstantNoneOp>(op->getLoc());
+    Value cstFalse = rewriter.create<ConstantBoolOp>(op->getLoc(), false);
+    auto aDtype = rewriter.create<PrimDtypeOp>(op->getLoc(), op->getOperand(0));
+    auto toDtype = rewriter.create<AtenToDtypeOp>(
+        op->getLoc(), newOp->getResult(0).getType(), newOp->getResult(0),
+        aDtype, /*non_blocking=*/cstFalse, /*copy=*/cstFalse, /*memory_format=*/none);
+    auto tensor = rewriter.create<CopyToValueTensorOp>(op->getLoc(), toDtype);
     createOverwriteTensorContents(rewriter, op->getLoc(), tensor,
                                   op->getOperand(0));
     rewriter.replaceOp(op, op->getOperand(0));

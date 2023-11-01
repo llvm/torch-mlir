@@ -1012,6 +1012,30 @@ def AddSizeIntNegDimModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class Add_MixPModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float64, True),
+    ])
+    def forward(self, a, b):
+        a += b
+        return a
+
+
+@register_test_case(module_factory=lambda: Add_MixPModule())
+def Add_MixPModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 3), tu.rand(3, 3).double())
+
+
+# ==============================================================================
+
+
 class EmbeddingModuleI64(torch.nn.Module):
 
     def __init__(self):
