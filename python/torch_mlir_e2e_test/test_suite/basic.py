@@ -4585,11 +4585,7 @@ def Add_Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-<<<<<<< HEAD
 class CosineSimilarityStaticModule(torch.nn.Module):
-=======
-class IscloseStaticModule(torch.nn.Module):
->>>>>>> main
 
     def __init__(self):
         super().__init__()
@@ -4597,7 +4593,6 @@ class IscloseStaticModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-<<<<<<< HEAD
         ([2, 3], torch.float32, True),
         ([2, 3], torch.float32, True),
     ])
@@ -4608,40 +4603,19 @@ class IscloseStaticModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: CosineSimilarityStaticModule())
 def CosineSimilarityStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3), tu.rand(2, 3))
-=======
-        ([5, 5], torch.float32, True),
-        ([5, 5], torch.float32, True),
-    ])
-    def forward(self, x, y):
-        return torch.isclose(x, y)
-
-
-@register_test_case(module_factory=lambda: IscloseStaticModule())
-def IscloseStaticModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(5, 5), tu.rand(5, 5))
->>>>>>> main
 
 
 # ==============================================================================
 
 
-<<<<<<< HEAD
 class CosineSimilarityStaticBroadcastModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-=======
-class IscloseStaticModuleTrue(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-        self.register_buffer('tensor', torch.ones(1))
->>>>>>> main
 
     @export
     @annotate_args([
         None,
-<<<<<<< HEAD
         ([5, 2, 3], torch.float32, True),
         ([4, 5, 1, 1], torch.float32, True),
     ])
@@ -4675,7 +4649,43 @@ class CosineSimilarityModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: CosineSimilarityModule())
 def CosineSimilarityModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3), tu.rand(2, 3))
-=======
+
+
+# ==============================================================================
+
+
+class IscloseStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 5], torch.float32, True),
+        ([5, 5], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.isclose(x, y)
+
+
+@register_test_case(module_factory=lambda: IscloseStaticModule())
+def IscloseStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 5), tu.rand(5, 5))
+
+
+# ==============================================================================
+
+
+class IscloseStaticModuleTrue(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.register_buffer('tensor', torch.ones(1))
+
+    @export
+    @annotate_args([
+        None,
         ([5, 5], torch.float32, True),
     ])
     def forward(self, x):
@@ -4684,4 +4694,3 @@ def CosineSimilarityModule_basic(module, tu: TestUtils):
 @register_test_case(module_factory=lambda: IscloseStaticModuleTrue())
 def IscloseStaticModuleTrue_basic(module, tu: TestUtils):
     module.forward(torch.ones(5, 5))
->>>>>>> main
