@@ -56,7 +56,7 @@ def GlobalizeObjectGraph : Pass<"torch-globalize-object-graph", "ModuleOp"> {
     - Multiple instances of the same class type are allowed, as long as it is
       possible to monomorphize ("template instantiate") functions so that each
       argument of !torch.nn.Module type corresponds to a unique instance.
-      In pratice, this limitation is either 1) (fundamental) due to truly
+      In practice, this limitation is either 1) (fundamental) due to truly
       dynamic use of modules, such as `m1 if cond() else m2` in Python code,
       or 2) (incidental) imprecision of the static analysis used in this pass
       which is used to calculate when a single intance is relevant. In general,

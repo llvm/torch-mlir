@@ -168,7 +168,7 @@ at::Tensor LazyNativeFunctions::_copy_from(
     // materializing a lazy tensor (self) and copying its value into eager
     // tensor (dst)
     // detached=false lets us skip a copy in `ToTensor`, which should be safe
-    // becuase we are only going to use the tensor for dst.copy_()
+    // because we are only going to use the tensor for dst.copy_()
     CHECK(self_tensor);
     at::Tensor tensor = self_tensor->ToTensor(/*detached=*/false);
     at::Tensor typed_tensor =

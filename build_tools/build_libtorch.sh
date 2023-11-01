@@ -47,7 +47,7 @@ install_requirements() {
 checkout_pytorch() {
   if [[ ! -d "$PYTORCH_ROOT" ]]; then
     # ${TORCH_MLIR_SRC_PYTORCH_BRANCH} could be a branch name or a commit hash.
-    # Althought `git clone` can accept a branch name, the same command does not
+    # Although `git clone` can accept a branch name, the same command does not
     # accept a commit hash, so we instead use `git fetch`.  The alternative is
     # to clone the entire repository and then `git checkout` the requested
     # branch or commit hash, but that's too expensive.

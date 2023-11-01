@@ -15,7 +15,7 @@ namespace torch {
 namespace lazy {
 
 // IValueConstant IR Node represents a `prim::Constant` constructed with IValue
-// parameter which is helpfull in different usecases when we need custom
+// parameter which is helpful in different usecases when we need custom
 // native ops lowering to torch-mlir IR nodes.
 class IValueConstant : public torch::lazy::TorchMlirNode {
  public:
