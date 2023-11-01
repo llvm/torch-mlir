@@ -154,6 +154,9 @@ TORCHDYNAMO_XFAIL_SET = {
     'BoolFloatConstantModule_basic',
     'BoolIntConstantModule_basic',
 
+    # ERROR: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function aten.size
+    "ViewSizeFromOtherTensor_basic",
+
     # ERROR: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor bool call_function aten.__contains__
     'ContainsIntList_False',
     'ContainsIntList_True',

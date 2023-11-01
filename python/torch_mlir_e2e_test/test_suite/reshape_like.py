@@ -430,6 +430,26 @@ def ViewFlattenAndExpandModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ViewSizeFromOtherTensor(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, -1], torch.float32, True),
+        ([1, -1, 10], torch.float32, True),
+    ])
+
+    def forward(self, x, y):
+        return torch.ops.aten.view(y, (torch.ops.aten.size(x, 1), 10))
+
+@register_test_case(module_factory=lambda: ViewSizeFromOtherTensor())
+def ViewSizeFromOtherTensor_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 7), tu.rand(1, 7, 10))
+
+# ==============================================================================
+
 class UnsafeViewExpandModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
