@@ -73,14 +73,21 @@ Value createElementwiseLinalgGeneric(
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild);
 
 // Broadcasts input tensor based on the broadcastToShape.
-LogicalResult
-broadcastToGivenShape(Operation *op, PatternRewriter &rewriter, Value input,
-                      SmallVector<Value> broadcastToShape, Value &result,
-                      SmallVector<bool> useBroadcastToShape = {});
+LogicalResult broadcastToGivenShape(Operation *op, PatternRewriter &rewriter,
+                                    Value input,
+                                    SmallVector<Value> broadcastToShape,
+                                    RankedTensorType broadcastType,
+                                    Value &result,
+                                    SmallVector<bool> useBroadcastToShape = {});
 
 // Cast a tensor to a rank-equivalent tensor of unknown size, i.e. <1x2xf32> ->
 // <?x?xf32>
 Value removeSizeInformation(OpBuilder &b, Location loc, Value tensor);
+
+// Converts a tensor' element type to the specified `elementType`.
+Value convertTensorToElementType(OpBuilder &b, Location loc, Value tensor,
+                                 Type elementType);
+
 } // namespace torch_to_linalg
 } // namespace torch
 } // namespace mlir

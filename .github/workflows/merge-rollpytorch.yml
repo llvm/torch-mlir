@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       github.repository == 'llvm/torch-mlir' &&
-      github.event.workflow_run.actor.login == 'silvasean' &&
+      github.event.workflow_run.actor.login == 'stellaraccident' &&
       github.event.workflow_run.conclusion == 'success'
 
     steps:

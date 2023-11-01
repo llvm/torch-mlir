@@ -237,17 +237,17 @@ public:
 
     SmallVector<Type> regionArgTypes;
     SmallVector<Location> regionArgLocs;
-    for (Value value : scfForOp.getLoopBody().front().getArguments()) {
+    for (Value value : scfForOp.getRegion().front().getArguments()) {
       regionArgTypes.push_back(value.getType());
       regionArgLocs.push_back(value.getLoc());
     }
 
     // Populate the loop body region.
-    if (!scfForOp.getLoopBody().empty())
-      rewriter.eraseBlock(&scfForOp.getLoopBody().back());
+    if (!scfForOp.getRegion().empty())
+      rewriter.eraseBlock(&scfForOp.getRegion().back());
 
-    auto *block = rewriter.createBlock(&scfForOp.getLoopBody(),
-                                       scfForOp.getLoopBody().begin(),
+    auto *block = rewriter.createBlock(&scfForOp.getRegion(),
+                                       scfForOp.getRegion().begin(),
                                        regionArgTypes, regionArgLocs);
 
     // Rewrite uses of the torch loop block arguments to the new for-loop

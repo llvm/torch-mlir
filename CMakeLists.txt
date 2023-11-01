@@ -118,14 +118,7 @@ else()
 endif()
 
 if (TORCH_MLIR_ENABLE_STABLEHLO)
-  set(STABLEHLO_BUILD_EMBEDDED ON)
-  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/externals/mlir-hlo
-    ${CMAKE_CURRENT_BINARY_DIR}/mlir-hlo
-    EXCLUDE_FROM_ALL)
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/mlir-hlo/include)
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/mlir-hlo)
-  include_directories(${CMAKE_CURRENT_BINARY_DIR}/mlir-hlo/include)
-  include_directories(${CMAKE_CURRENT_BINARY_DIR}/mlir-hlo)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo)
 endif()
 
 set(TORCH_MLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -228,4 +221,19 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
             DEPENDS torch-mlir-headers
             COMPONENT torch-mlir-headers)
   endif()
+endif()
+
+# Important: If loading StableHLO in this fashion, it must come last,
+# after all of our libraries and test targets have been defined.
+# It seems that they both abuse upstream CMake macros that accumulate
+# properties.
+# Getting this wrong results in building large parts of the stablehlo
+# project that we don't actually depend on. Further some of those parts
+# do not even compile on all platforms.
+if (TORCH_MLIR_ENABLE_STABLEHLO)
+  set(STABLEHLO_BUILD_EMBEDDED ON)
+  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo
+    ${CMAKE_CURRENT_BINARY_DIR}/stablehlo
+    EXCLUDE_FROM_ALL)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo)
 endif()

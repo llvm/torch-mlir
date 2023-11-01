@@ -24,8 +24,20 @@ jobs:
     - name: Get torch-mlir
       uses: actions/checkout@v3
       with:
-        submodules: 'true'
+        submodules: 'false'
         token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+
+    - name: Get LLVM and StableHlo submodules
+      run: |
+        set -eo pipefail
+        cd ${GITHUB_WORKSPACE}
+
+        # Fetching the submodules concurrently may cause problems, so we fetch
+        # them one after another.
+        rm -f .git/modules/externals/llvm-project/index.lock
+        rm -f .git/modules/externals/stablehlo/index.lock
+        git submodule update --init --recursive externals/llvm-project
+        git submodule update --init --recursive externals/stablehlo
 
     - name: Setup ccache
       uses: ./.github/actions/setup-build
@@ -71,15 +83,14 @@ jobs:
         echo "PTVISION_RELEASE=${VISION_RELEASE}" >> ${GITHUB_ENV}
         echo "PT_HASH_CHANGED=${PT_HASH_CHANGED}" >> ${GITHUB_ENV}
 
-    - name: Build and test (in-tree), also update ODS and abstract interpretation library
+    - name: Build and test (out-of-tree), also update ODS and abstract interpretation library
       if: env.PT_HASH_CHANGED != '0'
       run: |
         cd ${GITHUB_WORKSPACE}
-        TM_PACKAGES="in-tree" TM_USE_PYTORCH_BINARY="OFF" \
+        TM_PACKAGES="out-of-tree" TM_USE_PYTORCH_BINARY="OFF" \
         TORCH_MLIR_SRC_PYTORCH_BRANCH="${{ env.PT_HASH }}" \
         TORCH_MLIR_SRC_PYTORCH_RELEASE="${{ env.PT_RELEASE }}" \
         TM_UPDATE_ODS_AND_ABSTRACT_INTERP_LIB="ON" \
-        TM_PYTHON_VERSIONS="cp311-cp311" \
         ./build_tools/python_deploy/build_linux_packages.sh
 
     - name: Post issue comment on build failure

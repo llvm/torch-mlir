@@ -215,6 +215,186 @@ def OnesModuleCPUDevice_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class AtenEyeModuleDefaultDtype(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.eye(3)
+
+
+@register_test_case(module_factory=lambda: AtenEyeModuleDefaultDtype())
+def AtenEyeModuleDefaultDtype_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenEyeModuleInt2D(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.eye(3, dtype=torch.int64)
+
+
+@register_test_case(module_factory=lambda: AtenEyeModuleInt2D())
+def AtenEyeModuleInt2D_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenEyeModuleFloat2D(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.eye(3, dtype=torch.float32)
+
+
+@register_test_case(module_factory=lambda: AtenEyeModuleFloat2D())
+def AtenEyeModuleFloat2D_basic(module, tu: TestUtils):
+    module.forward()
+
+class AtenEyeModuleFalsePinMemory(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.eye(3, dtype=torch.float32, pin_memory=False)
+
+
+@register_test_case(module_factory=lambda: AtenEyeModuleFalsePinMemory())
+def AtenEyeModuleFalsePinMemory_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenEyeModuleCPUDevice(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.eye(3, device="cpu")
+
+
+@register_test_case(module_factory=lambda: AtenEyeModuleCPUDevice())
+def AtenEyeModuleCPUDevice_basic(module, tu: TestUtils):
+    module.forward()
+
+# ==============================================================================
+
+class AtenEyeMModuleDefaultDtype(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.eye(3, 4)
+
+
+@register_test_case(module_factory=lambda: AtenEyeMModuleDefaultDtype())
+def AtenEyeMModuleDefaultDtype_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenEyeMModuleInt2D(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.eye(3, 4, dtype=torch.int64)
+
+
+@register_test_case(module_factory=lambda: AtenEyeMModuleInt2D())
+def AtenEyeMModuleInt2D_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenEyeMModuleFloat2D(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.eye(3, 4, dtype=torch.float32)
+
+
+@register_test_case(module_factory=lambda: AtenEyeMModuleFloat2D())
+def AtenEyeMModuleFloat2D_basic(module, tu: TestUtils):
+    module.forward()
+
+class AtenEyeMModuleFalsePinMemory(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.eye(3, 4, dtype=torch.float32, pin_memory=False)
+
+
+@register_test_case(module_factory=lambda: AtenEyeMModuleFalsePinMemory())
+def AtenEyeMModuleFalsePinMemory_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenEyeMModuleCPUDevice(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.eye(3, 4, device="cpu")
+
+
+@register_test_case(module_factory=lambda: AtenEyeMModuleCPUDevice())
+def AtenEyeMModuleCPUDevice_basic(module, tu: TestUtils):
+    module.forward()
+
+# ==============================================================================
+
 
 class EmptyContiguousModule(torch.nn.Module):
 
@@ -1093,6 +1273,126 @@ class FullLikeModuleFalsePinMemory(torch.nn.Module):
 def FullLikeModuleFalsePinMemory_basic(module, tu: TestUtils):
     module.forward(tu.randint(10, 4, high=100))
 
+# ==============================================================================
+
+
+class NewFullModuleDefaultDtype(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.new_full(a, (3,4), 5)
+
+
+@register_test_case(module_factory=lambda: NewFullModuleDefaultDtype())
+def NewFullModuleDefaultDtype_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3))
+
+
+class NewFullModuleInt2D(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.new_full(a, (3,4), 10.5)
+
+
+@register_test_case(module_factory=lambda: NewFullModuleInt2D())
+def NewFullModuleInt2D_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, 5, high=10))
+
+
+class NewFullModuleInt3D(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.new_full(a, (3,4), 5.0, dtype=torch.int64)
+
+
+@register_test_case(module_factory=lambda: NewFullModuleInt3D())
+def NewFullModuleInt3D_basic(module, tu: TestUtils):
+    module.forward(tu.randint(10, 4, 5, high=100).to(torch.int32))
+
+
+class NewFullModuleFloat3D(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.new_full(a, (3,4), 15, dtype=torch.float32)
+
+
+@register_test_case(module_factory=lambda: NewFullModuleFloat3D())
+def NewFullModuleFloat3D_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.float64))
+
+
+class NewFullModuleFloat3DStatic(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4, 5], torch.float64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.new_full(a, (3,4), 15.3, dtype=torch.float32)
+
+
+@register_test_case(module_factory=lambda: NewFullModuleFloat3DStatic())
+def NewFullModuleFloat3DStatic_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.float64))
+
+
+class NewFullModuleFalsePinMemory(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.new_full(a,
+                                        (3,4),
+                                        5,
+                                        dtype=torch.int64,
+                                        pin_memory=False)
+
+
+@register_test_case(module_factory=lambda: NewFullModuleFalsePinMemory())
+def NewFullModuleFalsePinMemory_basic(module, tu: TestUtils):
+    module.forward(tu.randint(10, 4, high=100))
+
 
 # ==============================================================================
 
@@ -1507,4 +1807,50 @@ class NewEmptyStridedModuleDefaultDtype(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NewEmptyStridedModuleDefaultDtype())
 def NewEmptyStridedModuleDefaultDtype_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4))
+
+# ==============================================================================
+
+
+class EmptyStridedModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3, 4], torch.float32, True),
+    ])
+    def forward(self, a):
+        x = torch.ops.aten.empty_strided(a.size(), stride=[12, 4, 1])
+        y = x.copy_(a)
+        return y
+
+
+@register_test_case(module_factory=lambda: EmptyStridedModule())
+def EmptyStridedModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 3, 4))
+
+# ==============================================================================
+
+
+class EmptyStridedSizeIntStrideModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        x = torch.ops.aten.empty_strided(a.size(), stride=[12, a.size(2), 1])
+        y = x.copy_(a)
+        return y
+
+
+@register_test_case(module_factory=lambda: EmptyStridedSizeIntStrideModule())
+def EmptyStridedSizeIntStrideModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))

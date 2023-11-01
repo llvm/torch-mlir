@@ -1273,13 +1273,13 @@ public:
         // Set the values in the input tensor to the smallest element of that
         // type
         TypedAttr minAttr = getNumericLimit(rewriter, srcType.getElementType(),
-                                       /*getMin=*/true);
+                                            /*getMin=*/true);
         normalizationValue = rewriter.create<arith::ConstantOp>(loc, minAttr);
       } else if (reduceEnum == torch_upstream::ReductionType::MIN) {
         // Set the values in the input tensor to the largest element of that
         // type
         TypedAttr maxAttr = getNumericLimit(rewriter, srcType.getElementType(),
-                                       /*getMin=*/false);
+                                            /*getMin=*/false);
         normalizationValue = rewriter.create<arith::ConstantOp>(loc, maxAttr);
       }
 
@@ -1332,7 +1332,7 @@ public:
             if (update.getType().isa<mlir::IntegerType>()) {
               result = b.create<arith::MaxSIOp>(loc, update, current);
             } else if (update.getType().isa<mlir::FloatType>()) {
-              result = b.create<arith::MaxFOp>(loc, update, current);
+              result = b.create<arith::MaximumFOp>(loc, update, current);
             } else {
               llvm_unreachable("Only integer/float types supported!");
             }
@@ -1340,7 +1340,7 @@ public:
             if (update.getType().isa<mlir::IntegerType>()) {
               result = b.create<arith::MinSIOp>(loc, update, current);
             } else if (update.getType().isa<mlir::FloatType>()) {
-              result = b.create<arith::MinFOp>(loc, update, current);
+              result = b.create<arith::MinimumFOp>(loc, update, current);
             } else {
               llvm_unreachable("Only integer/float types supported!");
             }
@@ -1551,10 +1551,10 @@ public:
     Value result = createTMTensorScanOp(
         rewriter, loc, input, output, acc, dim, /*inclusive=*/true,
         [](OpBuilder &b, Location loc, Value input, Value acc) {
-          Value sum = (input.getType().isa<mlir::FloatType>()
-                           ? b.create<arith::AddFOp>(loc, input, acc)
-                           : b.create<arith::AddIOp>(loc, input, acc))
-                          ->getResult(0);
+          Value sum =
+              (input.getType().isa<mlir::FloatType>()
+                   ? b.create<arith::AddFOp>(loc, input, acc)->getResult(0)
+                   : b.create<arith::AddIOp>(loc, input, acc)->getResult(0));
           b.create<TMTensor::YieldOp>(loc, sum);
         });
 

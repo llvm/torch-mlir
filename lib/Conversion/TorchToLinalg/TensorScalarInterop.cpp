@@ -42,7 +42,9 @@ public:
     Value inputRank = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI64IntegerAttr(type.getRank()));
     Value dimPositive = toPositiveDimDynamic(rewriter, loc, dim, inputRank);
-    assertIsValidDim(rewriter, loc, dimPositive, inputRank);
+    if (!isAssumingStrictSymbolicShapes(rewriter)) {
+      assertIsValidDim(rewriter, loc, dimPositive, inputRank);
+    }
     Value size = rewriter.create<tensor::DimOp>(
         loc, adaptor.getSelf(), castIntToIndex(rewriter, loc, dimPositive));
     rewriter.replaceOp(op, castIndexToInt64(rewriter, loc, size));

@@ -60,7 +60,7 @@ def MmModule_chained(module, tu: TestUtils):
 # ==============================================================================
 
 
-class BmmModule(torch.nn.Module):
+class BmmFloatModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -75,9 +75,29 @@ class BmmModule(torch.nn.Module):
         return torch.bmm(lhs, rhs)
 
 
-@register_test_case(module_factory=lambda: BmmModule())
-def BmmModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: BmmFloatModule())
+def BmmFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5), tu.rand(3, 5, 4))
+
+
+class BmmIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.bmm(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: BmmIntModule())
+def BmmIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, high=100), tu.randint(3, 5, 4, high=100))
 
 
 # ==============================================================================
@@ -279,6 +299,28 @@ class AddmmModuleDifferentRankBroadcastable(torch.nn.Module):
     module_factory=lambda: AddmmModuleDifferentRankBroadcastable())
 def AddmmModule_differentRankBroadcastable(module, tu: TestUtils):
     module.forward(tu.rand(3), tu.rand(3, 2), tu.rand(2, 3))
+
+
+# ==============================================================================
+
+
+class UnflattenStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 6, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.unflatten(x, 1, (2, 3))
+
+
+@register_test_case(module_factory=lambda: UnflattenStaticModule())
+def UnflattenStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 6, 4))
 
 
 # ==============================================================================
@@ -4543,7 +4585,11 @@ def Add_Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+<<<<<<< HEAD
 class CosineSimilarityStaticModule(torch.nn.Module):
+=======
+class IscloseStaticModule(torch.nn.Module):
+>>>>>>> main
 
     def __init__(self):
         super().__init__()
@@ -4551,6 +4597,7 @@ class CosineSimilarityStaticModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
+<<<<<<< HEAD
         ([2, 3], torch.float32, True),
         ([2, 3], torch.float32, True),
     ])
@@ -4561,19 +4608,40 @@ class CosineSimilarityStaticModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: CosineSimilarityStaticModule())
 def CosineSimilarityStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3), tu.rand(2, 3))
+=======
+        ([5, 5], torch.float32, True),
+        ([5, 5], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.isclose(x, y)
+
+
+@register_test_case(module_factory=lambda: IscloseStaticModule())
+def IscloseStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 5), tu.rand(5, 5))
+>>>>>>> main
 
 
 # ==============================================================================
 
 
+<<<<<<< HEAD
 class CosineSimilarityStaticBroadcastModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
+=======
+class IscloseStaticModuleTrue(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.register_buffer('tensor', torch.ones(1))
+>>>>>>> main
 
     @export
     @annotate_args([
         None,
+<<<<<<< HEAD
         ([5, 2, 3], torch.float32, True),
         ([4, 5, 1, 1], torch.float32, True),
     ])
@@ -4607,3 +4675,13 @@ class CosineSimilarityModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: CosineSimilarityModule())
 def CosineSimilarityModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3), tu.rand(2, 3))
+=======
+        ([5, 5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.isclose(x, self.tensor)
+
+@register_test_case(module_factory=lambda: IscloseStaticModuleTrue())
+def IscloseStaticModuleTrue_basic(module, tu: TestUtils):
+    module.forward(torch.ones(5, 5))
+>>>>>>> main

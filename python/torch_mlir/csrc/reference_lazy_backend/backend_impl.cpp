@@ -28,6 +28,11 @@ using namespace torch::lazy;
 namespace torch {
 namespace lazy {
 
+/// Returns true if a string begins with another.
+inline bool beginswith(const std::string& s, const std::string& t) {
+    return s.size() >= t.size() && s.compare(0, t.size(), t) == 0;
+}
+
 struct ReferenceLazyBackendDeviceType : public BackendDeviceType {
   ReferenceLazyBackendDeviceType(c10::DeviceType device_type)
       : device_type_(device_type) {}
@@ -104,7 +109,25 @@ public:
     //
     // JIT Execution adopted from:
     // https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/ts_backend/ts_backend_impl.cpp
-    torch::jit::GraphExecutor graph_executor(mlir_computation->graph(), "");
+    std::shared_ptr<torch::jit::Graph> graph = mlir_computation->graph();
+    for (auto* node : graph->nodes()) {
+      // Convert any lazy devices to cpu devices to ensure
+      // that the values are actually computed
+      if (node->outputs().size() == 1 &&
+          node->output()->type()->kind() ==
+              c10::TypeKind::DeviceObjType) {
+          auto value_sym = torch::jit::Symbol::attr("value");
+          TORCH_CHECK(node->hasAttribute(value_sym),
+                      "Expected node to have 'value' attribute.");
+          TORCH_CHECK(node->kindOf(value_sym) == torch::jit::AttributeKind::s,
+                      "Expected 'value' attribute to be a string.");
+          if (beginswith(node->s(value_sym), "lazy")) {
+              node->s_(value_sym, "cpu");
+          }
+      }
+    }
+
+    torch::jit::GraphExecutor graph_executor(graph, "");
     std::vector<torch::jit::IValue> stack;
     for (const auto& argument : arguments) {
       const auto mlir_data =
