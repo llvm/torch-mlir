@@ -660,6 +660,12 @@ def aten〇scaled_dot_product_attention〡shape(query: List[int], key: List[int]
 def aten〇zeros〡shape(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return size
 
+def aten〇eye〡shape(n: int, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    return [n, n]
+
+def aten〇eye〇m〡shape(n: int, m: int, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    return [n, m]
+
 def aten〇ones〡shape(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return size
 
@@ -3253,6 +3259,20 @@ def aten〇tensor〇bool〡dtype(t: bool, dtype: Optional[int] = None, device: O
                        Invocation([1], dtype=torch.float16),
                        Invocation([1], dtype=torch.complex64)])
 def aten〇zeros〡dtype(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    return torch.float32 if dtype is None else dtype
+
+@check_dtype_function([Invocation(2),
+                       Invocation(2, dtype=torch.int32),
+                       Invocation(2, dtype=torch.float16),
+                       Invocation(2, dtype=torch.complex64)])
+def aten〇eye〡dtype(n: int, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    return torch.float32 if dtype is None else dtype
+
+@check_dtype_function([Invocation(2, 3),
+                       Invocation(2, 3, dtype=torch.int32),
+                       Invocation(2, 3, dtype=torch.float16),
+                       Invocation(2, 3, dtype=torch.complex64)])
+def aten〇eye〇m〡dtype(n: int, m: int, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
     return torch.float32 if dtype is None else dtype
 
 @check_dtype_function([Invocation([1]),

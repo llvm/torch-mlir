@@ -1283,6 +1283,14 @@ TOSA_PASS_SET = {
     "_SoftmaxModule_basic",
     "ElementwiseAddScalarInt8Module_basic",
     "ElementwiseSubTensorInt8Module_basic",
+    "AtenEyeMModuleCPUDevice_basic",
+    "AtenEyeMModuleDefaultDtype_basic",
+    "AtenEyeMModuleFalsePinMemory_basic",
+    "AtenEyeMModuleFloat2D_basic",
+    "AtenEyeModuleCPUDevice_basic",
+    "AtenEyeModuleDefaultDtype_basic",
+    "AtenEyeModuleFalsePinMemory_basic",
+    "AtenEyeModuleFloat2D_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
@@ -1310,6 +1318,9 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "IndexPutImpl1DIntNonAccumulateModule_basic",
     # RuntimeError: The size of tensor a (7) must match the size of tensor b (3) at non-singleton dimension 1
     "Add_Module_basic",
+    # failed to legalize operation 'torch.aten.to.dtype' that was explicitly marked illegal
+    "AtenEyeModuleInt2D_basic",
+    "AtenEyeMModuleInt2D_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.1.0.dev"):
