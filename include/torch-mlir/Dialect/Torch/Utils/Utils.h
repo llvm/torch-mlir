@@ -60,7 +60,7 @@ Value convertTensorToDtype(PatternRewriter &rewriter, Location loc, Value input,
 
 bool isBuiltInType(Type type);
 
-// Helper funtion to get rank of `Base tensor type`.
+// Helper function to get rank of `Base tensor type`.
 // std::nullopt is returned if the tensorRank can't be determined.
 std::optional<unsigned> getTensorRank(Value tensor);
 
