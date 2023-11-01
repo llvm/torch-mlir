@@ -10,6 +10,7 @@
 #ifndef TORCHMLIR_DIALECT_TORCH_IR_TORCHOPS_H
 #define TORCHMLIR_DIALECT_TORCH_IR_TORCHOPS_H
 
+#include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpDefinition.h"

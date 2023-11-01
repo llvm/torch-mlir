@@ -408,12 +408,17 @@ Torch-MLIR by default builds with the latest nightly PyTorch version. This can b
 # Updating the LLVM and MLIR-HLO submodules
 
 Torch-MLIR depends on `llvm-project` (which contains, among other things,
-upstream MLIR) and `mlir-hlo`, both of which are submodules in the `externals/`
+upstream MLIR) and `stablehlo`, both of which are submodules in the `externals/`
 directory. We aim to update these at least weekly to bring in the latest
 features and spread out over time the effort of updating our code for MLIR API
 breakages.
 
 ## Which LLVM commit should I pick?
+
+NOTE: This section is in flux. Specifically, the `mlir-hlo` dep has been
+dropped and the project is running off of a `stablehlo` fork which can be
+patched for certain OS combinations. As of 2023-09-12, stellaraccident@
+is massaging this situation. Please reach out for advice updating.
 
 Since downstream projects may want to build Torch-MLIR (and thus LLVM and
 MLIR-HLO) in various configurations (Release versus Debug builds; on Linux,

@@ -104,8 +104,8 @@ void checkDimEqualHelper(OpBuilder &b, Location loc, Value lhsDim,
   Type lhsType = lhsDim.getType();
   Type rhsType = rhsDim.getType();
   auto checkIntOrIndex = [](Type type) {
-    assert(type.isa<IntegerType>() ||
-           type.isa<IndexType>() && "must be either integer or index type");
+    assert((type.isa<IntegerType>() || type.isa<IndexType>()) &&
+           "must be either integer or index type");
   };
   checkIntOrIndex(lhsType);
   checkIntOrIndex(rhsType);
@@ -249,7 +249,8 @@ mlir::RankedTensorType GetTypeFromTensorShape(llvm::ArrayRef<int64_t> shape,
 // from a tensor or a scalar in the pytorch dialect. Both the scalar and dtype
 // should be converted builtin types.
 Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
-                           std::optional<Type> srcOriginalDtype) {
+                           std::optional<Type> srcOriginalDtype,
+                           std::optional<Type> dstOriginalDtype) {
   Type scalarType = scalar.getType();
   if (scalarType == dtype)
     return scalar;
@@ -261,14 +262,20 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
     return false;
   };
 
-  // We only support conversion from Byte or Char scalarType not to Byte or Char
-  // dtype.
+  // We don't support conversion to Byte dtype.
   if (isByteOrChar(dtype)) {
-    mlir::emitError(loc) << "unsupported: conversion to byte or char type for "
-                            "convertScalarToDtype "
-                         << scalarType << "(scalar type) -> " << dtype
-                         << "(dtype)";
-    return nullptr;
+    if (!dstOriginalDtype.has_value()) {
+      mlir::emitError(loc)
+          << "unimplemented: for conversion to byte or char type "
+             "dstOriginalDtype has to be passed to convertScalarToDtype";
+      return nullptr;
+    }
+    if (dstOriginalDtype->isUnsignedInteger()) {
+      mlir::emitError(loc)
+          << "unsupported: conversion to byte type for convertScalarToDtype "
+          << scalarType << "(scalar type) -> " << dtype << "(dtype)";
+      return nullptr;
+    }
   }
 
   // If the dtype is i1, i.e., a boolean type.

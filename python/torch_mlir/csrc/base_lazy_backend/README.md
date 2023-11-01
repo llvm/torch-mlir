@@ -14,7 +14,7 @@ The components are subclasses of the backend API interface classes found under
 [torch/csrc/lazy/backend](https://github.com/pytorch/pytorch/tree/master/torch/csrc/lazy/backend).
 
 Importantly, the subclasses are still abstract classes. Pure virtual methods
-such as `Compile` were purposefully not overriden as Torch-MLIR does not know
+such as `Compile` were purposefully not overridden as Torch-MLIR does not know
 how to compile the model for the target hardware.
 
 The intent is that vendor hardware specific plugins will subclass the Torch-MLIR

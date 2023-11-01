@@ -672,6 +672,108 @@ class ViewNegativeStaticModule(torch.nn.Module):
 def ViewNegativeStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 128))
 
+class ViewSizeDimFollowedByExpandedOnesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(a.size(0), 1, 1, 1)
+
+@register_test_case(module_factory=lambda: ViewSizeDimFollowedByExpandedOnesModule())
+def ViewSizeDimFollowedByExpandedOnesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(128))
+
+class ViewSizeDimFollowedByCollapsedOnesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, 1, 1, 1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(a.size(0))
+
+@register_test_case(module_factory=lambda: ViewSizeDimFollowedByCollapsedOnesModule())
+def ViewSizeDimFollowedByCollapsedOnesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(128, 1, 1, 1))
+
+class ViewSizeDimLedByExpandedOnesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(1, 1, 1, a.size(0))
+
+@register_test_case(module_factory=lambda: ViewSizeDimLedByExpandedOnesModule())
+def ViewSizeDimLedByExpandedOnesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(128))
+
+class ViewSizeDimLedByCollapsedOnesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(a.size(3))
+
+@register_test_case(module_factory=lambda: ViewSizeDimLedByCollapsedOnesModule())
+def ViewSizeDimLedByCollapsedOnesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 1, 128))
+
+class ViewSizeDimLedAndFollowedByExpandedOnesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(1, 1, 1, a.size(0), 1, 1, 1)
+
+@register_test_case(module_factory=lambda: ViewSizeDimLedAndFollowedByExpandedOnesModule())
+def ViewSizeDimLedAndFollowedByExpandedOnesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(128))
+
+class ViewSizeDimLedAndFollowedByCollapsedOnesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 1, -1, 1, 1, 1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(a.size(3))
+
+@register_test_case(module_factory=lambda: ViewSizeDimLedAndFollowedByCollapsedOnesModule())
+def ViewSizeDimLedAndFollowedByCollapsedOnesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 1, 128, 1, 1, 1))
+
 # ==============================================================================
 
 class ReshapeAliasExpandModule(torch.nn.Module):
@@ -711,6 +813,59 @@ class ReshapeAliasCollapseModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReshapeAliasCollapseModule())
 def ReshapeAliasCollapseModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4))
+
+# ==============================================================================
+
+class UnflattenIntStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 24, 5], torch.float32, True),
+    ])
+
+    def forward(self, inputs):
+        return torch.ops.aten.unflatten(inputs, 1, [2, 4, 3])
+
+@register_test_case(module_factory=lambda: UnflattenIntStaticModule())
+def UnflattenIntStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 24, 5))
+
+class UnflattenIntNegativeOneDimStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 12, 3], torch.float32, True),
+    ])
+
+    def forward(self, inputs):
+        return torch.ops.aten.unflatten(inputs, -2, [2, 2, 3, 1, 1])
+
+@register_test_case(module_factory=lambda: UnflattenIntNegativeOneDimStaticModule())
+def UnflattenIntNegativeOneDimStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 12, 3))
+
+class UnflattenIntNegativeOneSizeStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 12, 3], torch.float32, True),
+    ])
+
+    def forward(self, inputs):
+        return torch.ops.aten.unflatten(inputs, -2, [2, -1, 3, 1, 1])
+
+@register_test_case(module_factory=lambda: UnflattenIntNegativeOneSizeStaticModule())
+def UnflattenIntNegativeOneSizeStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 12, 3))
 
 # ==============================================================================
 
@@ -767,3 +922,4 @@ class EinsumStaticContractRhsModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: EinsumStaticContractRhsModule())
 def EinsumStaticContractRhsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5), tu.rand(4, 5))
+

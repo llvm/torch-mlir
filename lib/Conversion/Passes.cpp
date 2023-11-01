@@ -11,7 +11,6 @@
 
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
-#include "transforms/passes.h"
 #endif // TORCH_MLIR_ENABLE_STABLEHLO
 
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"

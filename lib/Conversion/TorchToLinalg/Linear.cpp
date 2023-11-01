@@ -58,15 +58,18 @@ public:
     }
 
     Value lhsDim0 = rewriter.create<tensor::DimOp>(loc, lhs, 0);
-    Value lhsDim1 = rewriter.create<tensor::DimOp>(loc, lhs, 1);
-    Value rhsDim0 = rewriter.create<tensor::DimOp>(loc, rhs, 0);
     Value rhsDim1 = rewriter.create<tensor::DimOp>(loc, rhs, 1);
-    Value contractingDimEqual = rewriter.create<arith::CmpIOp>(
-        loc, arith::CmpIPredicate::eq, lhsDim1, rhsDim0);
-    rewriter.create<cf::AssertOp>(
-        loc, contractingDimEqual,
-        rewriter.getStringAttr(
-            "mismatching contracting dimension for torch.aten.mm"));
+
+    if (!isAssumingStrictSymbolicShapes(rewriter)) {
+      Value lhsDim1 = rewriter.create<tensor::DimOp>(loc, lhs, 1);
+      Value rhsDim0 = rewriter.create<tensor::DimOp>(loc, rhs, 0);
+      Value contractingDimEqual = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::eq, lhsDim1, rhsDim0);
+      rewriter.create<cf::AssertOp>(
+          loc, contractingDimEqual,
+          rewriter.getStringAttr(
+              "mismatching contracting dimension for torch.aten.mm"));
+    }
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
     Type elementType = newResultType.cast<TensorType>().getElementType();
@@ -292,13 +295,24 @@ public:
 
       // Broadcast the batch dimensions of both the matrices.
       Value broadcastedLhs, broadcastedRhs;
+      // TODO: Improve usage of static shape information.
+      SmallVector<int64_t> lhsTargetShape(lhsBroadcastToShape.size(),
+                                          ShapedType::kDynamic);
+      auto lhsBroadcastType =
+          RankedTensorType::get(lhsTargetShape, lhsType.getElementType());
       if (failed(torch_to_linalg::broadcastToGivenShape(
-              op, rewriter, lhs, lhsBroadcastToShape, broadcastedLhs))) {
+              op, rewriter, lhs, lhsBroadcastToShape, lhsBroadcastType,
+              broadcastedLhs))) {
         return rewriter.notifyMatchFailure(
             op, "unable to perform broadcast operation");
       }
+      SmallVector<int64_t> rhsTargetShape(rhsBroadcastToShape.size(),
+                                          ShapedType::kDynamic);
+      auto rhsBroadcastType =
+          RankedTensorType::get(rhsTargetShape, rhsType.getElementType());
       if (failed(torch_to_linalg::broadcastToGivenShape(
-              op, rewriter, rhs, rhsBroadcastToShape, broadcastedRhs))) {
+              op, rewriter, rhs, rhsBroadcastToShape, rhsBroadcastType,
+              broadcastedRhs))) {
         return rewriter.notifyMatchFailure(
             op, "unable to perform broadcast operation");
       }
@@ -441,16 +455,28 @@ public:
     Value rhs = adaptor.getMat2();
     RankedTensorType lhsType = lhs.getType().cast<RankedTensorType>();
     RankedTensorType rhsType = rhs.getType().cast<RankedTensorType>();
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+    Type resultElementType = newResultType.cast<RankedTensorType>().getElementType();
+    Type lhsElementType = lhsType.cast<RankedTensorType>().getElementType();
+    Type rhsElementType = rhsType.cast<RankedTensorType>().getElementType();
 
     if (lhsType.getRank() != 3 || rhsType.getRank() != 3) {
       return rewriter.notifyMatchFailure(
           op, "expected both operands to aten.bmm to be rank 3");
     }
-    if (!lhsType.getElementType().isa<mlir::FloatType>() ||
-        lhsType.getElementType() != rhsType.getElementType())
-      return op.emitError(
-          "unimplemented: non floating point operands or operands of "
-          "different types");
+
+    // Convert the inputs element type equivalent to the result' element type.
+    if (lhsElementType != rhsElementType) {
+      if (lhsElementType != resultElementType) {
+        // True if the lhs element type is not equal to the result' element type.
+        lhs = torch_to_linalg::convertTensorToElementType(
+            rewriter, loc, lhs, resultElementType);
+      } else {
+        // True if the rhs element type is not equal to the result' element type.
+        rhs = torch_to_linalg::convertTensorToElementType(
+            rewriter, loc, rhs, resultElementType);
+      }
+    }
 
     Value lhsDim0 = getDimOp(rewriter, loc, lhs, 0);
     Value lhsDim1 = getDimOp(rewriter, loc, lhs, 1);
@@ -465,10 +491,8 @@ public:
     // Check the matrixs shapes are valid for mulplication.
     checkDimEqualHelper(rewriter, loc, lhsDim2, rhsDim1);
 
-    Type newResultType = getTypeConverter()->convertType(op.getType());
-    Type elementType = newResultType.cast<TensorType>().getElementType();
     Value initTensor0 = createZeroInitTensor(
-        rewriter, loc, ValueRange{lhsDim0, lhsDim1, rhsDim2}, elementType);
+        rewriter, loc, ValueRange{lhsDim0, lhsDim1, rhsDim2}, resultElementType);
 
     Value bmm =
         rewriter

@@ -13,6 +13,7 @@
 #include "PopulatePatterns.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/ChloOps.h"
@@ -25,7 +26,6 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include "utils/hlo_utils.h"
 #include <iostream>
 #include <numeric>
 
@@ -33,6 +33,34 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 using namespace mlir::torch::torch_to_stablehlo;
+
+namespace {
+
+template <typename T>
+static Value getConstantLike(OpBuilder &b, Location loc, T constant,
+                             Value val) {
+  Type ty = getElementTypeOrSelf(val.getType());
+  auto getAttr = [&]() -> Attribute {
+    if (ty.isa<mlir::IntegerType>())
+      return b.getIntegerAttr(ty, constant);
+    if (ty.isa<mlir::FloatType>())
+      return b.getFloatAttr(ty, constant);
+    if (auto complexTy = ty.dyn_cast<mlir::ComplexType>())
+      return complex::NumberAttr::get(complexTy, constant, 0);
+    llvm_unreachable("unhandled element type");
+  };
+  return b.create<mlir::chlo::ConstantLikeOp>(loc, cast<TypedAttr>(getAttr()),
+                                              val);
+}
+
+Value getConstantLike(OpBuilder &b, Location loc, const APFloat &constant,
+                      Value val) {
+  Type ty = getElementTypeOrSelf(val.getType());
+  return b.create<mlir::chlo::ConstantLikeOp>(loc, b.getFloatAttr(ty, constant),
+                                              val);
+}
+
+} // namespace
 
 LogicalResult broadcastRanks(PatternRewriter &rewriter, Operation *op,
                              mlir::Value &self, mlir::Value &other,
@@ -836,7 +864,7 @@ LogicalResult ConvertAtenOp<AtenReciprocalOp>::matchAndRewrite(
                         "for AtenReciprocalOp");
   }
 
-  Value oneTensor = chlo::getConstantLike(rewriter, op->getLoc(), 1, input);
+  Value oneTensor = getConstantLike(rewriter, op->getLoc(), 1, input);
   rewriter.replaceOpWithNewOp<stablehlo::DivOp>(op, outTy, oneTensor, input);
   return success();
 }
@@ -945,7 +973,7 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
   }
 
   Value zeroTensor;
-  zeroTensor = chlo::getConstantLike(
+  zeroTensor = getConstantLike(
       rewriter, op->getLoc(),
       APFloat::getZero(lhsElemTy.cast<mlir::FloatType>().getFloatSemantics(),
                        false),
@@ -967,9 +995,9 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
     return op.emitError("only ranked tensor type is supported.");
   }
 
-  Value one = chlo::getConstantLike(rewriter, loc, 1.0, input);
-  Value two = chlo::getConstantLike(rewriter, loc, 2.0, input);
-  Value half = chlo::getConstantLike(rewriter, loc, 0.5, input);
+  Value one = getConstantLike(rewriter, loc, 1.0, input);
+  Value two = getConstantLike(rewriter, loc, 2.0, input);
+  Value half = getConstantLike(rewriter, loc, 0.5, input);
   auto rsqrtTwo = rewriter.create<mlir::stablehlo::RsqrtOp>(loc, two);
   auto erfElement = rewriter.create<stablehlo::MulOp>(loc, input, rsqrtTwo);
   auto erf = rewriter.create<mlir::chlo::ErfOp>(loc, erfElement);
@@ -1485,13 +1513,12 @@ LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "Unsupported value of approximate");
   }
   // Create constant value
-  Value kAlpha =
-      chlo::getConstantLike(rewriter, loc, 0.70710678118654752440, input);
+  Value kAlpha = getConstantLike(rewriter, loc, 0.70710678118654752440, input);
   Value cstAlpha0 =
-      chlo::getConstantLike(rewriter, loc, 1.12837916709551257390, input);
-  Value half = chlo::getConstantLike(rewriter, loc, .5, input);
-  Value one = chlo::getConstantLike(rewriter, loc, 1.0, input);
-  Value negHalf = chlo::getConstantLike(rewriter, loc, -0.5, input);
+      getConstantLike(rewriter, loc, 1.12837916709551257390, input);
+  Value half = getConstantLike(rewriter, loc, .5, input);
+  Value one = getConstantLike(rewriter, loc, 1.0, input);
+  Value negHalf = getConstantLike(rewriter, loc, -0.5, input);
 
   // Compute
   Value kBeta0 =
