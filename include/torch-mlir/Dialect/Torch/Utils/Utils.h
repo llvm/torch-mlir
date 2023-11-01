@@ -104,6 +104,12 @@ inline bool isAssumingStrictSymbolicShapes(OpBuilder &builder) {
   return isAssumingStrictSymbolicShapes(builder.getBlock());
 }
 
+// Helper function for AtenEmptyStrided and friends that checks if the stride
+// values are default or not. Throws a runtime assert if not.
+LogicalResult checkDefaultStrideHelper(Operation *op, PatternRewriter &rewriter,
+                                       Value opSize, Value opStride,
+                                       Location loc);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

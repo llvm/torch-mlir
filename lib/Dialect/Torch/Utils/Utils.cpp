@@ -333,3 +333,61 @@ bool Torch::isAssumingStrictSymbolicShapes(Block *block) {
   }
   return false;
 }
+
+LogicalResult Torch::checkDefaultStrideHelper(Operation *op,
+                                              PatternRewriter &rewriter,
+                                              Value opSize, Value opStride,
+                                              Location loc) {
+
+  SmallVector<int64_t> sizeListInts, strideListInts;
+  if (matchPattern(opSize, m_TorchListOfConstantInts(sizeListInts)) &&
+      matchPattern(opStride, m_TorchListOfConstantInts(strideListInts))) {
+
+    // We only support the cases with default stride values.
+    // For ex: aten.new_empty_strided(self, size=[2, 3, 4], stride=[12, 4, 1])
+    // Here the stride[0] == size[1] * size[2], stride[1] == size[2], and
+    // stride[2] == 1.
+    bool isDefaultStride = true;
+    for (unsigned i = 0; i < strideListInts.size(); i++) {
+      int64_t defaultStride = 1;
+      for (unsigned j = i + 1; j < sizeListInts.size(); j++)
+        defaultStride *= sizeListInts[j];
+      if (defaultStride != strideListInts[i]) {
+        isDefaultStride = false;
+        break;
+      }
+    }
+    if (!isDefaultStride)
+      return rewriter.notifyMatchFailure(
+          op, "only default strides supported for empty_strided op");
+
+    return success();
+
+  } else {
+    SmallVector<Value> sizeListValues;
+    if (!getListConstructElements(opSize, sizeListValues))
+      return rewriter.notifyMatchFailure(op, "couldn't get size list values");
+    SmallVector<Value> strideListValues;
+    if (!getListConstructElements(opStride, strideListValues))
+      return rewriter.notifyMatchFailure(op,
+                                         "couldn't get stride list values.");
+    SmallVector<Value> boolVector;
+    for (unsigned i = 0; i < strideListValues.size(); i++) {
+      Value defaultStride = rewriter.createOrFold<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(1));
+      for (unsigned j = i + 1; j < sizeListValues.size(); j++) {
+        defaultStride = rewriter.createOrFold<Torch::AtenMulIntOp>(
+            loc, defaultStride, sizeListValues[j]);
+      }
+      boolVector.push_back(rewriter.createOrFold<Torch::AtenEqIntOp>(
+          loc, defaultStride, strideListValues[i]));
+    }
+    Value allBoolOpList = rewriter.createOrFold<PrimListConstructOp>(
+        loc, Torch::ListType::get(rewriter.getType<Torch::BoolType>()),
+        boolVector);
+    Value cmp = rewriter.createOrFold<Torch::AtenAllBoolOp>(loc, allBoolOpList);
+    rewriter.createOrFold<Torch::RuntimeAssertOp>(
+        loc, cmp, "not all strides are default");
+    return success();
+  }
+}
