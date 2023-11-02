@@ -186,24 +186,20 @@ public:
     }
     if (auto elements = op.getValueAttr().dyn_cast<DenseResourceElementsAttr>()) {
       if (auto type = elements.getType().dyn_cast<RankedTensorType>()) {
-        if (auto intType = type.getElementType().dyn_cast<IntegerType>()) {
-          Type builtinTensorElemTy =
-              IntegerType::get(context, intType.getIntOrFloatBitWidth());
+        if (auto elemTy =
+                op.getValueAttr().getElementType().dyn_cast<IntegerType>()) {
+          unsigned bitWidth = elemTy.getIntOrFloatBitWidth();
+          AsmResourceBlob *blob = elements.getRawHandle().getBlob();
+          const Type builtinTensorElemTy = IntegerType::get(context, bitWidth);
+          assert(blob && "Expecting dense resource with a valid blob");
+          auto data = blob->getData();
+          DenseResourceElementsAttr newAttr;
           auto shapedType =
               RankedTensorType::get(type.getShape(), builtinTensorElemTy);
-          AsmResourceBlob *blob = elements.getRawHandle().getBlob();
-          assert(blob && "Expecting dense resource with a valid blob");
-          auto elType = elements.getType().getElementType();
-          if (elType.isInteger(1) || elType.isInteger(8) ||
-              elType.isInteger(16) || elType.isInteger(32) ||
-              elType.isInteger(64)) {
-            rewriter.replaceOpWithNewOp<arith::ConstantOp>(
-                op, DenseResourceElementsAttr::get(shapedType,
-                                                   elements.getRawHandle()));
-          } else {
-            rewriter.replaceOpWithNewOp<arith::ConstantOp>(
-                op, DenseElementsAttr::get(shapedType, blob->getData()));
-          }
+          newAttr = DenseResourceElementsAttr::get(
+              shapedType, "resource",
+              UnmanagedAsmResourceBlob::allocateInferAlign(data));
+          rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, newAttr);
           return success();
         }
       }
