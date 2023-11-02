@@ -245,7 +245,7 @@ function build_in_tree() {
       -DTM_PYTORCH_INSTALL_WITHOUT_REBUILD=${TM_PYTORCH_INSTALL_WITHOUT_REBUILD} \
       -DPython3_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir/externals/llvm-project/llvm
-  cmake --build /main_checkout/torch-mlir/build
+  cmake --build /main_checkout/torch-mlir/build --target tools/torch-mlir/all
   ccache -s
 }
 
