@@ -1,3 +1,7 @@
+#-------------------------------------------------------------------------------
+# Project setup and globals
+#-------------------------------------------------------------------------------
+
 cmake_minimum_required(VERSION 3.12)
 
 if(POLICY CMP0068)
@@ -17,24 +21,9 @@ if(POLICY CMP0116)
   cmake_policy(SET CMP0116 OLD)
 endif()
 
-#-------------------------------------------------------------------------------
-# Project setup and globals
-#-------------------------------------------------------------------------------
-
 project(torch-mlir LANGUAGES CXX C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
-
-macro(torch_mlir_add_llvm_external_project name identifier location)
-  message(STATUS "Adding LLVM external project ${name} (${identifier}) -> ${location}")
-  if(NOT EXISTS "${location}/CMakeLists.txt")
-    message(FATAL_ERROR "External project location ${location} is not valid")
-  endif()
-  list(APPEND LLVM_EXTERNAL_PROJECTS ${name})
-  list(REMOVE_DUPLICATES LLVM_EXTERNAL_PROJECTS)
-  set(LLVM_EXTERNAL_${identifier}_SOURCE_DIR ${location} CACHE STRING "" FORCE)
-  set(LLVM_EXTERNAL_PROJECTS ${LLVM_EXTERNAL_PROJECTS} CACHE STRING "" FORCE)
-endmacro()
 
 #-------------------------------------------------------------------------------
 # Project options
@@ -50,12 +39,30 @@ if(TORCH_MLIR_ENABLE_STABLEHLO)
   add_definitions(-DTORCH_MLIR_ENABLE_STABLEHLO)
 endif()
 
-# torch_mlir_add_llvm_external_project(
-#   torch-mlir-dialects
-#   TORCH_MLIR_DIALECTS
-#   ${CMAKE_CURRENT_SOURCE_DIR}/externals/llvm-external-projects/torch-mlir-dialects)
-
 option(TORCH_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
+
+# PT1 options.
+option(TORCH_MLIR_ENABLE_PROJECT_PT1 "Enables the PyTorch1 project under projects/pt1" OFF)
+# TODO: Rename/scope these. They use historic names for now to ease migration
+# burden.
+option(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER "Enables JIT IR Importer" ON)
+option(TORCH_MLIR_ENABLE_LTC "Enables LTC backend" OFF)
+option(TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS "Build Torch dialect MLIR Python bindings but neither JIT IR Importer nor LTC backend" OFF)
+if(TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS)
+  set(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER OFF)
+  set(TORCH_MLIR_ENABLE_LTC OFF)
+endif()
+# Force enable the PT1 project if either the JIT_IR_IMPORTER or LTC is enabled.
+if(NOT TORCH_MLIR_ENABLE_PROJECT_PT1)
+  if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER OR TORCH_MLIR_ENABLE_LTC)
+    message(STATUS "Enabling projects/pt1 because features requiring it are enabled")
+    set(TORCH_MLIR_ENABLE_PROJECT_PT1 ON)
+  endif()
+endif()
+
+#-------------------------------------------------------------------------------
+# Configure out-of-tree vs in-tree build
+#-------------------------------------------------------------------------------
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR TORCH_MLIR_OUT_OF_TREE_BUILD)
   message(STATUS "Torch-MLIR out-of-tree build.")
@@ -170,11 +177,6 @@ if(MLIR_ENABLE_BINDINGS_PYTHON)
   if(NOT TORCH_MLIR_PYTHON_PACKAGES_DIR)
     set(TORCH_MLIR_PYTHON_PACKAGES_DIR "${CMAKE_CURRENT_BINARY_DIR}/python_packages")
   endif()
-  #add_subdirectory(python)
-  # TODO: Remove
-  add_custom_target(TorchMLIRPythonModules)
-else()
-  add_custom_target(TorchMLIRPythonModules)
 endif()
 
 add_subdirectory(test)
@@ -224,4 +226,12 @@ if (TORCH_MLIR_ENABLE_STABLEHLO)
     ${CMAKE_CURRENT_BINARY_DIR}/stablehlo
     EXCLUDE_FROM_ALL)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo)
+endif()
+
+#-------------------------------------------------------------------------------
+# Sub-projects
+#-------------------------------------------------------------------------------
+
+if(TORCH_MLIR_ENABLE_PROJECT_PT1)
+  add_subdirectory(projects/pt1)
 endif()

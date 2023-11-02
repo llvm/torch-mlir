@@ -2,15 +2,15 @@
 # Setup PyTorch/LTC
 #-------------------------------------------------------------------------------
 
-
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/python/torch_mlir/cmake/modules")
 include(TorchMLIRPyTorch)
 
 TorchMLIRProbeForPyTorchInstall()
 if(TORCH_MLIR_USE_INSTALLED_PYTORCH)
   TorchMLIRConfigurePyTorch()
 else()
-  set(Torch_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../libtorch/share/cmake/Torch")
+  # Assume it is a sibling to the overall project.
+  set(Torch_DIR "${PROJECT_SOURCE_DIR}/../libtorch/share/cmake/Torch")
+  message(STATUS "Attempting to locate libtorch as a sibling to the project: ${Torch_DIR}")
 endif()
 
 find_package(Torch 1.11 REQUIRED)
