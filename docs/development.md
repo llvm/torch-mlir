@@ -359,6 +359,7 @@ Torch-MLIR has two types of tests:
 Alternatively, you can run the tests via Python directly:
 
 ```shell
+cd projects/pt1
 python -m e2e_testing.main -f 'AtenEmbeddingBag'
 ```
 
