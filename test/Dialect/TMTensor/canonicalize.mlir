@@ -1,4 +1,4 @@
-// RUN: torch-mlir-dialects-opt -canonicalize -split-input-file %s | FileCheck %s
+// RUN: torch-mlir-opt -canonicalize -split-input-file %s | FileCheck %s
 
 // CHECK-LABEL: func.func @tensor.cast(
 func.func @tensor.cast(%arg0: tensor<128xi32>) -> tensor<128xi32> {

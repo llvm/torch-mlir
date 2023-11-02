@@ -1,4 +1,4 @@
-// RUN: torch-mlir-dialects-opt -split-input-file -verify-diagnostics %s
+// RUN: torch-mlir-opt -split-input-file -verify-diagnostics %s
 
 func.func @scatter_mixed_tensor_memref(
     %update : memref<?x?xf32>, %indices : tensor<?x1xi32>,

@@ -26,4 +26,4 @@ add_mlir_library(TorchMLIRTMTensorDialect
   MLIRViewLikeInterface
 )
 
-torch_mlir_dialects_target_includes(TorchMLIRTMTensorDialect)
+torch_mlir_target_includes(TorchMLIRTMTensorDialect)

@@ -1,4 +1,4 @@
-// RUN: torch-mlir-dialects-opt -split-input-file -tm-tensor-to-loops %s | FileCheck %s
+// RUN: torch-mlir-opt -split-input-file -tm-tensor-to-loops %s | FileCheck %s
 
 func.func @scan_1d_inclusive(%0: memref<128xi32>, %1: memref<128xi32>) {
   %c0 = memref.alloc() : memref<i32>

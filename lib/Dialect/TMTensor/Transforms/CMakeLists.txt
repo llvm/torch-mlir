@@ -21,3 +21,5 @@ add_mlir_library(TorchMLIRTMTensorPasses
   MLIRTensorDialect
   MLIRTransforms
 )
+
+torch_mlir_target_includes(TorchMLIRTMTensorPasses)

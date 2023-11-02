@@ -1,4 +1,4 @@
-// RUN: torch-mlir-dialects-opt -split-input-file -tm-tensor-bufferize %s | FileCheck %s
+// RUN: torch-mlir-opt -split-input-file -tm-tensor-bufferize %s | FileCheck %s
 
 // -----
 // CHECK-LABEL:   func.func @scan_1d_inclusive(
