@@ -174,8 +174,8 @@ static Value getScalarFloatValue(Value input, Location loc,
     return nullptr;
 
   Type inputDtype = inputTensorType.getOptionalDtype();
-  if (!inputDtype || !inputDtype.isF16() || !inputDtype.isF32() ||
-      !inputDtype.isF64())
+  if (!inputDtype ||
+      (!inputDtype.isF16() && !inputDtype.isF32() && !inputDtype.isF64()))
     return nullptr;
 
   std::optional<unsigned> inputRank = getTensorRank(input);
