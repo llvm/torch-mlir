@@ -957,6 +957,7 @@ TOSA_PASS_SET = {
     "ElementwiseEluModule_basic",
     "ElementwiseEluNonDefaultModule_basic",
     "ElementwiseFloorModule_basic",
+    "ElementwiseFloorIntModule_basic",
     "ElementwiseLogModule_basic",
     "ElementwiseBinaryStaticShapeModule_basic",
     "ElementwiseMinimumModule_basic",
