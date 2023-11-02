@@ -243,8 +243,20 @@ public:
            "Torch JIT operators shouldn't have regions or successors");
 
     Operation *newOp = rewriter.create(state);
-    auto tensor =
-        rewriter.create<CopyToValueTensorOp>(op->getLoc(), newOp->getResult(0));
+    // Note: need to convert result to first input's dtype because mix precision
+    // compute would result in different behaviors.
+    // For example: 
+    // a = torch.randn(3, 3).half() # float16 
+    // b = torch.randn(3, 3) # float32 
+    // a += b # i.e. torch.ops.aten.add_(a, b), result is float16
+    // c = a + b # i.e. torch.ops.aten.add(a, b), result is float32
+    Value none = rewriter.create<ConstantNoneOp>(op->getLoc());
+    Value cstFalse = rewriter.create<ConstantBoolOp>(op->getLoc(), false);
+    auto aDtype = rewriter.create<PrimDtypeOp>(op->getLoc(), op->getOperand(0));
+    auto toDtype = rewriter.create<AtenToDtypeOp>(
+        op->getLoc(), newOp->getResult(0).getType(), newOp->getResult(0),
+        aDtype, /*non_blocking=*/cstFalse, /*copy=*/cstFalse, /*memory_format=*/none);
+    auto tensor = rewriter.create<CopyToValueTensorOp>(op->getLoc(), toDtype);
     createOverwriteTensorContents(rewriter, op->getLoc(), tensor,
                                   op->getOperand(0));
     rewriter.replaceOp(op, op->getOperand(0));
