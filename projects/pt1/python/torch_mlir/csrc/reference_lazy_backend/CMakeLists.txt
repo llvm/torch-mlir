@@ -39,7 +39,7 @@ if(TORCH_MLIR_ENABLE_LTC)
           ${CMAKE_CURRENT_BINARY_DIR}
           ${Python3_INCLUDE_DIRS}
           ${PYTHON_H_DIR}
-          ${PROJECT_SOURCE_DIR}/python
+          ${PROJECT_SOURCE_DIR}/projects/pt1/python
           )
   link_directories("${TORCH_INSTALL_PREFIX}/lib")
   link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
