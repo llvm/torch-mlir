@@ -5,6 +5,7 @@ import sys
 config.enable_bindings_python = @MLIR_ENABLE_BINDINGS_PYTHON@
 config.torch_mlir_obj_root = "@TORCH_MLIR_BINARY_DIR@"
 config.torch_mlir_python_packages_dir = "@TORCH_MLIR_PYTHON_PACKAGES_DIR@"
+config.torch_mlir_enable_refbackend = @TORCH_MLIR_ENABLE_REFBACKEND@
 config.host_os = "@HOST_OS@"
 config.llvm_src_root = "@LLVM_SOURCE_DIR@"
 config.llvm_obj_root = "@LLVM_BINARY_DIR@"
@@ -16,7 +17,6 @@ config.llvm_shlib_ext = "@SHLIBEXT@"
 config.llvm_exe_ext = "@EXEEXT@"
 config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
 config.python_executable = "@Python3_EXECUTABLE@"
-config.enable_jit_ir_importer = @TORCH_MLIR_ENABLE_JIT_IR_IMPORTER@
 config.enable_stablehlo = @TORCH_MLIR_ENABLE_STABLEHLO@
 
 import lit.llvm

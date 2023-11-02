@@ -36,31 +36,24 @@ macro(torch_mlir_add_llvm_external_project name identifier location)
   set(LLVM_EXTERNAL_PROJECTS ${LLVM_EXTERNAL_PROJECTS} CACHE STRING "" FORCE)
 endmacro()
 
+#-------------------------------------------------------------------------------
+# Project options
+#-------------------------------------------------------------------------------
+
+option(TORCH_MLIR_ENABLE_REFBACKEND "Enable reference backend" ON)
+if(TORCH_MLIR_ENABLE_REFBACKEND)
+  add_definitions(-DTORCH_MLIR_ENABLE_REFBACKEND)
+endif()
+
 option(TORCH_MLIR_ENABLE_STABLEHLO "Add stablehlo dialect" ON)
 if(TORCH_MLIR_ENABLE_STABLEHLO)
   add_definitions(-DTORCH_MLIR_ENABLE_STABLEHLO)
 endif()
 
-option(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER "Enables JIT IR Importer" ON)
-option(TORCH_MLIR_ENABLE_LTC "Enables LTC backend" OFF)
-option(TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS "Build Torch dialect MLIR Python bindings but neither JIT IR Importer nor LTC backend" OFF)
-if(TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS)
-  set(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER OFF)
-  set(TORCH_MLIR_ENABLE_LTC OFF)
-endif()
-
-if(TORCH_MLIR_ENABLE_LTC)
-    set(ENV{TORCH_MLIR_ENABLE_LTC} 1)
-    message(STATUS "LTC Backend build is enabled")
-else()
-    set(ENV{TORCH_MLIR_ENABLE_LTC} 0)
-    message(STATUS "LTC Backend build is disabled")
-endif()
-
-torch_mlir_add_llvm_external_project(
-  torch-mlir-dialects
-  TORCH_MLIR_DIALECTS
-  ${CMAKE_CURRENT_SOURCE_DIR}/externals/llvm-external-projects/torch-mlir-dialects)
+# torch_mlir_add_llvm_external_project(
+#   torch-mlir-dialects
+#   TORCH_MLIR_DIALECTS
+#   ${CMAKE_CURRENT_SOURCE_DIR}/externals/llvm-external-projects/torch-mlir-dialects)
 
 option(TORCH_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
 
@@ -99,9 +92,9 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR TORCH_MLIR_OUT_OF_TREE_
 
   # Don't try to compile the python extensions at the moment. We need
   # to import lots of dependencies from AddMLIRPython to make this work.
-  set(MLIR_ENABLE_BINDINGS_PYTHON 1)
+  set(MLIR_ENABLE_BINDINGS_PYTHON ON)
 
-  set(TORCH-MLIR_BUILT_STANDALONE 1)
+  set(TORCH-MLIR_BUILT_STANDALONE ON)
   set(BACKEND_PACKAGE_STRING "LLVM ${LLVM_PACKAGE_VERSION}")
   add_subdirectory(externals/llvm-external-projects/torch-mlir-dialects)
 else()
@@ -181,10 +174,9 @@ if(MLIR_ENABLE_BINDINGS_PYTHON)
   if(NOT TORCH_MLIR_PYTHON_PACKAGES_DIR)
     set(TORCH_MLIR_PYTHON_PACKAGES_DIR "${CMAKE_CURRENT_BINARY_DIR}/python_packages")
   endif()
-  add_dependencies(check-torch-mlir-all
-  check-torch-mlir-python
-  )
-  add_subdirectory(python)
+  #add_subdirectory(python)
+  # TODO: Remove
+  add_custom_target(TorchMLIRPythonModules)
 else()
   add_custom_target(TorchMLIRPythonModules)
 endif()

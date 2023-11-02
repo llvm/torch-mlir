@@ -9,9 +9,6 @@ add_mlir_dialect_library(TorchMLIRTorchConversionDialect
   MLIRTorchConversionOpsIncGen
   MLIRTorchTypesIncGen
 
-  LINK_COMPONENTS
-  Core
-
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRSupport
