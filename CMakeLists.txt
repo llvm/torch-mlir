@@ -162,10 +162,7 @@ add_subdirectory(lib)
 add_subdirectory(tools)
 
 add_custom_target(check-torch-mlir-all)
-add_dependencies(check-torch-mlir-all
-  check-torch-mlir
-  check-torch-mlir-capi
-  )
+add_dependencies(check-torch-mlir-all check-torch-mlir)
 
 if(MLIR_ENABLE_BINDINGS_PYTHON)
   # If parent projects want to configure where to place the python packages,
