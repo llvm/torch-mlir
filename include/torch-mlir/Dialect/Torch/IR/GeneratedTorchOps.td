@@ -8024,6 +8024,29 @@ def Torch_AtenIsnanOp : Torch_Op<"aten.isnan", [
   }];
 }
 
+def Torch_AtenIsinfOp : Torch_Op<"aten.isinf", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::isinf : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenIsinfOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenIsinfOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenAllOp : Torch_Op<"aten.all", [
     AllowsTypeRefinement,
     HasValueSemantics,

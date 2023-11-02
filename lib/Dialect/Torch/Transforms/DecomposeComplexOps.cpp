@@ -531,6 +531,26 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenIsinfOp : public OpRewritePattern<AtenIsinfOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenIsinfOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+
+    mlir::FloatType f64Type = rewriter.getF64Type();
+    Value inf = rewriter.create<ConstantFloatOp>(
+        loc, rewriter.getFloatAttr(
+                 f64Type, APFloat::getInf(f64Type.getFloatSemantics())));
+    Value abs = rewriter.create<AtenAbsOp>(loc, self.getType(), self);
+    rewriter.replaceOpWithNewOp<AtenEqScalarOp>(op, op.getType(), abs, inf);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenReshapeOp : public OpRewritePattern<AtenReshapeOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -5458,6 +5478,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenEyeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEyeMOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIsnanOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenIsinfOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
