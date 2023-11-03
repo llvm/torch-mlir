@@ -799,6 +799,7 @@ cc_library(
     hdrs = [
         "include/torch-mlir/InitAll.h",
     ],
+    copts = ["-DTORCH_MLIR_ENABLE_REFBACKEND"],
     strip_include_prefix = "include",
     deps = [
         ":TorchMLIRConversionPasses",
