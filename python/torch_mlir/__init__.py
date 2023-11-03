@@ -116,7 +116,7 @@ class TensorPlaceholder:
             dynamic_axes = []
         shape = []
         for i, dim in enumerate(tensor.shape):
-            if i in dynamic_axes:
+            if i in dynamic_axes or isinstance(dim, torch.SymInt):
                 shape.append(-1)
             else:
                 shape.append(dim)
@@ -177,10 +177,10 @@ class ExampleArgs:
         if not isinstance(example_args, Sequence):
             example_args = [example_args]
         for arg in example_args:
-            if not isinstance(arg, (TensorPlaceholder, torch.Tensor)):
-                raise Exception(f"Only Tensor's, TensorPlaceholder's, or sequences of "
-                                f"Tensor's and TensorPlaceholder's are supported as "
-                                f"example args for method inputs. "
+            if not isinstance(arg, (TensorPlaceholder, torch.Tensor, torch.SymInt)):
+                raise Exception(f"Only Tensor's, TensorPlaceholder's, SymInt's or sequences of"
+                                f"Tensor's and TensorPlaceholder's and SymInt's are supported as"
+                                f"example args for method inputs."
                                 f"Got '{arg}'.")
         return tuple(example_args)
 
@@ -194,6 +194,13 @@ class ExampleArgs:
             for arg in example_args:
                 if isinstance(arg, TensorPlaceholder):
                     placeholders.append(arg)
+                elif isinstance(arg, torch.SymInt):
+                    # If `arg` is of torch.sym_int type, it is a symbol
+                    # representing a dynamic size.
+                    shape = [1]
+                    # A placeholder should only have TensorPlaceholder objects,
+                    # so convert it into one.
+                    placeholders.append(TensorPlaceholder(shape, torch.int32))
                 else:
                     assert isinstance(arg, torch.Tensor)
                     placeholders.append(TensorPlaceholder.like(arg))
