@@ -103,7 +103,6 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR TORCH_MLIR_OUT_OF_TREE_
 
   set(TORCH-MLIR_BUILT_STANDALONE ON)
   set(BACKEND_PACKAGE_STRING "LLVM ${LLVM_PACKAGE_VERSION}")
-  add_subdirectory(externals/llvm-external-projects/torch-mlir-dialects)
 else()
   message(STATUS "Torch-MLIR in-tree build.")
   # In-tree build with LLVM_EXTERNAL_PROJECTS=torch-mlir
