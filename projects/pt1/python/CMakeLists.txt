@@ -29,7 +29,7 @@ if (NOT TORCH_MLIR_USE_INSTALLED_PYTORCH)
   set(ENV{CMAKE_C_COMPILER_LAUNCHER} ${CMAKE_C_COMPILER_LAUNCHER})
   set(ENV{CMAKE_CXX_COMPILER_LAUNCHER} ${CMAKE_CXX_COMPILER_LAUNCHER})
   execute_process(
-          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../build_tools/build_libtorch.sh
+          COMMAND ${TORCH_MLIR_SOURCE_DIR}/build_tools/build_libtorch.sh
           RESULT_VARIABLE _result
   )
   if(_result)
