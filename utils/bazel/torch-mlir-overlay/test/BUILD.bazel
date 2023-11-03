@@ -22,8 +22,8 @@ expand_template(
         "\"@LLVM_TOOLS_DIR@\"": "os.path.join(os.environ['TEST_SRCDIR'], 'llvm-project', 'llvm')",
         # All disabled, but required to substituted because they are not in quotes.
         "@MLIR_ENABLE_BINDINGS_PYTHON@": "0",
-        "@TORCH_MLIR_ENABLE_JIT_IR_IMPORTER@": "0",
         "@TORCH_MLIR_ENABLE_STABLEHLO@": "0",
+        "@TORCH_MLIR_ENABLE_REFBACKEND@": "1",
     },
     template = "lit.site.cfg.py.in",
 )
