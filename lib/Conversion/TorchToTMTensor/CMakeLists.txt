@@ -7,9 +7,6 @@ TorchToTMTensor.cpp
   DEPENDS
   TorchMLIRConversionPassIncGen
 
-  LINK_COMPONENTS
-  Core
-
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass

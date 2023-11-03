@@ -234,9 +234,8 @@ function build_in_tree() {
       -DCMAKE_C_COMPILER_LAUNCHER=ccache \
       -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
       -DLLVM_ENABLE_PROJECTS=mlir \
-      -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
+      -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
       -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="/main_checkout/torch-mlir" \
-      -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="/main_checkout/torch-mlir/externals/llvm-external-projects/torch-mlir-dialects" \
       -DLLVM_TARGETS_TO_BUILD=host \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
       -DTORCH_MLIR_ENABLE_LTC=${enable_ltc} \
@@ -246,7 +245,7 @@ function build_in_tree() {
       -DTM_PYTORCH_INSTALL_WITHOUT_REBUILD=${TM_PYTORCH_INSTALL_WITHOUT_REBUILD} \
       -DPython3_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir/externals/llvm-project/llvm
-  cmake --build /main_checkout/torch-mlir/build
+  cmake --build /main_checkout/torch-mlir/build --target tools/torch-mlir/all
   ccache -s
 }
 
@@ -288,7 +287,7 @@ function test_in_tree() {
   cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all
 
   cd /main_checkout/torch-mlir/
-  export PYTHONPATH="/main_checkout/torch-mlir/build/tools/torch-mlir/python_packages/torch_mlir"
+  export PYTHONPATH="/main_checkout/torch-mlir/build/tools/torch-mlir/python_packages/torch_mlir:/main_checkout/torch-mlir/projects/pt1"
 
   case $torch_version in
     nightly)

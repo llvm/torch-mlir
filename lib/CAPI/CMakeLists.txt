@@ -9,8 +9,6 @@ add_mlir_public_c_api_library(TorchMLIRCAPI
   ${PROJECT_SOURCE_DIR}/include/torch-mlir-c/
 
   ENABLE_AGGREGATION
-  LINK_COMPONENTS
-  Core
 
   LINK_LIBS PUBLIC
   MLIRIR
