@@ -454,7 +454,7 @@ class ElementwiseEqFloatScalarModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseEqFloatScalarModule())
 def ElementwiseEqFloatScalarModule_basic(module, tu: TestUtils):
     module.forward(
-        torch.tensor([[1.0, 2.2, 6.0], [6.0, 2.0, 3.1]]).to(torch.float32))
+        torch.tensor([[1.0, 2.2, torch.nan], [6.0, 2.0, 3.1]]).to(torch.float32))
 
 # ==============================================================================
 
@@ -534,7 +534,7 @@ class ElementwiseEqFloatTensorModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseEqFloatTensorModule())
 def ElementwiseEqFloatTensorModule_basic(module, tu: TestUtils):
     module.forward(
-        torch.tensor([[1.0, 2.2, 6.0], [6.0, 2.0, 3.1]]).to(torch.float32),
+        torch.tensor([[1.0, 2.2, 6.0], [torch.nan, 2.0, 3.1]]).to(torch.float32),
         torch.tensor([1.0, 2.4, 6.0]).to(torch.float32))
 
 # ==============================================================================
@@ -575,7 +575,7 @@ class ElementwiseNeFloatScalarModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseNeFloatScalarModule())
 def ElementwiseNeFloatScalarModule_basic(module, tu: TestUtils):
     module.forward(
-        torch.tensor([[1.0, 2.2, 2.0], [6.0, 2.0, 3.1]]).to(torch.float32))
+        torch.tensor([[1.0, 2.2, 2.0], [torch.nan, 2.0, 3.1]]).to(torch.float32))
 
 # ==============================================================================
 
@@ -765,7 +765,7 @@ class ElementwiseIsnanModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.isnan(x)
@@ -773,5 +773,25 @@ class ElementwiseIsnanModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseIsnanModule())
 def ElementwiseIsnanModule_basic(module, tu: TestUtils):
-    x = torch.full((1, 1, 32), torch.nan)
+    x = torch.tensor([1.0, torch.nan, torch.inf, -torch.inf])
+    module.forward(x)
+
+# ==============================================================================
+
+class ElementwiseIsinfModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.isinf(x)
+
+
+@register_test_case(module_factory=lambda: ElementwiseIsinfModule())
+def ElementwiseIsinfModule_basic(module, tu: TestUtils):
+    x = torch.tensor([1.0, torch.nan, torch.inf, -torch.inf])
     module.forward(x)

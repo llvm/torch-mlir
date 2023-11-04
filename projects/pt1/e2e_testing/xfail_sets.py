@@ -1066,6 +1066,7 @@ TOSA_PASS_SET = {
     "ElementwiseCeilModule_basic",
     "ElementwiseReciprocalModule_basic",
     "ElementwiseIsnanModule_basic",
+    "ElementwiseIsinfModule_basic",
     "TypePromotionAlphaWiderModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise",
@@ -1460,4 +1461,5 @@ LTC_XFAIL_SET = {
     "ElementwiseBitwiseAndScalarInt64Module_basic",
     "ElementwiseBitwiseAndScalarInt32Module_basic",
     "ElementwiseBitwiseAndScalarInt8Module_basic",
+    "ElementwiseIsinfModule_basic",
 }
