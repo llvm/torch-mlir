@@ -9200,6 +9200,29 @@ def Torch_AtenReshapeOp : Torch_Op<"aten.reshape", [
   }];
 }
 
+def Torch_AtenReshapeAsOp : Torch_Op<"aten.reshape_as", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::reshape_as : (Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$other
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenReshapeAsOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenReshapeAsOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_Aten_ReshapeAliasOp : Torch_Op<"aten._reshape_alias", [
     AllowsTypeRefinement,
     ReadOnly

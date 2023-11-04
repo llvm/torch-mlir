@@ -5356,6 +5356,28 @@ public:
 } // namespace
 
 namespace {
+// Unconditionally decompose `aten.reshape_as` into `aten.size` +
+// `aten.reshape`.
+class DecomposeAtenReshapeAsOp : public OpRewritePattern<AtenReshapeAsOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenReshapeAsOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    MLIRContext *context = op->getContext();
+    Value input = op.getSelf();
+    Value other = op.getOther();
+
+    auto otherShape = rewriter.create<Torch::AtenSizeOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)), other);
+    rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(op, op.getType(), input,
+                                                      otherShape);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -5536,6 +5558,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenSignOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTypeAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTileOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorOp>(patterns);
 
     GreedyRewriteConfig config;

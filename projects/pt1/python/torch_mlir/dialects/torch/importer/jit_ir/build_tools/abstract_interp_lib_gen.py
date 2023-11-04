@@ -504,6 +504,9 @@ def aten〇view〡shape(self: List[int], size: List[int]) -> List[int]:
 def aten〇reshape〡shape(self: List[int], shape: List[int]) -> List[int]:
     return upstream_shape_functions.view(self, shape)
 
+def aten〇reshape_as〡shape(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.view(self, other)
+
 def aten〇_reshape_alias〡shape(self: List[int], size: List[int], stride: List[int]) -> List[int]:
     return upstream_shape_functions.view(self, size)
 
@@ -1936,6 +1939,11 @@ def aten〇_reshape_alias〡dtype(self_rank_dtype: Tuple[int, int], size: List[i
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, shape=[1]))
 def aten〇reshape〡dtype(self_rank_dtype: Tuple[int, int], shape: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_two_tensor_op())
+def aten〇reshape_as〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
