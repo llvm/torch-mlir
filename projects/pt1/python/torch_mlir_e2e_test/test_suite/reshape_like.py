@@ -566,6 +566,25 @@ def UnsafeView1DFoldModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ReshapeAsModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+    
+    @export 
+    @annotate_args([
+        None,
+        ([4, 3], torch.float32, True),
+        ([2, 6], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return torch.ops.aten.reshape_as(a, b)
+
+@register_test_case(module_factory=lambda: ReshapeAsModule())
+def ReshapeAsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 3), tu.rand(2, 6))
+
+# ==============================================================================
+
 class ReshapeExpandModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
