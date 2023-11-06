@@ -7,9 +7,6 @@ add_mlir_conversion_library(TorchMLIRTorchToSCF
   DEPENDS
   TorchMLIRConversionPassIncGen
 
-  LINK_COMPONENTS
-  Core
-
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass

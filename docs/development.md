@@ -35,9 +35,8 @@ cmake -GNinja -Bbuild \
   -DCMAKE_BUILD_TYPE=Release \
   -DPython3_FIND_VIRTUALENV=ONLY \
   -DLLVM_ENABLE_PROJECTS=mlir \
-  -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
+  -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD" \
-  -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="$PWD"/externals/llvm-external-projects/torch-mlir-dialects \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   -DLLVM_TARGETS_TO_BUILD=host \
   externals/llvm-project/llvm
@@ -360,6 +359,7 @@ Torch-MLIR has two types of tests:
 Alternatively, you can run the tests via Python directly:
 
 ```shell
+cd projects/pt1
 python -m e2e_testing.main -f 'AtenEmbeddingBag'
 ```
 
@@ -374,7 +374,7 @@ ninja check-torch-mlir-all
 This can be broken down into
 
 ```
-ninja check-torch-mlir check-torch-mlir-dialects check-torch-mlir-python
+ninja check-torch-mlir check-torch-mlir-python
 ```
 
 To run more fine-grained tests, you can do, for `check-torch-mlir`:
