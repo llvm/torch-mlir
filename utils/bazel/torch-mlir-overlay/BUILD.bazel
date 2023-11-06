@@ -544,16 +544,15 @@ cc_library(
     ],
 )
 
-# External dialects
 td_library(
     name = "TorchMLIRTMTensorOpsTdFiles",
     srcs = [
-        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/ScalarLoopOpInterface.td",
-        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorBase.td",
-        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorInterfaces.td",
-        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.td",
+        "include/torch-mlir-dialects/Dialect/TMTensor/IR/ScalarLoopOpInterface.td",
+        "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorBase.td",
+        "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorInterfaces.td",
+        "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.td",
     ],
-    includes = ["externals/llvm-external-projects/torch-mlir-dialects/include"],
+    includes = ["include"],
     deps = [
         "@llvm-project//mlir:ControlFlowInterfacesTdFiles",
         "@llvm-project//mlir:OpBaseTdFiles",
@@ -563,27 +562,27 @@ td_library(
 
 gentbl_cc_library(
     name = "TorchMLIRTMTensorInterfacesIncGen",
-    strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
+    strip_include_prefix = "include",
     tbl_outs = [
         (
             ["-gen-op-interface-decls"],
-            "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOpInterfaces.h.inc",
+            "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOpInterfaces.h.inc",
         ),
         (
             ["-gen-op-interface-defs"],
-            "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOpInterfaces.cpp.inc",
+            "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOpInterfaces.cpp.inc",
         ),
         (
             ["-gen-type-interface-decls"],
-            "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorTypeInterfaces.h.inc",
+            "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorTypeInterfaces.h.inc",
         ),
         (
             ["-gen-type-interface-defs"],
-            "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorTypeInterfaces.cpp.inc",
+            "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorTypeInterfaces.cpp.inc",
         ),
     ],
     tblgen = "@llvm-project//mlir:mlir-tblgen",
-    td_file = "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorInterfaces.td",
+    td_file = "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorInterfaces.td",
     deps = [
         ":TorchMLIRTMTensorOpsTdFiles",
     ],
@@ -591,19 +590,19 @@ gentbl_cc_library(
 
 gentbl_cc_library(
     name = "TorchMLIRTMTensorScalarLoopOpInterfaceIncGen",
-    strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
+    strip_include_prefix = "include",
     tbl_outs = [
         (
             ["-gen-op-interface-decls"],
-            "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/ScalarLoopOpInterface.h.inc",
+            "include/torch-mlir-dialects/Dialect/TMTensor/IR/ScalarLoopOpInterface.h.inc",
         ),
         (
             ["-gen-op-interface-defs"],
-            "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/ScalarLoopOpInterface.cpp.inc",
+            "include/torch-mlir-dialects/Dialect/TMTensor/IR/ScalarLoopOpInterface.cpp.inc",
         ),
     ],
     tblgen = "@llvm-project//mlir:mlir-tblgen",
-    td_file = "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/ScalarLoopOpInterface.td",
+    td_file = "include/torch-mlir-dialects/Dialect/TMTensor/IR/ScalarLoopOpInterface.td",
     deps = [
         ":TorchMLIRTMTensorOpsTdFiles",
     ],
@@ -611,37 +610,37 @@ gentbl_cc_library(
 
 gentbl_cc_library(
     name = "TorchMLIRTMTensorOpsIncGen",
-    strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
+    strip_include_prefix = "include",
     tbl_outs = [
         (
             ["-gen-op-decls"],
-            "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h.inc",
+            "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h.inc",
         ),
         (
             ["-gen-op-defs"],
-            "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.cpp.inc",
+            "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.cpp.inc",
         ),
         (
             ["-gen-typedef-decls"],
-            "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorTypes.h.inc",
+            "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorTypes.h.inc",
         ),
         (
             [
                 "-gen-dialect-decls",
                 "-dialect=tm_tensor",
             ],
-            "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h.inc",
+            "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h.inc",
         ),
         (
             [
                 "-gen-dialect-defs",
                 "-dialect=tm_tensor",
             ],
-            "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.cpp.inc",
+            "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.cpp.inc",
         ),
     ],
     tblgen = "@llvm-project//mlir:mlir-tblgen",
-    td_file = "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.td",
+    td_file = "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.td",
     deps = [
         ":TorchMLIRTMTensorOpsTdFiles",
     ],
@@ -650,18 +649,18 @@ gentbl_cc_library(
 cc_library(
     name = "TorchMLIRTMTensorDialect",
     srcs = [
-        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/IR/ScalarLoopOpInterface.cpp",
-        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/IR/TMTensorDialect.cpp",
-        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/IR/TMTensorInterfaces.cpp",
-        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/IR/TMTensorOps.cpp",
+        "lib/Dialect/TMTensor/IR/ScalarLoopOpInterface.cpp",
+        "lib/Dialect/TMTensor/IR/TMTensorDialect.cpp",
+        "lib/Dialect/TMTensor/IR/TMTensorInterfaces.cpp",
+        "lib/Dialect/TMTensor/IR/TMTensorOps.cpp",
     ],
     hdrs = [
-        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/ScalarLoopOpInterface.h",
-        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h",
-        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorInterfaces.h",
-        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h",
+        "include/torch-mlir-dialects/Dialect/TMTensor/IR/ScalarLoopOpInterface.h",
+        "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h",
+        "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorInterfaces.h",
+        "include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h",
     ],
-    strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
+    strip_include_prefix = "include",
     deps = [
         ":TorchMLIRTMTensorInterfacesIncGen",
         ":TorchMLIRTMTensorOpsIncGen",
@@ -678,7 +677,7 @@ cc_library(
 td_library(
     name = "TorchMLIRTMTensorTransformsPassesTdFiles",
     srcs = [
-        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.td",
+        "include/torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.td",
     ],
     deps = [
         "@llvm-project//mlir:OpBaseTdFiles",
@@ -688,23 +687,23 @@ td_library(
 
 gentbl_cc_library(
     name = "TorchMLIRTMTensorTransformsPassesIncGen",
-    strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
+    strip_include_prefix = "include",
     tbl_outs = [
         (
             ["-gen-pass-decls"],
-            "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h.inc",
+            "include/torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h.inc",
         ),
         (
             ["-gen-pass-capi-header"],
-            "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h.cpi.inc",
+            "include/torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h.cpi.inc",
         ),
         (
             ["-gen-pass-capi-impl"],
-            "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.cpi.cpp.inc",
+            "include/torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.cpi.cpp.inc",
         ),
     ],
     tblgen = "@llvm-project//mlir:mlir-tblgen",
-    td_file = "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.td",
+    td_file = "include/torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.td",
     deps = [
         ":TorchMLIRTMTensorTransformsPassesTdFiles",
     ],
@@ -713,15 +712,15 @@ gentbl_cc_library(
 cc_library(
     name = "TorchMLIRTMTensorPasses",
     srcs = [
-        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/Transforms/Bufferize.cpp",
-        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/Transforms/ConvertToLoops.cpp",
-        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/Transforms/Passes.cpp",
+        "lib/Dialect/TMTensor/Transforms/Bufferize.cpp",
+        "lib/Dialect/TMTensor/Transforms/ConvertToLoops.cpp",
+        "lib/Dialect/TMTensor/Transforms/Passes.cpp",
     ],
     hdrs = [
-        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/Transforms/PassDetail.h",
-        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h",
+        "include/torch-mlir-dialects/Dialect/TMTensor/Transforms/PassDetail.h",
+        "include/torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h",
     ],
-    strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
+    strip_include_prefix = "include",
     deps = [
         ":TorchMLIRTMTensorDialect",
         ":TorchMLIRTMTensorTransformsPassesIncGen",
@@ -800,6 +799,7 @@ cc_library(
     hdrs = [
         "include/torch-mlir/InitAll.h",
     ],
+    copts = ["-DTORCH_MLIR_ENABLE_REFBACKEND"],
     strip_include_prefix = "include",
     deps = [
         ":TorchMLIRConversionPasses",

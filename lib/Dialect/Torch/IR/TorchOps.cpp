@@ -1118,6 +1118,22 @@ void AtenMulTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenFloorOp
+//===----------------------------------------------------------------------===//
+void AtenFloorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                              MLIRContext *context) {
+  patterns.add(+[](AtenFloorOp op, PatternRewriter &rewriter) {
+    auto outputTy = op.getType().dyn_cast<ValueTensorType>();
+    if (outputTy && outputTy.hasDtype() &&
+        outputTy.getDtype().isa<mlir::IntegerType>()) {
+      rewriter.replaceOp(op, op.getSelf());
+      return success();
+    }
+    return failure();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenMulScalarOp
 //===----------------------------------------------------------------------===//
 void AtenMulScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,

@@ -377,6 +377,11 @@ public:
     // collapsed. Note this may technically not always be true.
     // TODO: think of a way better way to at least detect when this assumption
     // is violated for the cases of dynamic dimensions.
+    bool inputHasOneDynDim = llvm::count(inputShape, kUnknownSize) == 1;
+    bool outputHasOneDynDim = llvm::count(outputShape, kUnknownSize) == 1;
+    bool singleDynDimsAreEqual =
+    inputHasOneDynDim && outputHasOneDynDim &&
+    productReduce(inputShape) == productReduce(outputShape);
     SmallVector<std::pair<int64_t, int64_t>> unchangedDims;
     for (auto [outputDim, outputDimSize] :
          llvm::enumerate(outputSizeTorchInt)) {
@@ -384,6 +389,14 @@ public:
       // Match torch.aten.size.int(inputTensor, inputDim) with constant inputDim
       if (matchPattern(outputDimSize,
                        m_TorchTensorSizeInt(op.getSelf(), &inputDim))) {
+        unchangedDims.push_back(std::make_pair(inputDim, outputDim));
+      } else if (singleDynDimsAreEqual &&
+                 outputShape[outputDim] == kUnknownSize) {
+        // If the input and output have a single dynamic dimension and the
+        // product of the other dimensions is the same, then we know that the
+        // dynamic dimension is unchanged.
+        inputDim = std::distance(inputShape.begin(),
+                                 llvm::find(inputShape, kUnknownSize));
         unchangedDims.push_back(std::make_pair(inputDim, outputDim));
       }
     }

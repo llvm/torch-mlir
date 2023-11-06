@@ -89,7 +89,7 @@ static Value createLessThanOrEqual(OpBuilder &b, Location loc,
 
 static Value createEqual(OpBuilder &b, Location loc, Type elementalType,
                          Value lhs, Value rhs) {
-  return createComparisonTemplate<arith::CmpFPredicate::UEQ,
+  return createComparisonTemplate<arith::CmpFPredicate::OEQ,
                                   arith::CmpIPredicate::eq,
                                   arith::CmpIPredicate::eq>(
       b, loc, elementalType, lhs, rhs);

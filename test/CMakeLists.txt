@@ -1,6 +1,6 @@
 llvm_canonicalize_cmake_booleans(
   MLIR_ENABLE_BINDINGS_PYTHON
-  TORCH_MLIR_ENABLE_JIT_IR_IMPORTER
+  TORCH_MLIR_ENABLE_REFBACKEND
   TORCH_MLIR_ENABLE_STABLEHLO
 )
 
@@ -13,7 +13,9 @@ configure_lit_site_cfg(
 
 set(TORCH_MLIR_TEST_DEPENDS
         FileCheck count not
-        torch-mlir-opt TorchMLIRPythonModules
+        TorchMLIRPythonModules
+        torch-mlir-opt 
+        torch-mlir-capi-torch-test
         )
 
 add_lit_testsuite(check-torch-mlir "Running the torch-mlir regression tests"

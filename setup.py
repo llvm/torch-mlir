@@ -84,9 +84,8 @@ class CMakeBuild(build_py):
                 f"-DMLIR_ENABLE_BINDINGS_PYTHON=ON",
                 f"-DLLVM_ENABLE_PROJECTS=mlir",
                 f"-DLLVM_ENABLE_ZSTD=OFF",
-                f"-DLLVM_EXTERNAL_PROJECTS=torch-mlir;torch-mlir-dialects",
+                f"-DLLVM_EXTERNAL_PROJECTS=torch-mlir",
                 f"-DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR={src_dir}",
-                f"-DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR={src_dir}/externals/llvm-external-projects/torch-mlir-dialects",
                 # Optimization options for building wheels.
                 f"-DCMAKE_VISIBILITY_INLINES_HIDDEN=ON",
                 f"-DCMAKE_C_VISIBILITY_PRESET=hidden",
