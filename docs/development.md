@@ -347,6 +347,9 @@ Torch-MLIR has two types of tests:
 > **Note**
 > An `.env` file must be generated via `build_tools/write_env_file.sh` before these commands can be run.
 
+
+The following assumes you are in the `projects/pt1`  directory:
+
 ```shell
 # Run all tests on the reference backend
 ./tools/e2e_test.sh
@@ -398,7 +401,7 @@ Most of the unit tests use the [`FileCheck` tool](https://llvm.org/docs/CommandG
 
 # PyTorch source builds and custom PyTorch versions
 
-Torch-MLIR by default builds with the latest nightly PyTorch version. This can be toggled to build from latest PyTorch source with 
+Torch-MLIR by default builds with the latest nightly PyTorch version. This can be toggled to build from latest PyTorch source with
 ```
 -DTORCH_MLIR_USE_INSTALLED_PYTORCH=OFF
 -DTORCH_MLIR_SRC_PYTORCH_REPO=vivekkhandelwal1/pytorch # Optional. Github path. Defaults to pytorch/pytorch
@@ -469,10 +472,10 @@ Here are some examples of PRs updating the LLVM and MLIR-HLO submodules:
 
 To enable ASAN, pass `-DLLVM_USE_SANITIZER=Address` to CMake. This should "just
 work" with all C++ tools like `torch-mlir-opt`. When running a Python script
-such as through `./tools/e2e_test.sh`, you will need to do:
+such as through `./projects/pt1/tools/e2e_test.sh`, you will need to do:
 
 ```
-LD_PRELOAD="$(clang -print-file-name=libclang_rt.asan-x86_64.so)" ./tools/e2e_test.sh -s
+LD_PRELOAD="$(clang -print-file-name=libclang_rt.asan-x86_64.so)" ./projects/pt1/tools/e2e_test.sh -s
 # See instructions here for how to get the libasan path for GCC:
 # https://stackoverflow.com/questions/48833176/get-location-of-libasan-from-gcc-clang
 ```
