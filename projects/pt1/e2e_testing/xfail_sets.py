@@ -941,6 +941,8 @@ STABLEHLO_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "PixelShuffleModuleStatic_12_2_3_basic",
+    "PixelShuffleModuleStatic_3_18_2_2_basic",
     "IscloseStaticModule_basic",
     "IscloseStaticModuleTrue_basic",
     "TileBigDimsSizeModule_basic",
