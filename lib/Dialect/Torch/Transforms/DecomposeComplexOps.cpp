@@ -9,7 +9,6 @@
 
 #include "PassDetail.h"
 
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -1128,45 +1127,11 @@ public:
     auto inShape = maybeSizes.value();
     auto inRank = inShape.size();
 
-    // TODO: Handle dynamic shapes.
+    // TODO support dynamic shapes, probably by lowering pixel_shuffle to linalg
+    // directly. Pixel shuffle does a reshape that is hard to recover
+    // through pure torch (view) ops, especially in dynamic cases.
     //
-    // Currently the decomposition of inputs with dynamic shapes results in a
-    // failure when lowering to linalg. Specifically, the error:
-    //
-    // "Unhandled case of expand/collapse. "
-    //
-    // is hit in the lowering of aten.view to the linalg dialect (see
-    // ConvertAtenViewOp in TorchToLinalg/DataMovement.cpp where this error is
-    // thrown).
-    //
-    // The issue is that there is no way for the lowering from torch to linalg
-    // to know that the view ops (reshape ops) created in this decomposition can
-    // be mapped directly to tensor.expand_shape and tensor_collapse_shape. We
-    // DO know that this is the case: the first reshape is an expand_shape
-    // and the second one is a collapse_shape. But we only know this because of
-    // the semantics of pixel_shuffle, by the time the lowering sees the view
-    // ops, this special context is lost.
-    //
-    // There are a few possible options to fixing the current approach, as I see
-    // it:
-    //
-    // 1) Lower pixel_shuffle to linalg directly. This would mean a bit of
-    // duplication of the logic for lowering from aten.permute to linalg, and
-    // would not be the most 'gradual' lowering approach. But perhaps the most
-    // straightforward and understable.
-    //
-    // 2) Rather than use aten.reshape ops in the decomposition below, insert
-    // tensor.expand_shape and tensor.collapse_shape ops directly. This would
-    // require inserting unrealized_conversion_cast ops to convert the types of
-    // the operands from !torch.tensor to to the MLIR built-in tensor type,
-    // which isn't ideal (unrealized_conversion_cast should only be used in
-    // conversion passes AFAIK (?)). UPDATE: not a viable option as we cannot
-    // make assumptions about the dialects that torch is lowered to.
-    //
-    // 3) Create 2 new ops in the torch dialect, with the same semantics as
-    // tensor.expand_shape and tensor.collapse_shape, but with !torch.tensor
-    // operands and results. Then use these ops in the decomposition below,
-    // instead of aten.reshape ops.
+    // See: https://github.com/llvm/torch-mlir/issues/2559
     //
     // For now, we just fail the decomposition here so that a sensible error is
     // provided:
@@ -1277,35 +1242,27 @@ public:
 
     auto listType = Torch::ListType::get(Torch::IntType::get(op.getContext()));
 
+    Value shapeA =
+        rewriter.create<PrimListConstructOp>(loc, listType, prePermuteShape);
 
-     Value shapeA =
-         rewriter.create<PrimListConstructOp>(loc, listType, prePermuteShape);
+    Value A = rewriter.create<AtenReshapeOp>(
+        loc, getTypeFromShape(prePermuteShape), inValue, shapeA);
 
-     Value A = rewriter.create<AtenReshapeOp>(
-         loc, getTypeFromShape(prePermuteShape), inValue, shapeA);
+    Value permuteDimsOrder = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op->getContext())),
+        permutation);
 
-     Value permuteDimsOrder = rewriter.create<PrimListConstructOp>(
-         loc, Torch::ListType::get(Torch::IntType::get(op->getContext())),
-         permutation);
+    Value B = rewriter.create<AtenPermuteOp>(
+        loc, getTypeFromShape(postPermuteShape), A, permuteDimsOrder);
 
-     Value B = rewriter.create<AtenPermuteOp>(
-         loc, getTypeFromShape(postPermuteShape), A, permuteDimsOrder);
+    Value outShapeList =
+        rewriter.create<PrimListConstructOp>(loc, listType, outShape);
 
-     Value outShapeList =
-         rewriter.create<PrimListConstructOp>(loc, listType, outShape);
+    auto deducedReturnType = getTypeFromShape(outShape);
 
-     // TODO(jn) figure out why the deduced return type (like
-     // !torch.vtensor<[3,4,6],si64>) cannot be used for the type of the
-     // replacement of the pixel_shuffle op's output. The pattern seems to
-     // require the generic !torch.vtensor type.
-  
-     auto deducedReturnType = getTypeFromShape(outShape);
-     auto genericReturnType  = deducedReturnType.getWithSizesAndDtype({}, {});
-
-     rewriter.replaceOpWithNewOp<AtenReshapeOp>(op, genericReturnType, B,
-                                                outShapeList);
-
-     return success();
+    rewriter.replaceOpWithNewOp<AtenReshapeOp>(op, deducedReturnType, B,
+                                               outShapeList);
+    return success();
   }
 };
 } // namespace
