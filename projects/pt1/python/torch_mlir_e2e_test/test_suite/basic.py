@@ -595,6 +595,38 @@ def PermuteModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class PixelShuffleModuleStatic_3_18_2_2(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([3, 18, 2, 2], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_shuffle(x, 3)
+
+@register_test_case(module_factory=lambda: PixelShuffleModuleStatic_3_18_2_2())
+def PixelShuffleModuleStatic_3_18_2_2_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3,18,2,2))
+
+
+class PixelShuffleModuleStatic_12_2_3(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([12, 2, 3], torch.int64, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_shuffle(x, 2)
+
+@register_test_case(module_factory=lambda: PixelShuffleModuleStatic_12_2_3())
+def PixelShuffleModuleStatic_12_2_3_basic(module, tu: TestUtils):
+    module.forward(tu.randint(12, 2, 3, low = 0, high = 100))
+
+
+
+# ==============================================================================
+
+
 class PermuteNegativeIndexModule(torch.nn.Module):
 
     def __init__(self):

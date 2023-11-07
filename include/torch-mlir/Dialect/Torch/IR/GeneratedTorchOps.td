@@ -6419,6 +6419,30 @@ def Torch_AtenPermuteOp : Torch_Op<"aten.permute", [
   }];
 }
 
+def Torch_AtenPixelShuffleOp : Torch_Op<"aten.pixel_shuffle", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::pixel_shuffle : (Tensor, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$upscale_factor
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenPixelShuffleOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenPixelShuffleOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_AtenMovedimIntOp : Torch_Op<"aten.movedim.int", [
     AllowsTypeRefinement,
     ReadOnly
