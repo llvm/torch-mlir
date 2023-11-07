@@ -531,6 +531,26 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenIsinfOp : public OpRewritePattern<AtenIsinfOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenIsinfOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+
+    mlir::FloatType f64Type = rewriter.getF64Type();
+    Value inf = rewriter.create<ConstantFloatOp>(
+        loc, rewriter.getFloatAttr(
+                 f64Type, APFloat::getInf(f64Type.getFloatSemantics())));
+    Value abs = rewriter.create<AtenAbsOp>(loc, self.getType(), self);
+    rewriter.replaceOpWithNewOp<AtenEqScalarOp>(op, op.getType(), abs, inf);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenReshapeOp : public OpRewritePattern<AtenReshapeOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -5356,6 +5376,28 @@ public:
 } // namespace
 
 namespace {
+// Unconditionally decompose `aten.reshape_as` into `aten.size` +
+// `aten.reshape`.
+class DecomposeAtenReshapeAsOp : public OpRewritePattern<AtenReshapeAsOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenReshapeAsOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    MLIRContext *context = op->getContext();
+    Value input = op.getSelf();
+    Value other = op.getOther();
+
+    auto otherShape = rewriter.create<Torch::AtenSizeOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)), other);
+    rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(op, op.getType(), input,
+                                                      otherShape);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -5458,6 +5500,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenEyeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEyeMOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIsnanOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenIsinfOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
@@ -5536,6 +5579,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenSignOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTypeAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTileOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorOp>(patterns);
 
     GreedyRewriteConfig config;

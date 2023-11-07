@@ -9,8 +9,15 @@
 
 #include "torch-mlir/InitAll.h"
 
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/MLProgram/IR/MLProgram.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/IR/Dialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h"
@@ -29,11 +36,22 @@ void mlir::torch::registerAllDialects(mlir::DialectRegistry &registry) {
   mlir::func::registerInlinerExtension(registry);
 }
 
+// TODO: Break this up when backends are separated.
+void mlir::torch::registerOptionalInputDialects(
+    mlir::DialectRegistry &registry) {
+  registry.insert<complex::ComplexDialect, linalg::LinalgDialect,
+                  memref::MemRefDialect, ml_program::MLProgramDialect,
+                  scf::SCFDialect, tensor::TensorDialect, tosa::TosaDialect>();
+}
+
 void mlir::torch::registerAllPasses() {
   mlir::torch::registerTorchPasses();
   mlir::torch::registerTorchConversionPasses();
 
   mlir::torch::registerConversionPasses();
-  mlir::torch::RefBackend::registerRefBackendPasses();
   mlir::torch::TMTensor::registerPasses();
+
+#ifdef TORCH_MLIR_ENABLE_REFBACKEND
+  mlir::torch::RefBackend::registerRefBackendPasses();
+#endif
 }
