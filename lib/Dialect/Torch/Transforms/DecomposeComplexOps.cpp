@@ -1160,7 +1160,8 @@ public:
     // require inserting unrealized_conversion_cast ops to convert the types of
     // the operands from !torch.tensor to to the MLIR built-in tensor type,
     // which isn't ideal (unrealized_conversion_cast should only be used in
-    // conversion passes AFAIK (?)).
+    // conversion passes AFAIK (?)). UPDATE: not a viable option as we cannot
+    // make assumptions about the dialects that torch is lowered to.
     //
     // 3) Create 2 new ops in the torch dialect, with the same semantics as
     // tensor.expand_shape and tensor.collapse_shape, but with !torch.tensor
@@ -1176,9 +1177,11 @@ public:
                 "is statically shaped");
       }
     }
-
-    // At least 3 dimensions are needed
-    // (case when leading_dims is empty).
+    // The input tensor must have at least 3 dimensions: (1) the channel
+    // dimension which gets smaller by 'factor*factor', (2) the H channel which
+    // gets larger by 'factor' and (3) the W channel which get larger by
+    // 'factor'. The total number of dimensions is 3 + N, where N is the number
+    // of leading dimensions, and N >= 0 so the input must have rank at least 3. 
     if (inRank < 3)
       return rewriter.notifyMatchFailure(
           op, "Expected input tensor to have rank greater than 2.");
@@ -1291,19 +1294,16 @@ public:
      Value outShapeList =
          rewriter.create<PrimListConstructOp>(loc, listType, outShape);
 
-     // TODO(jn) figure out why the type of the returned value must be made
-     // undefined.
-     auto finalShape = getTypeFromShape(outShape);
-     auto finalType = finalShape.getWithSizesAndDtype({}, {});
+     // TODO(jn) figure out why the deduced return type (like
+     // !torch.vtensor<[3,4,6],si64>) cannot be used for the type of the
+     // replacement of the pixel_shuffle op's output. The pattern seems to
+     // require the generic !torch.vtensor type.
+  
+     auto deducedReturnType = getTypeFromShape(outShape);
+     auto genericReturnType  = deducedReturnType.getWithSizesAndDtype({}, {});
 
-
-     rewriter.replaceOpWithNewOp<AtenReshapeOp>(op, finalType, B, outShapeList);
-
-//      Value out =
-//          rewriter.createOrFold<AtenReshapeOp>(loc, finalType, B, outShapeList);
-//      rewriter.replaceAllUsesWith(op.getResult(), out);
-//      rewriter.eraseOp(op);
-
+     rewriter.replaceOpWithNewOp<AtenReshapeOp>(op, genericReturnType, B,
+                                                outShapeList);
 
      return success();
   }
