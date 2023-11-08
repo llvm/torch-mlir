@@ -1142,11 +1142,12 @@ public:
                 "is statically shaped");
       }
     }
+
     // The input tensor must have at least 3 dimensions: (1) the channel
     // dimension which gets smaller by 'factor*factor', (2) the H channel which
     // gets larger by 'factor' and (3) the W channel which get larger by
     // 'factor'. The total number of dimensions is 3 + N, where N is the number
-    // of leading dimensions, and N >= 0 so the input must have rank at least 3. 
+    // of leading dimensions, and N >= 0 so the input must have rank at least 3.
     if (inRank < 3)
       return rewriter.notifyMatchFailure(
           op, "Expected input tensor to have rank greater than 2.");
@@ -1258,9 +1259,7 @@ public:
     Value outShapeList =
         rewriter.create<PrimListConstructOp>(loc, listType, outShape);
 
-    auto deducedReturnType = getTypeFromShape(outShape);
-
-    rewriter.replaceOpWithNewOp<AtenReshapeOp>(op, deducedReturnType, B,
+    rewriter.replaceOpWithNewOp<AtenReshapeOp>(op, op.getType(), B,
                                                outShapeList);
     return success();
   }

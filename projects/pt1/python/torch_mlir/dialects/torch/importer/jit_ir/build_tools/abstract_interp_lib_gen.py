@@ -424,9 +424,6 @@ def aten〇pixel_shuffle〡shape(self: List[int], upscale_factor: int) -> List[i
     out.append(self[-1] * upscale_factor)
     return out
 
-def aten〇pixel_shuffle〡dtype(self_rank_dtype: Tuple[int, int], upscale_factor: int) -> int:
-    self_rank, self_dtype = self_rank_dtype
-    return self_dtype
 
 
 def aten〇permute〡shape(self: List[int], dims: List[int]) -> List[int]:
@@ -1556,6 +1553,11 @@ def aten〇abs〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 7)], output_size=[2]))
 def aten〇adaptive_avg_pool1d〡dtype(self_rank_dtype: Tuple[int, int], output_size: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(4, 1, 1)], upscale_factor = 2))
+def aten〇pixel_shuffle〡dtype(self_rank_dtype: Tuple[int, int], upscale_factor: int) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
@@ -3671,6 +3673,8 @@ def aten〇bucketize〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], boundari
 def prims〇squeeze〡dtype(a_rank_dtype: Tuple[int, int], dimensions: List[int]) -> int:
     a_rank, a_dtype = a_rank_dtype
     return a_dtype
+
+
 
 # ==============================================================================
 # Main

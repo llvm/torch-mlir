@@ -656,7 +656,7 @@ def TransposeIntNegDimsModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class PixelShuffleModuleStatic_3_18_2_2(torch.nn.Module):
+class PixelShuffleModuleStaticRank4Float32(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -665,15 +665,15 @@ class PixelShuffleModuleStatic_3_18_2_2(torch.nn.Module):
     def forward(self, x):
         return torch.ops.aten.pixel_shuffle(x, 3)
 
-@register_test_case(module_factory=lambda: PixelShuffleModuleStatic_3_18_2_2())
-def PixelShuffleModuleStatic_3_18_2_2_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: PixelShuffleModuleStaticRank4Float32())
+def PixelShuffleModuleStaticRank4Float32_basic(module, tu: TestUtils):
     module.forward(tu.rand(3,18,2,2))
 
 
 # ==============================================================================
 
 
-class PixelShuffleModuleStatic_12_2_3(torch.nn.Module):
+class PixelShuffleModuleStaticRank3Int64(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -682,8 +682,8 @@ class PixelShuffleModuleStatic_12_2_3(torch.nn.Module):
     def forward(self, x):
         return torch.ops.aten.pixel_shuffle(x, 2)
 
-@register_test_case(module_factory=lambda: PixelShuffleModuleStatic_12_2_3())
-def PixelShuffleModuleStatic_12_2_3_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: PixelShuffleModuleStaticRank3Int64())
+def PixelShuffleModuleStaticRank3Int64_basic(module, tu: TestUtils):
     module.forward(tu.randint(12, 2, 3, low = 0, high = 100))
 
 
