@@ -191,8 +191,6 @@ public:
               IntegerType::get(context, intType.getIntOrFloatBitWidth());
           auto shapedType =
               RankedTensorType::get(type.getShape(), builtinTensorElemTy);
-          AsmResourceBlob *blob = elements.getRawHandle().getBlob();
-          assert(blob && "Expecting dense resource with a valid blob");
           rewriter.replaceOpWithNewOp<arith::ConstantOp>(
               op, DenseResourceElementsAttr::get(shapedType,
                                                  elements.getRawHandle()));
