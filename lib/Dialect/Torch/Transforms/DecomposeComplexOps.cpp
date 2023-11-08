@@ -3921,6 +3921,69 @@ class DecomposeAtenClampMaxOp : public OpRewritePattern<AtenClampMaxOp> {
 } // namespace
 
 namespace {
+class DecomposeAtenCosineSimilarityOp 
+    : public OpRewritePattern<AtenCosineSimilarityOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenCosineSimilarityOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value x1 = op.getX1();
+    Value x2 = op.getX2();
+    Value dim = op.getDim();
+
+    // Broadcast x1 and x2 to the same shape
+    SmallVector<int64_t> indexBroadcastShapeInt;
+    SmallVector<Value> indexBroadcastShapeValue;
+    computeBroadcastShape(rewriter, loc, x1, x2, indexBroadcastShapeInt,
+                          indexBroadcastShapeValue);
+    Type dtype = x1.getType().cast<BaseTensorType>().getOptionalDtype();
+    Type broadcastType = ValueTensorType::get(
+        op.getContext(), llvm::ArrayRef(indexBroadcastShapeInt), dtype);
+    Value indexBroadcastShapeTorchList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        indexBroadcastShapeValue);
+    x1 = rewriter.create<AtenBroadcastToOp>(loc, broadcastType, x1,
+                                            indexBroadcastShapeTorchList);
+    x2 = rewriter.create<AtenBroadcastToOp>(loc, broadcastType, x2,
+                                            indexBroadcastShapeTorchList);
+
+    // Compute the mul of A and B
+    Value dotProduct = 
+        rewriter.create<AtenMulTensorOp>(loc, broadcastType, x1, x2);
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
+    Value dimList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op->getContext())),
+        ValueRange{dim});
+    Value sumDotProduct = rewriter.create<Torch::AtenSumDimIntListOp>(
+        loc, op.getType(), /*self=*/dotProduct, /*dim=*/dimList,
+        /*keepdim=*/cstFalse,
+        /*dtype=*/cstNone);
+          
+    // Compute the norm of A and B
+    Value ord = rewriter.create<Torch::ConstantFloatOp>(loc,
+        rewriter.getF64FloatAttr(2.0));
+    Value normA = rewriter.create<AtenLinalgVectorNormOp>(
+        loc, op.getType(), x1, ord, dimList, /*keepdim=*/cstFalse,
+        /*dtype=*/cstNone);
+    Value normB = rewriter.create<AtenLinalgVectorNormOp>(
+        loc, op.getType(), x2, ord, dimList, /*keepdim=*/cstFalse,
+        /*dtype=*/cstNone);
+  
+    // Compute the product of the norms
+    Value normProduct =
+        rewriter.create<AtenMulTensorOp>(loc, op.getType(), normA, normB);
+    Value normProductClamp = rewriter.create<AtenClampOp>(
+        loc, op.getType(), normProduct, op.getEps(), /*max=*/cstNone);
+    // Compute the final cosine similarity by division
+    rewriter.replaceOpWithNewOp<AtenDivTensorOp>(
+        op, op.getType(), sumDotProduct, normProductClamp);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.baddbmm` op into `aten.bmm`, `aten.mul.Scalar`, and
 // `aten.add.Tensor` op.
 class DecomposeAtenBaddbmmOp : public OpRewritePattern<AtenBaddbmmOp> {
@@ -5535,6 +5598,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMaxOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenCosineSimilarityOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNumpyTOp>(patterns);

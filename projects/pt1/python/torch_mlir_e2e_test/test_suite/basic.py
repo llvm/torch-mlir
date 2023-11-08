@@ -4609,6 +4609,75 @@ def Add_Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class CosineSimilarityStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3], torch.float32, True),
+        ([2, 3], torch.float32, True),
+    ])
+    def forward(self, x1, x2):
+        return torch.ops.aten.cosine_similarity(x1, x2)
+
+
+@register_test_case(module_factory=lambda: CosineSimilarityStaticModule())
+def CosineSimilarityStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3), tu.rand(2, 3))
+
+
+# ==============================================================================
+
+
+class CosineSimilarityStaticBroadcastModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 2, 3], torch.float32, True),
+        ([4, 5, 1, 1], torch.float32, True),
+    ])
+    def forward(self, x1, x2):
+        return torch.ops.aten.cosine_similarity(x1, x2)
+
+
+@register_test_case(module_factory=lambda: CosineSimilarityStaticBroadcastModule())
+def CosineSimilarityStaticBroadcastModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 2, 3), tu.rand(4, 5, 1, 1))
+
+
+# ==============================================================================
+
+
+class CosineSimilarityModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x1, x2):
+        return torch.ops.aten.cosine_similarity(x1, x2)
+
+
+@register_test_case(module_factory=lambda: CosineSimilarityModule())
+def CosineSimilarityModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3), tu.rand(2, 3))
+
+
+# ==============================================================================
+
+
 class IscloseStaticModule(torch.nn.Module):
 
     def __init__(self):

@@ -54,6 +54,14 @@ Type getBuiltInTypeForTorchScalar(Type type);
 
 Value getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
                               Type dtype);
+
+// Checks whether the `inputA` and `inputB` are broadcast compatible or not. If
+// yes, then computes the final broadcast shape.
+void computeBroadcastShape(PatternRewriter &rewriter, Location loc,
+                           Value inputA, Value inputB,
+                           SmallVector<int64_t> &resultShape,
+                           SmallVector<Value> &resultShapeValue);
+
 // Helper to convert a tensor to a specific scalar type.
 Value convertTensorToDtype(PatternRewriter &rewriter, Location loc, Value input,
                            Type dtype);

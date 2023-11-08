@@ -454,6 +454,8 @@ STABLEHLO_PASS_SET = {
     "BucketizeTensorStaticModule_basic",
     "CumsumStaticModule_basic",
     "CumsumStaticNegativeDimModule_basic",
+    "CosineSimilarityStaticModule_basic",
+    "CosineSimilarityStaticBroadcastModule_basic",
     "DetachModule_basic",
     "ElementwiseIsnanModule_basic",
     "ElementwiseAtenLogicalAndOpPromoteBroadcastStaticShapeModule_basic",

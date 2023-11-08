@@ -98,6 +98,10 @@ def aten〇sin〡shape(self: List[int]) -> List[int]:
 def aten〇cos〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇cosine_similarity〡shape(x1: List[int], x2: List[int], dim: int = 1, eps: float = 1e-08) -> List[int]:
+    broadcast = upstream_shape_functions.broadcast(x1, x2)
+    return broadcast[:dim] + broadcast[dim + 1:]
+
 def aten〇hardtanh〡shape(self: List[int], min_val: float = -1, max_val: float = 1) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -1586,6 +1590,15 @@ def aten〇bitwise_not〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 def aten〇broadcast_to〡dtype(self_rank_dtype: Tuple[int, int], size: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=2,dim=0, error_types={torch.complex128, torch.complex64, *all_integer_dtypes()}))
+def aten〇cosine_similarity〡dtype(x1_rank_dtype: Tuple[int, int], x2_rank_dtype: Tuple[int, int], dim: int = 1, eps: float = 1e-08) -> int:
+    x1_rank, x1_dtype = x1_rank_dtype
+    x2_rank, x2_dtype = x2_rank_dtype
+    assert x1_dtype == x2_dtype
+    assert not x1_dtype not in [torch.bfloat16, torch.float16, torch.float32, torch.float64]
+    return x1_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇ceil〡dtype(self_rank_dtype: Tuple[int, int]) -> int:

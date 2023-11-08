@@ -5123,6 +5123,32 @@ def Torch_AtenMvOp : Torch_Op<"aten.mv", [
   }];
 }
 
+def Torch_AtenCosineSimilarityOp : Torch_Op<"aten.cosine_similarity", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::cosine_similarity : (Tensor, Tensor, int, float) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$x1,
+    AnyTorchTensorType:$x2,
+    Torch_IntType:$dim,
+    Torch_FloatType:$eps
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenCosineSimilarityOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenCosineSimilarityOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
 def Torch_AtenConv2dOp : Torch_Op<"aten.conv2d", [
     AllowsTypeRefinement,
     HasValueSemantics,
