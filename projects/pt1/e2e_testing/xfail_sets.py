@@ -943,6 +943,8 @@ STABLEHLO_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "PixelShuffleModuleStaticRank3Int64_basic",
+    "PixelShuffleModuleStaticRank4Float32_basic",
     "IscloseStaticModule_basic",
     "IscloseStaticModuleTrue_basic",
     "TileBigDimsSizeModule_basic",
@@ -1352,6 +1354,8 @@ LTC_CRASHING_SET = {
 }
 
 LTC_XFAIL_SET = {
+    "PixelShuffleModuleStaticRank3Int64_basic",
+    "PixelShuffleModuleStaticRank4Float32_basic",
     "_Convolution2DAllFalseModule_basic",
     "_Convolution2DBenchmarkModule_basic",
     "_Convolution2DCudnnModule_basic",

@@ -592,6 +592,7 @@ def PermuteModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 2))
 
 
+
 # ==============================================================================
 
 
@@ -653,6 +654,39 @@ def TransposeIntNegDimsModule_basic(module, tu: TestUtils):
 
 
 # ==============================================================================
+
+
+class PixelShuffleModuleStaticRank4Float32(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([3, 18, 2, 2], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_shuffle(x, 3)
+
+@register_test_case(module_factory=lambda: PixelShuffleModuleStaticRank4Float32())
+def PixelShuffleModuleStaticRank4Float32_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3,18,2,2))
+
+
+# ==============================================================================
+
+
+class PixelShuffleModuleStaticRank3Int64(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([12, 2, 3], torch.int64, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_shuffle(x, 2)
+
+@register_test_case(module_factory=lambda: PixelShuffleModuleStaticRank3Int64())
+def PixelShuffleModuleStaticRank3Int64_basic(module, tu: TestUtils):
+    module.forward(tu.randint(12, 2, 3, low = 0, high = 100))
+
+
 
 
 class TensorsConcatModule(torch.nn.Module):
