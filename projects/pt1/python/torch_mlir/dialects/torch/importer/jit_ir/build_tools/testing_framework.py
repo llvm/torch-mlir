@@ -216,9 +216,9 @@ def _get_fn_and_golden_results(f, invocation: List[Invocation]):
     # Check for error behavior.
     if invocation.is_expected_to_raise_exception():
         if fn_error is None and op_error is None:
-            _report(f, invocation, f"Expected to raise an exception, but neither {fn_type} function n or op raised an exception")
+            _report(f, invocation, f"Expected to raise an exception, but neither {fn_type} function or op raised an exception")
         if fn_error is None:
-            _report(f, invocation, f"Op raised error {op_error!r}, but shape function did not.")
+            _report(f, invocation, f"Op raised error {op_error!r}, but shape/dtype function did not.")
         if op_error is None:
             _report(f, invocation, f"{fn_type} function raised error {fn_error!r}, but op did not.")
     else:

@@ -2412,6 +2412,18 @@ def aten〇bmm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[
     self_priority = get_priority_of_dtype(self_dtype)
     return mat2_dtype if mat2_priority < self_priority else self_dtype
 
+@check_dtype_function(_check_two_tensor_op(input_error_types={torch.complex64, torch.complex128}, output_error_types={torch.bool}))
+def aten〇floor_divide〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    other_rank, other_dtype = other_rank_dtype
+    self_rank, self_dtype = self_rank_dtype
+    assert not is_complex_dtype(self_dtype), "`self` cannot be complex"
+    assert not is_complex_dtype(other_dtype), "`other` cannot be complex"
+    ranks: List[Optional[int]] = [self_rank, other_rank]
+    dtypes = [self_dtype, other_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    assert promoted_dtype != torch.bool, "Result dtype for aten.floor_divide bool"
+    return promoted_dtype
+
 @check_dtype_function(_check_two_tensor_op())
 def aten〇div〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
     other_rank, other_dtype = other_rank_dtype
@@ -2425,30 +2437,23 @@ def aten〇div〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dty
     else:
         return torch.float32
 
-@check_dtype_function(_check_two_tensor_op(rounding_mode=None))
+@check_dtype_function(_check_two_tensor_op(rounding_mode=None) +
+                      _check_two_tensor_op(input_error_types={torch.complex64, torch.complex128}, output_error_types={torch.bool}, rounding_mode="floor") +
+                      _check_two_tensor_op(rounding_mode="trunc"))
 def aten〇div〇Tensor_mode〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int], rounding_mode: Optional[str]) -> int:
+    if rounding_mode is not None and rounding_mode == "floor":
+        return aten〇floor_divide〡dtype(self_rank_dtype, other_rank_dtype)
     other_rank, other_dtype = other_rank_dtype
     self_rank, self_dtype = self_rank_dtype
     ranks: List[Optional[int]] = [self_rank, other_rank]
     dtypes = [self_dtype, other_dtype]
     promoted_dtype = promote_dtypes(ranks, dtypes)
     if is_complex_dtype(promoted_dtype) or \
-       (is_float_dtype(promoted_dtype) and promoted_dtype != torch.float32):
+       (is_float_dtype(promoted_dtype) and promoted_dtype != torch.float32) or \
+        (rounding_mode is not None and rounding_mode == "trunc"):
         return promoted_dtype
     else:
         return torch.float32
-
-@check_dtype_function(_check_two_tensor_op(input_error_types={torch.complex64, torch.complex128}, output_error_types={torch.bool}))
-def aten〇floor_divide〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
-    other_rank, other_dtype = other_rank_dtype
-    self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype), "`self` cannot be complex"
-    assert not is_complex_dtype(other_dtype), "`other` cannot be complex"
-    ranks: List[Optional[int]] = [self_rank, other_rank]
-    dtypes = [self_dtype, other_dtype]
-    promoted_dtype = promote_dtypes(ranks, dtypes)
-    assert promoted_dtype != torch.bool, "Result dtype for aten.floor_divide bool"
-    return promoted_dtype
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 4), (2, 4, 3)]) +
