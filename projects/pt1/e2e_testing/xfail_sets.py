@@ -302,6 +302,9 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # ERROR: dtype (torch.int64) is not equal to golden dtype (torch.float32)
     "ThresholdBackward2dMixedModule_basic",
+
+    # ERROR: shape (torch.Size([12])) is not equal to golden shape (torch.Size([3, 4]))
+    "ArangeStartOutViewModule_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.1.0.dev"):
@@ -1303,6 +1306,8 @@ TOSA_PASS_SET = {
     "AtenEyeModuleFalsePinMemory_basic",
     "AtenEyeModuleFloat2D_basic",
     "MeanModule_basic",
+    "ArangeStartOutModule_basic",
+    "ArangeStartOutViewModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
@@ -1372,6 +1377,7 @@ LTC_XFAIL_SET = {
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
     "AddIntModule_basic",
+    "ArangeStartOutViewModule_basic",
     "AtenIntBoolOpModule_basic",
     "BernoulliTensorModule_basic",
     "BincountMinlengthModule_basic",

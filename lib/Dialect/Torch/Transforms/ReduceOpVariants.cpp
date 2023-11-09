@@ -191,6 +191,16 @@ private:
 // Reduce Ops without value semantics but the corresponding without trailing
 // underscore variant doesn't exist.
 namespace {
+
+// int(ceil((end - start) / step))
+Value calculateArangeResultNumElements(PatternRewriter &rewriter, Location loc,
+                                       Value start, Value end, Value step) {
+  Value sub = rewriter.create<AtenSubOp>(
+      loc, Torch::NumberType::get(rewriter.getContext()), end, start);
+  Value div = rewriter.create<AtenDivOp>(loc, sub, step);
+  return rewriter.create<AtenCeilFloatOp>(loc, div);
+}
+
 class ReduceNonValueSemanticOps : public RewritePattern {
 public:
   ReduceNonValueSemanticOps(MLIRContext *context)
@@ -198,19 +208,54 @@ public:
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
-    Operation *newOp;
+    MLIRContext *ctx = op->getContext();
     if (isa<AtenBernoulli_FloatOp>(op)) {
-      newOp = rewriter.create<ValsemVariantAtenBernoulliFloatOp>(
+      Operation *newOp = rewriter.create<ValsemVariantAtenBernoulliFloatOp>(
           loc, op->getResultTypes(), op->getOperands());
+      auto tensor =
+          rewriter.create<CopyToValueTensorOp>(loc, newOp->getResult(0));
+      createOverwriteTensorContents(rewriter, loc, tensor, op->getOperand(0));
+      rewriter.replaceOp(op, op->getOperand(0));
+      return success();
+    } else if (auto arangeOutOp = dyn_cast<AtenArangeStartOutOp>(op)) {
+      Value start = arangeOutOp.getStart();
+      Value end = arangeOutOp.getEnd();
+      Value step = arangeOutOp.getStep();
+      Value out = arangeOutOp.getOut();
+
+      // `overwrite.tensor.contents` cannot change the tensor shape,
+      // so `out` tensor should have same num_elements with result tensor.
+      // It means that we don't support code like:
+      //   `x = torch.randn(12)`
+      //   `y = torch.arange(13, out=x)`
+      Value resultNumElements =
+          calculateArangeResultNumElements(rewriter, loc, start, end, step);
+      Value outNumElements = rewriter.create<AtenNumelOp>(loc, out);
+      Value eqOrNot =
+          rewriter.create<AtenEqIntOp>(loc, resultNumElements, outNumElements);
+      rewriter.create<RuntimeAssertOp>(
+          loc, eqOrNot,
+          rewriter.getStringAttr("`out` tensor should have the same "
+                                 "num_elements with result tenosr"));
+
+      auto dtype = rewriter.create<PrimDtypeOp>(loc, out);
+      auto device = rewriter.create<PrimDeviceOp>(loc, out);
+      auto shape = rewriter.create<AtenSizeOp>(
+          loc, Torch::ListType::get(Torch::IntType::get(ctx)), out);
+      auto none = rewriter.create<ConstantNoneOp>(loc);
+      Value newArange = rewriter.create<AtenArangeStartStepOp>(
+          loc, arangeOutOp.getResult().getType(), start, end, step, dtype,
+          /*layout=*/none, device, /*pin_memory=*/none);
+      Value reshape = rewriter.create<AtenReshapeOp>(
+          loc, arangeOutOp.getResult().getType(), newArange, shape);
+
+      auto vtensor = rewriter.create<CopyToValueTensorOp>(loc, reshape);
+      createOverwriteTensorContents(rewriter, loc, vtensor, out);
+      rewriter.replaceOp(arangeOutOp, out);
+      return success();
     } else {
       return failure();
     }
-
-    auto tensor =
-        rewriter.create<CopyToValueTensorOp>(loc, newOp->getResult(0));
-    createOverwriteTensorContents(rewriter, loc, tensor, op->getOperand(0));
-    rewriter.replaceOp(op, op->getOperand(0));
-    return success();
   }
 };
 } // namespace
@@ -309,6 +354,7 @@ struct ReduceOpVariantsPass
     ConversionTarget target(*context);
     target.addIllegalOp<NonValueTensorLiteralOp>();
     target.addIllegalOp<AtenBernoulli_FloatOp>();
+    target.addIllegalOp<AtenArangeStartOutOp>();
     target.markUnknownOpDynamicallyLegal([&extraLibraryModuleSymTable](
                                              Operation *op) {
       if (op->hasTrait<Torch::OpTrait::HasValueSemantics>() ||
