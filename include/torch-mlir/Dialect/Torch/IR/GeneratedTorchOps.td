@@ -6422,29 +6422,6 @@ def Torch_AtenTransposeIntOp : Torch_Op<"aten.transpose.int", [
   }];
 }
 
-def Torch_AtenPermuteOp : Torch_Op<"aten.permute", [
-    AllowsTypeRefinement,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::permute : (Tensor, int[]) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchListOfTorchIntType:$dims
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenPermuteOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 2, 1);
-    }
-    void AtenPermuteOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 2, 1);
-    }
-  }];
-}
-
 def Torch_AtenPixelShuffleOp : Torch_Op<"aten.pixel_shuffle", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -6467,6 +6444,30 @@ def Torch_AtenPixelShuffleOp : Torch_Op<"aten.pixel_shuffle", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+}
+
+def Torch_AtenPermuteOp : Torch_Op<"aten.permute", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::permute : (Tensor, int[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchListOfTorchIntType:$dims
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenPermuteOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenPermuteOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasVerifier = 1;
 }
 
 def Torch_AtenMovedimIntOp : Torch_Op<"aten.movedim.int", [

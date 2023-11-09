@@ -2859,6 +2859,94 @@ LogicalResult ShapeCalculateYieldShapesOp::verify() {
   return success();
 }
 
+LogicalResult AtenPermuteOp::verify() {
+
+  // Verification of the permute op for input & output dimensions with
+  // statically known sizes.
+
+  SmallVector<Value> permutation;
+  auto permutationObtained = getListConstructElements(getDims(), permutation);
+  if (!permutationObtained) {
+    return success();
+  }
+
+  auto outType = getResult().getType().cast<BaseTensorType>();
+  auto inType = getSelf().getType().cast<BaseTensorType>();
+
+  if (!outType.hasSizes() || !inType.hasSizes()) {
+    return success();
+  }
+
+  auto outShape = outType.getOptionalSizes().value();
+  auto inShape = inType.getOptionalSizes().value();
+
+  auto outRank = outShape.size();
+
+  if (outRank != inShape.size()) {
+    return emitOpError(
+               "expected input and output tensors to have same rank, but ")
+           << inShape.size() << " != " << outRank << '.';
+  }
+
+  if (outRank != permutation.size()) {
+    return emitOpError() << "expected permutation to have size equal result "
+                            "tensor rank. The permutation has "
+                         << permutation.size()
+                         << " elements, the output has rank " << outRank << '.';
+  }
+
+  auto inBounds = [outRank](auto index) {
+    return index >= 0 && static_cast<uint64_t>(index) < outRank;
+  };
+
+  // Initialization of the reverse permutation. -1 denotes an unknown
+  // permutation index.
+  SmallVector<int64_t> reversePermutation(outRank, -1);
+
+  // In this loop:
+  //  (1) check that the permutation indices are in bounds, and not duplicated.
+  //  (2) populate reversePermutation (to check for duplicates).
+  //  (3) check that the input and output shapes agree with the permutation. For
+  //  example, if the permutation is (1,2,0) and the input shape is (2,3,5),
+  //  then the output shape must be (3,5,2).
+
+  for (uint64_t to = 0; to < outRank; ++to) {
+    int64_t from;
+    auto fromIsSet = matchPattern(permutation[to], m_TorchConstantInt(&from));
+
+    // if 'from' is the unkwown index, continue.
+    if (from == -1) {
+      continue;
+    }
+
+    if (fromIsSet) {
+      if (!inBounds(from)) {
+        return emitError("observed invalid index in permutation (")
+               << from << ") for input tensor of rank " << outRank << '.';
+      }
+      if (reversePermutation[from] != -1) {
+        return emitOpError("has a duplicate dimension (")
+               << from << ") in its permutation " << getDims() << '.';
+      }
+      reversePermutation[from] = to;
+
+      auto dimSizesDefined = inShape[from] != -1 && outShape[to] != -1;
+      auto dimSizesDifferent = inShape[from] != outShape[to];
+
+      if (dimSizesDefined && dimSizesDifferent) {
+        return emitOpError("has a permutation which is not compatible with the "
+                           "input and output shapes. ")
+               << "The input shape in dimension " << from << " is "
+               << inShape[from] << ", and the output shape in dimension " << to
+               << " is " << outShape[to]
+               << " : they should be the same with this permutation. ";
+      }
+    }
+  }
+
+  return success();
+}
+
 //===----------------------------------------------------------------------===//
 // DtypeCalculateYieldDtypesOp
 //===----------------------------------------------------------------------===//
