@@ -1302,6 +1302,7 @@ TOSA_PASS_SET = {
     "AtenEyeModuleDefaultDtype_basic",
     "AtenEyeModuleFalsePinMemory_basic",
     "AtenEyeModuleFloat2D_basic",
+    "MeanModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
@@ -1312,7 +1313,6 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "TensorIntModule_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
-    "MeanModule_basic",
 }) - {
 ### Test failing in make_fx_tosa but not in tosa
 
