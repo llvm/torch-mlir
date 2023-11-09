@@ -1154,6 +1154,27 @@ void AtenDivTensorModeOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenNumelOp
+//===----------------------------------------------------------------------===//
+void AtenNumelOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                              MLIRContext *context) {
+  patterns.add(+[](AtenNumelOp op, PatternRewriter &rewriter) {
+    auto inputType = op.getSelf().getType().dyn_cast<BaseTensorType>();
+    if (!inputType || !inputType.areAllSizesKnown()) {
+      return failure();
+    }
+    auto sizes = inputType.getSizes();
+    int64_t numel = 1;
+    for (int64_t d : sizes) {
+      numel *= d;
+    }
+    rewriter.replaceOpWithNewOp<ConstantIntOp>(
+        op, rewriter.getI64IntegerAttr(numel));
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // Aten__Or__TensorOp
 //===----------------------------------------------------------------------===//
 

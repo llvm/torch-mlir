@@ -9200,6 +9200,7 @@ def Torch_AtenNumelOp : Torch_Op<"aten.numel", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenRepeatOp : Torch_Op<"aten.repeat", [

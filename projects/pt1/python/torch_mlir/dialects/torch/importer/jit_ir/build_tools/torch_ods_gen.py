@@ -589,7 +589,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit_with_mutating_variants("aten::_index_put_impl : (Tensor, Tensor?[], Tensor, bool, bool) -> (Tensor)")
     emit("aten::item : (Tensor) -> (Scalar)")
     emit("aten::masked_select : (Tensor, Tensor) -> (Tensor)")
-    emit("aten::numel : (Tensor) -> (int)")
+    emit("aten::numel : (Tensor) -> (int)", has_canonicalizer=True)
     emit("aten::repeat : (Tensor, int[]) -> (Tensor)")
     emit("aten::tile : (Tensor, int[]) -> (Tensor)")
     emit("aten::reshape : (Tensor, int[]) -> (Tensor)")

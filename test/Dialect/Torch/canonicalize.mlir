@@ -2119,3 +2119,20 @@ func.func @torch.aten.any.bool$fold() -> !torch.bool {
   %0 = torch.aten.any.bool %input : !torch.list<bool> -> !torch.bool
   return %0 : !torch.bool
 }
+
+// CHECK-LABEL:   func.func @torch.aten.floor$canonicalize
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[?,?],si64>
+// CHECK-NEXT:      return %[[ARG]] : !torch.vtensor<[?,?],si64>
+func.func @torch.aten.floor$canonicalize(%arg0: !torch.vtensor<[?,?],si64>) -> !torch.vtensor<[?,?],si64> {
+  %0 = torch.aten.floor %arg0 : !torch.vtensor<[?,?],si64> -> !torch.vtensor<[?,?],si64>
+  return %0 : !torch.vtensor<[?,?],si64>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.numel$canonicalize
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[3,4],f32> 
+// CHECK-NEXT:      %int12 = torch.constant.int 12
+// CHECK-NEXT:      return %int12 : !torch.int
+func.func @torch.aten.numel$canonicalize(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.int {
+  %0 = torch.aten.numel %arg0 : !torch.vtensor<[3,4],f32> -> !torch.int
+  return %0 : !torch.int
+}
