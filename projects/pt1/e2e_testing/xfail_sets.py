@@ -1302,6 +1302,7 @@ TOSA_PASS_SET = {
     "AtenEyeModuleDefaultDtype_basic",
     "AtenEyeModuleFalsePinMemory_basic",
     "AtenEyeModuleFloat2D_basic",
+    "MeanModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
