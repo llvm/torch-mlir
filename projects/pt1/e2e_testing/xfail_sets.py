@@ -1355,6 +1355,8 @@ LTC_CRASHING_SET = {
 }
 
 LTC_XFAIL_SET = {
+    "CollapseStaticModule_basic",
+    "CollapseDynamicModule_basic",
     "PixelShuffleModuleStaticRank3Int64_basic",
     "PixelShuffleModuleStaticRank4Float32_basic",
     "_Convolution2DAllFalseModule_basic",
