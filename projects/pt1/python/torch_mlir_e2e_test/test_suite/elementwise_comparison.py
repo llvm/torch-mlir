@@ -160,7 +160,9 @@ class ElementwiseGeFloatTensorModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseGeFloatTensorModule())
 def ElementwiseGeFloatTensorModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 5), tu.rand(5))
+    module.forward(
+        torch.tensor([[1.0, 2.2, torch.nan], [6.0, 2.0, 3.1]]).to(torch.float32),
+        torch.tensor([6.0, 2.1, torch.nan]).to(torch.float32))
 
 # ==============================================================================
 
@@ -200,7 +202,9 @@ class ElementwiseGtFloatTensorModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseGtFloatTensorModule())
 def ElementwiseGtFloatTensorModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 5), tu.rand(5))
+    module.forward(
+        torch.tensor([[1.0, 2.2, torch.nan], [6.0, 2.0, 3.1]]).to(torch.float32),
+        torch.tensor([6.0, 2.1, torch.nan]).to(torch.float32))
 
 # ==============================================================================
 
@@ -374,7 +378,9 @@ class ElementwiseLeFloatTensorModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseLeFloatTensorModule())
 def ElementwiseLeFloatTensorModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 5), tu.rand(5))
+    module.forward(
+        torch.tensor([[1.0, 2.2, torch.nan], [6.0, 2.0, 3.1]]).to(torch.float32),
+        torch.tensor([6.0, 2.1, torch.nan]).to(torch.float32))
 
 # ==============================================================================
 
@@ -414,7 +420,9 @@ class ElementwiseLtFloatTensorModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseLtFloatTensorModule())
 def ElementwiseLtFloatTensorModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 5), tu.rand(5))
+    module.forward(
+        torch.tensor([[1.0, 2.2, torch.nan], [6.0, 2.0, 3.1]]).to(torch.float32),
+        torch.tensor([6.0, 2.1, torch.nan]).to(torch.float32))
 
 # ==============================================================================
 

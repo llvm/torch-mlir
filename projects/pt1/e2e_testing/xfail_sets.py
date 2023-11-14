@@ -1241,7 +1241,7 @@ TOSA_PASS_SET = {
     "HardswishRandomModule_basic",
     "BucketizeTensorStaticFloatModule_basic",
     "BucketizeTensorStaticModule_basic",
-    "ElementwiseLeFloatTensorModule_basic",
+    # "ElementwiseLeFloatTensorModule_basic",
     "ElementwiseLeIntTensorModule_basic",
     "FullLikeModuleInt2DStatic_basic",
     "FullModuleInt3D_basic",
