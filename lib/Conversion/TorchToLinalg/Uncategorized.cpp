@@ -1785,6 +1785,14 @@ public:
     if (!matchPattern(op.getEnd(), m_TorchConstantInt(&endInt)))
       return failure();
 
+    // Upstream MLIR is overly strict -- it fails verification if the
+    // collapse_shape is the identity op (i.e. when no dimensions are
+    // collapsed). We manually fold this case here.
+    if (startInt == endInt) {
+      rewriter.replaceOp(op, adaptor.getA());
+      return success();
+    }
+
     SmallVector<ReassociationIndices> associations;
     associations.reserve(resultRankedTensorType.getRank());
 
@@ -1806,6 +1814,7 @@ public:
     for (int i = endInt + 1; i < aRankedTensorType.getRank(); ++i) {
       associations.push_back(ReassociationIndices{i});
     }
+
 
     rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(
         op, resultRankedTensorType, adaptor.getA(), associations);
