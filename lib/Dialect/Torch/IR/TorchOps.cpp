@@ -2895,9 +2895,6 @@ LogicalResult AtenPermuteOp::verify() {
                          << " elements, the output has rank " << outRank << '.';
   }
 
-  auto inBounds = [outRank](auto index) {
-    return index >= 0 && static_cast<uint64_t>(index) < outRank;
-  };
 
   // Initialization of the reverse permutation. -1 denotes an unknown
   // permutation index.
@@ -2912,35 +2909,40 @@ LogicalResult AtenPermuteOp::verify() {
 
   for (uint64_t to = 0; to < outRank; ++to) {
     int64_t from;
+
     auto fromIsSet = matchPattern(permutation[to], m_TorchConstantInt(&from));
+
+    if (!fromIsSet) {
+      continue;
+    }
 
     // if 'from' is the unkwown index, continue.
     if (from == -1) {
       continue;
     }
 
-    if (fromIsSet) {
-      if (!inBounds(from)) {
-        return emitError("observed invalid index in permutation (")
-               << from << ") for input tensor of rank " << outRank << '.';
-      }
-      if (reversePermutation[from] != -1) {
-        return emitOpError("has a duplicate dimension (")
-               << from << ") in its permutation " << getDims() << '.';
-      }
-      reversePermutation[from] = to;
+    if (!isValidDim(from, outRank)) {
+      return emitError("observed invalid index in permutation (")
+             << from << ") for input tensor of rank " << outRank << '.';
+    }
 
-      auto dimSizesDefined = inShape[from] != -1 && outShape[to] != -1;
-      auto dimSizesDifferent = inShape[from] != outShape[to];
+    if (reversePermutation[from] != -1) {
+      return emitOpError("has a duplicate dimension (")
+             << from << ") in its permutation " << getDims() << '.';
+    }
+    reversePermutation[from] = to;
 
-      if (dimSizesDefined && dimSizesDifferent) {
-        return emitOpError("has a permutation which is not compatible with the "
-                           "input and output shapes. ")
-               << "The input shape in dimension " << from << " is "
-               << inShape[from] << ", and the output shape in dimension " << to
-               << " is " << outShape[to]
-               << " : they should be the same with this permutation. ";
-      }
+    auto dimSizesDefined =
+        inShape[from] != kUnknownSize && outShape[to] != kUnknownSize;
+    auto dimSizesDifferent = inShape[from] != outShape[to];
+
+    if (dimSizesDefined && dimSizesDifferent) {
+      return emitOpError("has a permutation which is not compatible with the "
+                         "input and output shapes. ")
+             << "The input shape in dimension " << from << " is "
+             << inShape[from] << ", and the output shape in dimension " << to
+             << " is " << outShape[to]
+             << " : they should be the same with this permutation. ";
     }
   }
 
