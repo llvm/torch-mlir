@@ -185,7 +185,7 @@ static Value getScalarFloatValue(Value input, Location loc,
   if (auto valueTensorLiteralOp = input.getDefiningOp<ValueTensorLiteralOp>()) {
     auto val = valueTensorLiteralOp.getValue()
                    .cast<DenseFPElementsAttr>()
-                   .getSplatValue<APFloat>()
+                   .getSplatValue<FloatAttr>()
                    .getValueAsDouble();
     return rewriter.create<Torch::ConstantFloatOp>(
         loc, rewriter.getF64FloatAttr(val));
