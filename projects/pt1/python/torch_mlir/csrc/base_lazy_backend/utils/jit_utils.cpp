@@ -20,7 +20,7 @@ void ConvertScalarImplicit(std::shared_ptr<Graph>& graph) {
 
     NodeKind node_type;
     TypePtr output_type;
-    if (c10::isIntegralType(*scalar_type, false)) {
+    if (c10::isIntegralType(*scalar_type, true)) {
       node_type = c10::aten::IntImplicit;
       output_type = IntType::get();
     } else if (c10::isFloatingType(*scalar_type)) {
