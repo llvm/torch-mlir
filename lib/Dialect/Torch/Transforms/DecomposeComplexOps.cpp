@@ -247,6 +247,71 @@ public:
 } // end namespace
 
 namespace {
+class DecomposeAtenTriuOp : public OpRewritePattern<AtenTriuOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTriuOp op,
+                                PatternRewriter &rewriter) const override {
+    MLIRContext *context = op.getContext();
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    auto inputType = input.getType().cast<BaseTensorType>();
+    if (!inputType.hasSizes() || !inputType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "should have shape and dtype");
+    }
+    if (inputType.getSizes().size() < 2) {
+      return rewriter.notifyMatchFailure(op, "the rank of tensor should >= 2");
+    }
+    int64_t diagonal;
+    if (!matchPattern(op.getDiagonal(), m_TorchConstantInt(&diagonal))) {
+      return rewriter.notifyMatchFailure(
+          op, "non-const diagonal parameter unsupported");
+    }
+    Value rowDim = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(-2));
+    Value colDim = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(-1));
+    Value rowSize = rewriter.create<AtenSizeIntOp>(loc, input, rowDim);
+    Value colSize = rewriter.create<AtenSizeIntOp>(loc, input, colDim);
+
+    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
+
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value rowArange = rewriter.create<AtenArangeOp>(
+        loc, baseType, rowSize, /*dtype=*/none, /*layout=*/none,
+        /*device=*/none, /*pin_memory=*/none);
+    Value colArange = rewriter.create<AtenArangeOp>(
+        loc, baseType, colSize, /*dtype=*/none, /*layout=*/none,
+        /*device=*/none, /*pin_memory=*/none);
+
+    Value unsqueezeRowArange = rewriter.create<AtenUnsqueezeOp>(
+        loc, baseType, rowArange,
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1)));
+
+    Value unsqueezeColArange = rewriter.create<AtenUnsqueezeOp>(
+        loc, baseType, colArange,
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0)));
+
+    Value unsqueezeRowArangePlusDiagonal = rewriter.create<AtenAddScalarOp>(
+        loc, baseType, unsqueezeRowArange,
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1)),
+        rewriter.create<ConstantIntOp>(loc,
+                                       rewriter.getI64IntegerAttr(diagonal)));
+
+    Value condTensor = rewriter.create<AtenGeTensorOp>(
+        loc, baseType, unsqueezeColArange, unsqueezeRowArangePlusDiagonal);
+
+    auto others =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+
+    rewriter.replaceOpWithNewOp<AtenWhereScalarOtherOp>(
+        op, op.getResult().getType(), condTensor, input, others);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenSizeOp : public OpRewritePattern<AtenSizeOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -5817,6 +5882,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenTileOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenTriuOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
