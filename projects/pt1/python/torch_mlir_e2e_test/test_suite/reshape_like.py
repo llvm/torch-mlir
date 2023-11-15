@@ -123,6 +123,105 @@ def ViewDynamicExpandModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 30, 384))
 
 # ==============================================================================
+#
+class CollapseAllDimensionsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2,2,2,2], torch.float32, True)])
+
+    def forward(self, a):
+        return torch.ops.prims.collapse(a, 0, 3)
+
+
+@register_test_case(
+    module_factory=lambda: CollapseAllDimensionsModule())
+def CollapseAllDimensionsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2,2,2,2))
+
+# ==============================================================================
+#
+class CollapseRank1DynamicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True)])
+
+    def forward(self, a):
+        return torch.ops.prims.collapse(a, 0, 0)
+
+@register_test_case(
+    module_factory=lambda: CollapseRank1DynamicModule())
+def CollapseRank1DynamicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5))
+
+# ==============================================================================
+#
+class CollapseStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2,3,4], torch.float32, True)])
+
+    def forward(self, a):
+        return torch.ops.prims.collapse(a, 1, 2)
+
+
+@register_test_case(
+    module_factory=lambda: CollapseStaticModule())
+def CollapseStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2,3,4))
+
+# ==============================================================================
+#
+class CollapsePartialDynamicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1,-1,4,5], torch.float32, True)])
+
+    def forward(self, a):
+        return torch.ops.prims.collapse(a, 1, 2)
+
+
+@register_test_case(
+    module_factory=lambda: CollapsePartialDynamicModule())
+def CollapsePartialDynamicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2,3,4,5))
+
+class CollapseFullDynamicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1,-1,-1], torch.float32, True)])
+
+    def forward(self, a):
+        return torch.ops.prims.collapse(a, 0,1)
+
+
+@register_test_case(
+    module_factory=lambda: CollapseFullDynamicModule())
+def CollapseFullDynamicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2,3,5))
+
+
+
+# ==============================================================================
 
 class ViewDynamicExpandWithAtenSizeIntModule(torch.nn.Module):
     def __init__(self):

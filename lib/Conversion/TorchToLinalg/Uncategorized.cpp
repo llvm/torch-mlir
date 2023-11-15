@@ -25,6 +25,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APSInt.h"
+#include <numeric>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -1298,6 +1299,7 @@ public:
 //     nll_loss_forward[i] = -(input[i][indi]);
 // TODO: `weight`operand is still to be taken care of.
 namespace {
+
 class ConvertAtenNllLossForwardOp
     : public OpConversionPattern<AtenNllLossForwardOp> {
 public:
@@ -1758,6 +1760,71 @@ public:
 } // namespace
 
 namespace {
+class ConvertPrimsCollapseOp : public OpConversionPattern<PrimsCollapseOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(PrimsCollapseOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    auto aRankedTensorType = adaptor.getA().getType().cast<RankedTensorType>();
+    const TypeConverter *typeConverter = getTypeConverter();
+
+    auto resultRankedTensorType =
+        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+
+    // Collapse range must be statically known.
+    int64_t startInt;
+    if (!matchPattern(op.getStart(), m_TorchConstantInt(&startInt)))
+      return failure();
+
+    int64_t endInt;
+    if (!matchPattern(op.getEnd(), m_TorchConstantInt(&endInt)))
+      return failure();
+
+    // Upstream MLIR is overly strict -- it fails verification if the
+    // collapse_shape is the identity op (i.e. when no dimensions are
+    // collapsed). We manually fold this case here.
+    if (startInt == endInt) {
+      rewriter.replaceOp(op, adaptor.getA());
+      return success();
+    }
+
+    SmallVector<ReassociationIndices> associations;
+    associations.reserve(resultRankedTensorType.getRank());
+
+    // An example of is where input shape is [3,4,5,6] and
+    // start = 1, and end = 2. The collapsed shape is then [3,4*5,6],
+    // with reassociation indices of [0], [1,2], and [3].
+
+    // Append the singleton dimensions before the collapsed dimensions.
+    for (unsigned i = 0; i < startInt; ++i) {
+      associations.push_back(ReassociationIndices{i});
+    }
+
+    // Append the collapsed dimensions.
+    ReassociationIndices collapseDims(endInt + 1 - startInt);
+    std::iota(collapseDims.begin(), collapseDims.end(), startInt);
+    associations.push_back(collapseDims);
+
+    // Append the singleton dimensions after the collapsed dimensions.
+    for (int i = endInt + 1; i < aRankedTensorType.getRank(); ++i) {
+      associations.push_back(ReassociationIndices{i});
+    }
+
+
+    rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(
+        op, resultRankedTensorType, adaptor.getA(), associations);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertTensorStaticInfoCastOp
     : public OpConversionPattern<TensorStaticInfoCastOp> {
 public:
@@ -1805,6 +1872,10 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);
   target.addIllegalOp<AtenBatchNormOp>();
   patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
+
+  target.addIllegalOp<PrimsCollapseOp>();
+  patterns.add<ConvertPrimsCollapseOp>(typeConverter, context);
+
   target.addIllegalOp<AtenNllLossBackwardOp>();
   patterns.add<ConvertAtenNllLossBackwardOp>(typeConverter, context);
   patterns.add<ConvertTensorStaticInfoCastOp>(typeConverter, context);

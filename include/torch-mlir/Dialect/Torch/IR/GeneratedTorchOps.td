@@ -14185,6 +14185,31 @@ def Torch_PrimsSqrtOp : Torch_Op<"prims.sqrt", [
   }];
 }
 
+def Torch_PrimsCollapseOp : Torch_Op<"prims.collapse", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `prims::collapse : (Tensor, int, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$a,
+    Torch_IntType:$start,
+    Torch_IntType:$end
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult PrimsCollapseOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void PrimsCollapseOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
 def Torch_PrimsSqueezeOp : Torch_Op<"prims.squeeze", [
     AllowsTypeRefinement,
     ReadOnly

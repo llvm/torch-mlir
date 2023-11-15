@@ -177,6 +177,8 @@ def aten〇glu〡shape(self: List[int], dim: int = -1) -> List[int]:
     assert self[dim] % 2 == 0, "glu's dim size must be multiply of 2"
     return self[:dim] + [self[dim] // 2] + self[dim+1:]
 
+
+
 def aten〇_softmax〡shape(self: List[int], dim: int, half_to_float: bool) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -203,6 +205,40 @@ def aten〇rsub〇Scalar〡shape(self: List[int], other: float, alpha: float = 1
 
 def prims〇convert_element_type〡shape(a: List[int], dtype: int) -> List[int]:
     return upstream_shape_functions.unary(a)
+
+def prims〇collapse〡shape(a: List[int], start: int, end: int) -> List[int]:
+    # Obtained through trial and error on a few examples in PyTorch:
+    assert start <= len(a), "start out of bounds"
+    assert end <= len(a), "end out of bounds"
+    assert start >= 0, "start out of bounds"
+    assert end >= 0, "end out of bounds"
+    assert start <= end, "start must be less than or equal to end"
+
+    # Example: 
+    #
+    #  torch._prims.collapse(torch.empty(2,3,4), 1,2).shape
+    #  is 
+    #  torch.Size([2, 12])
+
+    collapsed: List[int] = []
+    for i in range(start):
+        collapsed.append(a[i])
+
+    # For the example, here collapsed is [2]
+    combined = 1
+    for i in range(start, end + 1):
+        combined *= a[i]
+
+    collapsed.append(combined)
+
+    # For the example, here collapsed is [2, 12]
+
+    for i in range(end + 1, len(a)):
+        collapsed.append(a[i])
+
+    # For the example, here collapsed is [2, 12]
+
+    return collapsed
 
 def aten〇to〇dtype〡shape(self: List[int], dtype: int, non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
@@ -904,6 +940,7 @@ def aten〇squeeze〇dim〡shape(self: List[int], dim: int) -> List[int]:
 
 def prims〇squeeze〡shape(a: List[int], dimensions: List[int]) -> List[int]:
     return upstream_shape_functions.squeeze_dims(a, dimensions)
+
 
 def prims〇view_of〡shape(a: List[int]) -> List[int]:
     return a
@@ -3689,6 +3726,12 @@ def aten〇bucketize〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], boundari
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dimensions=[]))
 def prims〇squeeze〡dtype(a_rank_dtype: Tuple[int, int], dimensions: List[int]) -> int:
+    a_rank, a_dtype = a_rank_dtype
+    return a_dtype
+
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, start=0, end = 0))
+def prims〇collapse〡dtype(a_rank_dtype: Tuple[int, int], start: int, end: int) -> int:
     a_rank, a_dtype = a_rank_dtype
     return a_dtype
 
