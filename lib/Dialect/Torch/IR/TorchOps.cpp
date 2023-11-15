@@ -2877,8 +2877,8 @@ LogicalResult AtenPermuteOp::verify() {
     return success();
   }
 
-  auto outShape = outType.getOptionalSizes().value();
-  auto inShape = inType.getOptionalSizes().value();
+  auto outShape = outType.getSizes();
+  auto inShape = inType.getSizes();
 
   auto outRank = outShape.size();
 
