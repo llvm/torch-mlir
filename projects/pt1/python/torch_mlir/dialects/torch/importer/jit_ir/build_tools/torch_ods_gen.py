@@ -114,7 +114,7 @@ ODS_BANNER = f"""//===-------------------------------------------------------*- 
 def raw_emit_op(operator: JitOperator,
                 emitter_td: TextEmitter,
                 *, traits: List[str],
-                has_folder: bool, has_canonicalizer: bool):
+                has_folder: bool, has_canonicalizer: bool, has_verifier: bool):
     """Emit the ODS for a JitOperator to a textual file.
 
     This is the lowest level of emission and is responsible for low-level
@@ -199,6 +199,8 @@ def raw_emit_op(operator: JitOperator,
             p_td("let hasFolder = 1;")
         if has_canonicalizer:
             p_td("let hasCanonicalizer = 1;")
+        if has_verifier:
+            p_td("let hasVerifier = 1;")
     p_td("}")
     p_td("\n")
 
@@ -208,7 +210,8 @@ def emit_op(operator: JitOperator,
             *,
             traits: Optional[List[str]] = None,
             has_folder: bool = False,
-            has_canonicalizer: bool = False):
+            has_canonicalizer: bool = False,
+            has_verifier: bool = False):
     """Main entry point for op emission.
 
     Besides emitting the op, it deduces / adds traits based on the operator
@@ -228,7 +231,8 @@ def emit_op(operator: JitOperator,
                 emitter_td,
                 traits=traits,
                 has_folder=has_folder,
-                has_canonicalizer=has_canonicalizer)
+                has_canonicalizer=has_canonicalizer,
+                has_verifier=has_verifier)
 
 
 def emit_ops(emitter_td: TextEmitter, registry: Registry):
@@ -481,8 +485,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::_adaptive_avg_pool3d_backward : (Tensor, Tensor) -> (Tensor)")
     emit("aten::topk : (Tensor, int, int, bool, bool) -> (Tensor, Tensor)")
     emit("aten::transpose.int : (Tensor, int, int) -> (Tensor)")
-    emit("aten::permute : (Tensor, int[]) -> (Tensor)")
     emit("aten::pixel_shuffle : (Tensor, int) -> (Tensor)")
+    emit("aten::permute : (Tensor, int[]) -> (Tensor)", has_verifier=True)
     emit("aten::movedim.int : (Tensor, int, int) -> (Tensor)")
     emit("aten::bmm : (Tensor, Tensor) -> (Tensor)")
     emit("aten::cumsum : (Tensor, int, int?) -> (Tensor)")
