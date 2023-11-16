@@ -224,6 +224,11 @@ class JitOperator:
             return f"{parameter_name}: {pytype}{default}"
 
         def ret_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
+            # Shape information is only relevant for tensor
+            # outputs. All other output types in shape functions will
+            # be set to None
+            if arg["pytype"] != "Tensor":
+                return "None"
             return  _pytype_to_shape_fn_pytype(arg["pytype"])
 
         return self._get_function_signature(

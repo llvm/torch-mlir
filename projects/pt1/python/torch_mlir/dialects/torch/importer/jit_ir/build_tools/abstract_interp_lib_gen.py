@@ -714,6 +714,27 @@ def aten〇scaled_dot_product_attention〡shape(query: List[int], key: List[int]
     outshape[-1] = value[-1]
     return outshape
 
+def aten〇_scaled_dot_product_flash_attention〡shape(query: List[int], key: List[int], value: List[int], dropout_p: float = 0., is_causal: bool = False, return_debug_mask: bool = False, scale: Optional[float] = None) -> Tuple[List[int], List[int], List[int], List[int], None, None, List[int], List[int], List[int]]:
+    outshape = query
+    outshape[-1] = value[-1]
+    logsumexp = [query[0], query[2], query[1], query[3]]
+    cum_seq_q: List[int] = []
+    cum_seq_k: List[int] = []
+    philox_seed: List[int] = []
+    philox_offset: List[int] = []
+    debug_attn_mask: List[int] = []
+    return (
+        outshape,
+        logsumexp,
+        cum_seq_q,
+        cum_seq_k,
+        None,
+        None,
+        philox_seed,
+        philox_offset,
+        debug_attn_mask,
+    )
+
 @check_shape_function([
     Invocation([2, 3]),
 ])
@@ -2291,6 +2312,20 @@ def aten〇isclose〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: T
 def aten〇scaled_dot_product_attention〡dtype(query_rank_dtype: Tuple[int, int], key_rank_dtype: Tuple[int, int], value_rank_dtype: Tuple[int, int], attn_mask_rank_dtype: Optional[Tuple[int, int]] = None, dropout_p: float = 0., is_causal: bool = False, scale: Optional[float] = None) -> int:
     _, query_dtype = query_rank_dtype
     return query_dtype
+
+def aten〇_scaled_dot_product_flash_attention〡dtype(query_rank_dtype: Tuple[int, int], key_rank_dtype: Tuple[int, int], value_rank_dtype: Tuple[int, int], dropout_p: float = 0., is_causal: bool = False, return_debug_mask: bool = False, scale: Optional[float] = None) -> Tuple[int, int, int, int, int, int, int, int, int]:
+    _, query_dtype = query_rank_dtype
+    return (
+        query_dtype,
+        torch.float32,
+        torch.int64,
+        torch.int64,
+        torch.int64,
+        torch.int64,
+        torch.int64,
+        torch.int64,
+        query_dtype
+    )
 
 @check_dtype_function(_check_two_tensor_op())
 def aten〇logical_or〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:

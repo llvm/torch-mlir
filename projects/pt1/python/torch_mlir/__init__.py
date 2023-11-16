@@ -274,6 +274,7 @@ def _lower_mlir_module(verbose, output_type, module):
         print("Torch Backend IR")
         print(module)
 
+    module.dump()
     if output_type == OutputType.TORCH:
         return module
 

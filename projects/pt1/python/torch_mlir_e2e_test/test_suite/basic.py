@@ -4752,3 +4752,53 @@ class IscloseStaticModuleTrue(torch.nn.Module):
 @register_test_case(module_factory=lambda: IscloseStaticModuleTrue())
 def IscloseStaticModuleTrue_basic(module, tu: TestUtils):
     module.forward(torch.ones(5, 5))
+
+
+# ==============================================================================
+
+
+class ScaledDotProductFlashAttentionSameModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 5, 5], torch.float32, True),
+        ([1, 1, 5, 5], torch.float32, True),
+        ([1, 1, 5, 5], torch.float32, True),
+    ])
+    def forward(self, query, key, value):
+        return torch.ops.aten._scaled_dot_product_flash_attention(query, key, value, dropout_p=0.0, is_causal=False, return_debug_mask=False, scale=None)[0]
+
+@register_test_case(module_factory=lambda: ScaledDotProductFlashAttentionSameModule())
+def ScaledDotProductFlashAttentionSameModule_basic(module, tu: TestUtils):
+    query = tu.rand(1, 1, 5, 5)
+    key = tu.rand(1, 1, 5, 5)
+    value = tu.rand(1, 1, 5, 5)
+    module.forward(query, key, value)
+
+
+# class ScaledDotProductFlasAttentionDifferentModule(torch.nn.Module):
+
+#     def __init__(self):
+#         super().__init__()
+
+#     @export
+#     @annotate_args([
+#         None,
+#         ([-1, -1, -1, -1], torch.float32, True),
+#         ([-1, -1, -1, -1], torch.float32, True),
+#         ([-1, -1, -1, -1], torch.float32, True)
+#     ])
+#     def forward(self, query, key, value):
+#         return torch.ops.aten._scaled_dot_product_flash_attention(query, key, value, dropout_p=0.0, is_causal=True, return_debug_mask=False, scale=None)
+
+# @register_test_case(module_factory=lambda: ScaledDotProductFlasAttentionDifferentModule())
+# def ScaledDotProductFlasAttentionDifferentModule_basic(module, tu: TestUtils):
+#     query = torch.randn(3, 2, 8, 4, dtype=torch.float32)
+#     key = torch.randn(3, 2, 16, 4, dtype=torch.float32)
+#     value = torch.randn(3, 2, 16, 4, dtype=torch.float32)
+#     module.forward(query, key, value)
+

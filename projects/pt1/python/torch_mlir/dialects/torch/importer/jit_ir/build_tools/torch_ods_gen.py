@@ -677,6 +677,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::as_strided_scatter : (Tensor, Tensor, int[], int[], int?) -> (Tensor)")
     emit("aten::upsample_nearest2d : (Tensor, int[], float?, float?) -> (Tensor)")
     emit("aten::scaled_dot_product_attention : (Tensor, Tensor, Tensor, Tensor?, float, bool, float?) -> (Tensor)")
+    emit("aten::_scaled_dot_product_flash_attention : (Tensor, Tensor, Tensor, float, bool, bool, float?) -> (Tensor, Tensor, Tensor, Tensor, int, int, Tensor, Tensor, Tensor)")
 
     # Dict ops.
     emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)", has_folder=True)

@@ -5634,6 +5634,85 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAten_ScaledDotProductFlashAttentionOp
+    : public OpRewritePattern<Aten_ScaledDotProductFlashAttentionOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_ScaledDotProductFlashAttentionOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    MLIRContext *context = op->getContext();
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value query = op.getQuery();
+
+    Value output = rewriter.create<Torch::AtenScaledDotProductAttentionOp>(
+        loc, op->getResultTypes()[0], query, op.getKey(), op.getValue(), none,
+        op.getDropoutP(), op.getIsCausal(), op.getScale());
+    output.dump();
+    op.getResultTypes()[0].dump();
+
+    // Create logsumexp.
+    std::optional<unsigned> maybeRank = getTensorRank(query);
+    if (!maybeRank)
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: query should be a ranked tensor");
+    unsigned rank = *maybeRank;
+    SmallVector<Value> queryShape;
+    for (unsigned i = 0; i < rank; i++) {
+      Value dim = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(i));
+      queryShape.push_back(rewriter.create<AtenSizeIntOp>(loc, query, dim));
+    }
+    // Swap the sizes of the dimension 1 and 2.
+    Value tmp = queryShape[1];
+    queryShape[1] = queryShape[2];
+    queryShape[2] = tmp;
+    Value sizeList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)), queryShape);
+    Value logsumexp = rewriter.create<Torch::AtenEmptyMemoryFormatOp>(
+        loc, op->getResultTypes()[1], sizeList, none, none, none, none, none);
+
+    logsumexp.dump();
+    op.getResultTypes()[1].dump();
+
+    // Create cum_seq_q, cum_seq_k, philox_seed, philox_offset.
+    queryShape.clear();
+    Value emptySizeList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)), queryShape);
+    Value longDtype = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(4));
+    Value emptyTensor = rewriter.create<Torch::AtenEmptyMemoryFormatOp>(
+        loc, op->getResultTypes()[2], emptySizeList, longDtype, none, none, none,
+        none);
+
+    emptyTensor.dump();
+    op.getResultTypes()[2].dump();
+
+    // Create max_q, max_k.
+    Value constZero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+
+    // Create debug_attn_mask.
+    // Value emptySizeList2 = rewriter.create<PrimListConstructOp>(
+    //     loc, Torch::ListType::get(Torch::IntType::get(context)), queryShape);
+    Value floatDtype = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(6));
+    Value debugAttnMask = rewriter.create<Torch::AtenEmptyMemoryFormatOp>(
+        loc, op->getResultTypes()[8], emptySizeList, floatDtype, none, none, none,
+        none);
+
+    debugAttnMask.dump();
+    op.getResultTypes()[8].dump();
+
+    rewriter.replaceOp(op,
+                       {output, logsumexp, emptyTensor, emptyTensor, constZero,
+                        constZero, emptyTensor, emptyTensor, debugAttnMask});
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -5819,6 +5898,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenTileOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_ScaledDotProductFlashAttentionOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
