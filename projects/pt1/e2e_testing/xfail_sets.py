@@ -83,6 +83,8 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: RuntimeError: Found a custom (non-ATen) operator that either mutates or its inputs: prims::squeeze.. Getting these operators to work with functionalization requires some extra work. For mutable ops you need to register a corresponding out-of-place variant of the op, and you also need to register a Functionalization kernel that performs some boilerplate, telling functionalization to map from the mutable op to the out-of-place op. See a more complete example of how to do this at https://gist.github.com/bdhirsh/7dadbf6296f8f7d1abcf4c482f438aaa.
     "PrimsSqueezeModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
+    "SplitDimStaticModule_basic",
+    "SplitDimDynamicModule_basic",
 
     # ERROR: RuntimeError: Found a custom (non-ATen) operator that either mutates or its inputs: prims::view_of.. Getting these operators to work with functionalization requires some extra work. For mutable ops you need to register a corresponding out-of-place variant of the op, and you also need to register a Functionalization kernel that performs some boilerplate, telling functionalization to map from the mutable op to the out-of-place op. See a more complete example of how to do this at https://gist.github.com/bdhirsh/7dadbf6296f8f7d1abcf4c482f438aaa.
     "PrimsViewOfModule_basic",
@@ -1365,6 +1367,8 @@ LTC_XFAIL_SET = {
     "CollapseStaticModule_basic",
     "CollapsePartialDynamicModule_basic",
     "CollapseFullDynamicModule_basic",
+    "SplitDimStaticModule_basic",
+    "SplitDimDynamicModule_basic",
     "PixelShuffleModuleStaticRank3Int64_basic",
     "PixelShuffleModuleStaticRank4Float32_basic",
     "_Convolution2DAllFalseModule_basic",
@@ -1376,8 +1380,6 @@ LTC_XFAIL_SET = {
     "_ConvolutionDeprecated2DBenchmarkModule_basic",
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
-    "SplitDimStaticModule_basic",
-    "SplitDimDynamicModule_basic",
     "AddIntModule_basic",
     "ArangeStartOutViewModule_basic",
     "AtenIntBoolOpModule_basic",
