@@ -1760,6 +1760,51 @@ public:
 } // namespace
 
 namespace {
+class ConvertPrimsSplitDimOp : public OpConversionPattern<PrimsSplitDimOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(PrimsSplitDimOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    auto aRankedTensorType = adaptor.getA().getType().cast<RankedTensorType>();
+
+    const TypeConverter *typeConverter = getTypeConverter();
+
+    auto resultRankedTensorType =
+        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+
+    // The dimension being split must be statically known.
+
+    int64_t dimInt;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dimInt)))
+      return failure();
+
+    SmallVector<ReassociationIndices> associations;
+    associations.reserve(aRankedTensorType.getRank());
+
+    for (unsigned i = 0; i < dimInt; ++i) {
+      associations.push_back(ReassociationIndices{i});
+    }
+    associations.push_back(ReassociationIndices{dimInt, dimInt + 1});
+    for (int i = dimInt + 2; i < resultRankedTensorType.getRank(); ++i) {
+      associations.push_back(ReassociationIndices{i});
+    }
+
+    auto expanded = rewriter.createOrFold<tensor::ExpandShapeOp>(
+        op.getLoc(), resultRankedTensorType, adaptor.getA(), associations);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultRankedTensorType,
+                                                expanded);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertPrimsCollapseOp : public OpConversionPattern<PrimsCollapseOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -1872,10 +1917,10 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);
   target.addIllegalOp<AtenBatchNormOp>();
   patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
-
   target.addIllegalOp<PrimsCollapseOp>();
   patterns.add<ConvertPrimsCollapseOp>(typeConverter, context);
-
+  target.addIllegalOp<PrimsSplitDimOp>();
+  patterns.add<ConvertPrimsSplitDimOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossBackwardOp>();
   patterns.add<ConvertAtenNllLossBackwardOp>(typeConverter, context);
   patterns.add<ConvertTensorStaticInfoCastOp>(typeConverter, context);

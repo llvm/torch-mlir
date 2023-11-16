@@ -1376,6 +1376,8 @@ LTC_XFAIL_SET = {
     "_ConvolutionDeprecated2DBenchmarkModule_basic",
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
+    "SplitDimStaticModule_basic",
+    "SplitDimDynamicModule_basic",
     "AddIntModule_basic",
     "ArangeStartOutViewModule_basic",
     "AtenIntBoolOpModule_basic",

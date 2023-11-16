@@ -240,6 +240,24 @@ def prims〇collapse〡shape(a: List[int], start: int, end: int) -> List[int]:
 
     return collapsed
 
+def prims〇split_dim〡shape(a: List[int], dim: int, outer_length: int) -> List[int]:
+    assert dim >=0, "'dim' must be non-negative"
+    assert dim < len(a), "'dim' must be less than the rank of the tensor"
+    assert outer_length > 0, "'outer_length' must be positive"
+    assert a[dim] % outer_length == 0, "'outer_length' must divide the size of the dimension, a[dim]"
+
+    split: List[int] = []
+    for i in range(dim):
+        split.append(a[i])
+
+    split.append(outer_length)
+    split.append(a[dim] // outer_length)
+
+    for i in range(dim + 1, len(a)):
+        split.append(a[i])
+
+    return split
+
 def aten〇to〇dtype〡shape(self: List[int], dtype: int, non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -1485,6 +1503,11 @@ def aten〇view_as_real〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
         return torch.float
     else:
         return torch.double
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0, outer_length=1))
+def prims〇split_dim〡dtype(a_rank_dtype: Tuple[int, int], dim: int, outer_length: int) -> int:
+    _, a_dtype = a_rank_dtype
+    return a_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇tanh〡dtype(self_rank_dtype: Tuple[int, int]) -> int:

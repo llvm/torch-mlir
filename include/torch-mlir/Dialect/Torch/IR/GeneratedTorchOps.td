@@ -14211,6 +14211,30 @@ def Torch_PrimsCollapseOp : Torch_Op<"prims.collapse", [
   }];
 }
 
+def Torch_PrimsSplitDimOp : Torch_Op<"prims.split_dim", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `prims::split_dim : (Tensor, int, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$a,
+    Torch_IntType:$dim,
+    Torch_IntType:$outer_length
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult PrimsSplitDimOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void PrimsSplitDimOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
 def Torch_PrimsSqueezeOp : Torch_Op<"prims.squeeze", [
     AllowsTypeRefinement,
     ReadOnly
