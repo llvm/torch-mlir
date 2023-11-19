@@ -11,7 +11,7 @@ import torch
 
 # Our native extension is not self-contained. It references libraries which
 # must come in via the above first.
-from ....._mlir_libs._jit_ir_importer import *
+from .._mlir_libs._jit_ir_importer import *
 
 
 __all__ = [

@@ -55,14 +55,14 @@ factored such that we can handle this with one core import path, which is
 through the PyTorch
 "[JIT IR](https://github.com/pytorch/pytorch/blob/78c8a0d75220bdd4955415b5f81509e005af4232/torch/csrc/jit/OVERVIEW.md)",
 and lives in
-[torch-mlir/python/torch_mlir/dialects/torch/importer/jit_ir](https://github.com/llvm/torch-mlir/tree/e322f6a8784009b37aa354abfa9a40a80f30877d/python/torch_mlir/dialects/torch/importer/jit_ir).
+[torch-mlir/python/torch_mlir/jit_ir_importer](https://github.com/llvm/torch-mlir/tree/e322f6a8784009b37aa354abfa9a40a80f30877d/python/torch_mlir/dialects/torch/importer/jit_ir).
 The JIT IR is a highly principled IR that faithfully models a Python subset (+
 tensors, the PyTorch op registry, and a few other things). All the other PyTorch
 program representations can eventually bottom-out on the JIT IR via some path
 provided by PyTorch. The `torch` dialect is almost entirely in 1:1
 correspondence with the JIT IR -- this allows the importer to be extremely small
 (the core is
-[under 500 lines of code](https://github.com/llvm/torch-mlir/blob/e322f6a8784009b37aa354abfa9a40a80f30877d/python/torch_mlir/dialects/torch/importer/jit_ir/csrc/node_importer.cpp#L1)).
+[under 500 lines of code](https://github.com/llvm/torch-mlir/blob/e322f6a8784009b37aa354abfa9a40a80f30877d/python/torch_mlir/jit_ir_importer/csrc/node_importer.cpp#L1)).
 
 ### Ops
 
@@ -70,7 +70,7 @@ See [TorchOps.td](https://github.com/llvm/torch-mlir/blob/114f48e96c578ee76a6f83
 
 The ops in the `torch` dialect are almost entirely generated based on the
 PyTorch JIT IR operator registry via the script
-[torch_ods_gen.py](https://github.com/llvm/torch-mlir/blob/e322f6a8784009b37aa354abfa9a40a80f30877d/python/torch_mlir/dialects/torch/importer/jit_ir/build_tools/torch_ods_gen.py#L1) (invoked via [update_torch_ods.sh](https://github.com/llvm/torch-mlir/blob/main/build_tools/update_torch_ods.sh)).
+[torch_ods_gen.py](https://github.com/llvm/torch-mlir/blob/e322f6a8784009b37aa354abfa9a40a80f30877d/python/torch_mlir/jit_ir_importer/build_tools/torch_ods_gen.py#L1) (invoked via [update_torch_ods.sh](https://github.com/llvm/torch-mlir/blob/main/build_tools/update_torch_ods.sh)).
 This script queries the registry and generates MLIR
 [ODS](https://mlir.llvm.org/docs/OpDefinitions/) in
 [GeneratedTorchOps.td](https://github.com/llvm/torch-mlir/blob/e322f6a8784009b37aa354abfa9a40a80f30877d/include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td#L1). We have a guide for [adding a new op end-to-end](https://github.com/llvm/torch-mlir/wiki/Torch-ops-E2E-implementation).
@@ -195,7 +195,7 @@ values. When one `torch.jit.script`'s a `torch.nn.Module`, the result is
 actually an `IValue` that represents the module, with a hierarchy of children
 `IValue`'s. Strictly speaking, JIT IR `torch::jit::Graph`'s are only used to
 represent the bodies of methods on the modules. So in addition to importing the
-JIT IR, we also need to import the `IValue`'s. This happens inside [ivalue_importer.cpp](https://github.com/llvm/torch-mlir/blob/fde390c7669e29362b18388448ef2b188713383f/python/torch_mlir/dialects/torch/importer/jit_ir/csrc/ivalue_importer.cpp#L1).
+JIT IR, we also need to import the `IValue`'s. This happens inside [ivalue_importer.cpp](https://github.com/llvm/torch-mlir/blob/fde390c7669e29362b18388448ef2b188713383f/python/torch_mlir/jit_ir_importer/csrc/ivalue_importer.cpp#L1).
 
 Most of the IValue modeling can reuse `torch` dialect ops that already exist
 otherwise, such as `torch.constant.int` to represent an int in the object graph.

@@ -6,7 +6,7 @@ import typing
 
 import torch
 from torch._C import CompilationUnit
-from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
+from torch_mlir.jit_ir_importer import ModuleBuilder
 
 import typing
 

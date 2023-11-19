@@ -17,8 +17,8 @@ from torch_mlir.dynamo import _get_decomposition_table
 from torch.fx.experimental.proxy_tensor import make_fx
 
 from .compiler_utils import run_pipeline_with_repro_report
-from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ImportOptions, ModuleBuilder
-from torch_mlir.dialects.torch.importer.jit_ir.build_tools.library_generator import generate_library
+from torch_mlir.jit_ir_importer import ClassAnnotator, ImportOptions, ModuleBuilder
+from torch_mlir.jit_ir_importer.build_tools.library_generator import generate_library
 
 
 class OutputType(Enum):

@@ -10,7 +10,7 @@ import codecs
 
 import torch
 
-from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
+from torch_mlir.jit_ir_importer import ModuleBuilder
 from torch_mlir.passmanager import PassManager
 
 from .registry import Registry

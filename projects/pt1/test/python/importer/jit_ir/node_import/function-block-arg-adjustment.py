@@ -2,7 +2,7 @@
 # This file is licensed under a pytorch-style license
 # See LICENSE.pytorch for license information.
 
-from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
+from torch_mlir.jit_ir_importer import ModuleBuilder
 
 from utils import create_script_function
 

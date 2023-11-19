@@ -8,8 +8,8 @@
 import torch
 
 from torch_mlir_e2e_test.annotations import annotate_args, export
-from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator
-from torch_mlir.dialects.torch.importer.jit_ir.torchscript_annotations import extract_annotations
+from torch_mlir.jit_ir_importer import ClassAnnotator
+from torch_mlir.jit_ir_importer.torchscript_annotations import extract_annotations
 
 class MmModule(torch.nn.Module):
     def __init__(self):
