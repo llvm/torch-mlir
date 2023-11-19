@@ -149,10 +149,12 @@ endfunction()
 # Configure CMake.
 list(APPEND CMAKE_MODULE_PATH ${MLIR_MAIN_SRC_DIR}/cmake/modules)
 list(APPEND CMAKE_MODULE_PATH ${LLVM_MAIN_SRC_DIR}/cmake)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/build_tools/cmake)
 
 include(TableGen)
 include(AddLLVM)
 include(AddMLIR)
+include(AddMLIRPython)
 
 ################################################################################
 # Setup python.

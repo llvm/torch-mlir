@@ -12,7 +12,6 @@ target_link_libraries(TorchMLIRJITIRImporter
   TorchMLIRAggregateCAPI
   ${TORCH_LIBRARIES}
   )
-message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS}")
 set_target_properties(TorchMLIRJITIRImporter PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/_mlir_libs"
   OUTPUT_NAME lib_jit_ir_importer
@@ -50,7 +49,6 @@ if(Python3_LIBRARIES)
   )
 endif()
 
-message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS}")
 set_target_properties(TorchMLIRJITIRImporterPybind PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/_mlir_libs"
   OUTPUT_NAME _jit_ir_importer

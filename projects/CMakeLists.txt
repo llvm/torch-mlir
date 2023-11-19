@@ -2,7 +2,7 @@ include(AddMLIRPython)
 
 # Configure PyTorch if we have any features enabled which require it.
 if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER OR TORCH_MLIR_ENABLE_LTC)
-  message("Enabling PyTorch C++ dep (features depend on it)")
+  message(STATUS "Enabling PyTorch C++ dep (features depend on it)")
   include(TorchMLIRPyTorch)
 
   TorchMLIRProbeForPyTorchInstall()
@@ -39,5 +39,5 @@ endif()
 
 # Include overall PT1 project.
 if(TORCH_MLIR_ENABLE_PROJECT_PT1)
-  add_subdirectory(projects/pt1)
+  add_subdirectory(pt1)
 endif()

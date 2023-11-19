@@ -1,29 +1,4 @@
 ###########################################################################
-# Setup PyTorch
-###########################################################################
-
-include(TorchMLIRPyTorch)
-
-TorchMLIRProbeForPyTorchInstall()
-if(TORCH_MLIR_USE_INSTALLED_PYTORCH)
-  TorchMLIRConfigurePyTorch()
-else()
-  # Assume it is a sibling to the overall project.
-  set(Torch_DIR "${PROJECT_SOURCE_DIR}/../libtorch/share/cmake/Torch")
-  message(STATUS "Attempting to locate libtorch as a sibling to the project: ${Torch_DIR}")
-endif()
-
-find_package(Torch 1.11 REQUIRED)
-
-###########################################################################
-# Setup Python development
-###########################################################################
-
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/externals/llvm-project/mlir/cmake/modules")
-include(MLIRDetectPythonEnv)
-mlir_configure_python_dev_packages()
-
-###########################################################################
 # Library definition
 ###########################################################################
 
