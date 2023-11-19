@@ -8,6 +8,7 @@ add_library(TorchMLIRJITIRImporter STATIC
   ivalue_importer.cpp
   torch_to_mlir_utils.cpp
   )
+message(STATUS "Linking TorchMLIRJITImporter with ${TORCH_LIBRARIES}")
 target_link_libraries(TorchMLIRJITIRImporter
   TorchMLIRAggregateCAPI
   ${TORCH_LIBRARIES}

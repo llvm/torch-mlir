@@ -33,9 +33,9 @@ jobs:
           # Exclude llvm in-tree and pytorch source
           - llvm-build: in-tree
             torch-binary: OFF
-          # Exclude llvm out-of-tree and pytorch binary
+          # Exclude llvm out-of-tree and pytorch source
           - llvm-build: out-of-tree
-            torch-binary: ON
+            torch-binary: OFF
           # Exclude macos-arm64 and llvm out-of-tree altogether
           - os-arch: macos-arm64
             llvm-build: out-of-tree

@@ -367,13 +367,11 @@ function build_out_of_tree() {
   local torch_version="$3"
   echo ":::: Build out-of-tree Torch from binary: $torch_from_bin with Python: $python_version ($torch_version)"
 
-  # Disabled due to link errors on undefined c10 and other core torch symbols.
-  enable_ltc="OFF"
-  # local enable_ltc="ON"
-  # if [[ "${torch_version}" == "stable" ]]
-  # then
-  #   enable_ltc="OFF"
-  # fi
+  local enable_ltc="ON"
+  if [[ "${torch_version}" == "stable" ]]
+  then
+    enable_ltc="OFF"
+  fi
 
   if [ ! -d "/main_checkout/torch-mlir/llvm-build/lib/cmake/mlir/" ]
   then
