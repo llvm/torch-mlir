@@ -29,7 +29,7 @@ public:
   ModuleBuilder(pybind11::object contextObj);
 
   /// Creates Python bindings for the class.
-  static void bind(pybind11::module &m);
+  static void bind(pybind11::module& m);
 
   pybind11::object getContextObj() { return contextObj; }
   pybind11::object getModuleObj() { return moduleObj; }
@@ -38,16 +38,15 @@ public:
   // torch.jit.ScriptFunction is the C++ type torch::jit::StrongFunctionPtr.
   // Just a bit of naming cruft.
   // Returns the same function, making it suitable as a nested decorator.
-  torch::jit::StrongFunctionPtr
-  importFunction(torch::jit::StrongFunctionPtr function,
-                 py::object maybeImportOptions);
+  torch::jit::StrongFunctionPtr importFunction(
+      torch::jit::StrongFunctionPtr function, py::object maybeImportOptions);
 
   // Imports a torch::jit::Module into the current module, using the
   // annotations, if not none, provided in `maybeClassAnnotator` which should be
   // a ClassAnnotator.
-  void importModule(torch::jit::Module jitModule,
-                    py::object maybeClassAnnotator,
-                    py::object maybeImportOptions);
+  void importModule(
+      torch::jit::Module jitModule, py::object maybeClassAnnotator,
+      py::object maybeImportOptions);
 
 private:
   MlirBlock getBodyBlock();

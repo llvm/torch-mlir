@@ -2,8 +2,6 @@
 # Subdirectories
 #-------------------------------------------------------------------------------
 
-add_subdirectory(csrc)
-
 ## Declare the sources of the Python module.
 
 declare_mlir_python_sources(TorchMLIRPythonSources.JitIRImporter

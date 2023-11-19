@@ -34,7 +34,7 @@ struct AttributeAnnotation {
   // can be externally accessed.
   bool isExported = true;
 
-  std::string toString(const std::string &name);
+  std::string toString(const std::string& name);
 };
 
 // An annotation of an argument of a method.
@@ -80,7 +80,7 @@ struct MethodAnnotation {
   // large printout of the default ArgAnnotation for every method.
   c10::optional<std::vector<ArgAnnotation>> argAnnotations;
 
-  std::string toString(const std::string &name);
+  std::string toString(const std::string& name);
 };
 
 // Annotations on a c10::ClassType.
@@ -107,10 +107,10 @@ public:
 
   // Get the attribute annotations.
   // The length and order is the same as `classType->getAttributes()`.
-  std::vector<AttributeAnnotation> &getAttributeAnnotations();
+  std::vector<AttributeAnnotation>& getAttributeAnnotations();
   // Get the method annotations.
   // The length and order is the same as `classType->methods()`.
-  std::vector<MethodAnnotation> &getMethodAnnotations();
+  std::vector<MethodAnnotation>& getMethodAnnotations();
 
   std::string toString();
 
@@ -141,14 +141,14 @@ public:
   // For example, if `exportedPath = ['a', 'b']`, then `rootClassType` should
   // have a submodule `a` and that submodule should have a method or attribute
   // `b`.
-  void exportPath(c10::ClassType &rootClassType,
-                  std::vector<std::string> exportedPath);
+  void exportPath(
+      c10::ClassType& rootClassType, std::vector<std::string> exportedPath);
   // Mark everything as not-exported.
   //
   // This is kind of useless by itself, but together with `exportPath` allows
   // exporting a subset of known names out of a larger collection of unknown
   // names.
-  void exportNone(c10::ClassType &rootClassType);
+  void exportNone(c10::ClassType& rootClassType);
 
   // Annotate shapes and dtypes of the arguments of a method at path `path` from
   // `rootClassType`.
@@ -159,23 +159,23 @@ public:
   // a "has value semantics" boolean.
   // These will be put into an `ArgAnnotation` struct -- see there for
   // precise definitions of the promised semantics of each entry.
-  void annotateArgs(c10::ClassType &rootClassType,
-                    std::vector<std::string> path,
-                    std::vector<ArgAnnotation> argAnnotations);
+  void annotateArgs(
+      c10::ClassType& rootClassType, std::vector<std::string> path,
+      std::vector<ArgAnnotation> argAnnotations);
 
   // The annotations collected so far.
-  const ClassAnnotationMap &getAnnotationMap();
+  const ClassAnnotationMap& getAnnotationMap();
 
   // Get the ClassAnnotation corresponding to `classType`.
-  ClassAnnotation &getOrCreateClassAnnotation(c10::ClassType *classType);
+  ClassAnnotation& getOrCreateClassAnnotation(c10::ClassType* classType);
 
   // Helper to find the MethodAnnotation corresponding to a
   // torch::jit::Function, or null if not found.
   //
   // Users could in principle scan all annotations to find this, but it's more
   // efficient to maintain the reverse mapping directly.
-  MethodAnnotation *
-  getMethodAnnotationForFunction(torch::jit::Function *function);
+  MethodAnnotation*
+  getMethodAnnotationForFunction(torch::jit::Function* function);
 
   std::string toString();
 
@@ -183,11 +183,11 @@ private:
   // Traverse `path` starting from `rootClassType` to find the ClassType
   // of a presumed nested submodule. Throw an error if there is no such
   // submodule.
-  c10::ClassType *getClassAtPath(c10::ClassType *rootClassType,
-                                 std::vector<std::string> path);
+  c10::ClassType*
+  getClassAtPath(c10::ClassType* rootClassType, std::vector<std::string> path);
   ClassAnnotationMap classAnnotations;
   // Reverse mapping used to service getMethodAnnotationForFunction.
-  std::unordered_map<torch::jit::Function *, MethodAnnotation *>
+  std::unordered_map<torch::jit::Function*, MethodAnnotation*>
       functionToMethodMap;
 };
 

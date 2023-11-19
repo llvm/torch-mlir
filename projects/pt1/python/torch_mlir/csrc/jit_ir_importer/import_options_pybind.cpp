@@ -14,11 +14,13 @@ namespace py = pybind11;
 
 using namespace torch_mlir;
 
-void torch_mlir::initImportOptionsBindings(py::module &m) {
+void torch_mlir::initImportOptionsBindings(py::module& m) {
   py::class_<ImportOptions>(m, "ImportOptions")
       .def(py::init<>())
-      .def_readwrite("assumeTensorsHaveValueSemantics",
-                     &ImportOptions::assumeTensorsHaveValueSemantics)
-      .def_readwrite("ignoreExistingTensorShapesAndDtypes",
-                     &ImportOptions::ignoreExistingTensorShapesAndDtypes);
+      .def_readwrite(
+          "assumeTensorsHaveValueSemantics",
+          &ImportOptions::assumeTensorsHaveValueSemantics)
+      .def_readwrite(
+          "ignoreExistingTensorShapesAndDtypes",
+          &ImportOptions::ignoreExistingTensorShapesAndDtypes);
 }

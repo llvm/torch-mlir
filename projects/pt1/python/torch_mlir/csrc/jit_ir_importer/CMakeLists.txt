@@ -12,6 +12,10 @@ target_link_libraries(TorchMLIRJITIRImporter
   TorchMLIRAggregateCAPI
   ${TORCH_LIBRARIES}
   )
+# Includes are relative to the csrc dir (i.e. #include "jit_ir_importer/...")
+target_include_directories(TorchMLIRJITIRImporter PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
 set_target_properties(TorchMLIRJITIRImporter PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/_mlir_libs"
   OUTPUT_NAME lib_jit_ir_importer

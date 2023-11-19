@@ -49,10 +49,10 @@ using namespace torch_mlir;
 // throw an error on).
 namespace {
 struct IValueHasher {
-  size_t operator()(const c10::IValue &ivalue) const {
+  size_t operator()(const c10::IValue& ivalue) const {
     if (ivalue.isObject() || ivalue.isList() || ivalue.isGenericDict()) {
-      return std::hash<const void *>()(
-          static_cast<const void *>(ivalue.internalToPointer()));
+      return std::hash<const void*>()(
+          static_cast<const void*>(ivalue.internalToPointer()));
     }
 
     return c10::IValue::hash(ivalue);
@@ -65,7 +65,7 @@ struct IValueHasher {
 // such as when tracing). Can we do better?
 namespace {
 struct IValueEq {
-  bool operator()(const c10::IValue &lhs, const c10::IValue &rhs) const {
+  bool operator()(const c10::IValue& lhs, const c10::IValue& rhs) const {
     return lhs.isSameIdentity(rhs);
   }
 };
@@ -99,8 +99,9 @@ namespace {
 /// (PyTorch allows this!).
 class IValueImporter {
 public:
-  IValueImporter(MlirBlock importBlock, MlirContext context,
-                 ClassAnnotator &annotator, const ImportOptions &importOptions)
+  IValueImporter(
+      MlirBlock importBlock, MlirContext context, ClassAnnotator& annotator,
+      const ImportOptions& importOptions)
       : importBlock(importBlock), context(context), annotator(annotator),
         importOptions(importOptions) {}
 
@@ -110,15 +111,16 @@ private:
   MlirValue rawImportIValue(c10::IValue ivalue);
   MlirValue importTensor(c10::IValue ivalue);
   MlirValue importModule(torch::jit::Module jitModule);
-  void importMethod(torch::jit::Function *function, MlirBlock classTypeBody,
-                    const MethodAnnotation &methodAnnotation);
-  void importClassType(c10::ClassType *classType);
-  void importCompilationUnit(torch::jit::CompilationUnit *cu);
+  void importMethod(
+      torch::jit::Function* function, MlirBlock classTypeBody,
+      const MethodAnnotation& methodAnnotation);
+  void importClassType(c10::ClassType* classType);
+  void importCompilationUnit(torch::jit::CompilationUnit* cu);
 
   MlirBlock importBlock;
   MlirContext context;
-  ClassAnnotator &annotator;
-  const ImportOptions &importOptions;
+  ClassAnnotator& annotator;
+  const ImportOptions& importOptions;
 
   // Map tracking already-imported values.
   std::unordered_map<c10::IValue, MlirValue, IValueHasher, IValueEq> valueMap;
@@ -129,16 +131,16 @@ private:
   // e.g. methods (the function names are meaningful and match with Python's
   // module hierarchy, with the exception of `__main__` being replaced with
   // `__torch__`).
-  torch::jit::CompilationUnit *compilationUnit = nullptr;
+  torch::jit::CompilationUnit* compilationUnit = nullptr;
 
   // Used to detect potentially aliasing tensors.
-  std::unordered_set<c10::StorageImpl *> seenStorageImpls;
+  std::unordered_set<c10::StorageImpl*> seenStorageImpls;
   // The set of ClassType's that have already been imported.
   //
   // ClassType's are referenced via their `classType->name()->qualifiedName()`
   // string (as an MLIR symbol name) so we don't need to keep a map associating
   // them with the MlirOperation that they import into.
-  std::unordered_set<c10::ClassType *> classTypes;
+  std::unordered_set<c10::ClassType*> classTypes;
   // The stack of attribute names we have traversed to reach the current IValue.
   // Used for diagnostics.
   std::vector<std::string> attributeNameStack;
@@ -190,7 +192,8 @@ MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
       torchMlirTorchNnModuleTypeGet(context, toMlirStringRef(moduleTypeName)),
       mlirRegionCreate());
   MlirRegion nnModuleRegion = mlirOperationGetRegion(nnModule, 0);
-  mlirRegionAppendOwnedBlock(nnModuleRegion, mlirBlockCreate(0, nullptr, nullptr));
+  mlirRegionAppendOwnedBlock(
+      nnModuleRegion, mlirBlockCreate(0, nullptr, nullptr));
   MlirBlock nnModuleBody = mlirRegionGetFirstBlock(nnModuleRegion);
   InserterGuard inserterGuard(importBlock, nnModule);
 
@@ -198,13 +201,14 @@ MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
     rootModuleName = moduleTypeName;
   }
 
-  const std::vector<c10::IValue> &slots = currentModule._ivalue()->slots();
-  const std::vector<c10::ClassAttribute> &classAttributes =
+  const std::vector<c10::IValue>& slots = currentModule._ivalue()->slots();
+  const std::vector<c10::ClassAttribute>& classAttributes =
       currentModule.type()->getAttributes();
-  assert(slots.size() == classAttributes.size() &&
-         "mismatch between object and type!");
+  assert(
+      slots.size() == classAttributes.size() &&
+      "mismatch between object and type!");
   for (int i = 0, e = slots.size(); i < e; i++) {
-    const c10::ClassAttribute &classAttribute = classAttributes[i];
+    const c10::ClassAttribute& classAttribute = classAttributes[i];
     attributeNameStack.push_back(classAttribute.getName());
     MlirValue slotValue = importIValue(slots[i]);
     // TODO: Is it necessary to track whether an attribute is a "parameter"?
@@ -231,7 +235,7 @@ MlirValue IValueImporter::importIValue(c10::IValue ivalue) {
   }
   // Reject potentially aliased tensors.
   if (ivalue.isTensor()) {
-    c10::StorageImpl *storageImpl =
+    c10::StorageImpl* storageImpl =
         ivalue.toTensor().storage().unsafeGetStorageImpl();
     if (!seenStorageImpls.insert(storageImpl).second) {
       std::stringstream msg;
@@ -257,8 +261,8 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     MlirType type = torchMlirTorchBoolTypeGet(context);
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.constant.bool", loc, type,
-        toMlirNamedAttribute("value",
-                             mlirBoolAttrGet(context, ivalue.toBool())));
+        toMlirNamedAttribute(
+            "value", mlirBoolAttrGet(context, ivalue.toBool())));
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isDouble()) {
@@ -266,23 +270,23 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.constant.float", loc, type,
         toMlirNamedAttribute(
-            "value", mlirFloatAttrDoubleGet(context, mlirF64TypeGet(context),
-                                            ivalue.toDouble())));
+            "value", mlirFloatAttrDoubleGet(
+                         context, mlirF64TypeGet(context), ivalue.toDouble())));
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isInt()) {
     MlirType type = torchMlirTorchIntTypeGet(context);
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.constant.int", loc, type,
-        toMlirNamedAttribute("value",
-                             mlirIntegerAttrGet(mlirIntegerTypeGet(context, 64),
-                                                ivalue.toInt())));
+        toMlirNamedAttribute(
+            "value", mlirIntegerAttrGet(
+                         mlirIntegerTypeGet(context, 64), ivalue.toInt())));
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isList()) {
     c10::List<c10::IValue> list = ivalue.toList();
     std::vector<MlirValue> elems;
-    for (const c10::IValue &elem : list) {
+    for (const c10::IValue& elem : list) {
       elems.push_back(importIValue(elem));
     }
     MlirOperation operation = createMlirOperationAtEnd(
@@ -312,7 +316,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     auto list = ivalue.toTuple()->elements();
     std::vector<MlirValue> operands;
     std::vector<MlirType> types;
-    for (const c10::IValue &elem : list) {
+    for (const c10::IValue& elem : list) {
       MlirValue operand = importIValue(elem);
       operands.push_back(operand);
       types.push_back(mlirValueGetType(operand));
@@ -335,14 +339,14 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
         torchMlirTorchStringTypeGet(context),
         toMlirNamedAttribute(
             "value",
-            mlirStringAttrGet(context,
-                              toMlirStringRef(ivalue.toString()->string()))));
+            mlirStringAttrGet(
+                context, toMlirStringRef(ivalue.toString()->string()))));
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isNone()) {
-    MlirOperation operation =
-        createMlirOperationAtEnd(importBlock, "torch.constant.none", loc,
-                                 torchMlirTorchNoneTypeGet(context));
+    MlirOperation operation = createMlirOperationAtEnd(
+        importBlock, "torch.constant.none", loc,
+        torchMlirTorchNoneTypeGet(context));
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isCustomClass()) {
@@ -436,12 +440,12 @@ MlirValue IValueImporter::importTensor(c10::IValue ivalue) {
   return tensorValue;
 }
 
-void IValueImporter::importMethod(torch::jit::Function *function,
-                                  MlirBlock classTypeBody,
-                                  const MethodAnnotation &methodAnnotation) {
+void IValueImporter::importMethod(
+    torch::jit::Function* function, MlirBlock classTypeBody,
+    const MethodAnnotation& methodAnnotation) {
   // The function's name becomes the MLIR symbol table name of the imported func
   // when we import the compilation unit.
-  const std::string &symName = function->qualname().qualifiedName();
+  const std::string& symName = function->qualname().qualifiedName();
   MlirAttribute functionSymbolRef =
       mlirFlatSymbolRefAttrGet(context, toMlirStringRef(symName));
 
@@ -457,7 +461,7 @@ void IValueImporter::importMethod(torch::jit::Function *function,
       toMlirNamedAttribute("function", functionSymbolRef), isPrivate);
 }
 
-void IValueImporter::importClassType(c10::ClassType *classType) {
+void IValueImporter::importClassType(c10::ClassType* classType) {
   if (!classTypes.insert(classType).second) {
     return;
   }
@@ -475,13 +479,13 @@ void IValueImporter::importClassType(c10::ClassType *classType) {
   mlirRegionAppendOwnedBlock(region, mlirBlockCreate(0, nullptr, nullptr));
   MlirBlock classTypeBody = mlirRegionGetFirstBlock(region);
 
-  ClassAnnotation &classAnnotation =
+  ClassAnnotation& classAnnotation =
       annotator.getOrCreateClassAnnotation(classType);
 
-  const auto &attributeAnnotations = classAnnotation.getAttributeAnnotations();
-  const auto &classAttributes = classType->getAttributes();
+  const auto& attributeAnnotations = classAnnotation.getAttributeAnnotations();
+  const auto& classAttributes = classType->getAttributes();
   for (int i = 0, e = classAttributes.size(); i != e; i++) {
-    const c10::ClassAttribute &classAttribute = classAttributes[i];
+    const c10::ClassAttribute& classAttribute = classAttributes[i];
     c10::optional<MlirNamedAttribute> isPrivate;
     if (!attributeAnnotations[i].isExported) {
       isPrivate = toMlirNamedAttribute("isPrivate", mlirUnitAttrGet(context));
@@ -491,13 +495,14 @@ void IValueImporter::importClassType(c10::ClassType *classType) {
         toMlirNamedAttribute(
             "name", mlirStringAttrGet(
                         context, toMlirStringRef(classAttribute.getName()))),
-        toMlirNamedAttribute("type", mlirTypeAttrGet(getMlirTypeFromTorchType(
-                                         loc, classAttribute.getType(), importOptions))),
+        toMlirNamedAttribute(
+            "type", mlirTypeAttrGet(getMlirTypeFromTorchType(
+                        loc, classAttribute.getType(), importOptions))),
         isPrivate);
   }
 
-  const auto &methodAnnotations = classAnnotation.getMethodAnnotations();
-  const auto &methods = classType->methods();
+  const auto& methodAnnotations = classAnnotation.getMethodAnnotations();
+  const auto& methods = classType->methods();
   for (int i = 0, e = methods.size(); i != e; i++) {
     importMethod(methods[i], classTypeBody, methodAnnotations[i]);
   }
@@ -505,7 +510,7 @@ void IValueImporter::importClassType(c10::ClassType *classType) {
   createMlirOperationAtEnd(classTypeBody, "torch.class_type_terminator", loc);
 }
 
-void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
+void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit* cu) {
   if (compilationUnit == nullptr) {
     compilationUnit = cu;
   } else {
@@ -524,14 +529,14 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
     return;
   }
 
-  for (torch::jit::Function *function : cu->get_functions()) {
+  for (torch::jit::Function* function : cu->get_functions()) {
     // Useful for debugging errors in free functions that end up being
     // unused. These can be missing when round-tripping through the on-disk
     // format, even though they still cause import issues when importing
     // through the larger Python session where they originate.
     // std::cerr << "NAME: " << function->qualname().qualifiedName() << "\n";
     // std::cerr << *torch::jit::toGraphFunction(function).graph();
-    MethodAnnotation *annotation =
+    MethodAnnotation* annotation =
         annotator.getMethodAnnotationForFunction(function);
     MlirOperation func = importJitFunctionAsFuncOp(
         context, function,
@@ -539,9 +544,9 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
           if (!annotation || !annotation->argAnnotations.has_value()) {
             return {nullptr};
           }
-          c10::optional<std::vector<int64_t>> &maybeShape =
+          c10::optional<std::vector<int64_t>>& maybeShape =
               annotation->argAnnotations.value()[argIndex].shape;
-          c10::optional<c10::ScalarType> &maybeDtype =
+          c10::optional<c10::ScalarType>& maybeDtype =
               annotation->argAnnotations.value()[argIndex].dtype;
           bool hasValueSemantics =
               annotation->argAnnotations.value()[argIndex].hasValueSemantics;
@@ -561,10 +566,10 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
           // the C API constructor, when we want the "we know we have 0 sizes"
           // case. So use a dummy data pointer.
           int64_t dummy;
-          int64_t *shapeData = shape.size() == 0 ? &dummy : shape.data();
+          int64_t* shapeData = shape.size() == 0 ? &dummy : shape.data();
           if (hasValueSemantics) {
-            typeBound = torchMlirTorchValueTensorTypeGet(context, shape.size(),
-                                                         shapeData, dtype);
+            typeBound = torchMlirTorchValueTensorTypeGet(
+                context, shape.size(), shapeData, dtype);
           } else {
             typeBound = torchMlirTorchNonValueTensorTypeGet(
                 context, shape.size(), shapeData, dtype);
@@ -592,10 +597,9 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
   }
 }
 
-MlirValue torch_mlir::importIValue(c10::IValue ivalue, MlirBlock block,
-                                   MlirContext context,
-                                   ClassAnnotator &annotator,
-                                   const ImportOptions &importOptions) {
+MlirValue torch_mlir::importIValue(
+    c10::IValue ivalue, MlirBlock block, MlirContext context,
+    ClassAnnotator& annotator, const ImportOptions& importOptions) {
   // When debugging module importing, it can be useful to dump as so:
   // if (ivalue.isModule())
   //   ivalue.toModule().dump(true, false, false);

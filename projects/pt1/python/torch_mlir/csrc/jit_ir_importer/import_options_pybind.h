@@ -13,7 +13,7 @@
 #include <torch/csrc/utils/pybind.h>
 
 namespace torch_mlir {
-void initImportOptionsBindings(pybind11::module &m);
+void initImportOptionsBindings(pybind11::module& m);
 } // namespace torch_mlir
 
 #endif // TORCHMLIRJITIRIMPORTER_CSRC_IMPORT_OPTIONS_PYBIND_H

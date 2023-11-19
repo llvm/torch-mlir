@@ -25,7 +25,7 @@ namespace torch_mlir {
 /// Thrown on failure when details are in MLIR emitted diagnostics.
 class mlir_diagnostic_emitted : public std::runtime_error {
 public:
-  mlir_diagnostic_emitted(const char *what) : std::runtime_error(what) {}
+  mlir_diagnostic_emitted(const char* what) : std::runtime_error(what) {}
   mlir_diagnostic_emitted() : std::runtime_error("see diagnostics") {}
 };
 
@@ -38,37 +38,36 @@ public:
 /// for Python code).
 ///
 /// Returns a null type on failure and emits a diagnostic.
-MlirType getMlirTypeForTorchScalarType(MlirLocation loc,
-                                       c10::ScalarType scalarType);
+MlirType
+getMlirTypeForTorchScalarType(MlirLocation loc, c10::ScalarType scalarType);
 
 /// Maps a torch type to a corresponding MlirType. Returns a null type
 /// on failure and emits a diagnostic.
-MlirType getMlirTypeFromTorchType(MlirLocation loc,
-                                  const c10::TypePtr &torchType,
-                                  const ImportOptions &importOptions = {});
+MlirType getMlirTypeFromTorchType(
+    MlirLocation loc, const c10::TypePtr& torchType,
+    const ImportOptions& importOptions = {});
 
 /// Creates a FunctionType suitable for expressing the signature of `schema`.
 ///
 /// This can differ from the type inferred from the block of a
 /// torch::jit::Function due to derefinement and refinement of tensor types.
-MlirType getFunctionTypeFromSchema(MlirContext context,
-                                   const c10::FunctionSchema &schema,
-                                   const ImportOptions &importOptions = {});
+MlirType getFunctionTypeFromSchema(
+    MlirContext context, const c10::FunctionSchema& schema,
+    const ImportOptions& importOptions = {});
 
 /// Creates an appropriate MlirAttribute that holds the same values as `tensor`.
-MlirAttribute convertTensorToMlirElementsAttr(at::Tensor tensor,
-                                              MlirLocation loc);
+MlirAttribute
+convertTensorToMlirElementsAttr(at::Tensor tensor, MlirLocation loc);
 
-MlirAttribute importAttribute(MlirLocation loc, torch::jit::Node *node,
-                              c10::Symbol symbol);
+MlirAttribute
+importAttribute(MlirLocation loc, torch::jit::Node* node, c10::Symbol symbol);
 
-MlirLocation getMlirLocationFromNode(MlirContext context,
-                                     torch::jit::Node *node);
+MlirLocation
+getMlirLocationFromNode(MlirContext context, torch::jit::Node* node);
 
-std::vector<MlirType>
-getMlirTypesFromValues(MlirLocation loc,
-                       c10::ArrayRef<torch::jit::Value *> values,
-                       const ImportOptions &importOptions = {});
+std::vector<MlirType> getMlirTypesFromValues(
+    MlirLocation loc, c10::ArrayRef<torch::jit::Value*> values,
+    const ImportOptions& importOptions = {});
 
 std::vector<MlirValue> adjustStaticInformationForValues(
     MlirBlock appendToBlock, MlirLocation loc, c10::ArrayRef<MlirValue> values,
@@ -79,11 +78,10 @@ std::vector<MlirValue> adjustStaticInformationForValues(
 ///
 /// The primary difficulty here is doing the appropriate name munging and
 /// checking if the have a registered op.
-MlirOperation createOperationFromSchema(MlirBlock appendToBlock,
-                                        MlirLocation loc,
-                                        const c10::FunctionSchema &schema,
-                                        c10::ArrayRef<MlirType> resultTypes,
-                                        c10::ArrayRef<MlirValue> operands);
+MlirOperation createOperationFromSchema(
+    MlirBlock appendToBlock, MlirLocation loc,
+    const c10::FunctionSchema& schema, c10::ArrayRef<MlirType> resultTypes,
+    c10::ArrayRef<MlirValue> operands);
 
 } // namespace torch_mlir
 

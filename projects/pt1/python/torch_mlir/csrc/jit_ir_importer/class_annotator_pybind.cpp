@@ -18,7 +18,7 @@ using namespace torch_mlir;
 static c10::ScalarType convertToC10ScalarType(py::object obj) {
   if (THPDtype_Check(obj.ptr())) {
     // Need reinterpret_cast, since no C++-level inheritance is involved.
-    THPDtype *dtype = reinterpret_cast<THPDtype *>(obj.ptr());
+    THPDtype* dtype = reinterpret_cast<THPDtype*>(obj.ptr());
     return dtype->scalar_type;
   }
   std::stringstream ss;
@@ -48,16 +48,17 @@ static std::vector<ArgAnnotation> getArgAnnotations(py::list pyArgAnnotations) {
   return argAnnotations;
 }
 
-void torch_mlir::initClassAnnotatorBindings(py::module &m) {
+void torch_mlir::initClassAnnotatorBindings(py::module& m) {
   py::class_<ClassAnnotator>(m, "ClassAnnotator")
       .def(py::init<>())
       .def("exportPath", &ClassAnnotator::exportPath)
       .def("exportNone", &ClassAnnotator::exportNone)
-      .def("annotateArgs",
-           [&](ClassAnnotator &cls_annotator, c10::ClassType &rootClassType,
-               std::vector<std::string> path, py::list argAnnotations) {
-             cls_annotator.annotateArgs(rootClassType, path,
-                                        getArgAnnotations(argAnnotations));
-           })
+      .def(
+          "annotateArgs",
+          [&](ClassAnnotator& cls_annotator, c10::ClassType& rootClassType,
+              std::vector<std::string> path, py::list argAnnotations) {
+            cls_annotator.annotateArgs(
+                rootClassType, path, getArgAnnotations(argAnnotations));
+          })
       .def("__repr__", &ClassAnnotator::toString);
 }

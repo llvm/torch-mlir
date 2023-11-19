@@ -37,10 +37,10 @@ using CreateTerminatorFn =
 /// adjust the types to the block argument types.
 /// TODO: Formalize what type conversions are allowed here.
 MlirBlock importBlock(
-    MlirContext context, torch::jit::Block *jitBlock,
+    MlirContext context, torch::jit::Block* jitBlock,
     CreateTerminatorFn createTerminator,
     c10::optional<c10::ArrayRef<MlirType>> blockArgTypes = c10::nullopt,
-    const ImportOptions &importOptions = {});
+    const ImportOptions& importOptions = {});
 
 } // namespace torch_mlir
 

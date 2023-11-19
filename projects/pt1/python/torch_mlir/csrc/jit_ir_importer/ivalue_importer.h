@@ -25,9 +25,9 @@ namespace torch_mlir {
 
 /// Main entry-point for importing torch IValue's .
 /// Recursively imports `ivalue`, inserting operations at the end of `block`.
-MlirValue importIValue(c10::IValue ivalue, MlirBlock block, MlirContext context,
-                       ClassAnnotator &annotator,
-                       const ImportOptions &importOptions);
+MlirValue importIValue(
+    c10::IValue ivalue, MlirBlock block, MlirContext context,
+    ClassAnnotator& annotator, const ImportOptions& importOptions);
 
 } // namespace torch_mlir
 
