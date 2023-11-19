@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "class_annotator_pybind.h"
-#include "class_annotator.h"
+#include "jit_ir_importer/class_annotator.h"
 
 #include <torch/csrc/Dtype.h>
 #include <torch/csrc/utils/pybind.h>

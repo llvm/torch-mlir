@@ -10,7 +10,7 @@
 #ifndef TORCHMLIRJITIRIMPORTER_CSRC_BUILDER_H
 #define TORCHMLIRJITIRIMPORTER_CSRC_BUILDER_H
 
-#include "class_annotator.h"
+#include "jit_ir_importer/class_annotator.h"
 
 #include "mlir-c/IR.h"
 

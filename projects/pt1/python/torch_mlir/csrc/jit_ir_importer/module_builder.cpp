@@ -9,9 +9,9 @@
 
 #include "module_builder.h"
 
-#include "function_importer.h"
-#include "ivalue_importer.h"
-#include "mlir_utils.h"
+#include "jit_ir_importer/function_importer.h"
+#include "jit_ir_importer/ivalue_importer.h"
+#include "jit_ir_importer/mlir_utils.h"
 
 #include "mlir-c/Bindings/Python/Interop.h"
 #include "mlir-c/BuiltinAttributes.h"

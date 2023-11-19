@@ -40,10 +40,10 @@ namespace torch_mlir {
 /// null MlirAttribute is returned, no attribute will be attached to that
 /// argument.
 MlirOperation importJitFunctionAsFuncOp(
-    MlirContext context, torch::jit::Function* function,
+    MlirContext context, torch::jit::Function *function,
     std::function<MlirAttribute(int)> getArgAttribute =
         [](int) -> MlirAttribute { return {nullptr}; },
-    const ImportOptions& importOptions = {});
+    const ImportOptions &importOptions = {});
 
 } // namespace torch_mlir
 

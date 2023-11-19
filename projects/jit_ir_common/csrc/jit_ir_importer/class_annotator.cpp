@@ -18,8 +18,8 @@ using namespace torch_mlir;
 //===----------------------------------------------------------------------===//
 
 // Prefix every line of `s` with `linePrefix`.
-static std::string
-indentString(const std::string& linePrefix, const std::string& s) {
+static std::string indentString(const std::string &linePrefix,
+                                const std::string &s) {
   std::stringstream is(s);
   std::stringstream os;
   std::string line;
@@ -39,28 +39,26 @@ ClassAnnotation::ClassAnnotation(c10::ClassTypePtr classType)
   methodAnnotations.resize(classType->methods().size());
 }
 
-std::vector<AttributeAnnotation>& ClassAnnotation::getAttributeAnnotations() {
+std::vector<AttributeAnnotation> &ClassAnnotation::getAttributeAnnotations() {
   // Halfhearted attempt to ensure consistency if the class type has
   // been mutated.
   //
   // We can't easily guard against attributes being removed and
   // then other attributes being added, or types changed, etc. without
   // effectively mirroring the entire ClassType.
-  assert(
-      attributeAnnotations.size() == classType->getAttributes().size() &&
-      "annotations out of sync. class has been mutated");
+  assert(attributeAnnotations.size() == classType->getAttributes().size() &&
+         "annotations out of sync. class has been mutated");
 
   return attributeAnnotations;
 }
 
-std::vector<MethodAnnotation>& ClassAnnotation::getMethodAnnotations() {
+std::vector<MethodAnnotation> &ClassAnnotation::getMethodAnnotations() {
   // Halfhearted attempt to ensure consistency if the class type has
   // been mutated.
   //
   // We can't easily guard against methods being removed, added, or changed.
-  assert(
-      methodAnnotations.size() == classType->methods().size() &&
-      "annotations out of sync. class has been mutated");
+  assert(methodAnnotations.size() == classType->methods().size() &&
+         "annotations out of sync. class has been mutated");
 
   return methodAnnotations;
 }
@@ -69,17 +67,17 @@ std::vector<MethodAnnotation>& ClassAnnotation::getMethodAnnotations() {
 // ClassAnnotator
 //===----------------------------------------------------------------------===//
 
-static void
-exportNoneRecurse(ClassAnnotator& classAnnotator, c10::ClassType* classType) {
-  ClassAnnotation& classAnnotation =
+static void exportNoneRecurse(ClassAnnotator &classAnnotator,
+                              c10::ClassType *classType) {
+  ClassAnnotation &classAnnotation =
       classAnnotator.getOrCreateClassAnnotation(classType);
-  for (auto& attributeAnnotation : classAnnotation.getAttributeAnnotations()) {
+  for (auto &attributeAnnotation : classAnnotation.getAttributeAnnotations()) {
     attributeAnnotation.isExported = false;
   }
-  for (auto& methodAnnotation : classAnnotation.getMethodAnnotations()) {
+  for (auto &methodAnnotation : classAnnotation.getMethodAnnotations()) {
     methodAnnotation.isExported = false;
   }
-  for (auto& classAttribute : classType->getAttributes()) {
+  for (auto &classAttribute : classType->getAttributes()) {
     if (auto childClassType =
             classAttribute.getType()->cast<c10::ClassType>()) {
       exportNoneRecurse(classAnnotator, childClassType.get());
@@ -87,20 +85,20 @@ exportNoneRecurse(ClassAnnotator& classAnnotator, c10::ClassType* classType) {
   }
 }
 
-void ClassAnnotator::exportNone(c10::ClassType& rootClassType) {
+void ClassAnnotator::exportNone(c10::ClassType &rootClassType) {
   exportNoneRecurse(*this, &rootClassType);
 }
 
-void ClassAnnotator::exportPath(
-    c10::ClassType& rootClassType, std::vector<std::string> exportedPath) {
+void ClassAnnotator::exportPath(c10::ClassType &rootClassType,
+                                std::vector<std::string> exportedPath) {
   if (exportedPath.size() == 0) {
     throw std::invalid_argument(
         "Empty exported path. Can only export a property of a class.");
   }
-  c10::ClassType* classType = getClassAtPath(
-      &rootClassType, c10::ArrayRef<std::string>(exportedPath)
-                          .slice(0, exportedPath.size() - 1)
-                          .vec());
+  c10::ClassType *classType =
+      getClassAtPath(&rootClassType, c10::ArrayRef<std::string>(exportedPath)
+                                         .slice(0, exportedPath.size() - 1)
+                                         .vec());
 
   if (!classType->findAttribute(exportedPath.back()) &&
       !classType->findMethod(exportedPath.back())) {
@@ -110,10 +108,10 @@ void ClassAnnotator::exportPath(
        << exportedPath.back() << "'";
     throw std::invalid_argument(ss.str());
   }
-  ClassAnnotation& classAnnotation = getOrCreateClassAnnotation(classType);
-  std::vector<AttributeAnnotation>& attributeAnnotations =
+  ClassAnnotation &classAnnotation = getOrCreateClassAnnotation(classType);
+  std::vector<AttributeAnnotation> &attributeAnnotations =
       classAnnotation.getAttributeAnnotations();
-  const std::vector<c10::ClassAttribute>& classAttributes =
+  const std::vector<c10::ClassAttribute> &classAttributes =
       classType->getAttributes();
   for (int i = 0, e = classAttributes.size(); i != e; i++) {
     if (classAttributes[i].getName() == exportedPath.back()) {
@@ -121,9 +119,9 @@ void ClassAnnotator::exportPath(
     }
   }
 
-  std::vector<MethodAnnotation>& methodAnnotations =
+  std::vector<MethodAnnotation> &methodAnnotations =
       classAnnotation.getMethodAnnotations();
-  const std::vector<torch::jit::Function*>& methods = classType->methods();
+  const std::vector<torch::jit::Function *> &methods = classType->methods();
   for (int i = 0, e = methods.size(); i != e; i++) {
     if (methods[i]->name() == exportedPath.back()) {
       methodAnnotations[i].isExported = true;
@@ -131,12 +129,12 @@ void ClassAnnotator::exportPath(
   }
 }
 
-const ClassAnnotationMap& ClassAnnotator::getAnnotationMap() {
+const ClassAnnotationMap &ClassAnnotator::getAnnotationMap() {
   return classAnnotations;
 }
 
-ClassAnnotation&
-ClassAnnotator::getOrCreateClassAnnotation(c10::ClassType* classType) {
+ClassAnnotation &
+ClassAnnotator::getOrCreateClassAnnotation(c10::ClassType *classType) {
   auto className = classType->name()->qualifiedName();
   auto it = classAnnotations.find(className);
   if (it == classAnnotations.end()) {
@@ -151,39 +149,39 @@ ClassAnnotator::getOrCreateClassAnnotation(c10::ClassType* classType) {
   return *it->second;
 }
 
-static void fillArgAnnotations(
-    MethodAnnotation& methodAnnotation,
-    std::vector<ArgAnnotation> argAnnotations, torch::jit::Function* function) {
+static void fillArgAnnotations(MethodAnnotation &methodAnnotation,
+                               std::vector<ArgAnnotation> argAnnotations,
+                               torch::jit::Function *function) {
   if (argAnnotations.size() != function->num_inputs()) {
     throw std::invalid_argument("Arg annotations should have one entry per "
                                 "function parameter (including self).");
   }
   if (!methodAnnotation.argAnnotations.has_value()) {
-    methodAnnotation.argAnnotations.emplace(
-        function->num_inputs(), ArgAnnotation{});
+    methodAnnotation.argAnnotations.emplace(function->num_inputs(),
+                                            ArgAnnotation{});
   }
 
   methodAnnotation.argAnnotations = argAnnotations;
 }
 
-void ClassAnnotator::annotateArgs(
-    c10::ClassType& rootClassType, std::vector<std::string> path,
-    std::vector<ArgAnnotation> argAnnotations) {
+void ClassAnnotator::annotateArgs(c10::ClassType &rootClassType,
+                                  std::vector<std::string> path,
+                                  std::vector<ArgAnnotation> argAnnotations) {
   if (path.size() == 0) {
     throw std::invalid_argument("Empty annotated path. Can only annotate "
                                 "shapes/dtypes of a method of a class.");
   }
-  c10::ClassType* classType = getClassAtPath(
+  c10::ClassType *classType = getClassAtPath(
       &rootClassType,
       c10::ArrayRef<std::string>(path).slice(0, path.size() - 1).vec());
 
   // Throw error if no method on the class of the specified name.
-  torch::jit::Function* function = &classType->getMethod(path.back());
+  torch::jit::Function *function = &classType->getMethod(path.back());
 
-  ClassAnnotation& classAnnotation = getOrCreateClassAnnotation(classType);
-  std::vector<MethodAnnotation>& methodAnnotations =
+  ClassAnnotation &classAnnotation = getOrCreateClassAnnotation(classType);
+  std::vector<MethodAnnotation> &methodAnnotations =
       classAnnotation.getMethodAnnotations();
-  const std::vector<torch::jit::Function*>& methods = classType->methods();
+  const std::vector<torch::jit::Function *> &methods = classType->methods();
   for (int i = 0, e = methods.size(); i != e; i++) {
     if (methods[i]->name() == path.back()) {
       fillArgAnnotations(methodAnnotations[i], argAnnotations, function);
@@ -193,9 +191,9 @@ void ClassAnnotator::annotateArgs(
   return;
 }
 
-c10::ClassType* ClassAnnotator::getClassAtPath(
-    c10::ClassType* rootClassType, std::vector<std::string> path) {
-  c10::ClassType* classType = rootClassType;
+c10::ClassType *ClassAnnotator::getClassAtPath(c10::ClassType *rootClassType,
+                                               std::vector<std::string> path) {
+  c10::ClassType *classType = rootClassType;
   // Reverse so that pop_back gives us the initial atoms first.
   std::reverse(path.begin(), path.end());
   while (!path.empty()) {
@@ -217,8 +215,8 @@ c10::ClassType* ClassAnnotator::getClassAtPath(
 //===----------------------------------------------------------------------===//
 // Helper methods
 //===----------------------------------------------------------------------===//
-MethodAnnotation*
-ClassAnnotator::getMethodAnnotationForFunction(torch::jit::Function* function) {
+MethodAnnotation *
+ClassAnnotator::getMethodAnnotationForFunction(torch::jit::Function *function) {
   auto it = functionToMethodMap.find(function);
   if (it == functionToMethodMap.end()) {
     return nullptr;
@@ -230,7 +228,7 @@ ClassAnnotator::getMethodAnnotationForFunction(torch::jit::Function* function) {
 // toString methods
 //===----------------------------------------------------------------------===//
 
-std::string AttributeAnnotation::toString(const std::string& name) {
+std::string AttributeAnnotation::toString(const std::string &name) {
   std::stringstream ss;
   ss << "AttributeAnnotation('" << name << "') {\n";
   ss << "  isExported = " << (isExported ? "true" : "false") << "\n";
@@ -261,7 +259,7 @@ std::string ArgAnnotation::toString(int argIndex) {
   return ss.str();
 }
 
-std::string MethodAnnotation::toString(const std::string& name) {
+std::string MethodAnnotation::toString(const std::string &name) {
   std::stringstream ss;
   ss << "MethodAnnotation('" << name << "') {\n";
   ss << "  isExported = " << (isExported ? "true" : "false") << "\n";
@@ -282,13 +280,13 @@ std::string ClassAnnotation::toString() {
   std::stringstream ss;
   ss << "ClassAnnotation('" << classType->name()->qualifiedName() << "') {\n";
 
-  const std::vector<c10::ClassAttribute>& classAttributes =
+  const std::vector<c10::ClassAttribute> &classAttributes =
       classType->getAttributes();
   for (int i = 0, e = classAttributes.size(); i != e; i++) {
     ss << indentString(
         "  ", attributeAnnotations[i].toString(classAttributes[i].getName()));
   }
-  const std::vector<torch::jit::Function*>& methods = classType->methods();
+  const std::vector<torch::jit::Function *> &methods = classType->methods();
   for (int i = 0, e = methods.size(); i != e; i++) {
     ss << indentString("  ", methodAnnotations[i].toString(methods[i]->name()));
   }
@@ -299,7 +297,7 @@ std::string ClassAnnotation::toString() {
 std::string ClassAnnotator::toString() {
   std::stringstream ss;
   ss << "ClassAnnotator {\n";
-  for (auto& p : classAnnotations) {
+  for (auto &p : classAnnotations) {
     ss << indentString("  ", p.second->toString());
   }
   ss << "}\n";

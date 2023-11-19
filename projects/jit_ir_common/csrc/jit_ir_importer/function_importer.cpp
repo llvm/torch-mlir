@@ -21,9 +21,9 @@
 using namespace torch_mlir;
 
 MlirOperation torch_mlir::importJitFunctionAsFuncOp(
-    MlirContext context, torch::jit::Function* function,
+    MlirContext context, torch::jit::Function *function,
     std::function<MlirAttribute(int)> getArgAttribute,
-    const ImportOptions& importOptions) {
+    const ImportOptions &importOptions) {
   // Useful for debugging:
   // graph->dump();
   MlirLocation loc = mlirLocationUnknownGet(context);
@@ -63,11 +63,10 @@ MlirOperation torch_mlir::importJitFunctionAsFuncOp(
   }
   auto createTerminator = [&](c10::ArrayRef<MlirValue> yieldedValues,
                               MlirBlock appendToBlock) {
-    createMlirOperationAtEnd(
-        appendToBlock, "func.return", loc,
-        adjustStaticInformationForValues(
-            appendToBlock, loc, yieldedValues, resultTypes,
-            /*userAllowsRefinement=*/false));
+    createMlirOperationAtEnd(appendToBlock, "func.return", loc,
+                             adjustStaticInformationForValues(
+                                 appendToBlock, loc, yieldedValues, resultTypes,
+                                 /*userAllowsRefinement=*/false));
   };
   MlirBlock block = importBlock(
       context, torch::jit::toGraphFunction(*function).graph()->block(),
