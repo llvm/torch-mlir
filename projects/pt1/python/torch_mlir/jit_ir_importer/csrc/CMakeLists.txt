@@ -1,15 +1,3 @@
-# Sharp edge: Torch extensions need to use the same pybind11 that torch
-# was compiled with, or else there will be issues in cross module exception
-# handling (which will abort instead of raise). We circumvent the possibility
-# by forcing the torch directories first.
-include_directories(BEFORE
-  ${TORCH_INCLUDE_DIRS}
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_BINARY_DIR}
-  ${Python3_INCLUDE_DIRS}
-  )
-link_directories("${TORCH_INSTALL_PREFIX}/lib")
-
 # Static library with core functionality.
 # We can't use a shared library here, due to issues with linking on macOS-arm64 (the library itself won't build)
 # For details, see: https://github.com/llvm/torch-mlir/runs/7919012376

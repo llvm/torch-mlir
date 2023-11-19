@@ -231,6 +231,4 @@ endif()
 # Sub-projects
 #-------------------------------------------------------------------------------
 
-if(TORCH_MLIR_ENABLE_PROJECT_PT1)
-  add_subdirectory(projects/pt1)
-endif()
+add_subdirectory(projects)
