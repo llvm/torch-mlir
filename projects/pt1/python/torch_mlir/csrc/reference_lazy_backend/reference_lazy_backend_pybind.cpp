@@ -11,10 +11,10 @@
 #include "torch/csrc/lazy/core/config.h"
 #include "torch/csrc/lazy/backend/backend_interface.h"
 
-#include <torch_mlir/csrc/base_lazy_backend/mlir_lowering_context.h>
-#include <torch_mlir/csrc/base_lazy_backend/utils/string_utils.h>
-#include <torch_mlir/csrc/base_lazy_backend/utils/sys_utils.h>
-#include <torch_mlir/csrc/base_lazy_backend/utils/tensor_utils.h>
+#include <base_lazy_backend/mlir_lowering_context.h>
+#include <base_lazy_backend/utils/string_utils.h>
+#include <base_lazy_backend/utils/sys_utils.h>
+#include <base_lazy_backend/utils/tensor_utils.h>
 
 #include <exception>
 #include <iostream>

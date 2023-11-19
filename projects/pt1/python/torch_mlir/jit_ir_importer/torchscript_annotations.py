@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple
 import torch
 
 import torch_mlir
-from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator
+from torch_mlir.jit_ir_importer import ClassAnnotator
 
 # Decorators
 

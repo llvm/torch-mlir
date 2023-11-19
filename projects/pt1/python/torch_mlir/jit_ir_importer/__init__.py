@@ -11,8 +11,11 @@ import torch
 
 # Our native extension is not self-contained. It references libraries which
 # must come in via the above first.
-from ....._mlir_libs._jit_ir_importer import *
+from .._mlir_libs._jit_ir_importer import *
 
+# Ensure that the torch dialect has been loaded as it registers passes
+# and other things the jit_ir_importer needs.
+from ..dialects import torch as _unused_torch_dialect
 
 __all__ = [
   "debug_trace_to_stderr",

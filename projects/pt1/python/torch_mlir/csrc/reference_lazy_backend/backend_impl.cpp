@@ -14,12 +14,12 @@
 #include <torch/csrc/lazy/core/lazy_graph_executor.h>
 #include <torch/csrc/lazy/core/shape.h>
 
-#include <torch_mlir/csrc/base_lazy_backend/backend_impl.h>
-#include <torch_mlir/csrc/base_lazy_backend/generated/LazyNativeFunctions.h>
-#include <torch_mlir/csrc/base_lazy_backend/mlir_lowering_context.h>
-#include <torch_mlir/csrc/base_lazy_backend/utils/debug.h>
-#include <torch_mlir/csrc/base_lazy_backend/utils/exception.h>
-#include <torch_mlir/csrc/base_lazy_backend/utils/string_utils.h>
+#include <base_lazy_backend/backend_impl.h>
+#include <base_lazy_backend/generated/LazyNativeFunctions.h>
+#include <base_lazy_backend/mlir_lowering_context.h>
+#include <base_lazy_backend/utils/debug.h>
+#include <base_lazy_backend/utils/exception.h>
+#include <base_lazy_backend/utils/string_utils.h>
 
 #include "backend_impl.h"
 

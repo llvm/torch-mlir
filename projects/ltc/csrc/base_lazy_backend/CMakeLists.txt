@@ -2,30 +2,6 @@
 # Setup PyTorch/LTC
 #-------------------------------------------------------------------------------
 
-include(TorchMLIRPyTorch)
-
-TorchMLIRProbeForPyTorchInstall()
-if(TORCH_MLIR_USE_INSTALLED_PYTORCH)
-  TorchMLIRConfigurePyTorch()
-else()
-  # Assume it is a sibling to the overall project.
-  set(Torch_DIR "${PROJECT_SOURCE_DIR}/../libtorch/share/cmake/Torch")
-  message(STATUS "Attempting to locate libtorch as a sibling to the project: ${Torch_DIR}")
-endif()
-
-find_package(Torch 1.11 REQUIRED)
-
-set(TORCHGEN_DIR ${Torch_ROOT}/../../../torchgen)
-
-include_directories(BEFORE
-  ${TORCH_INCLUDE_DIRS}
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_BINARY_DIR}
-  ${Python3_INCLUDE_DIRS}
-  ${PROJECT_SOURCE_DIR}/projects/pt1/python
-)
-link_directories("${TORCH_INSTALL_PREFIX}/lib")
-
 set(LTC_GENERATED
   generated/LazyNativeFunctions.cpp
   generated/RegisterLazy.cpp
@@ -80,6 +56,12 @@ add_library(torch_mlir_ltc_backend SHARED
   utils/tensor_utils.cpp
 )
 target_compile_features(torch_mlir_ltc_backend PRIVATE cxx_std_17)
+# Includes are resolved relative to csrc (i.e. #include "base_lazy_backend/...").
+# Add both the source and generated include directories.
+target_include_directories(torch_mlir_ltc_backend PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/..
+  ${CMAKE_CURRENT_BINARY_DIR}/..
+)
 
 add_dependencies(torch_mlir_ltc_backend
   TorchMLIRJITIRImporter
@@ -112,13 +94,13 @@ add_custom_command(
 add_custom_command(
         TARGET torch_mlir_ltc_backend POST_BUILD
         COMMAND cp
-                ${PROJECT_SOURCE_DIR}/projects/pt1/python/torch_mlir/csrc/base_lazy_backend/*.h
+                ${PROJECT_SOURCE_DIR}/projects/ltc/csrc/base_lazy_backend/*.h
                 ${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/base_lazy_backend/)
 
 add_custom_command(
         TARGET torch_mlir_ltc_backend POST_BUILD
         COMMAND cp
-                ${PROJECT_SOURCE_DIR}/projects/pt1/python/torch_mlir/csrc/base_lazy_backend/generated/*.h
+                ${PROJECT_SOURCE_DIR}/projects/ltc/csrc/base_lazy_backend/generated/*.h
                 ${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/base_lazy_backend/generated/)
 
 add_custom_command(
@@ -129,7 +111,7 @@ add_custom_command(
 add_custom_command(
         TARGET torch_mlir_ltc_backend POST_BUILD
         COMMAND cp
-                ${PROJECT_SOURCE_DIR}/projects/pt1/python/torch_mlir/csrc/base_lazy_backend/ops/*.h
+                ${PROJECT_SOURCE_DIR}/projects/ltc/csrc/base_lazy_backend/ops/*.h
                 ${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/base_lazy_backend/ops/)
 
 add_custom_command(
@@ -140,5 +122,5 @@ add_custom_command(
 add_custom_command(
         TARGET torch_mlir_ltc_backend POST_BUILD
         COMMAND cp
-                ${PROJECT_SOURCE_DIR}/projects/pt1/python/torch_mlir/csrc/base_lazy_backend/utils/*.h
+                ${PROJECT_SOURCE_DIR}/projects/ltc/csrc/base_lazy_backend/utils/*.h
                 ${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/base_lazy_backend/utils/)

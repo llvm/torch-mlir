@@ -17,7 +17,7 @@ The end-to-end test is important to check the correctness of the other steps.
 
 ### Step 2. Update ods
 
-Update [torch_ods_gen.py](https://github.com/llvm/torch-mlir/blob/main/projects/pt1/python/torch_mlir/dialects/torch/importer/jit_ir/build_tools/torch_ods_gen.py) with the new op and run [update_torch_ods.sh](https://github.com/llvm/torch-mlir/blob/main/build_tools/update_torch_ods.sh) to generate the ods. Running `update_torch_ods.sh` would dump all the operators with schema into `JITOperatorRegistryDump.txt`. It’s convenient to look for ops signatures and operands names in this file.
+Update [torch_ods_gen.py](https://github.com/llvm/torch-mlir/blob/main/projects/pt1/python/torch_mlir/jit_ir_importer/build_tools/torch_ods_gen.py) with the new op and run [update_torch_ods.sh](https://github.com/llvm/torch-mlir/blob/main/build_tools/update_torch_ods.sh) to generate the ods. Running `update_torch_ods.sh` would dump all the operators with schema into `JITOperatorRegistryDump.txt`. It’s convenient to look for ops signatures and operands names in this file.
 
 ### Step 3. Propagate types
 It’s essential to make sure the new op implements shape and dtype inference. See [abstract_interp_lib](https://github.com/llvm/torch-mlir/blob/main/docs/abstract_interp_lib.md) for information on adding shape and dtype inference.

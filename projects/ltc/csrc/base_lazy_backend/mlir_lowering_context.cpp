@@ -21,8 +21,8 @@
 #include "mlir-c/IR.h"
 #include "mlir-c/Pass.h"
 
-#include "../../dialects/torch/importer/jit_ir/csrc/function_importer.h"
 #include "backend_impl.h"
+#include "jit_ir_importer/function_importer.h"
 #include "mlir_lowering_context.h"
 #include "mlir_node.h"
 #include "utils/debug.h"

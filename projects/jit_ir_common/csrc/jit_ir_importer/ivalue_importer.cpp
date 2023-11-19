@@ -190,7 +190,8 @@ MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
       torchMlirTorchNnModuleTypeGet(context, toMlirStringRef(moduleTypeName)),
       mlirRegionCreate());
   MlirRegion nnModuleRegion = mlirOperationGetRegion(nnModule, 0);
-  mlirRegionAppendOwnedBlock(nnModuleRegion, mlirBlockCreate(0, nullptr, nullptr));
+  mlirRegionAppendOwnedBlock(nnModuleRegion,
+                             mlirBlockCreate(0, nullptr, nullptr));
   MlirBlock nnModuleBody = mlirRegionGetFirstBlock(nnModuleRegion);
   InserterGuard inserterGuard(importBlock, nnModule);
 
@@ -491,8 +492,9 @@ void IValueImporter::importClassType(c10::ClassType *classType) {
         toMlirNamedAttribute(
             "name", mlirStringAttrGet(
                         context, toMlirStringRef(classAttribute.getName()))),
-        toMlirNamedAttribute("type", mlirTypeAttrGet(getMlirTypeFromTorchType(
-                                         loc, classAttribute.getType(), importOptions))),
+        toMlirNamedAttribute(
+            "type", mlirTypeAttrGet(getMlirTypeFromTorchType(
+                        loc, classAttribute.getType(), importOptions))),
         isPrivate);
   }
 

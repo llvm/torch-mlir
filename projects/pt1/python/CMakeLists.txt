@@ -1,5 +1,3 @@
-include(AddMLIRPython)
-
 # Disables generation of "version soname" (i.e. libFoo.so.<version>), which
 # causes pure duplication as part of Python wheels.
 set(CMAKE_PLATFORM_NO_VERSIONED_SONAME ON)
@@ -90,9 +88,6 @@ declare_mlir_python_extension(TorchMLIRPythonExtensions.Main
 # Lazy Tensor Core
 ################################################################################
 
-if(TORCH_MLIR_ENABLE_LTC)
-  add_subdirectory(torch_mlir/csrc/base_lazy_backend)
-endif()
 # Reference backend has a separate check for TORCH_MLIR_ENABLE_LTC, since it
 # generates a dummy Python library when disabled.
 if(NOT TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS)
@@ -104,7 +99,8 @@ endif()
 ################################################################################
 
 if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
-  add_subdirectory(torch_mlir/dialects/torch/importer/jit_ir)
+  add_subdirectory(torch_mlir/jit_ir_importer)
+  add_subdirectory(torch_mlir/csrc/jit_ir_importer)
   add_subdirectory(torch_mlir_e2e_test)
 endif()
 

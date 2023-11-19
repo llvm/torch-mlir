@@ -18,7 +18,7 @@
 
 namespace py = pybind11;
 namespace torch_mlir {
-void initClassAnnotatorBindings(py::module &m);
+void initClassAnnotatorBindings(py::module& m);
 } // namespace torch_mlir
 
 #endif // TORCHMLIRJITIRIMPORTER_CSRC_CLASS_ANNOTATOR_PYBIND_H

@@ -19,7 +19,7 @@
 
 namespace torch_mlir {
 
-void initGetRegisteredOpsBindings(py::module &m);
+void initGetRegisteredOpsBindings(py::module& m);
 
 } // namespace torch_mlir
 

@@ -29,7 +29,6 @@ if not TORCH_INCLUDE_DIR.is_dir():
     TORCH_INCLUDE_DIR = TORCH_DIR
 TORCHGEN_DIR = Path(torchgen.__path__[0]).resolve()
 TORCH_MLIR_DIR = Path(__file__).resolve().parent.parent
-TORCH_MLIR_PT1_DIR = TORCH_MLIR_DIR / "projects" / "pt1"
 
 def reindent(text, prefix=""):
     return indent(dedent(text), prefix)
@@ -114,12 +113,12 @@ class GenTorchMlirLTC:
         self.binary_dir = Path(binary_dir)
         assert self.binary_dir.is_dir(), f"Binary directory not found: {self.binary_dir}"
         self.source_yaml = self.binary_dir.joinpath("generated_native_functions.yaml")
-        self.backend_path = TORCH_MLIR_PT1_DIR.joinpath(
-            "python", "torch_mlir", "csrc", "base_lazy_backend"
+        self.backend_path = TORCH_MLIR_DIR.joinpath(
+            "projects", "ltc", "csrc", "base_lazy_backend"
         )
         assert self.backend_path.is_dir(), f"Backend path not found: {self.backend_path}"
         self.generated_path = self.binary_dir.joinpath(
-            "projects", "pt1", "python", "torch_mlir", "csrc", "base_lazy_backend", "generated"
+            "projects", "ltc", "csrc", "base_lazy_backend", "generated"
         )
         self.generated_path.mkdir(parents=True, exist_ok=True)
 
@@ -415,7 +414,7 @@ class GenTorchMlirLTC:
                     // for ops that dont have a corresponding structured kernel or shape definition
 
                     #include "shape_inference.h"
-                    #include "torch_mlir/csrc/base_lazy_backend/utils/exception.h"
+                    #include "base_lazy_backend/utils/exception.h"
                     namespace torch {{
                     namespace lazy {{
                     {}
@@ -467,7 +466,7 @@ class GenTorchMlirLTC:
             node_base="torch::lazy::TorchMlirNode",
             node_base_hdr=str(self.backend_path.joinpath("mlir_node.h")),
             tensor_class=self.tensor_class,
-            tensor_class_hdr="torch_mlir/csrc/base_lazy_backend/tensor.h",
+            tensor_class_hdr="base_lazy_backend/tensor.h",
             create_aten_from_ltc_tensor="CreateFunctionalizedAtenFromLtcTensor",
             shape_inference_hdr=str(self.generated_path.joinpath("shape_inference.h")),
             lazy_ir_generator=GenMlirLazyIr,

@@ -50,9 +50,9 @@ static py::list getRegisteredOps() {
   // since the JIT has its own dispatch mechanism that it uses to implement
   // "prim" ops and a handful of "aten" ops that are effectively prim ops, such
   // as `aten::__is__`.
-  for (const std::shared_ptr<torch::jit::Operator> &op :
+  for (const std::shared_ptr<torch::jit::Operator>& op :
        torch::jit::getAllOperators()) {
-    const c10::FunctionSchema &schema = op->schema();
+    const c10::FunctionSchema& schema = op->schema();
 
     py::dict record;
     {
@@ -69,7 +69,7 @@ static py::list getRegisteredOps() {
 
     py::list arguments;
     py::list returns;
-    auto addArgument = [](py::list &container, const c10::Argument &arg) {
+    auto addArgument = [](py::list& container, const c10::Argument& arg) {
       py::dict argRecord;
       argRecord["name"] = arg.name();
       argRecord["type"] = arg.type()->str();
@@ -87,10 +87,10 @@ static py::list getRegisteredOps() {
         py::dict aliasInfo;
         py::list before;
         py::list after;
-        for (auto &symbol : arg.alias_info()->beforeSets()) {
+        for (auto& symbol : arg.alias_info()->beforeSets()) {
           before.append(std::string(symbol.toQualString()));
         }
-        for (auto &symbol : arg.alias_info()->afterSets()) {
+        for (auto& symbol : arg.alias_info()->afterSets()) {
           after.append(std::string(symbol.toQualString()));
         }
         aliasInfo["is_write"] = arg.alias_info()->isWrite();
@@ -101,10 +101,10 @@ static py::list getRegisteredOps() {
 
       container.append(std::move(argRecord));
     };
-    for (auto &argument : schema.arguments()) {
+    for (auto& argument : schema.arguments()) {
       addArgument(arguments, argument);
     }
-    for (auto &returnArg : schema.returns()) {
+    for (auto& returnArg : schema.returns()) {
       addArgument(returns, returnArg);
     }
     record["arguments"] = std::move(arguments);
@@ -115,6 +115,6 @@ static py::list getRegisteredOps() {
   return results;
 }
 
-void torch_mlir::initGetRegisteredOpsBindings(py::module &m) {
+void torch_mlir::initGetRegisteredOpsBindings(py::module& m) {
   m.def("get_registered_ops", &getRegisteredOps, kGetRegisteredOpsDocstring);
 }

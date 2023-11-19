@@ -41,10 +41,9 @@ public:
       const ImportOptions &importOptions = {});
 
 private:
-  MlirBlock
-  createBlockFor(Block *jitBlock,
-                 c10::optional<c10::ArrayRef<MlirType>> blockArgTypes,
-                 const ImportOptions &importOptions = {});
+  MlirBlock createBlockFor(Block *jitBlock,
+                           c10::optional<c10::ArrayRef<MlirType>> blockArgTypes,
+                           const ImportOptions &importOptions = {});
   void mapValue(Value *jitValue, MlirValue value);
   void mapResults(Node *node, MlirOperation operation);
   MlirValue lookupMappedValue(Value *jitValue);
@@ -269,9 +268,9 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock,
                                            terminatorOperandTypes,
                                            /*userAllowsRefinement=*/false));
     };
-    mlirRegionAppendOwnedBlock(
-        mlirOperationGetRegion(operation, 0),
-        importBlock(node->blocks()[0], createTerminator, c10::nullopt, importOptions));
+    mlirRegionAppendOwnedBlock(mlirOperationGetRegion(operation, 0),
+                               importBlock(node->blocks()[0], createTerminator,
+                                           c10::nullopt, importOptions));
     return;
   }
 
@@ -290,12 +289,12 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock,
                                            resultTypes,
                                            /*userAllowsRefinement=*/false));
     };
-    mlirRegionAppendOwnedBlock(
-        mlirOperationGetRegion(operation, 0),
-        importBlock(node->blocks()[0], createTerminator, c10::nullopt, importOptions));
-    mlirRegionAppendOwnedBlock(
-        mlirOperationGetRegion(operation, 1),
-        importBlock(node->blocks()[1], createTerminator, c10::nullopt, importOptions));
+    mlirRegionAppendOwnedBlock(mlirOperationGetRegion(operation, 0),
+                               importBlock(node->blocks()[0], createTerminator,
+                                           c10::nullopt, importOptions));
+    mlirRegionAppendOwnedBlock(mlirOperationGetRegion(operation, 1),
+                               importBlock(node->blocks()[1], createTerminator,
+                                           c10::nullopt, importOptions));
     return;
   }
 
@@ -303,8 +302,8 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock,
     auto classType = node->input(0)->type()->cast<c10::ClassType>();
     auto methodName = node->s(c10::attr::name);
     torch::jit::Function *function = classType->findMethod(methodName);
-    MlirType calleeType =
-        getFunctionTypeFromSchema(context, function->getSchema(), importOptions);
+    MlirType calleeType = getFunctionTypeFromSchema(
+        context, function->getSchema(), importOptions);
     std::vector<MlirType> expectedTypes;
     for (int i = 0, e = mlirFunctionTypeGetNumInputs(calleeType); i < e; ++i) {
       expectedTypes.push_back(mlirFunctionTypeGetInput(calleeType, i));
@@ -361,10 +360,10 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock,
   }
 }
 
-MlirBlock NodeImporter::importBlock(
-    Block *jitBlock, CreateTerminatorFn createTerminator,
-    c10::optional<c10::ArrayRef<MlirType>> blockArgTypes,
-    const ImportOptions &importOptions) {
+MlirBlock
+NodeImporter::importBlock(Block *jitBlock, CreateTerminatorFn createTerminator,
+                          c10::optional<c10::ArrayRef<MlirType>> blockArgTypes,
+                          const ImportOptions &importOptions) {
   MlirBlock block = createBlockFor(jitBlock, blockArgTypes, importOptions);
   for (Node *node : jitBlock->nodes()) {
     importNode(node, block, importOptions);
@@ -434,5 +433,6 @@ torch_mlir::importBlock(MlirContext context, Block *jitBlock,
                         c10::optional<c10::ArrayRef<MlirType>> blockArgTypes,
                         const ImportOptions &importOptions) {
   NodeImporter importer(context);
-  return importer.importBlock(jitBlock, createTerminator, blockArgTypes, importOptions);
+  return importer.importBlock(jitBlock, createTerminator, blockArgTypes,
+                              importOptions);
 }

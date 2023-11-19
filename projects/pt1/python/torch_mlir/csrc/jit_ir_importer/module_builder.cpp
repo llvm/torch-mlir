@@ -9,9 +9,9 @@
 
 #include "module_builder.h"
 
-#include "function_importer.h"
-#include "ivalue_importer.h"
-#include "mlir_utils.h"
+#include "jit_ir_importer/function_importer.h"
+#include "jit_ir_importer/ivalue_importer.h"
+#include "jit_ir_importer/mlir_utils.h"
 
 #include "mlir-c/Bindings/Python/Interop.h"
 #include "mlir-c/BuiltinAttributes.h"
@@ -22,7 +22,7 @@
 namespace py = pybind11;
 using namespace torch_mlir;
 
-static py::object getMlirIrClass(const char *className) {
+static py::object getMlirIrClass(const char* className) {
   return py::module::import(MAKE_MLIR_PYTHON_QUALNAME("ir")).attr(className);
 }
 
@@ -33,7 +33,7 @@ static py::object createPythonContextIfNone(py::object contextObj) {
   return contextObj;
 }
 
-static MlirContext castPythonObjectToMlirContext(py::object &contextObj) {
+static MlirContext castPythonObjectToMlirContext(py::object& contextObj) {
   assert(!contextObj.is_none() && "context cannot be None");
   auto contextCapsule = contextObj.attr(MLIR_PYTHON_CAPI_PTR_ATTR);
   MlirContext context = mlirPythonCapsuleToContext(contextCapsule.ptr());
@@ -77,15 +77,15 @@ static void printDiagnostic(MlirDiagnostic diagnostic) {
   std::stringstream ss;
   ss << stringifyMlirDiagnosticSeverity(mlirDiagnosticGetSeverity(diagnostic))
      << ": ";
-  auto stringCallback = [](MlirStringRef s, void *stringCallbackUserData) {
-    auto *ssp = static_cast<std::stringstream *>(stringCallbackUserData);
+  auto stringCallback = [](MlirStringRef s, void* stringCallbackUserData) {
+    auto* ssp = static_cast<std::stringstream*>(stringCallbackUserData);
     ssp->write(s.data, s.length);
   };
-  mlirDiagnosticPrint(diagnostic, stringCallback, static_cast<void *>(&ss));
+  mlirDiagnosticPrint(diagnostic, stringCallback, static_cast<void*>(&ss));
   // Use pybind11's print:
   // https://pybind11.readthedocs.io/en/stable/advanced/pycpp/utilities.html
-  py::print(ss.str(),
-            py::arg("file") = py::module_::import("sys").attr("stderr"));
+  py::print(
+      ss.str(), py::arg("file") = py::module_::import("sys").attr("stderr"));
 }
 
 // Register a diagnostic handler that will redirect output to `sys.stderr`
@@ -93,7 +93,7 @@ static void printDiagnostic(MlirDiagnostic diagnostic) {
 // that mlir diagnostics emitted are correctly routed in Jupyter notebooks.
 static void registerPythonSysStderrDiagnosticHandler(MlirContext context) {
   auto diagnosticHandler = [](MlirDiagnostic diagnostic,
-                              void *) -> MlirLogicalResult {
+                              void*) -> MlirLogicalResult {
     printDiagnostic(diagnostic);
     for (int i = 0, e = mlirDiagnosticGetNumNotes(diagnostic); i != e; i++) {
       printDiagnostic(mlirDiagnosticGetNote(diagnostic, i));
@@ -101,7 +101,7 @@ static void registerPythonSysStderrDiagnosticHandler(MlirContext context) {
     return mlirLogicalResultSuccess();
   };
   MlirDiagnosticHandlerID id = mlirContextAttachDiagnosticHandler(
-      context, diagnosticHandler, nullptr, [](void *) { return; });
+      context, diagnosticHandler, nullptr, [](void*) { return; });
   // Ignore the ID. We intend to keep this handler for the entire lifetime
   // of this context.
   (void)id;
@@ -123,28 +123,28 @@ ModuleBuilder::ModuleBuilder(pybind11::object contextObj)
   terminator = mlirBlockGetFirstOperation(getBodyBlock());
 }
 
-torch::jit::StrongFunctionPtr
-ModuleBuilder::importFunction(torch::jit::StrongFunctionPtr function,
-                              py::object maybeImportOptions) {
+torch::jit::StrongFunctionPtr ModuleBuilder::importFunction(
+    torch::jit::StrongFunctionPtr function, py::object maybeImportOptions) {
   ImportOptions importOptions;
   if (!maybeImportOptions.is_none()) {
     importOptions = py::cast<ImportOptions>(maybeImportOptions);
   }
   MlirBlock block = getBodyBlock();
   MlirOperation terminator = this->terminator;
-  MlirOperation func = importJitFunctionAsFuncOp(context, function.function_,
-        [](int) -> MlirAttribute { return {nullptr}; }, importOptions);
+  MlirOperation func = importJitFunctionAsFuncOp(
+      context, function.function_,
+      [](int) -> MlirAttribute { return {nullptr}; }, importOptions);
   mlirBlockInsertOwnedOperationBefore(block, terminator, func);
   return function;
 }
 
-void ModuleBuilder::importModule(torch::jit::Module jitModule,
-                                 py::object maybeClassAnnotator,
-                                 py::object maybeImportOptions) {
+void ModuleBuilder::importModule(
+    torch::jit::Module jitModule, py::object maybeClassAnnotator,
+    py::object maybeImportOptions) {
   ClassAnnotator dummyAnnotator;
-  ClassAnnotator *classAnnotator = &dummyAnnotator;
+  ClassAnnotator* classAnnotator = &dummyAnnotator;
   if (!maybeClassAnnotator.is_none()) {
-    classAnnotator = py::cast<ClassAnnotator *>(maybeClassAnnotator);
+    classAnnotator = py::cast<ClassAnnotator*>(maybeClassAnnotator);
   }
   ImportOptions importOptions;
   if (!maybeImportOptions.is_none()) {
@@ -168,14 +168,15 @@ void ModuleBuilder::importModule(torch::jit::Module jitModule,
   // precise `torch.class_type` names.
   //
   // This name is not semantically load-bearing!!!
-  auto &name = *jitModule.type()->name();
+  auto& name = *jitModule.type()->name();
   auto debugModuleNameAttr = mlirStringAttrGet(
       context, toMlirStringRef(name.atoms()[name.atoms().size() - 1]));
-  mlirOperationSetAttributeByName(mlirModuleGetOperation(module),
-                                  toMlirStringRef("torch.debug_module_name"),
-                                  debugModuleNameAttr);
-  importIValue(jitModule._ivalue(), mlirModuleGetBody(module),
-               mlirModuleGetContext(module), *classAnnotator, importOptions);
+  mlirOperationSetAttributeByName(
+      mlirModuleGetOperation(module),
+      toMlirStringRef("torch.debug_module_name"), debugModuleNameAttr);
+  importIValue(
+      jitModule._ivalue(), mlirModuleGetBody(module),
+      mlirModuleGetContext(module), *classAnnotator, importOptions);
 }
 
 MlirBlock ModuleBuilder::getBodyBlock() {
@@ -183,14 +184,16 @@ MlirBlock ModuleBuilder::getBodyBlock() {
   return mlirRegionGetFirstBlock(mlirOperationGetRegion(moduleOp, 0));
 }
 
-void ModuleBuilder::bind(py::module &m) {
+void ModuleBuilder::bind(py::module& m) {
   py::class_<ModuleBuilder>(m, "ModuleBuilder")
       .def(py::init<py::object>(), py::arg("context") = py::none())
       .def_property_readonly("context", &ModuleBuilder::getContextObj)
       .def_property_readonly("module", &ModuleBuilder::getModuleObj)
-      .def("import_function", &ModuleBuilder::importFunction, py::arg("function"),
-           py::arg("importOptions") = py::none())
-      .def("import_module", &ModuleBuilder::importModule, py::arg("module"),
-           py::arg("classAnnotator") = py::none(),
-           py::arg("importOptions") = py::none());
+      .def(
+          "import_function", &ModuleBuilder::importFunction,
+          py::arg("function"), py::arg("importOptions") = py::none())
+      .def(
+          "import_module", &ModuleBuilder::importModule, py::arg("module"),
+          py::arg("classAnnotator") = py::none(),
+          py::arg("importOptions") = py::none());
 }
