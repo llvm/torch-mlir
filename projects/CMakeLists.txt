@@ -24,6 +24,7 @@ if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER OR TORCH_MLIR_ENABLE_LTC)
   )
   link_directories("${TORCH_INSTALL_PREFIX}/lib")  
   message(STATUS "libtorch_python CXXFLAGS is ...${TORCH_CXXFLAGS}")
+  message(STATUS "TORCH_LIBRARIES = ${TORCH_LIBRARIES}")
 endif()
 
 # Include jit_ir_common if the jit_ir importer or LTC is enabled,
