@@ -71,9 +71,6 @@ target_link_libraries(torch_mlir_ltc_backend
   TorchMLIRAggregateCAPI
   TorchMLIRJITIRImporter
   ${TORCH_LIBRARIES}
-  # In some configurations, symbols are not found for inlines, so over-link.
-  torch_cpu
-  c10
 )
 
 message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS} -Wno-pedantic")
