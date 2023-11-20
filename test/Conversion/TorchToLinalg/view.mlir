@@ -51,7 +51,6 @@ func.func @torch.aten.view$dynamictest2(%arg0: !torch.vtensor<[?,6,?],f32>) -> !
   %int0 = torch.constant.int 0
   %2 = torch.aten.size.int %arg0, %int2 : !torch.vtensor<[?,6,?],f32>, !torch.int -> !torch.int
   %0 = torch.aten.size.int %arg0, %int0 : !torch.vtensor<[?,6,?],f32>, !torch.int -> !torch.int
-
   %1 = torch.prim.ListConstruct %0, %int2, %int3, %2 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
   %3 = torch.aten.view %arg0, %1 : !torch.vtensor<[?,6,?],f32>, !torch.list<int> -> !torch.vtensor<[?,2,3,?], f32>
   return %3 : !torch.vtensor<[?,2,3,?], f32>
@@ -99,8 +98,6 @@ func.func @torch.aten$dynamicValOutput(%arg0: !torch.vtensor<[4,5,6],f32>) -> !t
 
 // -----
 
-// similar to above, but the output shape is now [2,1,2,3,?] and the input shape is still [4,5,6].
-
 // CHECK-LABEL: func.func @torch.aten$dynamicValOutput2(
 // CHECK-SAME:     %[[ARG:.*]]: !torch.vtensor<[4,5,6],f32>) -> !torch.vtensor<[2,1,2,3,?],f32> {
 // CHECK:     %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[4,5,6],f32> -> tensor<4x5x6xf32>
@@ -140,7 +137,7 @@ func.func @torch.aten.view$expandInferredDim(%arg0: !torch.vtensor<[2,6],f32>) -
     return %1 : !torch.vtensor<[3,2,2],f32>
 }
 
-// A test of the case where the shapes go from [10,3,?,2,3] to [2,3,5,?,6]
+// -----
 
 // CHECK-LABEL: func.func @torch.aten.view$singleUnknownMatches0(
 // CHECK-SAME:    %[[ARG:.*]]: !torch.vtensor<[10,3,?,2,3],f32>) -> !torch.vtensor<[2,3,5,?,6],f32> {
@@ -151,9 +148,10 @@ func.func @torch.aten.view$expandInferredDim(%arg0: !torch.vtensor<[2,6],f32>) -
 // CHECK: return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[2,3,5,?,6],f32>
 
 // [10,3,?,2,3] -> [30,?,6] -> [2,3,5,?,6]
-// Associations are, for collapse, [0,1], [2], [3,4] and for expand [0,1,2], [3], [4].
+// Associations are, 
+//  -- for collapse, [0,1], [2], [3,4] and 
+//  -- for expand [0,1,2], [3], [4].
 func.func @torch.aten.view$singleUnknownMatches0(%arg0: !torch.vtensor<[10,3,?,2,3],f32>) -> !torch.vtensor<[2,3,5,?,6],f32> {
-    %int10 = torch.constant.int 10
     %int3 = torch.constant.int 3
     %int2 = torch.constant.int 2
     %int6 = torch.constant.int 6
@@ -166,13 +164,12 @@ func.func @torch.aten.view$singleUnknownMatches0(%arg0: !torch.vtensor<[10,3,?,2
 
 // -----
 
-// A test where there are all the components:
+// Multiple aspects of decomposition here:
 // 1) an expand from (8) to (2,2,2)
-// 2) a collapse from (2,1,3) to 6
+// 2) a collapse from (2,1,3) to (6)
 // 3) a single unknown dim matching in the middle.
-// 4) on either side of the unkown dim (3), another unkown dim
+// 4) on either side of the unkown dim (3), another unkown dim,
 // but one which matches between the input and the output
-// (i.e. the output dimension size is set to the input dimension size).
 
 // CHECK: func.func @torch.aten.view$combineConcepts(
 // CHECK-SAME:    %[[ARG:.*]]: !torch.vtensor<[8,?,?,?,2,1,3],f32>) -> !torch.vtensor<[2,2,2,?,?,?,6],f32> {
@@ -185,12 +182,11 @@ func.func @torch.aten.view$singleUnknownMatches0(%arg0: !torch.vtensor<[10,3,?,2
 func.func @torch.aten.view$combineConcepts(%arg0 : !torch.vtensor<[8,?,?,?,2,1,3], f32>) -> !torch.vtensor<[2,2,2,?,?,?,6], f32> {
 
   %int1 = torch.constant.int 1
-  // get the size of arg0 in dimension 1:
   %size1 = torch.aten.size.int %arg0, %int1 : !torch.vtensor<[8,?,?,?,2,1,3], f32>, !torch.int -> !torch.int
 
   %int3 = torch.constant.int 3
-  // get the size of arg0 in dimension 3:
   %size3 = torch.aten.size.int %arg0, %int3 : !torch.vtensor<[8,?,?,?,2,1,3], f32>, !torch.int -> !torch.int
+
   %int2 = torch.constant.int 2
   %int6 = torch.constant.int 6
   %int-1 = torch.constant.int -1
@@ -220,7 +216,7 @@ func.func @torch.aten.view$multiDynamicsInSourceOfCollapse (%arg0 : !torch.vtens
 // CHECK-SAME:   %[[ARG:.*]]: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[3,4,5],f32> {
 
 // The current lowring only succeeds if the input (arg0) has shape [3,4,5],
-// determined at runtime. This is quite limited, and we'll probably want to
+// determined at runtime. This is a bit limiting, and we'll probably want to
 // improve that in the future. For now we check that there are 2 runtime
 // asserts on the sizes of dimensions 0 and 1 (size of dimension 2 implied).
 
