@@ -57,7 +57,7 @@ static Value createComparisonTemplate(OpBuilder &b, Location loc, Type type,
 
 static Value createGreaterThan(OpBuilder &b, Location loc, Type elementalType,
                                Value lhs, Value rhs) {
-  return createComparisonTemplate<arith::CmpFPredicate::UGT,
+  return createComparisonTemplate<arith::CmpFPredicate::OGT,
                                   arith::CmpIPredicate::ugt,
                                   arith::CmpIPredicate::sgt>(
       b, loc, elementalType, lhs, rhs);
@@ -66,7 +66,7 @@ static Value createGreaterThan(OpBuilder &b, Location loc, Type elementalType,
 static Value createGreaterThanOrEqual(OpBuilder &b, Location loc,
                                       Type elementalType, Value lhs,
                                       Value rhs) {
-  return createComparisonTemplate<arith::CmpFPredicate::UGE,
+  return createComparisonTemplate<arith::CmpFPredicate::OGE,
                                   arith::CmpIPredicate::uge,
                                   arith::CmpIPredicate::sge>(
       b, loc, elementalType, lhs, rhs);
@@ -74,7 +74,7 @@ static Value createGreaterThanOrEqual(OpBuilder &b, Location loc,
 
 static Value createLessThan(OpBuilder &b, Location loc, Type elementalType,
                             Value lhs, Value rhs) {
-  return createComparisonTemplate<arith::CmpFPredicate::ULT,
+  return createComparisonTemplate<arith::CmpFPredicate::OLT,
                                   arith::CmpIPredicate::ult,
                                   arith::CmpIPredicate::slt>(
       b, loc, elementalType, lhs, rhs);
@@ -82,7 +82,7 @@ static Value createLessThan(OpBuilder &b, Location loc, Type elementalType,
 
 static Value createLessThanOrEqual(OpBuilder &b, Location loc,
                                    Type elementalType, Value lhs, Value rhs) {
-  return createComparisonTemplate<arith::CmpFPredicate::ULE,
+  return createComparisonTemplate<arith::CmpFPredicate::OLE,
                                   arith::CmpIPredicate::ule,
                                   arith::CmpIPredicate::sle>(
       b, loc, elementalType, lhs, rhs);
