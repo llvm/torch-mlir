@@ -3274,8 +3274,7 @@ class DecomposeConstantTensorAllocLikeOp : public OpRewritePattern<OpTy> {
 } // namespace
 
 namespace {
-class DecomposeAtenGroupNormOp
-    : public OpRewritePattern<AtenGroupNormOp> {
+class DecomposeAtenGroupNormOp : public OpRewritePattern<AtenGroupNormOp> {
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenGroupNormOp op,
                                 PatternRewriter &rewriter) const override {
@@ -3291,25 +3290,31 @@ class DecomposeAtenGroupNormOp
     // Check the rank of the input tensor.
     auto inputType = input.getType().cast<BaseTensorType>();
     if (!inputType.hasSizes())
-      return rewriter.notifyMatchFailure(op, "input tensor should have known sizes.");
-    
+      return rewriter.notifyMatchFailure(
+          op, "input tensor should have known sizes.");
+
     auto inputSizes = inputType.getSizes();
     auto inputRank = inputSizes.size();
 
     // Get the actual number of groups.
     int64_t numGroupsInt;
     if (!matchPattern(numGroups, m_TorchConstantInt(&numGroupsInt))) {
-      return rewriter.notifyMatchFailure(op, "the number of groups must be a constant");
+      return rewriter.notifyMatchFailure(
+          op, "the number of groups must be a constant");
     }
 
-    // GroupNorm requires the channel dimension (C) to be exactly divisible by the number of groups.
+    // GroupNorm requires the channel dimension (C) to be exactly divisible by
+    // the number of groups.
     int64_t numChannels = inputSizes[1];
     if (numChannels % numGroupsInt != 0) {
-      return rewriter.notifyMatchFailure(op, "the number of channels must be divisible by the number of groups");
+      return rewriter.notifyMatchFailure(
+          op,
+          "the number of channels must be divisible by the number of groups");
     }
     int64_t groupSizeInt = numChannels / numGroupsInt;
 
-    // Reshape the input tensor to (N, numGroups, C // numGroups, H, W) to apply normalization.
+    // Reshape the input tensor to (N, numGroups, C // numGroups, H, W) to apply
+    // normalization.
     int64_t lastDimInt = groupSizeInt;
     SmallVector<int64_t> newShapeInt;
     newShapeInt.push_back(inputSizes[0]);
@@ -3320,17 +3325,21 @@ class DecomposeAtenGroupNormOp
     newShapeInt.push_back(lastDimInt);
 
     SmallVector<Value> newShape;
-    newShape.push_back(rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(inputSizes[0])));
+    newShape.push_back(rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(inputSizes[0])));
     newShape.push_back(numGroups);
-    newShape.push_back(rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(lastDimInt)));
+    newShape.push_back(rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(lastDimInt)));
 
-    auto newShapeTy = ValueTensorType::get(context, newShapeInt, rewriter.getF32Type());
+    auto newShapeTy =
+        ValueTensorType::get(context, newShapeInt, rewriter.getF32Type());
     Value reshapedInput = rewriter.create<AtenViewOp>(
-        loc, newShapeTy, input, rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(IntType::get(context)), newShape));
+        loc, newShapeTy, input,
+        rewriter.create<PrimListConstructOp>(
+            loc, Torch::ListType::get(IntType::get(context)), newShape));
 
-    // Now we proceed with the normalization steps across the 'groupSize' dimension
-    // Compute the mean and variance for each group
+    // Now we proceed with the normalization steps across the 'groupSize'
+    // dimension Compute the mean and variance for each group
     Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
     Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
     Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
@@ -3338,26 +3347,28 @@ class DecomposeAtenGroupNormOp
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
 
     SmallVector<Value> dims;
-    dims.push_back(rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2)));
+    dims.push_back(
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2)));
     Value dimList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
-        dims);
+        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())), dims);
 
     Type dtype = input.getType().cast<ValueTensorType>().getOptionalDtype();
-    SmallVector<int64_t> meanVarShape = {inputSizes[0], numGroupsInt, 1}; 
+    SmallVector<int64_t> meanVarShape = {inputSizes[0], numGroupsInt, 1};
     auto meanVarTy = ValueTensorType::get(context, meanVarShape, dtype);
 
     // Assuming 'input' is the reshaped input tensor
     auto mean = rewriter.create<AtenMeanDimOp>(
-        loc, meanVarTy, reshapedInput, /*dims=*/dimList, /*keepdim=*/cstTrue, /*dtype=*/none);
+        loc, meanVarTy, reshapedInput, /*dims=*/dimList, /*keepdim=*/cstTrue,
+        /*dtype=*/none);
     auto var = rewriter.create<AtenVarDimOp>(
-        loc, meanVarTy, reshapedInput, /*dims=*/dimList, /*keepdim=*/cstTrue, /*unbiased=*/cstFalse);
+        loc, meanVarTy, reshapedInput, /*dims=*/dimList, /*keepdim=*/cstTrue,
+        /*unbiased=*/cstFalse);
 
     // Compute the normalized output: (input - mean) / sqrt(var + eps)
-    auto varPlusEps = rewriter.create<AtenAddScalarOp>(
-        loc, var.getType(), var, eps, /*alpha=*/one);
-    auto invStd = rewriter.create<AtenRsqrtOp>(
-        loc, varPlusEps.getType(), varPlusEps);
+    auto varPlusEps = rewriter.create<AtenAddScalarOp>(loc, var.getType(), var,
+                                                       eps, /*alpha=*/one);
+    auto invStd =
+        rewriter.create<AtenRsqrtOp>(loc, varPlusEps.getType(), varPlusEps);
     auto inputSubMean = rewriter.create<AtenSubTensorOp>(
         loc, reshapedInput.getType(), reshapedInput, mean, /*alpha=*/one);
     auto normalizedOutput = rewriter.create<AtenMulTensorOp>(
@@ -3368,8 +3379,8 @@ class DecomposeAtenGroupNormOp
       inputSizesElements.push_back(rewriter.create<ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(inputSize)));
     }
-    Value inputShape =
-        rewriter.create<PrimListConstructOp>(loc, ListType::get(IntType::get(context)), inputSizesElements);
+    Value inputShape = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)), inputSizesElements);
     // Reshape normalized output back to the original input shape
     auto outputReshaped = rewriter.create<AtenViewOp>(
         loc, inputType, normalizedOutput, /*shape=*/inputShape);
@@ -3377,28 +3388,30 @@ class DecomposeAtenGroupNormOp
     // Apply weight and bias if they are not None
     SmallVector<int64_t> viewShapeInt{numChannels};
     SmallVector<Value> viewShape;
-    viewShape.push_back(rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(numChannels)));
+    viewShape.push_back(rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(numChannels)));
     for (unsigned i = 2; i < inputRank; ++i) {
       viewShapeInt.push_back(1);
       viewShape.push_back(one);
     }
     Value viewShapeSizeList = rewriter.create<PrimListConstructOp>(
         loc, ListType::get(IntType::get(context)), viewShape);
-    Type viewShapeType = ValueTensorType::get(
-        context, llvm::ArrayRef(viewShapeInt), dtype);
+    Type viewShapeType =
+        ValueTensorType::get(context, llvm::ArrayRef(viewShapeInt), dtype);
 
     Value groupNormOutput = outputReshaped;
     if (!weight.getType().isa<Torch::NoneType>()) {
-        auto weightReshaped = rewriter.create<AtenViewOp>(
-            loc, viewShapeType, weight, /*shape=*/viewShapeSizeList);
-        groupNormOutput = rewriter.create<AtenMulTensorOp>(
-            loc, groupNormOutput.getType(), groupNormOutput, weightReshaped);
+      auto weightReshaped = rewriter.create<AtenViewOp>(
+          loc, viewShapeType, weight, /*shape=*/viewShapeSizeList);
+      groupNormOutput = rewriter.create<AtenMulTensorOp>(
+          loc, groupNormOutput.getType(), groupNormOutput, weightReshaped);
     }
     if (!bias.getType().isa<Torch::NoneType>()) {
-        auto biasReshaped = rewriter.create<AtenViewOp>(
-            loc,viewShapeType, bias, /*shape=*/viewShapeSizeList);
-        groupNormOutput = rewriter.create<AtenAddTensorOp>(
-            loc, groupNormOutput.getType(), groupNormOutput, biasReshaped, /*alpha=*/one);
+      auto biasReshaped = rewriter.create<AtenViewOp>(
+          loc, viewShapeType, bias, /*shape=*/viewShapeSizeList);
+      groupNormOutput = rewriter.create<AtenAddTensorOp>(
+          loc, groupNormOutput.getType(), groupNormOutput, biasReshaped,
+          /*alpha=*/one);
     }
 
     rewriter.replaceOp(op, groupNormOutput);
