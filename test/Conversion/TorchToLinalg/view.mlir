@@ -1,6 +1,7 @@
-// RUN: torch-mlir-opt <%s -convert-torch-to-linalg -split-input-file -verify-diagnostics | FileCheck %s
+// RUN: torch-mlir-opt <%s -convert-torch-to-linalg  -split-input-file -verify-diagnostics | FileCheck %s
 
-// -----
+
+// ----- 
 
 // CHECK-LABEL:   func.func @torch.aten.view$twotothree(
 // CHECK-SAME:  %[[ARG:.*]]: !torch.vtensor<[3,2],f32>) -> !torch.vtensor<[2,3],f32> {
@@ -56,7 +57,7 @@ func.func @torch.aten.view$dynamictest2(%arg0: !torch.vtensor<[?,6,?],f32>) -> !
   return %3 : !torch.vtensor<[?,2,3,?], f32>
 }
 
-// -----
+// ----- 
 
 // CHECK-LABEL: func.func @torch.aten.view$dynamicVal(
 // CHECK-SAME:     %[[ARG:.*]]: !torch.vtensor<[1,?,128],f32>) -> !torch.vtensor<[16,1,128],f32> {
@@ -107,7 +108,7 @@ func.func @torch.aten$dynamicValOutput(%arg0: !torch.vtensor<[4,5,6],f32>) -> !t
 // CHECK: %[[BUILTIN_TENSOR_CAST:.*]] = torch_c.from_builtin_tensor %[[CAST]] : tensor<2x1x2x3x?xf32> -> !torch.vtensor<[2,1,2,3,?],f32>
 // CHECK: return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[2,1,2,3,?],f32>
 
-// 4 -> [2,1,2] [5,6] -> [3,10].
+// 4 -> [2,1,2] [5,6] -> [3,10]. 
 func.func @torch.aten$dynamicValOutput2(%arg0: !torch.vtensor<[4,5,6],f32>) -> !torch.vtensor<[2,1,2,3,?],f32> {
   %int2 = torch.constant.int 2
   %int1 = torch.constant.int 1
@@ -138,6 +139,47 @@ func.func @torch.aten.view$expandInferredDim(%arg0: !torch.vtensor<[2,6],f32>) -
 }
 
 // -----
+
+// CHECK-LABEL: func.func @torch.aten.view$expandWithOnes(
+// CHECK-SAME:    %[[ARG:.*]]: !torch.vtensor<[8],f32>) -> !torch.vtensor<[?,?,8,1,?],f32> {
+// CHECK:     %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[8],f32> -> tensor<8xf32>
+// CHECK:   %[[EXPAND:.*]] = tensor.expand_shape %[[BUILTIN_TENSOR]] {{\[\[}}0, 1, 2, 3, 4]] : tensor<8xf32> into tensor<1x1x8x1x1xf32>
+// CHECK:  %[[CAST:.*]] = tensor.cast %[[EXPAND]] : tensor<1x1x8x1x1xf32> to tensor<?x?x8x1x?xf32>
+// CHECK: %[[BUILTIN_TENSOR_CAST:.*]] = torch_c.from_builtin_tensor %[[CAST]] : tensor<?x?x8x1x?xf32> -> !torch.vtensor<[?,?,8,1,?],f32>
+// CHECK: return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[?,?,8,1,?],f32>
+
+func.func @torch.aten.view$expandWithOnes(%arg0: !torch.vtensor<[8],f32>) -> !torch.vtensor<[?,?,8,1,?],f32> {
+    %int8 = torch.constant.int 8
+    %int1 = torch.constant.int 1
+    %int-1 = torch.constant.int -1
+    %0 = torch.prim.ListConstruct %int-1, %int-1, %int8, %int1, %int-1 : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    %1 = torch.aten.view %arg0, %0 : !torch.vtensor<[8],f32>, !torch.list<int> -> !torch.vtensor<[?,?,8,1,?],f32>
+    return %1 : !torch.vtensor<[?,?,8,1,?],f32>
+  }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.view$collapseWithOnes(
+// CHECK-SAME:    %[[ARG:.*]]: !torch.vtensor<[?,?,8,1,?],f32>) -> !torch.vtensor<[8],f32> {
+// CHECK:     %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[?,?,8,1,?],f32> -> tensor<?x?x8x1x?xf32>
+// CHECK:   %[[CAST:.*]] = tensor.cast %[[BUILTIN_TENSOR]] : tensor<?x?x8x1x?xf32> to tensor<1x1x8x1x1xf32>
+// CHECK:  %[[COLLAPSE:.*]] = tensor.collapse_shape %[[CAST]] {{\[\[}}0, 1, 2, 3, 4]] : tensor<1x1x8x1x1xf32> into tensor<8xf32>
+// CHECK: %[[BUILTIN_TENSOR_CAST:.*]] = torch_c.from_builtin_tensor %[[COLLAPSE]] : tensor<8xf32> -> !torch.vtensor<[8],f32>
+// CHECK: return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[8],f32>
+
+func.func @torch.aten.view$collapseWithOnes(%arg0: !torch.vtensor<[?,?,8,1,?],f32>) -> !torch.vtensor<[8],f32> {
+    %int8 = torch.constant.int 8
+    %int1 = torch.constant.int 10
+    %int-1 = torch.constant.int -1
+    %0 = torch.prim.ListConstruct %int8 : (!torch.int) -> !torch.list<int>
+    %1 = torch.aten.view %arg0, %0 : !torch.vtensor<[?,?,8,1,?],f32>, !torch.list<int> -> !torch.vtensor<[8],f32>
+    return %1 : !torch.vtensor<[8],f32>
+}
+
+// -----
+
+// A test of the case where the shapes go from [10,3,?,2,3] to [2,3,5,?,6]
+// This gets decomposed as [10,3,?,2,3] --> collapse [30,?,6] -> expand [2,3,5,?,6]
 
 // CHECK-LABEL: func.func @torch.aten.view$singleUnknownMatches0(
 // CHECK-SAME:    %[[ARG:.*]]: !torch.vtensor<[10,3,?,2,3],f32>) -> !torch.vtensor<[2,3,5,?,6],f32> {
@@ -186,7 +228,7 @@ func.func @torch.aten.view$combineConcepts(%arg0 : !torch.vtensor<[8,?,?,?,2,1,3
 
   %int3 = torch.constant.int 3
   %size3 = torch.aten.size.int %arg0, %int3 : !torch.vtensor<[8,?,?,?,2,1,3], f32>, !torch.int -> !torch.int
-
+  
   %int2 = torch.constant.int 2
   %int6 = torch.constant.int 6
   %int-1 = torch.constant.int -1

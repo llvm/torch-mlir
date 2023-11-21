@@ -240,7 +240,7 @@ int64_t Torch::getNumberOfElements(RankedTensorType inputType) {
 
 SmallVector<int64_t> Torch::makeShapeLLVMCompatible(ArrayRef<int64_t> shape) {
   SmallVector<int64_t> updatedShape(shape);
-  int64_t kDynamic = ShapedType::kDynamic;
+  constexpr int64_t kDynamic = ShapedType::kDynamic;
   for (unsigned i = 0; i < shape.size(); i++) {
     assert(shape[i] >= 0 || shape[i] == kUnknownSize);
     if (shape[i] == kUnknownSize)
