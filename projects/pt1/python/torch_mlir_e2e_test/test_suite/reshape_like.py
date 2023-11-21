@@ -122,6 +122,46 @@ class ViewDynamicExpandModule(torch.nn.Module):
 def ViewDynamicExpandModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 30, 384))
 
+
+# ==============================================================================
+
+
+class SplitDimStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([12], torch.float32, True)])
+
+    def forward(self, a):
+        return torch.ops.prims.split_dim(a, 0, 4)
+
+@register_test_case(
+    module_factory=lambda: SplitDimStaticModule())
+def SplitDimStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(12))
+
+class SplitDimDynamicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True)])
+
+    def forward(self, a):
+        return torch.ops.prims.split_dim(a, 0, 3)
+
+@register_test_case(
+    module_factory=lambda: SplitDimDynamicModule())
+def SplitDimDynamicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6,5))
+
+
+
 # ==============================================================================
 #
 class CollapseAllDimensionsModule(torch.nn.Module):
