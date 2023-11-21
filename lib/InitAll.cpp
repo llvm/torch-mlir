@@ -22,6 +22,7 @@
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h"
 #include "torch-mlir/Conversion/Passes.h"
+#include "torch-mlir/Conversion/TorchOnnxToTorch/Passes.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
@@ -47,8 +48,8 @@ void mlir::torch::registerOptionalInputDialects(
 void mlir::torch::registerAllPasses() {
   mlir::torch::registerTorchPasses();
   mlir::torch::registerTorchConversionPasses();
-
   mlir::torch::registerConversionPasses();
+  mlir::torch::onnx_c::registerTorchOnnxToTorchPasses();
   mlir::torch::TMTensor::registerPasses();
 
 #ifdef TORCH_MLIR_ENABLE_REFBACKEND
