@@ -450,3 +450,25 @@ class LayerNormNormalizeOverAllDimsModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: LayerNormNormalizeOverAllDimsModule())
 def LayerNormNormalizeOverAllDimsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 2, 3))
+
+# ==============================================================================
+
+class GroupNormModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.gn = torch.nn.GroupNorm(2, 4)
+        self.gn.eval()
+        self.gn.weight = torch.nn.Parameter(torch.ones(4))
+        self.gn.bias = torch.nn.Parameter(torch.zeros(4))
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 4, 6, 7], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.gn(x)
+
+@register_test_case(module_factory=lambda: GroupNormModule())
+def GroupNormModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 6, 7))

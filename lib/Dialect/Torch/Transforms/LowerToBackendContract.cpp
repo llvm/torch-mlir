@@ -406,6 +406,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenAddcdivOp>();
   target.addIllegalOp<AtenLayerNormOp>();
   target.addIllegalOp<AtenNativeLayerNormOp>();
+  target.addIllegalOp<AtenGroupNormOp>();
   target.addIllegalOp<AtenNativeBatchNormOp>();
   target.addIllegalOp<Aten_ConvolutionOp, Aten_ConvolutionDeprecatedOp>();
   target.addIllegalOp<AtenConvolutionBackwardOp>();

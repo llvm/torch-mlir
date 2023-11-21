@@ -590,6 +590,7 @@ STABLEHLO_PASS_SET = {
     "NewFullModuleInt2DStatic_basic",
     "NewFullModuleInt2D_basic",
     "NewFullModuleInt3D_basic",
+    "GroupNormModule_basic",
     "GatherStaticModule_basic",
     "GatherModule_basic",
     "Gather2DInputModdule_basic",
