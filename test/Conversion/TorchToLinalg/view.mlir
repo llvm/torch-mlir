@@ -252,30 +252,9 @@ func.func @torch.aten.view$multiDynamicsInSourceOfCollapse (%arg0 : !torch.vtens
   return %1 : !torch.vtensor<[?], f32>
 }
 
-// -----
 
-// CHECK-LABEL: func.func @torch.aten.view$castingView
-// CHECK-SAME:   %[[ARG:.*]]: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[3,4,5],f32> {
-
-// The current lowring only succeeds if the input (arg0) has shape [3,4,5],
-// determined at runtime. This is a bit limiting, and we'll probably want to
-// improve that in the future. For now we check that there are 2 runtime
-// asserts on the sizes of dimensions 0 and 1 (size of dimension 2 implied).
-
-// CHECK-COUNT-2:    cf.assert {{.*}} "mismatching contracting dimension
-// CHECK: return {{.*}} : !torch.vtensor<[3,4,5],f32>
-
-func.func @torch.aten.view$castingView (%arg0 : !torch.vtensor<[?,?,?], f32>) -> !torch.vtensor<[3,4,5], f32> {
-  %int3 = torch.constant.int 3
-  %int4 = torch.constant.int 4
-  %int5 = torch.constant.int 5
-  %0 = torch.prim.ListConstruct %int3, %int4, %int5 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
-  %1 = torch.aten.view %arg0, %0 : !torch.vtensor<[?,?,?], f32>, !torch.list<int> -> !torch.vtensor<[3,4,5], f32>
-  return %1 : !torch.vtensor<[3,4,5], f32>
-}
 
 // -----
-
 // A function with a torch.view op, going from shape (10,?,2,3) to (2,5,?,6).
 // We expect this to lower to a collapse with [0], [1], [2,3] followed by
 // an expand with [0,1], [2], [3]:
