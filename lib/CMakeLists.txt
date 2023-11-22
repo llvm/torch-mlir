@@ -14,17 +14,15 @@ set(LinkedLibs
   MLIRTosaDialect
   MLIRSupport
 
-  # Dialect passes.
-  TorchMLIRTorchPasses
+  # Dialects.
+  TorchMLIRTMTensorDialect
+  TorchMLIRTorchDialect
   TorchMLIRTorchConversionDialect
 
-  # Dialects.
-  TorchMLIRTorchDialect
-  TorchMLIRTorchConversionPasses
-
-  # TMTensor.
+  # Dialect passes.
   TorchMLIRTMTensorPasses
-  TorchMLIRTMTensorDialect
+  TorchMLIRTorchConversionPasses
+  TorchMLIRTorchPasses
 
   # Conversion passes.
   TorchMLIRConversionPasses
