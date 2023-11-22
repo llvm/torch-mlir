@@ -14,16 +14,19 @@ set(LinkedLibs
   MLIRTosaDialect
   MLIRSupport
 
-  TorchMLIRTorchPasses
+  # Dialects.
+  TorchMLIRTMTensorDialect
+  TorchMLIRTorchDialect
   TorchMLIRTorchConversionDialect
 
-  TorchMLIRTorchDialect
-  TorchMLIRTorchConversionPasses
-
+  # Dialect passes.
   TorchMLIRTMTensorPasses
-  TorchMLIRTMTensorDialect
+  TorchMLIRTorchConversionPasses
+  TorchMLIRTorchPasses
 
+  # Conversion passes.
   TorchMLIRConversionPasses
+  TorchMLIRTorchOnnxToTorch
 )
 
 if(TORCH_MLIR_ENABLE_REFBACKEND)
