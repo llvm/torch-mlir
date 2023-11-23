@@ -12,6 +12,9 @@ if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER OR TORCH_MLIR_ENABLE_LTC)
     # Assume it is a sibling to the overall project.
     set(Torch_DIR "${PROJECT_SOURCE_DIR}/../libtorch/share/cmake/Torch")
     message(STATUS "Attempting to locate libtorch as a sibling to the project: ${Torch_DIR}")
+    if(NOT EXISTS "${Torch_DIR}")
+      message(FATAL_ERROR "Without TORCH_MLIR_USE_INSTALLED_PYTORCH, expected to find Torch configuration at ${Torch_DIR}, which does not exist")
+    endif()
   endif()
   
   find_package(Torch 1.11 REQUIRED)
@@ -23,7 +26,13 @@ if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER OR TORCH_MLIR_ENABLE_LTC)
     ${Python3_INCLUDE_DIRS}
   )
   link_directories("${TORCH_INSTALL_PREFIX}/lib")  
-  message(STATUS "libtorch_python CXXFLAGS is ...${TORCH_CXXFLAGS}")
+  message(STATUS "TORCH_CXXFLAGS is = ${TORCH_CXXFLAGS}")
+  if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT TORCH_CXXFLAGS)
+    message(WARNING
+      "When building on Linux TORCH_CXXFLAGS are almost always required but were not detected. "
+      "It is very likely this this will produce a non-functional installation. "
+      "See notes in build_tools/cmake/TorchMLIRPyTorch.cmake.")
+  endif()
   message(STATUS "TORCH_LIBRARIES = ${TORCH_LIBRARIES}")
 endif()
 
