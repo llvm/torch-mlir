@@ -1022,6 +1022,7 @@ TOSA_PASS_SET = {
     "BmmFloatModule_basic",
     "MmDagModule_basic",
     "Matmul4dStatic_basic",
+    "MatmulStaticBroadcast_basic",
     "Matmul_dot",
     "Matmul_3d",
     "RsubFloatModule_basic",

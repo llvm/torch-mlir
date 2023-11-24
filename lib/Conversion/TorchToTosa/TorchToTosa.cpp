@@ -1496,10 +1496,11 @@ public:
         }
 
         // Step: Construct the output transpose/reshape information
+        int32_t transposedOpDim = 0;
         // First the common_dims
         for (uint32_t i = 0; i < commonElems.size(); i++) {
           reshapedOpShape.push_back(commonElems[i].shape);
-          transposedOpDims.push_back(commonElems[i].dim);
+          transposedOpDims[commonElems[i].dim] = transposedOpDim++;
         }
 
         // Then the LHS squeezed dims
@@ -1508,14 +1509,14 @@ public:
           // other input.
           if (lhsSqueezedElems[i].shape != 1) {
             reshapedOpShape.push_back(lhsSqueezedElems[i].shape);
-            transposedOpDims.push_back(lhsSqueezedElems[i].dim);
+            transposedOpDims[lhsSqueezedElems[i].dim] = transposedOpDim++;
           }
         }
         // The last squeezed dim is lhs[-2] which needs to be
         // checked separately for broadcasting
         if (lhsRank > 1) {
           reshapedOpShape.push_back(lhsBroadcastedShape[maxInputRank - 2]);
-          transposedOpDims.push_back(maxInputRank - 2);
+          transposedOpDims[maxInputRank - 2] = transposedOpDim++;
         }
 
         // then the RHS squeezed dims except rhs[-1] which is handled like
@@ -1523,13 +1524,13 @@ public:
         for (uint32_t i = 0; i < rhsSqueezedElems.size() - 1; i++) {
           if (rhsSqueezedElems[i].shape != 1) {
             reshapedOpShape.push_back(rhsSqueezedElems[i].shape);
-            transposedOpDims.push_back(rhsSqueezedElems[i].dim);
+            transposedOpDims[rhsSqueezedElems[i].dim] = transposedOpDim++;
           }
         }
         // rhs[-1]
         if (rhsRank > 1) {
           reshapedOpShape.push_back(rhsBroadcastedShape[maxInputRank - 1]);
-          transposedOpDims.push_back(maxInputRank - 1);
+          transposedOpDims[maxInputRank - 1] = transposedOpDim++;
         }
 
         // Final transposed output shape construction
@@ -1555,7 +1556,7 @@ public:
       };
 
       SmallVector<int64_t> reshapedOpShape, transposedOpShape;
-      SmallVector<int32_t> transposedOpDims;
+      SmallVector<int32_t> transposedOpDims(maxInputRank);
 
       computeOpShape(reshapedOpShape, transposedOpDims, transposedOpShape);
 
