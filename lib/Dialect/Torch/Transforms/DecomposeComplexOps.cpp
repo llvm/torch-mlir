@@ -262,11 +262,14 @@ public:
     if (inputType.getSizes().size() < 2) {
       return rewriter.notifyMatchFailure(op, "the rank of tensor should >= 2");
     }
-    int64_t diagonal;
-    if (!matchPattern(op.getDiagonal(), m_TorchConstantInt(&diagonal))) {
-      return rewriter.notifyMatchFailure(
-          op, "non-const diagonal parameter unsupported");
-    }
+
+    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
+    Value cstZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value cstOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+
     Value rowDim = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(-2));
     Value colDim = rewriter.create<Torch::ConstantIntOp>(
@@ -274,9 +277,6 @@ public:
     Value rowSize = rewriter.create<AtenSizeIntOp>(loc, input, rowDim);
     Value colSize = rewriter.create<AtenSizeIntOp>(loc, input, colDim);
 
-    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
-
-    Value none = rewriter.create<ConstantNoneOp>(loc);
     Value rowArange = rewriter.create<AtenArangeOp>(
         loc, baseType, rowSize, /*dtype=*/none, /*layout=*/none,
         /*device=*/none, /*pin_memory=*/none);
@@ -284,28 +284,19 @@ public:
         loc, baseType, colSize, /*dtype=*/none, /*layout=*/none,
         /*device=*/none, /*pin_memory=*/none);
 
-    Value unsqueezeRowArange = rewriter.create<AtenUnsqueezeOp>(
-        loc, baseType, rowArange,
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1)));
-
-    Value unsqueezeColArange = rewriter.create<AtenUnsqueezeOp>(
-        loc, baseType, colArange,
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0)));
+    Value unsqueezeRowArange =
+        rewriter.create<AtenUnsqueezeOp>(loc, baseType, rowArange, cstOne);
+    Value unsqueezeColArange =
+        rewriter.create<AtenUnsqueezeOp>(loc, baseType, colArange, cstZero);
 
     Value unsqueezeRowArangePlusDiagonal = rewriter.create<AtenAddScalarOp>(
-        loc, baseType, unsqueezeRowArange,
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1)),
-        rewriter.create<ConstantIntOp>(loc,
-                                       rewriter.getI64IntegerAttr(diagonal)));
+        loc, baseType, unsqueezeRowArange, op.getDiagonal(), cstOne);
 
     Value condTensor = rewriter.create<AtenGeTensorOp>(
         loc, baseType, unsqueezeColArange, unsqueezeRowArangePlusDiagonal);
 
-    auto others =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
-
     rewriter.replaceOpWithNewOp<AtenWhereScalarOtherOp>(
-        op, op.getResult().getType(), condTensor, input, others);
+        op, op.getResult().getType(), condTensor, input, cstZero);
     return success();
   }
 };
