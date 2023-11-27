@@ -17,6 +17,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include <string>
 
 namespace mlir::torch::onnx_c {
 
@@ -98,6 +99,22 @@ struct OpBinder {
       if (!t.isSigned() || t.getWidth() != 64)
         return failure();
       value = integerAttr.getSInt();
+      return success();
+    }
+    return failure();
+  }
+
+  ParseResult customOpNameStringAttr(std::string &value, StringRef nameSuffix,
+                             std::string defaultValue = "") {
+    SmallString<64> name("torch.onnx.");
+    name.append(nameSuffix);
+    auto attr = op->getAttr(name);
+    if (!attr) {
+      value = defaultValue;
+      return success();
+    }
+    if (auto stringAttr = dyn_cast<StringAttr>(attr)) {
+      value = stringAttr.str();
       return success();
     }
     return failure();

@@ -3649,6 +3649,69 @@ def ElementwiseBitwiseRightShiftInt8Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseBitwiseLeftShiftInt64Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.bitwise_left_shift(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseLeftShiftInt64Module())
+def ElementwiseBitwiseLeftShiftInt64Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-1000, high=1000), tu.randint(3, 4, low=0, high=64))
+
+
+class ElementwiseBitwiseLeftShiftInt32Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, 4], torch.int32, True),
+        ([-1, 1], torch.int32, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.bitwise_left_shift(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseLeftShiftInt32Module())
+def ElementwiseBitwiseLeftShiftInt32Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-1000, high=1000).to(torch.int32), tu.randint(3, 1, low=0, high=32).to(torch.int32))
+
+
+class ElementwiseBitwiseLeftShiftInt8Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int8, True),
+        ([-1, -1], torch.int8, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.bitwise_left_shift(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseLeftShiftInt8Module())
+def ElementwiseBitwiseLeftShiftInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-100, high=100).to(torch.int8), tu.randint(3, 4, low=0, high=8).to(torch.int8))
+
+
+# ==============================================================================
+
+
 class ElementwiseBitwiseAndScalarInt64Module(torch.nn.Module):
 
     def __init__(self):

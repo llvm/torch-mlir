@@ -317,6 +317,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::bitwise_and.Scalar : (Tensor, Scalar) -> (Tensor)",
             "aten::bitwise_or.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::bitwise_xor.Tensor : (Tensor, Tensor) -> (Tensor)",
+            "aten::bitwise_left_shift.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::bitwise_right_shift.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::threshold : (Tensor, Scalar, Scalar) -> (Tensor)",
             "aten::square : (Tensor) -> (Tensor)",

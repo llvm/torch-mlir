@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -141,6 +142,57 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
       });
   // TODO: Asin unimplemented in torch-mlir
   // TODO: Asinh unimplemented in torch-mlir
-  // TODO: Atan unimplemented in torch-mlir
   // TODO: Atanh unimplemented in torch-mlir
+  patterns.onOp("Atan", 7,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenAtanOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp(
+      "BitShift", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value lhs, rhs;
+        std::string direction;
+        if (binder.tensorOperands(lhs, rhs) ||
+            binder.tensorResultType(resultType) ||
+            binder.customOpNameStringAttr(direction, "direction", ""))
+          return failure();
+        if (direction == "LEFT") {
+          rewriter.replaceOpWithNewOp<Torch::AtenBitwiseLeftShiftTensorOp>(
+              binder.op, resultType, lhs, rhs);
+        } else {
+          rewriter.replaceOpWithNewOp<Torch::AtenBitwiseRightShiftTensorOp>(
+              binder.op, resultType, lhs, rhs);
+        }
+        return success();
+      });
+  patterns.onOp(
+      "BitwiseAnd", 18, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value lhs, rhs;
+        std::string direction;
+        if (binder.tensorOperands(lhs, rhs) ||
+            binder.tensorResultType(resultType))
+          return failure();
+        rewriter.replaceOpWithNewOp<Torch::AtenBitwiseAndTensorOp>(
+            binder.op, resultType, lhs, rhs);
+        return success();
+      });
+  patterns.onOp("BitwiseNot", 18,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenBitwiseNotOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
 }
