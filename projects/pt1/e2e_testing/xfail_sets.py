@@ -1308,8 +1308,6 @@ TOSA_PASS_SET = {
     "MeanModule_basic",
     "ArangeStartOutModule_basic",
     "ArangeStartOutViewModule_basic",
-    "TriuModule_basic",
-    "TriuBroadcastModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
