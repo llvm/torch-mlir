@@ -1,9 +1,8 @@
 name: Bazel Build and Test
 
 on:
-  # TODO: Fix bazel build after US holidays of 2023-Nov-23 and re-enable.
-  # push:
-  #   branches: [ main ]
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
 # Ensure that only a single job or workflow using the same
