@@ -490,8 +490,8 @@ cc_library(
     deps = [
         ":TorchMLIRConversionTorchOnnxToTorchPassIncGen",
         ":TorchMLIRTorchDialect",
-        "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
     ],
 )
 
