@@ -282,6 +282,31 @@ gentbl_cc_library(
     ],
 )
 
+td_library(
+    name = "TorchMLIRConversionTorchOnnxToTorchPassTdFiles",
+    srcs = [
+        "include/torch-mlir/Conversion/TorchOnnxToTorch/Passes.td",
+    ],
+    includes = ["include"],
+)
+
+gentbl_cc_library(
+    name = "TorchMLIRConversionTorchOnnxToTorchPassIncGen",
+    strip_include_prefix = "include",
+    tbl_outs = [
+        (
+            ["-gen-pass-decls"],
+            "include/torch-mlir/Conversion/TorchOnnxToTorch/Passes.h.inc",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "include/torch-mlir/Conversion/TorchOnnxToTorch/Passes.td",
+    deps = [
+        ":TorchMLIRConversionTorchOnnxToTorchPassTdFiles",
+        "@llvm-project//mlir:PassBaseTdFiles",
+    ],
+)
+
 # TorchConversion transforms
 td_library(
     name = "TorchMLIRTorchConversionPassesTdFiles",
@@ -455,6 +480,22 @@ cc_library(
 )
 
 cc_library(
+    name = "TorchMLIRTorchOnnxToTorch",
+    srcs = glob([
+        "lib/Conversion/TorchOnnxToTorch/*.h",
+        "lib/Conversion/TorchOnnxToTorch/*.cpp",
+    ]),
+    hdrs = glob(["include/torch-mlir/Conversion/TorchOnnxToTorch/*.h"]),
+    strip_include_prefix = "include",
+    deps = [
+        ":TorchMLIRConversionTorchOnnxToTorchPassIncGen",
+        ":TorchMLIRTorchDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+    ],
+)
+
+cc_library(
     name = "TorchMLIRConversionPasses",
     srcs = [
         "lib/Conversion/Passes.cpp",
@@ -468,6 +509,7 @@ cc_library(
     strip_include_prefix = "include",
     deps = [
         ":TorchMLIRTorchConversionToMLProgram",
+        ":TorchMLIRTorchOnnxToTorch",
         ":TorchMLIRTorchToArith",
         ":TorchMLIRTorchToLinalg",
         ":TorchMLIRTorchToSCF",
