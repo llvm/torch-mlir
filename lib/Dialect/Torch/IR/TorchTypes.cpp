@@ -405,8 +405,7 @@ static Type convertDtypeToBuiltinElementType(MLIRContext *context, Type dtype) {
   if (auto floatType = dtype.dyn_cast<mlir::FloatType>()) {
     return dtype;
   } else if (auto integerType = dtype.dyn_cast<IntegerType>()) {
-    return IntegerType::get(context, integerType.getWidth(),
-                            IntegerType::Signless);
+    return dtype;
   } else if (dtype.isa<mlir::ComplexType>()){
     return dtype;
   }
