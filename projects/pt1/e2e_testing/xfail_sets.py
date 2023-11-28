@@ -19,6 +19,7 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "IscloseStaticModule_basic",
     "IscloseStaticModuleTrue_basic",
+    "ReduceMinAlongDimUnsignedInt_basic",
 }
 
 TORCHDYNAMO_XFAIL_SET = {

@@ -201,6 +201,183 @@ public:
     return success();
   }
 };
+
+
+// ConvertAtenMinDimOp has been adapted from ConvertAtenMaxDimOp above
+// TODO Unify ConvertAten{Max,Min}DimOp ?
+
+// Aten mindim lowering represents the MinDim op as an linalg.indexed_generic
+// op, producing two output buffers.
+//
+// The first output buffer contains the minium value found. It is initialized
+// to the maximum representable value of the input element type.
+//
+// The second output buffer contains the index of the found minimum value. It is
+// initialized to 0 and is resulting integer type.
+//
+// The indexed_generic op updates both the minimum value and index if the
+// current value exceeds the running min.
+class ConvertAtenMinDimOp : public OpConversionPattern<AtenMinDimOp> {
+public:
+  using OpConversionPattern<AtenMinDimOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(AtenMinDimOp minDimOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Location loc = minDimOp.getLoc();
+    Value input = adaptor.getSelf();
+    RankedTensorType valResultType =
+        getTypeConverter()
+            ->convertType(minDimOp.getResult(0).getType())
+            .cast<RankedTensorType>();
+    RankedTensorType idxResultType =
+        getTypeConverter()
+            ->convertType(minDimOp.getResult(1).getType())
+            .cast<RankedTensorType>();
+    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+    Type idxElementType = idxResultType.getElementType();
+    if (!idxElementType.isa<IntegerType>())
+      return rewriter.notifyMatchFailure(
+          minDimOp,
+          "aten.min_dim to linalg.* requires integer-like result type");
+
+    bool keepDim = false;
+    if (!matchPattern(minDimOp.getKeepdim(), m_TorchConstantBool(&keepDim)))
+      return rewriter.notifyMatchFailure(
+          minDimOp, "aten.min_dim requires boolean value for keepdim");
+
+    int64_t dim;
+    if (!matchPattern(minDimOp.getDim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(
+          minDimOp, "aten.min_dim to linalg.* requires int value for Dim");
+    dim = toPositiveDim(dim, inputType.getRank());
+    if (!isValidDim(dim, inputType.getRank()))
+      return rewriter.notifyMatchFailure(minDimOp, "dim is not a valid dim");
+
+    Type inElementType = inputType.getElementType();
+    if (!inElementType.isa<mlir::FloatType>()) {
+      if (inElementType.isa<mlir::IntegerType>()) {
+        auto integerTy = minDimOp.getSelf()
+                             .getType()
+                             .cast<BaseTensorType>()
+                             .getDtype()
+                             .dyn_cast<mlir::IntegerType>();
+        if (integerTy.isUnsigned())
+          return rewriter.notifyMatchFailure(
+              minDimOp, "aten.min_dim to linalg.* requires input element type "
+                        "to be signed in case of integer");
+      } else {
+        return rewriter.notifyMatchFailure(
+            minDimOp, "aten.min_dim to linalg.* requires Float or Integer "
+                      "input element type");
+      }
+    }
+
+    // Constant op to account for the reduction along dim.
+    auto c1 = rewriter.create<arith::ConstantIndexOp>(loc, /*value=*/1);
+    SmallVector<Value> resultShape;
+    for (int64_t i = 0; i < inputType.getRank(); i++) {
+      if (dim != i) {
+        auto currentDimSize = rewriter.create<tensor::DimOp>(loc, input, i);
+        resultShape.push_back(currentDimSize);
+      } else if (keepDim)
+        resultShape.push_back(c1);
+    }
+    // First fill the output buffer for the index.
+    Value filledTensorIdx =
+        createZeroInitTensor(rewriter, loc, resultShape, idxElementType);
+
+    // Second fill the output buffer for the running min.
+    Value initTensorMin = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(resultShape), inElementType);
+
+    Value fillValueMin;
+    if (inElementType.isa<mlir::FloatType>()) {
+      fillValueMin = rewriter.create<arith::ConstantOp>(
+          loc,
+          rewriter.getFloatAttr(
+              inElementType,
+              APFloat::getInf(
+                  inElementType.cast<mlir::FloatType>().getFloatSemantics(),
+                  /*Negative=*/false)));
+    } else {
+      fillValueMin = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getIntegerAttr(
+                   inElementType,
+                   APSInt::getSignedMaxValue(
+                       inElementType.cast<mlir::IntegerType>().getWidth())));
+    }
+
+    Value filledTensorMin =
+        rewriter.create<linalg::FillOp>(loc, fillValueMin, initTensorMin)
+            .result();
+
+    // Create the affine expressions that will be used to
+    // iterate over the input and output tensors.
+    // Here we also set the type of iterator: parallel or reduction.
+    SmallVector<AffineExpr> exprs;
+    SmallVector<utils::IteratorType> iteratorTypes;
+    SmallVector<AffineExpr> resultExprs;
+    for (auto size :
+         llvm::enumerate(makeShapeTorchCompatible(inputType.getShape()))) {
+      exprs.push_back(rewriter.getAffineDimExpr(size.index()));
+
+      if (unsigned(dim) == size.index()) {
+        iteratorTypes.push_back(utils::IteratorType::reduction);
+        // If `keepDim`, create affine map to the first element
+        // in the current dimension.
+        if (keepDim)
+          resultExprs.push_back(rewriter.getAffineConstantExpr(0));
+      } else {
+        iteratorTypes.push_back(utils::IteratorType::parallel);
+        resultExprs.push_back(rewriter.getAffineDimExpr(size.index()));
+      }
+    }
+    auto maps = AffineMap::inferFromExprList({exprs, resultExprs, resultExprs});
+    auto linalgOp = rewriter.create<linalg::GenericOp>(
+        loc,
+        ArrayRef<Type>({filledTensorMin.getType(), filledTensorIdx.getType()}),
+        input, ValueRange({filledTensorMin, filledTensorIdx}), maps,
+        iteratorTypes,
+        [&](OpBuilder &nestedBuilder, Location nestedLoc,
+            ValueRange blockArgs) {
+          Value newValue = blockArgs[0];
+          Value oldValue = blockArgs[1];
+          Value oldIndex = blockArgs[2];
+
+          Value newIndex = rewriter.create<arith::IndexCastOp>(
+              nestedLoc, oldIndex.getType(),
+              rewriter.create<linalg::IndexOp>(loc, dim));
+
+          Value resultMin, predicate;
+          if (inElementType.isa<mlir::FloatType>()) {
+            resultMin = rewriter.create<arith::MinimumFOp>(nestedLoc, newValue,
+                                                           oldValue);
+            predicate = rewriter.create<arith::CmpFOp>(
+                nestedLoc, arith::CmpFPredicate::OLT, newValue, oldValue);
+          } else {
+            resultMin =
+                rewriter.create<arith::MinSIOp>(nestedLoc, newValue, oldValue);
+            predicate = rewriter.create<arith::CmpIOp>(
+                nestedLoc, arith::CmpIPredicate::slt, newValue, oldValue);
+          }
+          auto resultIndex = rewriter.create<arith::SelectOp>(
+              nestedLoc, predicate, newIndex, oldIndex);
+          nestedBuilder.create<linalg::YieldOp>(
+              nestedLoc, ValueRange({resultMin, resultIndex}));
+        });
+
+    // This cast is required to fix the shape in the case of keepDim=True
+    Value minValuesCast = rewriter.create<tensor::CastOp>(
+        loc, valResultType, linalgOp.getResult(0));
+    Value minIdxCast = rewriter.create<tensor::CastOp>(loc, idxResultType,
+                                                       linalgOp.getResult(1));
+    rewriter.replaceOp(minDimOp, {minValuesCast, minIdxCast});
+    return success();
+  }
+};
+
 } // namespace
 
 static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
@@ -575,6 +752,8 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<AtenMaxDimOp>();
   patterns.add<ConvertAtenMaxDimOp>(typeConverter, context);
+  target.addIllegalOp<AtenMinDimOp>();
+  patterns.add<ConvertAtenMinDimOp>(typeConverter, context);
   target.addIllegalOp<AtenSumOp>();
   target.addIllegalOp<AtenSumDimIntListOp>();
   target.addIllegalOp<AtenProdDimIntOp>();
