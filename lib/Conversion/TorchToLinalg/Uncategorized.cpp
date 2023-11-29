@@ -1057,9 +1057,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       atenToDtype.emitError("unimplemented: dtype must be a constant integer");
       return nullptr;
     }
-    FailureOr<Type> maybeResultElementType = getTypeForScalarType(
-        atenToDtype->getContext(), (torch_upstream::ScalarType)dtypeInt,
-        IntegerType::Signless);
+    FailureOr<Type> maybeResultElementType =
+        torch_to_linalg::getBackendTypeForScalarType(
+            atenToDtype->getContext(), (torch_upstream::ScalarType)dtypeInt);
     if (failed(maybeResultElementType)) {
       atenToDtype.emitError("unable to convert `dtypeInt` to builtin type");
       return nullptr;
