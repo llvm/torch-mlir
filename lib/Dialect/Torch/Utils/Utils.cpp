@@ -85,17 +85,16 @@ Type Torch::getTypeForTorchType(
 
 FailureOr<Type>
 Torch::getTypeForScalarType(MLIRContext *context,
-                            torch_upstream::ScalarType dtypeInt,
-                            mlir::IntegerType::SignednessSemantics signedness) {
+                            torch_upstream::ScalarType dtypeInt) {
   switch (dtypeInt) {
   case torch_upstream::ScalarType::Float:
     return Float32Type::get(context);
   case torch_upstream::ScalarType::Double:
     return Float64Type::get(context);
   case torch_upstream::ScalarType::Long:
-    return IntegerType::get(context, 64, signedness);
+    return IntegerType::get(context, 64, mlir::IntegerType::Signed);
   case torch_upstream::ScalarType::Int:
-    return IntegerType::get(context, 32, signedness);
+    return IntegerType::get(context, 32, mlir::IntegerType::Signed);
   case torch_upstream::ScalarType::Bool:
     return IntegerType::get(context, 1);
   case torch_upstream::ScalarType::BFloat16:
@@ -105,7 +104,7 @@ Torch::getTypeForScalarType(MLIRContext *context,
   case torch_upstream::ScalarType::Byte:
     return mlir::IntegerType::get(context, 8, mlir::IntegerType::Unsigned);
   case torch_upstream::ScalarType::Char:
-    return mlir::IntegerType::get(context, 8, signedness);
+    return mlir::IntegerType::get(context, 8, mlir::IntegerType::Signed);
   case torch_upstream::ScalarType::ComplexHalf:
     return mlir::ComplexType::get(Float16Type::get(context));
   case torch_upstream::ScalarType::ComplexFloat:

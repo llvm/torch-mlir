@@ -20,7 +20,6 @@
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
-#include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 using namespace mlir;
@@ -545,4 +544,19 @@ Value torch_to_linalg::convertTensorToElementType(OpBuilder &b, Location loc,
   };
   return torch_to_linalg::createElementwiseLinalgGeneric(
       b, loc, {tensor}, elementType, dtypePromoteBody);
+}
+
+FailureOr<Type> torch_to_linalg::getBackendTypeForScalarType(
+    MLIRContext *context, torch_upstream::ScalarType dtypeInt) {
+  FailureOr<Type> maybeType =
+      getTypeForScalarType(context, (torch_upstream::ScalarType)dtypeInt);
+  if (failed(maybeType)) {
+    return failure();
+  }
+  Type type = *maybeType;
+  // The linalg-on-tensors backend currently expects integers to be signless.
+  if (auto intType = type.dyn_cast<IntegerType>()) {
+    type = IntegerType::get(context, intType.getWidth(), IntegerType::Signless);
+  }
+  return type;
 }

@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Transforms/DialectConversion.h"
+#include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 
 namespace mlir {
 namespace torch {
@@ -87,6 +88,12 @@ Value removeSizeInformation(OpBuilder &b, Location loc, Value tensor);
 // Converts a tensor' element type to the specified `elementType`.
 Value convertTensorToElementType(OpBuilder &b, Location loc, Value tensor,
                                  Type elementType);
+
+// Convert a scalar type to the corresponding builtin type in the
+// linalg-on-tensors backend.
+FailureOr<Type>
+getBackendTypeForScalarType(MLIRContext *context,
+                            torch_upstream::ScalarType dtypeInt);
 
 } // namespace torch_to_linalg
 } // namespace torch
