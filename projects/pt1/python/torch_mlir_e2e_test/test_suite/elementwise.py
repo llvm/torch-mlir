@@ -3251,6 +3251,52 @@ def AtenTriuWithPosDiagonalModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class TriuModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4,5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.triu(x, 1)
+
+
+@register_test_case(module_factory=lambda: TriuModule())
+def TriuModule_basic(module, tu: TestUtils):
+    x=torch.tensor([[ 0.5876, -0.0794, -1.8373,  0.6654, 0.2],
+        [-0.2447,  0.9556, -1.2919,  1.3378, 0.3],
+        [ 0.4333,  0.3146,  0.6576, -1.0432, 0.4],
+        [-0.9888,  torch.nan, torch.inf, -torch.inf, 0.5]])
+    module.forward(x)
+
+
+# ==============================================================================
+
+
+class TriuBroadcastModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3,4,5,6], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.triu(x, 2)
+
+
+@register_test_case(module_factory=lambda: TriuBroadcastModule())
+def TriuBroadcastModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3,4,5,6))
+
+
+# ==============================================================================
+
+
 class AtenTriuWithNegDiagonalModule(torch.nn.Module):
 
     def __init__(self):
