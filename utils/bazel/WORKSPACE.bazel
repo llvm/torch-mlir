@@ -33,6 +33,10 @@ llvm_configure(
     },
     targets = [
         "X86",
+        # The bazel dependency graph for mlir-opt fails to load (at the analysis step) without the NVPTX
+        # target in this list, because mlir/test:TestGPU depends on the //llvm:NVPTXCodeGen target,
+        # which is not defined unless this is included.
+        "NVPTX",
     ],
 )
 
