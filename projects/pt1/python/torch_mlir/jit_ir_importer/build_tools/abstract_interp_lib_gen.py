@@ -445,6 +445,9 @@ def aten〇std〇correction〡shape(self: List[int], dim: Optional[List[int]] = 
 def aten〇argmax〡shape(self: List[int], dim: Optional[int] = None, keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.argmax(self, dim, keepdim)
 
+def aten〇argmin〡shape(self: List[int], dim: Optional[int] = None, keepdim: bool = False) -> List[int]:
+    return upstream_shape_functions.argmax(self, dim, keepdim)
+
 # TODO: The result shape when num_classes=-1 depends on the runtime values of the input tensor,
 # making it impossible to add support for it using the current design of the shape library.
 def aten〇one_hot〡shape(self: List[int], num_classes: int = -1) -> List[int]:
@@ -3254,7 +3257,10 @@ def aten〇mean〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[Li
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇argmax〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[int] = None, keepdim: bool = False) -> int:
-    self_rank, self_dtype = self_rank_dtype
+    return torch.int64
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇argmin〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[int] = None, keepdim: bool = False) -> int:
     return torch.int64
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0))
