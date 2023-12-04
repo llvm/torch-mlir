@@ -23,4 +23,4 @@ add_lit_testsuite(check-torch-mlir-pt1 "Running the torch-mlir PT1 regression te
         )
 set_target_properties(check-torch-mlir-pt1 PROPERTIES FOLDER "Tests")
 
-add_lit_testsuites(TORCH_MLIR ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${TORCH_MLIR_TEST_DEPENDS})
+add_lit_testsuites(TORCH_MLIR_PT1 ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${TORCH_MLIR_TEST_DEPENDS})

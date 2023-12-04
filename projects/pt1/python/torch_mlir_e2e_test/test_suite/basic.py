@@ -592,6 +592,7 @@ def PermuteModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 2))
 
 
+
 # ==============================================================================
 
 
@@ -650,6 +651,88 @@ class TransposeIntNegDimsModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: TransposeIntNegDimsModule())
 def TransposeIntNegDimsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 2))
+
+
+# ==============================================================================
+
+
+class PixelShuffleModuleStaticRank4Float32(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([3, 18, 2, 2], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_shuffle(x, 3)
+
+@register_test_case(module_factory=lambda: PixelShuffleModuleStaticRank4Float32())
+def PixelShuffleModuleStaticRank4Float32_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3,18,2,2))
+
+
+# ==============================================================================
+
+
+class PixelShuffleModuleStaticRank3Int64(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([12, 2, 3], torch.int64, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_shuffle(x, 2)
+
+@register_test_case(module_factory=lambda: PixelShuffleModuleStaticRank3Int64())
+def PixelShuffleModuleStaticRank3Int64_basic(module, tu: TestUtils):
+    module.forward(tu.randint(12, 2, 3, low = 0, high = 100))
+
+# ==============================================================================
+
+
+class PixelShuffleModuleFullDynamic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1,-1,-1,-1], torch.int64, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_shuffle(x, 2)
+
+@register_test_case(module_factory=lambda: PixelShuffleModuleFullDynamic())
+def PixelShuffleModuleFullDynamic_basic(module, tu: TestUtils):
+    module.forward(tu.randint(1,8,3,3, low = 0, high = 100))
+
+# ==============================================================================
+
+
+class PixelShuffleModuleSpatiallyDynamic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([2,1,8,-1,-1], torch.int64, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_shuffle(x, 2)
+
+@register_test_case(module_factory=lambda: PixelShuffleModuleSpatiallyDynamic())
+def PixelShuffleModuleSpatiallyDynamic_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2,1,8,2,3, low = 0, high = 100))
+
+
+# ==============================================================================
+
+class PixelShuffleModuleSpatiallyStatic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1,-1,-1,3,1], torch.int64, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_shuffle(x, 2)
+
+@register_test_case(module_factory=lambda: PixelShuffleModuleSpatiallyStatic())
+def PixelShuffleModuleSpatiallyStatic_basic(module, tu: TestUtils):
+    module.forward(tu.randint(1,2,12,3,1, low = 0, high = 100))
 
 
 # ==============================================================================
@@ -4604,6 +4687,75 @@ class Add_Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: Add_Module())
 def Add_Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3))
+
+
+# ==============================================================================
+
+
+class CosineSimilarityStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3], torch.float32, True),
+        ([2, 3], torch.float32, True),
+    ])
+    def forward(self, x1, x2):
+        return torch.ops.aten.cosine_similarity(x1, x2)
+
+
+@register_test_case(module_factory=lambda: CosineSimilarityStaticModule())
+def CosineSimilarityStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3), tu.rand(2, 3))
+
+
+# ==============================================================================
+
+
+class CosineSimilarityStaticBroadcastModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 2, 3], torch.float32, True),
+        ([4, 5, 1, 1], torch.float32, True),
+    ])
+    def forward(self, x1, x2):
+        return torch.ops.aten.cosine_similarity(x1, x2)
+
+
+@register_test_case(module_factory=lambda: CosineSimilarityStaticBroadcastModule())
+def CosineSimilarityStaticBroadcastModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 2, 3), tu.rand(4, 5, 1, 1))
+
+
+# ==============================================================================
+
+
+class CosineSimilarityModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x1, x2):
+        return torch.ops.aten.cosine_similarity(x1, x2)
+
+
+@register_test_case(module_factory=lambda: CosineSimilarityModule())
+def CosineSimilarityModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3), tu.rand(2, 3))
 
 
 # ==============================================================================

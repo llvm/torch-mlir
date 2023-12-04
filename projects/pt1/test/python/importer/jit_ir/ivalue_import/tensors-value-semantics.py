@@ -5,7 +5,7 @@
 import typing
 
 import torch
-from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ImportOptions, ModuleBuilder
+from torch_mlir.jit_ir_importer import ClassAnnotator, ImportOptions, ModuleBuilder
 
 # RUN: %PYTHON %s | torch-mlir-opt | FileCheck %s
 

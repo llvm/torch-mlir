@@ -5,7 +5,7 @@
 Adding support for a Torch operator in Torch-MLIR should always be accompanied
 by at least one end-to-end test to make sure the implementation of the op
 matches the behavior of PyTorch. The tests live in the
-`torch-mlir/python/torch_mlir_e2e_test/test_suite/` directory. When adding a new
+`torch-mlir/projects/pt1/python/torch_mlir_e2e_test/test_suite` directory. When adding a new
 test, choose a file that best matches the op you're testing, and if there is no
 file that best matches add a new file for your op.
 
@@ -87,7 +87,7 @@ following order:
 
 1. Shape of input tensor. Use `-1` for dynamic dimensions
 2. Dtype of the input tensor
-3. Boolean representing whether the input tensor [has value semantics](https://github.com/llvm/torch-mlir/blob/ba17a4d6c09b4bbb4ef21b1d8d4a93cb056be109/python/torch_mlir/dialects/torch/importer/jit_ir/csrc/class_annotator.h#L54-L67). This
+3. Boolean representing whether the input tensor [has value semantics](https://github.com/llvm/torch-mlir/blob/ba17a4d6c09b4bbb4ef21b1d8d4a93cb056be109/python/torch_mlir/jit_ir_importer/csrc/class_annotator.h#L54-L67). This
    will always be true for E2E tests, since the [Torch-MLIR backend contract](architecture.md#the-backend-contract) requires all tensors in the
    IR to eventually have value semantics.
 

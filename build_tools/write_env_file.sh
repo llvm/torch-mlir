@@ -13,7 +13,7 @@ portable_realpath() {
 
 td="$(portable_realpath "$(dirname "$0")"/..)"
 build_dir="$(portable_realpath "${TORCH_MLIR_BUILD_DIR:-$td/build}")"
-python_packages_dir="$build_dir/tools/torch-mlir/python_packages"
+python_packages_dir="$build_dir/python_packages"
 
 write_env_file() {
   echo "Updating $build_dir/.env file"

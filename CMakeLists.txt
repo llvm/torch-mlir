@@ -29,6 +29,8 @@ set(CMAKE_CXX_STANDARD 17)
 # Project options
 #-------------------------------------------------------------------------------
 
+option(TORCH_MLIR_USE_INSTALLED_PYTORCH "If depending on PyTorch use it as installed in the current Python environment" ON)
+
 option(TORCH_MLIR_ENABLE_REFBACKEND "Enable reference backend" ON)
 if(TORCH_MLIR_ENABLE_REFBACKEND)
   add_definitions(-DTORCH_MLIR_ENABLE_REFBACKEND)
@@ -149,10 +151,12 @@ endfunction()
 # Configure CMake.
 list(APPEND CMAKE_MODULE_PATH ${MLIR_MAIN_SRC_DIR}/cmake/modules)
 list(APPEND CMAKE_MODULE_PATH ${LLVM_MAIN_SRC_DIR}/cmake)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/build_tools/cmake)
 
 include(TableGen)
 include(AddLLVM)
 include(AddMLIR)
+include(AddMLIRPython)
 
 ################################################################################
 # Setup python.
@@ -231,6 +235,4 @@ endif()
 # Sub-projects
 #-------------------------------------------------------------------------------
 
-if(TORCH_MLIR_ENABLE_PROJECT_PT1)
-  add_subdirectory(projects/pt1)
-endif()
+add_subdirectory(projects)

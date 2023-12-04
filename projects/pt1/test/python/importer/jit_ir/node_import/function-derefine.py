@@ -3,7 +3,7 @@
 # See LICENSE.pytorch for license information.
 
 import torch
-from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
+from torch_mlir.jit_ir_importer import ModuleBuilder
 
 import typing
 

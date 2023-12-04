@@ -364,9 +364,9 @@ function setup_venv() {
 function build_out_of_tree() {
   local torch_from_bin="$1"
   local python_version="$2"
-  echo ":::: Build out-of-tree Torch from binary: $torch_from_bin with Python: $python_version"
-
   local torch_version="$3"
+  echo ":::: Build out-of-tree Torch from binary: $torch_from_bin with Python: $python_version ($torch_version)"
+
   local enable_ltc="ON"
   if [[ "${torch_version}" == "stable" ]]
   then

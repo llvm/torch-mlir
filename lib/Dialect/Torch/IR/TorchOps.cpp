@@ -162,6 +162,42 @@ static Value getScalarIntValue(Value input, Location loc,
   return nullptr;
 }
 
+static Value getScalarFloatValue(Value input, Location loc,
+                                 PatternRewriter &rewriter) {
+  auto inputType = input.getType();
+  if (inputType.isa<Torch::FloatType>()) {
+    return input;
+  }
+
+  auto inputTensorType = inputType.dyn_cast<BaseTensorType>();
+  if (!inputTensorType)
+    return nullptr;
+
+  Type inputDtype = inputTensorType.getOptionalDtype();
+  if (!inputDtype ||
+      (!inputDtype.isF16() && !inputDtype.isF32() && !inputDtype.isF64()))
+    return nullptr;
+
+  std::optional<unsigned> inputRank = getTensorRank(input);
+  if (!inputRank || *inputRank != 0)
+    return nullptr;
+
+  if (auto valueTensorLiteralOp = input.getDefiningOp<ValueTensorLiteralOp>()) {
+    auto val = valueTensorLiteralOp.getValue()
+                   .cast<DenseFPElementsAttr>()
+                   .getSplatValue<FloatAttr>()
+                   .getValueAsDouble();
+    return rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr(val));
+  } else if (auto primNumToTensorScalarOp =
+                 input.getDefiningOp<PrimNumToTensorScalarOp>()) {
+    return primNumToTensorScalarOp.getA();
+  } else if (auto tensorFloatOp = input.getDefiningOp<AtenTensorFloatOp>()) {
+    return tensorFloatOp.getT();
+  }
+  return nullptr;
+}
+
 //===----------------------------------------------------------------------===//
 // MethodOp
 //===----------------------------------------------------------------------===//
@@ -1154,6 +1190,27 @@ void AtenDivTensorModeOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenNumelOp
+//===----------------------------------------------------------------------===//
+void AtenNumelOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                              MLIRContext *context) {
+  patterns.add(+[](AtenNumelOp op, PatternRewriter &rewriter) {
+    auto inputType = op.getSelf().getType().dyn_cast<BaseTensorType>();
+    if (!inputType || !inputType.areAllSizesKnown()) {
+      return failure();
+    }
+    auto sizes = inputType.getSizes();
+    int64_t numel = 1;
+    for (int64_t d : sizes) {
+      numel *= d;
+    }
+    rewriter.replaceOpWithNewOp<ConstantIntOp>(
+        op, rewriter.getI64IntegerAttr(numel));
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // Aten__Or__TensorOp
 //===----------------------------------------------------------------------===//
 
@@ -1566,6 +1623,27 @@ OpFoldResult AtenIntBoolOp::fold(FoldAdaptor adaptor) {
     return getI64IntegerAttr(getContext(), static_cast<long>(b));
   }
   return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenMaskedFillTensorOp
+//===----------------------------------------------------------------------===//
+
+// Fold 0d fill tensor to scalar
+void AtenMaskedFillTensorOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenMaskedFillTensorOp op, PatternRewriter &rewriter) {
+    auto scalarIntVal =
+        getScalarIntValue(op.getValue(), op->getLoc(), rewriter);
+    auto scalarFloatVal =
+        getScalarFloatValue(op.getValue(), op->getLoc(), rewriter);
+    if (!scalarIntVal && !scalarFloatVal)
+      return failure();
+    Value scalarVal = scalarIntVal ? scalarIntVal : scalarFloatVal;
+    rewriter.replaceOpWithNewOp<AtenMaskedFillScalarOp>(
+        op, op.getType(), op.getSelf(), op.getMask(), scalarVal);
+    return failure();
+  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -2835,6 +2913,96 @@ LogicalResult ShapeCalculateYieldShapesOp::verify() {
   auto parent = cast<ShapeCalculateOp>(getOperation()->getParentOp());
   if (parent.getNumResults() != getNumOperands())
     return emitOpError("expected number of shapes to match number of results");
+  return success();
+}
+
+LogicalResult AtenPermuteOp::verify() {
+
+  // Verification of the permute op for input & output dimensions with
+  // statically known sizes.
+
+  SmallVector<Value> permutation;
+  auto permutationObtained = getListConstructElements(getDims(), permutation);
+  if (!permutationObtained) {
+    return success();
+  }
+
+  auto outType = getResult().getType().cast<BaseTensorType>();
+  auto inType = getSelf().getType().cast<BaseTensorType>();
+
+  if (!outType.hasSizes() || !inType.hasSizes()) {
+    return success();
+  }
+
+  auto outShape = outType.getSizes();
+  auto inShape = inType.getSizes();
+
+  auto outRank = outShape.size();
+
+  if (outRank != inShape.size()) {
+    return emitOpError(
+               "expected input and output tensors to have same rank, but ")
+           << inShape.size() << " != " << outRank << '.';
+  }
+
+  if (outRank != permutation.size()) {
+    return emitOpError() << "expected permutation to have size equal result "
+                            "tensor rank. The permutation has "
+                         << permutation.size()
+                         << " elements, the output has rank " << outRank << '.';
+  }
+
+
+  // Initialization of the reverse permutation. -1 denotes an unknown
+  // permutation index.
+  SmallVector<int64_t> reversePermutation(outRank, -1);
+
+  // In this loop:
+  //  (1) check that the permutation indices are in bounds, and not duplicated.
+  //  (2) populate reversePermutation (to check for duplicates).
+  //  (3) check that the input and output shapes agree with the permutation. For
+  //  example, if the permutation is (1,2,0) and the input shape is (2,3,5),
+  //  then the output shape must be (3,5,2).
+
+  for (uint64_t to = 0; to < outRank; ++to) {
+    int64_t from;
+
+    auto fromIsSet = matchPattern(permutation[to], m_TorchConstantInt(&from));
+
+    if (!fromIsSet) {
+      continue;
+    }
+
+    // if 'from' is the unkwown index, continue.
+    if (from == -1) {
+      continue;
+    }
+
+    if (!isValidDim(from, outRank)) {
+      return emitError("observed invalid index in permutation (")
+             << from << ") for input tensor of rank " << outRank << '.';
+    }
+
+    if (reversePermutation[from] != -1) {
+      return emitOpError("has a duplicate dimension (")
+             << from << ") in its permutation " << getDims() << '.';
+    }
+    reversePermutation[from] = to;
+
+    auto dimSizesDefined =
+        inShape[from] != kUnknownSize && outShape[to] != kUnknownSize;
+    auto dimSizesDifferent = inShape[from] != outShape[to];
+
+    if (dimSizesDefined && dimSizesDifferent) {
+      return emitOpError("has a permutation which is not compatible with the "
+                         "input and output shapes. ")
+             << "The input shape in dimension " << from << " is "
+             << inShape[from] << ", and the output shape in dimension " << to
+             << " is " << outShape[to]
+             << " : they should be the same with this permutation. ";
+    }
+  }
+
   return success();
 }
 

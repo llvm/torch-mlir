@@ -85,17 +85,16 @@ Type Torch::getTypeForTorchType(
 
 FailureOr<Type>
 Torch::getTypeForScalarType(MLIRContext *context,
-                            torch_upstream::ScalarType dtypeInt,
-                            mlir::IntegerType::SignednessSemantics signedness) {
+                            torch_upstream::ScalarType dtypeInt) {
   switch (dtypeInt) {
   case torch_upstream::ScalarType::Float:
     return Float32Type::get(context);
   case torch_upstream::ScalarType::Double:
     return Float64Type::get(context);
   case torch_upstream::ScalarType::Long:
-    return IntegerType::get(context, 64, signedness);
+    return IntegerType::get(context, 64, mlir::IntegerType::Signed);
   case torch_upstream::ScalarType::Int:
-    return IntegerType::get(context, 32, signedness);
+    return IntegerType::get(context, 32, mlir::IntegerType::Signed);
   case torch_upstream::ScalarType::Bool:
     return IntegerType::get(context, 1);
   case torch_upstream::ScalarType::BFloat16:
@@ -105,7 +104,7 @@ Torch::getTypeForScalarType(MLIRContext *context,
   case torch_upstream::ScalarType::Byte:
     return mlir::IntegerType::get(context, 8, mlir::IntegerType::Unsigned);
   case torch_upstream::ScalarType::Char:
-    return mlir::IntegerType::get(context, 8, signedness);
+    return mlir::IntegerType::get(context, 8, mlir::IntegerType::Signed);
   case torch_upstream::ScalarType::ComplexHalf:
     return mlir::ComplexType::get(Float16Type::get(context));
   case torch_upstream::ScalarType::ComplexFloat:
@@ -206,7 +205,8 @@ bool Torch::isViewLikeOp(Operation *op) {
              TensorStaticInfoCastOp, AtenToDtypeLayoutOp, AtenNumpyTOp,
              AtenNarrowOp, AtenNarrowTensorOp, AtenToDeviceOp, PrimsSqueezeOp,
              AtenMovedimIntOp, PrimsViewOfOp, AtenRealOp, AtenImagOp,
-             AtenViewAsComplexOp, AtenViewAsRealOp>(op);
+             PrimsSplitDimOp, AtenViewAsComplexOp, AtenViewAsRealOp,
+             AtenPixelShuffleOp>(op);
 }
 
 Value Torch::getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter,
@@ -323,6 +323,82 @@ FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
   Value unsqueezed = rewriter.create<AtenUnsqueezeOp>(
       op->getLoc(), unsqueezedType, input, dim);
   return unsqueezed;
+}
+
+// Checks whether the `shapeA` and `shapeB` are broadcast compatible or not. If
+// yes, then computes the final broadcast shape.
+void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
+                           Value inputA, Value inputB,
+                           SmallVector<int64_t> &resultShape,
+                           SmallVector<Value> &resultShapeValue) {
+  SmallVector<int64_t> shapeA{
+      inputA.getType().cast<BaseTensorType>().getSizes()};
+  SmallVector<int64_t> shapeB{
+      inputB.getType().cast<BaseTensorType>().getSizes()};
+  unsigned rankA = shapeA.size();
+  unsigned rankB = shapeB.size();
+  unsigned minRank = rankA > rankB ? rankB : rankA;
+  // Check whether the shapes of the tensors are broadcastable or not.
+  // Two tensors are “broadcastable” if the following rules hold:
+  // 1.) Each tensor has at least one dimension.
+  // 2.) When iterating over the dimension sizes, starting at the trailing
+  // dimension, the dimension sizes must either be equal, one of them is 1, or
+  // one of them does not exist.
+  for (unsigned i = 0; i < minRank; i++) {
+    Value sizeDimA = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rankA - i - 1));
+    Value sizeDimB = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rankB - i - 1));
+    Value sizeInputA =
+        rewriter.createOrFold<AtenSizeIntOp>(loc, inputA, sizeDimA);
+    Value sizeInputB =
+        rewriter.createOrFold<AtenSizeIntOp>(loc, inputB, sizeDimB);
+    Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value cmpSizeAEqualsSizeB =
+        rewriter.create<Torch::AtenEqIntOp>(loc, sizeInputA, sizeInputB);
+    Value cmpSizeAEqualsOne =
+        rewriter.create<Torch::AtenEqIntOp>(loc, sizeInputA, torchCstOne);
+    Value cmpSizeBEqualsOne =
+        rewriter.create<Torch::AtenEqIntOp>(loc, sizeInputB, torchCstOne);
+    Value anyBoolOpList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(cmpSizeAEqualsOne.getType()),
+        SmallVector<Value>{cmpSizeAEqualsSizeB, cmpSizeAEqualsOne,
+                           cmpSizeBEqualsOne});
+    Value cmp = rewriter.create<Torch::AtenAnyBoolOp>(loc, anyBoolOpList);
+    rewriter.create<Torch::RuntimeAssertOp>(
+        loc, cmp, "tensors are not broadcast compatible");
+  }
+  // If we reach here then it means both the shapes are broadcast compatible.
+  resultShape = rankA >= rankB ? shapeA : shapeB;
+  Value shapeTensor = rankA >= rankB ? inputA : inputB;
+  for (unsigned i = 0; i < resultShape.size(); i++) {
+    Value sizeDim = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(i));
+    resultShapeValue.push_back(
+        rewriter.createOrFold<AtenSizeIntOp>(loc, shapeTensor, sizeDim));
+  }
+
+  unsigned resultRank = resultShape.size();
+  for (unsigned i = 0; i < minRank; i++) {
+    Value sizeDimA = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rankA - i - 1));
+    Value sizeDimB = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rankB - i - 1));
+    Value sizeInputA =
+        rewriter.createOrFold<AtenSizeIntOp>(loc, inputA, sizeDimA);
+    Value sizeInputB =
+        rewriter.createOrFold<AtenSizeIntOp>(loc, inputB, sizeDimB);
+    resultShapeValue[resultRank - i - 1] =
+        rewriter.create<PrimMaxIntOp>(loc, sizeInputA, sizeInputB);
+    if (shapeA[rankA - i - 1] == kUnknownSize ||
+        shapeB[rankB - i - 1] == kUnknownSize) {
+      resultShape[resultRank - i - 1] = kUnknownSize;
+    } else {
+      resultShape[resultRank - i - 1] =
+          std::max(shapeA[rankA - i - 1], shapeB[rankB - i - 1]);
+    }
+  }
 }
 
 bool Torch::isAssumingStrictSymbolicShapes(Block *block) {

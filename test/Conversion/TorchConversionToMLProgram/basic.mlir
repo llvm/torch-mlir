@@ -10,7 +10,7 @@
 // CHECK:           %[[NEXT_SEED:.*]] = arith.addi %[[MUL]], %[[INC]] : i64
 // CHECK:           %[[INSERTED:.*]] = tensor.insert %[[NEXT_SEED]] into %[[GLOBAL]][] : tensor<i64>
 // CHECK:           ml_program.global_store @global_seed = %[[INSERTED]] : tensor<i64>
-// CHECK:           return %2 : i64
+// CHECK:           return %[[NEXT_SEED]] : i64
 module {
   func.func @f() -> i64 {
     %seed = torch_c.get_next_seed : () -> i64

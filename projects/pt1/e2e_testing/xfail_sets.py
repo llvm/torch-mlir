@@ -83,6 +83,8 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: RuntimeError: Found a custom (non-ATen) operator that either mutates or its inputs: prims::squeeze.. Getting these operators to work with functionalization requires some extra work. For mutable ops you need to register a corresponding out-of-place variant of the op, and you also need to register a Functionalization kernel that performs some boilerplate, telling functionalization to map from the mutable op to the out-of-place op. See a more complete example of how to do this at https://gist.github.com/bdhirsh/7dadbf6296f8f7d1abcf4c482f438aaa.
     "PrimsSqueezeModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
+    "SplitDimStaticModule_basic",
+    "SplitDimDynamicModule_basic",
 
     # ERROR: RuntimeError: Found a custom (non-ATen) operator that either mutates or its inputs: prims::view_of.. Getting these operators to work with functionalization requires some extra work. For mutable ops you need to register a corresponding out-of-place variant of the op, and you also need to register a Functionalization kernel that performs some boilerplate, telling functionalization to map from the mutable op to the out-of-place op. See a more complete example of how to do this at https://gist.github.com/bdhirsh/7dadbf6296f8f7d1abcf4c482f438aaa.
     "PrimsViewOfModule_basic",
@@ -302,6 +304,9 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # ERROR: dtype (torch.int64) is not equal to golden dtype (torch.float32)
     "ThresholdBackward2dMixedModule_basic",
+
+    # ERROR: shape (torch.Size([12])) is not equal to golden shape (torch.Size([3, 4]))
+    "ArangeStartOutViewModule_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.1.0.dev"):
@@ -454,6 +459,8 @@ STABLEHLO_PASS_SET = {
     "BucketizeTensorStaticModule_basic",
     "CumsumStaticModule_basic",
     "CumsumStaticNegativeDimModule_basic",
+    "CosineSimilarityStaticModule_basic",
+    "CosineSimilarityStaticBroadcastModule_basic",
     "DetachModule_basic",
     "ElementwiseIsnanModule_basic",
     "ElementwiseAtenLogicalAndOpPromoteBroadcastStaticShapeModule_basic",
@@ -1304,6 +1311,9 @@ TOSA_PASS_SET = {
     "AtenEyeModuleDefaultDtype_basic",
     "AtenEyeModuleFalsePinMemory_basic",
     "AtenEyeModuleFloat2D_basic",
+    "MeanModule_basic",
+    "ArangeStartOutModule_basic",
+    "ArangeStartOutViewModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
@@ -1356,6 +1366,18 @@ LTC_CRASHING_SET = {
 }
 
 LTC_XFAIL_SET = {
+    "CollapseAllDimensionsModule_basic",
+    "CollapseRank1DynamicModule_basic",
+    "CollapseStaticModule_basic",
+    "CollapsePartialDynamicModule_basic",
+    "CollapseFullDynamicModule_basic",
+    "SplitDimStaticModule_basic",
+    "SplitDimDynamicModule_basic",
+    "PixelShuffleModuleStaticRank3Int64_basic",
+    "PixelShuffleModuleStaticRank4Float32_basic",
+    "PixelShuffleModuleFullDynamic_basic",
+    "PixelShuffleModuleSpatiallyDynamic_basic",
+    "PixelShuffleModuleSpatiallyStatic_basic",
     "_Convolution2DAllFalseModule_basic",
     "_Convolution2DBenchmarkModule_basic",
     "_Convolution2DCudnnModule_basic",
@@ -1366,6 +1388,7 @@ LTC_XFAIL_SET = {
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
     "AddIntModule_basic",
+    "ArangeStartOutViewModule_basic",
     "AtenIntBoolOpModule_basic",
     "BernoulliTensorModule_basic",
     "BincountMinlengthModule_basic",

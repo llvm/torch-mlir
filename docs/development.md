@@ -20,6 +20,7 @@ source mlir_venv/bin/activate
 python -m pip install --upgrade pip
 # Install latest PyTorch nightlies and build requirements.
 python -m pip install -r requirements.txt
+python -m pip install -r torchvision-requirements.txt
 ```
 
 ## CMake Build
@@ -108,25 +109,25 @@ cmake --build build
 ### Linux and macOS
 
 ```shell
-export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/examples
+export PYTHONPATH=`pwd`/build/python_packages/torch_mlir:`pwd`/projects/pt1/examples
 ```
 
 ### Windows PowerShell
 
 ```shell
-$env:PYTHONPATH = "$PWD/build/tools/torch-mlir/python_packages/torch_mlir;$PWD/examples"
+$env:PYTHONPATH = "$PWD/build/python_packages/torch_mlir;$PWD/projects/pt1/examples"
 ```
 
 ## Testing MLIR output in various dialects
 
-To test the compiler's output to the different MLIR dialects, you can use the example `examples/torchscript_resnet18_all_output_types.py`.
+To test the compiler's output to the different MLIR dialects, you can use the example `projects/pt1/examples/torchscript_resnet18_all_output_types.py`.
 
 Make sure you have activated the virtualenv and set the `PYTHONPATH` above
 (if running on Windows, modify the environment variable as shown above):
 ```shell
 source mlir_venv/bin/activate
-export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/examples
-python examples/torchscript_resnet18_all_output_types.py
+export PYTHONPATH=`pwd`/build/tpython_packages/torch_mlir:`pwd`/projects/pt1/examples
+python projects/pt1/examples/torchscript_resnet18_all_output_types.py
 ```
 
 This will display the Resnet18 network example in three dialects: TORCH, LINALG on TENSORS and TOSA.
@@ -331,8 +332,8 @@ Torch-MLIR has two types of tests:
 1. End-to-end execution tests. These compile and run a program and check the
    result against the expected output from execution on native Torch. These use
    a homegrown testing framework (see
-   `python/torch_mlir_e2e_test/torchscript/framework.py`) and the test suite
-   lives at `python/torch_mlir_e2e_test/test_suite/__init__.py`.
+   `projects/pt1/python/torch_mlir_e2e_test/framework.py`) and the test suite
+   lives at `projects/pt1/python/torch_mlir_e2e_test/test_suite/__init__.py`.
 
 2. Compiler and Python API unit tests. These use LLVM's `lit` testing framework.
    For example, these might involve using `torch-mlir-opt` to run a pass and
@@ -346,6 +347,9 @@ Torch-MLIR has two types of tests:
 
 > **Note**
 > An `.env` file must be generated via `build_tools/write_env_file.sh` before these commands can be run.
+
+
+The following assumes you are in the `projects/pt1`  directory:
 
 ```shell
 # Run all tests on the reference backend
@@ -398,7 +402,7 @@ Most of the unit tests use the [`FileCheck` tool](https://llvm.org/docs/CommandG
 
 # PyTorch source builds and custom PyTorch versions
 
-Torch-MLIR by default builds with the latest nightly PyTorch version. This can be toggled to build from latest PyTorch source with 
+Torch-MLIR by default builds with the latest nightly PyTorch version. This can be toggled to build from latest PyTorch source with
 ```
 -DTORCH_MLIR_USE_INSTALLED_PYTORCH=OFF
 -DTORCH_MLIR_SRC_PYTORCH_REPO=vivekkhandelwal1/pytorch # Optional. Github path. Defaults to pytorch/pytorch
@@ -469,10 +473,10 @@ Here are some examples of PRs updating the LLVM and MLIR-HLO submodules:
 
 To enable ASAN, pass `-DLLVM_USE_SANITIZER=Address` to CMake. This should "just
 work" with all C++ tools like `torch-mlir-opt`. When running a Python script
-such as through `./tools/e2e_test.sh`, you will need to do:
+such as through `./projects/pt1/tools/e2e_test.sh`, you will need to do:
 
 ```
-LD_PRELOAD="$(clang -print-file-name=libclang_rt.asan-x86_64.so)" ./tools/e2e_test.sh -s
+LD_PRELOAD="$(clang -print-file-name=libclang_rt.asan-x86_64.so)" ./projects/pt1/tools/e2e_test.sh -s
 # See instructions here for how to get the libasan path for GCC:
 # https://stackoverflow.com/questions/48833176/get-location-of-libasan-from-gcc-clang
 ```

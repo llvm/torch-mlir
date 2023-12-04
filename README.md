@@ -82,10 +82,10 @@ Standalone script to Convert a PyTorch ResNet18 model to MLIR and run it on the 
 
 ```shell
 # Get the latest example if you haven't checked out the code
-wget https://raw.githubusercontent.com/llvm/torch-mlir/main/examples/torchscript_resnet18.py
+wget https://raw.githubusercontent.com/llvm/torch-mlir/main/projects/pt1/examples/torchscript_resnet18.py
 
 # Run ResNet18 as a standalone script.
-python examples/torchscript_resnet18.py
+python projects/pt1/examples/torchscript_resnet18.py
 
 load image from https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg
 Downloading: "https://download.pytorch.org/models/resnet18-f37072fd.pth" to /home/mlir/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth

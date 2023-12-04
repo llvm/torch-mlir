@@ -12,7 +12,11 @@ on:
 # any in-progress jobs in the same github workflow and github
 # ref (e.g. refs/heads/main or refs/pull/<pr_number>/merge).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # A PR number if a pull request and otherwise the commit hash. This cancels
+  # queued and in-progress runs for the same PR (presubmit) or commit
+  # (postsubmit). The workflow name is prepended to avoid conflicts between
+  # different workflows.
+  group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
   cancel-in-progress: true
 
 
@@ -27,15 +31,12 @@ jobs:
       matrix:
         os-arch: [ubuntu-x86_64, macos-arm64, windows-x86_64]
         llvm-build: [in-tree, out-of-tree]
-        torch-binary: [ON, OFF]
+        torch-binary: [ON]
         torch-version: [nightly, stable]
         exclude:
-          # Exclude llvm in-tree and pytorch source
-          - llvm-build: in-tree
-            torch-binary: OFF
-          # Exclude llvm out-of-tree and pytorch binary
+          # Exclude llvm out-of-tree and pytorch stable (to save resources)
           - llvm-build: out-of-tree
-            torch-binary: ON
+            torch-version: stable
           # Exclude macos-arm64 and llvm out-of-tree altogether
           - os-arch: macos-arm64
             llvm-build: out-of-tree
@@ -45,9 +46,6 @@ jobs:
             llvm-build: out-of-tree
           - os-arch: windows-x86_64
             torch-version: stable
-          # For PyTorch stable builds, we don't build PyTorch from source
-          - torch-version: stable
-            torch-binary: OFF
         include:
           # Specify OS versions
           - os-arch: ubuntu-x86_64

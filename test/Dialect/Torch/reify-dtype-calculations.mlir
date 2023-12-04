@@ -24,11 +24,11 @@ func.func @basic(%arg0: !torch.vtensor) -> !torch.vtensor {
 
 // -----
 
-// CHECK-LABEL:   func.func private @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.library_generator.promote_dtypes(
+// CHECK-LABEL:   func.func private @__torch__.torch_mlir.jit_ir_importer.build_tools.library_generator.promote_dtypes(
 // CHECK:          {{.*}} = torch.promote_dtypes {{.*}} : (!torch.list<optional<int>>, !torch.list<int>) -> !torch.int
 
 // CHECK-LABEL:   func.func private @__torch_mlir_dtype_fn.aten.floor_divide(
-// CHECK:           {{.*}} = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.library_generator.promote_dtypes({{.*}}
+// CHECK:           {{.*}} = call @__torch__.torch_mlir.jit_ir_importer.build_tools.library_generator.promote_dtypes({{.*}}
 
 // CHECK-LABEL:   func.func @op_with_dtype_promotion(
 // CHECK:             {{.*}} = func.call @__torch_mlir_dtype_fn.aten.floor_divide({{.*}}

@@ -26,7 +26,7 @@ The two main use cases are:
 ## Architecture
 
 Functions are defined as TorchScript-able Python functions in
-`python/torch_mlir/dialects/torch/importer/jit_ir/build_tools/abstract_interp_lib_gen.py`.
+`python/torch_mlir/jit_ir_importer/build_tools/abstract_interp_lib_gen.py`.
 The signatures of the functions are systematically derived from Torch JIT
 operator registry. Most shape functions are expected to reuse the upstream
 helper functions

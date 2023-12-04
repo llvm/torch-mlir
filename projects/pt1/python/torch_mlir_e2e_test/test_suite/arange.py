@@ -248,3 +248,53 @@ class ArangeFalsePinMemoryModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ArangeFalsePinMemoryModule())
 def ArangeFalsePinMemoryModule_basic(module, tu: TestUtils):
     module.forward()
+
+# ==============================================================================
+
+class ArangeStartOutModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+        ([12], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.arange(start=0, end=12, out=x)
+
+@register_test_case(module_factory=lambda: ArangeStartOutModule())
+def ArangeStartOutModule_basic(module, tu: TestUtils):
+    module.forward(torch.zeros(12).to(torch.int64))
+
+class ArangeStartOutViewModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.arange(start=1, end=13, out=x)
+
+@register_test_case(module_factory=lambda: ArangeStartOutViewModule())
+def ArangeStartOutViewModule_basic(module, tu: TestUtils):
+    module.forward(torch.zeros(3, 4).to(torch.int64))
+
+class ArangeStartOutDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+        ([12], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.arange(start=1.1, end=13.1, out=x)
+
+@register_test_case(module_factory=lambda: ArangeStartOutDtypeModule())
+def ArangeStartOutDtypeModule_basic(module, tu: TestUtils):
+    module.forward(torch.zeros(12).to(torch.int64))

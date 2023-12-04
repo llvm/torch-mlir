@@ -2119,3 +2119,30 @@ func.func @torch.aten.any.bool$fold() -> !torch.bool {
   %0 = torch.aten.any.bool %input : !torch.list<bool> -> !torch.bool
   return %0 : !torch.bool
 }
+
+// CHECK-LABEL:   func.func @torch.aten.floor$canonicalize
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[?,?],si64>
+// CHECK-NEXT:      return %[[ARG]] : !torch.vtensor<[?,?],si64>
+func.func @torch.aten.floor$canonicalize(%arg0: !torch.vtensor<[?,?],si64>) -> !torch.vtensor<[?,?],si64> {
+  %0 = torch.aten.floor %arg0 : !torch.vtensor<[?,?],si64> -> !torch.vtensor<[?,?],si64>
+  return %0 : !torch.vtensor<[?,?],si64>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.numel$canonicalize
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[3,4],f32> 
+// CHECK-NEXT:      %int12 = torch.constant.int 12
+// CHECK-NEXT:      return %int12 : !torch.int
+func.func @torch.aten.numel$canonicalize(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.int {
+  %0 = torch.aten.numel %arg0 : !torch.vtensor<[3,4],f32> -> !torch.int
+  return %0 : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.aten.masked_fill.Tensor$canonicalize
+// CHECK-NEXT:      torch.constant.float -1.000000e+09
+// CHECK-NEXT:      torch.aten.masked_fill.Scalar
+// CHECK-NEXT:      return
+func.func @torch.aten.masked_fill.Tensor$canonicalize(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?,?],i1>) -> !torch.vtensor<[?,?],f32> {
+  %0 = torch.vtensor.literal(dense<-1.000000e+09> : tensor<f32>) : !torch.vtensor<[],f32>
+  %1 = torch.aten.masked_fill.Tensor %arg0, %arg1, %0 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],i1>, !torch.vtensor<[],f32> -> !torch.vtensor<[?,?],f32>
+  return %1 : !torch.vtensor<[?,?],f32>
+}

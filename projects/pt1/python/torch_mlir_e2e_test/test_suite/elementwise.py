@@ -341,6 +341,7 @@ def ElementwiseUnsqueezeBroadcastModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4), tu.rand())
 
 
+
 # ==============================================================================
 
 
@@ -3250,6 +3251,52 @@ def AtenTriuWithPosDiagonalModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class TriuModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4,5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.triu(x, 1)
+
+
+@register_test_case(module_factory=lambda: TriuModule())
+def TriuModule_basic(module, tu: TestUtils):
+    x=torch.tensor([[ 0.5876, -0.0794, -1.8373,  0.6654, 0.2],
+        [-0.2447,  0.9556, -1.2919,  1.3378, 0.3],
+        [ 0.4333,  0.3146,  0.6576, -1.0432, 0.4],
+        [-0.9888,  torch.nan, torch.inf, -torch.inf, 0.5]])
+    module.forward(x)
+
+
+# ==============================================================================
+
+
+class TriuBroadcastModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3,4,5,6], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.triu(x, 2)
+
+
+@register_test_case(module_factory=lambda: TriuBroadcastModule())
+def TriuBroadcastModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3,4,5,6))
+
+
+# ==============================================================================
+
+
 class AtenTriuWithNegDiagonalModule(torch.nn.Module):
 
     def __init__(self):
@@ -3642,6 +3689,69 @@ class ElementwiseBitwiseRightShiftInt8Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseBitwiseRightShiftInt8Module())
 def ElementwiseBitwiseRightShiftInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-100, high=100).to(torch.int8), tu.randint(3, 4, low=0, high=8).to(torch.int8))
+
+
+# ==============================================================================
+
+
+class ElementwiseBitwiseLeftShiftInt64Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.bitwise_left_shift(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseLeftShiftInt64Module())
+def ElementwiseBitwiseLeftShiftInt64Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-1000, high=1000), tu.randint(3, 4, low=0, high=64))
+
+
+class ElementwiseBitwiseLeftShiftInt32Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, 4], torch.int32, True),
+        ([-1, 1], torch.int32, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.bitwise_left_shift(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseLeftShiftInt32Module())
+def ElementwiseBitwiseLeftShiftInt32Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-1000, high=1000).to(torch.int32), tu.randint(3, 1, low=0, high=32).to(torch.int32))
+
+
+class ElementwiseBitwiseLeftShiftInt8Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int8, True),
+        ([-1, -1], torch.int8, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.bitwise_left_shift(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseLeftShiftInt8Module())
+def ElementwiseBitwiseLeftShiftInt8Module_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-100, high=100).to(torch.int8), tu.randint(3, 4, low=0, high=8).to(torch.int8))
 
 

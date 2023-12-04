@@ -200,7 +200,10 @@ static bool isValidTorchDtype(Type dtype) {
       }
     }
     if (type.isUnsigned()) {
-      return type.getWidth() == 8 || type.getWidth() == 4;
+      for (unsigned width : {4, 8, 16, 32, 64}) {
+        if (type.getWidth() == width)
+          return true;
+      }
     }
   }
   return false;

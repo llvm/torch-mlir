@@ -281,3 +281,84 @@ func.func @torch.tensor_static_info_cast$dtype_mismatch(%arg0: !torch.vtensor<*,
   %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<*,f32> to !torch.vtensor<*,f64>
   return %0 : !torch.vtensor<*,f64>
 }
+
+
+// -----
+
+func.func @torch.permute$test_changing_rank (%arg0: !torch.vtensor<[1,2,3],f32>) -> !torch.vtensor<[1,2,3,4],f32> {
+
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+
+  %perm = torch.prim.ListConstruct %int1, %int2, %int0 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+
+  // expected-error@+1 {{expected input and output tensors to have same rank, but 3 != 4}}
+  %3 = torch.aten.permute %arg0, %perm : !torch.vtensor<[1,2,3],f32>, !torch.list<int> -> !torch.vtensor<[1,2,3,4],f32>
+
+   return %3 : !torch.vtensor<[1,2,3,4],f32>
+}
+
+// -----
+
+func.func @torch.permute$test_permutation_too_short (%arg0: !torch.vtensor<[1,2,3],f32>) -> !torch.vtensor<[1,2,3],f32> {
+
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+
+  %perm = torch.prim.ListConstruct %int0, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+
+  // expected-error@+1 {{The permutation has 2 elements, the output has rank 3}}
+  %3 = torch.aten.permute %arg0, %perm : !torch.vtensor<[1,2,3],f32>, !torch.list<int> -> !torch.vtensor<[1,2,3],f32>
+
+   return %3 : !torch.vtensor<[1,2,3],f32>
+}
+
+// -----
+
+func.func @torch.permute$duplicate_index_in_permutation (%arg0: !torch.vtensor<[1,2,3],f32>) -> !torch.vtensor<[2,3,1],f32> {
+
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %perm = torch.prim.ListConstruct %int1, %int2, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+
+  // expected-error@+1 {{'torch.aten.permute' op has a duplicate dimension (1) in its permutation}}
+  %3 = torch.aten.permute %arg0, %perm : !torch.vtensor<[1,2,3],f32>, !torch.list<int> -> !torch.vtensor<[2,3,1],f32>
+
+   return %3 : !torch.vtensor<[2,3,1],f32>
+}
+
+// -----
+
+func.func @torch.permute$incorrect_output_shape (%arg0: !torch.vtensor<[1,2,3],f32>) -> !torch.vtensor<[3,1,2],f32> {
+
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %none = torch.constant.none
+
+  %perm = torch.prim.ListConstruct %int1, %int2, %int0 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+
+  // expected-error@+1 {{'torch.aten.permute' op has a permutation which is not compatible with the input and output shapes. The input shape in dimension 1 is 2, and the output shape in dimension 0 is 3 : they should be the same with this permutation.}}
+  %3 = torch.aten.permute %arg0, %perm : !torch.vtensor<[1,2,3],f32>, !torch.list<int> -> !torch.vtensor<[3,1,2],f32>
+
+   return %3 : !torch.vtensor<[3,1,2],f32>
+}
+
+
+// -----
+
+func.func @torch.permute$invalid_index_in_permutation (%arg0: !torch.vtensor<[1,2,3],f32>) -> !torch.vtensor<[1,2,3],f32> {
+
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int7 = torch.constant.int 7
+  %perm = torch.prim.ListConstruct %int0, %int1, %int7 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+
+
+  // expected-error@+1 {{observed invalid index in permutation (7) for input tensor of rank 3.}}
+  %3 = torch.aten.permute %arg0, %perm : !torch.vtensor<[1,2,3],f32>, !torch.list<int> -> !torch.vtensor<[1,2,3],f32>
+
+   return %3 : !torch.vtensor<[1,2,3],f32>
+}
+

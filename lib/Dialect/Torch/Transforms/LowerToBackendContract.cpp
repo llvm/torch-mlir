@@ -392,6 +392,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenNormScalarOptDimOp>();
   target.addIllegalOp<AtenSelectIntOp>();
   target.addIllegalOp<AtenMvOp>();
+  target.addIllegalOp<AtenPixelShuffleOp>();
   target.addIllegalOp<AtenTOp>();
   target.addIllegalOp<Aten_LogSoftmaxBackwardDataOp>();
   target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
@@ -485,6 +486,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenRandnGeneratorOp>();
   target.addIllegalOp<AtenRandnLikeOp>();
   target.addIllegalOp<AtenVarMeanOp>();
+  target.addIllegalOp<AtenCosineSimilarityOp>();
   target.addIllegalOp<AtenNewEmptyStridedOp>();
   target.addIllegalOp<AtenEmptyStridedOp>();
   target.addIllegalOp<AtenBucketizeTensorOp>();
@@ -499,6 +501,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenTypeAsOp>();
   target.addIllegalOp<AtenTileOp>();
   target.addIllegalOp<AtenReshapeAsOp>();
+  target.addIllegalOp<AtenTriuOp>();
   for (auto &opName : backendLegalOpsSet) {
     target.addLegalOp(
         OperationName(kTorchOpPrefix + opName.first().str(), context));

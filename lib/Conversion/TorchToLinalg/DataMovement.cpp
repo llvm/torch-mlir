@@ -15,13 +15,13 @@
 
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
-#include "Utils.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
+#include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -362,7 +362,7 @@ public:
 
     auto [inputShape, outputShape] =
         getInputAndOutputShape(op.getSelf(), outputSizeTorchInt);
-    
+
     // Currently, we only handle the cases where each dimension is either
     // being expanded or collapsed. We do not handle cases where it's neither
     // collapsing nor expanding like view of [2,3] for 3x2 tensor.
@@ -380,8 +380,8 @@ public:
     bool inputHasOneDynDim = llvm::count(inputShape, kUnknownSize) == 1;
     bool outputHasOneDynDim = llvm::count(outputShape, kUnknownSize) == 1;
     bool singleDynDimsAreEqual =
-    inputHasOneDynDim && outputHasOneDynDim &&
-    productReduce(inputShape) == productReduce(outputShape);
+        inputHasOneDynDim && outputHasOneDynDim &&
+        productReduce(inputShape) == productReduce(outputShape);
     SmallVector<std::pair<int64_t, int64_t>> unchangedDims;
     for (auto [outputDim, outputDimSize] :
          llvm::enumerate(outputSizeTorchInt)) {
@@ -533,6 +533,10 @@ public:
       }
     }
 
+    auto cast = [&](Location loc, Type t, Value v) -> Value {
+      return rewriter.createOrFold<tensor::CastOp>(loc, t, v);
+    };
+
     // Check if the shapes already match up to dynamic sizes. If so, we can just
     // cast as the result type because the previous loop sets up the necessary
     // dim checks in case of dynamic sizes.
@@ -542,7 +546,9 @@ public:
         llvm::all_of(outputAssociations, [](ReassociationIndices indices) {
           return indices.size() == 1;
         })) {
-      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, input);
+
+      auto castResult = cast(loc, resultType, input);
+      rewriter.replaceOp(op, castResult);
 
       return success();
     }
@@ -551,8 +557,7 @@ public:
         makeShapeLLVMCompatible(outputShape), resultType.getElementType());
     Type adjustedInputType = RankedTensorType::get(
         makeShapeLLVMCompatible(inputShape), resultType.getElementType());
-    Value castedInput =
-        rewriter.create<tensor::CastOp>(loc, adjustedInputType, input);
+    Value castedInput = cast(loc, adjustedInputType, input);
     std::optional<Value> expandedInput;
     std::optional<Value> collapsedInput;
 
@@ -602,7 +607,8 @@ public:
     Value result = collapsedInput.has_value() ? collapsedInput.value()
                                               : expandedInput.value();
 
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
+    auto castResult = cast(loc, resultType, result);
+    rewriter.replaceOp(op, castResult);
 
     return success();
   }
@@ -1154,7 +1160,8 @@ public:
       return failure();
 
     Type resultType = getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, adaptor.getSelf());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
+                                                adaptor.getSelf());
     return success();
   }
 };
@@ -1407,7 +1414,8 @@ public:
 
     SmallVector<AffineMap> indexingMaps{inputMap, outputMap};
 
-    SmallVector<utils::IteratorType> iteratorTypes(resultType.getRank(), utils::IteratorType::parallel);
+    SmallVector<utils::IteratorType> iteratorTypes(
+        resultType.getRank(), utils::IteratorType::parallel);
 
     Value constantZero =
         getConstant(rewriter, loc, 0, mlir::IndexType::get(context));
@@ -1417,7 +1425,6 @@ public:
                 loc, outTensor.getType(), input, outTensor, indexingMaps,
                 iteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
-
                   Value realVal =
                       b.create<complex::ReOp>(loc, elementType, args[0]);
                   Value imagVal =
