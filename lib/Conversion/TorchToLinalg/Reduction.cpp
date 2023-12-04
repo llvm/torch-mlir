@@ -30,11 +30,6 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 namespace {
-// Helper for ConvertAtenMinMaxDimOp
-template <typename OpTy> constexpr bool isMaxDimOp();
-template <> constexpr bool isMaxDimOp<AtenMaxDimOp>() { return true; }
-template <> constexpr bool isMaxDimOp<AtenMinDimOp>() { return false; }
-
 // Aten max.dim (min.dim) lowering represents the MaxDimOp (MinDimOp) as an
 // linalg.indexed_generic op, producing two output buffers.
 //
@@ -58,8 +53,10 @@ public:
   LogicalResult
   matchAndRewrite(OpTy op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    constexpr bool isMax = isMaxDimOp<OpTy>();
-    std::string opName = isMax ? "aten.max_dim" : "aten.min_dim";
+    static_assert(std::is_same<OpTy, AtenMaxDimOp>() ||
+                  std::is_same<OpTy, AtenMinDimOp>());
+    constexpr bool isMax = std::is_same<OpTy, AtenMaxDimOp>();
+    const llvm::StringRef opName = op->getName().getStringRef();
 
     Location loc = op.getLoc();
     Value input = adaptor.getSelf();
