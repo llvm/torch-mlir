@@ -14,6 +14,7 @@ COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "NativeGroupNormBackwardModule_basic",
     "QuantizedMLP_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
+    "ReduceMinAlongDimUnsignedInt_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
 }
 
