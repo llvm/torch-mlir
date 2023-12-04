@@ -840,12 +840,13 @@ public:
 };
 } // namespace
 
-// Decompose `AtenArgMaxOp` into `AtenMaxDimOp`.
+// Decompose `AtenArgMaxOp` into `AtenMaxDimOp` as well as `AtenArgMinOp` into `AtenMinDimOp`
 namespace {
-class DecomposeAtenArgMaxOp : public OpRewritePattern<AtenArgmaxOp> {
+template <typename OpTy>
+class DecomposeAtenArgMinMaxOp : public OpRewritePattern<OpTy> {
 public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenArgmaxOp op,
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value input = op.getSelf();
@@ -870,7 +871,7 @@ public:
             .cast<BaseTensorType>();
 
     // If the dim type is `NoneType` i.e. reduce along all the dimensions.
-    // `AtenMaxDimOp` doesn't support dim as `NoneType` so first the input
+    // `AtenMaxDimOp` and `AtenMinDimOp` do not support dim as `NoneType` so first the input
     // tensor is flattened to 1d tensor and then the reduction happens on the
     // 0th dimension.
     if (dim.getType().isa<Torch::NoneType>()) {
@@ -885,70 +886,26 @@ public:
       input = rewriter.create<AtenFlattenUsingIntsOp>(loc, flattenType, input,
                                                       dim, end);
     }
-    Value maxResult =
+
+    static_assert(std::is_same<OpTy, AtenArgmaxOp>() ||
+                  std::is_same<OpTy, AtenArgminOp>());
+    Value resultArg;
+    if constexpr (std::is_same<OpTy, AtenArgmaxOp>()) {
+      resultArg =
         rewriter
             .create<AtenMaxDimOp>(loc, valueTensorType, indicesTensorType,
                                   input, dim, keepDim)
             .getIndices();
-
-    rewriter.replaceOp(op, maxResult);
-    return success();
-  }
-};
-} // namespace
-
-// Decompose `AtenArgMinOp` into `AtenMinDimOp`.
-namespace {
-class DecomposeAtenArgMinOp : public OpRewritePattern<AtenArgminOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenArgminOp op,
-                                PatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
-    Value input = op.getSelf();
-    Value dim = op.getDim();
-    Value keepDim = op.getKeepdim();
-    Value result = op.getResult();
-
-    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
-    BaseTensorType indicesTensorType = result.getType().cast<BaseTensorType>();
-    std::optional<unsigned> maybeInputRank = getTensorRank(input);
-    if (!maybeInputRank) {
-      return rewriter.notifyMatchFailure(
-          op, "expected input tensor to have a rank");
     }
-    unsigned inputRank = *maybeInputRank;
-    if (!indicesTensorType.hasSizes())
-      return failure();
-    BaseTensorType valueTensorType =
-        inputType
-            .getWithSizesAndDtype(indicesTensorType.getOptionalSizes(),
-                                  inputType.getOptionalDtype())
-            .cast<BaseTensorType>();
-
-    // If the dim type is `NoneType` i.e. reduce along all the dimensions.
-    // `AtenMinDimOp` doesn't support dim as `NoneType` so first the input
-    // tensor is flattened to 1d tensor and then the reduction happens on the
-    // 0th dimension.
-    if (dim.getType().isa<Torch::NoneType>()) {
-      BaseTensorType flattenType =
-          inputType
-              .getWithSizesAndDtype({kUnknownSize},
-                                    inputType.getOptionalDtype())
-              .cast<BaseTensorType>();
-      dim = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
-      Value end = rewriter.create<ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(inputRank - 1));
-      input = rewriter.create<AtenFlattenUsingIntsOp>(loc, flattenType, input,
-                                                      dim, end);
-    }
-    Value minResult =
+    else {
+      resultArg =
         rewriter
             .create<AtenMinDimOp>(loc, valueTensorType, indicesTensorType,
                                   input, dim, keepDim)
             .getIndices();
-
-    rewriter.replaceOp(op, minResult);
+    }
+    
+    rewriter.replaceOp(op, resultArg);
     return success();
   }
 };
@@ -5831,8 +5788,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvTranspose2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeStartOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenArgMaxOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenArgMinOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenArgMinMaxOp<AtenArgmaxOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenArgMinMaxOp<AtenArgminOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSquareOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdOp>(patterns);
