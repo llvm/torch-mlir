@@ -393,8 +393,7 @@ static LogicalResult performMatmul(PatternRewriter &rewriter, Location loc,
     auto promotedDTypeIntValue = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr((int)promotedDTypeInt));
     auto promotedDTypeInfo =
-        getTypeForScalarType(rewriter.getContext(), promotedDTypeInt,
-                             mlir::IntegerType::SignednessSemantics::Signed);
+        getTypeForScalarType(rewriter.getContext(), promotedDTypeInt);
     if (failed(promotedDTypeInfo))
       return rewriter.notifyMatchFailure(loc, "Failed to get type for promoted dtype");
     promotedDType = *promotedDTypeInfo;
