@@ -11,13 +11,13 @@
 
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
-#include "Utils.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
+#include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -127,9 +127,9 @@ public:
       if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeInt)))
         return rewriter.notifyMatchFailure(
             op, "unimplemented: dtype must be a constant integer or none");
-      FailureOr<Type> maybeResultElementType = getTypeForScalarType(
-          op->getContext(), (torch_upstream::ScalarType)dtypeInt,
-          IntegerType::Signless);
+      FailureOr<Type> maybeResultElementType =
+          torch_to_linalg::getBackendTypeForScalarType(
+              op->getContext(), (torch_upstream::ScalarType)dtypeInt);
       if (failed(maybeResultElementType)) {
         return rewriter.notifyMatchFailure(
             op, "unable to convert `dtypeInt` to builtin type");
@@ -233,9 +233,9 @@ public:
       if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeInt)))
         return rewriter.notifyMatchFailure(
             op, "unimplemented: dtype must be a constant integer or none");
-      FailureOr<Type> maybeResultElementType = getTypeForScalarType(
-          op->getContext(), (torch_upstream::ScalarType)dtypeInt,
-          IntegerType::Signless);
+      FailureOr<Type> maybeResultElementType =
+          torch_to_linalg::getBackendTypeForScalarType(
+              op->getContext(), (torch_upstream::ScalarType)dtypeInt);
       if (failed(maybeResultElementType)) {
         return rewriter.notifyMatchFailure(
             op, "unable to convert `dtypeInt` to builtin type");

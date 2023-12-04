@@ -686,7 +686,56 @@ class PixelShuffleModuleStaticRank3Int64(torch.nn.Module):
 def PixelShuffleModuleStaticRank3Int64_basic(module, tu: TestUtils):
     module.forward(tu.randint(12, 2, 3, low = 0, high = 100))
 
+# ==============================================================================
 
+
+class PixelShuffleModuleFullDynamic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1,-1,-1,-1], torch.int64, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_shuffle(x, 2)
+
+@register_test_case(module_factory=lambda: PixelShuffleModuleFullDynamic())
+def PixelShuffleModuleFullDynamic_basic(module, tu: TestUtils):
+    module.forward(tu.randint(1,8,3,3, low = 0, high = 100))
+
+# ==============================================================================
+
+
+class PixelShuffleModuleSpatiallyDynamic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([2,1,8,-1,-1], torch.int64, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_shuffle(x, 2)
+
+@register_test_case(module_factory=lambda: PixelShuffleModuleSpatiallyDynamic())
+def PixelShuffleModuleSpatiallyDynamic_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2,1,8,2,3, low = 0, high = 100))
+
+
+# ==============================================================================
+
+class PixelShuffleModuleSpatiallyStatic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1,-1,-1,3,1], torch.int64, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_shuffle(x, 2)
+
+@register_test_case(module_factory=lambda: PixelShuffleModuleSpatiallyStatic())
+def PixelShuffleModuleSpatiallyStatic_basic(module, tu: TestUtils):
+    module.forward(tu.randint(1,2,12,3,1, low = 0, high = 100))
+
+
+# ==============================================================================
 
 
 class TensorsConcatModule(torch.nn.Module):

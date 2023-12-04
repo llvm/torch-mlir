@@ -451,6 +451,25 @@ def EmptyModule_int(module, tu: TestUtils):
     module.forward()
 
 
+class EmptyUInt8Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        empty = torch.ops.aten.empty([1], dtype=torch.uint8)
+        return torch.ops.aten.zeros_like(empty).to(torch.int8)
+
+
+@register_test_case(module_factory=lambda: EmptyUInt8Module())
+def EmptyModule_uint8(module, tu: TestUtils):
+    module.forward()
+
+
 class EmptyFloatModule(torch.nn.Module):
 
     def __init__(self):

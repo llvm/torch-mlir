@@ -20,6 +20,7 @@ source mlir_venv/bin/activate
 python -m pip install --upgrade pip
 # Install latest PyTorch nightlies and build requirements.
 python -m pip install -r requirements.txt
+python -m pip install -r torchvision-requirements.txt
 ```
 
 ## CMake Build
@@ -108,25 +109,25 @@ cmake --build build
 ### Linux and macOS
 
 ```shell
-export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/examples
+export PYTHONPATH=`pwd`/build/python_packages/torch_mlir:`pwd`/projects/pt1/examples
 ```
 
 ### Windows PowerShell
 
 ```shell
-$env:PYTHONPATH = "$PWD/build/tools/torch-mlir/python_packages/torch_mlir;$PWD/examples"
+$env:PYTHONPATH = "$PWD/build/python_packages/torch_mlir;$PWD/projects/pt1/examples"
 ```
 
 ## Testing MLIR output in various dialects
 
-To test the compiler's output to the different MLIR dialects, you can use the example `examples/torchscript_resnet18_all_output_types.py`.
+To test the compiler's output to the different MLIR dialects, you can use the example `projects/pt1/examples/torchscript_resnet18_all_output_types.py`.
 
 Make sure you have activated the virtualenv and set the `PYTHONPATH` above
 (if running on Windows, modify the environment variable as shown above):
 ```shell
 source mlir_venv/bin/activate
-export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/examples
-python examples/torchscript_resnet18_all_output_types.py
+export PYTHONPATH=`pwd`/build/tpython_packages/torch_mlir:`pwd`/projects/pt1/examples
+python projects/pt1/examples/torchscript_resnet18_all_output_types.py
 ```
 
 This will display the Resnet18 network example in three dialects: TORCH, LINALG on TENSORS and TOSA.
@@ -331,8 +332,8 @@ Torch-MLIR has two types of tests:
 1. End-to-end execution tests. These compile and run a program and check the
    result against the expected output from execution on native Torch. These use
    a homegrown testing framework (see
-   `python/torch_mlir_e2e_test/torchscript/framework.py`) and the test suite
-   lives at `python/torch_mlir_e2e_test/test_suite/__init__.py`.
+   `projects/pt1/python/torch_mlir_e2e_test/framework.py`) and the test suite
+   lives at `projects/pt1/python/torch_mlir_e2e_test/test_suite/__init__.py`.
 
 2. Compiler and Python API unit tests. These use LLVM's `lit` testing framework.
    For example, these might involve using `torch-mlir-opt` to run a pass and

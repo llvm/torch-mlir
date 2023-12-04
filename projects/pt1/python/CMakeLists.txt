@@ -15,8 +15,6 @@ add_compile_definitions("MLIR_PYTHON_PACKAGE_PREFIX=torch_mlir.")
 # PyTorch
 ################################################################################
 
-option(TORCH_MLIR_USE_INSTALLED_PYTORCH "Build from local PyTorch in environment" ON)
-
 if (NOT TORCH_MLIR_USE_INSTALLED_PYTORCH)
   # Source builds
   set(ENV{TORCH_MLIR_SRC_PYTORCH_REPO} ${TORCH_MLIR_SRC_PYTORCH_REPO})

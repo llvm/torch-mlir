@@ -1672,13 +1672,18 @@ LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
       return rewriter.notifyMatchFailure(
           op, "unimplemented: dtype must be a constant integer or none");
     FailureOr<Type> maybeResultElementType = getTypeForScalarType(
-        op->getContext(), (torch_upstream::ScalarType)dtypeInt,
-        IntegerType::Signless);
+        op->getContext(), (torch_upstream::ScalarType)dtypeInt);
     if (failed(maybeResultElementType)) {
       return rewriter.notifyMatchFailure(
           op, "unable to convert `dtypeInt` to builtin type");
     }
     resultElementType = *maybeResultElementType;
+    // The stablehlo backend expects signed integers to be signless.
+    if (resultElementType.isSignedInteger()) {
+      resultElementType = IntegerType::get(
+          op->getContext(), resultElementType.getIntOrFloatBitWidth(),
+          IntegerType::Signless);
+    }
   }
 
   // Create an uninitialized tensor of `resultSize` shape.
