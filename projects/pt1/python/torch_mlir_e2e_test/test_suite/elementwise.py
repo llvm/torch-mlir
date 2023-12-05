@@ -869,6 +869,106 @@ def ElementwiseClampMaxModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseClampTensorFloatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([], torch.float32, True),
+        ([], torch.float32, True),
+    ])
+    def forward(self, x, min, max):
+        min_clamp = torch.clamp(x, min)
+        max_clamp = torch.clamp(x, max=max)
+        both_clamp = torch.clamp(x, min=min, max=max)
+        return min_clamp, max_clamp, both_clamp
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampTensorFloatModule())
+def ElementwiseClampTensorFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, low=-10, high=10), torch.tensor([-5.0]), torch.tensor([5.0]))
+
+
+# ==============================================================================
+
+
+class ElementwiseClampTensorIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([], torch.int64, True),
+        ([], torch.int64, True),
+    ])
+    def forward(self, x, min, max):
+        min_clamp = torch.clamp(x, min)
+        max_clamp = torch.clamp(x, max=max)
+        both_clamp = torch.clamp(x, min=min, max=max)
+        return min_clamp, max_clamp, both_clamp
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampTensorIntModule())
+def ElementwiseClampTensorIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, low=-10, high=10), torch.tensor([-5]), torch.tensor([5]))
+
+
+# ==============================================================================
+
+
+class ElementwiseClampMinTensorFloatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([], torch.float32, True),
+    ])
+    def forward(self, x, min):
+        return torch.ops.aten.clamp_min(x, min=min)
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampMinTensorFloatModule())
+def ElementwiseClampMinTensorFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, low=-10, high=10), torch.tensor([-5.0]))
+
+
+# ==============================================================================
+
+
+class ElementwiseClampMinTensorIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([], torch.int64, True),
+    ])
+    def forward(self, x, min):
+        return torch.ops.aten.clamp_min(x, min=min)
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampMinTensorIntModule())
+def ElementwiseClampMinTensorIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, low=-10, high=10), torch.tensor([-5]))
+
+
+# ==============================================================================
+
+
 class RsubFloatModule(torch.nn.Module):
 
     def __init__(self):

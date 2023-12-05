@@ -4135,6 +4135,21 @@ class DecomposeAtenClampMinOp : public OpRewritePattern<AtenClampMinOp> {
 } // namespace
 
 namespace {
+// Decompose `aten.clamp_min.Tensor` op into `aten.clamp.Tensor` op.
+class DecomposeAtenClampMinTensorOp
+    : public OpRewritePattern<AtenClampMinTensorOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenClampMinTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Value constantNone = rewriter.create<Torch::ConstantNoneOp>(op.getLoc());
+    rewriter.replaceOpWithNewOp<AtenClampTensorOp>(
+        op, op.getType(), op.getSelf(), op.getMin(), /*max=*/constantNone);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.clampMax` op into `aten.clamp` op.
 class DecomposeAtenClampMaxOp : public OpRewritePattern<AtenClampMaxOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -5825,6 +5840,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCosineSimilarityOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
