@@ -3327,21 +3327,9 @@ class DecomposeConstantTensorAllocLikeOp : public OpRewritePattern<OpTy> {
 };
 } // namespace
 
-// namespace {
-// class DecomposeAtenGroupNormOp : public OpRewritePattern<AtenGroupNormOp> {
-//   using OpRewritePattern<AtenGroupNormOp>::OpRewritePattern;
-//   LogicalResult matchAndRewrite(AtenGroupNormOp op,
-//                                 PatternRewriter &rewriter) const override {
-//     Location loc = op.getLoc();
-
-//     return success();
-//   }
-// };
-// } // namespace
-
 namespace {
 class DecomposeAtenGroupNormOp : public OpRewritePattern<AtenGroupNormOp> {
-  using OpRewritePattern::OpRewritePattern;
+  using OpRewritePattern<AtenGroupNormOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenGroupNormOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
@@ -3353,11 +3341,54 @@ class DecomposeAtenGroupNormOp : public OpRewritePattern<AtenGroupNormOp> {
     Value numGroups = op.getNumGroups();
     Value eps = op.getEps();
 
-    // Check the rank of the input tensor.
+    Value cstZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value cstOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
+
+    Value N = rewriter.create<AtenSizeIntOp>(loc, input, cstZero);
+    Value C = rewriter.create<AtenSizeIntOp>(loc, input, cstOne);
+    Value numElements = rewriter.create<AtenNumelOp>(loc, input);
+    Value numElementsDivN =
+        rewriter.create<AtenFloordivIntOp>(loc, numElements, N);
+    Value HxW = rewriter.create<AtenFloordivIntOp>(loc, numElementsDivN, C);
+
+    AtenNativeGroupNormOp newOp = rewriter.create<AtenNativeGroupNormOp>(
+        loc, ArrayRef<Type>{op.getResult().getType(), baseType, baseType},
+        input, weight, bias, N, C, HxW, numGroups, eps);
+
+    rewriter.replaceOp(op, newOp.getResult0());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenNativeGroupNormOp
+    : public OpRewritePattern<AtenNativeGroupNormOp> {
+  using OpRewritePattern<AtenNativeGroupNormOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNativeGroupNormOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+
+    Value input = op.getInput();
+    Value weight = op.getWeight();
+    Value bias = op.getBias();
+    Value numGroups = op.getGroup();
+    Value eps = op.getEps();
+
+    // Check the rank of the input/outputs tensor.
     auto inputType = input.getType().cast<BaseTensorType>();
-    if (!inputType.hasSizes())
+    auto outputType = op.getResult0().getType().cast<BaseTensorType>();
+    auto meanType = op.getResult1().getType().cast<BaseTensorType>();
+    auto rsqrtVarType = op.getResult2().getType().cast<BaseTensorType>();
+    if (!inputType.hasSizes() || !outputType.hasSizes() ||
+        !meanType.hasSizes() || !rsqrtVarType.hasSizes()) {
       return rewriter.notifyMatchFailure(
-          op, "input tensor should have known sizes.");
+          op, "input/outputs tensor should have known sizes.");
+    }
 
     Value none = rewriter.create<ConstantNoneOp>(loc);
     Value cstZero =
@@ -3403,7 +3434,7 @@ class DecomposeAtenGroupNormOp : public OpRewritePattern<AtenGroupNormOp> {
         loc, baseType, reshapedInput, /*dims=*/dimList, /*unbiased=*/cstFalse,
         /*keepdim=*/cstTrue);
 
-    // Compute the normalized output: (input - mean) / sqrt(var + eps)
+    // Compute the normalized output: (input - mean) * rsqrt(var + eps)
     auto varPlusEps = rewriter.create<AtenAddScalarOp>(loc, baseType, var, eps,
                                                        /*alpha=*/cstOne);
     auto invStd = rewriter.create<AtenRsqrtOp>(loc, baseType, varPlusEps);
@@ -3442,7 +3473,13 @@ class DecomposeAtenGroupNormOp : public OpRewritePattern<AtenGroupNormOp> {
           /*alpha=*/cstOne);
     }
 
-    rewriter.replaceOp(op, groupNormOutput);
+    Value squeezedMean =
+        rewriter.create<AtenSqueezeDimOp>(loc, meanType, mean, cstNegtiveOne);
+    Value squeezedRsqrtVar = rewriter.create<AtenSqueezeDimOp>(
+        loc, rsqrtVarType, invStd, cstNegtiveOne);
+
+    rewriter.replaceOp(
+        op, ArrayRef<Value>{groupNormOutput, squeezedMean, squeezedRsqrtVar});
 
     return success();
   }
@@ -5886,6 +5923,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLayerNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeLayerNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenGroupNormOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenNativeGroupNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeBatchNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAten_ConvolutionLikeOp<Aten_ConvolutionOp>>(patterns);
