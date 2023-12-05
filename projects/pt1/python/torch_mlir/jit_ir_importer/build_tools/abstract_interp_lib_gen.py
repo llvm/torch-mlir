@@ -194,7 +194,13 @@ def aten〇log_softmax〇int〡shape(self: List[int], dim: int, dtype: Optional[
 def aten〇clamp〡shape(self: List[int], min: Optional[float] = None, max: Optional[float] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇clamp〇Tensor〡shape(self: List[int], min: Optional[List[int]] = None, max: Optional[List[int]] = None) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇clamp_min〡shape(self: List[int], min: float) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇clamp_min〇Tensor〡shape(self: List[int], min: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇clamp_max〡shape(self: List[int], max: float) -> List[int]:
@@ -1710,11 +1716,37 @@ def aten〇clamp_min〡dtype(self_rank_dtype: Tuple[int, int], min: Union[int, f
         return torch.int64
     return self_dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=2))
+def aten〇clamp_min〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], min_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    min_rank, min_dtype = min_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, min_rank]
+    dtypes = [self_dtype, min_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    return promoted_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, min=-1, max=1))
 def aten〇clamp〡dtype(self_rank_dtype: Tuple[int, int], min: Optional[Union[int, float, complex]] = None, max: Optional[Union[int, float, complex]] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     if self_dtype == torch.bool:
         return torch.int64
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=3))
+def aten〇clamp〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], min_rank_dtype: Optional[Tuple[int, int]] = None, max_rank_dtype: Optional[Tuple[int, int]] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [self_rank]
+    dtypes = [self_dtype]
+    if min_rank_dtype is not None:
+        min_rank, min_dtype = min_rank_dtype
+        ranks.append(min_rank)
+        dtypes.append(min_dtype)
+    if max_rank_dtype is not None:
+        max_rank, max_dtype = max_rank_dtype
+        ranks.append(max_rank)
+        dtypes.append(max_dtype)
+    if len(ranks) > 1:
+        return promote_dtypes(ranks, dtypes)
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))

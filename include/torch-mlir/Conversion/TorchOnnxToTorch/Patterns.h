@@ -54,6 +54,15 @@ struct OpBinder {
     return success();
   }
 
+  ParseResult tensorOperandAtIndex(Value &valueIdx, int64_t idx) {
+    if (idx >= op->getNumOperands())
+      return failure();
+    valueIdx = op->getOperand(idx);
+    if (!toValidTensorType(valueIdx.getType()))
+      return failure();
+    return success();
+  }
+
   // Result type matchers of different arities.
   ParseResult tensorResultType(Torch::ValueTensorType &type0) {
     if (op->getNumResults() != 1)
