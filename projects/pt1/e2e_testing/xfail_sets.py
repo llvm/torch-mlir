@@ -307,6 +307,10 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # ERROR: shape (torch.Size([12])) is not equal to golden shape (torch.Size([3, 4]))
     "ArangeStartOutViewModule_basic",
+
+    # ERROR: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
+    "AtenGroupNormModule_basic",
+    "GroupNormModule_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.1.0.dev"):
