@@ -8729,7 +8729,7 @@ StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
 "    %none = torch.constant.none\n"
 "    %str = torch.constant.str \"AssertionError: \"\n"
 "    %0:2 = torch.prim.TupleUnpack %arg0 : !torch.tuple<int, int> -> !torch.int, !torch.int\n"
-"    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.library_generator.is_integer_dtype(%0#1) : (!torch.int) -> !torch.bool\n"
+"    %1 = call @__torch__.torch_mlir.jit_ir_importer.build_tools.library_generator.is_integer_dtype(%0#1) : (!torch.int) -> !torch.bool\n"
 "    %2 = torch.aten.__not__ %1 : !torch.bool -> !torch.bool\n"
 "    torch.prim.If %2 -> () {\n"
 "      torch.prim.If.yield\n"

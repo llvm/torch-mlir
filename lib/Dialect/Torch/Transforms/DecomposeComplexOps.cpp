@@ -3415,8 +3415,8 @@ class DecomposeAtenGroupNormOp : public OpRewritePattern<AtenGroupNormOp> {
         loc, meanVarTy, reshapedInput, /*dims=*/dimList, /*keepdim=*/cstTrue,
         /*dtype=*/none);
     auto var = rewriter.create<AtenVarDimOp>(
-        loc, meanVarTy, reshapedInput, /*dims=*/dimList, /*keepdim=*/cstTrue,
-        /*unbiased=*/cstFalse);
+        loc, meanVarTy, reshapedInput, /*dims=*/dimList, /*unbiased=*/cstFalse,
+        /*keepdim=*/cstTrue);
 
     // Compute the normalized output: (input - mean) / sqrt(var + eps)
     auto varPlusEps = rewriter.create<AtenAddScalarOp>(loc, var.getType(), var,
