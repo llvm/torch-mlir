@@ -1116,6 +1116,9 @@ def aten〇batch_norm〡shape(input: List[int], weight: Optional[List[int]], bia
 def aten〇group_norm〡shape(input: List[int], num_groups: int, weight: Optional[List[int]] = None, bias: Optional[List[int]] = None, eps: float = 1.0000000000000001e-05, cudnn_enabled: bool = True) -> List[int]:
     return upstream_shape_functions.unary(input)
 
+def aten〇native_group_norm〡shape(input: List[int], weight: Optional[List[int]], bias: Optional[List[int]], N: int, C: int, HxW: int, group: int, eps: float) -> Tuple[List[int], List[int], List[int]]:
+    return upstream_shape_functions.unary(input), [N, group], [N, group]
+
 def aten〇slice〇Tensor〡shape(self: List[int], dim: int = 0, start: Optional[int] = None, end: Optional[int] = None, step: int = 1) -> List[int]:
     return upstream_shape_functions.slice(self, dim, start, end, step)
 
@@ -1657,6 +1660,12 @@ def aten〇group_norm〡dtype(input_rank_dtype: Tuple[int, int], num_groups: int
     input_rank, input_dtype = input_rank_dtype
     assert not is_integer_dtype(input_dtype)
     return input_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7), (3,), (3,)], error_types={*all_integer_dtypes()}, N=2, C=3, HxW=35, group=1, eps=0.000001))
+def aten〇native_group_norm〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Optional[Tuple[int, int]], bias_rank_dtype: Optional[Tuple[int, int]], N: int, C: int, HxW: int, group: int, eps: float) -> Tuple[int, int, int]:
+    input_rank, input_dtype = input_rank_dtype
+    assert not is_integer_dtype(input_dtype)
+    return input_dtype, input_dtype, input_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇bernoulli_〇float〡dtype(self_rank_dtype: Tuple[int, int], p: float = 0.5, generator: Any = None) -> int:
