@@ -39,7 +39,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
-  // TODO: Acos unimplemented in torch-mlir
   // TODO: Acosh unimplemented in torch-mlir
   // Add became forward compatible with Torch in version 7.
   patterns.onOp("Add", 7,
@@ -151,6 +150,17 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.tensorResultType(resultType))
                     return failure();
                   rewriter.replaceOpWithNewOp<Torch::AtenAtanOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp("Acos", 7,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenAcosOp>(
                       binder.op, resultType, operand);
                   return success();
                 });
