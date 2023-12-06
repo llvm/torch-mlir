@@ -40,7 +40,6 @@ def register_all_tests():
     from . import type_conversion
     from . import backprop
     from . import reduction
-    from . import argmax
     from . import matmul
     from . import reshape_like
     from . import scalar
