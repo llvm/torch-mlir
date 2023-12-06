@@ -842,7 +842,7 @@ public:
 
 // Decompose `AtenArgMaxOp` into `AtenMaxDimOp` as well as `AtenArgMinOp` into `AtenMinDimOp`
 namespace {
-template <typename OpTy>
+template <typename OpTy, typename DecompOpTy>
 class DecomposeAtenArgMinMaxOp : public OpRewritePattern<OpTy> {
 public:
   using OpRewritePattern<OpTy>::OpRewritePattern;
@@ -887,23 +887,11 @@ public:
                                                       dim, end);
     }
 
-    static_assert(std::is_same<OpTy, AtenArgmaxOp>() ||
-                  std::is_same<OpTy, AtenArgminOp>());
-    Value resultArg;
-    if constexpr (std::is_same<OpTy, AtenArgmaxOp>()) {
-      resultArg =
-        rewriter
-            .create<AtenMaxDimOp>(loc, valueTensorType, indicesTensorType,
-                                  input, dim, keepDim)
-            .getIndices();
-    }
-    else {
-      resultArg =
-        rewriter
-            .create<AtenMinDimOp>(loc, valueTensorType, indicesTensorType,
-                                  input, dim, keepDim)
-            .getIndices();
-    }
+    Value resultArg =
+      rewriter
+          .create<DecompOpTy>(loc, valueTensorType, indicesTensorType,
+                                input, dim, keepDim)
+          .getIndices();
     
     rewriter.replaceOp(op, resultArg);
     return success();
@@ -5788,8 +5776,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvTranspose2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeStartOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenArgMinMaxOp<AtenArgmaxOp>>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenArgMinMaxOp<AtenArgminOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenArgMinMaxOp<AtenArgmaxOp, AtenMaxDimOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenArgMinMaxOp<AtenArgminOp, AtenMinDimOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSquareOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdOp>(patterns);

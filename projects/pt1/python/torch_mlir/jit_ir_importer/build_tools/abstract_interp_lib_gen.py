@@ -446,6 +446,7 @@ def aten〇argmax〡shape(self: List[int], dim: Optional[int] = None, keepdim: b
     return upstream_shape_functions.argmax(self, dim, keepdim)
 
 def aten〇argmin〡shape(self: List[int], dim: Optional[int] = None, keepdim: bool = False) -> List[int]:
+    # There is no shape function for argmin in pytorch, but the one for argmax does exactly what is needed here.
     return upstream_shape_functions.argmax(self, dim, keepdim)
 
 # TODO: The result shape when num_classes=-1 depends on the runtime values of the input tensor,
