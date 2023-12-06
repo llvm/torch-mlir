@@ -40,6 +40,17 @@ func.func @torch.aten.mm$basic_strict(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !
 
 // -----
 
+// CHECK-LABEL: func.func @torch.aten.mm$basic_unsigned(
+// CHECK: linalg.matmul_unsigned
+func.func @torch.aten.mm$basic_unsigned(%arg0: !torch.vtensor<[?,?],ui32>, %arg1: !torch.vtensor<[?,?],ui32>) -> !torch.vtensor<[?,2],ui32> 
+  attributes {torch.assume_strict_symbolic_shapes}
+{
+  %0 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[?,?],ui32>, !torch.vtensor<[?,?],ui32> -> !torch.vtensor<[?,2],ui32>
+  return %0 : !torch.vtensor<[?,2],ui32>
+}
+
+// -----
+
 // If the operands are missing dtype, we cannot lower it.
 func.func @torch.aten.mm$no_convert$missing_dtype(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch.vtensor {
   // expected-error@+1 {{failed to legalize}}
