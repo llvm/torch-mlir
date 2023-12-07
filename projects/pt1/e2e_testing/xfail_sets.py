@@ -18,16 +18,12 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "IscloseStaticModule_basic",
-    "IscloseStaticModuleTrue_basic",
+    "IscloseStaticModuleTrue_basic"
 }
 
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
 
-    # RecursionError: maximum recursion depth exceeded
-    # RuntimeError: Failed running call_function aten.lift_fresh_copy(...
-    # https://github.com/pytorch/pytorch/issues/89627
-    "LiftFreshCopyModule_basic",
     # TypeError: new_empty(): argument 'size' (position 1) must be tuple of ints, but found element of type NoneType at pos 0
     # RuntimeError: Failed running call_function aten.convolution_backward(...
     # https://github.com/pytorch/pytorch/issues/89629
@@ -73,6 +69,7 @@ TORCHDYNAMO_XFAIL_SET = {
     #ERROR: value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=-1.336e-32, max=+0.9152, mean=+0.4837) is not close to golden value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=+0.02233, max=+0.9152, mean=+0.4777)
     "UpSampleNearest2dDynamicFactor_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
+    "ReduceMinAlongDimUnsignedInt_basic",
     #ERROR: value (-56) is not equal to golden value (200)
     "AtenIntTensorByteDtypeModule_basic",
     # ERROR: assert isinstance(e, FakeTensor)

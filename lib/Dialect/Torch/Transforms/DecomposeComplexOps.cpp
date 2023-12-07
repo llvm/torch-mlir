@@ -1292,12 +1292,13 @@ public:
 };
 } // namespace
 
-// Decompose `AtenArgMaxOp` into `AtenMaxDimOp`.
+// Decompose `AtenArgMaxOp` into `AtenMaxDimOp` as well as `AtenArgMinOp` into `AtenMinDimOp`
 namespace {
-class DecomposeAtenArgMaxOp : public OpRewritePattern<AtenArgmaxOp> {
+template <typename OpTy, typename DecompOpTy>
+class DecomposeAtenArgMinMaxOp : public OpRewritePattern<OpTy> {
 public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenArgmaxOp op,
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value input = op.getSelf();
@@ -1322,7 +1323,7 @@ public:
             .cast<BaseTensorType>();
 
     // If the dim type is `NoneType` i.e. reduce along all the dimensions.
-    // `AtenMaxDimOp` doesn't support dim as `NoneType` so first the input
+    // `AtenMaxDimOp` and `AtenMinDimOp` do not support dim as `NoneType` so first the input
     // tensor is flattened to 1d tensor and then the reduction happens on the
     // 0th dimension.
     if (dim.getType().isa<Torch::NoneType>()) {
@@ -1337,13 +1338,14 @@ public:
       input = rewriter.create<AtenFlattenUsingIntsOp>(loc, flattenType, input,
                                                       dim, end);
     }
-    Value maxResult =
-        rewriter
-            .create<AtenMaxDimOp>(loc, valueTensorType, indicesTensorType,
-                                  input, dim, keepDim)
-            .getIndices();
 
-    rewriter.replaceOp(op, maxResult);
+    Value resultArg =
+      rewriter
+          .create<DecompOpTy>(loc, valueTensorType, indicesTensorType,
+                                input, dim, keepDim)
+          .getIndices();
+    
+    rewriter.replaceOp(op, resultArg);
     return success();
   }
 };
@@ -6226,7 +6228,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvTranspose2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeStartOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenArgMaxOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenArgMinMaxOp<AtenArgmaxOp, AtenMaxDimOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenArgMinMaxOp<AtenArgminOp, AtenMinDimOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSquareOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdOp>(patterns);
