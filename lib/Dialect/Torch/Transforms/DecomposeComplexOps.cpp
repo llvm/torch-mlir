@@ -382,37 +382,9 @@ static LogicalResult performMatmul(PatternRewriter &rewriter, Location loc,
                                    SmallVector<char> &finalResultTokens) {
   auto lhsType = lhs.getType().cast<BaseTensorType>();
   auto rhsType = rhs.getType().cast<BaseTensorType>();
-  Type promotedDType;
 
-  // promote dtype
-  if (lhsType.hasDtype() && rhsType.hasDtype()) {
-    auto lhsDtype = Torch::getScalarTypeForType(lhsType.getOptionalDtype());
-    auto rhsDtype = Torch::getScalarTypeForType(rhsType.getOptionalDtype());
-    auto promotedDTypeInt =
-        torch_upstream::promote_skip_undefined(lhsDtype, rhsDtype);
-    auto promotedDTypeIntValue = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr((int)promotedDTypeInt));
-    auto promotedDTypeInfo =
-        getTypeForScalarType(rewriter.getContext(), promotedDTypeInt);
-    if (failed(promotedDTypeInfo))
-      return rewriter.notifyMatchFailure(loc, "Failed to get type for promoted dtype");
-    promotedDType = *promotedDTypeInfo;
-
-    auto falseValue = rewriter.create<Torch::ConstantBoolOp>(
-        loc, rewriter.getBoolAttr(false));
-    auto noneValue = rewriter.create<Torch::ConstantNoneOp>(loc);
-    lhs = rewriter.create<Torch::AtenToDtypeOp>(
-        loc,
-        lhsType.getWithSizesAndDtype(lhsType.getOptionalSizes(), promotedDType),
-        lhs, promotedDTypeIntValue, falseValue, falseValue, noneValue);
-    rhs = rewriter.create<Torch::AtenToDtypeOp>(
-        loc,
-        rhsType.getWithSizesAndDtype(rhsType.getOptionalSizes(), promotedDType),
-        rhs, promotedDTypeIntValue, falseValue, falseValue, noneValue);
-  } else {
-    promotedDType = lhsType.hasDtype() ? lhsType.getOptionalDtype()
-                                       : rhsType.getOptionalDtype();
-  }
+  Type outputDType = lhsType.hasDtype() ? lhsType.getOptionalDtype()
+                                      : rhsType.getOptionalDtype();
 
   llvm::SmallDenseMap<char, Value> lhsDimShapeMap;
   for (size_t idx = 0; idx < lhsTokens.size(); ++idx) {
@@ -489,7 +461,7 @@ static LogicalResult performMatmul(PatternRewriter &rewriter, Location loc,
                              rhsReduceDims.size(), false);
 
   // perform matmul
-  auto outType = lhsType.getWithSizesAndDtype(std::nullopt, promotedDType);
+  auto outType = lhsType.getWithSizesAndDtype(std::nullopt, outputDType);
   result = rewriter.create<Torch::AtenMatmulOp>(loc, outType, lhs, rhs);
 
   // generate ideal result dims.
@@ -509,7 +481,7 @@ static LogicalResult performMatmul(PatternRewriter &rewriter, Location loc,
       loc, Torch::ListType::get(Torch::IntType::get(lhs.getContext())),
       outShapeTensors);
   result = rewriter.create<Torch::AtenReshapeOp>(
-      loc, lhsType.getWithSizesAndDtype(std::nullopt, promotedDType), result,
+      loc, lhsType.getWithSizesAndDtype(std::nullopt, outputDType), result,
       outResultShape);
   return success();
 }

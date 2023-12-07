@@ -1100,22 +1100,3 @@ class EinsumStaticContractRhsModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: EinsumStaticContractRhsModule())
 def EinsumStaticContractRhsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5), tu.rand(4, 5))
-
-class EinsumStaticPromoteDTypeModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([3, 4], torch.float64, True),
-        ([4, 3], torch.float32, True),
-    ])
-    def forward(self, tensor1, tensor2):
-        return torch.ops.aten.einsum('ab,ba->a', [tensor1, tensor2])
-
-@register_test_case(module_factory=lambda: EinsumStaticPromoteDTypeModule())
-def EinsumStaticPromoteDTypeModule_basic(module, tu: TestUtils):
-    tensor1 = tu.rand(3, 4).to(torch.float64)
-    tensor2 = tu.rand(4, 3).to(torch.float32)
-    module.forward(tensor1, tensor2)
