@@ -51,10 +51,22 @@ public:
     // The compiler cannot crash even if the user wrote an erroneous program!
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
-    if (lhs.getType().cast<RankedTensorType>().getRank() != 2 ||
-        rhs.getType().cast<RankedTensorType>().getRank() != 2) {
+
+    RankedTensorType lhsType = lhs.getType().cast<RankedTensorType>();
+    RankedTensorType rhsType = rhs.getType().cast<RankedTensorType>();
+
+    if (lhsType.getRank() != 2 || rhsType.getRank() != 2) {
       return rewriter.notifyMatchFailure(
           op, "expected both operands to aten.mm to be rank 2");
+    }
+
+    ValueTensorType lhsTorchType =
+        op.getSelf().getType().cast<ValueTensorType>();
+    ValueTensorType rhsTorchType =
+        op.getMat2().getType().cast<ValueTensorType>();
+    if (lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: aten.mm with different input element types");
     }
 
     Value lhsDim0 = rewriter.create<tensor::DimOp>(loc, lhs, 0);
@@ -73,16 +85,22 @@ public:
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
     Type elementType = newResultType.cast<TensorType>().getElementType();
-    Value initTensor = rewriter.create<tensor::EmptyOp>(
-        loc, ArrayRef<OpFoldResult>{lhsDim0, rhsDim1}, elementType);
-    Value c0 = rewriter.create<arith::ConstantOp>(
-        loc, FloatAttr::get(elementType, 0.0));
-    Value zeroFill =
-        rewriter.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
-    Value matmul = rewriter
-                       .create<linalg::MatmulOp>(loc, zeroFill.getType(),
-                                                 ValueRange{lhs, rhs}, zeroFill)
-                       .getResult(0);
+    Value zeroFill = createZeroInitTensor(
+        rewriter, loc, ValueRange{lhsDim0, rhsDim1}, elementType);
+
+    Value matmul;
+    auto intType = dyn_cast<mlir::IntegerType>(lhsTorchType.getDtype());
+    if (intType && intType.isUnsigned()) {
+      matmul = rewriter
+                   .create<linalg::MatmulUnsignedOp>(
+                       loc, zeroFill.getType(), ValueRange{lhs, rhs}, zeroFill)
+                   .getResult(0);
+    } else {
+      matmul = rewriter
+                   .create<linalg::MatmulOp>(loc, zeroFill.getType(),
+                                             ValueRange{lhs, rhs}, zeroFill)
+                   .getResult(0);
+    }
     // When constructed with just dynamic sizes, EmptyOp will have a result
     // type which has all `?`'s for dimensions, which might not be the result
     // type of `op`. The constraints on later linalg ops means that the result
