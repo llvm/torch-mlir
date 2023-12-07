@@ -187,7 +187,7 @@ public:
           Value resultVal, predicate;
           if (inElementType.isa<mlir::FloatType>()) {
 	    arith::CmpFPredicate predType;
-            if constexpr (isMax) {
+            if (isMax) {
               predType = arith::CmpFPredicate::OGT;
               resultVal = rewriter.create<arith::MaximumFOp>(
                   nestedLoc, newValue, oldValue);
@@ -201,7 +201,7 @@ public:
 						       newValue, oldValue);
           } else {
             arith::CmpIPredicate predType;
-            if constexpr (isMax) {
+            if (isMax) {
               predType = arith::CmpIPredicate::sgt;
               resultVal = rewriter.create<arith::MaxSIOp>(nestedLoc, newValue,
                                                           oldValue);
