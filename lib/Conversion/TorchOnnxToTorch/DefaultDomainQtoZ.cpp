@@ -69,7 +69,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         SmallVector<Value> valList;
         int64_t axis;
         std::string reduction;
-        if (binder.tensorOperands(valList, 3) ||
+        int64_t numOperands = binder.op->getNumOperands();
+        if (binder.tensorOperands(valList, numOperands) ||
             binder.s64IntegerAttr(axis, "axis", 0) ||
             binder.customOpNameStringAttr(reduction, "reduction", "none") ||
             binder.tensorResultType(resultType))
@@ -214,7 +215,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   SmallVector<Value> valList;
-                  if (binder.tensorOperands(valList, 3) ||
+                  int64_t numOperands = binder.op->getNumOperands();
+                  if (binder.tensorOperands(valList, numOperands) ||
                       binder.tensorResultType(resultType))
                     return failure();
                   Value condition = valList[0];
