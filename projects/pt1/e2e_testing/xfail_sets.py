@@ -1343,16 +1343,6 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
 
 if torch_version_for_comparison() < version.parse("2.1.0.dev"):
     MAKE_FX_TOSA_PASS_SET -= {
-        # 'tensor.expand_shape' op expected rank expansion, but found source rank 1 >= result rank 1
-        "ReshapeCollapseModule_basic",
-
-        # failed to lower torch.aten.empty.memory_format
-        "BatchNorm1DModule_basic",
-        "BatchNorm1DWith2DInputModule_basic",
-        "BatchNorm2DModule_basic",
-        "BatchNorm3DModule_basic",
-        "BatchNorm1DStaticShapeModule_basic",
-
         "Conv2dBiasNoPaddingModule_basic",
         "Conv2dNoPaddingModule_basic",
         "Conv2dWithPaddingDilationStrideModule_basic",
