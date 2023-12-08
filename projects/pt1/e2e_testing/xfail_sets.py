@@ -13,6 +13,8 @@
 from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 from torch_mlir._version import torch_version_for_comparison, version
 
+print(f"TORCH_VERSION_FOR_COMPARISON =", torch_version_for_comparison())
+
 LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR failed
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
@@ -1314,6 +1316,10 @@ TOSA_PASS_SET = {
     "MeanModule_basic",
     "ArangeStartOutModule_basic",
     "ArangeStartOutViewModule_basic",
+    "Conv2dBiasNoPaddingModule_basic",
+    "Conv2dNoPaddingModule_basic",
+    "Conv2dWithPaddingDilationStrideModule_basic",
+    "Conv2dWithPaddingModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
@@ -1344,6 +1350,11 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     # failed to legalize operation 'torch.aten.to.dtype' that was explicitly marked illegal
     "AtenEyeModuleInt2D_basic",
     "AtenEyeMModuleInt2D_basic",
+
+    "Conv2dBiasNoPaddingModule_basic",
+    "Conv2dNoPaddingModule_basic",
+    "Conv2dWithPaddingDilationStrideModule_basic",
+    "Conv2dWithPaddingModule_basic",
 }
 
 LTC_CRASHING_SET = {
