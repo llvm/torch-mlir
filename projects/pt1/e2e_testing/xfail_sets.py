@@ -23,14 +23,6 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "IscloseStaticModuleTrue_basic"
 }
 
-if torch_version_for_comparison() >= version.parse("2.2.0.dev20231204"):
-    LINALG_XFAIL_SET |= {
-        "Conv2dWithPaddingDilationStrideStaticModule_grouped",
-        "Conv2dWithPaddingDilationStrideStaticModule_grouped_multiplier",
-        "ConvolutionModule2DGroups_basic",
-    }
-
-
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
 
@@ -315,13 +307,6 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: shape (torch.Size([12])) is not equal to golden shape (torch.Size([3, 4]))
     "ArangeStartOutViewModule_basic",
 }
-
-if torch_version_for_comparison() >= version.parse("2.2.0.dev20231204"):
-    TORCHDYNAMO_XFAIL_SET |= {
-        "Conv2dWithPaddingDilationStrideStaticModule_grouped",
-        "Conv2dWithPaddingDilationStrideStaticModule_grouped_multiplier",
-        "ConvolutionModule2DGroups_basic",
-    }
 
 TORCHDYNAMO_CRASHING_SET = {
     # No upstream decompositions.
