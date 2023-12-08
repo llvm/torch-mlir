@@ -308,13 +308,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "ArangeStartOutViewModule_basic",
 }
 
-if torch_version_for_comparison() >= version.parse("2.2.0.dev20231204"):
-    TORCHDYNAMO_XFAIL_SET |= {
-        "Conv2dWithPaddingDilationStrideStaticModule_grouped",
-        "Conv2dWithPaddingDilationStrideStaticModule_grouped_multiplier",
-        "ConvolutionModule2DGroups_basic",
-    }
-
 TORCHDYNAMO_CRASHING_SET = {
     # No upstream decompositions.
     # %6:4 = torch.operator "aten._embedding_bag_forward_only"(%1, %3, %5, %false, %int0, %false, %none, %false, %int-1) : (!torch.tensor<*,f32>, !torch.tensor<*,si64>, !torch.tensor<*,si64>, !torch.bool, !torch.int, !torch.bool, !torch.none, !torch.bool, !torch.int) -> (!torch.tensor, !torch.tensor, !torch.tensor, !torch.tensor)
