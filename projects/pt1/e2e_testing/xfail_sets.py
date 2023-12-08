@@ -1305,6 +1305,10 @@ TOSA_PASS_SET = {
     "MeanModule_basic",
     "ArangeStartOutModule_basic",
     "ArangeStartOutViewModule_basic",
+    "Conv2dBiasNoPaddingModule_basic",
+    "Conv2dNoPaddingModule_basic",
+    "Conv2dWithPaddingDilationStrideModule_basic",
+    "Conv2dWithPaddingModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
