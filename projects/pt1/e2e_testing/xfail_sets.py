@@ -1314,10 +1314,6 @@ TOSA_PASS_SET = {
     "MeanModule_basic",
     "ArangeStartOutModule_basic",
     "ArangeStartOutViewModule_basic",
-    "Conv2dBiasNoPaddingModule_basic",
-    "Conv2dNoPaddingModule_basic",
-    "Conv2dWithPaddingDilationStrideModule_basic",
-    "Conv2dWithPaddingModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
@@ -1349,14 +1345,6 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "AtenEyeModuleInt2D_basic",
     "AtenEyeMModuleInt2D_basic",
 }
-
-if torch_version_for_comparison() == version.parse("2.1.1"):
-    MAKE_FX_TOSA_PASS_SET -= {
-        "Conv2dBiasNoPaddingModule_basic",
-        "Conv2dNoPaddingModule_basic",
-        "Conv2dWithPaddingDilationStrideModule_basic",
-        "Conv2dWithPaddingModule_basic",
-    }
 
 LTC_CRASHING_SET = {
     # TODO: update test to move all inputs to the lazy device. Otherwise test fails with:
