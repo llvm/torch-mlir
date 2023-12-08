@@ -309,7 +309,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "ArangeStartOutViewModule_basic",
 
     # ERROR: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
-    "AtenGroupNormModule_basic",
     "GroupNormModule_basic",
 }
 
