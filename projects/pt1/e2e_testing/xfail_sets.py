@@ -1352,6 +1352,11 @@ if torch_version_for_comparison() < version.parse("2.1.0.dev"):
         "BatchNorm2DModule_basic",
         "BatchNorm3DModule_basic",
         "BatchNorm1DStaticShapeModule_basic",
+
+        "Conv2dBiasNoPaddingModule_basic",
+        "Conv2dNoPaddingModule_basic",
+        "Conv2dWithPaddingDilationStrideModule_basic",
+        "Conv2dWithPaddingModule_basic",
     }
 
 LTC_CRASHING_SET = {
