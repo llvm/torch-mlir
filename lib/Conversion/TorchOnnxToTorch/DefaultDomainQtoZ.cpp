@@ -194,8 +194,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return success();
         }
         // When binder.op->getNumOperands() > 2
-        // Requires all tensors to be of same shape in this case (no
-        // broadcasting)
         auto baseType = Torch::ValueTensorType::getWithLeastStaticInformation(
             binder.op->getContext());
         Value curr = rewriter.create<Torch::AtenAddTensorOp>(
