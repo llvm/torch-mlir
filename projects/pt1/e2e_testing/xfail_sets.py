@@ -1341,7 +1341,7 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "AtenEyeMModuleInt2D_basic",
 }
 
-if torch_version_for_comparison() < version.parse("2.1.0.dev"):
+if torch_version_for_comparison() == version.parse("2.1.1"):
     MAKE_FX_TOSA_PASS_SET -= {
         "Conv2dBiasNoPaddingModule_basic",
         "Conv2dNoPaddingModule_basic",
