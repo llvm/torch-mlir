@@ -250,12 +250,12 @@ Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
   return bcast_op.getResult();
 }
 
-SmallVector<size_t> toPositiveDims(ArrayRef<int64_t> dims, int64_t rank) {
-  SmallVector<size_t> posDims;
+SmallVector<int64_t> toPositiveDims(ArrayRef<int64_t> dims, int64_t rank) {
+  SmallVector<int64_t> posDims;
   posDims.reserve(rank);
   std::transform(
       dims.begin(), dims.end(), std::back_inserter(posDims),
-      [rank](int64_t d) -> size_t { return toPositiveDim(d, rank); });
+      [rank](int64_t d) -> int64_t { return toPositiveDim(d, rank); });
   return posDims;
 }
 
@@ -316,10 +316,10 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
         op, "failed to get dimension sizes of the input");
 
   auto dimSizes = *dimSizesInfo;
-  auto rank = dimSizes.size();
-  size_t newRank = rank + inputUnsqzDims.size();
+  int64_t rank = dimSizes.size();
+  int64_t newRank = rank + inputUnsqzDims.size();
   auto unsqzDims = toPositiveDims(inputUnsqzDims, newRank);
-  for (size_t k = 0, sz = unsqzDims.size(); k < sz; ++k)
+  for (int64_t k = 0, sz = unsqzDims.size(); k < sz; ++k)
     if (k > 1 && unsqzDims[k] <= unsqzDims[k - 1])
       return rewriter.notifyMatchFailure(
           op, "unsqueeze dimensions must be specified in order");
@@ -335,8 +335,8 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
   std::vector<int64_t> newShape;
   newDimSizes.reserve(newRank);
   newShape.reserve(newRank);
-  for (size_t k = 0, i = 0, j = 0; k < newRank; ++k) {
-    if (j < unsqzDims.size() && unsqzDims[j] == k) {
+  for (int64_t k = 0, i = 0, j = 0; k < newRank; ++k) {
+    if (j < static_cast<int64_t>(unsqzDims.size()) && unsqzDims[j] == k) {
       newDimSizes.push_back(one);
       newShape.push_back(1);
       j++;
