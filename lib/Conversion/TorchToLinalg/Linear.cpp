@@ -848,13 +848,15 @@ public:
                                                       indices);
       };
 
+      // expand F,C,H,W -> F/G,G,C,H,W
       auto expandWeight = [&](Value tensor) {
         auto inType = tensor.getType().cast<RankedTensorType>();
         auto inShape = makeShapeTorchCompatible(inType.getShape());
 
-        SmallVector<int64_t> outShape{
-            groupSize, (inShape[0] == kUnknownSize ? kUnknownSize
-                                                   : inShape[0] / groupSize)};
+        SmallVector<int64_t> outShape{(inShape[0] == kUnknownSize
+                                           ? kUnknownSize
+                                           : inShape[0] / groupSize),
+                                      groupSize};
         outShape.append(inShape.begin() + 1, inShape.end());
 
         SmallVector<ReassociationIndices> indices{{0, 1}};
