@@ -848,15 +848,14 @@ public:
                                                       indices);
       };
 
-      // expand F,C,H,W -> F/G,G,C,H,W
+      // expand F,C,H,W -> G,F/G,C,H,W
       auto expandWeight = [&](Value tensor) {
         auto inType = tensor.getType().cast<RankedTensorType>();
         auto inShape = makeShapeTorchCompatible(inType.getShape());
 
-        SmallVector<int64_t> outShape{(inShape[0] == kUnknownSize
-                                           ? kUnknownSize
-                                           : inShape[0] / groupSize),
-                                      groupSize};
+        SmallVector<int64_t> outShape{
+            groupSize, (inShape[0] == kUnknownSize ? kUnknownSize
+                                                   : inShape[0] / groupSize)};
         outShape.append(inShape.begin() + 1, inShape.end());
 
         SmallVector<ReassociationIndices> indices{{0, 1}};
@@ -870,21 +869,19 @@ public:
 
       Value paddedInputExpanded = expandGroups(paddedInput, 1);
       Value weightExpanded = expandWeight(weight);
-      Value outputTensorExpanded = expandGroups(outputTensor, 1);
+      auto expandOutputTensor = expandGroups(outputTensor, 1);
 
       // TODO: add 1D and 3D case
       conv = rewriter
-                 .create<linalg::Conv2DNgchwFgchwOp>(
-                     loc, outputTensorExpanded.getType(),
+                 .create<linalg::Conv2DNgchwGfchwOp>(
+                     loc, expandOutputTensor.getResultType(),
                      ValueRange{paddedInputExpanded, weightExpanded},
-                     outputTensorExpanded, stridesAttr, dilationAttr)
+                     expandOutputTensor.getResult(), stridesAttr, dilationAttr)
                  .getResult(0);
 
-      SmallVector<ReassociationIndices> indices{{0}, {1, 2}};
-      for (auto dim = 3; dim <= (int64_t)inRank; dim++)
-        indices.push_back({dim});
       conv = rewriter.create<tensor::CollapseShapeOp>(
-          loc, outputTensor.getType(), conv, indices);
+          loc, outputTensor.getType(), conv,
+          expandOutputTensor.getReassociationIndices());
     }
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
