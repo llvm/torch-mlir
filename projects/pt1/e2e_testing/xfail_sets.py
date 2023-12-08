@@ -314,10 +314,11 @@ TORCHDYNAMO_XFAIL_SET = {
     "ArangeStartOutViewModule_basic",
 }
 
-if torch_version_for_comparison() < version.parse("2.1.0.dev"):
-    TORCHDYNAMO_XFAIL_SET -= {
-        "ScaledDotProductAttentionSameModule_basic",
-        "ScaledDotProductAttentionDifferentModule_basic",
+if torch_version_for_comparison() >= version.parse("2.2.0.dev20231204"):
+    TORCHDYNAMO_XFAIL_SET |= {
+        "Conv2dWithPaddingDilationStrideStaticModule_grouped",
+        "Conv2dWithPaddingDilationStrideStaticModule_grouped_multiplier",
+        "ConvolutionModule2DGroups_basic",
     }
 
 TORCHDYNAMO_CRASHING_SET = {
