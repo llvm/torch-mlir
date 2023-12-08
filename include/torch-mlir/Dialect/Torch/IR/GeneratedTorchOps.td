@@ -42,6 +42,29 @@ def Torch_AtenTanhOp : Torch_Op<"aten.tanh", [
   }];
 }
 
+def Torch_AtenCoshOp : Torch_Op<"aten.cosh", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::cosh : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenCoshOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenCoshOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenTanh_Op : Torch_Op<"aten.tanh_", [
     IsTrailingUnderscoreInplaceVariant,
     AllowsTypeRefinement
