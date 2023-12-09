@@ -690,7 +690,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     # List ops.
     emit("aten::cat : (Tensor[], int) -> (Tensor)", has_folder=True)
-    emit("aten::stack : (Tensor[], int) -> (Tensor)", has_folder=True)
+    emit("aten::stack : (Tensor[], int) -> (Tensor)")
     emit("aten::append.t : (t[], t) -> (t[])")
     emit("aten::add.t : (t[], t[]) -> (t[])", has_canonicalizer=True)
     emit("aten::eq.int_list : (int[], int[]) -> (bool)", has_folder=True)
