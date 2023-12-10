@@ -187,6 +187,358 @@ static SmallVector<int64_t> computeDimsOrderForMoveDim(int64_t srcDimInt,
   return dimsOrder;
 }
 
+static bool parseEquation(const std::string &equation,
+                          SmallVector<SmallVector<char>> &inputTokens,
+                          SmallVector<char> &resultTokens) {
+  SmallVector<char> inputToken;
+  size_t index = 0;
+  enum EquationVariable { kIsInput, kIsResult };
+  EquationVariable currentVariable = kIsInput;
+  while (index < equation.size()) {
+    if (std::isalpha(equation[index])) {
+      if (currentVariable == kIsInput) {
+        inputToken.push_back(equation[index]);
+      } else {
+        resultTokens.push_back(equation[index]);
+      }
+    } else if (equation[index] == ',') {
+      inputTokens.push_back(inputToken);
+      inputToken.clear();
+    } else if ((index < (equation.size() - 1)) &&
+               (equation.substr(index, 2).find("->") != std::string::npos)) {
+      inputTokens.push_back(inputToken);
+      inputToken.clear();
+      currentVariable = kIsResult;
+      index++;
+    } else {
+      return false;
+    }
+    index++;
+  }
+  return true;
+}
+
+// [*batchingDims, *lhsOtherDims, *lhsReduceDims, *lhsContractingDims] =>
+// [batchingDimsProd, lhsOtherDimsProd, lhsContractingDimsProd]
+static Value collapseDimForMatmul(PatternRewriter &rewriter, Location loc,
+                                  Value input, int64_t batchDimsLength,
+                                  int64_t contractingDimsLength,
+                                  int64_t otherDimsLength,
+                                  int64_t reduceDimsLength, bool isLhs) {
+  auto inputType = input.getType().cast<BaseTensorType>();
+  auto inputRank = batchDimsLength + contractingDimsLength + otherDimsLength +
+                   reduceDimsLength;
+  SmallVector<Value> inputShapeTensor;
+  for (auto i = 0; i < inputRank; ++i) {
+    inputShapeTensor.emplace_back(rewriter.create<AtenSizeIntOp>(
+        loc, input,
+        rewriter.create<Torch::ConstantIntOp>(loc,
+                                              rewriter.getI64IntegerAttr(i))));
+  }
+
+  SmallVector<Value> outShapeTensor;
+  Value constOne =
+      rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+  auto dimOffset = 0;
+
+  auto appendDims = [&](int64_t dimLength) {
+    Value prod = constOne;
+    for (auto i = 0; i < dimLength; ++i) {
+      prod = rewriter.create<AtenMulIntOp>(loc, prod,
+                                           inputShapeTensor[i + dimOffset]);
+    }
+    outShapeTensor.emplace_back(prod);
+    dimOffset += dimLength;
+  };
+
+  appendDims(batchDimsLength);
+  if (!isLhs)
+    appendDims(contractingDimsLength);
+  appendDims(otherDimsLength + reduceDimsLength);
+  if (isLhs)
+    appendDims(contractingDimsLength);
+
+  auto outShapeValue = rewriter.create<Torch::PrimListConstructOp>(
+      loc, Torch::ListType::get(Torch::IntType::get(input.getContext())),
+      outShapeTensor);
+
+  auto outType = inputType.getWithSizesAndDtype(std::nullopt,
+                                                inputType.getOptionalDtype());
+  return rewriter.create<Torch::AtenReshapeOp>(loc, outType, input,
+                                               outShapeValue);
+}
+
+// classify every dim token into different categories. Note that although we
+// parse out reduce dims, we delay their execution until
+// `performLastPermuteAndReduce`.
+static void parseDimTokens(
+    SmallVector<char> &lhsTokens, SmallVector<char> &rhsTokens,
+    SmallVector<char> &finalResultTokens, SmallVector<char> &contractingDims,
+    SmallVector<char> &lhsReduceDims, SmallVector<char> &rhsReduceDims,
+    SmallVector<char> &batchingDims, SmallVector<char> &lhsOtherDims,
+    SmallVector<char> &rhsOtherDims) {
+  llvm::SmallDenseSet<char> lhsTokenSet(lhsTokens.begin(), lhsTokens.end());
+  llvm::SmallDenseSet<char> rhsTokenSet(rhsTokens.begin(), rhsTokens.end());
+  llvm::SmallDenseSet<char> finalResultTokenSet(finalResultTokens.begin(),
+                                                finalResultTokens.end());
+
+  for (size_t i = 0; i < lhsTokens.size(); ++i) {
+    bool rhsContains = rhsTokenSet.contains(lhsTokens[i]);
+    bool finalResultConatins = finalResultTokenSet.contains(lhsTokens[i]);
+    // batching dim
+    if (rhsContains && finalResultConatins) {
+      batchingDims.push_back(lhsTokens[i]);
+      // reduce dim of lhs
+    } else if (!rhsContains && !finalResultConatins) {
+      lhsReduceDims.push_back(lhsTokens[i]);
+      // other dim of lhs
+    } else if (finalResultConatins) {
+      lhsOtherDims.push_back(lhsTokens[i]);
+      // contracting dim of lhs
+    } else if (rhsContains) {
+      contractingDims.push_back(lhsTokens[i]);
+    }
+  }
+
+  for (size_t i = 0; i < rhsTokens.size(); ++i) {
+    bool lhsContains = lhsTokenSet.contains(rhsTokens[i]);
+    bool finalResultConatins = finalResultTokenSet.contains(rhsTokens[i]);
+    // batching dim
+    if (lhsContains && finalResultConatins) {
+      // reduce dim of rhs
+    } else if (!lhsContains && !finalResultConatins) {
+      rhsReduceDims.push_back(rhsTokens[i]);
+      // other dim of rhs
+    } else if (finalResultConatins) {
+      rhsOtherDims.push_back(rhsTokens[i]);
+      // contracting dim of rhs
+    } else if (lhsContains) {
+    }
+  }
+}
+
+static void generateIdealReusltDimTokens(SmallVector<char> &batchingDims,
+                                         SmallVector<char> &lhsOtherDims,
+                                         SmallVector<char> &rhsOtherDims,
+                                         SmallVector<char> &lhsReduceDims,
+                                         SmallVector<char> &rhsReduceDims,
+                                         SmallVector<char> &resultTokens) {
+  // generate ideal result dims, i.e.,
+  // [*batchingDims, *lhsOtherDims, *lhsReduceDims, *rhsOtherDims,
+  // *rhsReduceDims]
+  resultTokens.insert(resultTokens.end(), batchingDims.begin(),
+                      batchingDims.end());
+  resultTokens.insert(resultTokens.end(), lhsOtherDims.begin(),
+                      lhsOtherDims.end());
+  resultTokens.insert(resultTokens.end(), lhsReduceDims.begin(),
+                      lhsReduceDims.end());
+  resultTokens.insert(resultTokens.end(), rhsOtherDims.begin(),
+                      rhsOtherDims.end());
+  resultTokens.insert(resultTokens.end(), rhsReduceDims.begin(),
+                      rhsReduceDims.end());
+}
+
+static Value permuteTensorForMatmul(PatternRewriter &rewriter, Location loc,
+                                    Value input, SmallVector<char> &dimTokens,
+                                    SmallVector<char> &batchingDims,
+                                    SmallVector<char> &contractingDims,
+                                    SmallVector<char> &otherDims,
+                                    SmallVector<char> &reduceDims, bool isLhs) {
+  auto inputType = input.getType().cast<BaseTensorType>();
+  llvm::SmallDenseMap<char, int64_t> dimTokenMap;
+  for (size_t idx = 0; idx < dimTokens.size(); ++idx) {
+    dimTokenMap[dimTokens[idx]] = idx;
+  }
+
+  SmallVector<Value> permuteVec;
+  auto appendDims = [&](SmallVector<char> dimTokens) {
+    for (auto d : dimTokens) {
+      permuteVec.push_back(rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(dimTokenMap[d])));
+    }
+  };
+
+  appendDims(batchingDims);
+  if (!isLhs)
+    appendDims(contractingDims);
+  appendDims(otherDims);
+  appendDims(reduceDims);
+  if (isLhs)
+    appendDims(contractingDims);
+
+  Value dstDims = rewriter.create<Torch::PrimListConstructOp>(
+      loc, Torch::ListType::get(Torch::IntType::get(rewriter.getContext())),
+      permuteVec);
+  auto outType = inputType.getWithSizesAndDtype(std::nullopt,
+                                                inputType.getOptionalDtype());
+  return rewriter.create<Torch::AtenPermuteOp>(loc, outType, input, dstDims);
+}
+
+static LogicalResult performMatmul(PatternRewriter &rewriter, Location loc,
+                                   Value lhs, SmallVector<char> &lhsTokens,
+                                   Value rhs, SmallVector<char> &rhsTokens,
+                                   Value &result,
+                                   SmallVector<char> &resultTokens,
+                                   SmallVector<char> &finalResultTokens) {
+  auto lhsType = lhs.getType().cast<BaseTensorType>();
+  auto rhsType = rhs.getType().cast<BaseTensorType>();
+
+  Type outputDType = lhsType.hasDtype() ? lhsType.getOptionalDtype()
+                                      : rhsType.getOptionalDtype();
+
+  llvm::SmallDenseMap<char, Value> lhsDimShapeMap;
+  for (size_t idx = 0; idx < lhsTokens.size(); ++idx) {
+    char d = lhsTokens[idx];
+    lhsDimShapeMap[d] = rewriter.create<AtenSizeIntOp>(
+        loc, lhs,
+        rewriter.create<Torch::ConstantIntOp>(loc,
+                                              rewriter.getI64IntegerAttr(idx)));
+  }
+  llvm::SmallDenseMap<char, Value> rhsDimShapeMap;
+  for (size_t idx = 0; idx < rhsTokens.size(); ++idx) {
+    char d = rhsTokens[idx];
+    rhsDimShapeMap[d] = rewriter.create<AtenSizeIntOp>(
+        loc, rhs,
+        rewriter.create<Torch::ConstantIntOp>(loc,
+                                              rewriter.getI64IntegerAttr(idx)));
+  }
+
+  // parse batch, contracting, other, reduce dims of lhs and rhs
+  SmallVector<char> contractingDims;
+  SmallVector<char> lhsReduceDims;
+  SmallVector<char> rhsReduceDims;
+  SmallVector<char> lhsOtherDims;
+  SmallVector<char> rhsOtherDims;
+  SmallVector<char> batchingDims;
+  parseDimTokens(lhsTokens, rhsTokens, finalResultTokens, contractingDims,
+                 lhsReduceDims, rhsReduceDims, batchingDims, lhsOtherDims,
+                 rhsOtherDims);
+
+  llvm::SmallDenseMap<char, Value> outDimShapeMap;
+  auto generateOutDimShapeMap = [&](SmallVector<char> &dims) {
+    for (auto d : dims) {
+      bool lhsContains = lhsDimShapeMap.count(d) > 0;
+      bool rhsContains = rhsDimShapeMap.count(d) > 0;
+      if (lhsContains && rhsContains) {
+        outDimShapeMap[d] = rewriter.create<Torch::PrimMaxIntOp>(
+            loc, lhsDimShapeMap[d], rhsDimShapeMap[d]);
+      } else if (lhsContains) {
+        outDimShapeMap[d] = lhsDimShapeMap[d];
+      } else if (rhsContains) {
+        outDimShapeMap[d] = rhsDimShapeMap[d];
+      }
+    }
+  };
+
+  generateOutDimShapeMap(contractingDims);
+  generateOutDimShapeMap(batchingDims);
+  generateOutDimShapeMap(lhsReduceDims);
+  generateOutDimShapeMap(rhsReduceDims);
+  generateOutDimShapeMap(lhsOtherDims);
+  generateOutDimShapeMap(rhsOtherDims);
+
+  if (contractingDims.size() == 0 && lhsOtherDims.size() == 0 &&
+      rhsOtherDims.size() == 0) {
+    return rewriter.notifyMatchFailure(
+        loc, "Hadamard product is currently not supported");
+  }
+
+  // shape: [*batchingDims, *lhsOtherDims, *lhsReduceDims, *lhsContractingDims]
+  lhs = permuteTensorForMatmul(rewriter, loc, lhs, lhsTokens, batchingDims,
+                               contractingDims, lhsOtherDims, lhsReduceDims,
+                               true);
+  // shape: [*batchingDims, *rhsContractingDims, *rhsOtherDims, *rhsReduceDims]
+  rhs = permuteTensorForMatmul(rewriter, loc, rhs, rhsTokens, batchingDims,
+                               contractingDims, rhsOtherDims, rhsReduceDims,
+                               false);
+  // shape: [batchingDimsProd, lhsOtherDimsProd, lhsContractingDimsProd]
+  lhs = collapseDimForMatmul(rewriter, loc, lhs, batchingDims.size(),
+                             contractingDims.size(), lhsOtherDims.size(),
+                             lhsReduceDims.size(), true);
+  // shape: [batchingDimsProd, rhsContractingDimsProd, rhsOtherDimsProd]
+  rhs = collapseDimForMatmul(rewriter, loc, rhs, batchingDims.size(),
+                             contractingDims.size(), rhsOtherDims.size(),
+                             rhsReduceDims.size(), false);
+
+  // perform matmul
+  auto outType = lhsType.getWithSizesAndDtype(std::nullopt, outputDType);
+  result = rewriter.create<Torch::AtenMatmulOp>(loc, outType, lhs, rhs);
+
+  // generate ideal result dims.
+  generateIdealReusltDimTokens(batchingDims, lhsOtherDims, rhsOtherDims,
+                               lhsReduceDims, rhsReduceDims, resultTokens);
+
+  // reshape matmul result to ideal shape:
+  // [batchingDimsProd, lhsOtherDimsProd, rhsOtherDimsProd] =>
+  // [*batchingDims, *lhsOtherDims, *lhsReduceDims, *rhsOtherDims,
+  // *rhsReduceDims]
+  SmallVector<Value> outShapeTensors;
+  for (char d : resultTokens) {
+    outShapeTensors.emplace_back(outDimShapeMap[d]);
+  }
+
+  auto outResultShape = rewriter.create<Torch::PrimListConstructOp>(
+      loc, Torch::ListType::get(Torch::IntType::get(lhs.getContext())),
+      outShapeTensors);
+  result = rewriter.create<Torch::AtenReshapeOp>(
+      loc, lhsType.getWithSizesAndDtype(std::nullopt, outputDType), result,
+      outResultShape);
+  return success();
+}
+
+
+static Value performLastReduceAndPermute(PatternRewriter &rewriter,
+                                         Location loc, Type outType,
+                                         Value input,
+                                         SmallVector<char> &inputTokens,
+                                         SmallVector<char> &outTokens) {
+  auto inputType = input.getType().cast<BaseTensorType>();
+
+  llvm::SmallDenseSet<char> outTokenSet(outTokens.begin(), outTokens.end());
+  SmallVector<int64_t> sumDims;
+  llvm::SmallDenseMap<char, int64_t> inputDimToIdx;
+  int64_t idx = 0;
+  for (size_t i = 0; i < inputTokens.size(); ++i) {
+    char d = inputTokens[i];
+    if (!outTokenSet.contains(d)) {
+      sumDims.emplace_back(i);
+    } else {
+      inputDimToIdx[d] = idx++;
+    }
+  }
+
+  if (sumDims.size() > 0) {
+    SmallVector<Value> sumDimsTensor;
+    for (auto d : sumDims) {
+      sumDimsTensor.emplace_back(rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(d)));
+    }
+    auto sumDimsListValue = rewriter.create<Torch::PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(rewriter.getContext())),
+        sumDimsTensor);
+    auto falseValue = rewriter.create<Torch::ConstantBoolOp>(
+        loc, rewriter.getBoolAttr(false));
+    auto noneValue = rewriter.create<Torch::ConstantNoneOp>(loc);
+    input = rewriter.create<Torch::AtenSumDimIntListOp>(
+        loc,
+        inputType.getWithSizesAndDtype(std::nullopt,
+                                       inputType.getOptionalDtype()),
+        input, sumDimsListValue, falseValue, noneValue);
+  }
+
+  SmallVector<Value> permuteDimsTensor;
+  for (auto d : outTokens) {
+    permuteDimsTensor.emplace_back(rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(inputDimToIdx[d])));
+  }
+  auto permuteDimsListValue = rewriter.create<Torch::PrimListConstructOp>(
+      loc, Torch::ListType::get(Torch::IntType::get(input.getContext())),
+      permuteDimsTensor);
+  auto out = rewriter.create<Torch::AtenPermuteOp>(loc, outType, input,
+                                                   permuteDimsListValue);
+  return out;
+}
+
 namespace {
 /// We decompose aten.amax into a set of aten.max.dim op(s) depending on the
 /// number of dimensions across which the max needs to be computed.
@@ -623,6 +975,78 @@ public:
     }
     rewriter.replaceOpWithNewOp<AtenViewOp>(op, op.getType(), input,
                                             op.getShape());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Decompose AtenEinsumOp to AtenMatmulOp, and supports possible reduce
+// operation and permute operation. Currently, this pass doesn't support
+// Hadamard product. The basic idea is that:
+//  Step 1: split the string equation to input/result tokens and find
+//    batchingDims, contractingDims, otherDims and reduceDims.
+//  Step 2: permute and reshape input tensors suitable
+//    for matmul operations.
+//  Step 3: use AtenMatmulOp to get the result.
+//  Step 4: iteratively execute step 2 & 3 until we get the final result.
+//  Step 5: perform remaining permute and reduce operations.
+// notice: support static shape only
+
+class DecomposeAtenEinsumOp : public OpRewritePattern<AtenEinsumOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenEinsumOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    std::string equation;
+    if (!matchPattern(op.getEquation(), m_TorchConstantStr(equation))) {
+      return rewriter.notifyMatchFailure(op, "Unsupported value of equation");
+    }
+    SmallVector<char> resultTokens;
+    SmallVector<SmallVector<char>> inputTokens;
+    if (!parseEquation(equation, inputTokens, resultTokens)) {
+      return rewriter.notifyMatchFailure(
+          op, "Unexpected character in equations encountered");
+    }
+
+    SmallVector<Value> inputTensors;
+    if (!getListConstructElements(op.getTensors(), inputTensors)) {
+      return rewriter.notifyMatchFailure(
+          op, "input should comes from a PrimListConstructOp");
+    }
+
+    auto allTensorHasSizes = [](Value tensor) {
+      auto type = tensor.getType().dyn_cast<BaseTensorType>();
+      if (!type || !type.hasSizes())
+        return false;
+      return true;
+    };
+
+    if (!llvm::all_of(inputTensors, allTensorHasSizes)) {
+      return rewriter.notifyMatchFailure(op,
+                                         "all input tensors should have sizes");
+    }
+
+    SmallVector<char> lhsTokens = inputTokens[0];
+    Value lhs = inputTensors[0];
+    Value result;
+
+    for (size_t i = 1; i < inputTensors.size(); ++i) {
+      auto rhs = inputTensors[i];
+      auto rhsTokens = inputTokens[i];
+      SmallVector<char> outTokens;
+      if (failed(performMatmul(rewriter, loc, lhs, lhsTokens, rhs, rhsTokens,
+                               result, outTokens, resultTokens))) {
+        return failure();
+      }
+      lhs = result;
+      lhsTokens = outTokens;
+    }
+
+    result = performLastReduceAndPermute(rewriter, loc, op.getType(), lhs,
+                                         lhsTokens, resultTokens);
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
@@ -5798,6 +6222,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftplusOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSiluOp>(patterns);

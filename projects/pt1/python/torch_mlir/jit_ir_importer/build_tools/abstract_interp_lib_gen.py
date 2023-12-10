@@ -3684,6 +3684,19 @@ def aten〇cat〡dtype(tensors_rank_dtype: List[Tuple[int, int]], dim: int = 0) 
         dtypes.append(tensor_dtype)
     return promote_dtypes(ranks, dtypes)
 
+@check_dtype_function(
+    [Invocation("i,j->ij", [TensorOfShape(1, dtype=torch.float32), 
+                            TensorOfShape(1, dtype=torch.int32)]),])
+def aten〇einsum〡dtype(equation: str, tensors_rank_dtype: List[Tuple[int, int]], path: Optional[List[int]] = None) -> int:
+    ranks: List[Optional[int]] = []
+    dtypes: List[int] = []
+    assert len(tensors_rank_dtype) != 0
+    for tensor_rank_dtype in tensors_rank_dtype:
+        tensor_rank, tensor_dtype = tensor_rank_dtype
+        ranks.append(tensor_rank)
+        dtypes.append(tensor_dtype)
+    return promote_dtypes(ranks, dtypes)
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇_shape_as_tensor〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     return torch.int64
