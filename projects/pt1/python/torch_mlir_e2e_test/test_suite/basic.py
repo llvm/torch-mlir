@@ -12,6 +12,7 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
+# tuple cases
 class ScalarConstantTupleModule(torch.nn.Module):
     
     def __init__(self):
@@ -28,6 +29,41 @@ class ScalarConstantTupleModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ScalarConstantTupleModule())
 def ScalarConstantTupleModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 4))
+
+class ReturnTupleWithOneElementModule(torch.nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return (x, )
+
+@register_test_case(module_factory=lambda: ReturnTupleWithOneElementModule())
+def ReturnTupleWithOneElementModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 4))
+
+class ReturnTupleWithTwoElementModule(torch.nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return (x, y)
+
+@register_test_case(module_factory=lambda: ReturnTupleWithTwoElementModule())
+def ReturnTupleWithTwoElementModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 4), tu.rand(4, 4))
 
 # ==============================================================================
 
