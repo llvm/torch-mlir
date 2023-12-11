@@ -2445,17 +2445,6 @@ OpFoldResult AtenCatOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
-// AtenStackOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult AtenStackOp::fold(FoldAdaptor adaptor) {
-  auto list = getOperand(0).getDefiningOp<PrimListConstructOp>();
-  if (!list || !list->hasOneUse() || list.getElements().size() != 1)
-    return nullptr;
-  return list.getElements()[0];
-}
-
-//===----------------------------------------------------------------------===//
 // AtenBroadcastToOp
 //===----------------------------------------------------------------------===//
 

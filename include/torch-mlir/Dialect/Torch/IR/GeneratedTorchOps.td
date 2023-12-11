@@ -11632,7 +11632,6 @@ def Torch_AtenStackOp : Torch_Op<"aten.stack", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
-  let hasFolder = 1;
 }
 
 def Torch_AtenAppendTOp : Torch_Op<"aten.append.t", [
