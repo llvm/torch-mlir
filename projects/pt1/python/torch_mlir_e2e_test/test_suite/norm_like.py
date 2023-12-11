@@ -261,6 +261,22 @@ class GroupNormModule(torch.nn.Module):
 def GroupNormModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 6, 7), tu.rand(4), tu.rand(4))
 
+class GroupNormNoWeightAndBiasModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 4, 6, 7], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.group_norm(x, 2, None, None, 1.0000000000000001e-05, False)
+
+@register_test_case(module_factory=lambda: GroupNormNoWeightAndBiasModule())
+def GroupNormNoWeightAndBiasModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 6, 7))
+
 # ==============================================================================
 
 class NativeGroupNormModule(torch.nn.Module):
