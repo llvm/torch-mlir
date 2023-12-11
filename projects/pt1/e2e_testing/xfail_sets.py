@@ -310,6 +310,7 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # ERROR: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
     "GroupNormModule_basic",
+    "GroupNormNoWeightAndBiasModule_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.1.0.dev"):
