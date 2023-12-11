@@ -10,8 +10,6 @@
 from torch_mlir._version import torch_version_for_comparison, version
 
 COMMON_TORCH_MLIR_LOWERING_XFAILS = {
-    # "GroupNormModule_basic" failed because some list operator are not canonicalized.
-    "GroupNormModule_basic",
     "NativeGroupNormBackwardModule_basic",
     "QuantizedMLP_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
