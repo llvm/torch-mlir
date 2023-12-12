@@ -59,6 +59,36 @@ def aten〇triu〡shape(self: List[int], diagonal: int = 0) -> List[int]:
 def aten〇tril〡shape(self: List[int], diagonal: int = 0) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+@check_shape_function([
+    Invocation(TensorOfShape(2, 3, 4)), # Basic case.
+    Invocation(TensorOfShape(2, 3, 4), dim1=0, dim2=1), # Test explicit `dim1` and `dim2`.
+    Invocation(TensorOfShape(2, 3, 4), dim1=-1, dim2=-2, offset=1), # Positive `offset`.
+    Invocation(TensorOfShape(2, 3, 4), offset=-2), # Negative `offset``.
+    Invocation(TensorOfShape(2, 3, 4), offset=5), # Empty result due to large `offset`.
+    ErrorInvocation(TensorOfShape(2)), # Input one-dimensional.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim1=1, dim2=1), # `dim1` and `dim2` equal.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim1=3, dim2=1), # `dim1` out of bounds.
+])
+def aten〇diagonal〡shape(self: List[int], offset: int = 0, dim1: int = 0, dim2: int = 1) -> List[int]:
+    assert len(self) >= 2, "input must have at least two dimensions"
+    dim1 = upstream_shape_functions.maybe_wrap_dim(dim1, len(self))
+    dim2 = upstream_shape_functions.maybe_wrap_dim(dim2, len(self))
+    assert dim1 != dim2, "diagonal dimensions cannot be identical"
+    
+    diagonal: List[int] = []
+    for i, self_dim in enumerate(self):
+        if (i==dim1) or (i==dim2):
+            continue
+        diagonal.append(self_dim)
+
+    if offset<0:
+      diag_size = max(min(self[dim1] + offset, self[dim2]), 0)
+    else:
+      diag_size = max(min(self[dim1], self[dim2] - offset), 0)
+    diagonal.append(diag_size)
+
+    return diagonal
+
 def aten〇tan〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -2366,6 +2396,11 @@ def aten〇triu〡dtype(self_rank_dtype: Tuple[int, int], diagonal: int = 0) -> 
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3)]))
 def aten〇tril〡dtype(self_rank_dtype: Tuple[int, int], diagonal: int = 0) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3)], dim1=0, dim2=1))
+def aten〇diagonal〡dtype(self_rank_dtype: Tuple[int, int], offset: int = 0, dim1: int = 0, dim2: int = 1) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 

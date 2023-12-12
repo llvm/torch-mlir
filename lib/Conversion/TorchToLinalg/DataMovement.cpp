@@ -1834,6 +1834,147 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenDiagonalOp : public OpConversionPattern<AtenDiagonalOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenDiagonalOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    int64_t offset;
+    if (!matchPattern(op.getOffset(), m_TorchConstantInt(&offset)))
+      return rewriter.notifyMatchFailure(op, "offset must be constant");
+    int64_t dim1;
+    if (!matchPattern(op.getDim1(), m_TorchConstantInt(&dim1)))
+      return rewriter.notifyMatchFailure(op, "dim1 must be constant");
+    int64_t dim2;
+    if (!matchPattern(op.getDim2(), m_TorchConstantInt(&dim2)))
+      return rewriter.notifyMatchFailure(op, "dim2 must be constant");
+
+    Value inputMatrix = adaptor.getSelf();
+    RankedTensorType inType = inputMatrix.getType().cast<RankedTensorType>();
+    int64_t inputRank = inType.getRank();
+    RankedTensorType outType = getTypeConverter()
+                       ->convertType(op->getResult(0).getType())
+                       .cast<RankedTensorType>();
+    Type elementType = inType.getElementType();
+    Location loc = op.getLoc();
+
+    if (inputRank < 2) 
+      return rewriter.notifyMatchFailure(op, "input must have at least two dimensions");
+
+    dim1 = toPositiveDim(dim1, inputRank);
+    if (!isValidDim(dim1, inputRank))
+      return rewriter.notifyMatchFailure(op, "dim1 out of range");
+    dim2 = toPositiveDim(dim2, inputRank);
+    if (!isValidDim(dim2, inputRank))
+      return rewriter.notifyMatchFailure(op, "dim2 out of range");
+    if (dim1 == dim2) 
+      return rewriter.notifyMatchFailure(op, "diagonal dimensions cannot be identical");
+
+    bool offsetNegative = offset < 0;
+    Value dim1Size, dim2Size;
+    dim1Size = getDimOp(rewriter, loc, adaptor.getSelf(), dim1);
+    dim2Size = getDimOp(rewriter, loc, adaptor.getSelf(), dim2);
+    // The pytorch diagonal function yields an empty tensor if the offset is too large or too small.
+    // In these cases diagSize takes on the value 0 below.
+    Value diagSize;
+    if (offsetNegative)
+      diagSize = rewriter.create<arith::MaxSIOp>(
+        loc, 
+        rewriter.create<arith::MinSIOp>(
+          loc, 
+          rewriter.create<arith::AddIOp>(
+            loc, 
+            dim1Size, 
+            rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(offset))
+          ), 
+          dim2Size
+        ), 
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(0))
+      );
+    else
+      diagSize = rewriter.create<arith::MaxSIOp>(
+          loc, 
+          rewriter.create<arith::MinSIOp>(loc, rewriter.create<arith::SubIOp>(
+              loc,
+              dim2Size, 
+              rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(offset))
+          ), 
+          dim1Size), 
+          rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(0))
+      );
+    
+    // TODO: below version also works, need to cast diagSize to Value below
+    // int64_t diagSize;
+    // if (offsetNegative)
+    //   diagSize = std::max(std::min(dim1Size.cast<int64_t>() + offset, dim2Size.cast<int64_t>()), (int64_t)0);
+    // else
+    //   diagSize = std::max(std::min(dim2Size.cast<int64_t>() - offset, dim1Size.cast<int64_t>()), (int64_t)0);
+
+    int64_t diagStart1 = offsetNegative ? - offset : 0;
+    int64_t diagStart2 = offsetNegative ? 0 : offset;
+    
+    SmallVector<Value> outputDims;
+    for (auto i = 0; i < inputRank; i++)
+      if (!(i == dim1) && !(i == dim2))
+        outputDims.push_back(getDimOp(rewriter, loc, adaptor.getSelf(), i));
+    outputDims.push_back(diagSize); // TODO: use this or line below depending on which implementation we use above
+    // outputDims.push_back(rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(diagSize)));
+    
+    Value outMatrix = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(outputDims), elementType);
+    
+    SmallVector<AffineExpr> inExprs;
+    SmallVector<AffineExpr> diagExprs;
+    // Input indexing (i1, ... , in, j1, j2) -> (i1, ... , in, j1+off1, j1+off2) (also ranges have to change with this, is this done automatically?)
+    // Output indexing (i1, ... , in, j1, j2) -> (i1, ... , in, j1), i.e. output indexing is just reduction of last dim
+    for (auto i = 0; i < inputRank; i++)
+      if (i==dim1)
+        // TODO: limits will change here, just from 0 to diagSize, pass this somehow?
+        inExprs.push_back(diagStart1+getAffineDimExpr(dim1, rewriter.getContext())); // used operator overload instead of add constant function for affine dim expr
+      else if (i==dim2)
+        // TODO: limits will change here, just from 0 to diagSize, pass this somehow?
+        inExprs.push_back(diagStart2+getAffineDimExpr(dim1, rewriter.getContext())); // used operator overload
+      else
+        inExprs.push_back(getAffineDimExpr(i, rewriter.getContext())); // iterate over unchanged dims
+    
+    // for diagonal result, one of the dims is deleted and one is moved to the end
+    for (auto i = 0; i < inputRank; i++) {
+      if (!(i == dim1) && !(i == dim2))
+        diagExprs.push_back(inExprs[i]);
+    }
+    diagExprs.push_back(getAffineDimExpr(dim1, rewriter.getContext()));
+    
+    SmallVector<AffineMap> indexingMaps = {
+        AffineMap::get(inputRank, 0, inExprs, op.getContext()),
+        AffineMap::get(inputRank, 0, diagExprs, op.getContext())
+    };
+
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
+    iteratorTypes[dim2] = utils::IteratorType::reduction;
+    
+    auto diagonal = rewriter
+                         .create<linalg::GenericOp>(
+                            loc, outMatrix.getType(), inputMatrix, outMatrix,
+                            indexingMaps, iteratorTypes,
+                            [](OpBuilder &b, Location loc, ValueRange args) {
+                                b.create<linalg::YieldOp>(loc, args[0]);
+                            }
+                          )
+                         .getResult(0);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outType, diagonal);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -1872,4 +2013,6 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   patterns.add<ConvertAtenViewAsComplexOp>(typeConverter, context);
   target.addIllegalOp<AtenViewAsRealOp>();
   patterns.add<ConvertAtenViewAsRealOp>(typeConverter, context);
+  target.addIllegalOp<AtenDiagonalOp>();
+  patterns.add<ConvertAtenDiagonalOp>(typeConverter, context);
 }
