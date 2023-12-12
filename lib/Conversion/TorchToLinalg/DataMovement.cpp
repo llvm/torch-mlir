@@ -28,6 +28,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
+#include <algorithm>
 #include <numeric>
 
 using namespace mlir;
@@ -171,365 +172,241 @@ public:
 } // namespace
 
 namespace {
-/// The `ConvertAtenViewOp` conversion pattern converts `aten.View` op to
-/// one `linalg.TensorExpandShape` op for all expanded dimensions and one
-/// `linalg.TensorCollapseShape` op for all collapsed dimensions. Cases where
-/// there is neither an expand or collapse of dimensions (e.g. [2, 3] -> [3, 2])
-/// is not handled. Additionally, certain dynamic dimension cases rely on naive
-/// assumptions or aren't supported.
-/// TODO: Handle all the other cases of `aten.View` op.
+
+// Convert aten.view to a tensor.collapse_shape followed by a
+// tensor.expand_shape, where possible. Cases where this is not possible:
+//
+// 1) when the resulting expand or collapse has multiple dynamic reassociation
+// dimensions. This is because MLIR currently does not support this.
+// 2) view's which are squeezes to or unsqueezes from a rank-0 tensor.
+//
+// In the cases above, the conversion fails.
 class ConvertAtenViewOp : public OpConversionPattern<AtenViewOp> {
-public:
+private:
   using OpConversionPattern::OpConversionPattern;
-  // If one of the two dims arrays has size 1, a mapping is created from the one
-  // dimension of the size-1 array to all the dimensions of the other array. For
-  // example for inputs: xDims = [6], yDims = [2, 3] the result in the indices
-  // arrays will be: xIndices = [0], yIndices = [0, 1].
-  //
-  // An error is returned if the dimension size of the size-1 array is not equal
-  // to the product of all the dimension sizes in the other array, or if neither
-  // of the arrays is size-1.
-  static LogicalResult mapAllDimsToSingleDim(ArrayRef<int64_t> xDims,
-                                             ArrayRef<int64_t> yDims,
-                                             SmallVector<int64_t> &xIndices,
-                                             SmallVector<int64_t> &yIndices) {
-    if (xDims.empty() || yDims.empty())
-      return failure();
 
-    auto isValidReduction = [](int64_t expectedReductionProduct,
-                               ArrayRef<int64_t> arrayToReduce) -> bool {
-      if (llvm::count(arrayToReduce, kUnknownSize) > 0 ||
-          expectedReductionProduct == kUnknownSize)
-        return true;
-      return productReduce(arrayToReduce) == expectedReductionProduct;
-    };
+  // Try to fill in unknown dimensions in `to` using the statically known
+  // dimensions in `from`.
+  static void tryFillOneDirection(MutableArrayRef<int64_t> from,
+                                  MutableArrayRef<int64_t> to) {
 
-    if (xDims.size() == 1) {
-      if (!isValidReduction(xDims[0], yDims))
-        return failure();
-      xIndices.assign({0});
-      yIndices.assign(llvm::to_vector(llvm::seq<int64_t>(0, yDims.size())));
-      return success();
-    } else if (yDims.size() == 1) {
-      if (!isValidReduction(yDims[0], xDims))
-        return failure();
-      yIndices.assign({0});
-      xIndices.assign(llvm::to_vector(llvm::seq<int64_t>(0, xDims.size())));
-      return success();
+    auto fromProduct = productReduce(from);
+
+    SmallVector<uint64_t> unknowns;
+    for (auto [i, dim] : llvm::enumerate(to)) {
+      if (dim == kUnknownSize)
+        unknowns.push_back(i);
     }
-    return failure();
-  }
 
-  // Starting from the beginning of the dims arrays, this helper finds the
-  // smallest set of consecutive dims in each array such that the product of the
-  // dim sizes in the two subsets is equal. The indices arrays are populated
-  // with the indices of the dims arrays that correspond to the subsets found.
-  //
-  // An error is returned if two subsets of dims with total number of elements
-  // equal to each other is not found.
-  static LogicalResult mapStaticallyKnownDims(ArrayRef<int64_t> xDims,
-                                              ArrayRef<int64_t> yDims,
-                                              SmallVector<int64_t> &xIndices,
-                                              SmallVector<int64_t> &yIndices) {
-    if (xDims.empty() || yDims.empty())
-      return failure();
-    int64_t xTotalSize = xDims[0];
-    int64_t yTotalSize = yDims[0];
-    SmallVector<int64_t> xIndicesResult({0});
-    SmallVector<int64_t> yIndicesResult({0});
-    size_t nextXIndex = 1;
-    size_t nextYIndex = 1;
-    while (xTotalSize != yTotalSize) {
-      if (xTotalSize < yTotalSize) {
-        if (nextXIndex == xDims.size() || xDims[nextXIndex] == kUnknownSize)
-          return failure();
-        xTotalSize *= xDims[nextXIndex];
-        xIndicesResult.push_back(nextXIndex++);
-      } else {
-        if (nextYIndex == yDims.size() || yDims[nextYIndex] == kUnknownSize)
-          return failure();
-        yTotalSize *= yDims[nextYIndex];
-        yIndicesResult.push_back(nextYIndex++);
+    auto nUnknowns = unknowns.size();
+
+    auto toProduct =
+        productReduce(to) / std::pow<int64_t>(kUnknownSize, nUnknowns);
+
+    if (fromProduct == toProduct) {
+      for (auto i : unknowns) {
+        to[i] = 1;
       }
     }
 
-    xIndices.assign(std::move(xIndicesResult));
-    yIndices.assign(std::move(yIndicesResult));
-    return success();
-  }
-
-  // Calculates the size of a dynamic dimension if all other dimensions are
-  // statically known, and rewrites that dynamic dimension with the static size.
-  //
-  // Note: this function assumes that all the dimensions in `inputShape` map to
-  // all the dimensions in `outputShape`.
-  static void calculateSingleDynamicSize(MutableArrayRef<int64_t> inputShape,
-                                         MutableArrayRef<int64_t> outputShape) {
-    if (inputShape.empty() || outputShape.empty())
-      return;
-    int64_t inputDynamicDimCount = llvm::count(inputShape, kUnknownSize);
-    int64_t outputDynamicDimCount = llvm::count(outputShape, kUnknownSize);
-    if (inputDynamicDimCount + outputDynamicDimCount != 1)
-      return;
-
-    int64_t inputProduct = productReduce(inputShape);
-    int64_t outputProduct = productReduce(outputShape);
-
-    if (inputDynamicDimCount == 1) {
-      inputProduct /= kUnknownSize;
-      *llvm::find(inputShape, kUnknownSize) = outputProduct / inputProduct;
-    } else {
-      outputProduct /= kUnknownSize;
-      *llvm::find(outputShape, kUnknownSize) = inputProduct / outputProduct;
+    else if (nUnknowns == 1) {
+      to[unknowns[0]] = fromProduct / toProduct;
     }
   }
 
-  // Gets the shapes of the input and output tensors, making a best-effort
+  // Calculate sizes of dynamic dimensions from static dimensions, where
+  // possible, replacing dynamic dimemsions inplace.
+  //
+  // This function assumes that all the dimensions in `inShape` map to all the
+  // dimensions in `outShape`.
+  static void tryFillBothDirections(MutableArrayRef<int64_t> inShape,
+                                    MutableArrayRef<int64_t> outShape) {
+
+    int64_t inDynamicDimCount = llvm::count(inShape, kUnknownSize);
+    int64_t outDynamicDimCount = llvm::count(outShape, kUnknownSize);
+
+    if (inDynamicDimCount == 0 && outDynamicDimCount == 0)
+      return;
+
+    // Try and fill in the gaps in `outShape` using `inShape`.
+    else if (inDynamicDimCount == 0)
+      tryFillOneDirection(inShape, outShape);
+
+    // Try and fill in the gaps in `inShape` using `outShape`.
+    else if (outDynamicDimCount == 0)
+      tryFillOneDirection(outShape, inShape);
+  }
+
+  // Get the shapes of the input and output tensors, making a best-effort
   // attempt to extract static shape information given the inputs to
-  // `aten.view`.
+  // `aten.view`. That is, try to have as few kUnknownSize entries as possible.
   static std::pair<SmallVector<int64_t>, SmallVector<int64_t>>
-  getInputAndOutputShape(Value inputTorchTensor,
-                         SmallVector<Value> outputSizeTorchInt) {
-    SmallVector<int64_t> inputShape(
-        inputTorchTensor.getType().cast<BaseTensorType>().getSizes());
-    SmallVector<int64_t> outputShape(outputSizeTorchInt.size(), kUnknownSize);
-    for (auto [outputDim, outputDimSize] :
-         llvm::enumerate(outputSizeTorchInt)) {
-      int64_t inputDim;
-      int64_t outputDimSizeInt;
-      // Match torch.aten.size.int(inputTensor, inputDim) with constant inputDim
-      if (matchPattern(outputDimSize,
-                       m_TorchTensorSizeInt(inputTorchTensor, &inputDim))) {
-        outputShape[outputDim] = inputShape[inputDim];
-      } else if (matchPattern(outputDimSize,
-                              m_TorchConstantInt(&outputDimSizeInt))) {
-        if (outputDimSizeInt != -1) {
-          outputShape[outputDim] = outputDimSizeInt;
-        }
+  getInputAndOutputShape(Value inTorchTensor,
+                         const SmallVector<Value> &outSizeTorchInt) {
+
+    SmallVector<int64_t> inShape(
+        inTorchTensor.getType().cast<BaseTensorType>().getSizes());
+
+    SmallVector<int64_t> outShape(outSizeTorchInt.size(), kUnknownSize);
+
+    for (auto [outDim, outDimSize] : llvm::enumerate(outSizeTorchInt)) {
+
+      int64_t vMatch;
+
+      // if "outDimSize = inTorchTensor.shape[inDim]" then
+      // set the integer value of the output dimension directly.
+      if (matchPattern(outDimSize,
+                       m_TorchTensorSizeInt(inTorchTensor, &vMatch))) {
+        outShape[outDim] = inShape[vMatch];
+      }
+
+      // if "outputDimSize = result of constant operation" then
+      // set the integer value of the output dimension directly.
+      else if (matchPattern(outDimSize, m_TorchConstantInt(&vMatch))) {
+        outShape[outDim] = vMatch;
       }
     }
 
-    calculateSingleDynamicSize(inputShape, outputShape);
-    return std::make_pair(inputShape, outputShape);
+    tryFillBothDirections(inShape, outShape);
+    return std::make_pair(inShape, outShape);
   }
 
   LogicalResult
-  matchAndRewrite(AtenViewOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenViewOp viewOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+    if (failed(verifyLinalgCompatibleTypes(viewOp, rewriter)))
       return failure();
-    Location loc = op.getLoc();
-    Value input = adaptor.getSelf();
-    auto inputType = input.getType().cast<RankedTensorType>();
-    SmallVector<Value> inputSize = getTensorSizes(rewriter, loc, input);
-    int64_t inputRank = inputType.getRank();
+    Location loc = viewOp.getLoc();
+
     const TypeConverter *typeConverter = getTypeConverter();
-    auto resultType =
-        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
-    int64_t resultRank = resultType.getRank();
-    if (resultRank == 0)
-      return rewriter.notifyMatchFailure(op,
-                                         "result shape of rank 0 is invalid");
 
-    // TODO: add support for case inputRank 0 expanded to size 1
-    if (inputRank == 0)
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: input rank 0 is not supported");
+    Value input = adaptor.getSelf();
+    auto inType = input.getType().cast<RankedTensorType>();
+    SmallVector<Value> inSize = getTensorSizes(rewriter, loc, input);
+    int64_t inRank = inType.getRank();
 
-    // Extract the desired output size as a list of integers. This list should
-    // have been created using the operation `torch.prim.ListConstruct`.
-    SmallVector<Value> outputSizeTorchInt;
-    if (!getListConstructElements(op.getSize(), outputSizeTorchInt)) {
-      return rewriter.notifyMatchFailure(op,
+    auto outType =
+        typeConverter->convertType(viewOp.getType()).cast<RankedTensorType>();
+    int64_t outRank = outType.getRank();
+    SmallVector<Value> outSizeTorchInt;
+    if (!getListConstructElements(viewOp.getSize(), outSizeTorchInt)) {
+      return rewriter.notifyMatchFailure(viewOp,
                                          "unimplemented: the target size is "
                                          "not constructed from ListConstruct");
     }
-    if (llvm::count_if(outputSizeTorchInt, [](Value size) -> bool {
-          int64_t sizeInt;
-          if (matchPattern(size, m_TorchConstantInt(&sizeInt)))
-            return sizeInt == -1;
-          return false;
-        }) > 1) {
+    SmallVector<Value> outSizeInt =
+        getTypeConvertedValues(rewriter, loc, typeConverter, outSizeTorchInt);
+    if (outRank != static_cast<int64_t>(outSizeInt.size())) {
       return rewriter.notifyMatchFailure(
-          op, "at most one element in size list is allowed to be -1");
+          viewOp, "size list length mismatches with the result type rank");
     }
-    SmallVector<Value> outputSizeInt = getTypeConvertedValues(
-        rewriter, loc, typeConverter, outputSizeTorchInt);
-    if (resultRank != (int64_t)outputSizeInt.size()) {
+
+    if (inRank == 0 || outRank == 0) {
       return rewriter.notifyMatchFailure(
-          op, "desired size list length mismatches with the result type rank");
+          viewOp, "It is impossible to expand from or collapse to a scalar");
     }
 
-    auto [inputShape, outputShape] =
-        getInputAndOutputShape(op.getSelf(), outputSizeTorchInt);
+    auto [inShape, outShape] =
+        getInputAndOutputShape(viewOp.getSelf(), outSizeTorchInt);
 
-    // Currently, we only handle the cases where each dimension is either
-    // being expanded or collapsed. We do not handle cases where it's neither
-    // collapsing nor expanding like view of [2,3] for 3x2 tensor.
-    // TODO: For neither collapsing nor expanding, we could find a intermediate
-    // shape to collapse and then expanded to the target shape. Like [2,3] =>
-    // [6] => [3, 2].
-
-    // Iterate through the view op size list to do the following:
-    //   Mark dims in unchangedDims for size list items where the output dim
-    // size comes from a `torch.aten.size.int(inputTensor, inputDim)`. We
-    // naively assume this means the corresponding dimension is not expanded or
-    // collapsed. Note this may technically not always be true.
-    // TODO: think of a way better way to at least detect when this assumption
-    // is violated for the cases of dynamic dimensions.
-    bool inputHasOneDynDim = llvm::count(inputShape, kUnknownSize) == 1;
-    bool outputHasOneDynDim = llvm::count(outputShape, kUnknownSize) == 1;
-    bool singleDynDimsAreEqual =
-        inputHasOneDynDim && outputHasOneDynDim &&
-        productReduce(inputShape) == productReduce(outputShape);
-    SmallVector<std::pair<int64_t, int64_t>> unchangedDims;
-    for (auto [outputDim, outputDimSize] :
-         llvm::enumerate(outputSizeTorchInt)) {
-      int64_t inputDim;
-      // Match torch.aten.size.int(inputTensor, inputDim) with constant inputDim
-      if (matchPattern(outputDimSize,
-                       m_TorchTensorSizeInt(op.getSelf(), &inputDim))) {
-        unchangedDims.push_back(std::make_pair(inputDim, outputDim));
-      } else if (singleDynDimsAreEqual &&
-                 outputShape[outputDim] == kUnknownSize) {
-        // If the input and output have a single dynamic dimension and the
-        // product of the other dimensions is the same, then we know that the
-        // dynamic dimension is unchanged.
-        inputDim = std::distance(inputShape.begin(),
-                                 llvm::find(inputShape, kUnknownSize));
-        unchangedDims.push_back(std::make_pair(inputDim, outputDim));
+    DenseSet<std::tuple<int64_t, int64_t>> sameDynDims;
+    for (auto [outDim, outDimSize] : llvm::enumerate(outSizeTorchInt)) {
+      int64_t inDim;
+      // Match torch.aten.size.int(inTensor, inDim) with constant inDim
+      if (matchPattern(outDimSize,
+                       m_TorchTensorSizeInt(viewOp.getSelf(), &inDim))) {
+        sameDynDims.insert({inDim, static_cast<int64_t>(outDim)});
       }
     }
-    // Mark the end of the input/output shapes
-    unchangedDims.push_back(std::make_pair(inputRank, resultRank));
 
-    // Association indices for expand/collapse ops. These two vectors
-    // are populated such that two entries at the same index corresponds
-    // to an expand or collapse. For example,
+    // As association barrier is the edge between association groups for the
+    // expand_shape and collapse_shape ops.
+    struct AssociationBarrier {
+      int64_t input;
+      int64_t output;
+    };
+
+    // Consecutive AssociationBarriers define how dimensions of the input and
+    // output get reassociated. For example AssociationBarrier({1,2}) followed
+    // by AssociationBarrier({4,3}) means that indices in the range [1,4) of the
+    // input being reassociated to indices [2,3) in the output.
+    SmallVector<AssociationBarrier> barriers;
+
+    // The algorithm for computing the barriers (and therefore the reassociation
+    // groups) works as follows: Starting at index 0 in both the input and
+    // output shapes, keep track of the cumulative product of dimensions as you
+    // increment the index. If at some point the cumulative product of
+    // dimensions is the same in the input and output shapes, then a barrier
+    // has been met. If the cumulative product of the input shape is less than
+    // that of the output shape, then increment the input index (similarly for
+    // the output index). Bail when an unrecognized dynamic dimension is met.
     //
-    // inputAssociations:  [[0, 1], [2]]
-    // outputAssociations: [[0],    [1, 2, 3]]
+    // Here is a working example. Suppose input has shape [2,3,6] and output has
+    // shape [6,3,2].
     //
-    // indicates that the first two dims of the input tensor
-    // are collapsed into the first dim of the output, and the
-    // third dim of the input is expanded into the last three dims
-    // of the output.
-    SmallVector<ReassociationIndices> inputAssociations;
-    SmallVector<ReassociationIndices> outputAssociations;
+    // Iteration 0:
+    // fwdIn = 0, fwdOut = 0, inProd = 1, outProd = 1
+    // ===> insert {fwdIn = 0, fwdOut = 0} into barriers (as inProd == outProd)
+    // ===> increment fwdIn and fwdOut
+    //
+    // Iteration 1:
+    // fwdIn = 1, fwdOut = 1, inProd = 2, outProd = 6
+    // ====> increment fwdIn (as inProd < outProd)
+    //
+    // Iteration 2:
+    // fwdIn = 2, fwdOut = 1, inProd = 6, outProd = 6
+    // =====> insert {fwdIn = 2, fwdOut = 1} into barriers (as inProd ==
+    // outProd)
+    // =====> increment fwdIn and fwdOut
+    //
+    // Iteartion 3:
+    // fwdIn = 3, fwdOut = 2, inProd = 36, outProd = 18
+    // =====> increment fwdOut (as inProd > outProd)
+    //
+    // Iteration 4:
+    // fwdIn = 3, fwdOut = 3, inProd = 36, outProd = 36
+    // =====> insert {fwdIn = 3, fwdOut = 3} into barriers (as inProd ==
+    // outProd)
+    // =====> increment fwdIn and fwdOut
+    //
+    // Iteration 5:
+    // Terminate as fwdIn == inRank and fwdOut == outRank
+    //
+    // Barriers = {{0,0}, {2,1}, {3,3}}
+    //
+    // Special attention is paid to dynamic dimensions: if a dynamic dimension
+    // is encountered, the algorithm will bail, and try again from the end of
+    // shapes, in reverse.
+    //
+    // An exception to this bailing rule is if 2 dynamic dimensions are
+    // encountered in the input and output shapes at the same time, and they are
+    // known to be the same -- in this case, the algorithm will continue. This
+    // is the logic covered by the 'isSameDynDim' function.
+    //
+    // Temporary variables used to calculate the barriers.
+    int64_t fwdIn{0};
+    int64_t fwdOut{0};
+    int64_t inProd{1};
+    int64_t outProd{1};
 
-    // The for loop does the following:
-    // 1. Attempt to match the indices from inputDim and outputDim to the next
-    // boundary found from `torch.aten.size.int(inputTensor, inputDim)`, or
-    // until (inputRank, resultRank) if there is no such op. Look at the first
-    // dimension of the input and output and collapse the larger one by finding
-    // a minimal set of opposing indices with the same number of elements. If
-    // the number of dims to the next boundary is 1, then we assume all
-    // remaining opposing dims must collapse into it.
-    // 2. For handling of dynamic dimensions, we first assume they are only
-    // split if we can easily compute the correct size.
-    //      e.g. [2, -1] -> [2, 3, 4]
-    // This mainly happens at the edges of boundaries. Otherwise we try to match
-    // the dynamic dimension with the one across from it and give up if we can't
-    // reason about how the dimensions are associated.
-    //      e.g. [-1, -1] -> [2, 3, 4]
-    // For more information, see description of helper functions used in the
-    // `if-else` cases inside the while loop.
-    int64_t inputDim = 0, outputDim = 0;
-    for (auto [nextUnchangedInput, nextUnchangedOutput] : unchangedDims) {
-      // Used for ensuring that we don't have an ambiguous expansion
-      bool assumedDynamicDimNotSplit = false;
-      while (inputDim < nextUnchangedInput && outputDim < nextUnchangedOutput) {
-        auto inputShapeSlice =
-            MutableArrayRef<int64_t>(inputShape)
-                .slice(inputDim, nextUnchangedInput - inputDim);
-        auto outputShapeSlice =
-            MutableArrayRef<int64_t>(outputShape)
-                .slice(outputDim, nextUnchangedOutput - outputDim);
-        SmallVector<int64_t> inputSliceIndices;
-        SmallVector<int64_t> outputSliceIndices;
+    auto isSameDynDim = [&](int64_t inDim, int64_t outDim) {
+      return sameDynDims.count({inDim, outDim}) != 0;
+    };
 
-        // TODO: this can be removed by replacing it with a checkDimEqualHelper
-        // that takes into account the product of all the dimensions being
-        // reduced
-        if (assumedDynamicDimNotSplit && inputShapeSlice.size() == 1 &&
-            outputShapeSlice.size() != 1 &&
-            inputShapeSlice[0] == kUnknownSize) {
-          return rewriter.notifyMatchFailure(
-              op, "found ambiguous expand of dynamic input sizes "
-                  "(e.g. [-1, -1] -> [-1, -1, -1])");
+    while (fwdIn < inRank && fwdOut < outRank && inProd > 0 && outProd > 0) {
+
+      if (inProd < outProd) {
+        inProd *= inShape[fwdIn++];
+      } else if (outProd < inProd) {
+        outProd *= outShape[fwdOut++];
+      } else /* if products the same */ {
+        barriers.push_back({fwdIn, fwdOut});
+        if (!isSameDynDim(fwdIn, fwdOut)) {
+          inProd *= inShape[fwdIn];
+          outProd *= outShape[fwdOut];
         }
-
-        if (succeeded(mapAllDimsToSingleDim(inputShapeSlice, outputShapeSlice,
-                                            inputSliceIndices,
-                                            outputSliceIndices))) {
-          calculateSingleDynamicSize(inputShapeSlice, outputShapeSlice);
-          // Update shape to pass the tensor.expand_shape and
-          // tensor.collapse_shape verifiers. If one of the dimensions of the
-          // tensor being flattened is dynamic, the size of the flattened tensor
-          // must also be dynamic.
-          if (inputShapeSlice.size() == 1 &&
-              llvm::count(outputShapeSlice, kUnknownSize) > 0) {
-            inputShapeSlice[0] = kUnknownSize;
-          } else if (outputShapeSlice.size() == 1 &&
-                     llvm::count(inputShapeSlice, kUnknownSize) > 0) {
-            outputShapeSlice[0] = kUnknownSize;
-          }
-        } else if (succeeded(mapStaticallyKnownDims(
-                       inputShapeSlice, outputShapeSlice, inputSliceIndices,
-                       outputSliceIndices))) {
-          /// `mapStaticallyKnownDims` maps the smallest number of
-          /// input and output dimensions in the slice statically
-          /// known to have the same number of elements.
-        } else if (inputShapeSlice[0] == kUnknownSize) {
-          // If the input is dynamic, assume it is not split
-          checkDimEqualHelper(rewriter, loc, inputSize[inputDim],
-                              outputSizeInt[outputDim]);
-          // If output dimension is not dynamic, improve static information of
-          // input
-          inputShape[inputDim] = outputShape[outputDim];
-          inputSliceIndices.push_back(0);
-          outputSliceIndices.push_back(0);
-          assumedDynamicDimNotSplit = true;
-        } else {
-          return rewriter.notifyMatchFailure(
-              op, "unimplemented: found unhandled case of expansion/collapse "
-                  "in `aten.view`");
-        }
-
-        inputAssociations.emplace_back();
-        outputAssociations.emplace_back();
-        for (int64_t inputSliceIndex : inputSliceIndices)
-          inputAssociations.back().push_back(inputSliceIndex + inputDim);
-        for (int64_t outputSliceIndex : outputSliceIndices)
-          outputAssociations.back().push_back(outputSliceIndex + outputDim);
-        inputDim = inputAssociations.back().back() + 1;
-        outputDim = outputAssociations.back().back() + 1;
-      }
-
-      // Handle any leading or trailing size-1 dimensions and append the
-      // associations for the dims matching `aten.size.int`.
-      if (nextUnchangedInput != inputRank) {
-        assert(nextUnchangedOutput != resultRank &&
-               "`nextUnchangedInput` and `nextUnchangedOutput` should equal "
-               "the respective input and output rank at the same time");
-        inputAssociations.emplace_back();
-        outputAssociations.emplace_back();
-      }
-      while (inputDim <= nextUnchangedInput && inputDim < inputRank) {
-        if (inputDim != nextUnchangedInput && inputShape[inputDim] != 1) {
-          return rewriter.notifyMatchFailure(
-              op, "unimplemented: only collapsing of static size-1 into "
-                  "unchanged dim supported");
-        }
-        inputAssociations.back().push_back(inputDim++);
-      }
-      while (outputDim <= nextUnchangedOutput && outputDim < resultRank) {
-        if (outputDim != nextUnchangedOutput && outputShape[outputDim] != 1) {
-          return rewriter.notifyMatchFailure(
-              op, "unimplemented: only expanding of static size-1 out of "
-                  "unchanged dim supported");
-        }
-        outputAssociations.back().push_back(outputDim++);
+        ++fwdIn;
+        ++fwdOut;
       }
     }
 
@@ -537,79 +414,104 @@ public:
       return rewriter.createOrFold<tensor::CastOp>(loc, t, v);
     };
 
-    // Check if the shapes already match up to dynamic sizes. If so, we can just
-    // cast as the result type because the previous loop sets up the necessary
-    // dim checks in case of dynamic sizes.
-    if (llvm::all_of(
-            inputAssociations,
-            [](ReassociationIndices indices) { return indices.size() == 1; }) &&
-        llvm::all_of(outputAssociations, [](ReassociationIndices indices) {
-          return indices.size() == 1;
-        })) {
+    // Same algorithm, but from the back of the shapes.
+    auto nFwd = barriers.size();
+    auto bwdIn = inRank;
+    auto bwdOut = outRank;
+    inProd = 1;
+    outProd = 1;
+    while (bwdIn >= fwdIn && bwdOut >= fwdOut && inProd > 0 && outProd > 0) {
 
-      auto castResult = cast(loc, resultType, input);
-      rewriter.replaceOp(op, castResult);
-
-      return success();
-    }
-
-    Type adjustedResultType = RankedTensorType::get(
-        makeShapeLLVMCompatible(outputShape), resultType.getElementType());
-    Type adjustedInputType = RankedTensorType::get(
-        makeShapeLLVMCompatible(inputShape), resultType.getElementType());
-    Value castedInput = cast(loc, adjustedInputType, input);
-    std::optional<Value> expandedInput;
-    std::optional<Value> collapsedInput;
-
-    if (llvm::any_of(inputAssociations, [](ReassociationIndices indices) {
-          return indices.size() > 1;
-        })) {
-
-      SmallVector<int64_t> intermediateShape;
-      for (auto i : llvm::seq(0, (int)outputAssociations.size())) {
-        int sum = 1;
-
-        for (auto j : llvm::seq(0, (int)outputAssociations[i].size())) {
-          if (outputShape[outputAssociations[i][j]] < 0) {
-            sum = kUnknownSize;
-            break;
-          }
-          sum *= outputShape[outputAssociations[i][j]];
+      if (inProd < outProd) {
+        inProd *= inShape[--bwdIn];
+      } else if (outProd < inProd) {
+        outProd *= outShape[--bwdOut];
+      } else {
+        barriers.push_back({bwdIn, bwdOut});
+        --bwdIn;
+        --bwdOut;
+        if (!isSameDynDim(bwdIn, bwdOut)) {
+          outProd *= outShape[bwdOut];
+          inProd *= inShape[bwdIn];
         }
-
-        intermediateShape.push_back(sum);
       }
+    }
+    std::reverse(barriers.begin() + nFwd, barriers.end());
 
-      Type intermediateResultType =
-          RankedTensorType::get(makeShapeLLVMCompatible(intermediateShape),
-                                resultType.getElementType());
+    SmallVector<ReassociationIndices> inAssociations;
+    SmallVector<ReassociationIndices> outAssociations;
+    SmallVector<int64_t> collapsedShape;
 
-      expandedInput =
-          rewriter
-              .create<tensor::CollapseShapeOp>(loc, intermediateResultType,
-                                               castedInput, inputAssociations)
-              .getResult();
+    for (uint64_t i = 1; i < barriers.size(); ++i) {
+
+      const auto b0 = barriers[i - 1];
+      const auto b1 = barriers[i];
+
+      auto inRange = llvm::seq<int64_t>(b0.input, b1.input);
+      inAssociations.push_back({inRange.begin(), inRange.end()});
+
+      // Update the intermediate (collapsed) shape with the product of the input
+      // dimensions in the range [b0.input, b1.input), or kUnknownSize if any of
+      // the dimensions in that range is kUnknownSize.
+      ArrayRef<int64_t> inPart(inShape.begin() + b0.input,
+                               inShape.begin() + b1.input);
+      auto allKnown = std::all_of(inPart.begin(), inPart.end(),
+                                  [](auto &&x) { return x != kUnknownSize; });
+      collapsedShape.push_back(allKnown ? productReduce(inPart) : kUnknownSize);
+
+      // The collapse_shape operation allows inputs with multiple dynamic
+      // dimensions. The expand_shape operation does not allow outputs with
+      // multiple dynamic dimensions.
+
+      auto outRange = llvm::seq<int64_t>(b0.output, b1.output);
+      outAssociations.push_back({outRange.begin(), outRange.end()});
+
+      ArrayRef<int64_t> outPart(outShape.begin() + b0.output,
+                                outShape.begin() + b1.output);
+      if (std::count(outPart.begin(), outPart.end(), kUnknownSize) > 1) {
+        return rewriter.notifyMatchFailure(
+            viewOp, "unimplemented: more than one unknown dimension in the "
+                    "collapse association.");
+      }
     }
 
-    if (llvm::any_of(outputAssociations, [](ReassociationIndices indices) {
-          return indices.size() > 1;
-        })) {
+    auto elType = inType.getElementType();
 
-      collapsedInput = rewriter
-                           .create<tensor::ExpandShapeOp>(
-                               loc, adjustedResultType,
-                               expandedInput.has_value() ? expandedInput.value()
-                                                         : castedInput,
-                               outputAssociations)
-                           .getResult();
+    // update the types.
+    //
+    // 1) Convert between different conventions on what value denotes a dynamic
+    // size (kUnknownSize vs ShapedType::kDynamic) for the input, collapsed, and
+    // outputs.
+    //
+    // 2) use the refined shapes (some dynamic dimension values may have been
+    // calculated).
+
+    Type adjustedInType =
+        RankedTensorType::get(makeShapeLLVMCompatible(inShape), elType);
+
+    Type adjustedOutType =
+        RankedTensorType::get(makeShapeLLVMCompatible(outShape), elType);
+
+    Type collapsedType =
+        RankedTensorType::get(makeShapeLLVMCompatible(collapsedShape), elType);
+
+
+    Value current = cast(loc, adjustedInType, input);
+
+    if (std::any_of(inAssociations.begin(), inAssociations.end(),
+                    [](auto &&x) { return x.size() > 1; })) {
+      current = rewriter.create<tensor::CollapseShapeOp>(
+          loc, collapsedType, current, inAssociations);
     }
 
-    Value result = collapsedInput.has_value() ? collapsedInput.value()
-                                              : expandedInput.value();
+    if (std::any_of(outAssociations.begin(), outAssociations.end(),
+                    [](auto &&x) { return x.size() > 1; })) {
+      current = rewriter.create<tensor::ExpandShapeOp>(
+          loc, adjustedOutType, current, outAssociations);
+    }
 
-    auto castResult = cast(loc, resultType, result);
-    rewriter.replaceOp(op, castResult);
-
+    auto v = cast(loc, outType, current);
+    rewriter.replaceOp(viewOp, v);
     return success();
   }
 };
