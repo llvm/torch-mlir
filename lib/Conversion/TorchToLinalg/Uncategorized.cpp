@@ -272,10 +272,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return createCalculationForMathOpWithDtypeConversion<math::AtanOp>(
         b, converter, payloadArgs[0], op);
   }
-  if (isa<AtenAcosOp>(op)) {
-    return createCalculationForMathOpWithDtypeConversion<math::AcosOp>(
-        b, converter, payloadArgs[0], op);
-  }
   if (auto clone = dyn_cast<AtenCloneOp>(op)) {
     int64_t memoryFormat;
     if (!clone.getMemoryFormat().getType().isa<Torch::NoneType>() &&
@@ -1333,7 +1329,7 @@ public:
              AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
              AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenTrilOp,
              AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
-             AtenAtanOp, AtenAcosOp, AtenRealOp, AtenImagOp>(op))
+             AtenAtanOp, AtenRealOp, AtenImagOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1979,10 +1975,10 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenEqTensorOp, AtenNeTensorOp, AtenLtTensorOp, AtenLeTensorOp,
       AtenThresholdOp, AtenThresholdBackwardOp, AtenHardtanhBackwardOp,
       AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillTensorOp,
-      AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp, AtenAcosOp,
-      AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenTrilOp,
-      AtenRemainderScalarOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
-      AtenFillTensorOp, AtenRealOp, AtenImagOp>();
+      AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp, AtenLogicalXorOp,
+      AtenLogicalNotOp, AtenTriuOp, AtenTrilOp, AtenRemainderScalarOp,
+      AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
+      AtenRealOp, AtenImagOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);
