@@ -6247,7 +6247,7 @@ StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
 "    %str = torch.constant.str \"AssertionError: diagonal dimensions cannot be identical\"\n"
 "    %true = torch.constant.bool true\n"
 "    %none = torch.constant.none\n"
-"    %str_0 = torch.constant.str \"AssertionError: input must be have at least two dimensions\"\n"
+"    %str_0 = torch.constant.str \"AssertionError: input must have at least two dimensions\"\n"
 "    %int2 = torch.constant.int 2\n"
 "    %int9223372036854775807 = torch.constant.int 9223372036854775807\n"
 "    %int0 = torch.constant.int 0\n"
