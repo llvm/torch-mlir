@@ -1517,4 +1517,16 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             cstSorted);
         return success();
       });
+  patterns.onOp("Sign", 9,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+
+                  rewriter.replaceOpWithNewOp<Torch::AtenSignOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
 }
