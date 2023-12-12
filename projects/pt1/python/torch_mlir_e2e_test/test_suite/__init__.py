@@ -14,6 +14,7 @@ COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "NativeGroupNormBackwardModule_basic",
     "QuantizedMLP_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
+    "ReduceMinAlongDimUnsignedInt_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
 }
 
@@ -39,7 +40,6 @@ def register_all_tests():
     from . import type_conversion
     from . import backprop
     from . import reduction
-    from . import argmax
     from . import matmul
     from . import reshape_like
     from . import scalar

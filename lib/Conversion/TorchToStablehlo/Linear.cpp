@@ -62,13 +62,9 @@ Value getPermutedTensor(PatternRewriter &rewriter, Operation *op, Value input,
     newShape.push_back(inpShape[d]);
   }
 
-  auto attrTy = RankedTensorType::get({static_cast<int64_t>(transDims.size())},
-                                      rewriter.getIntegerType(64));
-  auto permuteAttr = DenseIntElementsAttr::get(attrTy, transDims);
-
   auto outTy = RankedTensorType::get(newShape, inputTy.getElementType());
   auto result = rewriter.create<stablehlo::TransposeOp>(op->getLoc(), outTy,
-                                                        input, permuteAttr);
+                                                        input, transDims);
   return result.getResult();
 }
 
@@ -500,8 +496,8 @@ public:
     for (int64_t i = 0; i <= rank; i++)
       transposeDims[i] = i;
     std::swap(transposeDims[rank - 1], transposeDims[rank - 2]);
-    weight = rewriter.create<stablehlo::TransposeOp>(
-        op->getLoc(), weight, rewriter.getI64TensorAttr(transposeDims));
+    weight = rewriter.create<stablehlo::TransposeOp>(op->getLoc(), weight,
+                                                     transposeDims);
 
     // 3. [H, W, ..., G, OC, IC//G] => [H, W, ..., G*OC, IC//G]
     weightShapeInt.erase(weightShapeInt.end() - 2);
@@ -546,12 +542,10 @@ public:
     }
     auto transposeTy =
         RankedTensorType::get(transposeShape, weightTy.getElementType());
-    DenseIntElementsAttr permAttr = DenseIntElementsAttr::get(
-        RankedTensorType::get({nDims}, rewriter.getI64Type()), perm);
     auto transposeOp = rewriter.create<stablehlo::TransposeOp>(
-        op->getLoc(), transposeTy, weight, permAttr);
+        op->getLoc(), transposeTy, weight, perm);
     auto reverseOp = rewriter.create<stablehlo::ReverseOp>(
-        op->getLoc(), transposeOp, rewriter.getI64TensorAttr({0, 1}));
+        op->getLoc(), transposeOp, ArrayRef<int64_t>{0, 1});
 
     // Prepare for transposed convolution
     SmallVector<int64_t> stablehloStrideVec(nSpatialDims, 1);

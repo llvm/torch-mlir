@@ -13,21 +13,19 @@
 from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 from torch_mlir._version import torch_version_for_comparison, version
 
+print(f"TORCH_VERSION_FOR_COMPARISON =", torch_version_for_comparison())
+
 LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR failed
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "IscloseStaticModule_basic",
-    "IscloseStaticModuleTrue_basic",
+    "IscloseStaticModuleTrue_basic"
 }
 
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
 
-    # RecursionError: maximum recursion depth exceeded
-    # RuntimeError: Failed running call_function aten.lift_fresh_copy(...
-    # https://github.com/pytorch/pytorch/issues/89627
-    "LiftFreshCopyModule_basic",
     # TypeError: new_empty(): argument 'size' (position 1) must be tuple of ints, but found element of type NoneType at pos 0
     # RuntimeError: Failed running call_function aten.convolution_backward(...
     # https://github.com/pytorch/pytorch/issues/89629
@@ -73,6 +71,7 @@ TORCHDYNAMO_XFAIL_SET = {
     #ERROR: value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=-1.336e-32, max=+0.9152, mean=+0.4837) is not close to golden value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=+0.02233, max=+0.9152, mean=+0.4777)
     "UpSampleNearest2dDynamicFactor_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
+    "ReduceMinAlongDimUnsignedInt_basic",
     #ERROR: value (-56) is not equal to golden value (200)
     "AtenIntTensorByteDtypeModule_basic",
     # ERROR: assert isinstance(e, FakeTensor)
@@ -308,12 +307,6 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: shape (torch.Size([12])) is not equal to golden shape (torch.Size([3, 4]))
     "ArangeStartOutViewModule_basic",
 }
-
-if torch_version_for_comparison() < version.parse("2.1.0.dev"):
-    TORCHDYNAMO_XFAIL_SET -= {
-        "ScaledDotProductAttentionSameModule_basic",
-        "ScaledDotProductAttentionDifferentModule_basic",
-    }
 
 TORCHDYNAMO_CRASHING_SET = {
     # No upstream decompositions.
@@ -561,6 +554,9 @@ STABLEHLO_PASS_SET = {
     "EmptyLikeModule_int",
     "ExpandAsIntModule_basic",
     "ExpandModule_basic",
+    "EinsumStaticModule_basic",
+    "EinsumStaticFourDimensionModule_basic",
+    "EinsumStaticContractRhsModule_basic",
     "Fill_TensorFloat64WithFloat32_basic",
     "Fill_TensorFloat64WithFloat64_basic",
     "Fill_TensorFloat64WithInt64_basic",
@@ -1027,6 +1023,9 @@ TOSA_PASS_SET = {
     "RsubFloatModule_basic",
     "RsubFloatModule_noalpha_basic",
     "RsubInt0d_NumToTensor_Module_basic",
+    "EinsumStaticModule_basic",
+    "EinsumStaticFourDimensionModule_basic",
+    "EinsumStaticContractRhsModule_basic",
     "ElementwiseBitwiseAndModule_basic",
     "ElementwiseBitwiseAndStaticShapeModule_basic",
     "ElementwiseBitwiseNotInt32Module_basic",
@@ -1308,6 +1307,10 @@ TOSA_PASS_SET = {
     "MeanModule_basic",
     "ArangeStartOutModule_basic",
     "ArangeStartOutViewModule_basic",
+    "Conv2dBiasNoPaddingModule_basic",
+    "Conv2dNoPaddingModule_basic",
+    "Conv2dWithPaddingDilationStrideModule_basic",
+    "Conv2dWithPaddingModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
@@ -1338,20 +1341,12 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     # failed to legalize operation 'torch.aten.to.dtype' that was explicitly marked illegal
     "AtenEyeModuleInt2D_basic",
     "AtenEyeMModuleInt2D_basic",
+
+    "Conv2dBiasNoPaddingModule_basic",
+    "Conv2dNoPaddingModule_basic",
+    "Conv2dWithPaddingDilationStrideModule_basic",
+    "Conv2dWithPaddingModule_basic",
 }
-
-if torch_version_for_comparison() < version.parse("2.1.0.dev"):
-    MAKE_FX_TOSA_PASS_SET -= {
-        # 'tensor.expand_shape' op expected rank expansion, but found source rank 1 >= result rank 1
-        "ReshapeCollapseModule_basic",
-
-        # failed to lower torch.aten.empty.memory_format
-        "BatchNorm1DModule_basic",
-        "BatchNorm1DWith2DInputModule_basic",
-        "BatchNorm2DModule_basic",
-        "BatchNorm3DModule_basic",
-        "BatchNorm1DStaticShapeModule_basic",
-    }
 
 LTC_CRASHING_SET = {
     # TODO: update test to move all inputs to the lazy device. Otherwise test fails with:

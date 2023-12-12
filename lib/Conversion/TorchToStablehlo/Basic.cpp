@@ -615,12 +615,8 @@ public:
     SmallVector<int64_t> permValues(inputRank);
     std::iota(std::begin(permValues), std::end(permValues), 0);
     std::swap(permValues[dim0], permValues[dim1]);
-    DenseIntElementsAttr permutation = DenseIntElementsAttr::get(
-        RankedTensorType::get({static_cast<long int>(permValues.size())},
-                              rewriter.getI64Type()),
-        permValues);
     rewriter.replaceOpWithNewOp<stablehlo::TransposeOp>(op, outType, self,
-                                                        permutation);
+                                                        permValues);
     return success();
   }
 };
@@ -793,12 +789,8 @@ LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewrite(
       return op.emitError("not all dims are valid");
   }
 
-  DenseIntElementsAttr permutation = DenseIntElementsAttr::get(
-      RankedTensorType::get({static_cast<long int>(permValues.size())},
-                            rewriter.getI64Type()),
-      permValues);
   rewriter.replaceOpWithNewOp<stablehlo::TransposeOp>(op, outType, self,
-                                                      permutation);
+                                                      permValues);
   return success();
 }
 
@@ -1755,8 +1747,7 @@ LogicalResult ConvertAtenOp<AtenFlipOp>::matchAndRewrite(
     }
   }
 
-  rewriter.replaceOpWithNewOp<stablehlo::ReverseOp>(
-      op, outType, self, rewriter.getI64TensorAttr(dims));
+  rewriter.replaceOpWithNewOp<stablehlo::ReverseOp>(op, outType, self, dims);
   return success();
 }
 

@@ -39,7 +39,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
-  // TODO: Acos unimplemented in torch-mlir
   // TODO: Acosh unimplemented in torch-mlir
   // Add became forward compatible with Torch in version 7.
   patterns.onOp("Add", 7,
@@ -154,6 +153,17 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
+  patterns.onOp("Acos", 7,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenAcosOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
   patterns.onOp(
       "BitShift", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
@@ -184,6 +194,18 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.op, resultType, lhs, rhs);
         return success();
       });
+  patterns.onOp(
+      "BitwiseOr", 18, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value lhs, rhs;
+        std::string direction;
+        if (binder.tensorOperands(lhs, rhs) ||
+            binder.tensorResultType(resultType))
+          return failure();
+        rewriter.replaceOpWithNewOp<Torch::AtenBitwiseOrTensorOp>(
+            binder.op, resultType, lhs, rhs);
+        return success();
+      });
   patterns.onOp("BitwiseNot", 18,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -192,6 +214,151 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.tensorResultType(resultType))
                     return failure();
                   rewriter.replaceOpWithNewOp<Torch::AtenBitwiseNotOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp(
+      "BitwiseXor", 18, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value lhs, rhs;
+        std::string direction;
+        if (binder.tensorOperands(lhs, rhs) ||
+            binder.tensorResultType(resultType))
+          return failure();
+        rewriter.replaceOpWithNewOp<Torch::AtenBitwiseXorTensorOp>(
+            binder.op, resultType, lhs, rhs);
+        return success();
+      });
+  patterns.onOp(
+      "Cast", 19, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        int64_t dtypeIntOnnx, dtypeIntTorch;
+        if (binder.tensorOperand(operand) ||
+            binder.s64IntegerAttr(dtypeIntOnnx, "to") ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        // TODO: Add complete mapping.
+        switch (dtypeIntOnnx) {
+        case 1:
+          dtypeIntTorch = 6; // float
+          break;
+        case 10:
+          dtypeIntTorch = 5; // half
+          break;
+        case 11:
+          dtypeIntTorch = 7; // double
+          break;
+        case 16:
+          dtypeIntTorch = 15; // bfloat16
+          break;
+        default:
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "unimplemented support for the given dtype conversion");
+        }
+        Value constDtype = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                    dtypeIntTorch));
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value cstFalse =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
+            binder.op, resultType, operand, constDtype,
+            /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+            /*memory_format=*/none);
+        return success();
+      });
+  patterns.onOp("Ceil", 13,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenCeilOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp(
+      "Clip", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        if (binder.op->getNumOperands() == 1) {
+          Value source;
+          if (binder.tensorOperand(source) ||
+              binder.tensorResultType(resultType))
+            return failure();
+          Value cstNone =
+              rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+          rewriter.replaceOpWithNewOp<Torch::AtenClampOp>(
+              binder.op, resultType, source, /*min=*/cstNone, /*max=*/cstNone);
+          return success();
+        } else if (binder.op->getNumOperands() == 2) {
+          Value source, min;
+          if (binder.tensorOperands(source, min) ||
+              binder.tensorResultType(resultType))
+            return failure();
+          rewriter.replaceOpWithNewOp<Torch::AtenClampMinTensorOp>(
+              binder.op, resultType, source, /*min=*/min);
+          return success();
+        } else if (binder.op->getNumOperands() == 3) {
+          Value source, min, max;
+          if (binder.tensorOperandAtIndex(source, 0) ||
+              binder.tensorOperandAtIndex(min, 1) ||
+              binder.tensorOperandAtIndex(max, 2) ||
+              binder.tensorResultType(resultType))
+            return failure();
+          rewriter.replaceOpWithNewOp<Torch::AtenClampTensorOp>(
+              binder.op, resultType, source, min, max);
+          return success();
+        }
+        return failure();
+      });
+  patterns.onOp("Cos", 7,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenCosOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp("Div", 14,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  std::string direction;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenDivTensorOp>(
+                      binder.op, resultType, lhs, rhs);
+                  return success();
+                });
+  patterns.onOp("Equal", 19,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  std::string direction;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenEqTensorOp>(
+                      binder.op, resultType, lhs, rhs);
+                  return success();
+                });
+  patterns.onOp("Floor", 13,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenFloorOp>(
                       binder.op, resultType, operand);
                   return success();
                 });

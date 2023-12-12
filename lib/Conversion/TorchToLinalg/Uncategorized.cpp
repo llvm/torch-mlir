@@ -11,7 +11,6 @@
 
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
-#include "Utils.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
@@ -19,6 +18,7 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
+#include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -270,6 +270,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (isa<AtenAtanOp>(op)) {
     return createCalculationForMathOpWithDtypeConversion<math::AtanOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenAcosOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::AcosOp>(
         b, converter, payloadArgs[0], op);
   }
   if (auto clone = dyn_cast<AtenCloneOp>(op)) {
@@ -1015,6 +1019,58 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     return result;
   }
+  if (auto clampTensor = dyn_cast<AtenClampTensorOp>(op)) {
+    AtenClampTensorOp::Adaptor adaptor(operands);
+    auto min = adaptor.getMin();
+    auto max = adaptor.getMax();
+    if (min.getType().isa<Torch::OptionalType>() ||
+        max.getType().isa<Torch::OptionalType>()) {
+      clampTensor.emitError("unimplemented: runtime optional type");
+      return nullptr;
+    }
+    Type dtype = converter->convertType(clampTensor.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    bool isMinNone = true;
+    auto result = payloadArgs[0];
+    if (!min.getType().isa<Torch::NoneType>()) {
+      isMinNone = false;
+      auto minPromoted = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+      Value pred;
+      if (dtype.isa<mlir::FloatType>()) {
+        pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT, result,
+                                       minPromoted);
+      } else if (dtype.isa<mlir::IntegerType>()) {
+        pred = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, result,
+                                       minPromoted);
+      } else {
+        clampTensor.emitError(
+            "unimplemented: dtype other than float and integer "
+            "types are not supported.");
+        return nullptr;
+      }
+      result = b.create<arith::SelectOp>(loc, pred, minPromoted, result);
+    }
+    if (!max.getType().isa<Torch::NoneType>()) {
+      max = isMinNone ? payloadArgs[1] : payloadArgs[2];
+      auto maxPromoted = convertScalarToDtype(b, loc, max, dtype);
+      Value pred;
+      if (dtype.isa<mlir::FloatType>()) {
+        pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT, result,
+                                       maxPromoted);
+      } else if (dtype.isa<mlir::IntegerType>()) {
+        pred = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, result,
+                                       maxPromoted);
+      } else {
+        clampTensor.emitError(
+            "unimplemented: dtype other than float and integer "
+            "types are not supported.");
+        return nullptr;
+      }
+      result = b.create<arith::SelectOp>(loc, pred, maxPromoted, result);
+    }
+    return result;
+  }
   if (auto rsub = dyn_cast<AtenRsubScalarOp>(op)) {
     Type dtype = converter->convertType(rsub.getType())
                      .cast<RankedTensorType>()
@@ -1260,11 +1316,12 @@ public:
              AtenDivTensorOp, AtenDivTensorModeOp, AtenSubTensorOp, AtenAtan2Op,
              AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenExpm1Op,
              AtenMinimumOp, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
-             AtenRsubScalarOp, AtenMulScalarOp, AtenLogOp, AtenErfOp,
-             AtenSqrtOp, AtenFloorOp, AtenPowScalarOp, AtenPowTensorScalarOp,
-             AtenPowTensorTensorOp, AtenLog2Op, AtenLog10Op, AtenLog1pOp,
-             AtenRsqrtOp, AtenDivScalarOp, AtenRemainderScalarOp, AtenAbsOp,
-             AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenBitwiseAndScalarOp,
+             AtenClampTensorOp, AtenRsubScalarOp, AtenMulScalarOp, AtenLogOp,
+             AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenPowScalarOp,
+             AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op,
+             AtenLog10Op, AtenLog1pOp, AtenRsqrtOp, AtenDivScalarOp,
+             AtenRemainderScalarOp, AtenAbsOp, AtenReciprocalOp,
+             AtenBitwiseAndTensorOp, AtenBitwiseAndScalarOp,
              AtenBitwiseOrTensorOp, AtenBitwiseXorTensorOp,
              AtenBitwiseLeftShiftTensorOp, AtenBitwiseRightShiftTensorOp,
              AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp,
@@ -1276,7 +1333,7 @@ public:
              AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
              AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenTrilOp,
              AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
-             AtenAtanOp, AtenRealOp, AtenImagOp>(op))
+             AtenAtanOp, AtenAcosOp, AtenRealOp, AtenImagOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1910,18 +1967,19 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenTanhOp, AtenReluOp, AtenGeluOp, AtenGeluBackwardOp, AtenAddTensorOp,
       AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp, AtenSubTensorOp,
       AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp, AtenAtan2Op,
-      AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenRsubScalarOp, AtenLogOp,
-      AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenCeilOp, AtenPreluOp,
-      AtenPowScalarOp, AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op,
-      AtenLog10Op, AtenLog1pOp, AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp,
-      AtenBitwiseAndTensorOp, AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
-      AtenBitwiseXorTensorOp, AtenBitwiseLeftShiftTensorOp,
-      AtenBitwiseRightShiftTensorOp, AtenGtScalarOp, AtenGeScalarOp,
-      AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp,
-      AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp,
-      AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
-      AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
-      AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp,
+      AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenClampTensorOp,
+      AtenRsubScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp, AtenFloorOp,
+      AtenCeilOp, AtenPreluOp, AtenPowScalarOp, AtenPowTensorScalarOp,
+      AtenPowTensorTensorOp, AtenLog2Op, AtenLog10Op, AtenLog1pOp, AtenRsqrtOp,
+      AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
+      AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp, AtenBitwiseXorTensorOp,
+      AtenBitwiseLeftShiftTensorOp, AtenBitwiseRightShiftTensorOp,
+      AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp,
+      AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp, AtenGeTensorOp,
+      AtenEqTensorOp, AtenNeTensorOp, AtenLtTensorOp, AtenLeTensorOp,
+      AtenThresholdOp, AtenThresholdBackwardOp, AtenHardtanhBackwardOp,
+      AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillTensorOp,
+      AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp, AtenAcosOp,
       AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenTrilOp,
       AtenRemainderScalarOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
       AtenFillTensorOp, AtenRealOp, AtenImagOp>();
