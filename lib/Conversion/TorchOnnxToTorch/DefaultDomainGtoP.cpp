@@ -26,4 +26,17 @@ using namespace mlir::torch::onnx_c;
 // results in a lot of ONNX test cases that all reduce to the exact same
 // thing here, so we simplify.
 void mlir::torch::onnx_c::populateDefaultDomainGtoP(
-    OnnxCustomOpConversionPattern &patterns) {}
+    OnnxCustomOpConversionPattern &patterns) {
+
+  patterns.onOp("MatMul", 13,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenMatmulOp>(
+                      binder.op, resultType, lhs, rhs);
+                  return success();
+                });
+}
