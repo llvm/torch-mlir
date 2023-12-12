@@ -194,14 +194,7 @@ static LogicalResult adjustCallingConventions(func::FuncOp func,
   TypeConverter typeConverter;
   typeConverter.addConversion([](Type type) { return type; });
   typeConverter.addConversion(
-      [](Torch::TupleType type,
-         SmallVectorImpl<Type> &types) -> LogicalResult {
-        llvm::append_range(types, type.getContainedTypes());
-        return success();
-      });
-  typeConverter.addConversion(
-      [](Torch::NoneType type,
-         SmallVectorImpl<Type> &types) -> LogicalResult {
+      [](Torch::NoneType type, SmallVectorImpl<Type> &types) -> LogicalResult {
         return success();
       });
 

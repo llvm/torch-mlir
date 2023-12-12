@@ -944,6 +944,8 @@ STABLEHLO_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "ReturnTupleWithOneElementModule_basic",
+    "ReturnTupleWithTwoElementModule",
     "IscloseStaticModule_basic",
     "IscloseStaticModuleTrue_basic",
     "TileBigDimsSizeModule_basic",
