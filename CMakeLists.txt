@@ -25,6 +25,8 @@ project(torch-mlir LANGUAGES CXX C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
+include(CMakeDependentOption)
+
 #-------------------------------------------------------------------------------
 # Project options
 #-------------------------------------------------------------------------------
@@ -43,24 +45,11 @@ endif()
 
 option(TORCH_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
 
-# PT1 options.
-option(TORCH_MLIR_ENABLE_PROJECT_PT1 "Enables the PyTorch1 project under projects/pt1" OFF)
-# TODO: Rename/scope these. They use historic names for now to ease migration
-# burden.
-option(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER "Enables JIT IR Importer" ON)
-option(TORCH_MLIR_ENABLE_LTC "Enables LTC backend" OFF)
-option(TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS "Build Torch dialect MLIR Python bindings but neither JIT IR Importer nor LTC backend" OFF)
-if(TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS)
-  set(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER OFF)
-  set(TORCH_MLIR_ENABLE_LTC OFF)
-endif()
-# Force enable the PT1 project if either the JIT_IR_IMPORTER or LTC is enabled.
-if(NOT TORCH_MLIR_ENABLE_PROJECT_PT1)
-  if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER OR TORCH_MLIR_ENABLE_LTC)
-    message(STATUS "Enabling projects/pt1 because features requiring it are enabled")
-    set(TORCH_MLIR_ENABLE_PROJECT_PT1 ON)
-  endif()
-endif()
+# PyTorch native extension gate. If OFF, then no features which depend on
+# native extensions will be built.
+option(TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS "Enables PyTorch native extension features" ON)
+cmake_dependent_option(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER "Enables JIT IR Importer" ON ${TORCH_MLIR_ENABLE_PROJECT_PT1} OFF)
+cmake_dependent_option(TORCH_MLIR_ENABLE_LTC "Enables LTC backend" OFF ${TORCH_MLIR_ENABLE_PROJECT_PT1} OFF)
 
 #-------------------------------------------------------------------------------
 # Configure out-of-tree vs in-tree build
@@ -235,4 +224,16 @@ endif()
 # Sub-projects
 #-------------------------------------------------------------------------------
 
+# Sub-projects can bundle additional PyTorch extensions by adding them to this
+# source target. It is typically empty unless if features are enabled.
+if(MLIR_ENABLE_BINDINGS_PYTHON)
+  declare_mlir_python_sources(TorchMLIRPythonTorchExtensionsSources)
+endif()
+
+# Build projects first as it may populate additional Python deps.
 add_subdirectory(projects)
+
+# Finish with top-level Python bindings so it can handle additional deps.
+if(MLIR_ENABLE_BINDINGS_PYTHON)
+  add_subdirectory(python)
+endif()
