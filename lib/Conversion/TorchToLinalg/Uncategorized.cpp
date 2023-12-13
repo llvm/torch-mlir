@@ -426,6 +426,12 @@ if (isa<AtenAcosOp>(op)) {
   }
   if (isa<AtenAbsOp>(op))
     return b.create<math::AbsFOp>(loc, payloadArgs[0]);
+  if (isa<AtenIsinfOp>(op)){
+    Value abs = b.create<math::AbsFOp>(loc, payloadArgs[0]);
+    Value infinity = b.create<arith::ConstantOp>(
+        loc, b.getFloatAttr(abs.getType(), std::numeric_limits<double>::infinity()));
+    return createEqual(b, loc, abs.getType(), abs, infinity);
+  }
   if (isa<AtenSigmoidOp>(op)) {
     auto negate = createCalculationForMathOpWithDtypeConversion<arith::NegFOp>(
         b, converter, payloadArgs[0], op);
@@ -1343,7 +1349,7 @@ public:
              AtenThresholdBackwardOp, AtenHardtanhBackwardOp, AtenCloneOp,
              AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenNegOp,
              AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
-             AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenTrilOp,
+             AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp, AtenTrilOp,
              AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
              AtenAtanOp, AtenAcosOp, AtenRealOp, AtenImagOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
@@ -1971,66 +1977,6 @@ public:
 };
 } // namespace
 
-namespace {
-class ConvertAtenIsinfOp
-    : public OpConversionPattern<AtenIsinfOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult matchAndRewrite(
-     AtenIsinfOp op, OpAdaptor adaptor,
-     ConversionPatternRewriter &rewriter) const override {
-
-    // check if is inf op
-    if(isa<AtenIsinfOp>(op)) {
-      llvm::outs() << "isa<AtenIsinfOp> match\n";
-    } else {
-      llvm::outs() << "isa<AtenIsinfOp> not match\n";
-    }
-
-    Value self = op.getSelf();
-    Location loc = op.getLoc();
-
-    mlir::Value abs = rewriter.create<AtenAbsOp>(loc, self.getType(), self);
-    // check if creation success
-    if(!abs) {
-      llvm::outs() << "create AtenAbsOp failed\n";
-    } else {
-      llvm::outs() << "create AtenAbsOp success\n";
-    }
-
-    
-
-    mlir::FloatType f64Type = rewriter.getF64Type();
-    // check if get float type success
-    if(!f64Type) {
-      llvm::outs() << "get float type failed\n";
-    } else {
-      llvm::outs() << "get float type success\n";
-    }
-
-    Value inf = rewriter.create<ConstantFloatOp>(
-        loc, rewriter.getFloatAttr(
-                 f64Type, APFloat::getInf(f64Type.getFloatSemantics())));
-
-    // check if creation success
-    if(!inf) {
-      llvm::outs() << "create ConstantFloatOp failed\n";
-    } else {
-      llvm::outs() << "create ConstantFloatOp success\n";
-    }
-
-    auto newop = rewriter.replaceOpWithNewOp<AtenEqScalarOp>(op, op.getType(), abs, inf);
-    // check if replace success
-    if(!newop) {
-      llvm::outs() << "replaceOpWithNewOp failed\n";
-    } else {
-      llvm::outs() << "replaceOpWithNewOp success\n";
-    }
-    return success();
-  
-  }
-};
-} // namespace
 
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
@@ -2053,7 +1999,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
       AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
       AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp,
-      AtenAcosOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenTrilOp,
+      AtenAcosOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
+      AtenTrilOp,
       AtenRemainderScalarOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
       AtenFillTensorOp, AtenRealOp, AtenImagOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
@@ -2071,6 +2018,4 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenNllLossBackwardOp>(typeConverter, context);
   patterns.add<ConvertTensorStaticInfoCastOp>(typeConverter, context);
   target.addIllegalOp<TensorStaticInfoCastOp>();
-  patterns.add<ConvertAtenIsinfOp>(typeConverter, context);
-  target.addIllegalOp<AtenIsinfOp>();
 }
