@@ -54,17 +54,18 @@ struct OpBinder {
     return success();
   }
 
-  ParseResult tensorOperands(SmallVector<Value> &operandList,
+  ParseResult tensorOperands(SmallVector<Value> &valueList,
                              int64_t numOperands) {
-    if (numOperands != op->getNumOperands())
+    if (op->getNumOperands() != numOperands)
       return failure();
-
     for (int i = 0; i < numOperands; i++) {
       Value curr = op->getOperand(i);
-      if (!toValidTensorType(curr.getType()))
+      if (!toValidTensorType(curr.getType())) {
         return failure();
-      operandList.push_back(curr);
+      }
+      valueList.push_back(curr);
     }
+    return success();
   }
 
   ParseResult tensorOperandAtIndex(Value &valueIdx, int64_t idx) {
