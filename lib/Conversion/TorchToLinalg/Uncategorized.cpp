@@ -284,7 +284,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return createCalculationForMathOpWithDtypeConversion<math::AtanOp>(
         b, converter, payloadArgs[0], op);
   }
-  if (isa<AtenAcosOp>(op)) {
+if (isa<AtenAcosOp>(op)) {
     return createCalculationForMathOpWithDtypeConversion<math::AcosOp>(
         b, converter, payloadArgs[0], op);
   }
@@ -1971,6 +1971,67 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenIsinfOp
+    : public OpConversionPattern<AtenIsinfOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+     AtenIsinfOp op, OpAdaptor adaptor,
+     ConversionPatternRewriter &rewriter) const override {
+
+    // check if is inf op
+    if(isa<AtenIsinfOp>(op)) {
+      llvm::outs() << "isa<AtenIsinfOp> match\n";
+    } else {
+      llvm::outs() << "isa<AtenIsinfOp> not match\n";
+    }
+
+    Value self = op.getSelf();
+    Location loc = op.getLoc();
+
+    mlir::Value abs = rewriter.create<AtenAbsOp>(loc, self.getType(), self);
+    // check if creation success
+    if(!abs) {
+      llvm::outs() << "create AtenAbsOp failed\n";
+    } else {
+      llvm::outs() << "create AtenAbsOp success\n";
+    }
+
+    
+
+    mlir::FloatType f64Type = rewriter.getF64Type();
+    // check if get float type success
+    if(!f64Type) {
+      llvm::outs() << "get float type failed\n";
+    } else {
+      llvm::outs() << "get float type success\n";
+    }
+
+    Value inf = rewriter.create<ConstantFloatOp>(
+        loc, rewriter.getFloatAttr(
+                 f64Type, APFloat::getInf(f64Type.getFloatSemantics())));
+
+    // check if creation success
+    if(!inf) {
+      llvm::outs() << "create ConstantFloatOp failed\n";
+    } else {
+      llvm::outs() << "create ConstantFloatOp success\n";
+    }
+
+    auto newop = rewriter.replaceOpWithNewOp<AtenEqScalarOp>(op, op.getType(), abs, inf);
+    // check if replace success
+    if(!newop) {
+      llvm::outs() << "replaceOpWithNewOp failed\n";
+    } else {
+      llvm::outs() << "replaceOpWithNewOp success\n";
+    }
+    return success();
+  
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -2010,4 +2071,6 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenNllLossBackwardOp>(typeConverter, context);
   patterns.add<ConvertTensorStaticInfoCastOp>(typeConverter, context);
   target.addIllegalOp<TensorStaticInfoCastOp>();
+  patterns.add<ConvertAtenIsinfOp>(typeConverter, context);
+  target.addIllegalOp<AtenIsinfOp>();
 }
