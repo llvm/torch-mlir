@@ -351,7 +351,6 @@ function setup_venv() {
       echo ":::: Using stable dependencies"
       python3 -m pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/build-requirements.txt
-      python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/test-requirements.txt
       ;;
     *)
       echo "Unrecognized torch version '$torch_version'"
@@ -359,6 +358,7 @@ function setup_venv() {
       ;;
   esac
 
+  python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/test-requirements.txt
 }
 
 function build_out_of_tree() {

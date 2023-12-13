@@ -182,5 +182,10 @@ setup(
     },
     ext_modules=EXT_MODULES,
     install_requires=INSTALL_REQUIRES,
+    extras_require={
+        "onnx": [
+            "onnx>=1.15.0",
+        ],
+    }
     zip_safe=False,
 )
