@@ -1,7 +1,31 @@
 include(AddMLIRPython)
 
+################################################################################
+# PyTorch
 # Configure PyTorch if we have any features enabled which require it.
+################################################################################
 if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER OR TORCH_MLIR_ENABLE_LTC)
+
+  if (NOT TORCH_MLIR_USE_INSTALLED_PYTORCH)
+    # Source builds
+    message(STATUS "Building libtorch from source (features depend on it and NOT TORCH_MLIR_USE_INSTALLED_PYTORCH)")
+    set(ENV{TORCH_MLIR_SRC_PYTORCH_REPO} ${TORCH_MLIR_SRC_PYTORCH_REPO})
+    set(ENV{TORCH_MLIR_SRC_PYTORCH_BRANCH} ${TORCH_MLIR_SRC_PYTORCH_BRANCH})
+    set(ENV{TM_PYTORCH_INSTALL_WITHOUT_REBUILD} ${TM_PYTORCH_INSTALL_WITHOUT_REBUILD})
+    set(ENV{MACOSX_DEPLOYMENT_TARGET} ${MACOSX_DEPLOYMENT_TARGET})
+    set(ENV{CMAKE_OSX_ARCHITECTURES} ${CMAKE_OSX_ARCHITECTURES})
+    set(ENV{CMAKE_C_COMPILER_LAUNCHER} ${CMAKE_C_COMPILER_LAUNCHER})
+    set(ENV{CMAKE_CXX_COMPILER_LAUNCHER} ${CMAKE_CXX_COMPILER_LAUNCHER})
+    execute_process(
+            COMMAND ${TORCH_MLIR_SOURCE_DIR}/build_tools/build_libtorch.sh
+            RESULT_VARIABLE _result
+    )
+    if(_result)
+      message(FATAL_ERROR "Failed to run `build_libtorch.sh`")
+    endif()
+    set(TORCH_INSTALL_PREFIX "libtorch")
+  endif()
+
   message(STATUS "Enabling PyTorch C++ dep (features depend on it)")
   include(TorchMLIRPyTorch)
 
@@ -48,6 +72,6 @@ if(TORCH_MLIR_ENABLE_LTC)
 endif()
 
 # Include overall PT1 project.
-if(TORCH_MLIR_ENABLE_PROJECT_PT1)
+if(TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS)
   add_subdirectory(pt1)
 endif()
