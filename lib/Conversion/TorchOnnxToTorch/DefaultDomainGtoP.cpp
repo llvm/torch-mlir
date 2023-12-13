@@ -49,7 +49,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   }
                   rewriter.replaceOpWithNewOp<Torch::AtenLeTensorOp>(
                       binder.op, resultType, lhs, rhs);
-		  return success();
+		              return success();
                 });
 
 }
