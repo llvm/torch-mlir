@@ -262,6 +262,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::relu6 : (Tensor) -> (Tensor)",
             "aten::leaky_relu : (Tensor, Scalar) -> (Tensor)",
             "aten::log : (Tensor) -> (Tensor)",
+            "aten::selu : (Tensor) -> (Tensor)",
             "aten::sigmoid : (Tensor) -> (Tensor)",
             "aten::sign : (Tensor) -> (Tensor)",
             "aten::sgn : (Tensor) -> (Tensor)",
