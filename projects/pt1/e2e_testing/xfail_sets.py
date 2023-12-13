@@ -306,6 +306,10 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # ERROR: shape (torch.Size([12])) is not equal to golden shape (torch.Size([3, 4]))
     "ArangeStartOutViewModule_basic",
+
+    # ERROR: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
+    "GroupNormModule_basic",
+    "GroupNormNoWeightAndBiasModule_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -586,6 +590,7 @@ STABLEHLO_PASS_SET = {
     "NewFullModuleInt2DStatic_basic",
     "NewFullModuleInt2D_basic",
     "NewFullModuleInt3D_basic",
+    "GroupNormModule_basic",
     "GatherStaticModule_basic",
     "GatherModule_basic",
     "Gather2DInputModdule_basic",

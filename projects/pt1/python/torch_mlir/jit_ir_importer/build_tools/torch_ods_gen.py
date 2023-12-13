@@ -422,6 +422,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::native_group_norm : (Tensor, Tensor?, Tensor?, int, int, int, int, float) -> (Tensor, Tensor, Tensor)"
     )
     emit(
+        'aten::group_norm : (Tensor, int, Tensor?, Tensor?, float, bool) -> (Tensor)'
+    )
+    emit(
         "aten::layer_norm : (Tensor, int[], Tensor?, Tensor?, float, bool) -> (Tensor)"
     )
     emit(
