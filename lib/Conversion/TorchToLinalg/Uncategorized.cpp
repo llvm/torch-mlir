@@ -284,7 +284,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return createCalculationForMathOpWithDtypeConversion<math::AtanOp>(
         b, converter, payloadArgs[0], op);
   }
-if (isa<AtenAcosOp>(op)) {
+  if (isa<AtenAcosOp>(op)) {
     return createCalculationForMathOpWithDtypeConversion<math::AcosOp>(
         b, converter, payloadArgs[0], op);
   }
@@ -1976,7 +1976,6 @@ public:
   }
 };
 } // namespace
-
 
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
