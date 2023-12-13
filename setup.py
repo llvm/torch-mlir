@@ -186,6 +186,11 @@ setup(
         "onnx": [
             "onnx>=1.15.0",
         ],
-    }
+    },
+    entry_points={
+        "console_scripts": [
+            "torch-mlir-import-onnx = torch_mlir.tools.import_onnx:_cli_main",
+        ],
+    },
     zip_safe=False,
 )
