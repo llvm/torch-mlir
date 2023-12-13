@@ -68,6 +68,7 @@ set(_source_components
   # tree, which seems excessive.
   MLIRPythonSources
   MLIRPythonExtension.Core
+  MLIRPythonExtension.RegisterEverything
   TorchMLIRPythonSources
   TorchMLIRPythonExtensions
 

@@ -47,8 +47,6 @@ PACKAGE_VERSION = os.environ.get("TORCH_MLIR_PYTHON_PACKAGE_VERSION") or "0.0.1"
 # If true, enable LTC build by default
 TORCH_MLIR_ENABLE_LTC_DEFAULT = True
 TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS = int(os.environ.get('TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS', False))
-if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS:
-    import torch
 
 # Build phase discovery is unreliable. Just tell it what phases to run.
 class CustomBuild(_build):
@@ -91,7 +89,7 @@ class CMakeBuild(build_py):
                 f"-DCMAKE_C_VISIBILITY_PRESET=hidden",
                 f"-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
                 f"-DTORCH_MLIR_ENABLE_LTC={'ON' if enable_ltc else 'OFF'}",
-                f"-DTORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS={'ON' if TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else 'OFF'}",
+                f"-DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS={'OFF' if TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else 'ON'}",
             ]
 
             os.makedirs(cmake_build_dir, exist_ok=True)
@@ -145,8 +143,31 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 
+# Requires and extension modules depend on whether building PyTorch
+# extensions.
+INSTALL_REQUIRES = [
+    "numpy",
+    "packaging",
+]
+EXT_MODULES = [
+    CMakeExtension("torch_mlir._mlir_libs._torchMlir"),
+]
+NAME = "torch-mlir-core"
+
+# If building PyTorch extensions, customize.
+if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS:
+    import torch
+    NAME = "torch-mlir"
+    INSTALL_REQUIRES.extend([
+        f"torch=={torch.__version__}".split("+", 1)[0],
+    ])
+    EXT_MODULES.extend([
+        CMakeExtension("torch_mlir._mlir_libs._jit_ir_importer"),
+    ])
+
+
 setup(
-    name="torch-mlir" if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else "torch-mlir-core",
+    name=NAME,
     version=f"{PACKAGE_VERSION}",
     author="Sean Silva",
     author_email="silvasean@google.com",
@@ -159,10 +180,7 @@ setup(
         "built_ext": NoopBuildExtension,
         "build_py": CMakeBuild,
     },
-    ext_modules=[
-        CMakeExtension("torch_mlir._mlir_libs._jit_ir_importer"),
-    ] if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else [CMakeExtension("torch_mlir._mlir_libs._torchMlir")],
-    install_requires=["numpy", "packaging"] + (
-        [f"torch=={torch.__version__}".split("+", 1)[0], ] if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else []),
+    ext_modules=EXT_MODULES,
+    install_requires=INSTALL_REQUIRES,
     zip_safe=False,
 )
