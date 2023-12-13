@@ -132,6 +132,31 @@ struct OpBinder {
     return failure();
   }
 
+  ParseResult s64IntegerArrayAttr(llvm::SmallVector<int64_t> &values,
+                                  StringRef nameSuffix,
+                                  ArrayRef<int64_t> defaults) {
+    SmallString<64> name("torch.onnx.");
+    name.append(nameSuffix);
+    auto attr = op->getAttr(name);
+    if (!attr) {
+      values.append(defaults.begin(), defaults.end());
+      return success();
+    }
+    if (auto arrayAttr = dyn_cast<ArrayAttr>(attr)) {
+      for (auto element : arrayAttr) {
+        auto integerAttr = element.dyn_cast<IntegerAttr>();
+        if (!integerAttr)
+          return failure();
+        IntegerType t = cast<IntegerType>(integerAttr.getType());
+        if (!t.isSigned() || t.getWidth() != 64)
+          return failure();
+        values.push_back(integerAttr.getSInt());
+      }
+      return success();
+    }
+    return failure();
+  }
+
   ParseResult customOpNameStringAttr(std::string &value, StringRef nameSuffix,
                              std::string defaultValue = "") {
     SmallString<64> name("torch.onnx.");
