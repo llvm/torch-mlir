@@ -1937,6 +1937,55 @@ public:
 };
 } // namespace
 
+// Selu = scale * (max(0,x) + min(0,alpha * (exp(x) − 1)))
+namespace {
+class DecomposeAtenSeluOp : public OpRewritePattern<AtenSeluOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSeluOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    auto resType = op.getType().cast<BaseTensorType>();
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+
+    // Define λ and α
+    double scale = 1.0507009873554804934193349852946;
+    double alpha = 1.6732632423543772848170429916717;
+    
+    // Create constants for λ and α
+    Value scaleVal = rewriter.create<Torch::ConstantFloatOp>(loc, rewriter.getF64FloatAttr(scale));
+    Value alphaVal = rewriter.create<Torch::ConstantFloatOp>(loc, rewriter.getF64FloatAttr(alpha));
+
+    // Create zero tensor for comparison
+    Value constantZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value zeroTensor = createRank0Tensor(rewriter, loc, resType, constantZero);
+
+    // Calculate positive and negative parts
+    Value constantOne =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value positiveOutput = rewriter.create<AtenMaximumOp>(loc, resType, zeroTensor, input);
+    Value minZeroX =
+        rewriter.create<AtenMinimumOp>(loc, resType, zeroTensor, input);
+    Value expInput = rewriter.create<AtenExpOp>(loc, resType, minZeroX);
+    Value expInputMinusOne = rewriter.create<AtenSubScalarOp>(loc, resType, expInput, constantOne, constantOne);
+    Value negativeOutput = rewriter.create<AtenMulScalarOp>(loc, resType, expInputMinusOne,  alphaVal);
+
+    // Multiply the result by λ
+    Value seluOutput = rewriter.create<AtenAddTensorOp>(
+        loc, resType, positiveOutput, negativeOutput, constantOne);
+    seluOutput = rewriter.create<AtenMulScalarOp>(loc, resType, seluOutput, scaleVal);
+
+    // Replace the original operation
+    rewriter.replaceOp(op, seluOutput);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeAtenTOp : public OpRewritePattern<AtenTOp> {
 public:
@@ -6460,6 +6509,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEluOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSeluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluBackwardOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyStridedOp>(patterns);
