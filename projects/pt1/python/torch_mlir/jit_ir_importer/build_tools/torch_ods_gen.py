@@ -262,6 +262,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::relu6 : (Tensor) -> (Tensor)",
             "aten::leaky_relu : (Tensor, Scalar) -> (Tensor)",
             "aten::log : (Tensor) -> (Tensor)",
+            "aten::selu : (Tensor) -> (Tensor)",
             "aten::sigmoid : (Tensor) -> (Tensor)",
             "aten::sign : (Tensor) -> (Tensor)",
             "aten::sgn : (Tensor) -> (Tensor)",
@@ -420,6 +421,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     )
     emit(
         "aten::native_group_norm : (Tensor, Tensor?, Tensor?, int, int, int, int, float) -> (Tensor, Tensor, Tensor)"
+    )
+    emit(
+        'aten::group_norm : (Tensor, int, Tensor?, Tensor?, float, bool) -> (Tensor)'
     )
     emit(
         "aten::layer_norm : (Tensor, int[], Tensor?, Tensor?, float, bool) -> (Tensor)"

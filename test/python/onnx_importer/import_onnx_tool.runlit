@@ -1,0 +1,3 @@
+# RUN: %PYTHON -m torch_mlir.tools.import_onnx %S/LeakyReLU.onnx | FileCheck %s
+
+# CHECK: torch.operator "onnx.LeakyRelu"

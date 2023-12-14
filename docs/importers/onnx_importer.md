@@ -3,11 +3,8 @@
 We enable the direct representation of many ONNX features directly in
 the `torch` dialect as `torch.operator` custom ops with names like
 `onnx.{OperatorName}`. The majority of ONNX operators are represented
-with a systematic transformation. See 
-[onnx_importer.py](https://github.com/nod-ai/SHARK-Turbine/blob/main/python/shark_turbine/importers/onnx_importer.py)
-for the reference importer which complies with the rules below
-(this is planned to be upstreamed to torch-mlir proper in the near
-future).
+with a systematic transformation. `torch_mlir.extras.onnx_importer`
+for the reference importer which complies with the rules below.
 
 ## Adding new ONNX operators
 
@@ -26,10 +23,11 @@ are relatively straight-forward to map, following this general procedure:
 * Open the corresponding implementation file `DefaultDomainXtoY.cpp`
   corresponding with the alphabetic sort of the op and add a conversion.
 * Generate successful test cases:
-  * Either run the Turbine importer to produce MLIR output for all
-    ops/models in the ONNX test suite or use a dump that someone has
-    generated:
-      * [2023-Nov-21](https://drive.google.com/file/d/1P6QaRXGnCeApjdjNmykLxWa-yqMmIO-d/view?usp=sharing)
+  * All `onnx_importer.py` tests are dumped to the test temp dir (success
+    or failure). This is typically located under 
+    `tools/torch-mlir/test/python/onnx_importer/Output`. The `.mlir` files
+    under there should provide good variants to drive lit test coverage of
+    conversion.
   * There are often many variants of tests for checking conformance of
     different historic ONNX encodings, but these are often not load bearing
     at the MLIR level.

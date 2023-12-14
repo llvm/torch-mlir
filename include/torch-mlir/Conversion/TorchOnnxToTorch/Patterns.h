@@ -127,6 +127,25 @@ struct OpBinder {
     return failure();
   }
 
+  ParseResult f32FloatAttr(float &value, StringRef nameSuffix,
+                           float defaultValue = 0.0f) {
+    SmallString<64> name("torch.onnx.");
+    name.append(nameSuffix);
+    auto attr = op->getAttr(name);
+    if (!attr) {
+      value = defaultValue;
+      return success();
+    }
+    if (auto floatAttr = dyn_cast<FloatAttr>(attr)) {
+      FloatType t = cast<FloatType>(floatAttr.getType());
+      if (t.getWidth() != 32)
+        return failure();
+      value = floatAttr.getValueAsDouble();
+      return success();
+    }
+    return failure();
+  }
+
   ParseResult customOpNameStringAttr(std::string &value, StringRef nameSuffix,
                              std::string defaultValue = "") {
     SmallString<64> name("torch.onnx.");
