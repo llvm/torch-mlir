@@ -884,6 +884,28 @@ def TensorsStackModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class TensorsStackSingleElementListModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.stack([x], dim=1)
+
+
+@register_test_case(module_factory=lambda: TensorsStackSingleElementListModule())
+def TensorsStackSingleElementListModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 32))
+
+
+# ==============================================================================
+
+
 class TensorsStackNegativeDimModule(torch.nn.Module):
 
     def __init__(self):

@@ -98,6 +98,9 @@ def aten〇sin〡shape(self: List[int]) -> List[int]:
 def aten〇cos〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇acos〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇cosine_similarity〡shape(x1: List[int], x2: List[int], dim: int = 1, eps: float = 1e-08) -> List[int]:
     broadcast = upstream_shape_functions.broadcast(x1, x2)
     return broadcast[:dim] + broadcast[dim + 1:]
@@ -194,7 +197,13 @@ def aten〇log_softmax〇int〡shape(self: List[int], dim: int, dtype: Optional[
 def aten〇clamp〡shape(self: List[int], min: Optional[float] = None, max: Optional[float] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇clamp〇Tensor〡shape(self: List[int], min: Optional[List[int]] = None, max: Optional[List[int]] = None) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇clamp_min〡shape(self: List[int], min: float) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇clamp_min〇Tensor〡shape(self: List[int], min: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇clamp_max〡shape(self: List[int], max: float) -> List[int]:
@@ -362,6 +371,9 @@ def aten〇elu〡shape(self: List[int], alpha: float = 1, scale: float = 1, inpu
     return upstream_shape_functions.unary(self)
 
 def aten〇prelu〡shape(self: List[int], weight: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇selu〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇gather〡shape(self: List[int], dim: int, index: List[int], sparse_grad: bool = False) -> List[int]:
@@ -1121,6 +1133,12 @@ def aten〇convolution_backward〡shape(grad_output: List[int], input: List[int]
 def aten〇batch_norm〡shape(input: List[int], weight: Optional[List[int]], bias: Optional[List[int]], running_mean: Optional[List[int]], running_var: Optional[List[int]], training: bool, momentum: float, eps: float, cudnn_enabled: bool) -> List[int]:
     return upstream_shape_functions.batch_norm(input, weight, bias, running_mean, running_var, training, momentum, eps, cudnn_enabled)
 
+def aten〇group_norm〡shape(input: List[int], num_groups: int, weight: Optional[List[int]] = None, bias: Optional[List[int]] = None, eps: float = 1.0000000000000001e-05, cudnn_enabled: bool = True) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
+def aten〇native_group_norm〡shape(input: List[int], weight: Optional[List[int]], bias: Optional[List[int]], N: int, C: int, HxW: int, group: int, eps: float) -> Tuple[List[int], List[int], List[int]]:
+    return upstream_shape_functions.unary(input), [N, group], [N, group]
+
 def aten〇slice〇Tensor〡shape(self: List[int], dim: int = 0, start: Optional[int] = None, end: Optional[int] = None, step: int = 1) -> List[int]:
     return upstream_shape_functions.slice(self, dim, start, end, step)
 
@@ -1547,6 +1565,11 @@ def aten〇cos〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     return _get_dtype_of_floating_point_op(self_dtype)
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇acos〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return _get_dtype_of_floating_point_op(self_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇sigmoid〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
@@ -1657,6 +1680,18 @@ def aten〇batch_norm〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dty
     input_rank, input_dtype = input_rank_dtype
     return input_dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7)], error_types={*all_integer_dtypes()}, num_groups=1))
+def aten〇group_norm〡dtype(input_rank_dtype: Tuple[int, int], num_groups: int, weight_rank_dtype: Optional[Tuple[int, int]] = None, bias_rank_dtype: Optional[Tuple[int, int]] = None, eps: float = 1.0000000000000001e-05, cudnn_enabled: bool = True) -> int:
+    input_rank, input_dtype = input_rank_dtype
+    assert not is_integer_dtype(input_dtype)
+    return input_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7), (3,), (3,)], error_types={*all_integer_dtypes()}, N=2, C=3, HxW=35, group=1, eps=0.000001))
+def aten〇native_group_norm〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Optional[Tuple[int, int]], bias_rank_dtype: Optional[Tuple[int, int]], N: int, C: int, HxW: int, group: int, eps: float) -> Tuple[int, int, int]:
+    input_rank, input_dtype = input_rank_dtype
+    assert not is_integer_dtype(input_dtype)
+    return input_dtype, input_dtype, input_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇bernoulli_〇float〡dtype(self_rank_dtype: Tuple[int, int], p: float = 0.5, generator: Any = None) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -1710,11 +1745,37 @@ def aten〇clamp_min〡dtype(self_rank_dtype: Tuple[int, int], min: Union[int, f
         return torch.int64
     return self_dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=2))
+def aten〇clamp_min〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], min_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    min_rank, min_dtype = min_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, min_rank]
+    dtypes = [self_dtype, min_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    return promoted_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, min=-1, max=1))
 def aten〇clamp〡dtype(self_rank_dtype: Tuple[int, int], min: Optional[Union[int, float, complex]] = None, max: Optional[Union[int, float, complex]] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     if self_dtype == torch.bool:
         return torch.int64
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=3))
+def aten〇clamp〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], min_rank_dtype: Optional[Tuple[int, int]] = None, max_rank_dtype: Optional[Tuple[int, int]] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [self_rank]
+    dtypes = [self_dtype]
+    if min_rank_dtype is not None:
+        min_rank, min_dtype = min_rank_dtype
+        ranks.append(min_rank)
+        dtypes.append(min_dtype)
+    if max_rank_dtype is not None:
+        max_rank, max_dtype = max_rank_dtype
+        ranks.append(max_rank)
+        dtypes.append(max_dtype)
+    if len(ranks) > 1:
+        return promote_dtypes(ranks, dtypes)
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
@@ -3009,6 +3070,14 @@ def aten〇elu〡dtype(self_rank_dtype: Tuple[int, int], alpha: Union[int, float
     return self_dtype
 
 @check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool, torch.int8, torch.uint8, torch.int16, torch.int32, torch.int64}))
+def aten〇selu〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert self_dtype != torch.bool
+    assert not is_integer_dtype(self_dtype)
+    return self_dtype
+
+@check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=1, other=1) +
     _check_tensors_with_the_same_dtype(num_of_tensors=1, other=1.0))
 def aten〇remainder〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float, complex]) -> int:
@@ -3675,6 +3744,19 @@ def aten〇linear〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: 
      Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32),
                  NonZeroDTensorWithDtype(torch.complex64)])])
 def aten〇cat〡dtype(tensors_rank_dtype: List[Tuple[int, int]], dim: int = 0) -> int:
+    ranks: List[Optional[int]] = []
+    dtypes: List[int] = []
+    assert len(tensors_rank_dtype) != 0
+    for tensor_rank_dtype in tensors_rank_dtype:
+        tensor_rank, tensor_dtype = tensor_rank_dtype
+        ranks.append(tensor_rank)
+        dtypes.append(tensor_dtype)
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    [Invocation("i,j->ij", [TensorOfShape(1, dtype=torch.float32), 
+                            TensorOfShape(1, dtype=torch.int32)]),])
+def aten〇einsum〡dtype(equation: str, tensors_rank_dtype: List[Tuple[int, int]], path: Optional[List[int]] = None) -> int:
     ranks: List[Optional[int]] = []
     dtypes: List[int] = []
     assert len(tensors_rank_dtype) != 0

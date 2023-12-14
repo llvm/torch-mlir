@@ -262,6 +262,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::relu6 : (Tensor) -> (Tensor)",
             "aten::leaky_relu : (Tensor, Scalar) -> (Tensor)",
             "aten::log : (Tensor) -> (Tensor)",
+            "aten::selu : (Tensor) -> (Tensor)",
             "aten::sigmoid : (Tensor) -> (Tensor)",
             "aten::sign : (Tensor) -> (Tensor)",
             "aten::sgn : (Tensor) -> (Tensor)",
@@ -274,6 +275,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::exp : (Tensor) -> (Tensor)",
             "aten::expm1 : (Tensor) -> (Tensor)",
             "aten::cos : (Tensor) -> (Tensor)",
+            "aten::acos : (Tensor) -> (Tensor)",
             "aten::atan : (Tensor) -> (Tensor)",
             "aten::atan2 : (Tensor, Tensor) -> (Tensor)",
             "aten::neg : (Tensor) -> (Tensor)",
@@ -421,6 +423,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::native_group_norm : (Tensor, Tensor?, Tensor?, int, int, int, int, float) -> (Tensor, Tensor, Tensor)"
     )
     emit(
+        'aten::group_norm : (Tensor, int, Tensor?, Tensor?, float, bool) -> (Tensor)'
+    )
+    emit(
         "aten::layer_norm : (Tensor, int[], Tensor?, Tensor?, float, bool) -> (Tensor)"
     )
     emit(
@@ -566,6 +571,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::argmax : (Tensor, int?, bool) -> (Tensor)")
     emit("aten::argmin : (Tensor, int?, bool) -> (Tensor)")
     emit("aten::one_hot : (Tensor, int) -> (Tensor)")
+    emit("aten::einsum : (str, Tensor[], int[]?) -> (Tensor)")
     emit("aten::bucketize.Tensor : (Tensor, Tensor, bool, bool) -> (Tensor)")
     emit("aten::clone : (Tensor, int?) -> (Tensor)")
     emit("aten::lift_fresh_copy : (Tensor) -> (Tensor)")
@@ -690,7 +696,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     # List ops.
     emit("aten::cat : (Tensor[], int) -> (Tensor)", has_folder=True)
-    emit("aten::stack : (Tensor[], int) -> (Tensor)", has_folder=True)
+    emit("aten::stack : (Tensor[], int) -> (Tensor)")
     emit("aten::append.t : (t[], t) -> (t[])")
     emit("aten::add.t : (t[], t[]) -> (t[])", has_canonicalizer=True)
     emit("aten::eq.int_list : (int[], int[]) -> (bool)", has_folder=True)
