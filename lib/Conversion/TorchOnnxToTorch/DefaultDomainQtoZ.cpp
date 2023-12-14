@@ -26,4 +26,33 @@ using namespace mlir::torch::onnx_c;
 // results in a lot of ONNX test cases that all reduce to the exact same
 // thing here, so we simplify.
 void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
-    OnnxCustomOpConversionPattern &patterns) {}
+    OnnxCustomOpConversionPattern &patterns) {
+
+  patterns.onOp(
+      "Selu", 6, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        float alpha, gamma;
+        Value operand;
+        if (binder.tensorOperand(operand) ||
+            binder.f32FloatAttr(alpha, "alpha") ||
+            binder.f32FloatAttr(gamma, "gamma") ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        Value vAlpha = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getFloatAttr(rewriter.getF64Type(), alpha));
+
+        Value vScale = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getFloatAttr(rewriter.getF64Type(), gamma));
+
+        Value vInputScale = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getFloatAttr(rewriter.getF64Type(), 1.0));
+
+        rewriter.replaceOpWithNewOp<Torch::AtenEluOp>(
+            binder.op, resultType, operand, vAlpha, vScale, vInputScale);
+        return success();
+      });
+}
