@@ -109,7 +109,7 @@ cmake --build build
 ### Linux and macOS
 
 ```shell
-export PYTHONPATH=`pwd`/build/python_packages/torch_mlir:`pwd`/projects/pt1/examples
+export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/projects/pt1/examples
 ```
 
 ### Windows PowerShell
