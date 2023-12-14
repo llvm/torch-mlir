@@ -105,6 +105,15 @@ def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "func::FuncOp"> {
   let constructor = "mlir::torch::createConvertTorchToLinalgPass()";
 }
 
+def ConvertTorchToTensor : Pass<"convert-torch-to-tensor", "func::FuncOp"> {
+  let summary = "Convert Torch ops to the Tensor dialect";
+  let description = [{
+    Converts any `Torch` operators that were expressible as `Tensor` dialect
+    operations.
+  }];
+  let constructor = "mlir::torch::createConvertTorchToTensorPass()";
+}
+
 def ConvertTorchToTosa : Pass<"convert-torch-to-tosa", "func::FuncOp"> {
   let summary = "Convert Torch ops to TOSA ops";
   let description = [{
