@@ -67,8 +67,6 @@ public:
     Value C = getDimOp(rewriter, loc, input, 1);
     Value Hin = getDimOp(rewriter, loc, input, 2);
 
-    //Value indexZero = rewriter.create<arith::ConstantOp>(loc, Hin.getType(),0 );
-    //Value indexOne = rewriter.create<arith::ConstantOp>(loc, Hin.getType(),1 );
     
     //Max Kernel Size
     Value Kmax = rewriter.create<arith::CeilDivSIOp>(loc, Hin, Hout);
@@ -76,8 +74,8 @@ public:
     Type dummyType = rewriter.getI1Type();
     Value Kiter = rewriter.create<tensor::EmptyOp>(loc, RankedTensorType::get({ShapedType::kDynamic}, dummyType), Kmax);
     Value BuffVal = rewriter.create<arith::ConstantOp>(loc, elementType, rewriter.getFloatAttr(elementType,0));
-    input.dump(); 
 
+    //need to buffer input, else there will possibly be an out of bounds access later
     auto BuffInput = rewriter.create<tensor::PadOp>(loc, input.getType(), input,  ArrayRef<int64_t>({0,0,0}), ArrayRef<int64_t>({0,0,1}), ValueRange{}, ValueRange{});
     {
     SmallVector<Type> blockArgTypes(rank, rewriter.getIndexType());
@@ -86,10 +84,65 @@ public:
     rewriter.createBlock(&BuffInput.getRegion(), BuffInput.getRegion().end(), blockArgTypes, blockArgLocs); 
     rewriter.create<tensor::YieldOp>(loc, BuffVal);
     }
-    //Value BuffInputResult = BuffInput.getResult();
-    BuffInput.dump();
-    
+    Value BuffInputValue = BuffInput;
 
+    RankedTensorType OutputType = RankedTensorType::get({ShapedType::kDynamic,ShapedType::kDynamic,ShapedType::kDynamic}, elementType);
+    Value InitOutput = rewriter.create<tensor::EmptyOp>(loc, OutputType , Hout);
+
+    // setup indexing maps and iterator types for linalg generic op
+    // for output (d0,d1,d2,d3) -> (d0,d1,d2)
+    // for Kiter (d0,d1,d2,d3) -> (d3)
+    SmallVector<AffineExpr> KiterExprs, outputExprs;
+    for (unsigned i = 0; i < 3; i++){
+        outputExprs.push_back(rewriter.getAffineDimExpr(i));
+    }
+    KiterExprs.push_back(rewriter.getAffineDimExpr(3));
+    SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList({KiterExprs,outputExprs});
+    SmallVector<utils::IteratorType> iteratorTypes(
+      3, utils::IteratorType::parallel);
+    iteratorTypes.push_back(utils::IteratorType::reduction);
+
+    Value indexOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+
+    auto Output = 
+          rewriter.
+            create<linalg::GenericOp>( 
+                loc,/*resultTensorTypes=*/OutputType,
+                /*inputs=*/ValueRange({Kiter}),
+                /*outputs=*/InitOutput,
+                /*indexingMaps=*/indexingMaps,
+                /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args){
+                  Value res = args[1];
+                  Value ind0 = b.create<linalg::IndexOp>(loc,0);
+                  Value ind1 = b.create<linalg::IndexOp>(loc,1);
+                  Value ind2 = b.create<linalg::IndexOp>(loc,2);
+                  Value ind3 = b.create<linalg::IndexOp>(loc,3);   
+                  //compute start and end indices              
+                  //st = s1( s0(ind2 * Hin) // Hout )
+                  Value s0 = b.create<arith::MulIOp>(loc, ind2, Hin);
+                  Value s1 = b.create<arith::FloorDivSIOp>(loc, s0, Hout);
+                  //en = e4( 1 + e3( e2( e1( e0(ind2 + 1) * Hin ) - 1 ) // Hout ) )
+                  Value e0 = b.create<arith::AddIOp>(loc, ind2, indexOne);
+                  Value e1 = b.create<arith::MulIOp>(loc, e0, Hin);
+                  Value e2 = b.create<arith::SubIOp>(loc, e1, indexOne);
+                  Value e3 = b.create<arith::FloorDivSIOp>(loc, e2, Hout);
+                  Value e4 = b.create<arith::AddIOp>(loc, indexOne, e3);
+                  //get input element @ st + ind3:
+                  Value windex = b.create<arith::AddIOp>(loc, s1, ind3);
+                  Value inElt = b.create<tensor::ExtractOp>(loc, 
+                      elementType, BuffInputValue, ValueRange({ind0, ind1, windex}));
+                  //Check if we extracted at windex < end index
+                  Value cond = b.create<arith::CmpIOp> (
+                      loc, arith::CmpIPredicate(6), windex, e4);
+                  //if inElt is in bounds, include it in the computation
+                  //else, use BuffVal = 0 (for max pool use -infinity)
+                  Value out1 = b.create<arith::SelectOp> (loc, cond, inElt, BuffVal);
+                  Value out2 = b.create<arith::AddIOp> (loc, res, out1);
+                  b.create<linalg::YieldOp>(loc, out2);
+                }
+    );
+    Output.dump();
     return failure();
     }
   };
