@@ -1328,6 +1328,9 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "SliceWholeTensorModule_basic",
     "TensorFloatModule_basic",
     "TensorIntModule_basic",
+    "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
+    "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
+    "ElementwiseAtenIsinfOpModule_basic",
 }) - {
 ### Test failing in make_fx_tosa but not in tosa
 
