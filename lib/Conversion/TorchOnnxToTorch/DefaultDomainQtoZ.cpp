@@ -459,4 +459,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.op, resultType, operand, vAlpha, vScale, vInputScale);
         return success();
       });
+
+  patterns.onOp("Shape", 9,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+
+                  rewriter.replaceOpWithNewOp<Torch::Aten_ShapeAsTensorOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
 }
