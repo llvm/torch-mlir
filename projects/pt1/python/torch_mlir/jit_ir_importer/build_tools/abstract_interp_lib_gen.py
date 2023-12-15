@@ -62,6 +62,9 @@ def aten〇tril〡shape(self: List[int], diagonal: int = 0) -> List[int]:
 def aten〇atan〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇cosh〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇tanh〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -1537,6 +1540,13 @@ def aten〇view_as_real〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 def prims〇split_dim〡dtype(a_rank_dtype: Tuple[int, int], dim: int, outer_length: int) -> int:
     _, a_dtype = a_rank_dtype
     return a_dtype
+
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇cosh〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return _get_dtype_of_floating_point_op(self_dtype)
+
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇tanh〡dtype(self_rank_dtype: Tuple[int, int]) -> int:

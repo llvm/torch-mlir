@@ -58,4 +58,53 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
+  patterns.onOp("LessOrEqual", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenLeTensorOp>(
+                      binder.op, resultType, lhs, rhs);
+		              return success();
+                });
+  patterns.onOp(
+      "GatherElements", 13,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value data, indices;
+        int64_t axis;
+        if (binder.tensorOperandAtIndex(data, 0) ||
+            binder.tensorOperandAtIndex(indices, 1) ||
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerAttr(axis, "axis", 0))
+          return failure();
+        Value constAxis = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), axis));
+        Value sparseGrad = rewriter.create<Torch::ConstantBoolOp>(
+            binder.getLoc(), rewriter.getType<Torch::BoolType>(),
+            rewriter.getBoolAttr(false));
+        rewriter.replaceOpWithNewOp<Torch::AtenGatherOp>(
+            binder.op, resultType, data, constAxis, indices, sparseGrad);
+        return success();
+      });
+  patterns.onOp("LeakyRelu", 16,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  float alpha;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType) ||
+                      binder.f32FloatAttr(alpha, "alpha", 0.01))
+                    return failure();
+                  Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
+                      binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+                      rewriter.getF64FloatAttr(alpha));
+                  rewriter.replaceOpWithNewOp<Torch::AtenLeakyReluOp>(
+                      binder.op, resultType, operand, constAlpha);
+                  return success();
+                });
 }
