@@ -140,7 +140,7 @@ struct OpBinder {
       FloatType t = cast<FloatType>(floatAttr.getType());
       if (t.getWidth() != 32)
         return failure();
-      value = floatAttr.getValueAsDouble();
+      value = floatAttr.getValue().convertToFloat();
       return success();
     }
     return failure();
