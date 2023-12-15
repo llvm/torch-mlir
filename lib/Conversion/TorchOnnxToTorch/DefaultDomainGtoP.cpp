@@ -27,7 +27,18 @@ using namespace mlir::torch::onnx_c;
 // thing here, so we simplify.
 void mlir::torch::onnx_c::populateDefaultDomainGtoP(
     OnnxCustomOpConversionPattern &patterns) {
-
+  patterns.onOp("GreaterOrEqual", 16,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  std::string direction;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenGeTensorOp>(
+                      binder.op, resultType, lhs, rhs);
+                  return success();
+                });
   patterns.onOp("MatMul", 13,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -39,7 +50,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
-  patterns.onOp("LessOrEqual", 1,
+  patterns.onOp("LessOrEqual", 16,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value lhs, rhs;
@@ -51,5 +62,4 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, lhs, rhs);
 		              return success();
                 });
-
 }
