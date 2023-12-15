@@ -42,6 +42,28 @@ def Torch_AtenTanhOp : Torch_Op<"aten.tanh", [
   }];
 }
 
+def Torch_AtenTanh_Op : Torch_Op<"aten.tanh_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::tanh_ : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    Torch_NonValueTensorType:$self
+  );
+  let results = (outs
+    Torch_NonValueTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenTanh_Op::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenTanh_Op::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenCoshOp : Torch_Op<"aten.cosh", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -65,11 +87,11 @@ def Torch_AtenCoshOp : Torch_Op<"aten.cosh", [
   }];
 }
 
-def Torch_AtenTanh_Op : Torch_Op<"aten.tanh_", [
+def Torch_AtenCosh_Op : Torch_Op<"aten.cosh_", [
     IsTrailingUnderscoreInplaceVariant,
     AllowsTypeRefinement
   ]> {
-  let summary = "Generated op for `aten::tanh_ : (Tensor) -> (Tensor)`";
+  let summary = "Generated op for `aten::cosh_ : (Tensor) -> (Tensor)`";
   let arguments = (ins
     Torch_NonValueTensorType:$self
   );
@@ -78,10 +100,10 @@ def Torch_AtenTanh_Op : Torch_Op<"aten.tanh_", [
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
-    ParseResult AtenTanh_Op::parse(OpAsmParser &parser, OperationState &result) {
+    ParseResult AtenCosh_Op::parse(OpAsmParser &parser, OperationState &result) {
       return parseDefaultTorchOp(parser, result, 1, 1);
     }
-    void AtenTanh_Op::print(OpAsmPrinter &printer) {
+    void AtenCosh_Op::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
