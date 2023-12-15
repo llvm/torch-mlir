@@ -39,4 +39,17 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
+  patterns.onOp("LessOrEqual", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenLeTensorOp>(
+                      binder.op, resultType, lhs, rhs);
+		              return success();
+                });
+
 }
