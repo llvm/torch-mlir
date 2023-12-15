@@ -31,6 +31,8 @@ std::unique_ptr<OperationPass<ModuleOp>> createMLProgramBufferizePass();
 
 std::unique_ptr<OperationPass<func::FuncOp>> createMungeMemrefCopyPass();
 
+std::unique_ptr<OperationPass<func::FuncOp>> createGeneralizeTensorConcatPass();
+
 std::unique_ptr<OperationPass<func::FuncOp>> createGeneralizeTensorPadPass();
 } // namespace RefBackend
 } // namespace torch
