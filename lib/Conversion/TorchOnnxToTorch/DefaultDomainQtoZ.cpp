@@ -472,4 +472,73 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                       binder.op, resultType, operand);
                   return success();
                 });
+  
+  patterns.onOp(
+      "Transpose", 13,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        auto loc = binder.getLoc();
+        Torch::ValueTensorType resultType;
+        Value operand;
+        if (binder.tensorOperand(operand) ||
+            binder.tensorResultType(resultType))
+          return failure();
+        auto operandType = operand.getType().cast<Torch::ValueTensorType>();
+        TensorType tensorType = operandType.toBuiltinTensor();
+        if (!tensorType || !tensorType.hasRank())
+          return failure();
+
+        // Default permutation is to reverse orders:
+        int64_t rank = tensorType.getRank();
+        llvm::SmallVector<int64_t> reverse(rank);
+        for (int64_t i = 0; i < rank; ++i) {
+          reverse[i] = rank - i - 1;
+        }
+
+        llvm::SmallVector<int64_t> permutations;
+        if (failed(binder.s64IntegerArrayAttr(permutations, "perm", reverse)))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Failed to obtain permutations");
+
+        if (static_cast<int64_t>(permutations.size()) != rank)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Permutation length does not match operand rank");
+
+        llvm::SmallVector<int64_t> shape(tensorType.getShape());
+        llvm::SmallVector<int64_t> current(rank);
+        for (int64_t i = 0; i < rank; ++i) {
+          current[i] = i;
+        }
+
+        for (int64_t i = 0; i < rank; ++i) {
+          if (current[i] == permutations[i])
+            continue;
+
+          int64_t target = i + 1;
+          for (; target < rank; ++target) {
+            if (current[target] == permutations[i])
+              break;
+          }
+
+          std::swap(shape[i], shape[target]);
+          std::swap(current[i], current[target]);
+
+          Value dim0 = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
+
+          Value dim1 = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), target));
+
+          operand = rewriter.create<Torch::AtenTransposeIntOp>(
+              loc,
+              Torch::ValueTensorType::get(tensorType.getContext(), shape,
+                                          operandType.getOptionalDtype()),
+              operand, dim0, dim1);
+        }
+
+        rewriter.replaceOp(binder.op, operand);
+
+        return success();
+      });
 }
