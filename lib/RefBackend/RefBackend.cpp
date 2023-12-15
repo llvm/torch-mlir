@@ -20,10 +20,12 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
+#include "mlir/Dialect/MLProgram/IR/MLProgram.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Math/Transforms/Approximation.h"
 #include "mlir/Dialect/Math/Transforms/Passes.h"
-#include "mlir/Dialect/MLProgram/IR/MLProgram.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Tensor/Transforms/Transforms.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
@@ -434,6 +436,29 @@ class MungeMemrefCopy : public MungeMemrefCopyBase<MungeMemrefCopy> {
 std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::RefBackend::createMungeMemrefCopyPass() {
   return std::make_unique<MungeMemrefCopy>();
+}
+
+namespace {
+class GeneralizeTensorConcat
+    : public GeneralizeTensorConcatBase<GeneralizeTensorConcat> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<tensor::TensorDialect>();
+  }
+
+  void runOnOperation() override {
+    RewritePatternSet patterns(&getContext());
+    tensor::populateDecomposeTensorConcatPatterns(patterns);
+    if (failed(applyPatternsAndFoldGreedily(getOperation(),
+                                            std::move(patterns)))) {
+      return signalPassFailure();
+    }
+  }
+};
+} // namespace
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+mlir::torch::RefBackend::createGeneralizeTensorConcatPass() {
+  return std::make_unique<GeneralizeTensorConcat>();
 }
 
 namespace {
