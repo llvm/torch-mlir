@@ -87,4 +87,16 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, operand, constAlpha);
                   return success();
                 });
+  patterns.onOp("Pow", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenPowTensorTensorOp>(
+                    binder.op, resultType, lhs, rhs);
+                  return success();
+                });
 }
