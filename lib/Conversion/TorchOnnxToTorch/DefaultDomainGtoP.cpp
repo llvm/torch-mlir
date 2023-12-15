@@ -27,6 +27,29 @@ using namespace mlir::torch::onnx_c;
 // thing here, so we simplify.
 void mlir::torch::onnx_c::populateDefaultDomainGtoP(
     OnnxCustomOpConversionPattern &patterns) {
+  patterns.onOp("MatMul", 13,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenMatmulOp>(
+                      binder.op, resultType, lhs, rhs);
+                  return success();
+                });
+  patterns.onOp("Greater", 16,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  std::string direction;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenGtTensorOp>(
+                      binder.op, resultType, lhs, rhs);
+                  return success();
+                });
   patterns.onOp("GreaterOrEqual", 16,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -39,16 +62,17 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
-  patterns.onOp("MatMul", 13,
+  patterns.onOp("Less", 13,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value lhs, rhs;
                   if (binder.tensorOperands(lhs, rhs) ||
-                      binder.tensorResultType(resultType))
+                      binder.tensorResultType(resultType)) {
                     return failure();
-                  rewriter.replaceOpWithNewOp<Torch::AtenMatmulOp>(
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenLtTensorOp>(
                       binder.op, resultType, lhs, rhs);
-                  return success();
+		              return success();
                 });
   patterns.onOp("LessOrEqual", 16,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
