@@ -373,6 +373,9 @@ def aten〇elu〡shape(self: List[int], alpha: float = 1, scale: float = 1, inpu
 def aten〇prelu〡shape(self: List[int], weight: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇selu〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇gather〡shape(self: List[int], dim: int, index: List[int], sparse_grad: bool = False) -> List[int]:
     return upstream_shape_functions.unary(index)
 
@@ -3064,6 +3067,14 @@ def aten〇elu〡dtype(self_rank_dtype: Tuple[int, int], alpha: Union[int, float
     param_dtypes = [get_dtype_of_scalar(p) for p in [alpha, scale, input_scale]]
     if any([is_float_dtype(d) for d in param_dtypes]):
         assert not is_integer_dtype(self_dtype)
+    return self_dtype
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool, torch.int8, torch.uint8, torch.int16, torch.int32, torch.int64}))
+def aten〇selu〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert self_dtype != torch.bool
+    assert not is_integer_dtype(self_dtype)
     return self_dtype
 
 @check_dtype_function(
