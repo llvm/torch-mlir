@@ -278,9 +278,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.getLoc(), selectResultType, axes, zero, selectIndex);
           Value dim = rewriter.create<Torch::AtenItemOp>(
               binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
-          // if (axis < 0)
-          //   axis +=
-          //       cast<Torch::ValueTensorType>(data.getType()).getSizes().size();
+          // deal with neg axis: if (axis < 0) axis += rank
           Value isNegative =
               rewriter.create<Torch::AtenLtIntOp>(binder.getLoc(), dim, zero);
           isNegative = rewriter.create<Torch::AtenIntBoolOp>(binder.getLoc(),
@@ -344,9 +342,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.getLoc(), selectResultType, axes, zero, selectIndex);
           Value dim = rewriter.create<Torch::AtenItemOp>(
               binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
-          // if (axis < 0)
-          //   axis +=
-          //       cast<Torch::ValueTensorType>(data.getType()).getSizes().size();
+          // deal with neg axis: if (axis < 0) axis += rank
           Value isNegative =
               rewriter.create<Torch::AtenLtIntOp>(binder.getLoc(), dim, zero);
           isNegative = rewriter.create<Torch::AtenIntBoolOp>(binder.getLoc(),
