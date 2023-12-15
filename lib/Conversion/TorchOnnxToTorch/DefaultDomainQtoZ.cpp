@@ -473,13 +473,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 });
 
   patterns.onOp("Sinh", 9,
-                  rewriter.replaceOpWithNewOp<Torch::AtenSinhOp>(
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value operand;
                   if (binder.tensorOperand(operand) ||
                       binder.tensorResultType(resultType))
                     return failure();
+
+                  rewriter.replaceOpWithNewOp<Torch::AtenSinhOp>(
                       binder.op, resultType, operand);
                   return success();
                 });
