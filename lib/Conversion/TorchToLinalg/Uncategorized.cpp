@@ -220,6 +220,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return createCalculationForMathOpWithDtypeConversion<math::TanhOp>(
         b, converter, payloadArgs[0], op);
   }
+  if (isa<AtenCoshOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::CoshOp>(
+        b, converter, payloadArgs[0], op);
+  }
   if (isa<AtenExpOp>(op)) {
     return createCalculationForMathOpWithDtypeConversion<math::ExpOp>(
         b, converter, payloadArgs[0], op);
@@ -1311,7 +1315,7 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    if (!isa<AtenTanhOp, AtenReluOp, AtenPreluOp, AtenGeluOp,
+    if (!isa<AtenTanhOp, AtenCoshOp, AtenReluOp, AtenPreluOp, AtenGeluOp,
              AtenGeluBackwardOp, AtenAddTensorOp, AtenMulTensorOp,
              AtenDivTensorOp, AtenDivTensorModeOp, AtenSubTensorOp, AtenAtan2Op,
              AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenExpm1Op,
@@ -1964,7 +1968,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     ConversionTarget &target) {
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<
-      AtenTanhOp, AtenReluOp, AtenGeluOp, AtenGeluBackwardOp, AtenAddTensorOp,
+      AtenTanhOp, AtenCoshOp, AtenReluOp, AtenGeluOp, AtenGeluBackwardOp, AtenAddTensorOp,
       AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp, AtenSubTensorOp,
       AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp, AtenAtan2Op,
       AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenClampTensorOp,
