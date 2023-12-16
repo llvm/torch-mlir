@@ -42,7 +42,7 @@ cmake -GNinja -Bbuild \
   -DLLVM_TARGETS_TO_BUILD=host \
   externals/llvm-project/llvm
 ```
-The following additional quality of life flags can be used to reduce build time:
+The following additional quality-of-life flags can be used to reduce build time:
 * Enabling clang on Linux
 ```shell
   -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
@@ -63,7 +63,7 @@ not download the latest version everytime. If libtorch gets out of date and you 
   -DLIBTORCH_CACHE=ON
 ```
 * Enabling building libtorch as part of your build
-By default we download the latest version of libtorch. We have an experimental path to build libtorch (and PyTorch wheels) from source.
+By default, we download the latest version of libtorch. We have an experimental path to build libtorch (and PyTorch wheels) from source.
 ```shell
   -DLIBTORCH_SRC_BUILD=ON  # Build Libtorch from source
   -DLIBTORCH_VARIANT=shared # Set the variant of libtorch to build / link against. (`shared`|`static` and optionally `cxxabi11`)
@@ -109,13 +109,13 @@ cmake --build build
 ### Linux and macOS
 
 ```shell
-export PYTHONPATH=`pwd`/build/python_packages/torch_mlir:`pwd`/projects/pt1/examples
+export PYTHONPATH=`pwd`/build/python_packages/torch_mlir:`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/projects/pt1/examples
 ```
 
 ### Windows PowerShell
 
 ```shell
-$env:PYTHONPATH = "$PWD/build/python_packages/torch_mlir;$PWD/projects/pt1/examples"
+$env:PYTHONPATH = "$PWD/build/python_packages/torch_mlir;$PWD/build/tools/torch-mlir/python_packages/torch_mlir;$PWD/projects/pt1/examples"
 ```
 
 ## Testing MLIR output in various dialects
@@ -126,7 +126,7 @@ Make sure you have activated the virtualenv and set the `PYTHONPATH` above
 (if running on Windows, modify the environment variable as shown above):
 ```shell
 source mlir_venv/bin/activate
-export PYTHONPATH=`pwd`/build/tpython_packages/torch_mlir:`pwd`/projects/pt1/examples
+export PYTHONPATH=`pwd`/build/python_packages/torch_mlir:`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/projects/pt1/examples
 python projects/pt1/examples/torchscript_resnet18_all_output_types.py
 ```
 
@@ -151,7 +151,7 @@ python -m ipykernel install --user --name=torch-mlir --env PYTHONPATH "$PYTHONPA
 jupyter notebook
 ```
 
-[Example IR](https://gist.github.com/silvasean/e74780f8a8a449339aac05c51e8b0caa) for a simple 1 layer MLP to show the compilation steps from TorchScript.
+[Example IR](https://gist.github.com/silvasean/e74780f8a8a449339aac05c51e8b0caa) for a simple 1-layer MLP to show the compilation steps from TorchScript.
 
 
 ## Interactive Use
@@ -172,7 +172,7 @@ manually `source`'d in a shell.
 > [Peripheral Support Tier](https://llvm.org/docs/SupportPolicy.html#peripheral-tier)
 > definition.
 
-Torch-MLIR can also be built using Bazel (apart from the official CMake build) for users that depend on Bazel in their workflows. To build `torch-mlir-opt` using Bazel, follow these steps:
+Torch-MLIR can also be built using Bazel (apart from the official CMake build) for users who depend on Bazel in their workflows. To build `torch-mlir-opt` using Bazel, follow these steps:
 
 1. Launch an interactive docker container with the required deps installed:
 ```shell
