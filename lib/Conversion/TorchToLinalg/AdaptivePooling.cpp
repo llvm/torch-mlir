@@ -27,6 +27,31 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
+/*
+This file is for lowering adaptive pooling ops, which cannot generally be
+decomposed into typical pooling ops. Given an input tensor of rank (N,C,Hin) and
+an output spatial size Hout, an element of the output tensor at position (n, c,
+h) is computed as follows.
+    1. compute st(h) = (h*Hin)//Hout
+    2. compute en(h) = 1 + ((h+1)*Hin - 1)//Hout
+    3. apply the operation (max or avg) over input[n, c, st(h):en(h)]
+This is problematic for linalg ops for a few reasons:
+    1. The access to the input tensor is not constantly strided
+    2. The size of the window itself is not contant: en(h) - st(h) can vary with
+h! Although it is a bit like using a hammer to paint, our workaround is to use
+tensor.extract to access the elements of the input tensor inside our linalg
+generic op's payload.
+
+Current TODO's:
+    1. roll st(h) and en(h) into affine maps for aesthetics
+    2. gather most of the boilerplate out of this op and make it into an
+adaptive pooling helper function.
+    3. figure out what to do with the conflicting decompositions in
+DecomposeComplexOps.cpp
+    4. Implement more efficient passes for when the kernel-size, input spatial
+dims, and output spatial dims are constant.
+*/
+
 namespace {
 class ConvertAtenAdaptiveAvgPool1dOp
     : public OpConversionPattern<AtenAdaptiveAvgPool1dOp> {
@@ -68,27 +93,30 @@ public:
     Type dummyType = rewriter.getI1Type();
     Value Kiter;
     if (InputType.isDynamicDim(rank - 1) || OutputType.isDynamicDim(rank - 1)) {
-      Value constantOne = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+      Value constantOne =
+          rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
       Value HinPlusOne = rewriter.create<arith::SubIOp>(loc, Hin, constantOne);
-      Value KmaxMinusOne = rewriter.create<arith::CeilDivSIOp>(loc, HinPlusOne, HoutIndex);
-      Value Kmax = rewriter.create<arith::AddIOp>(loc, constantOne, KmaxMinusOne);
+      Value KmaxMinusOne =
+          rewriter.create<arith::CeilDivSIOp>(loc, HinPlusOne, HoutIndex);
+      Value Kmax =
+          rewriter.create<arith::AddIOp>(loc, constantOne, KmaxMinusOne);
       Kiter = rewriter.create<tensor::EmptyOp>(
           loc, RankedTensorType::get({ShapedType::kDynamic}, dummyType), Kmax);
     } else {
       int64_t HinInt = InputType.getShape()[rank - 1];
       int64_t HoutInt = OutputType.getShape()[rank - 1];
-      int64_t correction = ( (HinInt - 1) % HoutInt == 0) ? 0 : 1; 
+      int64_t correction = ((HinInt - 1) % HoutInt == 0) ? 0 : 1;
       int64_t Kmax = 1 + (HinInt - 1) / HoutInt + correction;
       Kiter = rewriter.create<tensor::EmptyOp>(
-          loc, RankedTensorType::get({Kmax+1}, dummyType), ValueRange{});
+          loc, RankedTensorType::get({Kmax + 1}, dummyType), ValueRange{});
     }
 
     // need to buffer input, else there will possibly be an out of bounds access
     // later BuffVal = 0 for avg pooling and -inf for max pooling
     Value BuffVal = rewriter.create<arith::ConstantOp>(
         loc, elementType, rewriter.getFloatAttr(elementType, 0));
-    SmallVector<int64_t> lowPadding = {0,0,0};
-    SmallVector<int64_t> highPadding = {0,0,1}; 
+    SmallVector<int64_t> lowPadding = {0, 0, 0};
+    SmallVector<int64_t> highPadding = {0, 0, 1};
     Value BuffInput = torch_to_linalg::getPaddedTensor(
         op, rewriter, input, lowPadding, highPadding, BuffVal);
 
@@ -102,16 +130,21 @@ public:
     }
     if (OutputType.isDynamicDim(rank - 1)) {
       dynOutputSizes.push_back(HoutIndex);
-      kwTensor = rewriter.create<tensor::EmptyOp>(loc, RankedTensorType::get({ShapedType::kDynamic}, elementType), HoutIndex); 
-    }
-    else {
-      kwTensor = rewriter.create<tensor::EmptyOp>(loc, RankedTensorType::get({OutputType.getShape()[rank - 1]}, elementType), ValueRange{}); 
+      kwTensor = rewriter.create<tensor::EmptyOp>(
+          loc, RankedTensorType::get({ShapedType::kDynamic}, elementType),
+          HoutIndex);
+    } else {
+      kwTensor = rewriter.create<tensor::EmptyOp>(
+          loc,
+          RankedTensorType::get({OutputType.getShape()[rank - 1]}, elementType),
+          ValueRange{});
     }
 
     // initialize an output tensor
     Value EmptyOutput =
         rewriter.create<tensor::EmptyOp>(loc, OutputType, dynOutputSizes);
-    Value InitOutput = rewriter.create<linalg::FillOp>(loc, BuffVal, EmptyOutput).getResult(0);
+    Value InitOutput =
+        rewriter.create<linalg::FillOp>(loc, BuffVal, EmptyOutput).getResult(0);
     // initialize a kernel-width tensor (Avg - only)
 
     // setup indexing maps and iterator types for linalg generic op
@@ -155,15 +188,14 @@ public:
           // get input element @ st + ind3:
           Value windex = b.create<arith::AddIOp>(loc, s1, ind3);
           Value inElt = b.create<tensor::ExtractOp>(
-              loc, elementType, BuffInput,
-              ValueRange({ind0, ind1, windex}));
+              loc, elementType, BuffInput, ValueRange({ind0, ind1, windex}));
           // Check if we extracted at windex < end index
           Value cond =
               b.create<arith::CmpIOp>(loc, arith::CmpIPredicate(6), windex, e4);
           // if inElt is in bounds, include it in the computation
           // else, use BuffVal = 0 (for max pool use -infinity)
           Value out1 = b.create<arith::SelectOp>(loc, cond, inElt, BuffVal);
-          // compute Kernel size: we store this to kwTensor 
+          // compute Kernel size: we store this to kwTensor
           Value kw = b.create<arith::SubIOp>(loc, e4, s1);
           Value kwint = castIndexToInt64(b, loc, kw);
           Value kwf = b.create<arith::SIToFPOp>(loc, elementType, kwint);
@@ -185,8 +217,8 @@ public:
         [&](OpBuilder &b, Location loc, ValueRange args) {
           Value q = b.create<arith::DivFOp>(loc, args[1], args[0]);
           b.create<linalg::YieldOp>(loc, q);
-        }); 
-    
+        });
+
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, OutputType,
                                                 Output.getResultTensors());
     return success();
