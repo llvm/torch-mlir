@@ -120,7 +120,7 @@ public:
     Value BuffInput = torch_to_linalg::getPaddedTensor(
         op, rewriter, input, lowPadding, highPadding, BuffVal);
 
-    // make a list of DynamicOutputSizes
+    // make a list of DynamicOutputSizes and initialize kwTensor
     SmallVector<Value> dynOutputSizes;
     Value kwTensor;
     for (unsigned i = 0; i < rank - 1; i++) {
@@ -145,11 +145,11 @@ public:
         rewriter.create<tensor::EmptyOp>(loc, OutputType, dynOutputSizes);
     Value InitOutput =
         rewriter.create<linalg::FillOp>(loc, BuffVal, EmptyOutput).getResult(0);
-    // initialize a kernel-width tensor (Avg - only)
 
     // setup indexing maps and iterator types for linalg generic op
-    // for output (d0,d1,d2,d3) -> (d0,d1,d2)
     // for Kiter (d0,d1,d2,d3) -> (d3)
+    // for output (d0,d1,d2,d3) -> (d0,d1,d2)
+    // for kwTensor (d0,d1,d2,d3) -> (d2)
     SmallVector<AffineExpr> KiterExprs, outputExprs, kwTensorExprs;
     for (unsigned i = 0; i < 3; i++) {
       outputExprs.push_back(rewriter.getAffineDimExpr(i));
@@ -189,7 +189,7 @@ public:
           Value windex = b.create<arith::AddIOp>(loc, s1, ind3);
           Value inElt = b.create<tensor::ExtractOp>(
               loc, elementType, BuffInput, ValueRange({ind0, ind1, windex}));
-          // Check if we extracted at windex < end index
+          // check if we extracted at windex < end index
           Value cond =
               b.create<arith::CmpIOp>(loc, arith::CmpIPredicate(6), windex, e4);
           // if inElt is in bounds, include it in the computation
@@ -204,6 +204,8 @@ public:
           b.create<linalg::YieldOp>(loc, ValueRange({out3, kwf}));
         });
 
+    // make a linalg generic to divide each element by the corresponding 
+    // Kernel Width. This step is only necessary for avg pooling.
     SmallVector<AffineMap> indexingMaps1 =
         AffineMap::inferFromExprList({kwTensorExprs, outputExprs});
     SmallVector<utils::IteratorType> iteratorTypes1(
