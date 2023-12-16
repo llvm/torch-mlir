@@ -115,7 +115,7 @@ export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/
 ### Windows PowerShell
 
 ```shell
-$env:PYTHONPATH = "$PWD/build/python_packages/torch_mlir;$PWD/projects/pt1/examples"
+$env:PYTHONPATH = "$PWD/build/tools/torch-mlir/python_packages/torch_mlir;$PWD/projects/pt1/examples"
 ```
 
 ## Testing MLIR output in various dialects
@@ -126,7 +126,7 @@ Make sure you have activated the virtualenv and set the `PYTHONPATH` above
 (if running on Windows, modify the environment variable as shown above):
 ```shell
 source mlir_venv/bin/activate
-export PYTHONPATH=`pwd`/build/tpython_packages/torch_mlir:`pwd`/projects/pt1/examples
+export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/projects/pt1/examples
 python projects/pt1/examples/torchscript_resnet18_all_output_types.py
 ```
 
