@@ -108,7 +108,7 @@ public:
       int64_t correction = ((HinInt - 1) % HoutInt == 0) ? 0 : 1;
       int64_t Kmax = 1 + (HinInt - 1) / HoutInt + correction;
       Kiter = rewriter.create<tensor::EmptyOp>(
-          loc, RankedTensorType::get({Kmax + 1}, dummyType), ValueRange{});
+          loc, RankedTensorType::get({Kmax}, dummyType), ValueRange{});
     }
 
     // need to buffer input, else there will possibly be an out of bounds access
