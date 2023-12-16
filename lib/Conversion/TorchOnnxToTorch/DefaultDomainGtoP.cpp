@@ -38,7 +38,43 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
-  patterns.onOp("LessOrEqual", 1,
+  patterns.onOp("Greater", 16,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  std::string direction;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenGtTensorOp>(
+                      binder.op, resultType, lhs, rhs);
+                  return success();
+                });
+  patterns.onOp("GreaterOrEqual", 16,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  std::string direction;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenGeTensorOp>(
+                      binder.op, resultType, lhs, rhs);
+                  return success();
+                });
+  patterns.onOp("Less", 13,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenLtTensorOp>(
+                      binder.op, resultType, lhs, rhs);
+		              return success();
+                });
+  patterns.onOp("LessOrEqual", 16,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value lhs, rhs;
