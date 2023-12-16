@@ -906,6 +906,25 @@ def AvgPool1dStaticModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class AdaptiveAvgPool1dGeneralDynamic(torch.nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(7)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1,-1,-1], torch.float32, True)
+    ])
+    def forward(self,x):
+        return self.aap1d(x)
+
+@register_test_case(
+    module_factory=lambda: AdaptiveAvgPool1dGeneralDynamic())
+def AdaptiveAvgPool1dGeneralDynamic_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(1, 512, 10))
 
 class AdaptiveAvgPool1dNonUnitOutputSizeStaticModule(torch.nn.Module):
 

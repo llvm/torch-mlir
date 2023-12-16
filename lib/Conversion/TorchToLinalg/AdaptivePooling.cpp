@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
+
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -14,13 +16,12 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
-#include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
+#include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include <iostream>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -61,75 +62,78 @@ public:
     }
 
     // get elementType of input tensor
-    Type elementType =
-        input.getType().cast<RankedTensorType>().getElementType();
+    Type elementType = InputType.getElementType();
 
-    // make an iteration space of size Kmax = ceildiv Hin, Hout
+    // make an iteration space of size Kmax = 1 + ceildiv (Hin - 1) , Hout
     Type dummyType = rewriter.getI1Type();
     Value Kiter;
     if (InputType.isDynamicDim(rank - 1) || OutputType.isDynamicDim(rank - 1)) {
-      Value Kmax = rewriter.create<arith::CeilDivSIOp>(loc, Hin, HoutIndex);
+      Value constantOne = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+      Value HinPlusOne = rewriter.create<arith::SubIOp>(loc, Hin, constantOne);
+      Value KmaxMinusOne = rewriter.create<arith::CeilDivSIOp>(loc, HinPlusOne, HoutIndex);
+      Value Kmax = rewriter.create<arith::AddIOp>(loc, constantOne, KmaxMinusOne);
       Kiter = rewriter.create<tensor::EmptyOp>(
           loc, RankedTensorType::get({ShapedType::kDynamic}, dummyType), Kmax);
     } else {
-      int64_t Kmax =
-          InputType.getShape()[rank - 1] / OutputType.getShape()[rank - 1];
+      int64_t HinInt = InputType.getShape()[rank - 1];
+      int64_t HoutInt = OutputType.getShape()[rank - 1];
+      int64_t correction = ( (HinInt - 1) % HoutInt == 0) ? 0 : 1; 
+      int64_t Kmax = 1 + (HinInt - 1) / HoutInt + correction;
       Kiter = rewriter.create<tensor::EmptyOp>(
-          loc, RankedTensorType::get({Kmax}, dummyType), ValueRange{});
+          loc, RankedTensorType::get({Kmax+1}, dummyType), ValueRange{});
     }
 
     // need to buffer input, else there will possibly be an out of bounds access
     // later BuffVal = 0 for avg pooling and -inf for max pooling
     Value BuffVal = rewriter.create<arith::ConstantOp>(
         loc, elementType, rewriter.getFloatAttr(elementType, 0));
-    auto BuffInput = rewriter.create<tensor::PadOp>(
-        loc, input.getType(), input, ArrayRef<int64_t>({0, 0, 0}),
-        ArrayRef<int64_t>({0, 0, 1}), ValueRange{}, ValueRange{});
-    {
-      SmallVector<Type> blockArgTypes(rank, rewriter.getIndexType());
-      SmallVector<Location> blockArgLocs(rank, loc);
-      OpBuilder::InsertionGuard guard(rewriter);
-      rewriter.createBlock(&BuffInput.getRegion(), BuffInput.getRegion().end(),
-                           blockArgTypes, blockArgLocs);
-      rewriter.create<tensor::YieldOp>(loc, BuffVal);
-    }
+    SmallVector<int64_t> lowPadding = {0,0,0};
+    SmallVector<int64_t> highPadding = {0,0,1}; 
+    Value BuffInput = torch_to_linalg::getPaddedTensor(
+        op, rewriter, input, lowPadding, highPadding, BuffVal);
 
     // make a list of DynamicOutputSizes
-    SmallVector<Value> DynOutputSizes;
+    SmallVector<Value> dynOutputSizes;
+    Value kwTensor;
     for (unsigned i = 0; i < rank - 1; i++) {
       if (OutputType.isDynamicDim(i)) {
-        DynOutputSizes.push_back(getDimOp(rewriter, loc, input, i));
+        dynOutputSizes.push_back(getDimOp(rewriter, loc, input, i));
       }
     }
     if (OutputType.isDynamicDim(rank - 1)) {
-      DynOutputSizes.push_back(HoutIndex);
+      dynOutputSizes.push_back(HoutIndex);
+      kwTensor = rewriter.create<tensor::EmptyOp>(loc, RankedTensorType::get({ShapedType::kDynamic}, elementType), HoutIndex); 
+    }
+    else {
+      kwTensor = rewriter.create<tensor::EmptyOp>(loc, RankedTensorType::get({OutputType.getShape()[rank - 1]}, elementType), ValueRange{}); 
     }
 
     // initialize an output tensor
     Value EmptyOutput =
-        rewriter.create<tensor::EmptyOp>(loc, OutputType, DynOutputSizes);
+        rewriter.create<tensor::EmptyOp>(loc, OutputType, dynOutputSizes);
     Value InitOutput = rewriter.create<linalg::FillOp>(loc, BuffVal, EmptyOutput).getResult(0);
+    // initialize a kernel-width tensor (Avg - only)
 
     // setup indexing maps and iterator types for linalg generic op
     // for output (d0,d1,d2,d3) -> (d0,d1,d2)
     // for Kiter (d0,d1,d2,d3) -> (d3)
-    SmallVector<AffineExpr> KiterExprs, outputExprs;
+    SmallVector<AffineExpr> KiterExprs, outputExprs, kwTensorExprs;
     for (unsigned i = 0; i < 3; i++) {
       outputExprs.push_back(rewriter.getAffineDimExpr(i));
     }
+    kwTensorExprs.push_back(rewriter.getAffineDimExpr(2));
     KiterExprs.push_back(rewriter.getAffineDimExpr(3));
     SmallVector<AffineMap> indexingMaps =
-        AffineMap::inferFromExprList({KiterExprs, outputExprs});
+        AffineMap::inferFromExprList({KiterExprs, outputExprs, kwTensorExprs});
     SmallVector<utils::IteratorType> iteratorTypes(
         3, utils::IteratorType::parallel);
     iteratorTypes.push_back(utils::IteratorType::reduction);
 
     Value indexOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-
-    auto Output = rewriter.create<linalg::GenericOp>(
-        loc, /*resultTensorTypes=*/OutputType,
+    auto SumPool = rewriter.create<linalg::GenericOp>(
+        loc, /*resultTensorTypes=*/TypeRange({OutputType, kwTensor.getType()}),
         /*inputs=*/ValueRange({Kiter}),
-        /*outputs=*/InitOutput,
+        /*outputs=*/ValueRange({InitOutput, kwTensor}),
         /*indexingMaps=*/indexingMaps,
         /*iteratorTypes=*/iteratorTypes,
         [&](OpBuilder &b, Location loc, ValueRange args) {
@@ -151,7 +155,7 @@ public:
           // get input element @ st + ind3:
           Value windex = b.create<arith::AddIOp>(loc, s1, ind3);
           Value inElt = b.create<tensor::ExtractOp>(
-              loc, elementType, BuffInput.getResult(),
+              loc, elementType, BuffInput,
               ValueRange({ind0, ind1, windex}));
           // Check if we extracted at windex < end index
           Value cond =
@@ -159,17 +163,30 @@ public:
           // if inElt is in bounds, include it in the computation
           // else, use BuffVal = 0 (for max pool use -infinity)
           Value out1 = b.create<arith::SelectOp>(loc, cond, inElt, BuffVal);
-          // compute Kernel size: it may be better to divide by this outside op
+          // compute Kernel size: we store this to kwTensor 
           Value kw = b.create<arith::SubIOp>(loc, e4, s1);
           Value kwint = castIndexToInt64(b, loc, kw);
           Value kwf = b.create<arith::SIToFPOp>(loc, elementType, kwint);
-          // divide value in window by window size
-          //TODO: instead separate this computation into another generic
-          Value out2 = b.create<arith::DivFOp>(loc, out1, kwf);
           // accumulate out2 to res = args[1]
-          Value out3 = b.create<arith::AddFOp>(loc, res, out2);
-          b.create<linalg::YieldOp>(loc, out3);
+          Value out3 = b.create<arith::AddFOp>(loc, res, out1);
+          b.create<linalg::YieldOp>(loc, ValueRange({out3, kwf}));
         });
+
+    SmallVector<AffineMap> indexingMaps1 =
+        AffineMap::inferFromExprList({kwTensorExprs, outputExprs});
+    SmallVector<utils::IteratorType> iteratorTypes1(
+        3, utils::IteratorType::parallel);
+    auto Output = rewriter.create<linalg::GenericOp>(
+        loc, /*resultTensorTypes=*/OutputType,
+        /*inputs=*/SumPool.getResultTensors()[1],
+        /*outputs=*/SumPool.getResultTensors()[0],
+        /*indexingMaps=*/indexingMaps1,
+        /*iteratorTypes=*/iteratorTypes1,
+        [&](OpBuilder &b, Location loc, ValueRange args) {
+          Value q = b.create<arith::DivFOp>(loc, args[1], args[0]);
+          b.create<linalg::YieldOp>(loc, q);
+        }); 
+    
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, OutputType,
                                                 Output.getResultTensors());
     return success();
