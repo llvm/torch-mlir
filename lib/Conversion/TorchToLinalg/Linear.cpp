@@ -270,8 +270,8 @@ public:
       Value rhsDim1 = getDimOp(rewriter, loc, rhs, 1);
       checkDimEqualHelper(rewriter, loc, lhsDim1, rhsDim0);
 
-      Value zeroTensor =
-          createZeroInitTensor(rewriter, loc, ValueRange{lhsDim0, rhsDim1}, elementType);
+      Value zeroTensor = createZeroInitTensor(
+          rewriter, loc, ValueRange{lhsDim0, rhsDim1}, elementType);
       Value matmul =
           rewriter
               .create<linalg::MatmulOp>(loc, zeroTensor.getType(),
