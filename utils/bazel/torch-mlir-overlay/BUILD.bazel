@@ -421,6 +421,29 @@ cc_library(
 )
 
 cc_library(
+    name = "TorchMLIRTorchToTensor",
+    srcs = glob([
+        "lib/Conversion/*.h",
+        "lib/Conversion/TorchToTensor/*.cpp",
+    ]),
+    hdrs = glob([
+        "include/torch-mlir/Conversion/TorchToTensor/*.h",
+    ]),
+    strip_include_prefix = "include",
+    deps = [
+        ":TorchMLIRConversionPassesIncGen",
+        ":TorchMLIRConversionUtils",
+        ":TorchMLIRTorchBackendTypeConversion",
+        ":TorchMLIRTorchConversionDialect",
+        ":TorchMLIRTorchDialect",
+        "@llvm-project//mlir:Dialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:TensorDialect",
+    ],
+)
+
+cc_library(
     name = "TorchMLIRTorchConversionToMLProgram",
     srcs = glob([
         "lib/Conversion/*.h",
@@ -515,6 +538,7 @@ cc_library(
         ":TorchMLIRTorchToSCF",
         ":TorchMLIRTorchToStablehlo",
         ":TorchMLIRTorchToTMTensor",
+        ":TorchMLIRTorchToTensor",
         ":TorchMLIRTorchToTosa",
     ],
 )
