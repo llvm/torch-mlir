@@ -483,13 +483,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         auto sizes =
             dyn_cast<Torch::ValueTensorType>(axes.getType()).getSizes();
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        // Deal with case when axes is empty
         if (sizes.size() == 1 && sizes[0] == 0) {
           if (noop_with_empty_axes == 0) {
-            Value cstTrue =
-                rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
+            Value keepDimsConstInt = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                rewriter.getIntegerAttr(rewriter.getIntegerType(64), keepDims));
+            Value keepDimsBool = rewriter.create<Torch::AtenBoolIntOp>(
+                binder.getLoc(), keepDimsConstInt);
             rewriter.replaceOpWithNewOp<Torch::AtenSumDimIntListOp>(
                 binder.op, resultType, data, /*dim=*/noneVal,
-                /*keepdim=*/cstTrue, /*dtype=*/noneVal);
+                /*keepdim=*/keepDimsBool, /*dtype=*/noneVal);
           } else {
             rewriter.replaceOp(binder.op, data);
           }
@@ -504,6 +508,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64),
                                     adjustmentInt));
+        // convert axes (tensor) into torch int list while dealing with neg axis
         for (int i = 0; i < sizes[0]; i++) {
           // Go through the axes list and get each dim in the list
           Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
@@ -565,13 +570,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         auto sizes =
             dyn_cast<Torch::ValueTensorType>(axes.getType()).getSizes();
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        // deal with case when axes is empty
         if (sizes.size() == 1 && sizes[0] == 0) {
           if (noop_with_empty_axes == 0) {
-            Value cstTrue =
-                rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
+            Value keepDimsConstInt = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                rewriter.getIntegerAttr(rewriter.getIntegerType(64), keepDims));
+            Value keepDimsBool = rewriter.create<Torch::AtenBoolIntOp>(
+                binder.getLoc(), keepDimsConstInt);
             rewriter.replaceOpWithNewOp<Torch::AtenMeanDimOp>(
-                binder.op, resultType, data, /*dim=*/noneVal,
-                /*keepdim=*/cstTrue, /*dtype=*/noneVal);
+                binder.op, resultType, data, /*dim=*/noneVal, keepDimsBool,
+                /*dtype=*/noneVal);
           } else {
             rewriter.replaceOp(binder.op, data);
           }
@@ -586,6 +595,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64),
                                     adjustmentInt));
+        // convert axes (tensor) into torch int list while dealing with neg axis
         for (int i = 0; i < sizes[0]; i++) {
           // Go through the axes list and get each dim in the list
           Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
@@ -683,11 +693,15 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             llvm::ArrayRef(selectSizes), axesType.getOptionalDtype());
         auto sizes =
             dyn_cast<Torch::ValueTensorType>(axes.getType()).getSizes();
+        // deal with case when axes is empty
         if (sizes.size() == 1 && sizes[0] == 0) {
           if (noop_with_empty_axes == 0) {
             // create dims list with all dims [0, data.getSizes().size())
-            Value cstTrue =
-                rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
+            Value keepDimsConstInt = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                rewriter.getIntegerAttr(rewriter.getIntegerType(64), keepDims));
+            Value keepDimsBool = rewriter.create<Torch::AtenBoolIntOp>(
+                binder.getLoc(), keepDimsConstInt);
             int64_t numDims = dyn_cast<Torch::ValueTensorType>(data.getType())
                                   .getSizes()
                                   .size();
@@ -703,7 +717,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                     Torch::IntType::get(binder.op->getContext())),
                 dimList);
             rewriter.replaceOpWithNewOp<Torch::AtenAminOp>(
-                binder.op, resultType, data, dimValueList, /*keepdim=*/cstTrue);
+                binder.op, resultType, data, dimValueList, keepDimsBool);
           } else {
             rewriter.replaceOp(binder.op, data);
           }
@@ -718,6 +732,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64),
                                     adjustmentInt));
+        // convert axes (tensor) into torch int list while dealing with neg axis
         for (int i = 0; i < sizes[0]; i++) {
           // Go through the axes list and get each dim in the list
           Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
