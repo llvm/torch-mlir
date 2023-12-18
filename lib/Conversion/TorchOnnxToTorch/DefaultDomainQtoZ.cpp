@@ -636,11 +636,16 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         if (binder.op->getNumOperands() == 1) {
           if (binder.tensorOperand(data) ||
               binder.tensorResultType(resultType) ||
-              binder.s64IntegerAttr(keepDims, "keepdims", 1))
+              binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
+              binder.s64IntegerAttr(noop_with_empty_axes,
+                                    "noop_with_empty_axes", 0))
             return failure();
           if (noop_with_empty_axes == 0) {
-            Value cstTrue =
-                rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
+            Value keepDimsConstInt = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                rewriter.getIntegerAttr(rewriter.getIntegerType(64), keepDims));
+            Value keepDimsBool = rewriter.create<Torch::AtenBoolIntOp>(
+                binder.getLoc(), keepDimsConstInt);
             int64_t numDims = dyn_cast<Torch::ValueTensorType>(data.getType())
                                   .getSizes()
                                   .size();
@@ -657,8 +662,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                     Torch::IntType::get(binder.op->getContext())),
                 axesList);
             rewriter.replaceOpWithNewOp<Torch::AtenAminOp>(
-                binder.op, resultType, data, axesValueList,
-                /*keepdim=*/cstTrue);
+                binder.op, resultType, data, axesValueList, keepDimsBool);
           } else {
             rewriter.replaceOp(binder.op, data);
           }
