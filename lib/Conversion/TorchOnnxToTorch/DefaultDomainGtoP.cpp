@@ -27,6 +27,26 @@ using namespace mlir::torch::onnx_c;
 // thing here, so we simplify.
 void mlir::torch::onnx_c::populateDefaultDomainGtoP(
     OnnxCustomOpConversionPattern &patterns) {
+
+  patterns.onOp(
+      "Gelu", 20, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value operand;
+        Torch::ValueTensorType resultType;
+        std::string approximate;
+
+        if (binder.tensorOperand(operand) ||
+            binder.tensorResultType(resultType) ||
+            binder.customOpNameStringAttr(approximate, "approximate", "none"))
+          return failure();
+
+        Value vApproximate = rewriter.create<Torch::ConstantStrOp>(
+            binder.getLoc(), rewriter.getType<Torch::StringType>(),
+            rewriter.getStringAttr(approximate));
+
+        rewriter.replaceOpWithNewOp<Torch::AtenGeluOp>(binder.op, resultType,
+                                                       operand, vApproximate);
+        return success();
+      });
   patterns.onOp("MatMul", 13,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
