@@ -9,6 +9,7 @@
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -164,6 +165,115 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
+  patterns.onOp(
+      "AveragePool", 19,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        std::string autoPad;
+        SmallVector<int64_t> dilation;
+        if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
+          return failure();
+        if (autoPad != "NOTSET") {
+          // TODO: Add support for `auto_pad` != "NOTSET"
+          return rewriter.notifyMatchFailure(
+              binder.op, "unsupported conversion: auto_pad != NOTSET");
+        }
+        if (binder.s64IntegerArrayAttr(dilation, "dilations", {})) {
+          return failure();
+        }
+        if (dilation.size() > 0) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "dilation is not supported by torch.aten.avgpool op");
+        }
+
+        Torch::ValueTensorType resultType;
+        Value operand;
+        bool ceilMode, countIncludePad;
+        if (binder.tensorOperand(operand) ||
+            binder.s64BoolAttr(ceilMode, "ceil_mode", false) ||
+            binder.s64BoolAttr(countIncludePad, "count_include_pad", false) ||
+            binder.tensorResultType(resultType))
+          return failure();
+        // Determine the rank of input tensor.
+        std::optional<unsigned> maybeRank = Torch::getTensorRank(operand);
+        if (!maybeRank)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Unimplemented: unranked tensor");
+        unsigned rank = *maybeRank;
+
+        SmallVector<int64_t> kernel, padding, strides;
+        if (binder.s64IntegerArrayAttr(kernel, "kernel_shape", {})) {
+          return failure();
+        }
+        if (kernel.size() != rank - 2) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "kernel list size does not match the number of axes");
+        }
+        if (binder.s64IntegerArrayAttr(padding, "pads", {0})) {
+          return failure();
+        }
+        if (padding.size() != 1 && padding.size() != rank - 2) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "padding list size does not match the number of axes");
+        }
+        if (binder.s64IntegerArrayAttr(strides, "strides", {1})) {
+          return failure();
+        }
+        if (strides.size() != 1 && strides.size() != rank - 2) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "strides list size does not match the number of axes");
+        }
+
+        SmallVector<Value> cstKernel, cstPadding, cstStrides;
+        for (int64_t i : kernel) {
+          cstKernel.push_back(rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(i)));
+        }
+        for (int64_t i : padding) {
+          cstPadding.push_back(rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(i)));
+        }
+        for (int64_t i : strides) {
+          cstStrides.push_back(rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(i)));
+        }
+        Value kernelSizeList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            cstKernel);
+        Value paddingList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            cstPadding);
+        Value stridesList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            cstStrides);
+        Value cstCeilMode =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), ceilMode);
+        Value cstCountIncludePad = rewriter.create<Torch::ConstantBoolOp>(
+            binder.getLoc(), countIncludePad);
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+
+        if (rank == 3) {
+          rewriter.replaceOpWithNewOp<Torch::AtenAvgPool1dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, cstCeilMode, cstCountIncludePad);
+          return success();
+        } else if (rank == 4) {
+          rewriter.replaceOpWithNewOp<Torch::AtenAvgPool2dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, cstCeilMode, cstCountIncludePad,
+              /*divisor_override=*/cstNone);
+          return success();
+        } else if (rank == 5) {
+          rewriter.replaceOpWithNewOp<Torch::AtenAvgPool3dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, cstCeilMode, cstCountIncludePad,
+              /*divisor_override=*/cstNone);
+          return success();
+        }
+        return failure();
+      });
   patterns.onOp(
       "BitShift", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
