@@ -351,6 +351,18 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
+  patterns.onOp("Erf", 13,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  std::string direction;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenErfOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
   patterns.onOp("Floor", 13,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
