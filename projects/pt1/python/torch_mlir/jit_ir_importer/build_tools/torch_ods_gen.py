@@ -256,6 +256,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     # Elementwise tensor compute ops
     for key in [
             "aten::tanh : (Tensor) -> (Tensor)",
+            "aten::cosh : (Tensor) -> (Tensor)",
             "aten::hardtanh : (Tensor, Scalar, Scalar) -> (Tensor)",
             "aten::elu : (Tensor, Scalar, Scalar, Scalar) -> (Tensor)",
             "aten::relu : (Tensor) -> (Tensor)",
@@ -265,6 +266,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::selu : (Tensor) -> (Tensor)",
             "aten::sigmoid : (Tensor) -> (Tensor)",
             "aten::sign : (Tensor) -> (Tensor)",
+            "aten::sinh : (Tensor) -> (Tensor)",
             "aten::sgn : (Tensor) -> (Tensor)",
             "aten::hardsigmoid : (Tensor) -> (Tensor)",
             "aten::hardswish : (Tensor) -> (Tensor)",

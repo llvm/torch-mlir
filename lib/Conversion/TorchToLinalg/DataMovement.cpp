@@ -1033,8 +1033,11 @@ public:
 
     auto outElemType = newResultType.getElementType();
     for (size_t i = 0; i < tensors.size(); ++i) {
-      tensors[i] = torch_to_linalg::convertTensorToElementType(
-          rewriter, loc, tensors[i], outElemType);
+      auto inputType = cast<RankedTensorType>(tensors[i].getType());
+      if (inputType.getElementType() != outElemType) {
+        tensors[i] = torch_to_linalg::convertTensorToElementType(
+            rewriter, loc, tensors[i], outElemType);
+      }
     }
 
     int rank = newResultType.getRank();
@@ -1046,48 +1049,8 @@ public:
     if (!isValidDim(dim, rank))
       return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
-    SmallVector<Value> offsets, sizes, strides;
-    sizes.reserve(rank);
-    strides.resize(rank, rewriter.create<arith::ConstantIndexOp>(loc, 1));
-    offsets.resize(rank, rewriter.create<arith::ConstantIndexOp>(loc, 0));
-
-    for (int i = 0; i < rank; ++i)
-      sizes.push_back(rewriter.createOrFold<tensor::DimOp>(loc, tensors[0], i));
-
-    // Calculate the size of the `dim` result dimension by adding the dim size
-    // of each tensor together.
-    Value resultDimSize = sizes[dim];
-
-    Value dimIndex = rewriter.createOrFold<arith::ConstantOp>(
-        loc, rewriter.getIndexAttr(dim));
-    for (auto tensor : ArrayRef(tensors).drop_front()) {
-      auto size = rewriter.createOrFold<tensor::DimOp>(loc, tensor, dimIndex);
-      resultDimSize =
-          rewriter.createOrFold<arith::AddIOp>(loc, resultDimSize, size);
-    }
-    sizes[dim] = resultDimSize;
-
-    auto toOpFoldResult = [](Value v) -> OpFoldResult {
-      auto op = v.getDefiningOp<arith::ConstantIndexOp>();
-      if (!op)
-        return v;
-      return op.getValue();
-    };
-
-    Value result = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(sizes), newResultType.getElementType());
-    for (auto tensor : tensors) {
-      SmallVector<Value> sizes = getTensorSizes(rewriter, loc, tensor);
-      result = rewriter.createOrFold<tensor::InsertSliceOp>(
-          loc, tensor, result,
-          llvm::to_vector(llvm::map_range(offsets, toOpFoldResult)),
-          llvm::to_vector(llvm::map_range(sizes, toOpFoldResult)),
-          llvm::to_vector(llvm::map_range(strides, toOpFoldResult)));
-      offsets[dim] =
-          rewriter.createOrFold<arith::AddIOp>(loc, offsets[dim], sizes[dim]);
-    }
-
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, result);
+    rewriter.replaceOpWithNewOp<tensor::ConcatOp>(op, newResultType, dim,
+                                                  tensors);
     return success();
   }
 };

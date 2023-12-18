@@ -35,6 +35,11 @@ def MungeMemrefCopy : Pass<"refback-munge-memref-copy", "func::FuncOp"> {
   let dependentDialects = ["memref::MemRefDialect"];
 }
 
+def GeneralizeTensorConcat : Pass<"refback-generalize-tensor-concat", "func::FuncOp"> {
+  let summary = "Convert tensor.concat to other tensor ops";
+  let constructor = "mlir::torch::RefBackend::createGeneralizeTensorConcatPass()";
+}
+
 def GeneralizeTensorPad : Pass<"refback-generalize-tensor-pad", "func::FuncOp"> {
   let summary = "Convert tensor.pad to linalg ops";
   let constructor = "mlir::torch::RefBackend::createGeneralizeTensorPadPass()";

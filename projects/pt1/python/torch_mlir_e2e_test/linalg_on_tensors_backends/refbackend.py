@@ -123,6 +123,7 @@ class RefBackendInvoker:
 
 LOWERING_PIPELINE = "builtin.module(" + ",".join([
     "func.func(refback-generalize-tensor-pad)",
+    "func.func(refback-generalize-tensor-concat)",
     # Apply some optimizations. It would be great if MLIR had more useful
     # optimizations that worked out of the box here.
     # Note: When measured, this doesn't seem to actually help that much
