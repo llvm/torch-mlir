@@ -4,12 +4,72 @@
 // level constants. This is a pragmatic choice which lets us have a lot
 // of tests in this file, whereas the others tend to be more bespoke.
 
+
+// CHECK-LABEL: func.func @test_quantize_linear_default
+func.func @test_quantize_linear_default(%arg0: !torch.vtensor<[6],f32>, %arg1: !torch.vtensor<[],f32>, %arg2: !torch.vtensor<[],ui8>) -> !torch.vtensor<[6],ui8> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  // CHECK-DAG: %[[FALSE:.+]] = torch.constant.bool false
+  // CHECK-DAG: %[[DIV:.+]] = torch.aten.div.Tensor %arg0, %arg1
+  // CHECK-DAG: %[[I1:.+]] = torch.constant.int 1
+  // CHECK-DAG: %[[ADD:.+]] = torch.aten.add.Tensor %[[DIV]], %arg2, %[[I1]]
+  // CHECK-DAG: %[[MIN:.+]] = torch.constant.int -128
+  // CHECK-DAG: %[[MAX:.+]] = torch.constant.int 127
+  // CHECK-DAG: %[[CLAMP:.+]] = torch.aten.clamp %1, %[[MIN]], %[[MAX]]
+  // CHECK-DAG: %[[NONE:.+]] = torch.constant.none
+  // CHECK-DAG: %[[I0:.+]] = torch.constant.int 0
+  // CHECK-DAG: %[[TO:.+]] = torch.aten.to.dtype %[[CLAMP]], %[[I0]], %[[FALSE]], %[[FALSE]], %[[NONE]]
+  // CHECK: return %[[TO]]
+  %0 = torch.operator "onnx.QuantizeLinear"(%arg0, %arg1, %arg2) : (!torch.vtensor<[6],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>) -> !torch.vtensor<[6],ui8>
+  return %0 : !torch.vtensor<[6],ui8>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_quantize_linear_saturate
+func.func @test_quantize_linear_saturate(%arg0: !torch.vtensor<[1,3,3,2],f32>, %arg1: !torch.vtensor<[3],f32>, %arg2: !torch.vtensor<[3],ui8>) -> !torch.vtensor<[1,3,3,2],ui8> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  // CHECK-DAG: %[[FALSE:.+]] = torch.constant.bool false
+  // CHECK-DAG: %[[I1:.+]] = torch.constant.int 1
+  // CHECK-DAG: %[[I2:.+]] = torch.constant.int 2
+  // CHECK-DAG: %[[LIST:.+]] = torch.prim.ListConstruct %[[I1]], %[[I2]]
+  // CHECK-DAG: %[[EXP0:.+]] = torch.aten.expand %arg1, %[[LIST]], %[[FALSE]]
+  // CHECK-DAG: %[[DIV:.+]] = torch.aten.div.Tensor %arg0, %[[EXP0]]
+  // CHECK-DAG: %[[EXP1:.+]] = torch.aten.expand %arg2, %[[LIST]], %[[FALSE]]
+  // CHECK-DAG: %[[I1:.+]] = torch.constant.int 1
+  // CHECK-DAG: %[[ADD:.+]] = torch.aten.add.Tensor %[[DIV]], %[[EXP1]], %[[I1]]
+  // CHECK-DAG: %[[NONE:.+]] = torch.constant.none
+  // CHECK-DAG: %[[I0:.+]] = torch.constant.int 0
+  // CHECK-DAG: %[[TO:.+]] = torch.aten.to.dtype %[[ADD]], %[[I0]], %[[FALSE]], %[[FALSE]], %[[NONE]]
+  // CHECK: return %[[TO]]
+  %0 = torch.operator "onnx.QuantizeLinear"(%arg0, %arg1, %arg2) { torch.onnx.saturate = 0 : si64 } : (!torch.vtensor<[1,3,3,2],f32>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],ui8>) -> !torch.vtensor<[1,3,3,2],ui8>
+  return %0 : !torch.vtensor<[1,3,3,2],ui8>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_quantize_linear_attr
+func.func @test_quantize_linear_attr(%arg0: !torch.vtensor<[1,3,3,2],f32>, %arg1: !torch.vtensor<[3],f32>) -> !torch.vtensor<[1,3,3,2],ui8> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  // CHECK-DAG: %[[FALSE:.+]] = torch.constant.bool false
+  // CHECK-DAG: %[[I1:.+]] = torch.constant.int 1
+  // CHECK-DAG: %[[LIST:.+]] = torch.prim.ListConstruct %[[I1]]
+  // CHECK-DAG: %[[EXP:.+]] = torch.aten.expand %arg1, %[[LIST]], %[[FALSE]]
+  // CHECK-DAG: %[[DIV:.+]] = torch.aten.div.Tensor %arg0, %[[EXP]]
+  // CHECK-DAG: %[[NONE:.+]] = torch.constant.none
+  // CHECK-DAG: %[[I0:.+]] = torch.constant.int 0
+  // CHECK-DAG: %[[TO:.+]] = torch.aten.to.dtype %[[DIV]], %[[I0]], %[[FALSE]], %[[FALSE]], %[[NONE]]
+  // CHECK: return %[[TO]]
+  %0 = torch.operator "onnx.QuantizeLinear"(%arg0, %arg1) { torch.onnx.axis = 2 : si64, torch.onnx.saturate = 0 : si64 } : (!torch.vtensor<[1,3,3,2],f32>, !torch.vtensor<[3],f32>) -> !torch.vtensor<[1,3,3,2],ui8>
+  return %0 : !torch.vtensor<[1,3,3,2],ui8>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_reciprocal
 func.func @test_reciprocal(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: torch.aten.reciprocal %arg0 : !torch.vtensor<[3,4,5],f32> -> !torch.vtensor<[3,4,5],f32>
   %0 = torch.operator "onnx.Reciprocal"(%arg0) : (!torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],f32>
   return %0 : !torch.vtensor<[3,4,5],f32>
 }
+
+// -----
 
 // CHECK-LABEL: func.func @test_relu
 func.func @test_relu(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 14 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
@@ -18,12 +78,16 @@ func.func @test_relu(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,
   return %0 : !torch.vtensor<[3,4,5],f32>
 }
 
+// -----
+
 // CHECK-LABEL: func.func @test_round
 func.func @test_round(%arg0: !torch.vtensor<[15],f32>) -> !torch.vtensor<[15],f32> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   //CHECK: torch.aten.round %arg0 : !torch.vtensor<[15],f32> -> !torch.vtensor<[15],f32>
   %0 = torch.operator "onnx.Round"(%arg0) : (!torch.vtensor<[15],f32>) -> !torch.vtensor<[15],f32>
   return %0 : !torch.vtensor<[15],f32>
 }
+
+// -----
 
 // CHECK-LABEL: func.func @test_scatter_elements_with_axis
 func.func @test_scatter_elements_with_axis(%arg0: !torch.vtensor<[1,5],f32>, %arg1: !torch.vtensor<[1,2],si64>, %arg2: !torch.vtensor<[1,2],f32>) -> !torch.vtensor<[1,5],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
@@ -32,6 +96,8 @@ func.func @test_scatter_elements_with_axis(%arg0: !torch.vtensor<[1,5],f32>, %ar
   %0 = torch.operator "onnx.ScatterElements"(%arg0, %arg1, %arg2) {torch.onnx.axis = 1 : si64} : (!torch.vtensor<[1,5],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[1,2],f32>) -> !torch.vtensor<[1,5],f32>
   return %0 : !torch.vtensor<[1,5],f32>
 }
+
+// -----
 
 // CHECK-LABEL: func.func @test_scatter_elements_with_duplicate_indices
 func.func @test_scatter_elements_with_duplicate_indices(%arg0: !torch.vtensor<[1,5],f32>, %arg1: !torch.vtensor<[1,2],si64>, %arg2: !torch.vtensor<[1,2],f32>) -> !torch.vtensor<[1,5],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {

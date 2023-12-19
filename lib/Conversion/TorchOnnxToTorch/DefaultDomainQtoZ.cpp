@@ -7,7 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -29,6 +31,108 @@ using namespace mlir::torch::onnx_c;
 // thing here, so we simplify.
 void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
     OnnxCustomOpConversionPattern &patterns) {
+
+  patterns.onOp(
+      "QuantizeLinear", 19,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType outputTy;
+        int64_t axis, saturate;
+        Value input, scale, zp;
+        ImplicitLocOpBuilder b(binder.getLoc(), rewriter);
+        if (binder.tensorOperandAtIndex(input, 0) ||
+            binder.tensorOperandAtIndex(scale, 1) ||
+            binder.s64IntegerAttr(axis, "axis", 1) ||
+            binder.s64IntegerAttr(saturate, "saturate", 1) ||
+            binder.tensorResultType(outputTy))
+          return failure();
+
+        auto inputTy = input.getType().cast<Torch::ValueTensorType>();
+        auto scaleTy = scale.getType().cast<Torch::ValueTensorType>();
+        if (!inputTy.hasSizes() || !scaleTy.hasSizes() ||
+            !outputTy.hasSizes() || !outputTy.hasDtype())
+          return failure();
+
+        IntegerType outputETy = outputTy.getDtype().dyn_cast<IntegerType>();
+        if (!outputETy)
+          return failure();
+
+        auto scaleShape = scaleTy.getOptionalSizes().value();
+        auto outputShape = outputTy.getOptionalSizes().value();
+
+        Value expandList;
+        llvm::SmallVector<int64_t> expandShape(outputShape.size() - axis, 1);
+        Value cstFalse = b.create<Torch::ConstantBoolOp>(false);
+        if (!scaleShape.empty()) {
+          llvm::SmallVector<Value> expandDims;
+          expandShape[0] = scaleShape.front();
+          for (int i = axis + 1, s = outputShape.size(); i < s; ++i) {
+            expandDims.push_back(b.create<Torch::ConstantIntOp>(
+                b.getType<Torch::IntType>(),
+                b.getIntegerAttr(b.getIntegerType(64), i - axis)));
+          }
+
+          auto dimListTy =
+              b.getType<Torch::ListType>(b.getType<Torch::IntType>());
+          expandList =
+              b.create<Torch::PrimListConstructOp>(dimListTy, expandDims);
+          scale = b.create<Torch::AtenExpandOp>(
+              b.getType<Torch::ValueTensorType>(expandShape,
+                                                scaleTy.getOptionalDtype()),
+              scale, expandList, cstFalse);
+        }
+
+        input = b.create<Torch::AtenDivTensorOp>(inputTy, input, scale);
+
+        // Broadcast `zero` to the input shape size and apply if it exists:
+        if (!binder.tensorOperandAtIndex(zp, 2)) {
+          if (!scaleShape.empty()) {
+            auto zpTy = zp.getType().cast<Torch::ValueTensorType>();
+            zpTy = b.getType<Torch::ValueTensorType>(expandShape,
+                                                     zpTy.getOptionalDtype());
+            zp = b.create<Torch::AtenExpandOp>(zpTy, zp, expandList, cstFalse);
+          }
+          Value const1 = b.create<Torch::ConstantIntOp>(
+              b.getType<Torch::IntType>(),
+              b.getIntegerAttr(b.getIntegerType(64), 1));
+          input = b.create<Torch::AtenAddTensorOp>(inputTy, input, zp, const1);
+        }
+
+        // Apply saturation:
+        if (saturate) {
+          int64_t uMin = 0;
+          int64_t uMax =
+              APInt::getMaxValue(outputETy.getWidth()).getSExtValue();
+          int64_t sMin =
+              APInt::getSignedMinValue(outputETy.getWidth()).getSExtValue();
+          int64_t sMax =
+              APInt::getSignedMaxValue(outputETy.getWidth()).getSExtValue();
+          int64_t clampMin = outputETy.isSignless() ? uMin : sMin;
+          int64_t clampMax = outputETy.isSignless() ? uMax : sMax;
+          Value minVal = b.create<Torch::ConstantIntOp>(
+              b.getType<Torch::IntType>(),
+              b.getIntegerAttr(b.getIntegerType(64), clampMin));
+          Value maxVal = b.create<Torch::ConstantIntOp>(
+              b.getType<Torch::IntType>(),
+              b.getIntegerAttr(b.getIntegerType(64), clampMax));
+          input = b.create<Torch::AtenClampOp>(input.getType(), input, minVal,
+                                               maxVal);
+        }
+
+        Value none = b.create<Torch::ConstantNoneOp>();
+        Value constDtype = b.create<Torch::ConstantIntOp>(
+            b.getType<Torch::IntType>(),
+            b.getIntegerAttr(b.getIntegerType(64),
+                             static_cast<int64_t>(Torch::getScalarTypeForType(
+                                 outputTy.getDtype()))));
+        input = b.create<Torch::AtenToDtypeOp>(outputTy, input, constDtype,
+                                               /*non_blocking=*/cstFalse,
+                                               /*copy=*/cstFalse,
+                                               /*memory_format=*/none);
+
+        rewriter.replaceOp(binder.op, input);
+        return success();
+      });
+
   patterns.onOp("Reciprocal", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
