@@ -3592,6 +3592,51 @@ public:
 } // namespace
 
 namespace {
+// In general, a function g(x) produces a random variable of probability density
+// function f(X) if g(x) := inverse(F(x)) where
+// - F(x) is the cumulative distribution function; i.e.
+//   F(x) := integrate(g(u), {u, 0, x}) and
+// - x is sampled from the uniform distribution [0, 1) (half-closed interval)
+// With the exponential distribution, F(x) = 1 - exp(-lambda * x). Thus, we get
+// exponential(x) = - ln(1 - uniform(0, 1)) / lambda.
+class DecomposeAtenExponentialOp : public OpRewritePattern<AtenExponentialOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenExponentialOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!op.getGenerator().getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "The generator has to be None because only global default "
+              "generator is supported");
+
+    Location loc = op.getLoc();
+    Type resultType = op.getType();
+
+    // Create a uniform random op with low and high set to 0.0 and 1.0,
+    // respectively.
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value zero =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+    Value one =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value x = rewriter.create<AtenUniformOp>(loc, resultType, op.getSelf(),
+                                             /*from=*/zero, /*to=*/one,
+                                             /*generator=*/none);
+
+    Value negX = rewriter.create<AtenNegOp>(loc, resultType, x);
+    Value oneMinusX =
+        rewriter.create<AtenAddScalarOp>(loc, resultType, negX, one,
+                                         /*alpha=*/one);
+    Value lnOneMinusX = rewriter.create<AtenLogOp>(loc, resultType, oneMinusX);
+    Value negLambda = rewriter.create<AtenNegFloatOp>(loc, op.getLambd());
+    rewriter.replaceOpWithNewOp<AtenDivScalarOp>(op, resultType, lnOneMinusX,
+                                                 negLambda);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 template <typename OpTy, typename T1T2Op>
 class DecomposeAtenAddCLikeOp : public OpRewritePattern<OpTy> {
   using OpRewritePattern<OpTy>::OpRewritePattern;
@@ -6439,6 +6484,7 @@ public:
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenBernoulliLikeOp<AtenBernoulliPOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBernoulliTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenExponentialOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenZeroOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEyeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEyeMOp>(patterns);
