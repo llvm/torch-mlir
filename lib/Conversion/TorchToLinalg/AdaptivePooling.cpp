@@ -200,8 +200,8 @@ public:
           Value kwint = castIndexToInt64(b, loc, kw);
           Value kwf = b.create<arith::SIToFPOp>(loc, elementType, kwint);
           // accumulate out2 to res = args[1]
-          Value out3 = b.create<arith::AddFOp>(loc, res, out1);
-          b.create<linalg::YieldOp>(loc, ValueRange({out3, kwf}));
+          Value out2 = b.create<arith::AddFOp>(loc, res, out1);
+          b.create<linalg::YieldOp>(loc, ValueRange({out2, kwf}));
         });
 
     // make a linalg generic to divide each element by the corresponding 
