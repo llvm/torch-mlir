@@ -17,6 +17,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include <string>
 
 namespace mlir::torch::onnx_c {
 
@@ -49,6 +50,29 @@ struct OpBinder {
     value1 = op->getOperand(1);
     if (!toValidTensorType(value0.getType()) ||
         !toValidTensorType(value1.getType()))
+      return failure();
+    return success();
+  }
+
+  ParseResult tensorOperands(SmallVector<Value> &valueList,
+                             int64_t numOperands) {
+    if (op->getNumOperands() != numOperands)
+      return failure();
+    for (int i = 0; i < numOperands; i++) {
+      Value curr = op->getOperand(i);
+      if (!toValidTensorType(curr.getType())) {
+        return failure();
+      }
+      valueList.push_back(curr);
+    }
+    return success();
+  }
+
+  ParseResult tensorOperandAtIndex(Value &valueIdx, int64_t idx) {
+    if (idx >= op->getNumOperands())
+      return failure();
+    valueIdx = op->getOperand(idx);
+    if (!toValidTensorType(valueIdx.getType()))
       return failure();
     return success();
   }
@@ -98,6 +122,66 @@ struct OpBinder {
       if (!t.isSigned() || t.getWidth() != 64)
         return failure();
       value = integerAttr.getSInt();
+      return success();
+    }
+    return failure();
+  }
+
+  ParseResult f32FloatAttr(float &value, StringRef nameSuffix,
+                           float defaultValue = 0.0f) {
+    SmallString<64> name("torch.onnx.");
+    name.append(nameSuffix);
+    auto attr = op->getAttr(name);
+    if (!attr) {
+      value = defaultValue;
+      return success();
+    }
+    if (auto floatAttr = dyn_cast<FloatAttr>(attr)) {
+      FloatType t = cast<FloatType>(floatAttr.getType());
+      if (t.getWidth() != 32)
+        return failure();
+      value = floatAttr.getValue().convertToFloat();
+      return success();
+    }
+    return failure();
+  }
+
+  ParseResult s64IntegerArrayAttr(llvm::SmallVector<int64_t> &values,
+                                  StringRef nameSuffix,
+                                  ArrayRef<int64_t> defaults) {
+    SmallString<64> name("torch.onnx.");
+    name.append(nameSuffix);
+    auto attr = op->getAttr(name);
+    if (!attr) {
+      values.append(defaults.begin(), defaults.end());
+      return success();
+    }
+    if (auto arrayAttr = dyn_cast<ArrayAttr>(attr)) {
+      for (auto element : arrayAttr) {
+        auto integerAttr = element.dyn_cast<IntegerAttr>();
+        if (!integerAttr)
+          return failure();
+        IntegerType t = cast<IntegerType>(integerAttr.getType());
+        if (!t.isSigned() || t.getWidth() != 64)
+          return failure();
+        values.push_back(integerAttr.getSInt());
+      }
+      return success();
+    }
+    return failure();
+  }
+
+  ParseResult customOpNameStringAttr(std::string &value, StringRef nameSuffix,
+                             std::string defaultValue = "") {
+    SmallString<64> name("torch.onnx.");
+    name.append(nameSuffix);
+    auto attr = op->getAttr(name);
+    if (!attr) {
+      value = defaultValue;
+      return success();
+    }
+    if (auto stringAttr = dyn_cast<StringAttr>(attr)) {
+      value = stringAttr.str();
       return success();
     }
     return failure();

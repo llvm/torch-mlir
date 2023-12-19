@@ -10,10 +10,10 @@
 from torch_mlir._version import torch_version_for_comparison, version
 
 COMMON_TORCH_MLIR_LOWERING_XFAILS = {
-    "NativeGroupNormModule_basic",
     "NativeGroupNormBackwardModule_basic",
     "QuantizedMLP_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
+    "ReduceMinAlongDimUnsignedInt_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
 }
 
@@ -39,7 +39,6 @@ def register_all_tests():
     from . import type_conversion
     from . import backprop
     from . import reduction
-    from . import argmax
     from . import matmul
     from . import reshape_like
     from . import scalar

@@ -226,3 +226,39 @@ class Mv(torch.nn.Module):
 @register_test_case(module_factory=lambda: Mv())
 def Mv_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 2), tu.rand(2))
+
+# ==============================================================================
+
+class AtenMmFloatTypes(torch.nn.Module):
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return torch.ops.aten.mm(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenMmFloatTypes())
+def AtenMmFloatTypes_basic(module, tu: TestUtils):
+    module.forward(tu.rand(8, 8), tu.rand(8, 8))
+
+# ==============================================================================
+
+class AtenMmIntTypes(torch.nn.Module):
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, a, b):
+        return torch.ops.aten.mm(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenMmIntTypes())
+def AtenMmIntTypes_basic(module, tu: TestUtils):
+    module.forward(tu.randint(16, 4, high=100), tu.randint(4, 16, high=100))

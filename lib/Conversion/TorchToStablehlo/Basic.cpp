@@ -615,12 +615,8 @@ public:
     SmallVector<int64_t> permValues(inputRank);
     std::iota(std::begin(permValues), std::end(permValues), 0);
     std::swap(permValues[dim0], permValues[dim1]);
-    DenseIntElementsAttr permutation = DenseIntElementsAttr::get(
-        RankedTensorType::get({static_cast<long int>(permValues.size())},
-                              rewriter.getI64Type()),
-        permValues);
     rewriter.replaceOpWithNewOp<stablehlo::TransposeOp>(op, outType, self,
-                                                        permutation);
+                                                        permValues);
     return success();
   }
 };
@@ -793,12 +789,8 @@ LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewrite(
       return op.emitError("not all dims are valid");
   }
 
-  DenseIntElementsAttr permutation = DenseIntElementsAttr::get(
-      RankedTensorType::get({static_cast<long int>(permValues.size())},
-                            rewriter.getI64Type()),
-      permValues);
   rewriter.replaceOpWithNewOp<stablehlo::TransposeOp>(op, outType, self,
-                                                      permutation);
+                                                      permValues);
   return success();
 }
 
@@ -1672,13 +1664,18 @@ LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
       return rewriter.notifyMatchFailure(
           op, "unimplemented: dtype must be a constant integer or none");
     FailureOr<Type> maybeResultElementType = getTypeForScalarType(
-        op->getContext(), (torch_upstream::ScalarType)dtypeInt,
-        IntegerType::Signless);
+        op->getContext(), (torch_upstream::ScalarType)dtypeInt);
     if (failed(maybeResultElementType)) {
       return rewriter.notifyMatchFailure(
           op, "unable to convert `dtypeInt` to builtin type");
     }
     resultElementType = *maybeResultElementType;
+    // The stablehlo backend expects signed integers to be signless.
+    if (resultElementType.isSignedInteger()) {
+      resultElementType = IntegerType::get(
+          op->getContext(), resultElementType.getIntOrFloatBitWidth(),
+          IntegerType::Signless);
+    }
   }
 
   // Create an uninitialized tensor of `resultSize` shape.
@@ -1750,8 +1747,7 @@ LogicalResult ConvertAtenOp<AtenFlipOp>::matchAndRewrite(
     }
   }
 
-  rewriter.replaceOpWithNewOp<stablehlo::ReverseOp>(
-      op, outType, self, rewriter.getI64TensorAttr(dims));
+  rewriter.replaceOpWithNewOp<stablehlo::ReverseOp>(op, outType, self, dims);
   return success();
 }
 
