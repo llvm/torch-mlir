@@ -148,7 +148,7 @@ class AdaptiveAvgPool2dNewOutSizeDynamicModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.aap2d = torch.nn.AdaptiveAvgPool2d((3, 7))
+        self.aap2d = torch.nn.AdaptiveAvgPool2d((7, 7))
 
     @export
     @annotate_args([
@@ -169,7 +169,7 @@ class AdaptiveAvgPool2dNewOutSizeStaticModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.aap2d = torch.nn.AdaptiveAvgPool2d((3, 7))
+        self.aap2d = torch.nn.AdaptiveAvgPool2d((7, 7))
 
     @export
     @annotate_args([
