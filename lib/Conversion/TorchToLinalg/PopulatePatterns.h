@@ -46,8 +46,8 @@ void populatePoolingPatternsAndLegality(TypeConverter &typeConverter,
                                         RewritePatternSet &patterns,
                                         ConversionTarget &target);
 void populateAdaptivePoolingPatternsAndLegality(TypeConverter &typeConverter,
-                                        RewritePatternSet &patterns,
-                                        ConversionTarget &target);
+                                                RewritePatternSet &patterns,
+                                                ConversionTarget &target);
 void populateRandomPatternsAndLegality(TypeConverter &typeConverter,
                                        RewritePatternSet &patterns,
                                        ConversionTarget &target);

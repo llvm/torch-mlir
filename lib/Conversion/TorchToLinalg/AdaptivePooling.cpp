@@ -64,9 +64,17 @@ public:
     Location loc = op->getLoc();
     const TypeConverter *typeconverter = getTypeConverter();
 
+    // get rank of input (same as rank of output)
+    int64_t rank =
+        adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
+    // input operand should be NCH (i.e. rank 3)
+    if (rank != 3) {
+      return rewriter.notifyMatchFailure(op, "only supports input type NCH");
+    }
+
     // input tensor and output shape
     Value input = adaptor.getSelf();
-    Value outputShape = adaptor.getOutputSize();
+    Value outputShape = op.getOutputSize();
     SmallVector<Value> outShapeVector;
     getListConstructElements(outputShape, outShapeVector);
     outShapeVector =
@@ -79,37 +87,20 @@ public:
         typeconverter->convertType(op.getResult().getType())
             .cast<RankedTensorType>();
 
-    // get rank of input (same as rank of output)
-    int64_t rank = input.getType().cast<RankedTensorType>().getRank();
-    // input operand should be NCH (i.e. rank 3)
-    if (rank != 3) {
-      return rewriter.notifyMatchFailure(op, "only supports input type NCH");
-    }
-
     // get elementType of input tensor
     Type elementType = InputType.getElementType();
 
     // make an iteration space of size Kmax = 1 + ceildiv (Hin - 1) , Hout
     Type dummyType = rewriter.getI1Type();
     Value Kiter;
-    if (InputType.isDynamicDim(rank - 1) || OutputType.isDynamicDim(rank - 1)) {
-      Value constantOne =
-          rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
-      Value HinPlusOne = rewriter.create<arith::SubIOp>(loc, Hin, constantOne);
-      Value KmaxMinusOne =
-          rewriter.create<arith::CeilDivSIOp>(loc, HinPlusOne, HoutIndex);
-      Value Kmax =
-          rewriter.create<arith::AddIOp>(loc, constantOne, KmaxMinusOne);
-      Kiter = rewriter.create<tensor::EmptyOp>(
-          loc, RankedTensorType::get({ShapedType::kDynamic}, dummyType), Kmax);
-    } else {
-      int64_t HinInt = InputType.getShape()[rank - 1];
-      int64_t HoutInt = OutputType.getShape()[rank - 1];
-      int64_t correction = ((HinInt - 1) % HoutInt == 0) ? 0 : 1;
-      int64_t Kmax = 1 + (HinInt - 1) / HoutInt + correction;
-      Kiter = rewriter.create<tensor::EmptyOp>(
-          loc, RankedTensorType::get({Kmax}, dummyType), ValueRange{});
-    }
+    Value constantOne =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+    Value HinPlusOne = rewriter.create<arith::SubIOp>(loc, Hin, constantOne);
+    Value KmaxMinusOne =
+        rewriter.create<arith::CeilDivSIOp>(loc, HinPlusOne, HoutIndex);
+    Value Kmax = rewriter.create<arith::AddIOp>(loc, constantOne, KmaxMinusOne);
+    Kiter = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(ValueRange({Kmax})), dummyType);
 
     // need to buffer input, else there will possibly be an out of bounds access
     // later BuffVal = 0 for avg pooling and -inf for max pooling
@@ -120,31 +111,18 @@ public:
     Value BuffInput = torch_to_linalg::getPaddedTensor(
         op, rewriter, input, lowPadding, highPadding, BuffVal);
 
-    // make a list of DynamicOutputSizes and initialize kwTensor
-    SmallVector<Value> dynOutputSizes;
-    Value kwTensor;
+    // make a list of outputSizes
+    SmallVector<Value> outputSizes;
     for (unsigned i = 0; i < rank - 1; i++) {
-      if (OutputType.isDynamicDim(i)) {
-        dynOutputSizes.push_back(getDimOp(rewriter, loc, input, i));
-      }
+      outputSizes.push_back(getDimOp(rewriter, loc, input, i));
     }
-    if (OutputType.isDynamicDim(rank - 1)) {
-      dynOutputSizes.push_back(HoutIndex);
-      kwTensor = rewriter.create<tensor::EmptyOp>(
-          loc, RankedTensorType::get({ShapedType::kDynamic}, elementType),
-          HoutIndex);
-    } else {
-      kwTensor = rewriter.create<tensor::EmptyOp>(
-          loc,
-          RankedTensorType::get({OutputType.getShape()[rank - 1]}, elementType),
-          ValueRange{});
-    }
+    outputSizes.push_back(HoutIndex);
 
-    // initialize an output tensor
-    Value EmptyOutput =
-        rewriter.create<tensor::EmptyOp>(loc, OutputType, dynOutputSizes);
+    // initialize a kwTensor and an output tensor
+    Value kwTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(ValueRange({HoutIndex})), elementType);
     Value InitOutput =
-        rewriter.create<linalg::FillOp>(loc, BuffVal, EmptyOutput).getResult(0);
+        createInitTensor(rewriter, loc, outputSizes, elementType, BuffVal);
 
     // setup indexing maps and iterator types for linalg generic op
     // for Kiter (d0,d1,d2,d3) -> (d3)
@@ -204,7 +182,7 @@ public:
           b.create<linalg::YieldOp>(loc, ValueRange({out2, kwf}));
         });
 
-    // make a linalg generic to divide each element by the corresponding 
+    // make a linalg generic to divide each element by the corresponding
     // Kernel Width. This step is only necessary for avg pooling.
     SmallVector<AffineMap> indexingMaps1 =
         AffineMap::inferFromExprList({kwTensorExprs, outputExprs});

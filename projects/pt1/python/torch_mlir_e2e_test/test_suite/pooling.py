@@ -868,7 +868,7 @@ class AdaptiveAvgPool1dGeneralDynamic(torch.nn.Module):
     
     def __init__(self):
         super().__init__()
-        self.aap1d = torch.nn.AdaptiveAvgPool1d(7)
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=7)
 
     @export
     @annotate_args([
