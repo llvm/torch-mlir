@@ -278,6 +278,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::expm1 : (Tensor) -> (Tensor)",
             "aten::cos : (Tensor) -> (Tensor)",
             "aten::acos : (Tensor) -> (Tensor)",
+            "aten::tan : (Tensor) -> (Tensor)",
             "aten::atan : (Tensor) -> (Tensor)",
             "aten::atan2 : (Tensor, Tensor) -> (Tensor)",
             "aten::neg : (Tensor) -> (Tensor)",

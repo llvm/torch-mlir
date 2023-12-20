@@ -59,6 +59,9 @@ def aten〇triu〡shape(self: List[int], diagonal: int = 0) -> List[int]:
 def aten〇tril〡shape(self: List[int], diagonal: int = 0) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇tan〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇atan〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -3720,6 +3723,13 @@ def aten〇var_mean〡dtype(self_rank_dtype: Tuple[int, int], unbiased: bool = T
     if self_dtype == torch.complex128:
         return torch.float64, self_dtype
     return self_dtype, self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇tan〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if is_integer_dtype(self_dtype):
+        return torch.float32
+    return self_dtype
 
 @check_dtype_function(_check_two_tensor_op())
 def aten〇atan2〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
