@@ -3520,7 +3520,7 @@ public:
     Value input = op.getSelf();
     if (!op.getGenerator().getType().isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(
-          op, "The generator has to ben None because only global default "
+          op, "The generator has to be None because only global default "
               "generator is supported");
     Value output;
     if (failed(
@@ -3546,7 +3546,7 @@ public:
     Value p = op.getP();
     if (!op.getGenerator().getType().template isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(
-          op, "The generator has to ben None because only global default "
+          op, "The generator has to be None because only global default "
               "generator is supported");
 
     auto inputType = input.getType().cast<BaseTensorType>();
@@ -3578,7 +3578,7 @@ public:
     Value prob = op.getP();
     if (!op.getGenerator().getType().isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(
-          op, "The generator has to ben None because only global default "
+          op, "The generator has to be None because only global default "
               "generator is supported");
     Value output;
     if (failed(
