@@ -192,7 +192,6 @@ public:
     Value rhs = adaptor.getOther();
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter))) {
-      llvm::errs() << "NOT VALID\n";
       return failure();
     }
     auto lhsType = lhs.getType().cast<RankedTensorType>();
