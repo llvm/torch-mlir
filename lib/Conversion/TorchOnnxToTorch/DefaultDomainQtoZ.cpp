@@ -794,7 +794,19 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                       binder.op, resultType, operand);
                   return success();
                 });
-  
+
+  patterns.onOp("Tan", 7,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenTanOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+
   patterns.onOp(
       "Transpose", 13,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
