@@ -191,8 +191,9 @@ public:
     Value lhs = adaptor.getSelf();
     Value rhs = adaptor.getOther();
 
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter))) {
       return failure();
+    }
     auto lhsType = lhs.getType().cast<RankedTensorType>();
     auto rhsType = rhs.getType().cast<RankedTensorType>();
 
@@ -260,7 +261,26 @@ public:
       return success();
     }
 
-    // Fourth Case: Batch-Matrix Multiplication.
+    // Fourth Case: Vec-Vec Multiplication.
+    if (lhsRank == 2 && rhsRank == 2) {
+      Value lhsDim0 = getDimOp(rewriter, loc, lhs, 0);
+      Value lhsDim1 = getDimOp(rewriter, loc, lhs, 1);
+      Value rhsDim0 = getDimOp(rewriter, loc, rhs, 0);
+      Value rhsDim1 = getDimOp(rewriter, loc, rhs, 1);
+      checkDimEqualHelper(rewriter, loc, lhsDim1, rhsDim0);
+
+      Value zeroTensor = createZeroInitTensor(
+          rewriter, loc, ValueRange{lhsDim0, rhsDim1}, elementType);
+      Value matmul =
+          rewriter
+              .create<linalg::MatmulOp>(loc, zeroTensor.getType(),
+                                        ValueRange{lhs, rhs}, zeroTensor)
+              .getResult(0);
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
+      return success();
+    }
+
+    // Fifth Case: Batch-Matrix Multiplication.
     // TODO: Handle batch matrix multiplication when one of the matrix is unity
     // rank and the other has batch dimension.
     if (lhsRank > 1 && rhsRank > 1) {
