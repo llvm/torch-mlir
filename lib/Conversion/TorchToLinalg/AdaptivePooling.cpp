@@ -142,7 +142,8 @@ public:
 
     Value indexOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
     auto SumPool = rewriter.create<linalg::GenericOp>(
-        loc, /*resultTensorTypes=*/TypeRange({OutputType, kwTensor.getType()}),
+        loc, /*resultTensorTypes=*/
+        TypeRange({InitOutput.getType(), kwTensor.getType()}),
         /*inputs=*/ValueRange({Kiter}),
         /*outputs=*/ValueRange({InitOutput, kwTensor}),
         /*indexingMaps=*/indexingMaps,
@@ -189,7 +190,7 @@ public:
     SmallVector<utils::IteratorType> iteratorTypes1(
         3, utils::IteratorType::parallel);
     auto Output = rewriter.create<linalg::GenericOp>(
-        loc, /*resultTensorTypes=*/OutputType,
+        loc, /*resultTensorTypes=*/InitOutput.getType(),
         /*inputs=*/SumPool.getResultTensors()[1],
         /*outputs=*/SumPool.getResultTensors()[0],
         /*indexingMaps=*/indexingMaps1,
