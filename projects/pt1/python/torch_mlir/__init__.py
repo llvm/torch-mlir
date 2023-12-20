@@ -319,7 +319,8 @@ def compile(model: torch.nn.Module,
             backend_legal_ops: Optional[Sequence[str]] = None,
             extra_library: Iterable[Callable] = [],
             verbose: bool = False,
-            use_make_fx: bool = False):
+            use_make_fx: bool = False,
+            enable_ir_printing: bool = False):
     """Convert a PyTorch model to MLIR.
 
     Args:
@@ -348,7 +349,13 @@ def compile(model: torch.nn.Module,
             into the abstract interpretation library. See
             `docs/adding_abstract_interpretation_functions.md` for more info
             on the format the functions should have.
-        verbose: If true, print extra information about the conversion.
+        verbose: If true, print extra information about the conversion to
+            stdout.
+        enable_ir_printing: If true, print the IR before and after each pass to
+            stderr. This is equivalent to setting MLIR's `-print-ir-after-all`
+            flag. Note that this can easily generate many gigabytes of text,
+            so make sure to pipe stderr to a file (for example, run
+            `python tinymodel.py 2> tinymodel.stderr` on Linux).
 
     Returns:
         An MLIR module that contains the converted model in the specified
@@ -452,6 +459,7 @@ PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
         mb.module,
         f"builtin.module(torchscript-module-to-torch-backend-pipeline{option_string})",
         "Lowering TorchScript IR -> Torch Backend IR",
+        enable_ir_printing=enable_ir_printing,
     )
 
     return _lower_mlir_module(verbose, output_type, mb.module)
