@@ -165,6 +165,43 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
+  patterns.onOp("BatchNormalization", 15,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value input, weight, bias, runningMean, runningVar;
+                  bool training;
+                  float momentum, eps;
+                  if (binder.s64BoolAttr(training, "training_mode", 0))
+                    return failure();
+                  if (training) {
+                    // TODO: Add support for training = true
+                    return rewriter.notifyMatchFailure(
+                        binder.op, "unsupported conversion: training = true");
+                  }
+
+                  if (binder.tensorOperandAtIndex(input, 0) ||
+                      binder.tensorOperandAtIndex(weight, 1) ||
+                      binder.tensorOperandAtIndex(bias, 2) ||
+                      binder.tensorOperandAtIndex(runningMean, 3) ||
+                      binder.tensorOperandAtIndex(runningVar, 4) ||
+                      binder.f32FloatAttr(momentum, "momentum", 0.9) ||
+                      binder.f32FloatAttr(eps, "epsilon", 1e-05) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+
+                  Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
+                      binder.getLoc(), false);
+                  Value cstMomentum = rewriter.create<Torch::ConstantFloatOp>(
+                      binder.getLoc(), rewriter.getF64FloatAttr(momentum));
+                  Value cstEps = rewriter.create<Torch::ConstantFloatOp>(
+                      binder.getLoc(), rewriter.getF64FloatAttr(eps));
+
+                  rewriter.replaceOpWithNewOp<Torch::AtenBatchNormOp>(
+                      binder.op, resultType, input, weight, bias, runningMean,
+                      runningVar, /*training=*/cstFalse, cstMomentum, cstEps,
+                      /*cudnn_enabled=*/cstFalse);
+                  return success();
+                });
   patterns.onOp(
       "AveragePool", 19,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
@@ -425,6 +462,30 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return success();
         }
         return failure();
+      });
+  patterns.onOp(
+      "Concat", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        SmallVector<Value> tensors;
+        int64_t dim;
+        if (binder.tensorOperands(tensors, binder.op->getNumOperands()) ||
+            binder.s64IntegerAttr(dim, "axis", 0) ||
+            binder.tensorResultType(resultType))
+          return failure();
+        Type listElemType =
+            tensors[0]
+                .getType()
+                .cast<Torch::BaseTensorType>()
+                .getWithSizesAndDtype(/*optionalSizes=*/std::nullopt,
+                                      /*optionalDtype=*/nullptr);
+        Type listType = Torch::ListType::get(listElemType);
+        Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.op->getLoc(), listType, tensors);
+        Value cstDim = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(dim));
+        rewriter.replaceOpWithNewOp<Torch::AtenCatOp>(binder.op, resultType,
+                                                      tensorList, cstDim);
+        return success();
       });
   patterns.onOp(
       "Conv", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
