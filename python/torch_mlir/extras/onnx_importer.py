@@ -38,6 +38,7 @@ from typing import Optional
 from dataclasses import dataclass
 
 import numpy as np
+import re
 
 from ..ir import (
     ArrayAttr,
@@ -465,12 +466,9 @@ class ContextCache:
             raise OnnxImportError(f"Unsupported ONNX TypeProto: {tp}")
 
     def _sanitize_name(self, name):
-        try:
-            name = f"__{int(name)}__"
-        except ValueError:
-            pass
-        name = name.replace(":", "_")
-        return name.replace("/", "_")
+        if not name.isidentifier():  
+            name = "_" + name  
+        return re.sub("[:/]", "_", name)  
 
 
 
