@@ -10,6 +10,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -74,7 +75,6 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
   }
   llvm::report_fatal_error("unhandled type for getScalarTypeForType");
 }
-
 Type Torch::getTypeForTorchType(
     MLIRContext *context, Type type,
     mlir::IntegerType::SignednessSemantics signedness) {
@@ -470,4 +470,33 @@ LogicalResult Torch::checkDefaultStrideHelper(Operation *op,
         loc, cmp, "not all strides are default");
     return success();
   }
+}
+
+// Helper to create a tensor filled with the given scalar. Scalar would be
+// converted the to the element type of the given tensor type.
+Value Torch::createInitTensor(PatternRewriter &rewriter, Location loc,
+                              BaseTensorType resultType, Value scalar,
+                              Value sizeList) {
+  assert(resultType.hasDtype() && "result must have dtype");
+  Value noneVal = rewriter.create<ConstantNoneOp>(loc);
+  Value dtype = getDtypeIntValueForType(rewriter, loc, resultType.getDtype());
+  return rewriter.create<AtenFullOp>(loc, resultType, sizeList, scalar, dtype,
+                                     /*layout=*/noneVal,
+                                     /*device=*/noneVal,
+                                     /*memory_format=*/noneVal);
+}
+
+// Helper to create a rank 0 tensor filled with the given `scalar`. `scalar`
+// would be converted to the element type of the given `inputType`.
+Value Torch::createRank0Tensor(PatternRewriter &rewriter, Location loc,
+                               BaseTensorType inputType, Value scalar) {
+  assert(inputType.hasDtype() && "input must have dtype");
+  SmallVector<int64_t> sizes;
+  BaseTensorType rank0TensorTy =
+      inputType.getWithSizesAndDtype(ArrayRef(sizes), inputType.getDtype())
+          .cast<BaseTensorType>();
+  Value dimList = rewriter.create<PrimListConstructOp>(
+      loc, Torch::ListType::get(Torch::IntType::get(inputType.getContext())),
+      ValueRange{});
+  return createInitTensor(rewriter, loc, rank0TensorTy, scalar, dimList);
 }

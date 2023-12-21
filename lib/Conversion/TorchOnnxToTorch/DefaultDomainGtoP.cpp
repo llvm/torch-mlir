@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -27,7 +28,47 @@ using namespace mlir::torch::onnx_c;
 // thing here, so we simplify.
 void mlir::torch::onnx_c::populateDefaultDomainGtoP(
     OnnxCustomOpConversionPattern &patterns) {
+  patterns.onOp("HardSigmoid", 6,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value tensorOperand;
+        float alpha, beta;
+        if (binder.tensorOperand(tensorOperand) ||
+            binder.f32FloatAttr(alpha, "alpha", 0.2) ||
+            binder.f32FloatAttr(beta, "beta", 0.5) ||
+            binder.tensorResultType(resultType))
+          return failure();
+        
+        // HardSigmoid computes the following expression: max(0, min(1, alpha * x + beta))
+        Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr(alpha));
 
+        Value constBeta = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr(beta));
+
+        // Expression: alpha * x + beta
+        Value alpha_x_plus_beta = rewriter.create<Torch::AtenAddScalarOp>(
+            binder.getLoc(), resultType, tensorOperand, constBeta, /*alpha=*/constAlpha);
+
+        // Expression: min(1, alpha * x + beta)
+        Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value oneTensor = createRank0Tensor(rewriter, binder.getLoc(),
+                                            resultType, constantOne);
+        Value minExpression = rewriter.create<Torch::AtenMinimumOp>(
+            binder.getLoc(), resultType, oneTensor, alpha_x_plus_beta);
+
+        // Expression: max(0, min(1, alpha * x + beta))
+        Value constantZero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value zeroTensor = createRank0Tensor(rewriter, binder.getLoc(),
+                                             resultType, constantZero);
+        rewriter.replaceOpWithNewOp<Torch::AtenMaximumOp>(
+            binder.op, resultType, zeroTensor, minExpression);
+        return success();
+      });
   patterns.onOp(
       "Gelu", 20, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Value operand;
