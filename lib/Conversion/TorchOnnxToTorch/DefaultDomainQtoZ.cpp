@@ -795,6 +795,79 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                   return success();
                 });
 
+  
+  // split with fixed-size parts
+  // Arguments:
+  // - input: the tensor to split
+  // Attributes:
+  // - axis: the axis along which to split the input
+  // - num_outputs: the number of outputs to produce
+  // Outputs:
+  // - outputs: the produced outputs. Variadic with num_outputs elements.
+  // Note: torch.aten gives a list of tensors, but ONNX gives a variadic list of tensors
+  //       so we need to unpack the list
+  patterns.onOp("Split", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+    Value self;
+    if (binder.tensorOperand(self)) {
+      // this only matches the one-operand case. There is another that matches the case where the size of each split is given
+      return rewriter.notifyMatchFailure(binder.op, "Not converting to AtenSplitTensorOp due to input tensor mismatch");
+    }
+
+    int64_t axis;
+    int64_t num_outputs; // this isn't used, but should be equal to the length of the split sizes tensor
+    if (binder.s64IntegerAttr(axis, "axis", 0)){
+      return rewriter.notifyMatchFailure(binder.op, "Failed to get axis attribute");
+    }
+    if (binder.s64IntegerAttr(num_outputs, "num_outputs", 0)){
+      return rewriter.notifyMatchFailure(binder.op, "Failed to get num_outputs attribute");
+    }
+
+    int64_t dim = axis;
+    if (dim < 0) {
+      dim += cast<Torch::ValueTensorType>(binder.op->getOperand(0).getType()).getSizes().size();
+    }
+
+
+    // set intermediate shape to the shape of the first result
+    // if the results are of different shapes
+    // set the splitted axis to variable shape
+    auto result0Ty = binder.op->getResult(0).getType().cast<Torch::ValueTensorType>(); 
+    llvm::SmallVector<int64_t> intermediateShape(result0Ty.getSizes());
+    for (auto result : binder.op->getResultTypes()) {
+      int64_t d = result.cast<Torch::ValueTensorType>().getSizes()[dim];
+      intermediateShape[dim] = d == intermediateShape[dim] ? d : -1;
+    }
+
+    Value dimValue = rewriter.create<Torch::ConstantIntOp>(
+      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+      rewriter.getIntegerAttr(rewriter.getIntegerType(64), dim));
+
+    Value splitSize = rewriter.create<Torch::ConstantIntOp>(
+      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+      rewriter.getIntegerAttr(rewriter.getIntegerType(64), num_outputs));
+
+    // TODO: this currently takes the `split` input as the ground truth for
+    // the sizes into which AtenSplitWithSizesOp should split the input
+    // we should be able to be more certain about the shapes by
+    // taking the split input as a suggestion
+    // and actually use the shape expected by the surrounding ONNX mlir as a ground truth
+    // by using binder.op->GetResults() to get the expected shape
+    // and use listConstruct over binder.op->GetResults() to the sizes into a list
+    // and feeding it to AtenSplitWithSizesOp
+    // if this is dynamic, just give a dynamic result as we currently do
+    // we can even validate the two to make sure they are consistent
+    auto resultOuterType = Torch::ListType::get(rewriter.getType<Torch::ValueTensorType>(/*std::optional<llvm::ArrayRef<int64_t>>=*/intermediateShape, result0Ty.getOptionalDtype()));
+    Torch::AtenSplitTensorOp new_op = rewriter.create<Torch::AtenSplitTensorOp>(
+      binder.getLoc(), resultOuterType, self, splitSize, dimValue);
+
+    // the onnx op is variadic with multiple results, but AtenSplitWithSizes outputs a list
+    // so we need to unpack the list
+    rewriter.replaceOpWithNewOp<Torch::PrimListUnpackOp>(
+      binder.op, binder.op->getResults().getType(), new_op.getResult());
+    
+    return success();
+  });
+
   // split with variable parts
   // Arguments:
   // - input: the tensor to split
