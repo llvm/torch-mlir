@@ -3619,7 +3619,10 @@ public:
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
     Value one =
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
-    Value x = rewriter.create<AtenUniformOp>(loc, resultType, op.getSelf(),
+    Value emptyTensor = rewriter.create<AtenFullLikeOp>(
+        loc, resultType, op.getSelf(), zero, /*dtype=*/none, /*layout=*/none,
+        /*device=*/none, /*pin_memoty=*/none, /*memory_format=*/none);
+    Value x = rewriter.create<AtenUniformOp>(loc, resultType, emptyTensor,
                                              /*from=*/zero, /*to=*/one,
                                              /*generator=*/none);
 
