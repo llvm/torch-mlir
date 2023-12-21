@@ -126,35 +126,6 @@ static Value createTensorSub(PatternRewriter &rewriter, Location loc,
   return sub;
 }
 
-// Helper to create a tensor filled with the given scalar. Scalar would be
-// converted the to the element type of the given tensor type.
-static Value createInitTensor(PatternRewriter &rewriter, Location loc,
-                              BaseTensorType resultType, Value scalar,
-                              Value sizeList) {
-  assert(resultType.hasDtype() && "result must have dtype");
-  Value noneVal = rewriter.create<ConstantNoneOp>(loc);
-  Value dtype = getDtypeIntValueForType(rewriter, loc, resultType.getDtype());
-  return rewriter.create<AtenFullOp>(loc, resultType, sizeList, scalar, dtype,
-                                     /*layout=*/noneVal,
-                                     /*device=*/noneVal,
-                                     /*memory_format=*/noneVal);
-}
-
-// Helper to create a rank 0 tensor filled with the given `scalar`. `scalar`
-// would be converted to the element type of the given `inputType`.
-static Value createRank0Tensor(PatternRewriter &rewriter, Location loc,
-                               BaseTensorType inputType, Value scalar) {
-  assert(inputType.hasDtype() && "input must have dtype");
-  SmallVector<int64_t> sizes;
-  BaseTensorType rank0TensorTy =
-      inputType.getWithSizesAndDtype(ArrayRef(sizes), inputType.getDtype())
-          .cast<BaseTensorType>();
-  Value dimList = rewriter.create<PrimListConstructOp>(
-      loc, Torch::ListType::get(Torch::IntType::get(inputType.getContext())),
-      ValueRange{});
-  return createInitTensor(rewriter, loc, rank0TensorTy, scalar, dimList);
-}
-
 // Share code between `softmax_backward` and `log_softmax_backward` ops.
 // Returns x - y * sum(z, dim).
 static Value createSoftmaxBackwardCommonKernel(PatternRewriter &rewriter,
