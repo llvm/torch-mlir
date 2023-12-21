@@ -11,96 +11,6 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
-
-
-class AdaptiveMaxPool2dNonUnitOutputSizeStaticModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-        self.amp2d = torch.nn.AdaptiveMaxPool2d((7, 7))
-
-    @export
-    @annotate_args([
-        None,
-        ([1, 512, 7, 7], torch.float32, True),
-    ])
-    def forward(self, x):
-        return self.amp2d(x)
-
-
-@register_test_case(
-    module_factory=lambda: AdaptiveMaxPool2dNonUnitOutputSizeStaticModule())
-def AdaptiveMaxPool2dNonUnitOutputSizeStaticModule_basic(
-        module, tu: TestUtils):
-    module.forward(tu.rand(1, 512, 7, 7))
-
-
-class AdaptiveMaxPool2dNonUnitOutputSizeDynamicModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-        self.amp2d = torch.nn.AdaptiveMaxPool2d((7, 7))
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, x):
-        return self.amp2d(x)
-
-
-@register_test_case(
-    module_factory=lambda: AdaptiveMaxPool2dNonUnitOutputSizeDynamicModule())
-def AdaptiveMaxPool2dNonUnitOutputSizeDynamicModule_basic(
-        module, tu: TestUtils):
-    module.forward(tu.rand(1, 512, 7, 7))
-
-
-class AdaptiveMaxPool2dUnitOutputSizeStaticModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-        self.amp2d = torch.nn.AdaptiveMaxPool2d((1, 1))
-
-    @export
-    @annotate_args([
-        None,
-        ([1, 512, 7, 7], torch.float32, True),
-    ])
-    def forward(self, x):
-        return self.amp2d(x)
-
-
-@register_test_case(
-    module_factory=lambda: AdaptiveMaxPool2dUnitOutputSizeStaticModule())
-def AdaptiveMaxPool2dUnitOutputSizeStaticModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 512, 7, 7))
-
-
-class AdaptiveMaxPool2dUnitOutputSizeDynamicModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-        self.amp2d = torch.nn.AdaptiveMaxPool2d((1, 1))
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, x):
-        return self.amp2d(x)
-
-
-@register_test_case(
-    module_factory=lambda: AdaptiveMaxPool2dUnitOutputSizeDynamicModule())
-def AdaptiveMaxPool2dUnitOutputSizeDynamicModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 512, 7, 7))
-
-# ==============================================================================
-
-
 class AdaptiveAvgPool2dNonUnitOutputSizeStaticModule(torch.nn.Module):
 
     def __init__(self):
@@ -888,7 +798,7 @@ class AdaptiveAvgPool1dNonUnitOutputSizeStaticModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.aap1d = torch.nn.AdaptiveAvgPool1d(7)
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=7)
 
     @export
     @annotate_args([
@@ -908,7 +818,7 @@ class AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.aap1d = torch.nn.AdaptiveAvgPool1d(7)
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=7)
 
     @export
     @annotate_args([
@@ -928,7 +838,7 @@ class AdaptiveAvgPool1dUnitOutputSizeStaticModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.aap1d = torch.nn.AdaptiveAvgPool1d(1)
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=1)
 
     @export
     @annotate_args([
@@ -948,7 +858,7 @@ class AdaptiveAvgPool1dUnitOutputSizeDynamicModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.aap1d = torch.nn.AdaptiveAvgPool1d(1)
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=1)
 
     @export
     @annotate_args([

@@ -20,11 +20,7 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "IscloseStaticModule_basic",
-    "IscloseStaticModuleTrue_basic",
-    "AdaptiveMaxPool2dNonUnitOutputSizeStaticModule_basic",
-    "AdaptiveMaxPool2dNonUnitOutputSizeDynamicModule_basic",
-    "AdaptiveMaxPool2dUnitOutputSizeStaticModule_basic",
-    "AdaptiveMaxPool2dUnitOutputSizeDynamicModule_basic"
+    "IscloseStaticModuleTrue_basic"
 }
 
 TORCHDYNAMO_XFAIL_SET = {
