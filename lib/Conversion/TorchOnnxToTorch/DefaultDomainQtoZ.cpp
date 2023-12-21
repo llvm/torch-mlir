@@ -242,7 +242,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Torch::ValueTensorType resultType;
         Value data;
         Value axes;
-        Value result;
         if (binder.tensorOperands(data, axes) ||
             binder.tensorResultType(resultType))
           return failure();
