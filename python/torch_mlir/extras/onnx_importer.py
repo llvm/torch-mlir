@@ -470,8 +470,6 @@ class ContextCache:
             name = "_" + name  
         return re.sub("[:/]", "_", name)  
 
-
-
     def tensor_proto_to_attr(self, tp: onnx.TensorProto) -> Attribute:
         tensor_type = self.tensor_proto_to_builtin_type(tp)
         if tp.HasField("raw_data"):
