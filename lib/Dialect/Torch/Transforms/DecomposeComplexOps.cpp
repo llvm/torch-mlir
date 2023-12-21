@@ -3592,13 +3592,10 @@ public:
 } // namespace
 
 namespace {
-// In general, a function g(x) produces a random variable of probability density
-// function f(X) if g(x) := inverse(F(x)) where
-// - F(x) is the cumulative distribution function; i.e.
-//   F(x) := integrate(g(u), {u, 0, x}) and
-// - x is sampled from the uniform distribution [0, 1) (half-closed interval)
-// With the exponential distribution, F(x) = 1 - exp(-lambda * x). Thus, we get
-// exponential(x) = - ln(1 - uniform(0, 1)) / lambda.
+// Decompose exponential() to do inverse transform sampling.
+// - https://en.wikipedia.org/wiki/Inverse_transform_sampling
+// With the exponential distribution, F(x) = 1 - exp(-lambda * x). Thus,
+// exponential() = - ln(1 - uniform(0, 1)) / lambda.
 class DecomposeAtenExponentialOp : public OpRewritePattern<AtenExponentialOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
