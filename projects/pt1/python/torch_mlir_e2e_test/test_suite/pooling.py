@@ -774,6 +774,46 @@ def AvgPool1dStaticModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class AdaptiveAvgPool1dStaticLargerOutput(torch.nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=13)
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 512, 7], torch.float32, True)
+    ])
+    def forward(self,x):
+        return self.aap1d(x)
+
+@register_test_case(
+    module_factory=lambda: AdaptiveAvgPool1dStaticLargerOutput())
+def AdaptiveAvgPool1dStaticLargerOutput_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(5, 512, 7))
+
+class AdaptiveAvgPool1dStaticEvenMultiple(torch.nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=7)
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 512, 147], torch.float32, True)
+    ])
+    def forward(self,x):
+        return self.aap1d(x)
+
+@register_test_case(
+    module_factory=lambda: AdaptiveAvgPool1dStaticEvenMultiple())
+def AdaptiveAvgPool1dStaticEvenMultiple_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(5, 512, 147))
+
 class AdaptiveAvgPool1dGeneralDynamic(torch.nn.Module):
     
     def __init__(self):
