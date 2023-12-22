@@ -1873,3 +1873,24 @@ class EmptyStridedSizeIntStrideModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: EmptyStridedSizeIntStrideModule())
 def EmptyStridedSizeIntStrideModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))
+
+# ==============================================================================
+
+
+class AtenDiagEmbedDefaultDiag(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.diag_embed(a)
+    
+
+    @register_test_case(module_factory=lambda: AtenDiagEmbedDefaultDiag())
+    def AtenDiagEmbedDefaultDiag_basic(module, tu: TestUtils):
+        module.forward(tu.rand(2, 3, 4))

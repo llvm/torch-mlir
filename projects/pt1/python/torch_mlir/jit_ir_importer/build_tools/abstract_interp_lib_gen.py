@@ -53,6 +53,10 @@ def _embedding_bag_helper(weight: List[int], indices: List[int],
 
     return output_bag_shape, offset2bag_shape, bag_size_shape, max_indices_shape
 
+# TODO: upstream this
+def _diag_embed_shape_helper(self: List[int], dim1: int, dim2: int):
+    return upstream_shape_functions.unary(self)
+
 def aten〇triu〡shape(self: List[int], diagonal: int = 0) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -806,6 +810,9 @@ def aten〇new_empty〡shape(self: List[int], size: List[int], dtype: Optional[i
 
 def aten〇new_empty_strided〡shape(self: List[int], size: List[int], stride: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return size
+
+def aten〇diag_embed〡shape(self: List[int], offset: int = 0, dim1: int = -2, dim2: int = -1) -> List[int]:
+    return _diag_embed_shape_helper(self, dim1, dim2)
 
 def aten〇_to_copy〡shape(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, non_blocking: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
@@ -3608,6 +3615,11 @@ def aten〇new_empty〡dtype(self_rank_dtype: Tuple[int, int], size: List[int], 
 def aten〇new_empty_strided〡dtype(self_rank_dtype: Tuple[int, int], size: List[int], stride: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype if dtype is None else dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇diag_embed〡dtype(self_rank_dtype: Tuple[int, int], offset: int = 0, dim1: int = -2, dim2: int = -1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1) +
                       _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float16) +
