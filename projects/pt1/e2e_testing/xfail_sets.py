@@ -1324,6 +1324,7 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
 ### Tests additionally passing in make_fx_tosa
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
+    "AdaptiveAvgPool1dStaticEvenMultiple_basic",
     "NativeGroupNormBackwardModule_basic",
     "SliceWholeTensorModule_basic",
     "TensorFloatModule_basic",
