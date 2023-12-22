@@ -1262,6 +1262,13 @@ def pad_shape_fn(input: List[int], pad: List[int]):
 def aten〇constant_pad_nd〡shape(self: List[int], pad: List[int], value: float = 0) -> List[int]:
     return pad_shape_fn(self, pad)
 
+def aten〇replication_pad2d〡shape(self: List[int], padding: List[int]) -> List[int]:
+    return pad_shape_fn(self, padding)
+
+def aten〇replication_pad2d〡dtype(self_rank_dtype: Tuple[int, int], padding: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
 def aten〇pad〡shape(self: List[int], pad: List[int], mode: str = "constant", value: Optional[float] = None) -> List[int]:
     return pad_shape_fn(self, pad)
 
