@@ -501,7 +501,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Torch::ValueTensorType resultType;
         Value input, weight;
         int64_t group;
-        if (binder.tensorOperands(input, weight) ||
+        if (binder.tensorOperandAtIndex(input, 0) ||
+            binder.tensorOperandAtIndex(weight, 1) ||
             binder.s64IntegerAttr(group, "group", 1) ||
             binder.tensorResultType(resultType))
           return failure();
@@ -668,7 +669,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Torch::ValueTensorType resultType;
         Value input, weight;
         int64_t group;
-        if (binder.tensorOperands(input, weight) ||
+        if (binder.tensorOperandAtIndex(input, 0) ||
+            binder.tensorOperandAtIndex(weight, 1) ||
             binder.s64IntegerAttr(group, "group", 1) ||
             binder.tensorResultType(resultType))
           return failure();
