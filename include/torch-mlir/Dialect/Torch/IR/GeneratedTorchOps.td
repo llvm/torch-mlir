@@ -7893,6 +7893,30 @@ def Torch_AtenReflectionPad1dOp : Torch_Op<"aten.reflection_pad1d", [
   }];
 }
 
+def Torch_AtenReflectionPad2dOp : Torch_Op<"aten.reflection_pad2d", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::reflection_pad2d : (Tensor, int[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchListOfTorchIntType:$padding
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenReflectionPad2dOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenReflectionPad2dOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_AtenPadOp : Torch_Op<"aten.pad", [
     AllowsTypeRefinement,
     HasValueSemantics,
