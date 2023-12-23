@@ -29,6 +29,9 @@ set(LinkedLibs
   # Conversion passes.
   TorchMLIRConversionPasses
   TorchMLIRTorchOnnxToTorch
+
+  StablehloPasses
+  StablehloLinalgTransforms
 )
 
 if(TORCH_MLIR_ENABLE_REFBACKEND)
