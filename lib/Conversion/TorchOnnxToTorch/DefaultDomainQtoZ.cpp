@@ -873,4 +873,154 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         rewriter.replaceOp(binder.op, operand);
         return success();
       });
+  patterns.onOp(
+      "Slice", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultTorchType;
+        Value operand, starts, ends, axes, steps;
+        // Handle if axes are not provided
+
+        if (binder.tensorOperandAtIndex(operand, 0) ||
+            binder.tensorOperandAtIndex(starts, 1) ||
+            binder.tensorOperandAtIndex(ends, 2) ||
+            binder.tensorResultType(resultTorchType)) {
+          return failure();
+        }
+
+        auto context = rewriter.getContext();
+        auto operandTorchTy = operand.getType().cast<Torch::ValueTensorType>();
+        auto operandTy =
+            operandTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+
+        auto startsTorchTy = starts.getType().cast<Torch::ValueTensorType>();
+        auto startsTy =
+            startsTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+
+        auto endsTorchTy = ends.getType().cast<Torch::ValueTensorType>();
+        auto endsTy =
+            endsTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+
+        if (!operandTy)
+          return failure();
+
+        if (!(endsTy.getRank() == 1 && startsTy.getRank() == 1 &&
+              startsTy.getDimSize(0) == endsTy.getDimSize(0))) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected the rank of starts and ends tensors to be 1 "
+                         "and their dimensions to match");
+        }
+
+        // Infer Axes
+        int64_t numAxes;
+        if (binder.getNumOperands() >= 4) {
+          if (binder.tensorOperandAtIndex(axes, 3)) {
+            return failure();
+          }
+          auto axesTorchTy = axes.getType().cast<Torch::ValueTensorType>();
+          auto axesTy =
+              axesTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+
+          if (!(axesTy && axesTy.getDimSize(0) == endsTy.getDimSize(0)))
+            return failure();
+
+          numAxes = axesTy.getDimSize(0);
+        } else {
+          if (operandTy.getRank() != endsTy.getDimSize(0))
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "When axes argument are not applied, expected the tensor "
+                "operand rank to match the sizes of starts and ends");
+          numAxes = operandTy.getRank();
+        }
+
+        // Infer Steps
+        if (binder.getNumOperands() >= 5) {
+          if (binder.tensorOperandAtIndex(steps, 4)) {
+            return failure();
+          }
+          auto stepsTorchTy = steps.getType().cast<Torch::ValueTensorType>();
+          auto stepsTy =
+              stepsTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+
+          if (!(stepsTy && stepsTy.getDimSize(0) == endsTy.getDimSize(0)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "When steps is provided, steps size should match "
+                           "the size of starts and ends");
+        }
+
+        auto resultTy =
+            resultTorchType.toBuiltinTensor().dyn_cast<RankedTensorType>();
+        if (!resultTy)
+          return failure();
+
+        Location loc = binder.getLoc();
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+
+        auto select = [&](Value v, Value k) -> Value {
+          auto ty = v.getType().cast<Torch::ValueTensorType>();
+          auto sel = rewriter.create<Torch::AtenIndexSelectOp>(
+              loc,
+              Torch::ValueTensorType::get(ty.getContext(), ArrayRef<int64_t>{1},
+                                          ty.getOptionalDtype()),
+              v, zero, k);
+          Value item = rewriter.create<Torch::AtenItemOp>(
+              loc, rewriter.getType<Torch::IntType>(), sel);
+          return item;
+        };
+
+        Value defaultStepSize;
+        if (!steps) {
+          defaultStepSize = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), 1));
+        }
+
+        llvm::SmallVector<int64_t> intermediateShape(operandTy.getShape());
+        for (int i = 0, s = operandTy.getRank(); i < s; ++i) {
+          if (operandTy.getDimSize(i) != resultTy.getDimSize(i)) {
+            intermediateShape[i] = ShapedType::kDynamic;
+          }
+        }
+        auto intermediateType = Torch::ValueTensorType::get(
+            context, intermediateShape, resultTorchType.getOptionalDtype());
+        for (int i = 0; i < numAxes; ++i) {
+
+          Value k = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
+          Value kTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+              loc,
+              Torch::ValueTensorType::get(context, ArrayRef<int64_t>{1},
+                                          rewriter.getI64Type()),
+              k);
+
+          Value start = select(starts, kTensor);
+          Value end = select(ends, kTensor);
+          // Handle axis input when axis is not provided as an input
+          Value axis;
+          if (axes) {
+            axis = select(axes, kTensor);
+          } else {
+            axis = k;
+          }
+
+          // Handle step input when axis is not provided as an input
+          Value step;
+          if (steps) {
+            step = select(steps, kTensor);
+          } else {
+            step = defaultStepSize;
+          }
+
+          auto sliceType = intermediateType;
+          if (i == numAxes - 1)
+            sliceType = resultTorchType;
+          operand = rewriter.create<Torch::AtenSliceTensorOp>(
+              loc, sliceType, operand, axis, start, end, step);
+        }
+
+        rewriter.replaceOp(binder.op, operand);
+        return success();
+      });
 }
