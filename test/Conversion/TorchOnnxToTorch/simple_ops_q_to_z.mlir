@@ -833,7 +833,7 @@ func.func @test_transpose_all_permutations_4(%arg0: !torch.vtensor<[2,3,4],f32>)
 
 // -----
 
-// CHECK-LABEL: @test_slice
+// CHECK-LABEL: func.func @test_slice
 func.func @test_slice(%arg0: !torch.vtensor<[20,10,5],f32>, %arg1: !torch.vtensor<[2],si64>, %arg2: !torch.vtensor<[2],si64>, %arg3: !torch.vtensor<[2],si64>, %arg4: !torch.vtensor<[2],si64>) -> !torch.vtensor<[3,10,5],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   //CHECK: %[[INDEX_TO_GRAB:.*]] = torch.constant.int 0
   //CHECK: %[[CONST_0:.*]] = torch.constant.int 0
@@ -862,7 +862,7 @@ func.func @test_slice(%arg0: !torch.vtensor<[20,10,5],f32>, %arg1: !torch.vtenso
   return %0 : !torch.vtensor<[3,10,5],f32>
 }
 
-// CHECK-LABEL: @test_slice_default_axes
+// CHECK-LABEL: func.func @test_slice_default_axes
 func.func @test_slice_default_axes(%arg0: !torch.vtensor<[20,10,5],f32>, %arg1: !torch.vtensor<[3],si64>, %arg2: !torch.vtensor<[3],si64>) -> !torch.vtensor<[20,10,1],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   //CHECK: %[[INDEX_TO_GRAB:.*]] = torch.constant.int 0
   //CHECK: %[[STEP_CONSTANT:.*]] = torch.constant.int 1
@@ -891,7 +891,7 @@ func.func @test_slice_default_axes(%arg0: !torch.vtensor<[20,10,5],f32>, %arg1: 
   return %0 : !torch.vtensor<[20,10,1],f32>
 }
 
-// CHECK-LABEL: @test_slice_default_steps
+// CHECK-LABEL: func.func @test_slice_default_steps
 func.func @test_slice_default_steps(%arg0: !torch.vtensor<[20,10,5],f32>, %arg1: !torch.vtensor<[3],si64>, %arg2: !torch.vtensor<[3],si64>, %arg3: !torch.vtensor<[3],si64>) -> !torch.vtensor<[20,10,1],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   //CHECK: %[[INDEX_TO_GRAB:.*]] = torch.constant.int 0
   //CHECK: %[[STEP_CONSTANT:.*]] = torch.constant.int 1
