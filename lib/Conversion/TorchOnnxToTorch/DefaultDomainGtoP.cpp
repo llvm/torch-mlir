@@ -242,6 +242,77 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.op, resultType, mm, c, constBeta);
         return success();
       });
+  patterns.onOp(
+      "GlobalAveragePool", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        if (binder.tensorOperand(operand) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        auto inputTensorType = operand.getType().cast<Torch::ValueTensorType>();
+        if (!inputTensorType || !inputTensorType.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected input type having sizes");
+        }
+        ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
+        unsigned inputRank = inputShape.size();
+        if (!resultType || !resultType.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected result type having sizes");
+        }
+        ArrayRef<int64_t> resultShape = resultType.getSizes();
+
+        SmallVector<Value> cstKernel, cstPadding, cstStrides;
+        Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        for (unsigned i = 2; i < inputRank; i++) {
+          int64_t kernelSize = inputShape[i] - resultShape[i] + 1;
+          cstKernel.push_back(rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(kernelSize)));
+          cstPadding.push_back(cstZero);
+          cstStrides.push_back(cstOne);
+        }
+        Value kernelSizeList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            cstKernel);
+        Value paddingList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            cstPadding);
+        Value stridesList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            cstStrides);
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        Value cstCeilMode = cstFalse;
+        Value cstCountIncludePad = cstFalse;
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+
+        if (inputRank == 3) {
+          rewriter.replaceOpWithNewOp<Torch::AtenAvgPool1dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, cstCeilMode, cstCountIncludePad);
+          return success();
+        } else if (inputRank == 4) {
+          rewriter.replaceOpWithNewOp<Torch::AtenAvgPool2dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, cstCeilMode, cstCountIncludePad,
+              /*divisor_override=*/cstNone);
+          return success();
+        } else if (inputRank == 5) {
+          rewriter.replaceOpWithNewOp<Torch::AtenAvgPool3dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, cstCeilMode, cstCountIncludePad,
+              /*divisor_override=*/cstNone);
+          return success();
+        }
+        return failure();
+      });
   patterns.onOp("LeakyRelu", 16,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
