@@ -99,6 +99,18 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
+  patterns.onOp("Mul", 7,
+		[](OpBinder binder, ConversionPatternRewriter &rewriter) {
+		  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenMulTensorOp>(
+		    binder.op, resultType, lhs, rhs);
+		  return success();
+		});
   patterns.onOp("Greater", 16,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
