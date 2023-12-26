@@ -873,4 +873,95 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         rewriter.replaceOp(binder.op, operand);
         return success();
       });
+
+  patterns.onOp(
+      "Reshape", 5, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value data;
+        Value shape;
+        int64_t allowzero;
+        if (binder.tensorOperands(data, shape) ||
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerAttr(allowzero, "allowzero", 0))
+          return failure();
+        Torch::BaseTensorType shapeType =
+            shape.getType().cast<Torch::BaseTensorType>();
+        SmallVector<Value> dimList;
+        SmallVector<int64_t> selectSizes;
+        selectSizes.push_back(1);
+        Type selectResultType = shapeType.getWithSizesAndDtype(
+            llvm::ArrayRef(selectSizes), shapeType.getOptionalDtype());
+        auto shapeSizes =
+            dyn_cast<Torch::ValueTensorType>(shape.getType()).getSizes();
+        auto dataSizes =
+            dyn_cast<Torch::ValueTensorType>(data.getType()).getSizes();
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+        if (allowzero == 0) {
+          // convert shape (tensor) into torch int list while dealing with zero
+          // vals
+          for (int i = 0; i < shapeSizes[0]; i++) {
+            // Go through the shape list and get each dim in the list
+            Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
+            Value extract = rewriter.create<Torch::AtenSelectIntOp>(
+                binder.getLoc(), selectResultType, shape, zero, selectIndex);
+            Value dim = rewriter.create<Torch::AtenItemOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
+            // deal with zero axis values: replace with original dim value in
+            // input
+            Value isZero =
+                rewriter.create<Torch::AtenEqIntOp>(binder.getLoc(), dim, zero);
+            isZero =
+                rewriter.create<Torch::AtenIntBoolOp>(binder.getLoc(), isZero);
+            Value adjustment;
+            int64_t inputDimsSize = dataSizes.size();
+            if (i < inputDimsSize) {
+              adjustment = rewriter.create<Torch::ConstantIntOp>(
+                  binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                  rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                          dataSizes[i]));
+            }
+            // Will never have a 0 in the shape tensor input at an index out of
+            // bounds of original input dims Therefore, no need to adjust
+            else {
+              adjustment = zero;
+            }
+            Value finalOffset = rewriter.create<Torch::AtenMulIntOp>(
+                binder.getLoc(), isZero, adjustment);
+            Value finalDim = rewriter.create<Torch::AtenAddIntOp>(
+                binder.getLoc(), dim, finalOffset);
+            dimList.push_back(finalDim);
+          }
+          Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
+              binder.getLoc(),
+              Torch::ListType::get(
+                  Torch::IntType::get(binder.op->getContext())),
+              dimList);
+          rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(
+              binder.op, resultType, data, dimValueList);
+          return success();
+        }
+        // convert axes (tensor) into torch int list
+        for (int i = 0; i < shapeSizes[0]; i++) {
+          // Go through the axes list and get each dim in the list
+          Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
+          Value extract = rewriter.create<Torch::AtenSelectIntOp>(
+              binder.getLoc(), selectResultType, shape, zero, selectIndex);
+          Value dim = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
+          dimList.push_back(dim);
+        }
+        Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            dimList);
+        rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(binder.op, resultType,
+                                                          data, dimValueList);
+        return success();
+      });
 }
