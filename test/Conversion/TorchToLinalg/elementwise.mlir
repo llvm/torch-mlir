@@ -19,6 +19,8 @@ func.func @elementwise$unary(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[]
   return %0 : !torch.vtensor<[],f32>
 }
 
+// -----
+
 // CHECK-LABEL:   func.func @elementwise$binary(
 // CHECK-SAME:                             %[[ARG0:.*]]: !torch.vtensor<[?,?],f32>,
 // CHECK-SAME:                             %[[ARG1:.*]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32> {
@@ -46,6 +48,8 @@ func.func @elementwise$binary(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vt
   return %0 : !torch.vtensor<[?,?],f32>
 }
 
+// -----
+
 // CHECK-LABEL:   func.func @elementwise$ternary(
 // CHECK:       linalg.generic {indexing_maps = [
 // CHECK-SAME:    affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
@@ -56,6 +60,8 @@ func.func @elementwise$ternary(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !torch
   %0 = torch.aten.lerp.Tensor %arg0, %arg1, %arg2 : !torch.vtensor<[?,?,?],f32>, !torch.vtensor<[?,?],f32>, !torch.vtensor<[?],f32> -> !torch.vtensor<[?,?,?],f32>
   return %0 : !torch.vtensor<[?,?,?],f32>
 }
+
+// -----
 
 // CHECK-LABEL:   func.func @elementwise$with_scalar_capture(
 // CHECK-SAME:                                          %[[VAL_0:.*]]: !torch.vtensor<[?],f32>,
@@ -75,6 +81,8 @@ func.func @elementwise$with_scalar_capture(%arg0: !torch.vtensor<[?],f32>, %arg1
   return %0 : !torch.vtensor<[?],f32>
 }
 
+// -----
+
 // CHECK-LABEL:   func.func @elementwise$static_1(
 // CHECK:           linalg.generic {indexing_maps = [
 // CHECK-SAME:        affine_map<(d0) -> (d0)>,
@@ -83,4 +91,14 @@ func.func @elementwise$with_scalar_capture(%arg0: !torch.vtensor<[?],f32>, %arg1
 func.func @elementwise$static_1(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.vtensor<[1],f32>) -> !torch.vtensor<[?],f32> {
   %1 = torch.aten.mul.Tensor %arg0, %arg1 : !torch.vtensor<[?],f32>, !torch.vtensor<[1],f32> -> !torch.vtensor<[?],f32>
   return %1 : !torch.vtensor<[?],f32>
+}
+
+// -----
+
+// CHECK-LABEL:    func.func @elementwise_sinh
+// CHECK:            linalg.generic
+// CHECK:            math.sinh
+func.func @elementwise_sinh(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3],f32> {
+  %0 = torch.aten.sinh %arg0 : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
+  return %0 : !torch.vtensor<[3],f32>
 }

@@ -3009,6 +3009,46 @@ def ElementwiseAcosIntModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ElementwiseTanModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.tan(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseTanModule())
+def ElementwiseTanModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+# ==============================================================================
+
+class ElementwiseTanIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.tan(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseTanIntModule())
+def ElementwiseTanIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
+
+# ==============================================================================
+
 class ElementwiseNegModule(torch.nn.Module):
 
     def __init__(self):

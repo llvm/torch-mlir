@@ -274,7 +274,7 @@ public:
 
     SmallVector<StringRef> fragments;
     llvm::SplitString(op->getName().getStringRef(), fragments, ".");
-    assert(fragments.size() >= 3 && fragments[2].endswith("_") &&
+    assert(fragments.size() >= 3 && fragments[2].ends_with("_") &&
            "IsTrailingUnderscoreInplaceVariant incorrectly applied");
     fragments[2] = fragments[2].drop_back();
     std::string noUnderscoreName = llvm::join(fragments, ".");
