@@ -807,7 +807,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
   //       so we need to unpack the list
   patterns.onOp(
       "Split", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Value self;        
+        Value self;
         int64_t axis;
         int64_t num_outputs;
         if (binder.tensorOperand(self))
@@ -827,10 +827,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         int64_t dim = axis;
         if (dim < 0)
-          dim +=
-              selfTy
-                  .getSizes()
-                  .size();
+          dim += selfTy.getSizes().size();
 
         // set intermediate shape to the shape of the first result
         // if the results are of different shapes
@@ -849,7 +846,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), num_outputs));
 
-        // TODO: Attempting to use the shape expected by the ONNX mlir as ground truth. For now just use dynamic shapes.
+        // TODO: Attempting to use the shape expected by the ONNX mlir as ground
+        // truth. For now just use dynamic shapes.
         auto resultOuterType =
             Torch::ListType::get(rewriter.getType<Torch::ValueTensorType>(
                 /*std::optional<llvm::ArrayRef<int64_t>>=*/intermediateShape,
@@ -883,7 +881,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value self;
         Value split;
         int64_t axis;
-        int64_t num_outputs; 
+        int64_t num_outputs;
         if (binder.tensorOperandAtIndex(self, 0) ||
             binder.tensorOperandAtIndex(split, 1))
           return rewriter.notifyMatchFailure(
@@ -898,13 +896,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         auto result0Ty =
             binder.op->getResult(0).getType().cast<Torch::ValueTensorType>();
-        auto selfTy = cast<Torch::ValueTensorType>(binder.op->getOperand(0).getType());
+        auto selfTy =
+            cast<Torch::ValueTensorType>(binder.op->getOperand(0).getType());
 
         int64_t dim = axis;
         if (dim < 0)
-          dim +=
-              selfTy.getSizes().size();
-        
+          dim += selfTy.getSizes().size();
+
         llvm::SmallVector<int64_t> intermediateShape(result0Ty.getSizes());
         for (auto result : binder.op->getResultTypes()) {
           int64_t d = result.cast<Torch::ValueTensorType>().getSizes()[dim];
@@ -919,7 +917,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), dim));
 
-        // TODO: Attempting to use the shape expected by the ONNX mlir as ground truth. For now just use dynamic shapes.
+        // TODO: Attempting to use the shape expected by the ONNX mlir as ground
+        // truth. For now just use dynamic shapes.
         auto resultOuterType =
             Torch::ListType::get(rewriter.getType<Torch::ValueTensorType>(
                 /*std::optional<llvm::ArrayRef<int64_t>>=*/intermediateShape,
