@@ -973,13 +973,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         if (!steps) {
           defaultStepSize = rewriter.create<Torch::ConstantIntOp>(
               loc, rewriter.getType<Torch::IntType>(),
-              rewriter.getIntegerAttr(rewriter.getIntegerType(64), 1));
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                      /*signed=*/true));
         }
 
         llvm::SmallVector<int64_t> intermediateShape(operandTy.getShape());
         for (int i = 0, s = operandTy.getRank(); i < s; ++i) {
           if (operandTy.getDimSize(i) != resultTy.getDimSize(i)) {
-            intermediateShape[i] = ShapedType::kDynamic;
+            intermediateShape[i] = -1;
           }
         }
         auto intermediateType = Torch::ValueTensorType::get(
@@ -991,27 +992,18 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
           Value kTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
               loc,
-              Torch::ValueTensorType::get(context, ArrayRef<int64_t>{1},
-                                          rewriter.getI64Type()),
+              Torch::ValueTensorType::get(
+                  context, ArrayRef<int64_t>{1},
+                  rewriter.getIntegerType(64, /*signed*/ 1)),
               k);
 
           Value start = select(starts, kTensor);
           Value end = select(ends, kTensor);
           // Handle axis input when axis is not provided as an input
-          Value axis;
-          if (axes) {
-            axis = select(axes, kTensor);
-          } else {
-            axis = k;
-          }
+          Value axis = axes ? select(axes, kTensor) : k;
 
           // Handle step input when axis is not provided as an input
-          Value step;
-          if (steps) {
-            step = select(steps, kTensor);
-          } else {
-            step = defaultStepSize;
-          }
+          Value step = steps ? select(steps, kTensor) : defaultStepSize;
 
           auto sliceType = intermediateType;
           if (i == numAxes - 1)
