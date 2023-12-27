@@ -169,7 +169,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         return success();
       });
   patterns.onOp(
-      "Gemm", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Gemm", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value a, b, c;
         float alpha, beta;
@@ -313,7 +313,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
         return failure();
       });
-  patterns.onOp("LeakyRelu", 16,
+  patterns.onOp("LeakyRelu", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value operand;
