@@ -88,8 +88,45 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                                                        operand, vApproximate);
         return success();
       });
-  patterns.onOp("MatMul", 13,
+  patterns.onOp("Less", 13,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenLtTensorOp>(
+                      binder.op, resultType, lhs, rhs);
+                  return success();
+                });
+  
+  patterns.onOp("LessOrEqual", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+		    rewriter.replaceOpWithNewOp<Torch::AtenLeTensorOp>(
+                      binder.op, resultType, lhs, rhs);
+                              return success();
+                });
+  patterns.onOp("Log", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenLogOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp("MatMul", 13,
+                  [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value lhs, rhs;
                   if (binder.tensorOperands(lhs, rhs) ||
@@ -135,19 +172,67 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
-  patterns.onOp("Less", 13,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  Value lhs, rhs;
-                  if (binder.tensorOperands(lhs, rhs) ||
-                      binder.tensorResultType(resultType)) {
+  patterns.onOp("Max", 1,
+		[](OpBinder binder, ConversionPatternRewriter &rewriter) {
+		  Torch::ValueTensorType resultType;
+		  llvm::SmallVector<Value> operands;
+		  if (binder.tensorOperandsList(operands) ||
+                      binder.tensorResultType(resultType) ||
+		      operands.size() == 0) {
                     return failure();
-                  }
-                  rewriter.replaceOpWithNewOp<Torch::AtenLtTensorOp>(
-                      binder.op, resultType, lhs, rhs);
-		              return success();
+		  }
+		  Value result = operands[0];
+		  for (int i = 1; i < operands.size(); i++) {
+		    result = rewriter.create<Torch::AtenMaximumOp>(
+		               binder.getLoc(), resultType, result, operands[i]);
+		  }
+		  rewriter.replaceOp(
+                    binder.op, result.getDefiningOp());
+		  return success();
                 });
-  patterns.onOp("LessOrEqual", 16,
+  patterns.onOp("Min", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  llvm::SmallVector<Value> operands;
+                  if (binder.tensorOperandsList(operands) ||
+                      binder.tensorResultType(resultType) ||
+                      operands.size() == 0) {
+                    return failure();
+                  }
+                  Value result = operands[0];
+                  for (int i = 1; i < operands.size(); i++) {
+                    result = rewriter.create<Torch::AtenMinimumOp>(
+                               binder.getLoc(), resultType, result, operands[i]);
+                  }
+                  rewriter.replaceOp(
+                    binder.op, result.getDefiningOp());
+                  return success();
+		});
+  patterns.onOp("Neg", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenNegOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp("Not", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenBitwiseNotOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp("Or", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value lhs, rhs;
@@ -155,9 +240,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.tensorResultType(resultType)) {
                     return failure();
                   }
-                  rewriter.replaceOpWithNewOp<Torch::AtenLeTensorOp>(
+                  rewriter.replaceOpWithNewOp<Torch::AtenBitwiseOrTensorOp>(
                       binder.op, resultType, lhs, rhs);
-		              return success();
+                  return success();
                 });
   patterns.onOp(
       "GatherElements", 13,
