@@ -377,7 +377,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         return success();
       });
   patterns.onOp(
-      "Cast", 19, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Cast", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value operand;
         int64_t dtypeIntOnnx, dtypeIntTorch;
@@ -848,7 +848,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
-  patterns.onOp("Equal", 19,
+  patterns.onOp("Equal", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value lhs, rhs;
