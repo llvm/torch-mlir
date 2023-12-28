@@ -1446,6 +1446,7 @@ LTC_XFAIL_SET = {
     "Aten_EmbeddingBagExample_basic",
     "ElementwiseRemainderScalarModule_Int_Float_basic",
     "ElementwiseRemainderScalarModule_Bool_basic",
+    "ElementwiseAtenIsinfOpModule_basic",
     "AtenIntTensorByteDtypeModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
     "UpSampleNearest2dBackwardVec_basic",
