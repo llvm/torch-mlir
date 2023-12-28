@@ -6203,6 +6203,37 @@ def Torch_AtenBatchNormOp : Torch_Op<"aten.batch_norm", [
   }];
 }
 
+def Torch_AtenInstanceNormOp : Torch_Op<"aten.instance_norm", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::instance_norm : (Tensor, Tensor?, Tensor?, Tensor?, Tensor?, bool, float, float, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchOptionalTensorType:$weight,
+    AnyTorchOptionalTensorType:$bias,
+    AnyTorchOptionalTensorType:$running_mean,
+    AnyTorchOptionalTensorType:$running_var,
+    Torch_BoolType:$use_input_stats,
+    Torch_FloatType:$momentum,
+    Torch_FloatType:$eps,
+    Torch_BoolType:$cudnn_enabled
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenInstanceNormOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 9, 1);
+    }
+    void AtenInstanceNormOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 9, 1);
+    }
+  }];
+}
+
 def Torch_AtenNativeGroupNormOp : Torch_Op<"aten.native_group_norm", [
     AllowsTypeRefinement,
     HasValueSemantics,

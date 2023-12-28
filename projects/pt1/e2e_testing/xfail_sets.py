@@ -233,6 +233,7 @@ TORCHDYNAMO_XFAIL_SET = {
     # END tests failing due to: 'torch.aten.mul.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
 
     # START tests failing due to: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
+    "AtenInstanceNormModule_basic",
     "BatchNorm1DModule_basic",
     "BatchNorm1DWith2DInputModule_basic",
     "BatchNorm2DModule_basic",
@@ -1012,6 +1013,7 @@ TOSA_PASS_SET = {
     "AtenEyeModuleFalsePinMemory_basic",
     "AtenEyeModuleFloat2D_basic",
     "AtenRoundIntModule_basic",
+    "AtenInstanceNormModule_basic",
     "AtenToDeviceModule_basic",
     "BaddbmmBroadcast1DInputModule_basic",
     "BaddbmmBroadcast2DInputModule_basic",
@@ -1420,6 +1422,8 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "Conv2dNoPaddingModule_basic",
     "Conv2dWithPaddingDilationStrideModule_basic",
     "Conv2dWithPaddingModule_basic",
+
+    "AtenInstanceNormModule_basic",
 }
 
 LTC_CRASHING_SET = {

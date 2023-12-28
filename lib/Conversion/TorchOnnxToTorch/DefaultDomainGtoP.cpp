@@ -393,6 +393,37 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   return success();
                 });
   patterns.onOp(
+      "InstanceNormalization", 6,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        llvm::SmallVector<Value> operands;
+        float eps;
+
+        if (binder.tensorOperands(operands, 3) ||
+            binder.tensorResultType(resultType) || operands.size() != 3 ||
+            binder.f32FloatAttr(eps, "epsilon", 1e-05f)) {
+          return failure();
+        }
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value boolTrue =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
+        Value boolFalse =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        auto epsValue = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getF64FloatAttr(eps));
+
+        auto momentum = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getF64FloatAttr(0.0f));
+        rewriter.replaceOpWithNewOp<Torch::AtenInstanceNormOp>(
+            binder.op, resultType, /* input */ operands[0],
+            /* weight */ operands[1],
+            /* bias */ operands[2], /* running mean */ none,
+            /* running var */ none,
+            /* use input stats */ boolTrue, momentum, epsValue,
+            /* cudnn enabled */ boolFalse);
+        return success();
+      });
+  patterns.onOp(
       "Max", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         llvm::SmallVector<Value> operands;
