@@ -1397,6 +1397,7 @@ LTC_XFAIL_SET = {
     "CeilFloatModule_basic",
     "DivFloatModule_basic",
     "EqIntModule_basic",
+    "ExponentialModule_basic",
     "GeFloatIntModule_basic",
     "GeFloatModule_basic",
     "GeIntModule_basic",
