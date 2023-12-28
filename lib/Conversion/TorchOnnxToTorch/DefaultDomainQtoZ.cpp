@@ -545,8 +545,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             /*dtype=*/noneVal);
         return success();
       });
+  // onnx.ReduceMean with axes provided as argument introduced in opset 18
   patterns.onOp(
-      "ReduceMean", 13,
+      "ReduceMean", 18,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value data;
@@ -613,6 +614,82 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.getLoc(), isNegative, adjustment);
           Value finalDim = rewriter.create<Torch::AtenAddIntOp>(
               binder.getLoc(), dim, finalOffset);
+          dimList.push_back(finalDim);
+        }
+        Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            dimList);
+        Value keepDimBool;
+        if (keepDims == 1) {
+          keepDimBool =
+              rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
+        } else {
+          keepDimBool =
+              rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        }
+        rewriter.replaceOpWithNewOp<Torch::AtenMeanDimOp>(
+            binder.op, resultType, data, dimValueList, keepDimBool,
+            /*dtype=*/noneVal);
+        return success();
+      });
+
+  // onnx.ReduceMean with axes provided as attribute
+  patterns.onOp(
+      "ReduceMean", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value data;
+        llvm::SmallVector<int64_t> axes;
+        int64_t keepDims;
+        int64_t noop_with_empty_axes;
+        if (binder.tensorOperand(data) ||
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerArrayAttr(axes, "axes", 0) ||
+            binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
+            binder.s64IntegerAttr(noop_with_empty_axes, "noop_with_empty_axes",
+                                  0))
+          return failure();
+        SmallVector<Value> dimList;
+        SmallVector<int64_t> selectSizes;
+        selectSizes.push_back(1);
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        // deal with case when axes is empty
+        if (axes.size() == 0) {
+          if (noop_with_empty_axes == 0) {
+            Value keepDimsConstInt = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                rewriter.getIntegerAttr(rewriter.getIntegerType(64), keepDims));
+            Value keepDimsBool = rewriter.create<Torch::AtenBoolIntOp>(
+                binder.getLoc(), keepDimsConstInt);
+            rewriter.replaceOpWithNewOp<Torch::AtenMeanDimOp>(
+                binder.op, resultType, data, /*dim=*/noneVal, keepDimsBool,
+                /*dtype=*/noneVal);
+          } else {
+            rewriter.replaceOp(binder.op, data);
+          }
+          return success();
+        }
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+        int64_t adjustmentInt =
+            cast<Torch::ValueTensorType>(data.getType()).getSizes().size();
+        Value adjustment = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                    adjustmentInt));
+        // convert axes (tensor) into torch int list while dealing with neg axis
+        for (int i = 0; i < axes.size(); i++) {
+          // Go through the axes list and get each dim in the list
+          int64_t dim = axes[i];
+          if (dim < 0) {
+            dim += adjustmentInt;
+          }
+          // deal with neg axis: if (axis < 0) axis += rank
+          Value finalDim = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), dim));
           dimList.push_back(finalDim);
         }
         Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
