@@ -3394,7 +3394,7 @@ class ElementwiseAtenIsinfOpModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([2, 5], torch.float32, True),
     ])
     def forward(self, x):
         return torch.ops.aten.isinf(x)
