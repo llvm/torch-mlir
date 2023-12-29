@@ -426,6 +426,12 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (isa<AtenAbsOp>(op))
     return b.create<math::AbsFOp>(loc, payloadArgs[0]);
+  if (isa<AtenIsinfOp>(op)){
+    Value abs = b.create<math::AbsFOp>(loc, payloadArgs[0]);
+    Value infinity = b.create<arith::ConstantOp>(
+        loc, b.getFloatAttr(abs.getType(), std::numeric_limits<double>::infinity()));
+    return createEqual(b, loc, abs.getType(), abs, infinity);
+  }
   if (isa<AtenSigmoidOp>(op)) {
     auto negate = createCalculationForMathOpWithDtypeConversion<arith::NegFOp>(
         b, converter, payloadArgs[0], op);
@@ -1343,7 +1349,7 @@ public:
              AtenThresholdBackwardOp, AtenHardtanhBackwardOp, AtenCloneOp,
              AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenNegOp,
              AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
-             AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenTrilOp,
+             AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp, AtenTrilOp,
              AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
              AtenAtanOp, AtenAcosOp, AtenRealOp, AtenImagOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
@@ -1992,7 +1998,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
       AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
       AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp,
-      AtenAcosOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenTriuOp, AtenTrilOp,
+      AtenAcosOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
+      AtenTrilOp,
       AtenRemainderScalarOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
       AtenFillTensorOp, AtenRealOp, AtenImagOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
