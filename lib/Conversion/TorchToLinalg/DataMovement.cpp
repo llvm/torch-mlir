@@ -30,10 +30,6 @@
 
 #include <numeric>
 
-// Remove later: KD
-#include <iostream>
-// Remove later: KD
-
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
@@ -131,7 +127,7 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
 //                 g) Reflect the affine map to have resultant slice reflected
 //                 h) Take the slice and write from left padding size + orignal tensor last dim size 
 //                    into result tensor
-// Uses the ideas/code in PR: https://github.com/llvm/torch-mlir/pull/2693/
+// Uses the ideas/code used for AtenReflectionPad2dOp
 namespace {
 class ConvertAtenReflectionPad1dOp
     : public OpConversionPattern<AtenReflectionPad1dOp> {
