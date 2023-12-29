@@ -39,6 +39,10 @@ std::vector<torch::lazy::Shape> compute_shape_div(const at::Tensor& self,
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
+std::vector<torch::lazy::Shape> compute_shape_isinf(const at::Tensor& self) {
+  return {Shape(at::kBool, self.sizes().vec())};
+}
+
 std::vector<torch::lazy::Shape> compute_shape_max_pool3d_with_indices(
     const at::Tensor& self, at::IntArrayRef kernel_size,
     at::IntArrayRef stride, at::IntArrayRef padding, at::IntArrayRef dilation,

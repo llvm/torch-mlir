@@ -1033,6 +1033,7 @@ TOSA_PASS_SET = {
     "ElementwiseAddScalarIntModule_basic",
     "ElementwiseAddScalar_TensorLiteralInt32_Module_basic",
     "ElementwiseAtenDivIntScalarModule_basic",
+    "ElementwiseAtenIsinfOpModule_basic",
     "ElementwiseAtenWhereSelfModule_basic",
     "ElementwiseAtenIsinfOpModule_basic",
     "ElementwiseBinaryModule_basic",
@@ -1493,5 +1494,4 @@ LTC_XFAIL_SET = {
     "ElementwiseBitwiseAndScalarInt64Module_basic",
     "ElementwiseBitwiseAndScalarInt32Module_basic",
     "ElementwiseBitwiseAndScalarInt8Module_basic",
-    "ElementwiseIsinfModule_basic",
 }
