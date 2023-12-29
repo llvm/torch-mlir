@@ -438,4 +438,58 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                     binder.op, resultType, lhs, rhs);
                   return success();
                 });
+  patterns.onOp("LayerNormalization", 16,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType Y;
+                  Torch::ValueTensorType Mean; // not lowered
+                  Torch::ValueTensorType InvStdDev; // not lowered
+                  Value X;
+                  Value Scale;
+                  Value B;
+                  int64_t axis; // default
+                  float   epsilon; // default 
+                  int64_t stash_type; // not used
+
+                  if (binder.tensorOperandAtIndex(X, 0) ||
+                      binder.tensorOperandAtIndex(Scale, 1) ||
+                      binder.tensorOperandAtIndex(B, 2) ||
+                      binder.tensorResultTypeAtIndex(Y, 0)) 
+                    return failure();
+
+                  // results 1 and 2 are ignored for now
+                  if (binder.tensorResultTypeAtIndex(Mean, 1) ||
+                      binder.tensorResultTypeAtIndex(InvStdDev, 2))
+                    return failure();
+
+                  if (binder.s64IntegerAttr(axis, "axis", -1) ||
+                      binder.f32FloatAttr(epsilon, "epsilon", 0.00001) ||
+                      binder.s64IntegerAttr(stash_type, "stash_type", 1)) 
+                    return failure(); 
+                  
+                  Value constEpsilon = rewriter.create<Torch::ConstantFloatOp>(
+                    binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+                    rewriter.getF64FloatAttr(epsilon));
+                  Value constCudnnEnable = rewriter.create<Torch::ConstantBoolOp>(
+                    binder.getLoc(), rewriter.getType<Torch::BoolType>(),
+                    rewriter.getBoolAttr(false));
+ 
+                  unsigned rank = 1; 
+                  if(std::optional<unsigned> maybeRank = Torch::getTensorRank(X))
+                    rank = *maybeRank;
+
+                  SmallVector<Value> normalized;
+                  if(axis < 0)
+                    axis = axis + rank;
+                  for (int64_t n = axis; n < rank ; n++ ) {
+                    normalized.push_back(rewriter.create<Torch::ConstantIntOp>(
+                    binder.getLoc(), rewriter.getI64IntegerAttr(n)));
+                  }
+                  Value normalized_shape = rewriter.create<Torch::PrimListConstructOp>(
+                    binder.getLoc(),
+                    Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+                    normalized);
+                  rewriter.replaceOpWithNewOp<Torch::AtenLayerNormOp>(
+                      binder.op, Y, X, normalized_shape  ,Scale, B, constEpsilon, constCudnnEnable);
+                  return success();
+              });
 }
