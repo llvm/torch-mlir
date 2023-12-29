@@ -157,6 +157,29 @@ def UniformNoCorrelationModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ExponentialModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, x):
+        a = torch.ops.aten.exponential(x, 3.0)
+        mean = torch.mean(a)
+        std = torch.std(a)
+        return  mean, std
+
+
+@register_test_case(module_factory=lambda: ExponentialModule())
+def ExponentialModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(512, 512, 16).double())
+
+# ==============================================================================
+
 class BernoulliModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

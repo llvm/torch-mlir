@@ -795,6 +795,36 @@ func.func @test_sinh_example(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[
 
 // -----
 
+// CHECK-LABEL:   func.func @test_split_variable_parts_2d_opset18(
+// CHECK-SAME:                                                    %[[VAL_INPUT:.*]]: !torch.vtensor<[2,6],f32>,
+// CHECK-SAME:                                                    %[[VAL_SPLIT:.*]]: !torch.vtensor<[2],si64>
+// CHECK:           %[[VAL_SPLIT_LIST:.*]] = torch.prim.tolist(%[[VAL_SPLIT]]) : !torch.vtensor<[2],si64> -> !torch.list<int>
+// CHECK:           %[[VAL_AXIS:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_RESULT_LIST:.*]] = torch.aten.split_with_sizes %[[VAL_INPUT]], %[[VAL_SPLIT_LIST]], %[[VAL_AXIS]] : !torch.vtensor<[2,6],f32>, !torch.list<int>, !torch.int -> !torch.list<vtensor<[2,?],f32>>
+// CHECK:           %[[VAL_VARIADIC_RETURN_VALUE:.*]]:2 = torch.prim.ListUnpack %[[VAL_RESULT_LIST]] : !torch.list<vtensor<[2,?],f32>> -> !torch.vtensor<[2,2],f32>, !torch.vtensor<[2,4],f32>
+// CHECK:           return %[[VAL_VARIADIC_RETURN_VALUE]]#0, %[[VAL_VARIADIC_RETURN_VALUE]]#1 : !torch.vtensor<[2,2],f32>, !torch.vtensor<[2,4],f32>
+func.func @test_split_variable_parts_2d_opset18(%arg0: !torch.vtensor<[2,6],f32>, %arg1: !torch.vtensor<[2],si64>) -> (!torch.vtensor<[2,2],f32>, !torch.vtensor<[2,4],f32>) attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  %0:2 = torch.operator "onnx.Split"(%arg0, %arg1) {torch.onnx.axis = 1 : si64} : (!torch.vtensor<[2,6],f32>, !torch.vtensor<[2],si64>) -> (!torch.vtensor<[2,2],f32>, !torch.vtensor<[2,4],f32>)
+  return %0#0, %0#1 : !torch.vtensor<[2,2],f32>, !torch.vtensor<[2,4],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_split_2d_uneven_split_opset18(
+// CHECK-SAME: %[[INPUT_TENSOR:.*]]: !torch.vtensor<[2,8],f32>) -> (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,2],f32>) attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+// CHECK: %[[AXIS:.*]] = torch.constant.int 1
+// CHECK: %[[SPLIT_SIZE:.*]] = torch.constant.int 3
+// CHECK: %[[SPLIT_RESULT:.*]] = torch.aten.split.Tensor %[[INPUT_TENSOR]], %[[SPLIT_SIZE]], %[[AXIS]] : !torch.vtensor<[2,8],f32>, !torch.int, !torch.int -> !torch.list<vtensor<[2,?],f32>>
+// CHECK: %[[UNPACKED_TENSORS:.*]]:3 = torch.prim.ListUnpack %[[SPLIT_RESULT]] : !torch.list<vtensor<[2,?],f32>> -> !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,2],f32>
+// CHECK: return %[[UNPACKED_TENSORS]]#0, %[[UNPACKED_TENSORS]]#1, %[[UNPACKED_TENSORS]]#2 : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,2],f32>
+// CHECK: }
+func.func @test_split_2d_uneven_split_opset18(%arg0: !torch.vtensor<[2,8],f32>) -> (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,2],f32>) attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  %0:3 = torch.operator "onnx.Split"(%arg0) {torch.onnx.axis = 1 : si64, torch.onnx.num_outputs = 3 : si64} : (!torch.vtensor<[2,8],f32>) -> (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,2],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,2],f32>
+}
+
+// -----
+  
 // CHECK-LABEL: func.func @test_tan
 func.func @test_tan(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],f32> attributes {torch.onnx_meta.ir_version = 3 : si64, torch.onnx_meta.opset_version = 7 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: %[[TAN:.+]] = torch.aten.tan %arg0
@@ -829,4 +859,194 @@ func.func @test_transpose_all_permutations_4(%arg0: !torch.vtensor<[2,3,4],f32>)
 
   // CHECK:  return %[[TRANSPOSE1]]
   return %0 : !torch.vtensor<[4,2,3],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_reshape_negative_dim
+func.func @test_reshape_negative_dim(%arg0: !torch.vtensor<[2,3,4],f32>, %arg1: !torch.vtensor<[3],si64>) -> !torch.vtensor<[2,6,2],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT0:.+]] = torch.constant.int 0
+  // CHECK: %[[INT0_0:.+]] = torch.constant.int 0
+  // CHECK: torch.aten.select.int %arg1, %int0, %int0_0 : !torch.vtensor<[3],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %0 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %1, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %2 : !torch.bool -> !torch.int
+  // CHECK: %[[INT2:.+]] = torch.constant.int 2
+  // CHECK: torch.aten.mul.int %3, %int2 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %1, %4 : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[INT1:.+]] = torch.constant.int 1
+  // CHECK: torch.aten.select.int %arg1, %int0, %int1 : !torch.vtensor<[3],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %6 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %7, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %8 : !torch.bool -> !torch.int
+  // CHECK: %[[INT3:.+]] = torch.constant.int 3
+  // CHECK: torch.aten.mul.int %9, %int3 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %7, %10 : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[INT2_1:.+]] = torch.constant.int 2
+  // CHECK: torch.aten.select.int %arg1, %int0, %int2_1 : !torch.vtensor<[3],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %12 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %13, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %14 : !torch.bool -> !torch.int
+  // CHECK: %[[INT4:.+]] = torch.constant.int 4
+  // CHECK: torch.aten.mul.int %15, %int4 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %13, %16 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.prim.ListConstruct %5, %11, %17 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: torch.aten.reshape %arg0, %18 : !torch.vtensor<[2,3,4],f32>, !torch.list<int> -> !torch.vtensor<[2,6,2],f32>
+  %0 = torch.operator "onnx.Reshape"(%arg0, %arg1) : (!torch.vtensor<[2,3,4],f32>, !torch.vtensor<[3],si64>) -> !torch.vtensor<[2,6,2],f32>
+  return %0 : !torch.vtensor<[2,6,2],f32>
+}
+
+// CHECK-LABEL: func.func @test_reshape_negative_extended_dims
+func.func @test_reshape_negative_extended_dims(%arg0: !torch.vtensor<[2,3,4],f32>, %arg1: !torch.vtensor<[4],si64>) -> !torch.vtensor<[1,2,3,4],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT0:.+]] = torch.constant.int 0
+  // CHECK: %[[INT0_0:.+]] = torch.constant.int 0
+  // CHECK: torch.aten.select.int %arg1, %int0, %int0_0 : !torch.vtensor<[4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %0 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %1, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %2 : !torch.bool -> !torch.int
+  // CHECK: %[[INT2:.+]] = torch.constant.int 2
+  // CHECK: torch.aten.mul.int %3, %int2 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %1, %4 : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[INT1:.+]] = torch.constant.int 1
+  // CHECK: torch.aten.select.int %arg1, %int0, %int1 : !torch.vtensor<[4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %6 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %7, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %8 : !torch.bool -> !torch.int
+  // CHECK: %[[INT3:.+]] = torch.constant.int 3
+  // CHECK: torch.aten.mul.int %9, %int3 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %7, %10 : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[INT2_1:.+]] = torch.constant.int 2
+  // CHECK: torch.aten.select.int %arg1, %int0, %int2_1 : !torch.vtensor<[4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %12 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %13, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %14 : !torch.bool -> !torch.int
+  // CHECK: %[[INT4:.+]] = torch.constant.int 4
+  // CHECK: torch.aten.mul.int %15, %int4 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %13, %16 : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[INT3_2:.+]] = torch.constant.int 3
+  // CHECK: torch.aten.select.int %arg1, %int0, %int3_2 : !torch.vtensor<[4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %18 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %19, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %20 : !torch.bool -> !torch.int
+  // CHECK: torch.aten.mul.int %21, %int0 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %19, %22 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.prim.ListConstruct %5, %11, %17, %23 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: torch.aten.reshape %arg0, %24 : !torch.vtensor<[2,3,4],f32>, !torch.list<int> -> !torch.vtensor<[1,2,3,4],f32>
+  %0 = torch.operator "onnx.Reshape"(%arg0, %arg1) : (!torch.vtensor<[2,3,4],f32>, !torch.vtensor<[4],si64>) -> !torch.vtensor<[1,2,3,4],f32>
+  return %0 : !torch.vtensor<[1,2,3,4],f32>
+}
+
+// CHECK-LABEL: func.func @test_reshape_one_dim
+func.func @test_reshape_one_dim(%arg0: !torch.vtensor<[2,3,4],f32>, %arg1: !torch.vtensor<[1],si64>) -> !torch.vtensor<[24],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT0:.+]] = torch.constant.int 0
+  // CHECK: %[[INT0_0:.+]] = torch.constant.int 0
+  // CHECK: torch.aten.select.int %arg1, %int0, %int0_0 : !torch.vtensor<[1],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %0 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %1, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %2 : !torch.bool -> !torch.int
+  // CHECK: %[[INT2:.+]] = torch.constant.int 2
+  // CHECK: torch.aten.mul.int %3, %int2 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %1, %4 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.prim.ListConstruct %5 : (!torch.int) -> !torch.list<int>
+  // CHECK: torch.aten.reshape %arg0, %6 : !torch.vtensor<[2,3,4],f32>, !torch.list<int> -> !torch.vtensor<[24],f32>
+  %0 = torch.operator "onnx.Reshape"(%arg0, %arg1) : (!torch.vtensor<[2,3,4],f32>, !torch.vtensor<[1],si64>) -> !torch.vtensor<[24],f32>
+  return %0 : !torch.vtensor<[24],f32>
+}
+
+// CHECK-LABEL: func.func @test_reshape_reduced_dims
+func.func @test_reshape_reduced_dims(%arg0: !torch.vtensor<[2,3,4],f32>, %arg1: !torch.vtensor<[2],si64>) -> !torch.vtensor<[2,12],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT0:.+]] = torch.constant.int 0
+  // CHECK: %[[INT0_0:.+]] = torch.constant.int 0
+  // CHECK: torch.aten.select.int %arg1, %int0, %int0_0 : !torch.vtensor<[2],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %0 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %1, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %2 : !torch.bool -> !torch.int
+  // CHECK: %[[INT2:.+]] = torch.constant.int 2
+  // CHECK: torch.aten.mul.int %3, %int2 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %1, %4 : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[INT1:.+]] = torch.constant.int 1
+  // CHECK: torch.aten.select.int %arg1, %int0, %int1 : !torch.vtensor<[2],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %6 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %7, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %8 : !torch.bool -> !torch.int
+  // CHECK: %[[INT3:.+]] = torch.constant.int 3
+  // CHECK: torch.aten.mul.int %9, %int3 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %7, %10 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.prim.ListConstruct %5, %11 : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: torch.aten.reshape %arg0, %12 : !torch.vtensor<[2,3,4],f32>, !torch.list<int> -> !torch.vtensor<[2,12],f32>
+  %0 = torch.operator "onnx.Reshape"(%arg0, %arg1) : (!torch.vtensor<[2,3,4],f32>, !torch.vtensor<[2],si64>) -> !torch.vtensor<[2,12],f32>
+  return %0 : !torch.vtensor<[2,12],f32>
+}
+
+// CHECK-LABEL: func.func @test_reshape_reordered_all_dims
+func.func @test_reshape_reordered_all_dims(%arg0: !torch.vtensor<[2,3,4],f32>, %arg1: !torch.vtensor<[3],si64>) -> !torch.vtensor<[4,2,3],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT0:.+]] = torch.constant.int 0
+  // CHECK: %[[INT0_0:.+]] = torch.constant.int 0
+  // CHECK: torch.aten.select.int %arg1, %int0, %int0_0 : !torch.vtensor<[3],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %0 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %1, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %2 : !torch.bool -> !torch.int
+  // CHECK: %[[INT2:.+]] = torch.constant.int 2
+  // CHECK: torch.aten.mul.int %3, %int2 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %1, %4 : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[INT1:.+]] = torch.constant.int 1
+  // CHECK: torch.aten.select.int %arg1, %int0, %int1 : !torch.vtensor<[3],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %6 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %7, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %8 : !torch.bool -> !torch.int
+  // CHECK: %[[INT3:.+]] = torch.constant.int 3
+  // CHECK: torch.aten.mul.int %9, %int3 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %7, %10 : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[INT2_1:.+]] = torch.constant.int 2
+  // CHECK: torch.aten.select.int %arg1, %int0, %int2_1 : !torch.vtensor<[3],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %12 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %13, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %14 : !torch.bool -> !torch.int
+  // CHECK: %[[INT4:.+]] = torch.constant.int 4
+  // CHECK: torch.aten.mul.int %15, %int4 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %13, %16 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.prim.ListConstruct %5, %11, %17 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: torch.aten.reshape %arg0, %18 : !torch.vtensor<[2,3,4],f32>, !torch.list<int> -> !torch.vtensor<[4,2,3],f32>
+  %0 = torch.operator "onnx.Reshape"(%arg0, %arg1) : (!torch.vtensor<[2,3,4],f32>, !torch.vtensor<[3],si64>) -> !torch.vtensor<[4,2,3],f32>
+  return %0 : !torch.vtensor<[4,2,3],f32>
+}
+
+// CHECK-LABEL: func.func @test_reshape_zero_and_negative_dim
+func.func @test_reshape_zero_and_negative_dim(%arg0: !torch.vtensor<[2,3,4],f32>, %arg1: !torch.vtensor<[4],si64>) -> !torch.vtensor<[2,3,1,4],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT0:.+]] = torch.constant.int 0
+  // CHECK: %[[INT0_0:.+]] = torch.constant.int 0
+  // CHECK: torch.aten.select.int %arg1, %int0, %int0_0 : !torch.vtensor<[4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %0 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %1, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %2 : !torch.bool -> !torch.int
+  // CHECK: %[[INT2:.+]] = torch.constant.int 2
+  // CHECK: torch.aten.mul.int %3, %int2 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %1, %4 : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[INT1:.+]] = torch.constant.int 1
+  // CHECK: torch.aten.select.int %arg1, %int0, %int1 : !torch.vtensor<[4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %6 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %7, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %8 : !torch.bool -> !torch.int
+  // CHECK: %[[INT3:.+]] = torch.constant.int 3
+  // CHECK: torch.aten.mul.int %9, %int3 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %7, %10 : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[INT2_1:.+]] = torch.constant.int 2
+  // CHECK: torch.aten.select.int %arg1, %int0, %int2_1 : !torch.vtensor<[4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %12 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %13, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %14 : !torch.bool -> !torch.int
+  // CHECK: %[[INT4:.+]] = torch.constant.int 4
+  // CHECK: torch.aten.mul.int %15, %int4 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %13, %16 : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[INT3_2:.+]] = torch.constant.int 3
+  // CHECK: torch.aten.select.int %arg1, %int0, %int3_2 : !torch.vtensor<[4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: torch.aten.item %18 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: torch.aten.eq.int %19, %int0 : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.aten.Int.bool %20 : !torch.bool -> !torch.int
+  // CHECK: torch.aten.mul.int %21, %int0 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.aten.add.int %19, %22 : !torch.int, !torch.int -> !torch.int
+  // CHECK: torch.prim.ListConstruct %5, %11, %17, %23 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: torch.aten.reshape %arg0, %24 : !torch.vtensor<[2,3,4],f32>, !torch.list<int> -> !torch.vtensor<[2,3,1,4],f32>
+  %0 = torch.operator "onnx.Reshape"(%arg0, %arg1) : (!torch.vtensor<[2,3,4],f32>, !torch.vtensor<[4],si64>) -> !torch.vtensor<[2,3,1,4],f32>
+  return %0 : !torch.vtensor<[2,3,1,4],f32>
 }

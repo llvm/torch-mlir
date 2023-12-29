@@ -28,13 +28,25 @@ are relatively straight-forward to map, following this general procedure:
     `tools/torch-mlir/test/python/onnx_importer/Output`. The `.mlir` files
     under there should provide good variants to drive lit test coverage of
     conversion.
+    * (Optionally) If there is an Onnx file that uses the op of interest,
+      convert that file to Onnx MLIR form using the following Python command,
+      `python -m torch_mlir.tools.import_onnx my_model.onnx`.
   * There are often many variants of tests for checking conformance of
     different historic ONNX encodings, but these are often not load bearing
     at the MLIR level.
   * Pick a handful of test cases and add them to 
-    `test/Conversion/TorchOnnxToTorch/simple_ops_x_to_y.mlir` corresponding to an
-    alphabetic breakdown. At this time, ignore tests that are not exercising
+    `test/Conversion/TorchOnnxToTorch/simple_ops_x_to_y.mlir` corresponding to
+    an alphabetic breakdown. At this time, ignore tests that are not exercising
     useful differences in the pattern implementations.
+    * (Optionally) Use `torch-mlir-opt` to validate the outputs of the new op. 
+      First, build the project using 
+      `cmake --build build --target tools/torch-mlir/all`. This will generate
+      the conversion binary, `torch-mlir-opt`. Then call `torch-mlir-opt` with
+      the MLIR pass `convert-torch-onnx-to-torch`:
+      ```
+      build/bin/torch-mlir-opt -convert-torch-onnx-to-torch \
+      -split-input-file [DESIRED_ONNX_FILE].mlir
+      ``` 
 * Generate failure test cases:
   * Some ops have forms that do not (easily) map to torch-mlir. If you leave
     an op under-implemented, add a failing test case to
