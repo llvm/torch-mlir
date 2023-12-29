@@ -1034,6 +1034,7 @@ TOSA_PASS_SET = {
     "ElementwiseAddScalar_TensorLiteralInt32_Module_basic",
     "ElementwiseAtenDivIntScalarModule_basic",
     "ElementwiseAtenWhereSelfModule_basic",
+    "ElementwiseAtenIsinfOpModule_basic",
     "ElementwiseBinaryModule_basic",
     "ElementwiseBinaryStaticShapeModule_basic",
     "ElementwiseBitwiseAndModule_basic",
@@ -1330,7 +1331,6 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "TensorIntModule_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
-    "ElementwiseAtenIsinfOpModule_basic",
 }) - {
 ### Test failing in make_fx_tosa but not in tosa
 
