@@ -12,5 +12,5 @@
     //CHECK-SAME: %1 = torch.aten.layer_norm %arg0, %0, %arg1, %arg2, %float9.999990e-06, %false : !torch.vtensor<[3,4],f32>, !torch.list<int>, !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32>, !torch.float, !torch.bool -> !torch.vtensor<[3,4],f32>
     //CHECK-SAME: return %1 : !torch.vtensor<[3,4],f32>
     %0:3 = torch.operator "onnx.LayerNormalization"(%arg0, %arg1, %arg2) {torch.onnx.axis = 0 : si64} : (!torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32>) -> (!torch.vtensor<[3,4],f32>, !torch.vtensor<[1,1],f32>, !torch.vtensor<[1,1],f32>)
-    return %0#0 : !torch.vtensor<[3,4],f32>
+    return %0 : !torch.vtensor<[3,4],f32>
   }
