@@ -552,8 +552,80 @@ def ConstantPadNdPartialStaticModule_basic(module, tu: TestUtils):
 
 
 # ==============================================================================
+class ReflectionPad1dModule3dInput(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 2, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.reflection_pad1d(x, (3,1))
 
 
+@register_test_case(module_factory=lambda: ReflectionPad1dModule3dInput())
+def ReflectionPad1dModule3dInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1,2,4))
+
+
+class ReflectionPad1dModule2dInput(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.reflection_pad1d(x, (3,2))
+
+
+@register_test_case(module_factory=lambda: ReflectionPad1dModule2dInput())
+def ReflectionPad1dModule2dInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2,4))
+
+class ReflectionPad1dModule3dInputLeft(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 4, 5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.reflection_pad1d(x, (2,0))
+
+
+@register_test_case(module_factory=lambda: ReflectionPad1dModule3dInputLeft())
+def ReflectionPad1dModule3dInput_Left(module, tu: TestUtils):
+    module.forward(tu.rand(1,4,5))
+
+class ReflectionPad1dModule2dInputRight(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 6], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.reflection_pad1d(x, (0,3))
+
+
+@register_test_case(module_factory=lambda: ReflectionPad1dModule2dInputRight())
+def ReflectionPad1dModule2dInput_Right(module, tu: TestUtils):
+    module.forward(tu.rand(3,6))
+
+# ==============================================================================
 class TransposeIntModule(torch.nn.Module):
 
     def __init__(self):
