@@ -3387,6 +3387,31 @@ def ElementwiseAtenLogicalNotOpModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ElementwiseAtenIsinfOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.isinf(x)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenIsinfOpModule())
+def ElementwiseAtenIsinfOpModule_basic(module, tu: TestUtils):
+    test_input = torch.tensor(
+        [
+            [1, float('inf'), 2, float('-inf'), float('nan')],
+            [1, float('inf'), float('-inf'), float('nan'), 3],
+        ]
+    )
+    module.forward(test_input)
+
+
+# ==============================================================================
+
 
 class ElementwiseAtenLogicalNotOpPromoteModule(torch.nn.Module):
     def __init__(self):

@@ -78,6 +78,13 @@ struct OpBinder {
       return failure();
     return success();
   }
+  
+  ParseResult tensorOperandsList( llvm::SmallVectorImpl<Value> &values) {
+    for (int i = 0; i < op->getNumOperands(); i++) {
+      values.push_back(op->getOperand(i));
+    }
+    return success();
+  }
 
   // Result type matchers of different arities.
   ParseResult tensorResultType(Torch::ValueTensorType &type0) {

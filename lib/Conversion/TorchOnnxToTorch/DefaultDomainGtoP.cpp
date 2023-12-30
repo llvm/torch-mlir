@@ -88,8 +88,45 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                                                        operand, vApproximate);
         return success();
       });
-  patterns.onOp("MatMul", 13,
+  patterns.onOp("Less", 13,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenLtTensorOp>(
+                      binder.op, resultType, lhs, rhs);
+                  return success();
+                });
+  
+  patterns.onOp("LessOrEqual", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+		    rewriter.replaceOpWithNewOp<Torch::AtenLeTensorOp>(
+                      binder.op, resultType, lhs, rhs);
+                              return success();
+                });
+  patterns.onOp("Log", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenLogOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp("MatMul", 13,
+                  [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value lhs, rhs;
                   if (binder.tensorOperands(lhs, rhs) ||
@@ -99,6 +136,18 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
+  patterns.onOp("Mul", 7,
+		[](OpBinder binder, ConversionPatternRewriter &rewriter) {
+		  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenMulTensorOp>(
+		    binder.op, resultType, lhs, rhs);
+		  return success();
+		});
   patterns.onOp("Greater", 16,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -123,19 +172,67 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
-  patterns.onOp("Less", 13,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  Value lhs, rhs;
-                  if (binder.tensorOperands(lhs, rhs) ||
-                      binder.tensorResultType(resultType)) {
+  patterns.onOp("Max", 1,
+		[](OpBinder binder, ConversionPatternRewriter &rewriter) {
+		  Torch::ValueTensorType resultType;
+		  llvm::SmallVector<Value> operands;
+		  if (binder.tensorOperandsList(operands) ||
+                      binder.tensorResultType(resultType) ||
+		      operands.size() == 0) {
                     return failure();
-                  }
-                  rewriter.replaceOpWithNewOp<Torch::AtenLtTensorOp>(
-                      binder.op, resultType, lhs, rhs);
-		              return success();
+		  }
+		  Value result = operands[0];
+		  for (int i = 1; i < operands.size(); i++) {
+		    result = rewriter.create<Torch::AtenMaximumOp>(
+		               binder.getLoc(), resultType, result, operands[i]);
+		  }
+		  rewriter.replaceOp(
+                    binder.op, result.getDefiningOp());
+		  return success();
                 });
-  patterns.onOp("LessOrEqual", 16,
+  patterns.onOp("Min", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  llvm::SmallVector<Value> operands;
+                  if (binder.tensorOperandsList(operands) ||
+                      binder.tensorResultType(resultType) ||
+                      operands.size() == 0) {
+                    return failure();
+                  }
+                  Value result = operands[0];
+                  for (int i = 1; i < operands.size(); i++) {
+                    result = rewriter.create<Torch::AtenMinimumOp>(
+                               binder.getLoc(), resultType, result, operands[i]);
+                  }
+                  rewriter.replaceOp(
+                    binder.op, result.getDefiningOp());
+                  return success();
+		});
+  patterns.onOp("Neg", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenNegOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp("Not", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenBitwiseNotOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp("Or", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value lhs, rhs;
@@ -143,9 +240,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.tensorResultType(resultType)) {
                     return failure();
                   }
-                  rewriter.replaceOpWithNewOp<Torch::AtenLeTensorOp>(
+                  rewriter.replaceOpWithNewOp<Torch::AtenBitwiseOrTensorOp>(
                       binder.op, resultType, lhs, rhs);
-		              return success();
+                  return success();
                 });
   patterns.onOp(
       "GatherElements", 13,
@@ -169,7 +266,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         return success();
       });
   patterns.onOp(
-      "Gemm", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Gemm", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value a, b, c;
         float alpha, beta;
@@ -242,7 +339,78 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.op, resultType, mm, c, constBeta);
         return success();
       });
-  patterns.onOp("LeakyRelu", 16,
+  patterns.onOp(
+      "GlobalAveragePool", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        if (binder.tensorOperand(operand) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        auto inputTensorType = operand.getType().cast<Torch::ValueTensorType>();
+        if (!inputTensorType || !inputTensorType.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected input type having sizes");
+        }
+        ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
+        unsigned inputRank = inputShape.size();
+        if (!resultType || !resultType.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected result type having sizes");
+        }
+        ArrayRef<int64_t> resultShape = resultType.getSizes();
+
+        SmallVector<Value> cstKernel, cstPadding, cstStrides;
+        Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        for (unsigned i = 2; i < inputRank; i++) {
+          int64_t kernelSize = inputShape[i] - resultShape[i] + 1;
+          cstKernel.push_back(rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(kernelSize)));
+          cstPadding.push_back(cstZero);
+          cstStrides.push_back(cstOne);
+        }
+        Value kernelSizeList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            cstKernel);
+        Value paddingList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            cstPadding);
+        Value stridesList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            cstStrides);
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        Value cstCeilMode = cstFalse;
+        Value cstCountIncludePad = cstFalse;
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+
+        if (inputRank == 3) {
+          rewriter.replaceOpWithNewOp<Torch::AtenAvgPool1dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, cstCeilMode, cstCountIncludePad);
+          return success();
+        } else if (inputRank == 4) {
+          rewriter.replaceOpWithNewOp<Torch::AtenAvgPool2dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, cstCeilMode, cstCountIncludePad,
+              /*divisor_override=*/cstNone);
+          return success();
+        } else if (inputRank == 5) {
+          rewriter.replaceOpWithNewOp<Torch::AtenAvgPool3dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, cstCeilMode, cstCountIncludePad,
+              /*divisor_override=*/cstNone);
+          return success();
+        }
+        return failure();
+      });
+  patterns.onOp("LeakyRelu", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value operand;
@@ -256,6 +424,18 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       rewriter.getF64FloatAttr(alpha));
                   rewriter.replaceOpWithNewOp<Torch::AtenLeakyReluOp>(
                       binder.op, resultType, operand, constAlpha);
+                  return success();
+                });
+  patterns.onOp("Pow", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value lhs, rhs;
+                  if (binder.tensorOperands(lhs, rhs) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenPowTensorTensorOp>(
+                    binder.op, resultType, lhs, rhs);
                   return success();
                 });
 }
