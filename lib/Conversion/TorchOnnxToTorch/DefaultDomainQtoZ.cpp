@@ -876,7 +876,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
   patterns.onOp(
       "Slice", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultTorchType;
-        Value operand, starts, ends, axes, steps;
+        Value operand, starts, ends;
         // Handle if axes are not provided
 
         if (binder.tensorOperandAtIndex(operand, 0) ||
@@ -890,69 +890,97 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         auto operandTorchTy = operand.getType().cast<Torch::ValueTensorType>();
         auto operandTy =
             operandTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+        
+        if (!operandTy)
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Expected tensor operator argument to be a ranked tensor type");
 
         auto startsTorchTy = starts.getType().cast<Torch::ValueTensorType>();
         auto startsTy =
             startsTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+        int startSize = startsTy.getDimSize(0);
 
         auto endsTorchTy = ends.getType().cast<Torch::ValueTensorType>();
         auto endsTy =
             endsTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
-
-        if (!operandTy)
-          return failure();
-
-        if (!(endsTy.getRank() == 1 && startsTy.getRank() == 1 &&
-              startsTy.getDimSize(0) == endsTy.getDimSize(0))) {
+        int endSize = endsTy.getDimSize(0);
+        auto resultTy =
+            resultTorchType.toBuiltinTensor().dyn_cast<RankedTensorType>();
+        if (!resultTy)
           return rewriter.notifyMatchFailure(
-              binder.op, "Expected the rank of starts and ends tensors to be 1 "
-                         "and their dimensions to match");
-        }
+              binder.op, "Expected result type to be a ranked tensor type");
 
-        // Infer Axes
-        int64_t numAxes;
+        Location loc = binder.getLoc();
+
+        // Binding `axes` from its arguments or through a default value
+        Value axes;
         if (binder.getNumOperands() >= 4) {
           if (binder.tensorOperandAtIndex(axes, 3)) {
             return failure();
           }
-          auto axesTorchTy = axes.getType().cast<Torch::ValueTensorType>();
-          auto axesTy =
-              axesTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
-
-          if (!(axesTy && axesTy.getDimSize(0) == endsTy.getDimSize(0)))
-            return failure();
-
-          numAxes = axesTy.getDimSize(0);
         } else {
-          if (operandTy.getRank() != endsTy.getDimSize(0))
-            return rewriter.notifyMatchFailure(
-                binder.op,
-                "When axes argument are not applied, expected the tensor "
-                "operand rank to match the sizes of starts and ends");
-          numAxes = operandTy.getRank();
+          // The default axes value is the range from 0 to the number of
+          // dimensions
+          Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+          auto defaultAxesType = Torch::ValueTensorType::get(
+              context, ArrayRef<int64_t>{operandTy.getRank()},
+              rewriter.getIntegerType(64, /*signed*/ 1));
+          Value arangeLength = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                      operandTy.getRank()));
+          axes = rewriter.create<Torch::AtenArangeOp>(
+              loc, defaultAxesType, arangeLength, none, none, none, none);
         }
 
-        // Infer Steps
+        // Binding `steps` from its arguments or through a default value
+        Value steps;
         if (binder.getNumOperands() >= 5) {
           if (binder.tensorOperandAtIndex(steps, 4)) {
             return failure();
           }
-          auto stepsTorchTy = steps.getType().cast<Torch::ValueTensorType>();
-          auto stepsTy =
-              stepsTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
-
-          if (!(stepsTy && stepsTy.getDimSize(0) == endsTy.getDimSize(0)))
-            return rewriter.notifyMatchFailure(
-                binder.op, "When steps is provided, steps size should match "
-                           "the size of starts and ends");
+        } else {
+          // The default `steps` value is a 1d tensor filled with ones with a
+          // size of the dimension of the operand
+          Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+          auto defaultStepsType = Torch::ValueTensorType::get(
+              context, ArrayRef<int64_t>{operandTy.getRank()},
+              rewriter.getIntegerType(64, /*signed*/ 1));
+          Value sizeStepInput = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                      operandTy.getRank()));
+          Value sizeStepsInput = rewriter.create<Torch::PrimListConstructOp>(
+              loc,
+              Torch::ListType::get(
+                  Torch::IntType::get(binder.op->getContext())),
+              sizeStepInput);
+          steps = rewriter.create<Torch::AtenOnesOp>(
+              loc, defaultStepsType, sizeStepsInput, none, none, none, none);
         }
 
-        auto resultTy =
-            resultTorchType.toBuiltinTensor().dyn_cast<RankedTensorType>();
-        if (!resultTy)
-          return failure();
+        if (!(endsTy.getRank() == 1 && startsTy.getRank() == 1 &&
+              startSize == endSize))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected the rank of starts and ends tensors to be 1 "
+                         "and their dimensions to match");
 
-        Location loc = binder.getLoc();
+        auto axesTorchTy = axes.getType().cast<Torch::ValueTensorType>();
+        auto axesTy =
+            axesTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+        int64_t numAxes = axesTy.getDimSize(0);
+
+        if (!(axesTy && numAxes == endSize))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Axes should be the same size of starts and ends");
+
+        auto stepsTy = steps.getType().cast<Torch::ValueTensorType>().toBuiltinTensor().dyn_cast<RankedTensorType>();
+
+        if (!(stepsTy && stepsTy.getDimSize(0) == endsTy.getDimSize(0)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Steps should be the same size of starts and ends");
+
         Value zero = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
@@ -968,14 +996,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               loc, rewriter.getType<Torch::IntType>(), sel);
           return item;
         };
-
-        Value defaultStepSize;
-        if (!steps) {
-          defaultStepSize = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getType<Torch::IntType>(),
-              rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                      /*signed=*/true));
-        }
 
         llvm::SmallVector<int64_t> intermediateShape(operandTy.getShape());
         for (int i = 0, s = operandTy.getRank(); i < s; ++i) {
@@ -999,11 +1019,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
           Value start = select(starts, kTensor);
           Value end = select(ends, kTensor);
-          // Handle axis input when axis is not provided as an input
-          Value axis = axes ? select(axes, kTensor) : k;
-
-          // Handle step input when axis is not provided as an input
-          Value step = steps ? select(steps, kTensor) : defaultStepSize;
+          Value axis = select(axes, kTensor);
+          Value step = select(steps, kTensor);
 
           auto sliceType = intermediateType;
           if (i == numAxes - 1)
