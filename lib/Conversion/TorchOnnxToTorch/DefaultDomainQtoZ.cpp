@@ -1446,6 +1446,47 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         return success();
       });
   patterns.onOp(
+      "Tile", 6, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        Value repeatDims;
+        if (binder.tensorOperands(operand, repeatDims) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        // convert repeatDims tensor to list of ints
+        auto repeatDimsSizes =
+            dyn_cast<Torch::ValueTensorType>(repeatDims.getType()).getSizes();
+        SmallVector<Value> dimList;
+        SmallVector<int64_t> selectSizes;
+        selectSizes.push_back(1);
+        Torch::BaseTensorType shapeType =
+            repeatDims.getType().cast<Torch::BaseTensorType>();
+        Type selectResultType = shapeType.getWithSizesAndDtype(
+            llvm::ArrayRef(selectSizes), shapeType.getOptionalDtype());
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+        for (int i = 0; i < repeatDimsSizes[0]; i++) {
+          Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
+          Value extract = rewriter.create<Torch::AtenSelectIntOp>(
+              binder.getLoc(), selectResultType, repeatDims, zero, selectIndex);
+          Value dim = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
+          dimList.push_back(dim);
+        }
+        Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            dimList);
+
+        rewriter.replaceOpWithNewOp<Torch::AtenTileOp>(binder.op, resultType,
+                                                       operand, dimValueList);
+        return success();
+      });
+  patterns.onOp(
       "Topk", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType Values_type, Indices_type;
         Value X, K;
