@@ -222,7 +222,8 @@ namespace {
             loc, input, extractOffsetsLT, extractShapeLR, allOneStrides);
         Value vLeftSlice = vCenterLeftSlice;
         if (hasTopPadding) {
-          Value topLeftValue = rewriter.create<tensor::ExtractOp> (loc, input, ValueRange{zero, zero, zero, zero});
+          Value topLeftValue = rewriter.create<tensor::ExtractOp>(
+              loc, input, ValueRange{zero, zero, zero, zero});
           //pad vCenterLeftSlice on the top
           SmallVector<int64_t> lowPadding(4, 0);
           SmallVector<int64_t> highPadding(4, 0);
@@ -231,7 +232,7 @@ namespace {
         }
         if (hasBottomPadding) {
           Value bottomLeftValue = rewriter.create<tensor::ExtractOp> (loc, input, ValueRange{zero, zero, vDimSizeMinusOne, zero});
-          
+
           //pad vLeftSlice at the bottom
           SmallVector<int64_t> lowPadding(4, 0);
           SmallVector<int64_t> highPadding(4, 0);
@@ -241,14 +242,16 @@ namespace {
         for (auto i=0; i<padInts[0]; ++i) {
           tensorsLeft.push_back(vLeftSlice);
         }
-        Value leftPadTile = rewriter.create<tensor::ConcatOp>(loc, 3, tensorsLeft);
+        Value leftPadTile =
+            rewriter.create<tensor::ConcatOp>(loc, 3, tensorsLeft);
         tensorsRes.push_back(leftPadTile);
       }
       if (hasTopPadding) {
-        Value topLeftValue = rewriter.create<tensor::ExtractOp> (loc, input, ValueRange{zero,zero, zero, zero});
+        Value topLeftValue = rewriter.create<tensor::ExtractOp>(
+            loc, input, ValueRange{zero, zero, zero, zero});
         Value topHcenterSlice = rewriter.create<tensor::ExtractSliceOp>(
-          loc, input, extractOffsetsLT, extractShapeTB, allOneStrides);
-        for (auto i=0; i<padInts[2]; ++i) {
+            loc, input, extractOffsetsLT, extractShapeTB, allOneStrides);
+        for (auto i = 0; i < padInts[2]; ++i) {
           tensorsCenter.push_back(topHcenterSlice);
         }
       }
@@ -256,7 +259,7 @@ namespace {
       if (hasBottomPadding) {
         Value bottomHcenterSlice = rewriter.create<tensor::ExtractSliceOp>(
             loc, input, extractOffsetsBottom, extractShapeTB, allOneStrides);
-        for (auto i=0; i<padInts[3]; ++i) {
+        for (auto i = 0; i < padInts[3]; ++i) {
           tensorsCenter.push_back(bottomHcenterSlice);
         }
       }
