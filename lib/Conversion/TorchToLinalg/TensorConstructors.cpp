@@ -195,7 +195,7 @@ namespace {
       SmallVector<Value> extractOffsetsLT(numDims, zero);
       extractOffsetsLT[hDim] = zero;
       extractOffsetsLT[vDim] = zero;
-      SmallVector<Value> extractShapeLR{inputShape};
+      SmallVector<Value> extractShapeLR(numDims, one);
       extractShapeLR[hDim] = one;
       extractShapeLR[vDim] = vDimSize;
 
@@ -207,9 +207,9 @@ namespace {
       extractOffsetsBottom[hDim] = zero;
       extractOffsetsBottom[vDim] = vDimSizeMinusOne;
 
-      SmallVector<Value> extractShapeTB{inputShape};
-      extractShapeLR[hDim] = hDimSize;
-      extractShapeLR[vDim] = one;
+      SmallVector<Value> extractShapeTB(numDims, one);
+      extractShapeTB[hDim] = hDimSize;
+      extractShapeTB[vDim] = one;
 
       SmallVector<Value> tensorsLeft;
       SmallVector<Value> tensorsRight;
@@ -282,7 +282,7 @@ namespace {
           SmallVector<int64_t> lowPadding(4, 0);
           SmallVector<int64_t> highPadding(4, 0);
           highPadding[2] = padInts[3];
-          Value vRightSlice = torch_to_linalg::getPaddedTensor(op, rewriter, vRightSlice, lowPadding, highPadding, bottomRightValue);
+          vRightSlice = torch_to_linalg::getPaddedTensor(op, rewriter, vRightSlice, lowPadding, highPadding, bottomRightValue);
         }
         for (auto i=0; i<padInts[1]; ++i) {
           tensorsRight.push_back(vRightSlice);

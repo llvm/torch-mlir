@@ -553,6 +553,25 @@ def ConstantPadNdPartialStaticModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ReplicationPad2dModule_0(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 3, 3], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.replication_pad2d(x, (1, 2, 3, 4))
+
+
+@register_test_case(module_factory=lambda: ReplicationPad2dModule_0())
+def ReplicationPad2dModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 3, 3, low=-1))
+
+# ==============================================================================
 
 class TransposeIntModule(torch.nn.Module):
 
