@@ -1271,6 +1271,21 @@ def aten〇constant_pad_nd〡shape(self: List[int], pad: List[int], value: float
 def aten〇pad〡shape(self: List[int], pad: List[int], mode: str = "constant", value: Optional[float] = None) -> List[int]:
     return pad_shape_fn(self, pad)
 
+#Padding size must be smaller than the size of the last dimension
+@check_shape_function([ErrorInvocation(TensorOfShape(1, 2, 4), padding=[4,1]),
+                       Invocation(TensorOfShape(1, 2, 4), padding=[3,3]),
+                       ErrorInvocation(TensorOfShape(1, 2, 4), padding=[1,4]),
+                       ErrorInvocation(TensorOfShape(1, 4), padding=[4,1]),
+                       Invocation(TensorOfShape(1, 4), padding=[3,3]),
+                       ErrorInvocation(TensorOfShape(1, 4), padding=[1,4])])
+def aten〇reflection_pad1d〡shape(self: List[int], padding: List[int]) -> List[int]:
+    assert len(self) >= 2
+    hdim = self[-1]
+    padding_left = padding[0]
+    padding_right = padding[1]
+    assert padding_left < hdim and padding_right < hdim
+    return pad_shape_fn(self, padding)
+
 # TODO: upstream this
 def index_tensor_like(self: List[int], indices: List[Optional[List[int]]]) -> List[int]:
     assert len(indices) <= len(self), "More indices than dimensions to index"
@@ -1802,6 +1817,18 @@ def aten〇clone〡dtype(self_rank_dtype: Tuple[int, int], memory_format: Option
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, pad=[1, 1]))
 def aten〇constant_pad_nd〡dtype(self_rank_dtype: Tuple[int, int], pad: List[int], value: Union[int, float, complex] = 0) -> int:
     self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+
+@check_dtype_function([ErrorInvocation(TensorOfShape(2, 3, 4), padding=1),
+                       ErrorInvocation(TensorOfShape(2, 3, 4), padding=[]),
+                       ErrorInvocation(TensorOfShape(2, 3, 4), padding=[2]),
+                       Invocation(TensorOfShape(2, 3, 4), padding=[2,1]),
+                       Invocation(TensorOfShape(5, 5, 4), padding=[1,2]),
+                       ErrorInvocation(TensorOfShape(2, 3, 4), padding=[3,2,1])])
+def aten〇reflection_pad1d〡dtype(self_rank_dtype: Tuple[int, int], padding: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert len(padding) == 2, 'padding size expected to be 2'
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
