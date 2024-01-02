@@ -107,6 +107,143 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
   return success();
 }
 
+// Example:
+// input =  tensor([[[0., 1., 2., 3.],
+//                   [4., 5., 6., 7.]]])
+// torch.ops.aten.reflection_pad1d(input, (3,1)) ; padding_left = 3, padding_right = 1
+// tensor([[[3., 2., 1., 0., 1., 2., 3., 2.],
+//          [7., 6., 5., 4., 5., 6., 7., 6.]]])
+// Checks: 1) Each of padding_left and padding_right must be non-negative less than size of last dimension 
+// Implementation: a) Construct a result tensor of shape of input tensor except for the last dimension.
+//                    The last dimension of the result tensor should be last dimension of input tensor +
+//                    left padding size + right padding size. INitialize result tensor to all zeros
+//                 b) Setup affine map to take slice from input tensor of size left padding starting from
+//                    second column onwards as first column is reflection boundary
+//                 c) Reflect the affine map to have resultant slice reflected
+//                 d) Take the slice and write from begining in result tensor
+//                 e) write the original tensor next into result tensor
+//                 f) Setup affine map to take slice from input tensor of right padding size ending 
+//                    at second last column as last column is reflection boundary for right padding
+//                 g) Reflect the affine map to have resultant slice reflected
+//                 h) Take the slice and write from left padding size + orignal tensor last dim size 
+//                    into result tensor
+// Uses the ideas/code used for AtenReflectionPad2dOp
+namespace {
+class ConvertAtenReflectionPad1dOp
+    : public OpConversionPattern<AtenReflectionPad1dOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenReflectionPad1dOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    
+    SmallVector<int64_t> padInts;
+    if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(padInts)))
+      return rewriter.notifyMatchFailure(
+          op, "only constant int padding range is supported");
+
+    MLIRContext *context = rewriter.getContext();
+    Location loc = op.getLoc();
+
+    // Lambda Unitility Functions
+    // Create an Integer expression of x + y
+    auto createIAdd = [&](Value x, Value y) {
+      return rewriter.create<arith::AddIOp>(loc, x, y);
+    };
+
+    // Create an integer expression of x - y
+    auto createISub = [&](Value x, Value y) {
+      return rewriter.create<arith::SubIOp>(loc, x, y);
+    };
+
+    enum PadLocation {PAD_LEFT = 0, PAD_RIGHT = 1, PAD_CENTER=2};
+
+    Value input = adaptor.getSelf();
+    Type indexType = rewriter.getIndexType();
+    Value zero = getConstant(rewriter, loc, 0, indexType);
+    Value one = getConstant(rewriter, loc, 1, indexType);
+    auto inputType = llvm::cast<RankedTensorType>(input.getType());
+    auto outputType = llvm::cast<RankedTensorType>(getTypeConverter()->convertType(op->getResult(0).getType()));
+    unsigned numDims = inputType.getRank();
+    assert(numDims >= 2 && "Not enough input dimensions");
+    int64_t lastDim = numDims - 1;
+    SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
+    Value lastDimSize = inputShape[lastDim]; // input [1,2,4], then lastDim = 2, inputShape[2] will give 4
+
+    Value tileWidth[3], extractOffset[3], insertOffset[3];
+   
+    tileWidth[PAD_LEFT] = getConstant(rewriter, loc, padInts[PAD_LEFT], indexType);
+    tileWidth[PAD_RIGHT] = getConstant(rewriter, loc, padInts[PAD_RIGHT], indexType);
+    tileWidth[PAD_CENTER] = lastDimSize;
+
+    extractOffset[PAD_LEFT] = one;
+    // for (1,2,4) input, padding (3,1) lastDimSize=4, 4 - 1 - 1 = 2   [3,5, 6,7], so start offset to 6, which is right
+    // lasDimSize - (tileWidth[PAD_RIGHT] + one)
+    extractOffset[PAD_RIGHT] = createISub(lastDimSize, createIAdd(tileWidth[PAD_RIGHT], one)); 
+    extractOffset[PAD_CENTER] = zero;
+
+    insertOffset[PAD_LEFT] = zero;
+    insertOffset[PAD_RIGHT] = createIAdd(lastDimSize, tileWidth[PAD_LEFT]);
+    insertOffset[PAD_CENTER] = tileWidth[PAD_LEFT];
+    
+
+    SmallVector<Value> resultShape{inputShape};
+    // Result's last dimension will have shape lastDimSize + left padding size + right padding size
+    resultShape[lastDim] = createIAdd(resultShape[lastDim], createIAdd(tileWidth[PAD_LEFT], tileWidth[PAD_RIGHT]));
+    Value resultTensor = createZeroInitTensor(rewriter, loc, resultShape, inputType.getElementType());
+
+    // Helper to reflect/reverse the i-th dimension of an affine map without symbols. This only works if applied on a tensor
+    // for which the corresponding dimension has a statically known size
+    auto reflectDim = [](AffineMap map, unsigned numDims, int64_t i, int64_t size) {
+      AffineExpr d = map.getResult(i);
+      return map.replace(d, size - d - 1, numDims, 0); // left reflect for (3,1) on input shape (1,2,4). size = 3, lastDim=2, numDims=3
+    };
+
+    SmallVector<utils::IteratorType> iteratorTypes{numDims, utils::IteratorType::parallel};
+    auto idMap = AffineMap::getMultiDimIdentityMap(numDims, context);
+    SmallVector<Value> allOneStrides(numDims, one);
+
+    auto addTileToResult = [&](PadLocation padPosition) {
+       // Create the tile by extracting a slice from the input tensor.
+      SmallVector<Value> extractShape{inputShape};
+      extractShape[lastDim] = tileWidth[padPosition];
+      SmallVector<Value> extractOffsets(numDims, zero);
+      extractOffsets[lastDim] = extractOffset[padPosition];
+      Value tile = rewriter.create<tensor::ExtractSliceOp>(
+          loc, input, extractOffsets, extractShape, allOneStrides);
+
+      
+      auto inputMap = AffineMap::getMultiDimIdentityMap(numDims, context);
+      // Setup the affine map function to resverse the tile along the horizontal for left and right slices
+      if(padPosition < PAD_CENTER) {
+         inputMap = reflectDim(inputMap, numDims, lastDim, padInts[padPosition]);
+         // Take reflected slice as per inputMap
+         tile = rewriter.create<linalg::GenericOp>(loc, llvm::cast<RankedTensorType>(tile.getType()), tile,
+                     tile, ArrayRef({inputMap, idMap}), iteratorTypes,
+                     [](OpBuilder &b, Location nestedLoc, ValueRange args) {
+                       b.create<linalg::YieldOp>(nestedLoc, args[0]);
+                     }).getResult(0);
+      }
+      // Insert the tile in the resultTensor
+      SmallVector<Value> insertOffsets(numDims, zero);
+      insertOffsets[lastDim] = insertOffset[padPosition];
+      resultTensor = rewriter.create<tensor::InsertSliceOp>(loc, tile, resultTensor, insertOffsets, extractShape, allOneStrides);
+    };
+   
+    if(padInts[PAD_LEFT] > 0)
+       addTileToResult(PAD_LEFT);
+    if(padInts[PAD_RIGHT] > 0)
+       addTileToResult(PAD_RIGHT);
+    addTileToResult(PAD_CENTER);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outputType, resultTensor);
+    return success();
+  }
+};
+}
+
 namespace {
 class ConvertAtenFlattenUsingIntsOp
     : public OpConversionPattern<AtenFlattenUsingIntsOp> {
@@ -1413,6 +1550,8 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
   MLIRContext *context = patterns.getContext();
+  target.addIllegalOp<AtenReflectionPad1dOp>();
+  patterns.add<ConvertAtenReflectionPad1dOp>(typeConverter, context);
   target.addIllegalOp<AtenFlattenUsingIntsOp>();
   patterns.add<ConvertAtenFlattenUsingIntsOp>(typeConverter, context);
   target.addIllegalOp<AtenViewOp>();
