@@ -573,6 +573,86 @@ def ReplicationPad2dModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ReplicationPad2dModule_1(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 3, 3], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.replication_pad2d(x, (0, 2, 3, 4))
+
+
+@register_test_case(module_factory=lambda: ReplicationPad2dModule_1())
+def ReplicationPad2dModule_left0(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 3, 3, low=-1))
+
+# ==============================================================================
+
+class ReplicationPad2dModule_2(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 3, 3], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.replication_pad2d(x, (1, 0, 3, 4))
+
+
+@register_test_case(module_factory=lambda: ReplicationPad2dModule_2())
+def ReplicationPad2dModule_right0(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 3, 3, low=-1))
+
+# ==============================================================================
+
+class ReplicationPad2dModule_3(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 3, 3], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.replication_pad2d(x, (1, 2, 0, 4))
+
+
+@register_test_case(module_factory=lambda: ReplicationPad2dModule_3())
+def ReplicationPad2dModule_top0(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 3, 3, low=-1))
+
+# ==============================================================================
+
+class ReplicationPad2dModule_4(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 3, 3], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.replication_pad2d(x, (1, 2, 3, 0))
+
+
+@register_test_case(module_factory=lambda: ReplicationPad2dModule_4())
+def ReplicationPad2dModule_bottom0(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 3, 3, low=-1))
+
+# ==============================================================================
+
 class TransposeIntModule(torch.nn.Module):
 
     def __init__(self):

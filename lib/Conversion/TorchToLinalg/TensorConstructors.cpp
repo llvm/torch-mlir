@@ -213,9 +213,8 @@ namespace {
 
       SmallVector<Value> tensorsLeft;
       SmallVector<Value> tensorsRight;
-      SmallVector<Value> tensorsTop;
-      SmallVector<Value> tensorsBottom;
       SmallVector<Value> tensorsCenter;
+      Value centerTile;
       SmallVector<Value> tensorsRes;
 
       if (hasLeftPadding) {
@@ -224,29 +223,15 @@ namespace {
         Value vLeftSlice = vCenterLeftSlice;
         if (hasTopPadding) {
           Value topLeftValue = rewriter.create<tensor::ExtractOp> (loc, input, ValueRange{zero, zero, zero, zero});
-          Value topHcenterSlice = rewriter.create<tensor::ExtractSliceOp>(
-            loc, input, extractOffsetsLT, extractShapeTB, allOneStrides);
-          for (auto i=0; i<padInts[2]; ++i) {
-            tensorsTop.push_back(topHcenterSlice);
-          }
-          Value topPadTile = rewriter.create<tensor::ConcatOp>(loc, 2, tensorsTop);
-          tensorsCenter.push_back(topPadTile);
           //pad vCenterLeftSlice on the top
           SmallVector<int64_t> lowPadding(4, 0);
           SmallVector<int64_t> highPadding(4, 0);
           lowPadding[2] = padInts[2];
           vLeftSlice = torch_to_linalg::getPaddedTensor(op, rewriter, vLeftSlice, lowPadding, highPadding, topLeftValue);
         }
-        tensorsCenter.push_back(input);
         if (hasBottomPadding) {
           Value bottomLeftValue = rewriter.create<tensor::ExtractOp> (loc, input, ValueRange{zero, zero, vDimSizeMinusOne, zero});
-          Value bottomHcenterSlice = rewriter.create<tensor::ExtractSliceOp>(
-            loc, input, extractOffsetsBottom, extractShapeTB, allOneStrides);
-          for (auto i=0; i<padInts[3]; ++i) {
-            tensorsBottom.push_back(bottomHcenterSlice);
-          }
-          Value bottomPadTile = rewriter.create<tensor::ConcatOp>(loc, 2, tensorsBottom);
-          tensorsCenter.push_back(bottomPadTile);
+          
           //pad vLeftSlice at the bottom
           SmallVector<int64_t> lowPadding(4, 0);
           SmallVector<int64_t> highPadding(4, 0);
@@ -257,10 +242,26 @@ namespace {
           tensorsLeft.push_back(vLeftSlice);
         }
         Value leftPadTile = rewriter.create<tensor::ConcatOp>(loc, 3, tensorsLeft);
-        Value centerTile = rewriter.create<tensor::ConcatOp>(loc, 2, tensorsCenter);
         tensorsRes.push_back(leftPadTile);
-        tensorsRes.push_back(centerTile); 
       }
+      if (hasTopPadding) {
+        Value topLeftValue = rewriter.create<tensor::ExtractOp> (loc, input, ValueRange{zero,zero, zero, zero});
+        Value topHcenterSlice = rewriter.create<tensor::ExtractSliceOp>(
+          loc, input, extractOffsetsLT, extractShapeTB, allOneStrides);
+        for (auto i=0; i<padInts[2]; ++i) {
+          tensorsCenter.push_back(topHcenterSlice);
+        }
+      }
+      tensorsCenter.push_back(input);
+      if (hasBottomPadding) {
+        Value bottomHcenterSlice = rewriter.create<tensor::ExtractSliceOp>(
+            loc, input, extractOffsetsBottom, extractShapeTB, allOneStrides);
+        for (auto i=0; i<padInts[3]; ++i) {
+          tensorsCenter.push_back(bottomHcenterSlice);
+        }
+      }
+      centerTile = rewriter.create<tensor::ConcatOp>(loc, 2, tensorsCenter);
+      tensorsRes.push_back(centerTile);
 
       if (hasRightPadding) {
         Value vCenterRightSlice = rewriter.create<tensor::ExtractSliceOp>(
