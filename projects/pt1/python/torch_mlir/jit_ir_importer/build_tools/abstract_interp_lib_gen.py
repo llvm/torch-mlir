@@ -59,6 +59,9 @@ def aten〇triu〡shape(self: List[int], diagonal: int = 0) -> List[int]:
 def aten〇tril〡shape(self: List[int], diagonal: int = 0) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇tan〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇atan〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -828,6 +831,9 @@ def aten〇copy〡shape(self: List[int], src: List[int], non_blocking: bool = Fa
 def aten〇uniform〡shape(self: List[int], from_: float = 0., to: float = 1., generator: Any = None) -> List[int]:
     return self
 
+def aten〇exponential〡shape(self: List[int], lambd: float = 1., generator: Any = None) -> List[int]:
+    return self
+
 def aten〇rand〡shape(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return size
 
@@ -1273,6 +1279,21 @@ def aten〇replication_pad2d〡dtype(self_rank_dtype: Tuple[int, int], padding: 
 
 def aten〇pad〡shape(self: List[int], pad: List[int], mode: str = "constant", value: Optional[float] = None) -> List[int]:
     return pad_shape_fn(self, pad)
+
+#Padding size must be smaller than the size of the last dimension
+@check_shape_function([ErrorInvocation(TensorOfShape(1, 2, 4), padding=[4,1]),
+                       Invocation(TensorOfShape(1, 2, 4), padding=[3,3]),
+                       ErrorInvocation(TensorOfShape(1, 2, 4), padding=[1,4]),
+                       ErrorInvocation(TensorOfShape(1, 4), padding=[4,1]),
+                       Invocation(TensorOfShape(1, 4), padding=[3,3]),
+                       ErrorInvocation(TensorOfShape(1, 4), padding=[1,4])])
+def aten〇reflection_pad1d〡shape(self: List[int], padding: List[int]) -> List[int]:
+    assert len(self) >= 2
+    hdim = self[-1]
+    padding_left = padding[0]
+    padding_right = padding[1]
+    assert padding_left < hdim and padding_right < hdim
+    return pad_shape_fn(self, padding)
 
 # TODO: upstream this
 def index_tensor_like(self: List[int], indices: List[Optional[List[int]]]) -> List[int]:
@@ -1807,6 +1828,18 @@ def aten〇constant_pad_nd〡dtype(self_rank_dtype: Tuple[int, int], pad: List[i
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
+
+@check_dtype_function([ErrorInvocation(TensorOfShape(2, 3, 4), padding=1),
+                       ErrorInvocation(TensorOfShape(2, 3, 4), padding=[]),
+                       ErrorInvocation(TensorOfShape(2, 3, 4), padding=[2]),
+                       Invocation(TensorOfShape(2, 3, 4), padding=[2,1]),
+                       Invocation(TensorOfShape(5, 5, 4), padding=[1,2]),
+                       ErrorInvocation(TensorOfShape(2, 3, 4), padding=[3,2,1])])
+def aten〇reflection_pad1d〡dtype(self_rank_dtype: Tuple[int, int], padding: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert len(padding) == 2, 'padding size expected to be 2'
+    return self_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇contiguous〡dtype(self_rank_dtype: Tuple[int, int], memory_format: int = 0) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -2270,6 +2303,10 @@ def aten〇tril〡dtype(self_rank_dtype: Tuple[int, int], diagonal: int = 0) -> 
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇uniform〡dtype(self_rank_dtype: Tuple[int, int], from_: float = 0., to: float = 1., generator: Any = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+def aten〇exponential〡dtype(self_rank_dtype: Tuple[int, int], lambd: float = 1., generator: Any = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
@@ -3729,6 +3766,13 @@ def aten〇var_mean〡dtype(self_rank_dtype: Tuple[int, int], unbiased: bool = T
     if self_dtype == torch.complex128:
         return torch.float64, self_dtype
     return self_dtype, self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇tan〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if is_integer_dtype(self_dtype):
+        return torch.float32
+    return self_dtype
 
 @check_dtype_function(_check_two_tensor_op())
 def aten〇atan2〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:

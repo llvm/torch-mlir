@@ -126,35 +126,6 @@ static Value createTensorSub(PatternRewriter &rewriter, Location loc,
   return sub;
 }
 
-// Helper to create a tensor filled with the given scalar. Scalar would be
-// converted the to the element type of the given tensor type.
-static Value createInitTensor(PatternRewriter &rewriter, Location loc,
-                              BaseTensorType resultType, Value scalar,
-                              Value sizeList) {
-  assert(resultType.hasDtype() && "result must have dtype");
-  Value noneVal = rewriter.create<ConstantNoneOp>(loc);
-  Value dtype = getDtypeIntValueForType(rewriter, loc, resultType.getDtype());
-  return rewriter.create<AtenFullOp>(loc, resultType, sizeList, scalar, dtype,
-                                     /*layout=*/noneVal,
-                                     /*device=*/noneVal,
-                                     /*memory_format=*/noneVal);
-}
-
-// Helper to create a rank 0 tensor filled with the given `scalar`. `scalar`
-// would be converted to the element type of the given `inputType`.
-static Value createRank0Tensor(PatternRewriter &rewriter, Location loc,
-                               BaseTensorType inputType, Value scalar) {
-  assert(inputType.hasDtype() && "input must have dtype");
-  SmallVector<int64_t> sizes;
-  BaseTensorType rank0TensorTy =
-      inputType.getWithSizesAndDtype(ArrayRef(sizes), inputType.getDtype())
-          .cast<BaseTensorType>();
-  Value dimList = rewriter.create<PrimListConstructOp>(
-      loc, Torch::ListType::get(Torch::IntType::get(inputType.getContext())),
-      ValueRange{});
-  return createInitTensor(rewriter, loc, rank0TensorTy, scalar, dimList);
-}
-
 // Share code between `softmax_backward` and `log_softmax_backward` ops.
 // Returns x - y * sum(z, dim).
 static Value createSoftmaxBackwardCommonKernel(PatternRewriter &rewriter,
@@ -3592,6 +3563,51 @@ public:
 } // namespace
 
 namespace {
+// Decompose exponential() to do inverse transform sampling.
+// - https://en.wikipedia.org/wiki/Inverse_transform_sampling
+// With the exponential distribution, F(x) = 1 - exp(-lambda * x). Thus,
+// exponential() = - ln(1 - uniform(0, 1)) / lambda.
+class DecomposeAtenExponentialOp : public OpRewritePattern<AtenExponentialOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenExponentialOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!op.getGenerator().getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "The generator has to be None because only global default "
+              "generator is supported");
+
+    Location loc = op.getLoc();
+    Type resultType = op.getType();
+
+    // Create a uniform random op with low and high set to 0.0 and 1.0,
+    // respectively.
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value zero =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+    Value one =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value emptyTensor = rewriter.create<AtenFullLikeOp>(
+        loc, resultType, op.getSelf(), zero, /*dtype=*/none, /*layout=*/none,
+        /*device=*/none, /*pin_memoty=*/none, /*memory_format=*/none);
+    Value x = rewriter.create<AtenUniformOp>(loc, resultType, emptyTensor,
+                                             /*from=*/zero, /*to=*/one,
+                                             /*generator=*/none);
+
+    Value negX = rewriter.create<AtenNegOp>(loc, resultType, x);
+    Value oneMinusX =
+        rewriter.create<AtenAddScalarOp>(loc, resultType, negX, one,
+                                         /*alpha=*/one);
+    Value lnOneMinusX = rewriter.create<AtenLogOp>(loc, resultType, oneMinusX);
+    Value negLambda = rewriter.create<AtenNegFloatOp>(loc, op.getLambd());
+    rewriter.replaceOpWithNewOp<AtenDivScalarOp>(op, resultType, lnOneMinusX,
+                                                 negLambda);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 template <typename OpTy, typename T1T2Op>
 class DecomposeAtenAddCLikeOp : public OpRewritePattern<OpTy> {
   using OpRewritePattern<OpTy>::OpRewritePattern;
@@ -6439,6 +6455,7 @@ public:
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenBernoulliLikeOp<AtenBernoulliPOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBernoulliTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenExponentialOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenZeroOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEyeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEyeMOp>(patterns);

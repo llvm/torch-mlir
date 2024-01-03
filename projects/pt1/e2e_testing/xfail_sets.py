@@ -139,7 +139,6 @@ TORCHDYNAMO_XFAIL_SET = {
     # START tests failing due to: torch._dynamo.exc.Unsupported: data dependent operator: aten._local_scalar_dense.default
     'AtenFloatScalarModule_basic',
     'AtenIntBoolOpModule_basic',
-    'OneHotModule_basic',
     'QuantizedMLP_basic',
     'ScalarImplicitFloatModule_basic',
     'ScalarImplicitIntModule_basic',
@@ -1033,6 +1032,7 @@ TOSA_PASS_SET = {
     "ElementwiseAddScalarIntModule_basic",
     "ElementwiseAddScalar_TensorLiteralInt32_Module_basic",
     "ElementwiseAtenDivIntScalarModule_basic",
+    "ElementwiseAtenIsinfOpModule_basic",
     "ElementwiseAtenWhereSelfModule_basic",
     "ElementwiseBinaryModule_basic",
     "ElementwiseBinaryStaticShapeModule_basic",
@@ -1328,6 +1328,8 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "SliceWholeTensorModule_basic",
     "TensorFloatModule_basic",
     "TensorIntModule_basic",
+    "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
+    "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
 }) - {
 ### Test failing in make_fx_tosa but not in tosa
 
@@ -1397,6 +1399,7 @@ LTC_XFAIL_SET = {
     "CeilFloatModule_basic",
     "DivFloatModule_basic",
     "EqIntModule_basic",
+    "ExponentialModule_basic",
     "GeFloatIntModule_basic",
     "GeFloatModule_basic",
     "GeIntModule_basic",
@@ -1488,5 +1491,4 @@ LTC_XFAIL_SET = {
     "ElementwiseBitwiseAndScalarInt64Module_basic",
     "ElementwiseBitwiseAndScalarInt32Module_basic",
     "ElementwiseBitwiseAndScalarInt8Module_basic",
-    "ElementwiseIsinfModule_basic",
 }

@@ -242,7 +242,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Torch::ValueTensorType resultType;
         Value data;
         Value axes;
-        Value result;
         if (binder.tensorOperands(data, axes) ||
             binder.tensorResultType(resultType))
           return failure();
@@ -546,8 +545,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             /*dtype=*/noneVal);
         return success();
       });
+  // onnx.ReduceMean with axes provided as argument introduced in opset 18
   patterns.onOp(
-      "ReduceMean", 13,
+      "ReduceMean", 18,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value data;
@@ -614,6 +614,81 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.getLoc(), isNegative, adjustment);
           Value finalDim = rewriter.create<Torch::AtenAddIntOp>(
               binder.getLoc(), dim, finalOffset);
+          dimList.push_back(finalDim);
+        }
+        Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            dimList);
+        Value keepDimBool;
+        if (keepDims == 1) {
+          keepDimBool =
+              rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
+        } else {
+          keepDimBool =
+              rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        }
+        rewriter.replaceOpWithNewOp<Torch::AtenMeanDimOp>(
+            binder.op, resultType, data, dimValueList, keepDimBool,
+            /*dtype=*/noneVal);
+        return success();
+      });
+
+  // onnx.ReduceMean with axes provided as attribute
+  patterns.onOp(
+      "ReduceMean", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value data;
+        llvm::SmallVector<int64_t> axes;
+        int64_t keepDims;
+        int64_t noop_with_empty_axes;
+        if (binder.tensorOperand(data) || binder.tensorResultType(resultType) ||
+            binder.s64IntegerArrayAttr(axes, "axes", 0) ||
+            binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
+            binder.s64IntegerAttr(noop_with_empty_axes, "noop_with_empty_axes",
+                                  0))
+          return failure();
+        SmallVector<Value> dimList;
+        SmallVector<int64_t> selectSizes;
+        selectSizes.push_back(1);
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        // deal with case when axes is empty
+        if (axes.size() == 0) {
+          if (noop_with_empty_axes == 0) {
+            Value keepDimsConstInt = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                rewriter.getIntegerAttr(rewriter.getIntegerType(64), keepDims));
+            Value keepDimsBool = rewriter.create<Torch::AtenBoolIntOp>(
+                binder.getLoc(), keepDimsConstInt);
+            rewriter.replaceOpWithNewOp<Torch::AtenMeanDimOp>(
+                binder.op, resultType, data, /*dim=*/noneVal, keepDimsBool,
+                /*dtype=*/noneVal);
+          } else {
+            rewriter.replaceOp(binder.op, data);
+          }
+          return success();
+        }
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+        int64_t adjustmentInt =
+            cast<Torch::ValueTensorType>(data.getType()).getSizes().size();
+        Value adjustment = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                    adjustmentInt));
+        // convert axes (tensor) into torch int list while dealing with neg axis
+        for (int i = 0; i < axes.size(); i++) {
+          // Go through the axes list and get each dim in the list
+          int64_t dim = axes[i];
+          if (dim < 0) {
+            dim += adjustmentInt;
+          }
+          // deal with neg axis: if (axis < 0) axis += rank
+          Value finalDim = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), dim));
           dimList.push_back(finalDim);
         }
         Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
@@ -794,7 +869,161 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                       binder.op, resultType, operand);
                   return success();
                 });
-  
+
+  // split with fixed-size parts
+  // Arguments:
+  // - input: the tensor to split
+  // Attributes:
+  // - axis: the axis along which to split the input
+  // - num_outputs: the number of outputs to produce
+  // Outputs:
+  // - outputs: the produced outputs. Variadic with num_outputs elements.
+  // Note: torch.aten gives a list of tensors, but ONNX gives a variadic list of
+  // tensors
+  //       so we need to unpack the list
+  patterns.onOp(
+      "Split", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value self;
+        int64_t axis;
+        int64_t num_outputs;
+        if (binder.tensorOperand(self))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Not converting to AtenSplitTensorOp due to input "
+                         "tensor mismatch");
+        if (binder.s64IntegerAttr(axis, "axis", 0))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Failed to get axis attribute");
+        if (binder.s64IntegerAttr(num_outputs, "num_outputs", 0))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to get num_outputs attribute");
+
+        auto result0Ty =
+            binder.op->getResult(0).getType().cast<Torch::ValueTensorType>();
+        auto selfTy = self.getType().cast<Torch::ValueTensorType>();
+
+        int64_t dim = axis;
+        if (dim < 0)
+          dim += selfTy.getSizes().size();
+
+        // set intermediate shape to the shape of the first result
+        // if the results are of different shapes
+        // set the splitted axis to variable shape
+        llvm::SmallVector<int64_t> intermediateShape(result0Ty.getSizes());
+        for (auto result : binder.op->getResultTypes()) {
+          int64_t d = result.cast<Torch::ValueTensorType>().getSizes()[dim];
+          intermediateShape[dim] = d == intermediateShape[dim] ? d : -1;
+        }
+
+        Value dimValue = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), dim));
+
+        Value splitSize = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), num_outputs));
+
+        // TODO: Attempting to use the shape expected by the ONNX mlir as ground
+        // truth. For now just use dynamic shapes.
+        auto resultOuterType =
+            Torch::ListType::get(rewriter.getType<Torch::ValueTensorType>(
+                /*std::optional<llvm::ArrayRef<int64_t>>=*/intermediateShape,
+                result0Ty.getOptionalDtype()));
+        Torch::AtenSplitTensorOp new_op =
+            rewriter.create<Torch::AtenSplitTensorOp>(
+                binder.getLoc(), resultOuterType, self, splitSize, dimValue);
+
+        // the onnx op is variadic with multiple results, but AtenSplitWithSizes
+        // outputs a list so we need to unpack the list
+        rewriter.replaceOpWithNewOp<Torch::PrimListUnpackOp>(
+            binder.op, binder.op->getResults().getType(), new_op.getResult());
+
+        return success();
+      });
+
+  // split with variable parts
+  // Arguments:
+  // - input: the tensor to split
+  // - split: the sizes of the splits to be produced
+  // Attributes:
+  // - axis: the axis along which to split the input
+  // - num_outputs: the number of outputs to produce
+  // Outputs:
+  // - outputs: the produced outputs. Variadic with num_outputs elements.
+  // Note: torch.aten gives a list of tensors, but ONNX gives a variadic list of
+  // tensors
+  //       so we need to unpack the list
+  patterns.onOp(
+      "Split", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value self;
+        Value split;
+        int64_t axis;
+        int64_t num_outputs;
+        if (binder.tensorOperandAtIndex(self, 0) ||
+            binder.tensorOperandAtIndex(split, 1))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Not converting to AtenSplitWithSizesOp due to input "
+                         "tensor mismatch");
+        if (binder.s64IntegerAttr(axis, "axis", 0))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Failed to get axis attribute");
+        if (binder.s64IntegerAttr(num_outputs, "num_outputs", 0))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to get num_outputs attribute");
+
+        auto result0Ty =
+            binder.op->getResult(0).getType().cast<Torch::ValueTensorType>();
+        auto selfTy =
+            cast<Torch::ValueTensorType>(binder.op->getOperand(0).getType());
+
+        int64_t dim = axis;
+        if (dim < 0)
+          dim += selfTy.getSizes().size();
+
+        llvm::SmallVector<int64_t> intermediateShape(result0Ty.getSizes());
+        for (auto result : binder.op->getResultTypes()) {
+          int64_t d = result.cast<Torch::ValueTensorType>().getSizes()[dim];
+          intermediateShape[dim] = d == intermediateShape[dim] ? d : -1;
+        }
+
+        Torch::PrimTolistOp splitToList = rewriter.create<Torch::PrimTolistOp>(
+            binder.getLoc(),
+            Torch::ListType::get(rewriter.getType<Torch::IntType>()), split);
+
+        Value dimValue = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), dim));
+
+        // TODO: Attempting to use the shape expected by the ONNX mlir as ground
+        // truth. For now just use dynamic shapes.
+        auto resultOuterType =
+            Torch::ListType::get(rewriter.getType<Torch::ValueTensorType>(
+                /*std::optional<llvm::ArrayRef<int64_t>>=*/intermediateShape,
+                result0Ty.getOptionalDtype()));
+        Torch::AtenSplitWithSizesOp new_op =
+            rewriter.create<Torch::AtenSplitWithSizesOp>(
+                binder.getLoc(), resultOuterType, self,
+                splitToList.getResult(0), dimValue);
+
+        // the onnx op is variadic with multiple results, but AtenSplitWithSizes
+        // outputs a list so we need to unpack the list
+        rewriter.replaceOpWithNewOp<Torch::PrimListUnpackOp>(
+            binder.op, binder.op->getResults().getType(), new_op.getResult());
+
+        return success();
+      });
+
+  patterns.onOp("Tan", 7,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenTanOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+
   patterns.onOp(
       "Transpose", 13,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
@@ -860,6 +1089,97 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         }
 
         rewriter.replaceOp(binder.op, operand);
+        return success();
+      });
+
+  patterns.onOp(
+      "Reshape", 5, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value data;
+        Value shape;
+        int64_t allowzero;
+        if (binder.tensorOperands(data, shape) ||
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerAttr(allowzero, "allowzero", 0))
+          return failure();
+        Torch::BaseTensorType shapeType =
+            shape.getType().cast<Torch::BaseTensorType>();
+        SmallVector<Value> dimList;
+        SmallVector<int64_t> selectSizes;
+        selectSizes.push_back(1);
+        Type selectResultType = shapeType.getWithSizesAndDtype(
+            llvm::ArrayRef(selectSizes), shapeType.getOptionalDtype());
+        auto shapeSizes =
+            dyn_cast<Torch::ValueTensorType>(shape.getType()).getSizes();
+        auto dataSizes =
+            dyn_cast<Torch::ValueTensorType>(data.getType()).getSizes();
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+        if (allowzero == 0) {
+          // convert shape (tensor) into torch int list while dealing with zero
+          // vals
+          for (int i = 0; i < shapeSizes[0]; i++) {
+            // Go through the shape list and get each dim in the list
+            Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
+            Value extract = rewriter.create<Torch::AtenSelectIntOp>(
+                binder.getLoc(), selectResultType, shape, zero, selectIndex);
+            Value dim = rewriter.create<Torch::AtenItemOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
+            // deal with zero axis values: replace with original dim value in
+            // input
+            Value isZero =
+                rewriter.create<Torch::AtenEqIntOp>(binder.getLoc(), dim, zero);
+            isZero =
+                rewriter.create<Torch::AtenIntBoolOp>(binder.getLoc(), isZero);
+            Value adjustment;
+            int64_t inputDimsSize = dataSizes.size();
+            if (i < inputDimsSize) {
+              adjustment = rewriter.create<Torch::ConstantIntOp>(
+                  binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                  rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                          dataSizes[i]));
+            }
+            // Will never have a 0 in the shape tensor input at an index out of
+            // bounds of original input dims Therefore, no need to adjust
+            else {
+              adjustment = zero;
+            }
+            Value finalOffset = rewriter.create<Torch::AtenMulIntOp>(
+                binder.getLoc(), isZero, adjustment);
+            Value finalDim = rewriter.create<Torch::AtenAddIntOp>(
+                binder.getLoc(), dim, finalOffset);
+            dimList.push_back(finalDim);
+          }
+          Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
+              binder.getLoc(),
+              Torch::ListType::get(
+                  Torch::IntType::get(binder.op->getContext())),
+              dimList);
+          rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(
+              binder.op, resultType, data, dimValueList);
+          return success();
+        }
+        // convert axes (tensor) into torch int list
+        for (int i = 0; i < shapeSizes[0]; i++) {
+          // Go through the axes list and get each dim in the list
+          Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
+          Value extract = rewriter.create<Torch::AtenSelectIntOp>(
+              binder.getLoc(), selectResultType, shape, zero, selectIndex);
+          Value dim = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
+          dimList.push_back(dim);
+        }
+        Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            dimList);
+        rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(binder.op, resultType,
+                                                          data, dimValueList);
         return success();
       });
 }
