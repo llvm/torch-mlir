@@ -5169,7 +5169,6 @@ public:
     INSERT_ATENOP_PATTERN(AtenArgmaxOp);
     INSERT_ATENOP_PATTERN(AtenPowTensorScalarOp);
     INSERT_ATENOP_PATTERN(AtenRsubScalarOp);
-    INSERT_ATENOP_PATTERN(AtenRsubScalarOp);
     INSERT_ATENOP_PATTERN(ValueTensorLiteralOp);
     INSERT_ATENOP_PATTERN(AtenReshapeOp);
     INSERT_ATENOP_PATTERN(AtenBatchNormOp);
