@@ -424,12 +424,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   if (binder.tensorOperandAtIndex(X, 0) ||
                       binder.tensorOperandAtIndex(Scale, 1) ||
                       binder.tensorOperandAtIndex(B, 2) ||
-                      binder.tensorResultTypeAtIndex(Y_type, 0)) 
-                    return failure();
-                  if (binder.tensorResultTypeAtIndex(Mean_type, 1) ||
-                      binder.tensorResultTypeAtIndex(InvStdDev_type, 2))
-                    return failure();
-                  if (binder.s64IntegerAttr(axis, "axis", -1) ||
+                      binder.tensorResultTypeAtIndex(Y_type, 0) || 
+		      binder.tensorResultTypeAtIndex(Mean_type, 1) ||
+                      binder.tensorResultTypeAtIndex(InvStdDev_type, 2) || 
+		      binder.s64IntegerAttr(axis, "axis", -1) ||
                       binder.f32FloatAttr(epsilon, "epsilon", 0.00001) ||
                       binder.s64IntegerAttr(stash_type, "stash_type", 1)) 
                     return failure(); 
