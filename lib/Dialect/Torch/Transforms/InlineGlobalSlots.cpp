@@ -95,7 +95,7 @@ static bool isUseTreatedWithValueSemantics(OpOperand &use) {
 class InlineGlobalSlotsAnalysisState : public AnalysisState {
 public:
   InlineGlobalSlotsAnalysisState(ProgramPoint point) : AnalysisState(point) {
-    setSafe();
+    (void)setSafe();
   }
 
   void print(raw_ostream &os) const override {
