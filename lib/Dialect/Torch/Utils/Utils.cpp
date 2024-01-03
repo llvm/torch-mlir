@@ -500,3 +500,16 @@ Value Torch::createRank0Tensor(PatternRewriter &rewriter, Location loc,
       ValueRange{});
   return createInitTensor(rewriter, loc, rank0TensorTy, scalar, dimList);
 }
+
+LogicalResult Torch::getTransposedType(BaseTensorType inType, int64_t dimA,
+                                int64_t dimB, Type &transposedType) {
+  if (!inType.hasSizes())
+    return failure();
+  SmallVector<int64_t> shape(inType.getSizes());
+  int64_t tmp = shape[dimA];
+  shape[dimA] = shape[dimB];
+  shape[dimB] = tmp;
+  transposedType = inType.getWithSizesAndDtype(llvm::ArrayRef(shape),
+                                               inType.getOptionalDtype());
+  return success();
+}

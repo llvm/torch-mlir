@@ -2554,19 +2554,6 @@ public:
 };
 } // namespace
 
-static LogicalResult getTransposedType(BaseTensorType inType, int64_t dimA,
-                                       int64_t dimB, Type &transposedType) {
-  if (!inType.hasSizes())
-    return failure();
-  SmallVector<int64_t> shape(inType.getSizes());
-  int64_t tmp = shape[0];
-  shape[0] = shape[1];
-  shape[1] = tmp;
-  transposedType = inType.getWithSizesAndDtype(llvm::ArrayRef(shape),
-                                               inType.getOptionalDtype());
-  return success();
-}
-
 // The convolution backward op is decomposed as follows:
 // inputH, inputW = input.shape[2:]
 // output_padding_ = [
