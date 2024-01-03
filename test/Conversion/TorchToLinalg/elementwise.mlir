@@ -102,3 +102,20 @@ func.func @elementwise_sinh(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3
   %0 = torch.aten.sinh %arg0 : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
   return %0 : !torch.vtensor<[3],f32>
 }
+
+// -----
+
+// CHECK-LABEL:    func.func @elementwise_clamp
+// CHECK:            linalg.generic
+// CHECK:            arith.trunci
+// CHECK:            arith.cmpi slt
+// CHECK:            arith.select
+// CHECK:            arith.trunci
+// CHECK:            arith.cmpi sgt
+// CHECK:            arith.select
+func.func @elementwise_clamp(%arg0: !torch.vtensor<[1,3,8,8],si8>) -> !torch.vtensor<[1,3,8,8],si8> {
+  %int-128 = torch.constant.int -128
+  %int127 = torch.constant.int 127
+  %0 = torch.aten.clamp %arg0, %int-128, %int127 : !torch.vtensor<[1,3,8,8],si8>, !torch.int, !torch.int -> !torch.vtensor<[1,3,8,8],si8>
+  return %0 : !torch.vtensor<[1,3,8,8],si8>
+}

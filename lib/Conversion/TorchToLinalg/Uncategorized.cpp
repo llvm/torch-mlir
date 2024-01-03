@@ -1001,13 +1001,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::SelectOp>(loc, pred, lhs, rhs);
   }
   if (auto clamp = dyn_cast<AtenClampOp>(op)) {
-    Type dtype = converter->convertType(clamp.getType())
-                     .cast<RankedTensorType>()
-                     .getElementType();
-    if (!dtype.isa<mlir::FloatType>()) {
-      clamp.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
     AtenClampOp::Adaptor adaptor(operands);
     auto min = adaptor.getMin();
     auto max = adaptor.getMax();
@@ -1016,20 +1009,59 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       clamp.emitError("unimplemented: runtime optional type");
       return nullptr;
     }
-    auto result = payloadArgs[0];
-    if (!min.getType().isa<Torch::NoneType>()) {
-      auto minPromoted = convertScalarToDtype(b, loc, min, dtype);
-      auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
-                                          result, minPromoted);
-      result = b.create<arith::SelectOp>(loc, pred, minPromoted, result);
+
+    Type dtype = converter->convertType(clamp.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    if (dtype.isa<mlir::FloatType>()) {
+      auto result = payloadArgs[0];
+      if (!min.getType().isa<Torch::NoneType>()) {
+        auto minPromoted = convertScalarToDtype(b, loc, min, dtype);
+        auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
+                                            result, minPromoted);
+        result = b.create<arith::SelectOp>(loc, pred, minPromoted, result);
+      }
+      if (!max.getType().isa<Torch::NoneType>()) {
+        auto maxPromoted = convertScalarToDtype(b, loc, max, dtype);
+        auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
+                                            result, maxPromoted);
+        result = b.create<arith::SelectOp>(loc, pred, maxPromoted, result);
+      }
+      return result;
     }
-    if (!max.getType().isa<Torch::NoneType>()) {
-      auto maxPromoted = convertScalarToDtype(b, loc, max, dtype);
-      auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
-                                          result, maxPromoted);
-      result = b.create<arith::SelectOp>(loc, pred, maxPromoted, result);
+
+    if (auto intTy = dtype.dyn_cast<mlir::IntegerType>()) {
+      auto result = payloadArgs[0];
+
+      if (!min.getType().isa<Torch::NoneType>()) {
+        auto minPromoted =
+            convertScalarToDtype(b, loc, min, dtype,
+                                 /*srcOriginalDtype=*/std::nullopt,
+                                 /*dstOriginalDtype=*/b.getI64Type());
+        auto pred = b.create<arith::CmpIOp>(loc,
+                                            intTy.isUnsigned()
+                                                ? arith::CmpIPredicate::ult
+                                                : arith::CmpIPredicate::slt,
+                                            result, minPromoted);
+        result = b.create<arith::SelectOp>(loc, pred, minPromoted, result);
+      }
+      if (!max.getType().isa<Torch::NoneType>()) {
+        auto maxPromoted =
+            convertScalarToDtype(b, loc, max, dtype,
+                                 /*srcOriginalDtype=*/std::nullopt,
+                                 /*dstOriginalDtype=*/b.getI64Type());
+        auto pred = b.create<arith::CmpIOp>(loc,
+                                            intTy.isUnsigned()
+                                                ? arith::CmpIPredicate::ugt
+                                                : arith::CmpIPredicate::sgt,
+                                            result, maxPromoted);
+        result = b.create<arith::SelectOp>(loc, pred, maxPromoted, result);
+      }
+      return result;
     }
-    return result;
+
+    clamp.emitError("unimplemented: non-floating point dtype");
+    return nullptr;
   }
   if (auto clampTensor = dyn_cast<AtenClampTensorOp>(op)) {
     AtenClampTensorOp::Adaptor adaptor(operands);
