@@ -37,6 +37,23 @@ static int64_t onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx) {
   return dtypeIntTorch;
 }
 
+static LogicalResult createTorchTransposeOp(ConversionPatternRewriter &rewriter,
+                                            Location loc, Value input,
+                                            int64_t dimA, int64_t dimB,
+                                            Value &transposed) {
+  Type transposedType;
+  if (failed(getTransposedType(input.getType().cast<Torch::BaseTensorType>(),
+                               dimA, dimB, transposedType)))
+    return failure();
+  Value cstDimA = rewriter.create<Torch::ConstantIntOp>(
+      loc, rewriter.getI64IntegerAttr(dimA));
+  Value cstDimB = rewriter.create<Torch::ConstantIntOp>(
+      loc, rewriter.getI64IntegerAttr(dimB));
+  transposed = rewriter.create<Torch::AtenTransposeIntOp>(
+      loc, transposedType, input, cstDimA, cstDimB);
+  return success();
+}
+
 // Simple rewrites for the default domain.
 // See: https://onnx.ai/onnx/operators/
 // For operators that are effectively version invariant, we register with
@@ -978,11 +995,118 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.op, resultType, operand, dim, resultDType);
         return success();
       });
+  patterns.onOp(
+      "DepthToSpace", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value input;
+        int64_t blockSize;
+        std::string mode;
+        if (binder.tensorOperand(input) ||
+            binder.s64IntegerAttr(blockSize, "blocksize") ||
+            binder.customOpNameStringAttr(mode, "mode", "DCR") ||
+            binder.tensorResultType(resultType))
+          return failure();
+        auto inputTy = input.getType().dyn_cast<Torch::BaseTensorType>();
+        if (!inputTy || !inputTy.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected input type having sizes");
+        }
+        SmallVector<int64_t> inputSizes{inputTy.getSizes()};
+        if (inputSizes.size() != 4) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Expected input rank to be 4");
+        }
+        Value b = rewriter.create<Torch::AtenSizeIntOp>(
+            binder.getLoc(), input,
+            rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(0)));
+        Value c = rewriter.create<Torch::AtenSizeIntOp>(
+            binder.getLoc(), input,
+            rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(1)));
+        Value h = rewriter.create<Torch::AtenSizeIntOp>(
+            binder.getLoc(), input,
+            rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(2)));
+        Value w = rewriter.create<Torch::AtenSizeIntOp>(
+            binder.getLoc(), input,
+            rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(3)));
+        Value cstBlockSize = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(blockSize));
+        Value cstBlockSizeSquare = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(blockSize * blockSize));
+        Value cDivBlockSizeSquare = rewriter.create<Torch::AtenDivIntOp>(
+            binder.getLoc(), c, cstBlockSizeSquare);
+        cDivBlockSizeSquare = rewriter.create<Torch::AtenIntFloatOp>(
+            binder.getLoc(), cDivBlockSizeSquare);
+        Value reshapeSizesList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(input.getContext())),
+            llvm::SmallVector<Value>{b, cstBlockSize, cstBlockSize,
+                                     cDivBlockSizeSquare, h, w});
+        int64_t cDivBlockSizeSquareInt =
+            inputSizes[1] == Torch::kUnknownSize
+                ? Torch::kUnknownSize
+                : inputSizes[1] / (blockSize * blockSize);
+        SmallVector<int64_t, 6> reshapeSizesInt{
+            inputSizes[0],          blockSize,     blockSize,
+            cDivBlockSizeSquareInt, inputSizes[2], inputSizes[3]};
+        Value reshapedInput = rewriter.create<Torch::AtenReshapeOp>(
+            binder.getLoc(),
+            inputTy.getWithSizesAndDtype(reshapeSizesInt,
+                                         inputTy.getOptionalDtype()),
+            input, reshapeSizesList);
+
+        Value transposedInput;
+        if (mode == "DCR") {
+          if (failed(createTorchTransposeOp(
+                  rewriter, binder.getLoc(), reshapedInput,
+                  /*dimA=*/1, /*dimB=*/3, transposedInput)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Failed to create TorchTranspose op");
+          if (failed(createTorchTransposeOp(
+                  rewriter, binder.getLoc(), transposedInput,
+                  /*dimA=*/2, /*dimB=*/4, transposedInput)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Failed to create TorchTranspose op");
+        } else {
+          // mode == "CRD"
+          if (failed(createTorchTransposeOp(
+                  rewriter, binder.getLoc(), reshapedInput,
+                  /*dimA=*/2, /*dimB=*/4, transposedInput)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Failed to create TorchTranspose op");
+          if (failed(createTorchTransposeOp(
+                  rewriter, binder.getLoc(), transposedInput,
+                  /*dimA=*/3, /*dimB=*/4, transposedInput)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Failed to create TorchTranspose op");
+        }
+        if (failed(createTorchTransposeOp(
+                rewriter, binder.getLoc(), transposedInput,
+                /*dimA=*/4, /*dimB=*/5, transposedInput)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to create TorchTranspose op");
+
+        Value hMulBlockSize = rewriter.create<Torch::AtenMulIntOp>(
+            binder.getLoc(), h, cstBlockSize);
+        Value wMulBlockSize = rewriter.create<Torch::AtenMulIntOp>(
+            binder.getLoc(), w, cstBlockSize);
+        reshapeSizesList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(input.getContext())),
+            llvm::SmallVector<Value>{b, cDivBlockSizeSquare, hMulBlockSize,
+                                     wMulBlockSize});
+        rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(
+            binder.op, resultType, transposedInput, reshapeSizesList);
+        return success();
+      });
   patterns.onOp("Div", 14,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value lhs, rhs;
-                  std::string direction;
                   if (binder.tensorOperands(lhs, rhs) ||
                       binder.tensorResultType(resultType))
                     return failure();
