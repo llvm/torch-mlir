@@ -229,13 +229,14 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
            SmallVector<Value>(weightRank, one), init,
            [&](OpBuilder &b, Location loc, ValueRange localIVs,
                ValueRange accs) {
-             b.create<scf::ReduceOp>(
-                 loc, init,
-                 [&](OpBuilder &b, Location loc, Value elem, Value acc) {
-                   Value x = b.create<memref::LoadOp>(loc, weight, localIVs);
-                   Value max = b.create<arith::MaximumFOp>(loc, x, acc);
-                   b.create<scf::ReduceReturnOp>(loc, max);
-                 });
+             auto reduceOp = b.create<scf::ReduceOp>(loc, init);
+             // Build reduce body.
+             Block &reductionBody = reduceOp.getReductions()[0].front();
+             b.setInsertionPointToEnd(&reductionBody);
+             Value acc = reductionBody.getArgument(0);
+             Value x = b.create<memref::LoadOp>(loc, weight, localIVs);
+             Value max = b.create<arith::MaximumFOp>(loc, x, acc);
+             b.create<scf::ReduceReturnOp>(loc, max);
            })
           .getResult(0);
   // weight = (weight - max(weight)) / math.sqrt(querySizes[-1])
