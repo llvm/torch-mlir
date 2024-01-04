@@ -164,9 +164,8 @@ static void matmul(OpBuilder &b, Location loc, Value lhs, ValueRange lhsSizes,
 
                    b.create<scf::YieldOp>(loc, x);
                  })
-                ->getResult(0);
+                ->getResult(0);;
         b.create<memref::StoreOp>(loc, sum, output, localIVs);
-        b.create<scf::YieldOp>(loc);
       });
 }
 
@@ -232,11 +231,12 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
              auto reduceOp = b.create<scf::ReduceOp>(loc, init);
              // Build reduce body.
              Block &reductionBody = reduceOp.getReductions()[0].front();
-             b.setInsertionPointToEnd(&reductionBody);
+             auto bodyBuilder = OpBuilder::atBlockEnd(&reductionBody);
              Value acc = reductionBody.getArgument(0);
-             Value x = b.create<memref::LoadOp>(loc, weight, localIVs);
-             Value max = b.create<arith::MaximumFOp>(loc, x, acc);
-             b.create<scf::ReduceReturnOp>(loc, max);
+             Value x =
+                 bodyBuilder.create<memref::LoadOp>(loc, weight, localIVs);
+             Value max = bodyBuilder.create<arith::MaximumFOp>(loc, x, acc);
+             bodyBuilder.create<scf::ReduceReturnOp>(loc, max);
            })
           .getResult(0);
   // weight = (weight - max(weight)) / math.sqrt(querySizes[-1])
@@ -248,7 +248,6 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
         x = b.create<arith::SubFOp>(loc, x, globalMax);
         x = b.create<arith::DivFOp>(loc, x, scaleFactor);
         b.create<memref::StoreOp>(loc, x, weight, localIVs);
-        b.create<scf::YieldOp>(loc);
       });
   // calculate exp(weight)
   SmallVector<Value> min(weightRank, zero),
@@ -259,7 +258,6 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
         Value x = b.create<memref::LoadOp>(loc, weight, localIVs);
         x = b.create<math::ExpOp>(loc, x);
         b.create<memref::StoreOp>(loc, x, weight, localIVs);
-        b.create<scf::YieldOp>(loc);
       });
   Value expWeightSum = b.create<memref::AllocOp>(
       loc,
@@ -291,7 +289,6 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
               Value y = b.create<memref::LoadOp>(loc, weight, coords);
               Value sum = b.create<arith::AddFOp>(loc, x, y);
               b.create<memref::StoreOp>(loc, sum, expWeightSum, outsideDims);
-              b.create<scf::YieldOp>(loc);
             });
       });
   // calculate exp(weight) / sum(exp(weight))
@@ -306,7 +303,6 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
         Value sum = b.create<memref::LoadOp>(loc, expWeightSum, sumIVs);
         x = b.create<arith::DivFOp>(loc, x, sum);
         b.create<memref::StoreOp>(loc, x, weight, localIVs);
-        b.create<scf::YieldOp>(loc);
       });
 
   // output = weight @ value
