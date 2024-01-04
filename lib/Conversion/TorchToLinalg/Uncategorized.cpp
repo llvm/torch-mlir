@@ -2025,7 +2025,7 @@ public:
     auto inputType = input.getType().cast<RankedTensorType>();
     auto inputElementType = inputType.getElementType();
 
-    if (!inputElementType.isa<mlir::FloatType>()){
+    if (!inputElementType.isa<mlir::FloatType>()) {
       op.emitError("Logit does not support non-floating point type");
       return failure();
     }
