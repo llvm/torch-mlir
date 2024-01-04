@@ -2014,8 +2014,21 @@ public:
     if (succeeded(checkNotNone(rewriter, op, eps)))
       handleEps = true;
 
+    if (handleEps && !eps.getType()
+                          .cast<ValueTensorType>()
+                          .getDtype()
+                          .isa<mlir::FloatType>()) {
+      op.emitError("Logit does not support non-floating point type");
+      return failure();
+    }
+
     auto inputType = input.getType().cast<RankedTensorType>();
     auto inputElementType = inputType.getElementType();
+
+    if (!inputElementType.isa<mlir::FloatType>()){
+      op.emitError("Logit does not support non-floating point type");
+      return failure();
+    }
 
     auto inputRank = inputType.getRank();
 
