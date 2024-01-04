@@ -96,7 +96,7 @@ class SqueezeDimStaticModule(torch.nn.Module):
     module_factory=lambda: SqueezeDimStaticModule())
 def SqueezeDimModule_static(module, tu: TestUtils):
     module.forward(tu.rand(1, 7))
-    
+
 
 # ==============================================================================
 

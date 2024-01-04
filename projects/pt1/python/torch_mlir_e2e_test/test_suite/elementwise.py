@@ -3184,7 +3184,7 @@ def ElementwiseAtenLogicalOrOpRandomFloatModule_basic(module, tu: TestUtils):
 class ElementwiseAtenLogicalOrOpNegativeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
@@ -3203,7 +3203,7 @@ def ElementwiseAtenLogicalOrOpNegativeModule_basic(module, tu: TestUtils):
 class ElementwiseAtenLogicalOrOpBrodcastModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
@@ -4089,7 +4089,7 @@ def ElementwiseBitwiseAndScalarInt8Module_basic(module, tu: TestUtils):
 class GluStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
