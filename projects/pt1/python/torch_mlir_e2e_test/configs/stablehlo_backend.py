@@ -18,10 +18,10 @@ from .utils import (
 
 
 class StablehloBackendTestConfig(TestConfig):
-    """Base class for TestConfig's that are implemented with linalg-on-tensors.
+    """Base class for TestConfig's that are implemented with StableHLO.
 
     This class handles all the common lowering that torch-mlir does before
-    reaching the linalg-on-tensors abstraction level.
+    reaching the StableHLO abstraction level.
     """
 
     def __init__(self, backend: StablehloBackend):

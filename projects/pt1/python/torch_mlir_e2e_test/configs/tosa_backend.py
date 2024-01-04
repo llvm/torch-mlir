@@ -18,10 +18,10 @@ from .utils import (
 
 
 class TosaBackendTestConfig(TestConfig):
-    """Base class for TestConfig's that are implemented with linalg-on-tensors.
+    """Base class for TestConfig's that are implemented with TOSA.
 
     This class handles all the common lowering that torch-mlir does before
-    reaching the linalg-on-tensors abstraction level.
+    reaching the TOSA abstraction level.
     """
     def __init__(self, backend: TosaBackend, use_make_fx: bool = False):
         super().__init__()
