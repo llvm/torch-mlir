@@ -164,7 +164,8 @@ static void matmul(OpBuilder &b, Location loc, Value lhs, ValueRange lhsSizes,
 
                    b.create<scf::YieldOp>(loc, x);
                  })
-                ->getResult(0);;
+                ->getResult(0);
+        ;
         b.create<memref::StoreOp>(loc, sum, output, localIVs);
       });
 }
