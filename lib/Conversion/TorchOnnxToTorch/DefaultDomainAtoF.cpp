@@ -15,6 +15,28 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::onnx_c;
 
+static int64_t onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx) {
+  int64_t dtypeIntTorch;
+  // TODO: Add complete mapping.
+  switch (dtypeIntOnnx) {
+  case 1:
+    dtypeIntTorch = 6; // float
+    break;
+  case 10:
+    dtypeIntTorch = 5; // half
+    break;
+  case 11:
+    dtypeIntTorch = 7; // double
+    break;
+  case 16:
+    dtypeIntTorch = 15; // bfloat16
+    break;
+  default:
+    dtypeIntTorch = -1; // No dtype
+  }
+  return dtypeIntTorch;
+}
+
 // Simple rewrites for the default domain.
 // See: https://onnx.ai/onnx/operators/
 // For operators that are effectively version invariant, we register with
@@ -312,6 +334,53 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         return failure();
       });
   patterns.onOp(
+      "Bernoulli", 15,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value input;
+        int64_t dtypeIntOnnx, dtypeIntTorch;
+        if (binder.tensorOperand(input) ||
+            binder.s64IntegerAttr(dtypeIntOnnx, "dtype", -1) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        SmallString<64> name("torch.onnx.");
+        name.append("seed");
+        auto attr = binder.op->getAttr(name);
+        if (attr) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "unimplemented: support not present for seed attribute");
+        }
+
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value bernoulli = rewriter.create<Torch::AtenBernoulliOp>(
+            binder.getLoc(), input.getType(), input, /*generator=*/none);
+
+        if (dtypeIntOnnx == -1) {
+          // True, if dtype attribute value is not present.
+          rewriter.replaceOp(binder.op, bernoulli);
+          return success();
+        }
+        dtypeIntTorch = onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
+        if (dtypeIntTorch == -1) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "unimplemented support for the given dtype conversion");
+        }
+        Value constDtype = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                    dtypeIntTorch));
+        Value cstFalse =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
+            binder.op, resultType, bernoulli, constDtype,
+            /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+            /*memory_format=*/none);
+        return success();
+      });
+  patterns.onOp(
       "BitShift", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value lhs, rhs;
@@ -386,21 +455,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType))
           return failure();
 
-        // TODO: Add complete mapping.
-        switch (dtypeIntOnnx) {
-        case 1:
-          dtypeIntTorch = 6; // float
-          break;
-        case 10:
-          dtypeIntTorch = 5; // half
-          break;
-        case 11:
-          dtypeIntTorch = 7; // double
-          break;
-        case 16:
-          dtypeIntTorch = 15; // bfloat16
-          break;
-        default:
+        dtypeIntTorch = onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
+        if (dtypeIntTorch == -1) {
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented support for the given dtype conversion");
@@ -414,6 +470,36 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
         rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
             binder.op, resultType, operand, constDtype,
+            /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+            /*memory_format=*/none);
+        return success();
+      });
+  patterns.onOp(
+      "CastLike", 15, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value input, target;
+        if (binder.tensorOperands(input, target) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        // TODO: Add support to handle the `saturate` attribute.
+        // Ignoring it right now, since it's only using during the float8
+        // conversions which are not supported in Torch-MLIR right now.
+
+        Torch::ValueTensorType targetTy =
+            target.getType().cast<Torch::ValueTensorType>();
+        if (!targetTy.hasDtype()) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "target tensor must have a dtype");
+        }
+        Type targetDtype = targetTy.getDtype();
+        Value constDtype = Torch::getDtypeIntValueForType(
+            rewriter, binder.getLoc(), targetDtype);
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value cstFalse =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
+            binder.op, resultType, input, constDtype,
             /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
             /*memory_format=*/none);
         return success();
