@@ -533,6 +533,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseLtDiffWidthScalarModule_basic",
     "ElementwiseLtFloatScalarModule_basic",
     "ElementwiseLtIntScalarModule_basic",
+    "ElementwiseLogitModule_basic",
     "ElementwiseMulScalarModule_basic",
     "ElementwiseMulScalarModule_float",
     "ElementwiseMulScalarModule_int",
