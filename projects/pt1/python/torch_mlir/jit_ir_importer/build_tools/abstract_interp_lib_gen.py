@@ -61,10 +61,10 @@ def aten〇tril〡shape(self: List[int], diagonal: int = 0) -> List[int]:
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 3, 4)), # Basic case.
-    Invocation(TensorOfShape(2, 3, 4), dim1=0, dim2=1), # Test explicit `dim1` and `dim2`.
+    Invocation(TensorOfShape(2, 3, 4), dim1=1, dim2=2), # Test explicit `dim1` and `dim2`.
     Invocation(TensorOfShape(2, 3, 4), dim1=-1, dim2=-2, offset=1), # Positive `offset`.
-    Invocation(TensorOfShape(2, 3, 4), offset=-2), # Negative `offset``.
-    Invocation(TensorOfShape(2, 3, 4), offset=5), # Empty result due to large `offset`.
+    Invocation(TensorOfShape(2, 3, 4), offset=-1), # Negative `offset``.
+    Invocation(TensorOfShape(2, 3, 4), offset=3), # Empty result due to large `offset`.
     ErrorInvocation(TensorOfShape(2)), # Input one-dimensional.
     ErrorInvocation(TensorOfShape(2, 3, 4), dim1=1, dim2=1), # `dim1` and `dim2` equal.
     ErrorInvocation(TensorOfShape(2, 3, 4), dim1=3, dim2=1), # `dim1` out of bounds.
@@ -74,17 +74,19 @@ def aten〇diagonal〡shape(self: List[int], offset: int = 0, dim1: int = 0, dim
     dim1 = upstream_shape_functions.maybe_wrap_dim(dim1, len(self))
     dim2 = upstream_shape_functions.maybe_wrap_dim(dim2, len(self))
     assert dim1 != dim2, "diagonal dimensions cannot be identical"
-    
+
     diagonal: List[int] = []
     for i, self_dim in enumerate(self):
-        if (i==dim1) or (i==dim2):
-            continue
-        diagonal.append(self_dim)
-
+        if (i==dim1):
+            pass
+        elif (i==dim2):
+            pass
+        else:
+            diagonal.append(self_dim)
+    
+    diag_size = max(min(self[dim1], self[dim2] - offset), 0)
     if offset<0:
       diag_size = max(min(self[dim1] + offset, self[dim2]), 0)
-    else:
-      diag_size = max(min(self[dim1], self[dim2] - offset), 0)
     diagonal.append(diag_size)
 
     return diagonal
