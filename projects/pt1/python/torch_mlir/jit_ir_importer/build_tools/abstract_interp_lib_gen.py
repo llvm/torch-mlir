@@ -77,9 +77,7 @@ def aten〇diagonal〡shape(self: List[int], offset: int = 0, dim1: int = 0, dim
 
     diagonal: List[int] = []
     for i, self_dim in enumerate(self):
-        if (i==dim1):
-            pass
-        elif (i==dim2):
+        if (i==dim1) or (i==dim2):
             pass
         else:
             diagonal.append(self_dim)
