@@ -669,15 +669,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           }
           return success();
         }
-        Value zero = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
         int64_t adjustmentInt =
             cast<Torch::ValueTensorType>(data.getType()).getSizes().size();
-        Value adjustment = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    adjustmentInt));
         // convert axes (tensor) into torch int list while dealing with neg axis
         for (int i = 0; i < axes.size(); i++) {
           // Go through the axes list and get each dim in the list
