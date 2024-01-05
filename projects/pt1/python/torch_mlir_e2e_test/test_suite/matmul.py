@@ -262,3 +262,30 @@ class AtenMmIntTypes(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenMmIntTypes())
 def AtenMmIntTypes_basic(module, tu: TestUtils):
     module.forward(tu.randint(16, 4, high=100), tu.randint(4, 16, high=100))
+
+
+# ==============================================================================
+
+class AtenMmQuint8(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.int8, True),
+        ([4, 3], torch.int8, True),
+    ])
+    def forward(self, x, y):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.1, 8)
+        qx = torch.dequantize(qx)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.1, 8)
+        qy = torch.dequantize(qy)
+        qz =  torch.mm(qx, qy)
+        return qz
+
+@register_test_case(module_factory=lambda: AtenMmQuint8())
+def AtenMmQuint8_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-128, high=127).to(torch.int8),
+                   tu.randint(4, 3, low=-128, high=127).to(torch.int8))

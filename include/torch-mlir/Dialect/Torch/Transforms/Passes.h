@@ -106,6 +106,10 @@ createDecomposeComplexOpsPass(ArrayRef<std::string> legalOps);
 
 std::unique_ptr<OperationPass<func::FuncOp>> createRecomposeComplexOpsPass();
 
+std::unique_ptr<OperationPass<func::FuncOp>> createFuseQuantizedOpsPass();
+std::unique_ptr<OperationPass<func::FuncOp>>
+createMatchQuantizedCustomOpsPass();
+
 std::unique_ptr<OperationPass<ModuleOp>>
 createReifyShapeCalculationsPass(StringRef extraLibrary);
 
