@@ -14232,6 +14232,29 @@ def Torch_AtenQuantizePerTensorOp : Torch_Op<"aten.quantize_per_tensor", [
   }];
 }
 
+def Torch_AtenDequantizeSelfOp : Torch_Op<"aten.dequantize.self", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::dequantize.self : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenDequantizeSelfOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenDequantizeSelfOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenDequantizeTensorOp : Torch_Op<"aten.dequantize.tensor", [
     AllowsTypeRefinement,
     HasValueSemantics,

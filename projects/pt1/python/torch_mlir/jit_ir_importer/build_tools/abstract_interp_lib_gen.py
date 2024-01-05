@@ -224,6 +224,9 @@ def aten〇rsub〇Scalar〡shape(self: List[int], other: float, alpha: float = 1
 def aten〇quantize_per_tensor〡shape(self: List[int], scale: float, zero_point: int, dtype: int) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇dequantize〇self〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇dequantize〇tensor〡shape(qtensor: List[int]) -> List[int]:
     return upstream_shape_functions.unary(qtensor)
 
@@ -3972,6 +3975,12 @@ def prims〇collapse〡dtype(a_rank_dtype: Tuple[int, int], start: int, end: int
 
 def aten〇quantize_per_tensor〡dtype(self_rank_dtype: Tuple[int, int], scale: float, zero_point: int, dtype: int) -> int:
     return dtype
+
+def aten〇dequantize〇self〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    return torch.float32
+
+def aten〇dequantize〇tensor〡dtype(qtensor_rank_dtype: Tuple[int, int]) -> int:
+    return torch.float32
 
 def aten〇int_repr〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype

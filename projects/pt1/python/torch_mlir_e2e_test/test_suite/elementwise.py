@@ -4171,8 +4171,9 @@ class ElementwiseDequantizePerTensorModule(torch.nn.Module):
         ([-1, -1], torch.int8, True),
     ])
     def forward(self, x):
-        qx = torch._make_per_tensor_quantized_tensor(x, 1.0, 0)
-        return qx.int_repr()
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.1, 8)
+        qx = torch.dequantize(qx)
+        return qx
 
 @register_test_case(module_factory=lambda: ElementwiseDequantizePerTensorModule())
 def ElementwiseDequantizePerTensorModule_basic(module, tu: TestUtils):

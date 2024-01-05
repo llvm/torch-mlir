@@ -1316,9 +1316,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::XOrIOp>(loc, payloadArgs[0], allOnesVal);
   }
 
-  if (auto dequant = dyn_cast<AtenDequantizeTensorOp>(op)) {
+  if (isa<AtenDequantizeTensorOp, AtenDequantizeSelfOp>(op)) {
     auto value = payloadArgs[0];
-    auto qtensor = dequant.getQtensor();
+    auto qtensor = op->getOperand(0);
     auto qtensorTy = qtensor.getType().cast<ValueTensorType>().getDtype();
     auto makeQTensor =
         qtensor.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>();
@@ -1451,7 +1451,7 @@ public:
              AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
              AtenTrilOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
              AtenFillTensorOp, AtenAtanOp, AtenAcosOp, AtenRealOp, AtenImagOp,
-             AtenDequantizeTensorOp, AtenQuantizePerTensorOp>(op))
+             AtenDequantizeSelfOp, AtenDequantizeTensorOp, AtenQuantizePerTensorOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -2220,7 +2220,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenAcosOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
       AtenTrilOp, AtenRemainderScalarOp, AtenBitwiseNotOp, AtenRoundOp,
       AtenFillScalarOp, AtenFillTensorOp, AtenRealOp, AtenImagOp,
-      AtenDequantizeTensorOp, AtenQuantizePerTensorOp>();
+      AtenDequantizeSelfOp, AtenDequantizeTensorOp, AtenQuantizePerTensorOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);
