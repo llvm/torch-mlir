@@ -95,6 +95,8 @@ FailureOr<Type>
 getBackendTypeForScalarType(MLIRContext *context,
                             torch_upstream::ScalarType dtypeInt);
 
+bool isUnsignedTorchType(Type type);
+
 } // namespace torch_to_linalg
 } // namespace torch
 } // namespace mlir

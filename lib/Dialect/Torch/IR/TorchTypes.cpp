@@ -184,7 +184,7 @@ static bool isValidTorchDtype(Type dtype) {
     dtype = dtype.cast<ComplexType>().getElementType();
   }
   // Torch quantized types.
-  if (dtype.isa<Torch::QInt8Type, Torch::QUInt8Type>())
+  if (dtype.isa<Torch::QInt8Type, Torch::QUInt8Type, Torch::QInt32Type>())
     return true;
   // Builtin floating point types.
   if (dtype.isa<Float16Type, BFloat16Type, Float32Type, Float64Type>())
@@ -410,6 +410,16 @@ static Type convertDtypeToBuiltinElementType(MLIRContext *context, Type dtype) {
   } else if (dtype.isa<mlir::ComplexType>()){
     return dtype;
   }
+
+  if (isa<QUInt8Type>(dtype))
+    return IntegerType::get(context, 8, IntegerType::Signless);
+
+  if (isa<QInt8Type>(dtype))
+    return IntegerType::get(context, 8, IntegerType::Signless);
+
+  if (isa<QInt32Type>(dtype))
+    return IntegerType::get(context, 32, IntegerType::Signless);
+
   emitError(UnknownLoc::get(context))
       << "unimplemented: conversion of dtype " << dtype
       << " to builtin tensor element type";
