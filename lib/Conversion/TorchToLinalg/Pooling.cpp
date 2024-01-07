@@ -527,7 +527,7 @@ public:
     Type elementType = inputType.getElementType();
 
     // make an iteration space of size kMax = 1 + ceildiv (hIn - 1) , hOut
-    Type dummyType = rewriter.getI1Type();
+    Type boolType = rewriter.getI1Type();
     Value kIter;
     Value constantOne =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
@@ -536,7 +536,7 @@ public:
         rewriter.create<arith::CeilDivSIOp>(loc, hInPlusOne, hOutIndex);
     Value kMax = rewriter.create<arith::AddIOp>(loc, constantOne, kMaxMinusOne);
     kIter = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(ValueRange({kMax})), dummyType);
+        loc, getAsOpFoldResult(ValueRange({kMax})), boolType);
 
     // need to buffer input, else there will possibly be an out of bounds access
     // later buffVal = 0 for avg pooling and -inf for max pooling
