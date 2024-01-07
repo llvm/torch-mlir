@@ -1508,5 +1508,5 @@ LTC_XFAIL_SET = {
     "ElementwiseBitwiseAndScalarInt32Module_basic",
     "ElementwiseBitwiseAndScalarInt8Module_basic",
     "ElementwiseQuantizePerTensorModule_basic",
-    "ElementwiseDequantizeModule_basic"
+    "ElementwiseDequantizePerTensorModule_basic"
 }
