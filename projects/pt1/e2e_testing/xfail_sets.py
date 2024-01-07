@@ -313,7 +313,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "GroupNormNoWeightAndBiasModule_basic",
 
     # Dynamo does not support tracing quantized tensors
-    "ElementwiseDequantizeModule_basic"
+    "ElementwiseDequantizeModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
 }
 
