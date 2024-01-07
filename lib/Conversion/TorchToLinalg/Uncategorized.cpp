@@ -2177,6 +2177,7 @@ public:
     return success();
   }
 };
+} // namespace
 
 namespace {
 class ConvertMakePerTensorQuantizedTensorOp
