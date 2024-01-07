@@ -311,6 +311,10 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
     "GroupNormModule_basic",
     "GroupNormNoWeightAndBiasModule_basic",
+
+    # Dynamo does not support tracing quantized tensors
+    "ElementwiseDequantizeModule_basic"
+    "ElementwiseQuantizePerTensorModule_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
