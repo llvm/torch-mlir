@@ -384,7 +384,7 @@ static LogicalResult performMatmul(PatternRewriter &rewriter, Location loc,
   auto rhsType = rhs.getType().cast<BaseTensorType>();
 
   Type outputDType = lhsType.hasDtype() ? lhsType.getOptionalDtype()
-                                        : rhsType.getOptionalDtype();
+                                      : rhsType.getOptionalDtype();
 
   llvm::SmallDenseMap<char, Value> lhsDimShapeMap;
   for (size_t idx = 0; idx < lhsTokens.size(); ++idx) {
@@ -485,6 +485,7 @@ static LogicalResult performMatmul(PatternRewriter &rewriter, Location loc,
       outResultShape);
   return success();
 }
+
 
 static Value performLastReduceAndPermute(PatternRewriter &rewriter,
                                          Location loc, Type outType,
@@ -1263,8 +1264,7 @@ public:
 };
 } // namespace
 
-// Decompose `AtenArgMaxOp` into `AtenMaxDimOp` as well as `AtenArgMinOp` into
-// `AtenMinDimOp`
+// Decompose `AtenArgMaxOp` into `AtenMaxDimOp` as well as `AtenArgMinOp` into `AtenMinDimOp`
 namespace {
 template <typename OpTy, typename DecompOpTy>
 class DecomposeAtenArgMinMaxOp : public OpRewritePattern<OpTy> {
@@ -1295,9 +1295,9 @@ public:
             .cast<BaseTensorType>();
 
     // If the dim type is `NoneType` i.e. reduce along all the dimensions.
-    // `AtenMaxDimOp` and `AtenMinDimOp` do not support dim as `NoneType` so
-    // first the input tensor is flattened to 1d tensor and then the reduction
-    // happens on the 0th dimension.
+    // `AtenMaxDimOp` and `AtenMinDimOp` do not support dim as `NoneType` so first the input
+    // tensor is flattened to 1d tensor and then the reduction happens on the
+    // 0th dimension.
     if (dim.getType().isa<Torch::NoneType>()) {
       BaseTensorType flattenType =
           inputType
@@ -1312,11 +1312,11 @@ public:
     }
 
     Value resultArg =
-        rewriter
-            .create<DecompOpTy>(loc, valueTensorType, indicesTensorType, input,
-                                dim, keepDim)
-            .getIndices();
-
+      rewriter
+          .create<DecompOpTy>(loc, valueTensorType, indicesTensorType,
+                                input, dim, keepDim)
+          .getIndices();
+    
     rewriter.replaceOp(op, resultArg);
     return success();
   }
@@ -1954,12 +1954,10 @@ public:
     // Define λ and α
     double scale = 1.0507009873554804934193349852946;
     double alpha = 1.6732632423543772848170429916717;
-
+    
     // Create constants for λ and α
-    Value scaleVal = rewriter.create<Torch::ConstantFloatOp>(
-        loc, rewriter.getF64FloatAttr(scale));
-    Value alphaVal = rewriter.create<Torch::ConstantFloatOp>(
-        loc, rewriter.getF64FloatAttr(alpha));
+    Value scaleVal = rewriter.create<Torch::ConstantFloatOp>(loc, rewriter.getF64FloatAttr(scale));
+    Value alphaVal = rewriter.create<Torch::ConstantFloatOp>(loc, rewriter.getF64FloatAttr(alpha));
 
     // Create zero tensor for comparison
     Value constantZero =
@@ -1969,21 +1967,17 @@ public:
     // Calculate positive and negative parts
     Value constantOne =
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
-    Value positiveOutput =
-        rewriter.create<AtenMaximumOp>(loc, resType, zeroTensor, input);
+    Value positiveOutput = rewriter.create<AtenMaximumOp>(loc, resType, zeroTensor, input);
     Value minZeroX =
         rewriter.create<AtenMinimumOp>(loc, resType, zeroTensor, input);
     Value expInput = rewriter.create<AtenExpOp>(loc, resType, minZeroX);
-    Value expInputMinusOne = rewriter.create<AtenSubScalarOp>(
-        loc, resType, expInput, constantOne, constantOne);
-    Value negativeOutput = rewriter.create<AtenMulScalarOp>(
-        loc, resType, expInputMinusOne, alphaVal);
+    Value expInputMinusOne = rewriter.create<AtenSubScalarOp>(loc, resType, expInput, constantOne, constantOne);
+    Value negativeOutput = rewriter.create<AtenMulScalarOp>(loc, resType, expInputMinusOne,  alphaVal);
 
     // Multiply the result by λ
     Value seluOutput = rewriter.create<AtenAddTensorOp>(
         loc, resType, positiveOutput, negativeOutput, constantOne);
-    seluOutput =
-        rewriter.create<AtenMulScalarOp>(loc, resType, seluOutput, scaleVal);
+    seluOutput = rewriter.create<AtenMulScalarOp>(loc, resType, seluOutput, scaleVal);
 
     // Replace the original operation
     rewriter.replaceOp(op, seluOutput);
@@ -4567,14 +4561,11 @@ public:
 namespace {
 // Decompose `aten.adaptive_avg_pool1d` op into `aten.avg_pool1d` op.
 
-// This decomposition will only succeed if the output size is static
-// and one of the following is true:
-// 1. the output size is 1.
-// 2. the input size is static and is a multiple of output size
-// TODO: extend to *any* case where the strides are static.
-
-// If this conversion fails, it will pass to a slighly less performant
-// conversion in /lib/Conversion/TorchToLinalg/Pooling.cpp
+// The logic of this decomposition is totally same with
+// the DecomposeAtenAdaptiveAvgPool2dOp, that means currently only following two
+// cases are supported:
+//  1. inputSize = outputSize
+//  2. outputSize = 1
 class DecomposeAtenAdaptiveAvgPool1dOp
     : public OpRewritePattern<AtenAdaptiveAvgPool1dOp> {
   using OpRewritePattern<AtenAdaptiveAvgPool1dOp>::OpRewritePattern;
@@ -4584,34 +4575,19 @@ class DecomposeAtenAdaptiveAvgPool1dOp
     MLIRContext *context = op.getContext();
 
     Value input = op.getSelf();
-
     std::optional<unsigned> maybeRank = getTensorRank(input);
     if (!maybeRank) {
       return rewriter.notifyMatchFailure(op, "expected input to have a rank");
     }
     unsigned rank = *maybeRank;
+    Value sizeDim = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rank - 1));
+    Value inputSize = rewriter.create<AtenSizeIntOp>(loc, input, sizeDim);
 
     Value outputShape = op.getOutputSize();
     SmallVector<Value> outputShapeSizesTorchInt;
     getListConstructElements(outputShape, outputShapeSizesTorchInt);
     Value outputSize = outputShapeSizesTorchInt[0];
-    int64_t outputSizeInt;
-    if (!matchPattern(outputSize, m_TorchConstantInt(&outputSizeInt))) {
-      return rewriter.notifyMatchFailure(op, "constant output size required");
-    }
-    int64_t inputSizeInt =
-        input.getType().cast<BaseTensorType>().getSizes()[rank - 1];
-    if (inputSizeInt == kUnknownSize && outputSizeInt != 1) {
-      return rewriter.notifyMatchFailure(
-          op, "constant input size required, unless output_size=1");
-    }
-    if (inputSizeInt != kUnknownSize && inputSizeInt % outputSizeInt != 0) {
-      return rewriter.notifyMatchFailure(
-          op, "outputSize must evenly divide inputSize");
-    }
-    Value sizeDim = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(rank - 1));
-    Value inputSize = rewriter.create<AtenSizeIntOp>(loc, input, sizeDim);
 
     Value constantOne = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(1));
@@ -4620,25 +4596,37 @@ class DecomposeAtenAdaptiveAvgPool1dOp
     Value constantFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
     Value constantTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
 
+    int64_t outputSizeInt;
+    if (!matchPattern(outputSize, m_TorchConstantInt(&outputSizeInt))) {
+      return rewriter.notifyMatchFailure(
+          op, "the output size of adaptive_pool_1d must be a constant int");
+    }
+
     SmallVector<Value, 1> kernelSize;
-    SmallVector<Value, 1> strideValues;
     if (outputSizeInt == 1) {
+      BaseTensorType inputTensorType = input.getType().cast<BaseTensorType>();
+      ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
       kernelSize.push_back(
-          inputSizeInt == kUnknownSize
+          inputShape[rank - 1] == kUnknownSize
               ? inputSize
               : rewriter.create<Torch::ConstantIntOp>(
-                    loc, rewriter.getI64IntegerAttr(inputSizeInt)));
-      strideValues.push_back(constantOne);
+                    loc, rewriter.getI64IntegerAttr(inputShape[rank - 1])));
     } else {
-      kernelSize.push_back(rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(inputSizeInt / outputSizeInt)));
-      strideValues.push_back(kernelSize[0]);
+      if (!isAssumingStrictSymbolicShapes(rewriter)) {
+        Value cond = rewriter.create<AtenEqIntOp>(loc, inputSize, outputSize);
+        rewriter.create<RuntimeAssertOp>(
+            loc, cond,
+            "unimplemented: only support cases where input and output size are "
+            "equal for non-unit output size");
+      }
+      kernelSize.push_back(constantOne);
     }
 
     Value kernelSizeList = rewriter.create<PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(context)), kernelSize);
     Value strideList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)), strideValues);
+        loc, Torch::ListType::get(Torch::IntType::get(context)),
+        ValueRange{constantOne});
     Value paddingSizeList = rewriter.create<PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(context)),
         ValueRange{constantZero});
@@ -6437,10 +6425,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvTranspose2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeStartOp>(patterns);
-    addPatternIfTargetOpIsIllegal<
-        DecomposeAtenArgMinMaxOp<AtenArgmaxOp, AtenMaxDimOp>>(patterns);
-    addPatternIfTargetOpIsIllegal<
-        DecomposeAtenArgMinMaxOp<AtenArgminOp, AtenMinDimOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenArgMinMaxOp<AtenArgmaxOp, AtenMaxDimOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenArgMinMaxOp<AtenArgminOp, AtenMinDimOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSquareOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdOp>(patterns);
