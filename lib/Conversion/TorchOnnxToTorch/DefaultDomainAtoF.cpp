@@ -904,6 +904,62 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
+  patterns.onOp(
+      "Dropout", 12, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Location loc = binder.getLoc();
+        Torch::ValueTensorType resultType;
+        int64_t numOperands = binder.op->getNumOperands();
+        SmallVector<Value> operands;
+        int64_t seed;
+        if (binder.tensorOperands(operands, numOperands) ||
+            binder.s64IntegerAttr(seed, "seed", 0) ||
+            binder.tensorResultTypeAtIndex(resultType, 0))
+          return failure();
+
+        // Global Seed value is 0.
+        if (seed != 0) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "expected seed value to be 0");
+        }
+
+        Value ratio, trainingMode;
+        if (numOperands == 3) {
+          ratio = rewriter.create<Torch::AtenFloatImplicitOp>(loc, operands[1]);
+          Value trainingModeScalar =
+              rewriter.create<Torch::AtenIntImplicitOp>(loc, operands[2]);
+          Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(1));
+          trainingMode = rewriter.create<Torch::AtenEqIntOp>(
+              loc, trainingModeScalar, cstOne);
+        } else if (numOperands == 2) {
+          ratio = rewriter.create<Torch::AtenFloatImplicitOp>(loc, operands[1]);
+          trainingMode = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+        } else {
+          ratio = rewriter.create<Torch::ConstantFloatOp>(
+              loc, rewriter.getF64FloatAttr(0.5));
+          trainingMode = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+        }
+
+        Value dropout = rewriter.create<Torch::AtenDropoutOp>(
+            loc, resultType, /*input=*/operands[0], ratio, trainingMode);
+
+        if (binder.op->getNumResults() == 1) {
+          rewriter.replaceOp(binder.op, dropout);
+          return success();
+        }
+        Torch::ValueTensorType maskType;
+        if (binder.tensorResultTypeAtIndex(maskType, 1))
+          return failure();
+        Value dtype = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(
+                     (int64_t)torch_upstream::ScalarType::Bool));
+        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        Value mask = rewriter.create<Torch::AtenOnesLikeOp>(
+            loc, maskType, operands[0], dtype, /*layout=*/none,
+            /*device=*/none, /*pin_memory=*/none, /*memory_format=*/none);
+        rewriter.replaceOp(binder.op, {dropout, mask});
+        return success();
+      });
   patterns.onOp("Equal", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -914,6 +970,25 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                     return failure();
                   rewriter.replaceOpWithNewOp<Torch::AtenEqTensorOp>(
                       binder.op, resultType, lhs, rhs);
+                  return success();
+                });
+  patterns.onOp("Elu", 6,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Location loc = binder.getLoc();
+                  Torch::ValueTensorType resultType;
+                  Value input;
+                  float alpha;
+                  if (binder.tensorOperand(input) ||
+                      binder.f32FloatAttr(alpha, "alpha") ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  Value cstAlpha = rewriter.create<Torch::ConstantFloatOp>(
+                      loc, rewriter.getF64FloatAttr(alpha));
+                  Value cstOne = rewriter.create<Torch::ConstantFloatOp>(
+                      loc, rewriter.getF64FloatAttr(1.0));
+                  rewriter.replaceOpWithNewOp<Torch::AtenEluOp>(
+                      binder.op, resultType, input, cstAlpha, /*scale=*/cstOne,
+                      /*input_scale=*/cstOne);
                   return success();
                 });
   patterns.onOp("Erf", 13,
