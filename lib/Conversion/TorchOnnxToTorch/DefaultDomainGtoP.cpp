@@ -34,8 +34,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value tensorOperand;
         float alpha, beta;
         if (binder.tensorOperand(tensorOperand) ||
-            binder.f32FloatAttr(alpha, "alpha", 0.2) ||
-            binder.f32FloatAttr(beta, "beta", 0.5) ||
+            binder.f32FloatAttr(alpha, "alpha", 0.2f) ||
+            binder.f32FloatAttr(beta, "beta", 0.5f) ||
             binder.tensorResultType(resultType))
           return failure();
         
@@ -276,8 +276,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorOperandAtIndex(c, 2) ||
             binder.s64IntegerAttr(transA, "transA", 0) ||
             binder.s64IntegerAttr(transB, "transB", 0) ||
-            binder.f32FloatAttr(alpha, "alpha", 1.0) ||
-            binder.f32FloatAttr(beta, "beta", 1.0) ||
+            binder.f32FloatAttr(alpha, "alpha", 1.0f) ||
+            binder.f32FloatAttr(beta, "beta", 1.0f) ||
             binder.tensorResultType(resultType))
           return failure();
 
@@ -417,7 +417,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   float alpha;
                   if (binder.tensorOperand(operand) ||
                       binder.tensorResultType(resultType) ||
-                      binder.f32FloatAttr(alpha, "alpha", 0.01))
+                      binder.f32FloatAttr(alpha, "alpha", 0.01f))
                     return failure();
                   Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
                       binder.getLoc(), rewriter.getType<Torch::FloatType>(),

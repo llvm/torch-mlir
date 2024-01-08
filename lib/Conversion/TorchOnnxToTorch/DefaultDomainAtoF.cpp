@@ -184,8 +184,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.tensorOperandAtIndex(bias, 2) ||
                       binder.tensorOperandAtIndex(runningMean, 3) ||
                       binder.tensorOperandAtIndex(runningVar, 4) ||
-                      binder.f32FloatAttr(momentum, "momentum", 0.9) ||
-                      binder.f32FloatAttr(eps, "epsilon", 1e-05) ||
+                      binder.f32FloatAttr(momentum, "momentum", 0.9f) ||
+                      binder.f32FloatAttr(eps, "epsilon", 1e-05f) ||
                       binder.tensorResultType(resultType))
                     return failure();
 
