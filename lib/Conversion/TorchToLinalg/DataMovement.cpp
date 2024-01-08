@@ -1844,7 +1844,7 @@ public:
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
-
+    
     int64_t offset;
     if (!matchPattern(op.getOffset(), m_TorchConstantInt(&offset)))
       return rewriter.notifyMatchFailure(op, "offset must be constant");
@@ -1856,16 +1856,12 @@ public:
       return rewriter.notifyMatchFailure(op, "dim2 must be constant");
 
     Value inputMatrix = adaptor.getSelf();
-    RankedTensorType inType = inputMatrix.getType().cast<RankedTensorType>();
-    int64_t inputRank = inType.getRank();
-    RankedTensorType outType = getTypeConverter()
-                       ->convertType(op->getResult(0).getType())
-                       .cast<RankedTensorType>();
-    Type elementType = inType.getElementType();
-    Location loc = op.getLoc();
-
+    RankedTensorType inputType = inputMatrix.getType().cast<RankedTensorType>();
+    int64_t inputRank = inputType.getRank();
+    
     if (inputRank < 2) 
       return rewriter.notifyMatchFailure(op, "input must have at least two dimensions");
+    int64_t outputRank = inputRank - 1;
 
     dim1 = toPositiveDim(dim1, inputRank);
     if (!isValidDim(dim1, inputRank))
@@ -1876,100 +1872,115 @@ public:
     if (dim1 == dim2) 
       return rewriter.notifyMatchFailure(op, "diagonal dimensions cannot be identical");
 
-    bool offsetNegative = offset < 0;
+    Type elementType = inputType.getElementType();
+    RankedTensorType outputType = getTypeConverter()
+                       ->convertType(op->getResult(0).getType())
+                       .cast<RankedTensorType>();
+    Location loc = op.getLoc();
+
     Value dim1Size, dim2Size;
-    dim1Size = getDimOp(rewriter, loc, adaptor.getSelf(), dim1);
-    dim2Size = getDimOp(rewriter, loc, adaptor.getSelf(), dim2);
-    // The pytorch diagonal function yields an empty tensor if the offset is too large or too small.
-    // In these cases diagSize takes on the value 0 below.
-    Value diagSize;
-    if (offsetNegative)
-      diagSize = rewriter.create<arith::MaxSIOp>(
+    dim1Size = getDimOp(rewriter, loc, inputMatrix, dim1);
+    dim2Size = getDimOp(rewriter, loc, inputMatrix, dim2);
+    
+    // compute the length of the diagonal with possible offset
+    // if the offset is very large or very small, diagSize=0 and an empty tensor is returned
+    Value indexZero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value indexMinusOne = rewriter.create<arith::ConstantIndexOp>(loc, -1);
+    Value indexOffset = rewriter.create<arith::ConstantIndexOp>(loc, offset);
+    Value offsetIsNegative =
+      rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sle, indexOffset, indexZero);
+    Value sizeForNegativeOffset = rewriter.create<arith::MaxSIOp>(
         loc, 
         rewriter.create<arith::MinSIOp>(
           loc, 
           rewriter.create<arith::AddIOp>(
             loc, 
             dim1Size, 
-            rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(offset))
-          ), 
+            indexOffset
+          ),
           dim2Size
         ), 
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(0))
+        indexZero
       );
-    else
-      diagSize = rewriter.create<arith::MaxSIOp>(
+    Value sizeForPositiveOffset = rewriter.create<arith::MaxSIOp>(
+        loc, 
+        rewriter.create<arith::MinSIOp>(
           loc, 
-          rewriter.create<arith::MinSIOp>(loc, rewriter.create<arith::SubIOp>(
-              loc,
-              dim2Size, 
-              rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(offset))
-          ), 
-          dim1Size), 
-          rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(0))
+          rewriter.create<arith::SubIOp>(
+            loc,
+            dim2Size, 
+            indexOffset
+          ),
+          dim1Size
+        ), 
+        indexZero
       );
-    
-    // TODO: below version also works, need to cast diagSize to Value below
-    // int64_t diagSize;
-    // if (offsetNegative)
-    //   diagSize = std::max(std::min(dim1Size.cast<int64_t>() + offset, dim2Size.cast<int64_t>()), (int64_t)0);
-    // else
-    //   diagSize = std::max(std::min(dim2Size.cast<int64_t>() - offset, dim1Size.cast<int64_t>()), (int64_t)0);
+    Value diagSize = rewriter.create<arith::SelectOp>(
+      loc, offsetIsNegative, sizeForNegativeOffset, sizeForPositiveOffset
+    );
 
-    int64_t diagStart1 = offsetNegative ? - offset : 0;
-    int64_t diagStart2 = offsetNegative ? 0 : offset;
+    // depending on its sign, the offset affects only the row or column indices of the diagonal
+    Value diagStart1 = rewriter.create<arith::SelectOp>(
+      loc, 
+      offsetIsNegative, 
+      rewriter.create<arith::MulIOp>(
+        loc, 
+        indexOffset, 
+        indexMinusOne
+      ), 
+      indexZero
+    );
+    Value diagStart2 = rewriter.create<arith::SelectOp>(
+      loc, 
+      offsetIsNegative,
+      indexZero,
+      indexOffset
+    );
     
     SmallVector<Value> outputDims;
-    for (auto i = 0; i < inputRank; i++)
-      if (!(i == dim1) && !(i == dim2))
-        outputDims.push_back(getDimOp(rewriter, loc, adaptor.getSelf(), i));
-    outputDims.push_back(diagSize); // TODO: use this or line below depending on which implementation we use above
-    // outputDims.push_back(rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(diagSize)));
-    
-    Value outMatrix = rewriter.create<tensor::EmptyOp>(
+    for (auto i = 0; i < inputRank; i++) {
+      if (!(i == dim1 || i == dim2))
+        outputDims.push_back(getDimOp(rewriter, loc, inputMatrix, i));
+    }
+    outputDims.push_back(diagSize);
+
+    Value outputMatrix = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(outputDims), elementType);
     
-    SmallVector<AffineExpr> inExprs;
-    SmallVector<AffineExpr> diagExprs;
-    // Input indexing (i1, ... , in, j1, j2) -> (i1, ... , in, j1+off1, j1+off2) (also ranges have to change with this, is this done automatically?)
-    // Output indexing (i1, ... , in, j1, j2) -> (i1, ... , in, j1), i.e. output indexing is just reduction of last dim
-    for (auto i = 0; i < inputRank; i++)
-      if (i==dim1)
-        // TODO: limits will change here, just from 0 to diagSize, pass this somehow?
-        inExprs.push_back(diagStart1+getAffineDimExpr(dim1, rewriter.getContext())); // used operator overload instead of add constant function for affine dim expr
-      else if (i==dim2)
-        // TODO: limits will change here, just from 0 to diagSize, pass this somehow?
-        inExprs.push_back(diagStart2+getAffineDimExpr(dim1, rewriter.getContext())); // used operator overload
-      else
-        inExprs.push_back(getAffineDimExpr(i, rewriter.getContext())); // iterate over unchanged dims
-    
-    // for diagonal result, one of the dims is deleted and one is moved to the end
-    for (auto i = 0; i < inputRank; i++) {
-      if (!(i == dim1) && !(i == dim2))
-        diagExprs.push_back(inExprs[i]);
-    }
-    diagExprs.push_back(getAffineDimExpr(dim1, rewriter.getContext()));
-    
     SmallVector<AffineMap> indexingMaps = {
-        AffineMap::get(inputRank, 0, inExprs, op.getContext()),
-        AffineMap::get(inputRank, 0, diagExprs, op.getContext())
+        AffineMap::getMultiDimIdentityMap(outputRank, rewriter.getContext())
     };
-
-    SmallVector<utils::IteratorType> iteratorTypes(
-        inputRank, utils::IteratorType::parallel);
-    iteratorTypes[dim2] = utils::IteratorType::reduction;
+    SmallVector<utils::IteratorType> iteratorTypes(outputRank, utils::IteratorType::parallel);
     
     auto diagonal = rewriter
-                         .create<linalg::GenericOp>(
-                            loc, outMatrix.getType(), inputMatrix, outMatrix,
-                            indexingMaps, iteratorTypes,
-                            [](OpBuilder &b, Location loc, ValueRange args) {
-                                b.create<linalg::YieldOp>(loc, args[0]);
+                      .create<linalg::GenericOp>(
+                        loc, outputMatrix.getType(), ValueRange{}, outputMatrix,
+                        indexingMaps, iteratorTypes,
+                        [&](OpBuilder &b, Location loc, ValueRange args) {
+                            SmallVector<Value> diagIndices;
+                            Value indexOnDiag = b.create<linalg::IndexOp>(loc, outputRank - 1);
+                            Value dim1Index = b.create<arith::AddIOp>(loc, indexOnDiag, diagStart1);
+                            Value dim2Index = b.create<arith::AddIOp>(loc, indexOnDiag, diagStart2);
+                            
+                            // specify at which input indices the diagonal values are extracted
+                            for (int indIn = 0, indOut = 0; indIn < inputRank; indIn++) {
+                              if (indIn==dim1)
+                                diagIndices.push_back(dim1Index);
+                              else if (indIn==dim2)
+                                diagIndices.push_back(dim2Index);
+                              else {
+                                diagIndices.push_back(b.create<linalg::IndexOp>(loc, indOut));
+                                indOut++;
+                              }
                             }
-                          )
-                         .getResult(0);
+                            Value diagElt = b.create<tensor::ExtractOp>(
+                              loc, elementType, inputMatrix, diagIndices);
+                            b.create<linalg::YieldOp>(loc, diagElt);
+                        }
+                      )
+                      .getResult(0);
 
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outType, diagonal);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outputType, diagonal);
     return success();
   }
 };
