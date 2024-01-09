@@ -682,6 +682,43 @@ public:
                                          keepDims)))
       return failure();
 
+    Value ordValue;
+    if constexpr (std::is_same_v<AtenOpT, AtenLinalgVectorNormOp>) {
+      Type elemType = outputTy.getElementType();
+      if (!elemType.isa<mlir::FloatType>())
+        return rewriter.notifyMatchFailure(
+            op, "Only floating-point datatype legalization supported for "
+                "AtenLinalgVectorNormOp op");
+
+      if (failed(torchScalarToTosaTensor(rewriter, op, op.getOrd(), ordValue,
+                                         elemType, {})))
+        return rewriter.notifyMatchFailure(
+            op, "Currently only scalar constants are supported for "
+                "conversion in TOSA operation");
+
+      // TODO: Add support for ord = {0, +inf, -inf}.
+      auto epsilon = 1e-5;
+      auto ordLiteral = 0.0;
+      if (matchPattern(ordValue, m_TorchConstantFloat(&ordLiteral)) &&
+          fabs(ordLiteral) < epsilon)
+        return rewriter.notifyMatchFailure(op, "unimplemented: L0 norm");
+
+      if (std::isinf(ordLiteral))
+        return rewriter.notifyMatchFailure(op, "unimplemented: ord = +/- inf");
+
+      auto absVal = rewriter.create<tosa::AbsOp>(
+          op.getLoc(),
+          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+              self.getType()),
+          self);
+      auto powVal = rewriter.create<tosa::PowOp>(
+          op.getLoc(),
+          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+              self.getType()),
+          absVal, ordValue);
+      self = powVal;
+    }
+
     std::optional<Value> result =
         ConversionFuncT(rewriter, op, outputTy, self, reduceDimsAttr, keepDims);
 
@@ -689,8 +726,19 @@ public:
       return failure();
 
     // TBD - support dtype casting.
+    Value newOp = result.value();
+    if constexpr (std::is_same_v<AtenOpT, AtenLinalgVectorNormOp>) {
+      auto reciprocalVal = rewriter.create<tosa::ReciprocalOp>(
+          op.getLoc(), ordValue.getType(), ordValue);
+      auto powVal = rewriter.create<tosa::PowOp>(
+          op.getLoc(),
+          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+              op.getType()),
+          newOp, reciprocalVal);
+      newOp = powVal;
+    }
 
-    rewriter.replaceOp(op, {result.value()});
+    rewriter.replaceOp(op, {newOp});
 
     return success();
   }
@@ -5088,6 +5136,8 @@ public:
     INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenMeanDimOp,
                                       mlir::tosa::convertReduceMeanOp)
     INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenSumDimIntListOp,
+                                      mlir::tosa::convertReduceSumOp)
+    INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenLinalgVectorNormOp,
                                       mlir::tosa::convertReduceSumOp)
 #undef INSERT_NDIMS_REDUCTION_OP_PATTERN
 
