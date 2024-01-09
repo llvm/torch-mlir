@@ -2352,9 +2352,35 @@ class ElementwiseAbsIntModule(torch.nn.Module):
 def ElementwiseAbsIntModule_basic(module, tu: TestUtils):
     module.forward(torch.tensor([[[-1, 0, 1]]]))
 
+# ==============================================================================
+    
+class ElementwiseLGammaModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.lgamma(x)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLGammaModule())
+def ElementwiseLGammaModule_basic(module, tu: TestUtils):
+   module.forward(tu.rand(3, 4, low=-10, high=10))
+
+@register_test_case(module_factory=lambda: ElementwiseLGammaModule())
+def ElementwiseLGammaModule_zeros_basic(module, tu: TestUtils):
+   module.forward(torch.tensor([[1],[2]]).to(torch.float32))
+
+@register_test_case(module_factory=lambda: ElementwiseLGammaModule())
+def ElementwiseLGammaModule_inf_basic(module, tu: TestUtils):
+   module.forward(torch.tensor([[0],[-1],[-10+1e-15]]).to(torch.float32))
 
 # ==============================================================================
-
 
 class ElementwiseReciprocalModule(torch.nn.Module):
 
@@ -4741,3 +4767,6 @@ class GluStaticModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: GluStaticModule())
 def  GluStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 24, 5))
+
+# ==============================================================================
+

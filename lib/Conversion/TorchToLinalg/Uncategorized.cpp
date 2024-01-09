@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
-
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -17,14 +15,20 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributeInterfaces.h"
+#include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/IR/Value.h"
+#include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include "llvm/ADT/APSInt.h"
+#include <cmath>
+#include <limits>
 #include <numeric>
 
 using namespace mlir;
@@ -2188,6 +2192,186 @@ public:
 };
 } // namespace
 
+/*
+Numerical implementation of lgamma() using
+https://en.wikipedia.org/wiki/Lanczos_approximation. Approximation is reliant on
+choices of g and n, which are g=7, n=9 here.
+
+For input > 0.5:
+z = input-1
+log(G(input)) = log(G(z+1)) =  log(sqrt(twoPi)) + (z+0.5)log(z+g+0.5) -
+(z+g+0.5) + log(A(z))
+
+For input < 0.5 use reflection formula:
+z = -input
+log(G(z+1)) =  log(sqrt(twoPi)) + (z+0.5)log(z+g+0.5) - (z+g+0.5) + log(A(z))
+log(G(input)) = log(Pi) - log(abs(sin(Pi*input))) - log(G(1-input)) //
+log(G(1-input)) == log(G(z+1))
+*/
+
+Value getConstantFloat(OpBuilder &b, Location loc, double val, Type elemType) {
+  TypedAttr attr = b.getFloatAttr(elemType, val);
+  return b.create<arith::ConstantOp>(loc, elemType, attr);
+}
+
+namespace {
+class ConvertLgammaOp : public OpConversionPattern<AtenLgammaOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenLgammaOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    Value input = adaptor.getSelf();
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    auto inputType = input.getType().cast<RankedTensorType>();
+    auto inputRank = inputType.getRank();
+    auto inputElementType = inputType.getElementType();
+
+    if (!hasElementType<mlir::FloatType>(input)) {
+      return rewriter.notifyMatchFailure(
+          op, "Input must be a tensor of float type");
+    }
+
+    MLIRContext *context = op->getContext();
+    Type floatDtype = mlir::FloatType::getF64(context);
+
+    SmallVector<AffineMap> indexingMaps = {
+        rewriter.getMultiDimIdentityMap(inputRank), // input
+        rewriter.getMultiDimIdentityMap(inputRank), // output
+    };
+
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
+
+    const std::array<double, 9> LanczosCoefficients = {
+        0.99999999999980993227684700473478,
+        676.520368121885098567009190444019,
+        -1259.13921672240287047156078755283,
+        771.3234287776530788486528258894,
+        -176.61502916214059906584551354,
+        12.507343278686904814458936853,
+        -0.13857109526572011689554707,
+        9.984369578019570859563e-6,
+        1.50563273514931155834e-7};
+    const double g = 7;
+    const double Pi = 3.14159265358979323846;
+    const double twoPi = 6.28318530717958647692;
+
+    Value lgamma =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, input.getType(),
+                /*input=*/input,
+                /*output=*/input,
+                /*indexingMaps=*/indexingMaps,
+                /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  // Constants
+                  Value PiValue = getConstantFloat(b, loc, Pi, floatDtype);
+                  Value log_Pi =
+                      getConstantFloat(b, loc, std::log(Pi), floatDtype);
+                  Value log_sqrt_twoPi = getConstantFloat(
+                      b, loc, std::log(twoPi) / 2.0, floatDtype);
+                  Value gValue = getConstantFloat(b, loc, g, floatDtype);
+                  Value oneValue = getConstant(b, loc, 1, floatDtype);
+                  Value halfValue = getConstantFloat(b, loc, 0.5, floatDtype);
+                  Value infiniteValue = getConstantFloat(
+                      b, loc, std::numeric_limits<double>::infinity(),
+                      floatDtype);
+
+                  // Check if there is need for reflection
+                  Value input =
+                      convertScalarToDtype(b, loc, args[0], floatDtype);
+                  Value input_minus_one =
+                      b.create<arith::SubFOp>(loc, input, oneValue);
+                  Value neg_input = b.create<arith::NegFOp>(loc, input);
+                  Value do_reflection = b.create<arith::CmpFOp>(
+                      loc, arith::CmpFPredicate::OLT, input, halfValue);
+                  Value z = b.create<arith::SelectOp>(
+                      loc, do_reflection, neg_input, input_minus_one);
+
+                  // A(z) = c0 + sum_k (c_k/(z+k)), k=1..N
+                  Value coefSum = getConstantFloat(
+                      b, loc, LanczosCoefficients[0], floatDtype);
+                  int N = LanczosCoefficients.size();
+                  for (int k = 1; k <= N; k++) {
+                    Value coefValue = getConstantFloat(
+                        b, loc, LanczosCoefficients[k], floatDtype);
+                    Value kValue = getConstantFloat(
+                        b, loc, static_cast<double>(k), floatDtype);
+                    Value z_plus_k = b.create<arith::AddFOp>(loc, z, kValue);
+                    Value coef_div_z_plus_k =
+                        b.create<arith::DivFOp>(loc, coefValue, z_plus_k);
+                    coefSum = b.create<arith::AddFOp>(loc, coefSum,
+                                                      coef_div_z_plus_k);
+                  }
+
+                  // log(G(z+1)) =  log(sqrt(twoPi)) + (z+0.5)log(z+g+0.5) -
+                  // (z+g+0.5) + log(A(z))
+                  Value z_plus_half =
+                      b.create<arith::AddFOp>(loc, z, halfValue);
+                  Value z_plus_half_plus_g =
+                      b.create<arith::AddFOp>(loc, z_plus_half, gValue);
+                  Value log_z_plus_half_plus_g =
+                      b.create<math::LogOp>(loc, z_plus_half_plus_g);
+                  Value log_coefSum = b.create<math::LogOp>(loc, coefSum);
+                  Value log_gamma_z_plus_one = b.create<arith::MulFOp>(
+                      loc, z_plus_half, log_z_plus_half_plus_g);
+                  log_gamma_z_plus_one = b.create<arith::AddFOp>(
+                      loc, log_gamma_z_plus_one, log_sqrt_twoPi);
+                  log_gamma_z_plus_one = b.create<arith::SubFOp>(
+                      loc, log_gamma_z_plus_one, z_plus_half_plus_g);
+                  log_gamma_z_plus_one = b.create<arith::AddFOp>(
+                      loc, log_gamma_z_plus_one, log_coefSum);
+
+                  /*
+                  log(G(input)) = log(Pi) - log(abs(sin(Pi*input))) -
+                  log(G(z+1)) In order to increase precision of
+                  abs(sin(Pi*input)) reduce input to [0,1) range.
+                  */
+                  Value abs_input = b.create<math::AbsFOp>(loc, input);
+                  Value floor_abs_input =
+                      b.create<math::FloorOp>(loc, abs_input);
+                  Value abs_input_minus_floor_input =
+                      b.create<arith::SubFOp>(loc, abs_input, floor_abs_input);
+                  Value inputPi = b.create<arith::MulFOp>(
+                      loc, PiValue, abs_input_minus_floor_input);
+                  Value sin_inputPi = b.create<math::SinOp>(loc, inputPi);
+                  Value abs_sin_inputPi =
+                      b.create<math::AbsFOp>(loc, sin_inputPi);
+                  Value log_sin_inputPi =
+                      b.create<math::LogOp>(loc, abs_sin_inputPi);
+                  Value isInfinite = rewriter.create<arith::CmpFOp>(
+                      loc, arith::CmpFPredicate::OEQ, infiniteValue,
+                      b.create<math::AbsFOp>(loc, log_sin_inputPi));
+
+                  Value log_Pi_minus_log_sin_inputPi =
+                      b.create<arith::SubFOp>(loc, log_Pi, log_sin_inputPi);
+                  Value reflection_result = b.create<arith::SubFOp>(
+                      loc, log_Pi_minus_log_sin_inputPi, log_gamma_z_plus_one);
+                  reflection_result = b.create<arith::SelectOp>(
+                      loc, isInfinite, infiniteValue, reflection_result);
+
+                  Value result = b.create<arith::SelectOp>(
+                      loc, do_reflection, reflection_result,
+                      log_gamma_z_plus_one);
+                  result =
+                      convertScalarToDtype(b, loc, result, inputElementType);
+                  b.create<linalg::YieldOp>(loc, result);
+                })
+            ->getResult(0);
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, lgamma);
+    return success();
+  };
+};
+} // namespace
+
 namespace {
 class ConvertTensorStaticInfoCastOp
     : public OpConversionPattern<TensorStaticInfoCastOp> {
@@ -2613,6 +2797,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenRealOp, AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
       AtenQuantizePerTensorOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
+  target.addIllegalOp<AtenLgammaOp>();
+  patterns.add<ConvertLgammaOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);
   target.addIllegalOp<AtenDetachOp>();

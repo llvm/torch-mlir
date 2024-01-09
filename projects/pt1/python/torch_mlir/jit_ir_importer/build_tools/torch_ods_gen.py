@@ -322,6 +322,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::logit : (Tensor, float?) -> (Tensor)",
             "aten::rsqrt : (Tensor) -> (Tensor)",
             "aten::abs : (Tensor) -> (Tensor)",
+            "aten::lgamma : (Tensor) -> (Tensor)",
             "aten::reciprocal : (Tensor) -> (Tensor)",
             "aten::bitwise_and.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::bitwise_and.Scalar : (Tensor, Scalar) -> (Tensor)",
