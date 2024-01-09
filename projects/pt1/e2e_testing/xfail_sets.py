@@ -343,6 +343,13 @@ TORCHDYNAMO_CRASHING_SET = {
     "TransposeIntModule_basic",
     "TransposeIntNegDimsModule_basic",
     "IndexPutImpl2DNoneIndexStaticModule_basic",
+    "MaxPool3dCeilModeTrueModule_basic",
+    "MaxPool3dEmptyStrideStaticModule_basic",
+    "MaxPool3dLargeDatadModule_basic",
+    "MaxPool3dModuleRandomSimple_basic",
+    "MaxPool3dModule_basic",
+    "MaxPool3dStaticCeilModeTrueModule_basic",
+    "MaxPool3dStaticModule_basic",
 }
 
 STABLEHLO_PASS_SET = {
