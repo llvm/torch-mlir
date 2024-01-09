@@ -874,6 +874,9 @@ def aten〇randn〡shape(size: List[int], dtype: Optional[int] = None, layout: O
 def aten〇randn〇generator〡shape(size: List[int], generator: Any, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return size
 
+def aten〇normal_functional〡shape(self: List[int], mean: float = 0., std: float = 1., generator: Any = None) -> List[int]:
+    return self
+
 def aten〇arange〇start_step〡shape(start: float, end: float, step: float = 1, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return upstream_shape_functions.arange_start_step(start, end, step, dtype, layout, device, pin_memory)
 
@@ -3727,6 +3730,13 @@ def aten〇randn〡dtype(size: List[int], dtype: Optional[int] = None, layout: O
         return torch.float32
     assert not is_integer_dtype(dtype)
     return dtype
+
+def aten〇normal_functional〡dtype(self_rank_dtype: Tuple[int, int], mean: float = 0., std: float = 1., generator: Any = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if self_dtype is None:
+        return torch.float32
+    assert not is_integer_dtype(self_dtype)
+    return self_dtype
 
 @check_dtype_function([Invocation(size=[1], generator=None),
                        Invocation(size=[1], generator=None, dtype=torch.float32),

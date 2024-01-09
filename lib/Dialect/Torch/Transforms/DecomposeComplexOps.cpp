@@ -3605,9 +3605,38 @@ public:
     return success();
   }
 };
-} // namespace
 
-namespace {
+// aten.normal_functional(mean, sigma) = randn() * sigma + mean.
+class DecomposeAtenNormalFunctionalOp
+    : public OpRewritePattern<AtenNormalFunctionalOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNormalFunctionalOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!op.getGenerator().getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "The generator has to be None because only global default "
+              "generator is supported");
+
+    Location loc = op.getLoc();
+    Type resultType = op.getType();
+    Value std = op.getStd();
+    Value mean = op.getMean();
+
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value one =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value randN = rewriter.create<AtenRandnLikeOp>(
+        loc, resultType, op.getSelf(), /*dtype=*/none, /*layout=*/none,
+        /*device=*/none, /*pin_memory=*/none, /*memory_format=*/none);
+    Value stdRandN =
+        rewriter.create<AtenMulScalarOp>(loc, resultType, randN, std);
+    rewriter.replaceOpWithNewOp<AtenAddScalarOp>(op, resultType, stdRandN,
+                                                 mean, /*alpha=*/one);
+    return success();
+  }
+};
+
 template <typename OpTy, typename T1T2Op>
 class DecomposeAtenAddCLikeOp : public OpRewritePattern<OpTy> {
   using OpRewritePattern<OpTy>::OpRewritePattern;
@@ -6524,6 +6553,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnGeneratorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnLikeOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenNormalFunctionalOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSeluOp>(patterns);
