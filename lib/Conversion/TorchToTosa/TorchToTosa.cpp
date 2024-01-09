@@ -3337,8 +3337,7 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "start must be a Scalar constant");
 
   if (start < 0)
-    return rewriter.notifyMatchFailure(op, "Currently unsupported: start < 0");
-
+    start = toPositiveDim(start, selfType.getShape()[dim]);
   start = std::min(selfType.getShape()[dim], start);
 
   int64_t end;
@@ -3986,34 +3985,70 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
 
   IntegerAttr min_int, max_int;
   FloatAttr min_fp, max_fp;
-  if (op.getMin().getType().isa<Torch::FloatType>()) {
+  if (failed(checkNotNone(rewriter, op, op.getMin()))) {
+    min_int = rewriter.getI64IntegerAttr(std::numeric_limits<int64_t>::min());
+    min_fp = rewriter.getF32FloatAttr(std::numeric_limits<float>::lowest());
+    if (failed(checkNotNone(rewriter, op, op.getMax()))) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: either `min` or `max` should be a torch "
+              "constant");
+    } else if (op.getMax().getType().isa<Torch::FloatType>()) {
+      double fp_max;
+      if (!matchPattern(op.getMax(), m_TorchConstantFloat(&fp_max)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: value `fp_max` should be a torch constant "
+                "float");
+
+      max_int = rewriter.getI64IntegerAttr(static_cast<int64_t>(fp_max));
+      max_fp = rewriter.getF32FloatAttr(static_cast<float>(fp_max));
+    } else {
+      int64_t int_max;
+      if (!matchPattern(op.getMax(), m_TorchConstantInt(&int_max)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: value `int_max` should be a torch constant "
+                "int");
+
+      max_int = rewriter.getI64IntegerAttr(int_max);
+      max_fp = rewriter.getF32FloatAttr(static_cast<float>(int_max));
+    }
+  } else if (op.getMin().getType().isa<Torch::FloatType>()) {
     double fp_min, fp_max;
     if (!matchPattern(op.getMin(), m_TorchConstantFloat(&fp_min)))
       return rewriter.notifyMatchFailure(
           op, "unimplemented: value `fp_min` should be a torch constant float");
-
-    if (!matchPattern(op.getMax(), m_TorchConstantFloat(&fp_max)))
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: value `fp_max` should be a torch constant float");
-
     min_int = rewriter.getI64IntegerAttr(static_cast<int64_t>(fp_min));
-    max_int = rewriter.getI64IntegerAttr(static_cast<int64_t>(fp_max));
     min_fp = rewriter.getF32FloatAttr(static_cast<float>(fp_min));
-    max_fp = rewriter.getF32FloatAttr(static_cast<float>(fp_max));
+
+    if (failed(checkNotNone(rewriter, op, op.getMax()))) {
+      max_int = rewriter.getI64IntegerAttr(std::numeric_limits<int64_t>::max());
+      max_fp = rewriter.getF32FloatAttr(std::numeric_limits<float>::max());
+    } else {
+      if (!matchPattern(op.getMax(), m_TorchConstantFloat(&fp_max)))
+        return rewriter.notifyMatchFailure(
+            op,
+            "unimplemented: value `fp_max` should be a torch constant float");
+      max_int = rewriter.getI64IntegerAttr(static_cast<int64_t>(fp_max));
+      max_fp = rewriter.getF32FloatAttr(static_cast<float>(fp_max));
+    }
   } else {
     int64_t int_min, int_max;
     if (!matchPattern(op.getMin(), m_TorchConstantInt(&int_min)))
       return rewriter.notifyMatchFailure(
           op, "unimplemented: value `int_min` should be a torch constant int");
-
-    if (!matchPattern(op.getMax(), m_TorchConstantInt(&int_max)))
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: value `int_max` should be a torch constant int");
-
     min_int = rewriter.getI64IntegerAttr(int_min);
-    max_int = rewriter.getI64IntegerAttr(int_max);
     min_fp = rewriter.getF32FloatAttr(static_cast<float>(int_min));
-    max_fp = rewriter.getF32FloatAttr(static_cast<float>(int_max));
+
+    if (failed(checkNotNone(rewriter, op, op.getMax()))) {
+      max_int = rewriter.getI64IntegerAttr(std::numeric_limits<int64_t>::max());
+      max_fp = rewriter.getF32FloatAttr(std::numeric_limits<float>::max());
+    } else {
+      if (!matchPattern(op.getMax(), m_TorchConstantInt(&int_max)))
+        return rewriter.notifyMatchFailure(
+            op,
+            "unimplemented: value `int_max` should be a torch constant int");
+      max_int = rewriter.getI64IntegerAttr(int_max);
+      max_fp = rewriter.getF32FloatAttr(static_cast<float>(int_max));
+    }
   }
 
   auto outType = getTypeConverter()->convertType(op.getType());
@@ -5025,6 +5060,7 @@ public:
   patterns.add<ConvertAtenBinaryOp<AtenOp, TosaOp>>(typeConverter, context);
     INSERT_BINARY_PATTERN(AtenMaximumOp, tosa::MaximumOp)
     INSERT_BINARY_PATTERN(AtenMinimumOp, tosa::MinimumOp)
+    INSERT_BINARY_PATTERN(AtenLogicalOrOp, tosa::LogicalOrOp)
 #undef INSERT_BINARY_PATTERN
 
 #define INSERT_BINARY_ADDSUB_PATTERN(AtenOp, TosaOp)                           \
