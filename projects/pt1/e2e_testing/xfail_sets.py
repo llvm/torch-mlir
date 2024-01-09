@@ -1385,6 +1385,7 @@ LTC_XFAIL_SET = {
     "_ConvolutionDeprecated2DBenchmarkModule_basic",
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
+    "MaxPool3dEmptyStrideStaticModule_basic",
     "AddIntModule_basic",
     "ArangeStartOutViewModule_basic",
     "AtenIntBoolOpModule_basic",
