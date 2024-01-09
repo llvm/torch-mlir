@@ -339,6 +339,33 @@ def ElementwiseWhereScalarSelfStaticModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseNanToNumModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.float32, True)
+    ])
+    def forward(self, a):
+        return torch.ops.aten.nan_to_num(a, 0.0, 1.0, -1.0)
+
+@register_test_case(module_factory=lambda: ElementwiseNanToNumModule())
+def ElementwiseNanToNumModule_Basic(module, tu: TestUtils):
+    module.forward(torch.tensor(
+        [
+            [float('nan'), 0.0, float('nan'), 0.0],
+            [float('inf'), 0.0, float('inf'), 0.0],
+            [float('-inf'), 0.0, float('-inf'), 0.0]
+        ]
+    ))
+
+
+# ==============================================================================
+
+
 # Addition is an interesting special case of a binary op, because under the hood
 # it carries a third scalar "alpha" parameter, which needs special handling.
 class ElementwiseAddModule(torch.nn.Module):
@@ -3433,6 +3460,58 @@ def ElementwiseAtenIsinfOpModule_basic(module, tu: TestUtils):
         [
             [1, float('inf'), 2, float('-inf'), float('nan')],
             [1, float('inf'), float('-inf'), float('nan'), 3],
+        ]
+    )
+    module.forward(test_input)
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenIsneginfOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.isneginf(x)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenIsneginfOpModule())
+def ElementwiseAtenIsneginfOpModule_basic(module, tu:TestUtils):
+    test_input = torch.tensor(
+        [
+            [1, float('-inf'), 2, float('-inf'), float('nan')],
+            [1, float('-inf'), float('-inf'), float('nan'), 3],
+        ]
+    )
+    module.forward(test_input)
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenIsposinfOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.isposinf(x) 
+
+@register_test_case(module_factory=lambda: ElementwiseAtenIsposinfOpModule())
+def ElementwiseAtenIsposinfOpModule_basic(module, tu:TestUtils):
+    test_input = torch.tensor(
+        [
+            [1, float('inf'), 2, float('inf'), float('nan')],
+            [1, float('inf'), float('inf'), float('nan'), 3],
         ]
     )
     module.forward(test_input)
