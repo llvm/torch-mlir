@@ -1302,3 +1302,41 @@ class CrossEntropyLossNoReductionModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: CrossEntropyLossNoReductionModule())
 def CrossEntropyLossNoReductionModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(8, 2), tu.randint(8, high=2))
+
+# ==============================================================================
+
+class TraceModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.trace(a)
+
+@register_test_case(module_factory=lambda: TraceModule())
+def TraceModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(3, 4))
+
+# ==============================================================================
+
+class TraceIntModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.trace(a)
+
+@register_test_case(module_factory=lambda: TraceIntModule())
+def TraceIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(3, 4))
+
+

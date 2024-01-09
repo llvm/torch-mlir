@@ -1056,6 +1056,44 @@ public:
 };
 } // namespace
 
+namespace {
+// Decompose trace as a special case of AtenEinsum
+class DecomposeAtenTraceOp : public OpRewritePattern<AtenTraceOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTraceOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    std::optional<unsigned> inRank = getTensorRank(self);
+    if (!inRank) {
+      return rewriter.notifyMatchFailure(
+          op, "Expected input tensor to have known rank.");
+    }
+    if (inRank != 2)
+      return rewriter.notifyMatchFailure(
+          op, "Expected input tensor to have rank 2.");
+    
+    Value iiString = rewriter.create<Torch::ConstantStrOp>(
+            loc, rewriter.getType<Torch::StringType>(),
+            rewriter.getStringAttr("ii"));
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    // SmallVector<Value> tensorsVector;
+    // tensorsVector.push_back(self);
+
+    Type listElemType =
+        op.getType().cast<BaseTensorType>().getWithSizesAndDtype(
+            /*optionalSizes=*/std::nullopt, /*optionalDtype=*/nullptr);
+    Type listType = Torch::ListType::get(listElemType);
+    Value tensors = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), listType, llvm::ArrayRef<Value>{self});
+
+    rewriter.replaceOpWithNewOp<AtenEinsumOp>(op,  op.getType(), /*equation=*/iiString,  /*tensors=*/tensors, /*path=*/none);
+    return success();
+  }
+};
+} // namespace
+
 // Calculates the softmax function on the given `input` tensor. Softmax(x) =
 // exp(x)/sum(exp(x)).
 // To avoid overflow we use the following decomposition rule:
@@ -6727,6 +6765,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftplusOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSiluOp>(patterns);
