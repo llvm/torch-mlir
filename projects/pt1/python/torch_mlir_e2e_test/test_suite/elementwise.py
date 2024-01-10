@@ -1517,15 +1517,14 @@ class ElementwiseLogitModule(torch.nn.Module):
     @annotate_args([
         None,
         ([-1, -1], torch.float32, True),
-        ([], torch.float32, True),
     ])
-    def forward(self, a, b):
-        return torch.logit(a, eps=b)
+    def forward(self, a):
+        return torch.logit(a, eps=1e-7)
 
 
 @register_test_case(module_factory=lambda: ElementwiseLogitModule())
 def ElementwiseLogitModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4), tu.rand(low=1e-6, high=1e-3).item())
+    module.forward(tu.rand(3, 4))
 
 
 # ==============================================================================
