@@ -275,7 +275,7 @@ class TypeAsDifferentModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: TypeAsDifferentModule())
 def TypeAsDifferentModule_basic(module, tu: TestUtils):
     module.forward(
-        tu.randint(3, 5, low=0, high=10, dtype=torch.int), 
+        tu.randint(3, 5, low=0, high=10, dtype=torch.int),
         tu.randint(3, 5, low=0, high=10, dtype=torch.int64)
     )
 

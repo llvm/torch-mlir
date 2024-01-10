@@ -130,7 +130,7 @@ class BatchNorm1DStaticShapeModule(torch.nn.Module):
     ])
     def forward(self, x, weight, bias, running_mean, running_var):
         return torch.ops.aten.batch_norm(
-            x, weight, bias, running_mean, running_var, training=False, 
+            x, weight, bias, running_mean, running_var, training=False,
             momentum=0.1, eps=0.00001, cudnn_enabled=False)
 
 
@@ -156,7 +156,7 @@ class NativeBatchNorm1DModule(torch.nn.Module):
     ])
     def forward(self, x, weight, bias, running_mean, running_var):
         return torch.ops.aten.native_batch_norm(
-            x, weight, bias, running_mean, running_var, training=False, 
+            x, weight, bias, running_mean, running_var, training=False,
             momentum=0.1, eps=0.00001)
 
 
@@ -182,7 +182,7 @@ class NativeBatchNorm2DModule(torch.nn.Module):
     ])
     def forward(self, x, weight, bias, running_mean, running_var):
         return torch.ops.aten.native_batch_norm(
-            x, weight, bias, running_mean, running_var, training=False, 
+            x, weight, bias, running_mean, running_var, training=False,
             momentum=0.1, eps=0.00001)
 
 
@@ -208,7 +208,7 @@ class NativeBatchNorm3DModule(torch.nn.Module):
     ])
     def forward(self, x, weight, bias, running_mean, running_var):
         return torch.ops.aten.native_batch_norm(
-            x, weight, bias, running_mean, running_var, training=False, 
+            x, weight, bias, running_mean, running_var, training=False,
             momentum=0.1, eps=0.00001)
 
 
@@ -233,7 +233,7 @@ class NativeBatchNormNoneWeightModule(torch.nn.Module):
     ])
     def forward(self, x, bias, running_mean, running_var):
         return torch.ops.aten.native_batch_norm(
-            x, None, bias, running_mean, running_var, training=False, 
+            x, None, bias, running_mean, running_var, training=False,
             momentum=0.1, eps=0.00001)
 
 

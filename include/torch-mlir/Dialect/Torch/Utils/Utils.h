@@ -127,7 +127,10 @@ Value createInitTensor(PatternRewriter &rewriter, Location loc,
 // Helper to create a rank 0 tensor filled with the given `scalar`. `scalar`
 // would be converted to the element type of the given `inputType`.
 Value createRank0Tensor(PatternRewriter &rewriter, Location loc,
-                               BaseTensorType inputType, Value scalar);
+                        BaseTensorType inputType, Value scalar);
+
+LogicalResult getTransposedType(BaseTensorType inType, int64_t dimA,
+                                int64_t dimB, Type &transposedType);
 
 } // namespace Torch
 } // namespace torch
