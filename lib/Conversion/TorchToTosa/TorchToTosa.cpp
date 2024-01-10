@@ -1849,6 +1849,14 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     AtenConvolutionOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
+  bool transposed;
+  if (!matchPattern(op.getTransposed(), m_TorchConstantBool(&transposed)))
+    return rewriter.notifyMatchFailure(
+        op, "Unimplemented: non-constant value for transposed not supported");
+  if (transposed)
+    return rewriter.notifyMatchFailure(
+        op, "Unimplemented: transposed convolution not supported");
+
   auto input = adaptor.getInput();
   auto weight = adaptor.getWeight();
 
@@ -5169,6 +5177,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenArgmaxOp);
     INSERT_ATENOP_PATTERN(AtenPowTensorScalarOp);
     INSERT_ATENOP_PATTERN(AtenRsubScalarOp);
+    INSERT_ATENOP_PATTERN(AtenConvolutionOp);
     INSERT_ATENOP_PATTERN(ValueTensorLiteralOp);
     INSERT_ATENOP_PATTERN(AtenReshapeOp);
     INSERT_ATENOP_PATTERN(AtenBatchNormOp);
@@ -5206,15 +5215,6 @@ public:
     INSERT_ATENOP_PATTERN(AtenSqrtOp);
     INSERT_ATENOP_PATTERN(AtenIscloseOp);
 #undef INSERT_ATENOP_PATTERN
-
-    auto isTransposedConvOp = [&](AtenConvolutionOp op) {
-      bool transposed = false;
-      if (matchPattern(op.getTransposed(), m_TorchConstantBool(&transposed)))
-        return transposed;
-      return false;
-    };
-    target.addDynamicallyLegalOp<AtenConvolutionOp>(isTransposedConvOp);
-    patterns.add<ConvertAtenOp<AtenConvolutionOp>>(typeConverter, context);
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
   target.addIllegalOp<AtenOp>();                                               \
