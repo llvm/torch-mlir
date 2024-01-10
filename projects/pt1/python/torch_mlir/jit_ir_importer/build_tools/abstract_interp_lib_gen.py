@@ -3731,6 +3731,9 @@ def aten〇randn〡dtype(size: List[int], dtype: Optional[int] = None, layout: O
     assert not is_integer_dtype(dtype)
     return dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(
+        num_of_tensors=1,
+        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64}))
 def aten〇normal_functional〡dtype(self_rank_dtype: Tuple[int, int], mean: float = 0., std: float = 1., generator: Any = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     if self_dtype is None:
