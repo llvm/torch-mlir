@@ -491,7 +491,7 @@ public:
           loc, input, extractOffsets, extractShape, allOneStrides);
 
       // Reverse the tile along the horizontal, vertical, or both
-      // dimensions
+      // dimensions.
       auto inputMap = AffineMap::getMultiDimIdentityMap(numDims, context);
       if (shouldHReflect(horizontalPos)) {
         inputMap =
@@ -511,7 +511,7 @@ public:
                      })
                  .getResult(0);
 
-      // Insert the tile in the resultTensor
+      // Insert the tile in the resultTensor.
       SmallVector<Value> insertOffsets(numDims, zero);
       insertOffsets[hDim] = insertHOffset[horizontalPos];
       insertOffsets[vDim] = insertVOffset[verticalPos];
