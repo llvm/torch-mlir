@@ -425,23 +425,25 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.tensorOperandAtIndex(Scale, 1) ||
                       binder.tensorOperandAtIndex(B, 2) ||
                       binder.tensorResultTypeAtIndex(Y_type, 0) || 
-		      binder.tensorResultTypeAtIndex(Mean_type, 1) ||
+		                  binder.tensorResultTypeAtIndex(Mean_type, 1) ||
                       binder.tensorResultTypeAtIndex(InvStdDev_type, 2) || 
-		      binder.s64IntegerAttr(axis, "axis", -1) ||
+		                  binder.s64IntegerAttr(axis, "axis", -1) ||
                       binder.f32FloatAttr(epsilon, "epsilon", 0.00001) ||
                       binder.s64IntegerAttr(stash_type, "stash_type", 1)) 
                     return failure(); 
                   Value constEpsilon = rewriter.create<Torch::ConstantFloatOp>(
                     binder.getLoc(), rewriter.getType<Torch::FloatType>(),
                     rewriter.getF64FloatAttr(epsilon));
-                  unsigned rank = 1; 
+                  unsigned rank = 1;
                   if(std::optional<unsigned> maybeRank = Torch::getTensorRank(X))
                     rank = *maybeRank;
                   SmallVector<Value> normalized;
                   axis = Torch::toPositiveDim(axis, rank);
-                  for (int64_t n = axis; n < rank ; n++) {
+                  auto X_type = X.getType().cast<Torch::ValueTensorType>();
+                  ArrayRef<int64_t> X_shape = X_type.getSizes();
+                  for (int64_t n = axis; n < rank ; n++) {                      
                     normalized.push_back(rewriter.create<Torch::ConstantIntOp>(
-                    binder.getLoc(), rewriter.getI64IntegerAttr(n)));
+                    binder.getLoc(), rewriter.getI64IntegerAttr(X_shape[n])));
                   }
                   Value normalized_shape = rewriter.create<Torch::PrimListConstructOp>(
                     binder.getLoc(),
