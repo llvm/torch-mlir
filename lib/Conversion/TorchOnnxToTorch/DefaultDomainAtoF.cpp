@@ -952,11 +952,11 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         int64_t exclusive;
         int64_t reverse;
         // if bind succeeds and either is set, fail because not implemented
-        if (binder.s64IntegerAttr(exclusive, "exclusive", 0))
+        if (!binder.s64IntegerAttr(exclusive, "exclusive", 0))
           if (exclusive != 0)
             return rewriter.notifyMatchFailure(
                 binder.op, "unsupported onnx.CumSum conversion: exclusive");
-        if (binder.s64IntegerAttr(reverse, "reverse", 0))
+        if (!binder.s64IntegerAttr(reverse, "reverse", 0))
           if (reverse != 0)
             return rewriter.notifyMatchFailure(
                 binder.op, "unsupported onnx.CumSum conversion: reverse");
