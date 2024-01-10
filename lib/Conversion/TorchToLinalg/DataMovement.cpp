@@ -363,10 +363,14 @@ public:
     Value hDimSize = inputShape[hDim];
     Value vDimSize = inputShape[vDim];
 
-    assert(getHPadArgument(LEFT) < hDimSize && "Left padding too large");
-    assert(getHPadArgument(RIGHT) < hDimSize && "Right padding too large");
-    assert(getVPadArgument(TOP) < vDimSize && "Top padding too large");
-    assert(getVPadArgument(BOTTOM) < vDimSize && "Bottom padding too large");
+    assert(getHPadArgument(LEFT) < inputType.getShape()[hDim] &&
+           "Left padding too large");
+    assert(getHPadArgument(RIGHT) < inputType.getShape()[hDim] &&
+           "Right padding too large");
+    assert(getVPadArgument(TOP) < inputType.getShape()[vDim] &&
+           "Top padding too large");
+    assert(getVPadArgument(BOTTOM) < inputType.getShape()[vDim] &&
+           "Bottom padding too large");
 
     Type indexType = rewriter.getIndexType();
     Value zero = getConstant(rewriter, loc, 0, indexType);
