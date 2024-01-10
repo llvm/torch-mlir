@@ -1297,6 +1297,8 @@ def aten〇reflection_pad2d〡shape(self: List[int], padding: List[int]) -> List
     assert len(self) >= 2
     vdim = self[-2]
     hdim = self[-1]
+
+    assert len(padding) == 4, 'padding size expected to be 4'
     padding_left = padding[0]
     padding_right = padding[1]
     padding_top = padding[2]
@@ -1860,9 +1862,6 @@ def aten〇reflection_pad1d〡dtype(self_rank_dtype: Tuple[int, int], padding: L
                        ErrorInvocation(TensorOfShape(2, 3, 4), padding=[5,4,3,2,1])])
 def aten〇reflection_pad2d〡dtype(self_rank_dtype: Tuple[int, int], padding: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
-
-    assert len(padding) == 4, 'padding size expected to be 4'
-
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
