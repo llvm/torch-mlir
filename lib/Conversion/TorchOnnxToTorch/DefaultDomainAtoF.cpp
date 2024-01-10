@@ -928,47 +928,51 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp("Expand", 1,
-         [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-          // uses ideas and code from onnx.Reshape
-           Torch::ValueTensorType resultType;
-           Value data, shape;
-           if (binder.tensorOperands(data, shape) || binder.tensorResultType(resultType))
-             return failure();
-           Torch::BaseTensorType shapeType = shape.getType().cast<Torch::BaseTensorType>(); 
-           SmallVector<int64_t> selectSizes;
-           selectSizes.push_back(1);
-           Type selectResultType = shapeType.getWithSizesAndDtype(
-             llvm::ArrayRef(selectSizes), shapeType.getOptionalDtype());
-           // Variable to store 1-D onnx shape tensor, shapeSizes[0] has the dimension size
-           auto shapeSizes = dyn_cast<Torch::ValueTensorType>(shape.getType()).getSizes();
-           // A constant zero value
-           Value zero = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), 
-             rewriter.getType<Torch::IntType>(),
-             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
-           // Variable to store pytorch int list of shape (dimension)
-           SmallVector<Value> dimList;
+  patterns.onOp(
+      "Expand", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // uses ideas and code from onnx.Reshape
+        Torch::ValueTensorType resultType;
+        Value data, shape;
+        if (binder.tensorOperands(data, shape) ||
+            binder.tensorResultType(resultType))
+          return failure();
+        Torch::BaseTensorType shapeType =
+            shape.getType().cast<Torch::BaseTensorType>();
+        SmallVector<int64_t> selectSizes;
+        selectSizes.push_back(1);
+        Type selectResultType = shapeType.getWithSizesAndDtype(
+            llvm::ArrayRef(selectSizes), shapeType.getOptionalDtype());
+        // Variable to store 1-D onnx shape tensor, shapeSizes[0] has the
+        // dimension size
+        auto shapeSizes =
+            dyn_cast<Torch::ValueTensorType>(shape.getType()).getSizes();
+        // A constant zero value
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        // Variable to store pytorch int list of shape (dimension)
+        SmallVector<Value> dimList;
 
-           // Convert the shape tensor from vector of int64_t to torch int list as we are
-           // using torch implementation Torch::AtenBroadcastToOp which takes list of int
-           for (int i = 0; i < shapeSizes[0]; i++) {
-             Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
-               binder.getLoc(), rewriter.getType<Torch::IntType>(), 
-               rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
-             Value extract = rewriter.create<Torch::AtenSelectIntOp>(
-               binder.getLoc(), selectResultType, shape, zero, selectIndex);
-             Value dim = rewriter.create<Torch::AtenItemOp>(
-               binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
-             dimList.push_back(dim);
-           }
-           Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
-             binder.getLoc(), 
-             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-             dimList);
-           rewriter.replaceOpWithNewOp<Torch::AtenBroadcastToOp>(
-             binder.op, resultType, data, dimValueList);
-           return success();
-         });
+        // Convert the shape tensor from vector of int64_t to torch int list as
+        // we are using torch implementation Torch::AtenBroadcastToOp which
+        // takes list of int
+        for (int i = 0; i < shapeSizes[0]; i++) {
+          Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
+          Value extract = rewriter.create<Torch::AtenSelectIntOp>(
+              binder.getLoc(), selectResultType, shape, zero, selectIndex);
+          Value dim = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
+          dimList.push_back(dim);
+        }
+        Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            dimList);
+        rewriter.replaceOpWithNewOp<Torch::AtenBroadcastToOp>(
+            binder.op, resultType, data, dimValueList);
+        return success();
+      });
   patterns.onOp("Floor", 13,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
