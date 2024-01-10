@@ -438,8 +438,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   if(std::optional<unsigned> maybeRank = Torch::getTensorRank(X))
                     rank = *maybeRank;
                   SmallVector<Value> normalized;
-                  if(axis < 0)
-                    axis = axis + rank;
+                  axis = Torch::toPositiveDim(axis, rank);
                   for (int64_t n = axis; n < rank ; n++) {
                     normalized.push_back(rewriter.create<Torch::ConstantIntOp>(
                     binder.getLoc(), rewriter.getI64IntegerAttr(n)));
