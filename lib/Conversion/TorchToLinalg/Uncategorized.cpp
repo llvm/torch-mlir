@@ -2014,10 +2014,7 @@ public:
     if (succeeded(checkNotNone(rewriter, op, eps)))
       handleEps = true;
 
-    if (handleEps && !eps.getType()
-                          .cast<ValueTensorType>()
-                          .getDtype()
-                          .isa<mlir::FloatType>()) {
+    if (handleEps && !eps.getType().isa<mlir::FloatType>()) {
       op.emitError("Logit does not support non-floating point type");
       return failure();
     }
