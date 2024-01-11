@@ -8,25 +8,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
+#include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::onnx_c;
-
-static Value createConstantIntList(OpBinder binder,
-                                   ConversionPatternRewriter &rewriter,
-                                   SmallVector<int64_t> cstInput) {
-  SmallVector<Value> cstValue;
-  for (int64_t i : cstInput) {
-    cstValue.push_back(rewriter.create<Torch::ConstantIntOp>(
-        binder.getLoc(), rewriter.getI64IntegerAttr(i)));
-  }
-  return rewriter.create<Torch::PrimListConstructOp>(
-      binder.getLoc(),
-      Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-      cstValue);
-}
 
 // Simple rewrites for the default domain.
 // See: https://onnx.ai/onnx/operators/
