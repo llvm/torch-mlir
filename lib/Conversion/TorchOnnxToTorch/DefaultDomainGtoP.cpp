@@ -560,4 +560,17 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                     binder.op, resultType, lhs, rhs);
                   return success();
                 });
+  patterns.onOp(
+      "Identity", 14, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value tensor;
+        if (binder.tensorOperand(tensor) ||
+            binder.tensorResultType(resultType)) {
+          return failure();
+        }
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        rewriter.replaceOpWithNewOp<Torch::AtenCloneOp>(
+            binder.op, resultType, tensor, /*memory_format=*/noneVal);
+        return success();
+      });
 }
