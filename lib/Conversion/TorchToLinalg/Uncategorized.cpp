@@ -1969,7 +1969,6 @@ public:
       associations.push_back(ReassociationIndices{i});
     }
 
-
     rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(
         op, resultRankedTensorType, adaptor.getA(), associations);
 
@@ -1996,6 +1995,91 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertLogitOp : public OpConversionPattern<AtenLogitOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenLogitOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Location loc = op->getLoc();
+    Value input = adaptor.getSelf();
+    Value eps = adaptor.getEps();
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    bool handleEps = false;
+    if (succeeded(checkNotNone(rewriter, op, eps)))
+      handleEps = true;
+
+    if (handleEps && !eps.getType().isa<mlir::FloatType>()) {
+      op.emitError("Logit does not support non-floating point type");
+      return failure();
+    }
+
+    auto inputType = input.getType().cast<RankedTensorType>();
+    auto inputElementType = inputType.getElementType();
+
+    if (!inputElementType.isa<mlir::FloatType>()) {
+      op.emitError("Logit does not support non-floating point type");
+      return failure();
+    }
+
+    auto inputRank = inputType.getRank();
+
+    SmallVector<AffineMap> indexingMaps = {
+        rewriter.getMultiDimIdentityMap(inputRank), // input
+        rewriter.getMultiDimIdentityMap(inputRank), // output
+    };
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
+    Value logit =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, input.getType(),
+                /*ins=*/input,
+                /*outs=*/input,
+                /*indexingMaps=*/indexingMaps,
+                /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value input = args[0];
+
+                  TypedAttr oneAttr = b.getFloatAttr(inputElementType, 1.0);
+                  Value oneValue = b.create<arith::ConstantOp>(loc, oneAttr);
+
+                  Value zI;
+                  if (!handleEps) {
+                    zI = input;
+                  } else {
+                    Value truncEps =
+                        b.create<arith::TruncFOp>(loc, inputElementType, eps);
+                    Value oneMinusEps =
+                        b.create<arith::SubFOp>(loc, oneValue, truncEps);
+
+                    Value min =
+                        b.create<arith::MinimumFOp>(loc, input, oneMinusEps);
+                    Value clampedInput =
+                        b.create<arith::MaximumFOp>(loc, min, truncEps);
+
+                    zI = clampedInput;
+                  }
+
+                  Value probability =
+                      b.create<arith::SubFOp>(loc, oneValue, zI);
+                  Value odds = b.create<arith::DivFOp>(loc, zI, probability);
+                  Value result = b.create<math::LogOp>(loc, odds);
+
+                  b.create<linalg::YieldOp>(loc, result);
+                })
+            .getResult(0);
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, logit);
+    return success();
+  }
+};
+} // namespace
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -2028,6 +2112,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);
   target.addIllegalOp<AtenBatchNormOp>();
   patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
+  target.addIllegalOp<AtenLogitOp>();
+  patterns.add<ConvertLogitOp>(typeConverter, context);
   target.addIllegalOp<PrimsCollapseOp>();
   patterns.add<ConvertPrimsCollapseOp>(typeConverter, context);
   target.addIllegalOp<PrimsSplitDimOp>();

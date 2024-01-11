@@ -1508,6 +1508,28 @@ def ElementwiseLog1pModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseLogitModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.logit(a, eps=1e-7)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLogitModule())
+def ElementwiseLogitModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
 class ElementwiseErfModule(torch.nn.Module):
 
     def __init__(self):
