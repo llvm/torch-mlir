@@ -410,6 +410,49 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
         return failure();
       });
+  patterns.onOp("LayerNormalization", 17,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType Y_type;
+                  Torch::ValueTensorType Mean_type;
+                  Torch::ValueTensorType InvStdDev_type;
+                  Value X;
+                  Value Scale;
+                  Value B;
+                  int64_t axis;
+		  float epsilon;
+                  int64_t stash_type;
+                  if (binder.tensorOperandAtIndex(X, 0) ||
+                      binder.tensorOperandAtIndex(Scale, 1) ||
+                      binder.tensorOperandAtIndex(B, 2) ||
+                      binder.tensorResultTypeAtIndex(Y_type, 0) || 
+		                  binder.tensorResultTypeAtIndex(Mean_type, 1) ||
+                      binder.tensorResultTypeAtIndex(InvStdDev_type, 2) || 
+		                  binder.s64IntegerAttr(axis, "axis", -1) ||
+                      binder.f32FloatAttr(epsilon, "epsilon", 0.00001) ||
+                      binder.s64IntegerAttr(stash_type, "stash_type", 1)) 
+                    return failure(); 
+                  Value constEpsilon = rewriter.create<Torch::ConstantFloatOp>(
+                    binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+                    rewriter.getF64FloatAttr(epsilon));
+                  unsigned rank = 1;
+                  if(std::optional<unsigned> maybeRank = Torch::getTensorRank(X))
+                    rank = *maybeRank;
+                  SmallVector<Value> normalized;
+                  axis = Torch::toPositiveDim(axis, rank);
+                  auto X_type = X.getType().cast<Torch::ValueTensorType>();
+                  ArrayRef<int64_t> X_shape = X_type.getSizes();
+                  for (int64_t n = axis; n < rank ; n++) {                      
+                    normalized.push_back(rewriter.create<Torch::ConstantIntOp>(
+                    binder.getLoc(), rewriter.getI64IntegerAttr(X_shape[n])));
+                  }
+                  Value normalized_shape = rewriter.create<Torch::PrimListConstructOp>(
+                    binder.getLoc(),
+                    Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+                    normalized);
+                  rewriter.replaceOpWithNewOp<Torch::AtenNativeLayerNormOp>(
+                      binder.op, Y_type, Mean_type, InvStdDev_type, X, normalized_shape, Scale, B, constEpsilon);
+                  return success();
+              });
   patterns.onOp("LeakyRelu", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
