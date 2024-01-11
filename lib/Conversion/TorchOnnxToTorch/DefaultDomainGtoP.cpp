@@ -182,7 +182,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                     return failure();
 		  }
 		  Value result = operands[0];
-		  for (int i = 1; i < operands.size(); i++) {
+		  for (uint64_t i = 1; i < operands.size(); i++) {
 		    result = rewriter.create<Torch::AtenMaximumOp>(
 		               binder.getLoc(), resultType, result, operands[i]);
 		  }
@@ -200,7 +200,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                     return failure();
                   }
                   Value result = operands[0];
-                  for (int i = 1; i < operands.size(); i++) {
+                  for (uint64_t i = 1; i < operands.size(); i++) {
                     result = rewriter.create<Torch::AtenMinimumOp>(
                                binder.getLoc(), resultType, result, operands[i]);
                   }
