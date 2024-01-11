@@ -214,10 +214,6 @@ TORCHDYNAMO_XFAIL_SET = {
     'ConstantBoolParameterModule_basic',
 
     # START tests failing due to: 'torch.aten.mul.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
-    "AddCDivModule_basic",
-    "ElementwiseMulScalarModule_basic",
-    "ElementwiseMulScalarModule_float",
-    "NativeGroupNormBackwardModule_basic",
     "UpSampleNearest2dDynamicSize_basic",
     "UpSampleNearest2dStaticFactor_basic",
     "UpSampleNearest2dStaticSize_basic",
@@ -225,23 +221,7 @@ TORCHDYNAMO_XFAIL_SET = {
     # END tests failing due to: 'torch.aten.mul.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
 
     # START tests failing due to: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
-    "AtenInstanceNormModule_basic",
-    "BatchNorm1DModule_basic",
-    "BatchNorm1DWith2DInputModule_basic",
-    "BatchNorm2DModule_basic",
-    "BatchNorm3DModule_basic",
-    "BatchNorm1DStaticShapeModule_basic",
     "ElementwiseAddScalarFloatModule_basic",
-    "ElementwiseAddScalarInt64Module_basic",
-    "ElementwiseAddScalarIntModule_basic",
-    "MobilenetV3Module_basic",
-    "NativeBatchNorm1DModule_basic",
-    "NativeBatchNorm2DModule_basic",
-    "NativeBatchNorm3DModule_basic",
-    "NativeBatchNormNoneWeightModule_basic",
-    "NativeGroupNormModule_basic",
-    "ResNet18Module_basic",
-    "ResNet18StaticModule_basic",
     # END tests failing due to: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
 
     # ERROR: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.int'
@@ -253,9 +233,6 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # ERROR: 'torch.aten.div.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.int'
     "ElementwiseAtenDivIntScalarModule_basic",
-
-    # ERROR: 'torch.aten.mul.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.int'
-    "ElementwiseMulScalarModule_int",
 
     # ERROR: 'torch.aten.sub.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
     "ElementwiseSubScalarFloatModule_basic",
@@ -314,10 +291,6 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: shape (torch.Size([12])) is not equal to golden shape (torch.Size([3, 4]))
     "ArangeStartOutViewModule_basic",
 
-    # ERROR: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
-    "GroupNormModule_basic",
-    "GroupNormNoWeightAndBiasModule_basic",
-
     # Dynamo does not support tracing quantized tensors
     "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
@@ -371,6 +344,9 @@ TORCHDYNAMO_CRASHING_SET = {
     "MaxPool3dModule_basic",
     "MaxPool3dStaticCeilModeTrueModule_basic",
     "MaxPool3dStaticModule_basic",
+
+    # Looks like incorrect fx graph conversion
+    "ElementwiseAddScalar_TensorLiteralInt32_Module_basic",
 }
 
 STABLEHLO_PASS_SET = {
