@@ -645,6 +645,205 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenAdaptiveMaxPool2dOp
+    : public OpConversionPattern<AtenAdaptiveMaxPool2dOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenAdaptiveMaxPool2dOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Location loc = op->getLoc();
+    const TypeConverter *typeConverter = getTypeConverter();
+
+    // get rank of input (same as rank of output)
+    int64_t rank =
+        adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
+    // input operand should be NCHW (i.e. rank 3)
+    if (rank != 4) {
+      return rewriter.notifyMatchFailure(op, "only supports input type NCH");
+    }
+
+    // input tensor and output shape
+    Value input = adaptor.getSelf();
+    Value outputShape = op.getOutputSize();
+    SmallVector<Value> outShapeVector;
+    getListConstructElements(outputShape, outShapeVector);
+    outShapeVector =
+        getTypeConvertedValues(rewriter, loc, typeConverter, outShapeVector);
+    //Value hIn = getDimOp(rewriter, loc, input, 2);
+    SmallVector<Value> inputSpatialSizes;
+    for (unsigned i = 2; i < rank ; i++){
+        inputSpatialSizes.push_back(getDimOp(rewriter, loc, input, i));
+    }
+    //Value hOut = outShapeVector[0];
+    SmallVector<Value> outShapeIndexVector;
+    for (auto v : outShapeVector){
+        outShapeIndexVector.push_back(castIntToIndex(rewriter, loc, v));
+    }
+    //Value hOutIndex = castIntToIndex(rewriter, loc, hOut);
+    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+    RankedTensorType outputType =
+        typeConverter->convertType(op.getResult().getType())
+            .cast<RankedTensorType>();
+
+    // get elementType of input tensor
+    Type elementType = inputType.getElementType();
+
+    // make an iteration space of size kMax = 1 + ceildiv (hIn - 1) , hOut
+    Type boolType = rewriter.getI1Type();
+    SmallVector<Value> kIterVector;
+    Value constantOne =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+    for (int i = 0; i < rank -2; i++){
+        Value hInPlusOne = rewriter.create<arith::SubIOp>(loc, inputSpatialSizes[i], constantOne);
+        Value kMaxMinusOne =
+            rewriter.create<arith::CeilDivSIOp>(loc, hInPlusOne, outShapeIndexVector[i]);
+        Value kMax = rewriter.create<arith::AddIOp>(loc, constantOne, kMaxMinusOne);
+        kIterVector.push_back(kMax);
+    }
+    Value kIter = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(kIterVector), boolType);
+
+    // need to buffer input, else there will possibly be an out of bounds access
+    // later buffVal = 0 for avg pooling and -inf for max pooling
+    auto smallestFPValueAttr = rewriter.getFloatAttr(
+        elementType,
+        APFloat::getInf(elementType.cast<mlir::FloatType>().getFloatSemantics(),
+                        /*Negative=*/true));
+    Value buffVal = rewriter.create<arith::ConstantOp>(
+        loc, elementType, smallestFPValueAttr);
+    SmallVector<int64_t> lowPadding (rank, 0);
+    SmallVector<int64_t> highPadding (2,0);
+    for (int i = 0 ; i < rank-2; i++){
+        highPadding.push_back(1);
+    }
+    Value buffInput = torch_to_linalg::getPaddedTensor(
+        op, rewriter, input, lowPadding, highPadding, buffVal);
+
+    // make a list of outputSizes
+    SmallVector<Value> outputSizes;
+    for (unsigned i = 0; i < 2; i++) {
+      outputSizes.push_back(getDimOp(rewriter, loc, input, i));
+    }
+    for (unsigned i = 2; i < rank; i++){
+        outputSizes.push_back(outShapeIndexVector[i-2]);
+    }
+    
+
+    // initialize a kernel size tensor (only for avg pooling)
+    Value kSizeTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(outShapeIndexVector), elementType);
+
+    // initialize an output tensor
+    Value initOutput =
+        createInitTensor(rewriter, loc, outputSizes, elementType, buffVal);
+
+    // setup indexing maps and iterator types for linalg generic op (outputShape (rank),kIter (rank -2))
+    // for kIter (d0,d1,d2,d3) -> (d3)
+    // for output (d0,d1,d2,d3) -> (d0,d1,d2)
+    // for kSizeTensor (d0,d1,d2,d3) -> (d2)
+    SmallVector<AffineExpr> kIterExprs, outputExprs, kSizeTensorExprs;
+    //batch + channel + output spatial dims
+    for (unsigned i = 0; i < rank; i++) {
+      outputExprs.push_back(rewriter.getAffineDimExpr(i));
+    }
+    // kSizeTensorExprs over output spatial dims
+    for (unsigned i = 2; i < rank; i++){
+        kSizeTensorExprs.push_back(rewriter.getAffineDimExpr(i));
+    }
+    // kIter covers last rank-2 indices
+    for (unsigned i = rank; i < 2*rank-2; i++){
+        kIterExprs.push_back(rewriter.getAffineDimExpr(i)); 
+    }
+    SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
+        {kIterExprs, outputExprs, kSizeTensorExprs});
+    SmallVector<utils::IteratorType> iteratorTypes(
+        rank, utils::IteratorType::parallel);
+    for (unsigned i = 0; i < rank - 2; i++){
+        iteratorTypes.push_back(utils::IteratorType::reduction);
+    }
+
+    Value indexOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    auto maxPool = rewriter.create<linalg::GenericOp>(
+        loc, /*resultTensorTypes=*/
+        TypeRange({initOutput.getType(), kSizeTensor.getType()}),
+        /*inputs=*/ValueRange({kIter}),
+        /*outputs=*/ValueRange({initOutput, kSizeTensor}),
+        /*indexingMaps=*/indexingMaps,
+        /*iteratorTypes=*/iteratorTypes,
+        [&](OpBuilder &b, Location loc, ValueRange args) {
+          Value res = args[1];
+          SmallVector<Value> ind;
+          for (unsigned i = 0; i < 2*rank -2; i++){
+            ind.push_back(b.create<linalg::IndexOp>(loc,i));
+          }
+          // compute start and end indices
+          // st = s1( s0(ind2 * Hin) // Hout )
+          SmallVector<Value> starts;
+          SmallVector<Value> ends;
+          for (unsigned i = 2, i < rank; i ++){
+              Value s0 = b.create<arith::MulIOp>(loc, ind[i], inputSpatialSizes[i]);
+              Value s1 = b.create<arith::FloorDivSIOp>(loc, s0, outShapeIndexVector[i-2]);
+              starts.push_back(s1);
+              // en = e4( 1 + e3( e2( e1( e0(ind2 + 1) * hIn ) - 1 ) // hOut ) )
+              Value e0 = b.create<arith::AddIOp>(loc, ind[i], indexOne);
+              Value e1 = b.create<arith::MulIOp>(loc, e0, hIn);
+              Value e2 = b.create<arith::SubIOp>(loc, e1, indexOne);
+              Value e3 = b.create<arith::FloorDivSIOp>(loc, e2, hOutIndex);
+              Value e4 = b.create<arith::AddIOp>(loc, indexOne, e3);
+              ends.push_back(e4);
+          }
+          SmallVector<Value> inputElementIndices = {ind[0],ind[1]};
+          for (unsigned i = 2; i < rank; i++){
+            inputElementIndices.push_back(
+                b.create<arith::AddIOp>(loc,starts[i],ind[rank - 2 + i]));
+          }
+          Value inElt = b.create<tensor::ExtractOp>(
+              loc, elementType, buffInput, inputElementIndices);
+          // check if we extracted at windex < end index
+          SmallVector<Value> filteredInputElement = {inElt};
+          for (unsigned i = 0; i < rank - 2; i++){
+            Value cond =
+                b.create<arith::CmpIOp>(loc, arith::CmpIPredicate(6), inputElementIndices[i+2], ends[i]);
+            filteredInputElements.push_back(b.create<arith::SelectOp>(loc, cond, filteredInputElements[i], buffVal));
+          }
+          Value out1 = filteredInputElement[rank-2];
+          
+          /* // compute Kernel size: we store this to kwTensor
+          Value kSize = b.create<arith::SubIOp>(loc, e4, s1);
+          Value kSizeInt = castIndexToInt64(b, loc, kSize);
+          Value kSizeF = b.create<arith::SIToFPOp>(loc, elementType, kSizeInt);*/
+          // accumulate out2 to res = args[1]
+          Value out2 = b.create<arith::MaximumFOp>(loc, res, out1);
+          b.create<linalg::YieldOp>(loc, ValueRange({out2, kSizeF}));
+        });
+
+    // make a linalg generic to divide each element by the corresponding
+    // Kernel Width. This step is only necessary for avg pooling.
+    SmallVector<AffineMap> indexingMaps1 =
+        AffineMap::inferFromExprList({kSizeTensorExprs, outputExprs});
+    SmallVector<utils::IteratorType> iteratorTypes1(
+        3, utils::IteratorType::parallel);
+    auto output = rewriter.create<linalg::GenericOp>(
+        loc, /*resultTensorTypes=*/initOutput.getType(),
+        /*inputs=*/sumPool.getResultTensors()[1],
+        /*outputs=*/sumPool.getResultTensors()[0],
+        /*indexingMaps=*/indexingMaps1,
+        /*iteratorTypes=*/iteratorTypes1,
+        [&](OpBuilder &b, Location loc, ValueRange args) {
+          Value q = b.create<arith::DivFOp>(loc, args[1], args[0]);
+          b.create<linalg::YieldOp>(loc, q);
+        });
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outputType,
+                                                output.getResultTensors());
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
