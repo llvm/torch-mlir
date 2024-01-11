@@ -259,6 +259,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseDivRoundingModeTruncModule_basic",
     "AdaptiveAvgPool1dStaticLargerOutput_basic",
     "AdaptiveAvgPool1dGeneralDynamic_basic",
+    "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
 
     # ERROR: Exception: Unsupported op: get_attr
     "NumToTensorFloatModule_basic",
