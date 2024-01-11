@@ -28,8 +28,6 @@ class DiagonalModule(torch.nn.Module):
 def DiagonalModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 3))
 
-# ==============================================================================
-
 @register_test_case(module_factory=lambda: DiagonalModule())
 def DiagonalModule_nonsquare(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
@@ -68,6 +66,24 @@ class DiagonalWithDimsModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: DiagonalWithDimsModule())
 def DiagonalModule_with_dims(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
+class DiagonalWithNegativeDimsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.diagonal(a, dim1=-2, dim2=-1)
+
+@register_test_case(module_factory=lambda: DiagonalWithNegativeDimsModule())
+def DiagonalModule_with_negative_dims(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
 # ==============================================================================
