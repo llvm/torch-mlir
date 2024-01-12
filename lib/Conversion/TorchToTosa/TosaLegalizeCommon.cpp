@@ -997,14 +997,16 @@ convertLinalgVectorNormOp(PatternRewriter &rewriter, Operation *op,
   Value ordVal;
   if (matchPattern(linalgVectorNormOp.getOrd(),
                    torch::Torch::m_TorchConstantFloat(&ordLiteralFloat))) {
-    ordVal =
-        tosa::getConstTensor<float>(rewriter, op, {static_cast<float>(ordLiteralFloat)}, {}, elemType)
-            .value();
+    ordVal = tosa::getConstTensor<float>(rewriter, op,
+                                         {static_cast<float>(ordLiteralFloat)},
+                                         {}, elemType)
+                 .value();
   } else if (matchPattern(linalgVectorNormOp.getOrd(),
                           torch::Torch::m_TorchConstantInt(&ordLiteralInt))) {
-    ordVal =
-        tosa::getConstTensor<float>(rewriter, op, {static_cast<float>(ordLiteralInt)}, {}, elemType)
-            .value();
+    ordVal = tosa::getConstTensor<float>(rewriter, op,
+                                         {static_cast<float>(ordLiteralInt)},
+                                         {}, elemType)
+                 .value();
   } else {
     op->emitOpError("only support FP or INT type ord parameter");
     return std::nullopt;
