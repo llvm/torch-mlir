@@ -155,11 +155,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
           return rewriter.notifyMatchFailure(binder.op,
                                              "auto_pad bind failure");
-        if (autoPad != "NOTSET") {
-          // TODO: Add support for `auto_pad` != "NOTSET"
+        if (autoPad != "NOTSET")
           return rewriter.notifyMatchFailure(
               binder.op, "unsupported conversion: auto_pad != NOTSET");
-        }
 
         Torch::ValueTensorType resultType;
         Value operand;
@@ -227,7 +225,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               paddingList, dilationsList, cstCeilMode);
           return success();
         }
-        return failure();
+        return rewriter.notifyMatchFailure(binder.op, "No rank is matched.");
       });
   patterns.onOp("Greater", 16,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
