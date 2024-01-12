@@ -1018,7 +1018,8 @@ convertLinalgVectorNormOp(PatternRewriter &rewriter, Operation *op,
     return std::nullopt;
   }
 
-  if (std::isinf(ordLiteralFloat) || std::isinf(ordLiteralInt)) {
+  if (std::isinf(ordLiteralFloat) ||
+      std::isinf(static_cast<double>(ordLiteralInt))) {
     op->emitOpError("unimplemented: ord = +/- inf");
     return std::nullopt;
   }
