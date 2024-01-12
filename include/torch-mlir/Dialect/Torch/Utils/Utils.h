@@ -130,7 +130,7 @@ Value createRank0Tensor(PatternRewriter &rewriter, Location loc,
 
 LogicalResult getTransposedType(BaseTensorType inType, int64_t dimA,
                                 int64_t dimB, Type &transposedType);
-
+} // namespace Torch
 } // namespace torch
 } // namespace mlir
 
