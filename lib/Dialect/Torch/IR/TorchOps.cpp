@@ -715,6 +715,8 @@ OpFoldResult AtenNeBoolOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenSqueezeOp::fold(FoldAdaptor adaptor) {
+  if (getOperand().getType() != getResult().getType())
+    return nullptr;
   if (auto tensorType = getOperand().getType().dyn_cast<BaseTensorType>()) {
     if (tensorType.hasSizes() && tensorType.getSizes().size() == 0)
       return getOperand();
@@ -727,6 +729,8 @@ OpFoldResult AtenSqueezeOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenSqueezeDimOp::fold(FoldAdaptor adaptor) {
+  if (getOperand(0).getType() != getResult().getType())
+    return nullptr;
   if (auto tensorType = getOperand(0).getType().dyn_cast<BaseTensorType>()) {
     if (tensorType.hasSizes() && tensorType.getSizes().size() == 0)
       return getOperand(0);
@@ -739,6 +743,8 @@ OpFoldResult AtenSqueezeDimOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenRoundOp::fold(FoldAdaptor adaptor) {
+  if (getSelf().getType() != getResult().getType())
+    return nullptr;
   if (auto selfType = getSelf().getType().dyn_cast<BaseTensorType>()) {
     if (selfType.hasDtype() && selfType.getDtype().isa<mlir::IntegerType>())
       return getSelf();
@@ -910,6 +916,8 @@ OpFoldResult AtenViewOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   auto resType = getType().dyn_cast<BaseTensorType>();
   if (!resType || !resType.hasSizes() || resType.getSizes().size() != 1)
+    return nullptr;
+  if (inputType != resType)
     return nullptr;
   // Fold when both the input tensor and result are unity rank tensors.
   return getOperand(0);
@@ -2441,6 +2449,8 @@ OpFoldResult AtenCatOp::fold(FoldAdaptor adaptor) {
   auto list = getOperand(0).getDefiningOp<PrimListConstructOp>();
   if (!list || !list->hasOneUse() || list.getElements().size() != 1)
     return nullptr;
+  if (list.getElements()[0].getType() != getResult().getType())
+    return nullptr;
   return list.getElements()[0];
 }
 
@@ -2451,6 +2461,8 @@ OpFoldResult AtenCatOp::fold(FoldAdaptor adaptor) {
 OpFoldResult AtenBroadcastToOp::fold(FoldAdaptor adaptor) {
   auto inType = getOperand(0).getType().dyn_cast<BaseTensorType>();
   auto outType = getResult().getType().dyn_cast<BaseTensorType>();
+  if (inType != outType)
+    return nullptr;
   if (!inType || !outType || !inType.hasSizes() || !outType.hasSizes())
     return nullptr;
   if (inType.getSizes().size() != outType.getSizes().size() ||
@@ -2480,6 +2492,8 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
 
   auto inType = getOperand(0).getType().dyn_cast<BaseTensorType>();
   auto outType = getResult().getType().dyn_cast<BaseTensorType>();
+  if (inType != outType)
+    return nullptr;
   if (!inType || !outType || !inType.hasSizes() || !outType.hasSizes())
     return nullptr;
   if (inType.getSizes().size() != outType.getSizes().size() ||

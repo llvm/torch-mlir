@@ -254,7 +254,7 @@ def ArangeFalsePinMemoryModule_basic(module, tu: TestUtils):
 class ArangeStartOutModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
@@ -270,7 +270,7 @@ def ArangeStartOutModule_basic(module, tu: TestUtils):
 class ArangeStartOutViewModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
@@ -286,7 +286,7 @@ def ArangeStartOutViewModule_basic(module, tu: TestUtils):
 class ArangeStartOutDtypeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,

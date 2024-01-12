@@ -1008,13 +1008,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::SelectOp>(loc, pred, lhs, rhs);
   }
   if (auto clamp = dyn_cast<AtenClampOp>(op)) {
-    Type dtype = converter->convertType(clamp.getType())
-                     .cast<RankedTensorType>()
-                     .getElementType();
-    if (!dtype.isa<mlir::FloatType>()) {
-      clamp.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
     AtenClampOp::Adaptor adaptor(operands);
     auto min = adaptor.getMin();
     auto max = adaptor.getMax();
@@ -1023,19 +1016,45 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       clamp.emitError("unimplemented: runtime optional type");
       return nullptr;
     }
+
+    Type dtype = converter->convertType(clamp.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    if (!dtype.isa<mlir::FloatType, mlir::IntegerType>()) {
+      clamp.emitError("unimplement type for clamp");
+      return nullptr;
+    }
+
+    Type dstOriginalDtype = clamp.getType().cast<BaseTensorType>().getDtype();
+    bool isUnsigned = isa<QUInt8Type>(dstOriginalDtype);
+    if (auto intTy = dstOriginalDtype.dyn_cast<IntegerType>()) {
+      isUnsigned = intTy.isUnsigned();
+    }
+    auto cmpSelect = [&](Value input, Value clamp, bool getMax) -> Value {
+      clamp = convertScalarToDtype(b, loc, clamp, dtype,
+                                   /*srcOriginalDtype=*/std::nullopt,
+                                   /*dstOriginalDtype=*/dstOriginalDtype);
+
+      Value pred;
+      if (dtype.isa<mlir::FloatType>()) {
+        auto cmp =
+            getMax ? arith::CmpFPredicate::UGT : arith::CmpFPredicate::ULT;
+        pred = b.create<arith::CmpFOp>(loc, cmp, input, clamp);
+      } else if (dtype.isa<mlir::IntegerType>()) {
+        auto cmp =
+            isUnsigned ? arith::CmpIPredicate::ult : arith::CmpIPredicate::slt;
+        if (getMax)
+          cmp = arith::invertPredicate(cmp);
+        pred = b.create<arith::CmpIOp>(loc, cmp, input, clamp);
+      }
+      return b.create<arith::SelectOp>(loc, pred, clamp, input);
+    };
+
     auto result = payloadArgs[0];
-    if (!min.getType().isa<Torch::NoneType>()) {
-      auto minPromoted = convertScalarToDtype(b, loc, min, dtype);
-      auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
-                                          result, minPromoted);
-      result = b.create<arith::SelectOp>(loc, pred, minPromoted, result);
-    }
-    if (!max.getType().isa<Torch::NoneType>()) {
-      auto maxPromoted = convertScalarToDtype(b, loc, max, dtype);
-      auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
-                                          result, maxPromoted);
-      result = b.create<arith::SelectOp>(loc, pred, maxPromoted, result);
-    }
+    if (!min.getType().isa<Torch::NoneType>())
+      result = cmpSelect(result, min, /*getMax=*/false);
+    if (!max.getType().isa<Torch::NoneType>())
+      result = cmpSelect(result, max, /*getMax=*/true);
     return result;
   }
   if (auto clampTensor = dyn_cast<AtenClampTensorOp>(op)) {
@@ -1952,7 +1971,6 @@ public:
       associations.push_back(ReassociationIndices{i});
     }
 
-
     rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(
         op, resultRankedTensorType, adaptor.getA(), associations);
 
@@ -1979,6 +1997,91 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertLogitOp : public OpConversionPattern<AtenLogitOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenLogitOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Location loc = op->getLoc();
+    Value input = adaptor.getSelf();
+    Value eps = adaptor.getEps();
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    bool handleEps = false;
+    if (succeeded(checkNotNone(rewriter, op, eps)))
+      handleEps = true;
+
+    if (handleEps && !eps.getType().isa<mlir::FloatType>()) {
+      op.emitError("Logit does not support non-floating point type");
+      return failure();
+    }
+
+    auto inputType = input.getType().cast<RankedTensorType>();
+    auto inputElementType = inputType.getElementType();
+
+    if (!inputElementType.isa<mlir::FloatType>()) {
+      op.emitError("Logit does not support non-floating point type");
+      return failure();
+    }
+
+    auto inputRank = inputType.getRank();
+
+    SmallVector<AffineMap> indexingMaps = {
+        rewriter.getMultiDimIdentityMap(inputRank), // input
+        rewriter.getMultiDimIdentityMap(inputRank), // output
+    };
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
+    Value logit =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, input.getType(),
+                /*ins=*/input,
+                /*outs=*/input,
+                /*indexingMaps=*/indexingMaps,
+                /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value input = args[0];
+
+                  TypedAttr oneAttr = b.getFloatAttr(inputElementType, 1.0);
+                  Value oneValue = b.create<arith::ConstantOp>(loc, oneAttr);
+
+                  Value zI;
+                  if (!handleEps) {
+                    zI = input;
+                  } else {
+                    Value truncEps =
+                        b.create<arith::TruncFOp>(loc, inputElementType, eps);
+                    Value oneMinusEps =
+                        b.create<arith::SubFOp>(loc, oneValue, truncEps);
+
+                    Value min =
+                        b.create<arith::MinimumFOp>(loc, input, oneMinusEps);
+                    Value clampedInput =
+                        b.create<arith::MaximumFOp>(loc, min, truncEps);
+
+                    zI = clampedInput;
+                  }
+
+                  Value probability =
+                      b.create<arith::SubFOp>(loc, oneValue, zI);
+                  Value odds = b.create<arith::DivFOp>(loc, zI, probability);
+                  Value result = b.create<math::LogOp>(loc, odds);
+
+                  b.create<linalg::YieldOp>(loc, result);
+                })
+            .getResult(0);
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, logit);
+    return success();
+  }
+};
+} // namespace
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -2010,6 +2113,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);
   target.addIllegalOp<AtenBatchNormOp>();
   patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
+  target.addIllegalOp<AtenLogitOp>();
+  patterns.add<ConvertLogitOp>(typeConverter, context);
   target.addIllegalOp<PrimsCollapseOp>();
   patterns.add<ConvertPrimsCollapseOp>(typeConverter, context);
   target.addIllegalOp<PrimsSplitDimOp>();

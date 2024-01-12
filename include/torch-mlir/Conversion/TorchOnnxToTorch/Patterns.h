@@ -33,6 +33,8 @@ struct OpBinder {
 
   Location getLoc() { return op->getLoc(); }
 
+  int getNumOperands() { return op->getNumOperands(); }
+
   // Operand matches of different arities.
   ParseResult tensorOperand(Value &value0) {
     if (op->getNumOperands() != 1)
@@ -58,7 +60,7 @@ struct OpBinder {
                              int64_t numOperands) {
     if (op->getNumOperands() != numOperands)
       return failure();
-    for (int i = 0; i < numOperands; i++) {
+    for (int64_t i = 0; i < numOperands; i++) {
       Value curr = op->getOperand(i);
       if (!toValidTensorType(curr.getType())) {
         return failure();
@@ -76,9 +78,9 @@ struct OpBinder {
       return failure();
     return success();
   }
-
-  ParseResult tensorOperandsList(llvm::SmallVectorImpl<Value> &values) {
-    for (int i = 0; i < op->getNumOperands(); i++) {
+  
+  ParseResult tensorOperandsList( llvm::SmallVectorImpl<Value> &values) {
+    for (uint32_t i = 0; i < op->getNumOperands(); i++) {
       values.push_back(op->getOperand(i));
     }
     return success();
@@ -190,7 +192,7 @@ struct OpBinder {
   }
 
   ParseResult customOpNameStringAttr(std::string &value, StringRef nameSuffix,
-                             std::string defaultValue = "") {
+                                     std::string defaultValue = "") {
     SmallString<64> name("torch.onnx.");
     name.append(nameSuffix);
     auto attr = op->getAttr(name);

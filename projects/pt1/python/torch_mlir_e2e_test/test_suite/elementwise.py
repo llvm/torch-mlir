@@ -988,6 +988,34 @@ def ElementwiseClampTensorIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseClampTensorInt8Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int8, True)
+    ])
+    def forward(self, x):
+        min = -5
+        max = 5
+        min_clamp = torch.clamp(x, min)
+        max_clamp = torch.clamp(x, max=max)
+        both_clamp = torch.clamp(x, min=min, max=max)
+        return min_clamp, max_clamp, both_clamp
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampTensorInt8Module())
+def ElementwiseClampTensorInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, low=-10, high=10, dtype=torch.int8))
+
+
+# ==============================================================================
+
+
+
 class ElementwiseClampMinTensorFloatModule(torch.nn.Module):
 
     def __init__(self):
@@ -1474,6 +1502,28 @@ class ElementwiseLog1pModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseLog1pModule())
 def ElementwiseLog1pModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseLogitModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.logit(a, eps=1e-7)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLogitModule())
+def ElementwiseLogitModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
 
@@ -3184,7 +3234,7 @@ def ElementwiseAtenLogicalOrOpRandomFloatModule_basic(module, tu: TestUtils):
 class ElementwiseAtenLogicalOrOpNegativeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
@@ -3203,7 +3253,7 @@ def ElementwiseAtenLogicalOrOpNegativeModule_basic(module, tu: TestUtils):
 class ElementwiseAtenLogicalOrOpBrodcastModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
@@ -4089,7 +4139,7 @@ def ElementwiseBitwiseAndScalarInt8Module_basic(module, tu: TestUtils):
 class GluStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,

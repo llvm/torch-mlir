@@ -141,6 +141,9 @@ def aten〇log10〡shape(self: List[int]) -> List[int]:
 def aten〇log1p〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇logit〡shape(self: List[int], eps: Optional[float] = None) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇rsqrt〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -1295,6 +1298,30 @@ def aten〇reflection_pad1d〡shape(self: List[int], padding: List[int]) -> List
     assert padding_left < hdim and padding_right < hdim
     return pad_shape_fn(self, padding)
 
+
+# Padding size must be smaller than corresponding dimension
+@check_shape_function([ErrorInvocation(TensorOfShape(2, 2, 2), padding=[2,2,1,1]),
+                       ErrorInvocation(TensorOfShape(2, 2, 2), padding=[2,1,1,1]),
+                       ErrorInvocation(TensorOfShape(2, 2, 2), padding=[2,1,1,3]),
+                       ErrorInvocation(TensorOfShape(2, 2, 2), padding=[2,1]),
+                       Invocation(TensorOfShape(2, 2, 2), padding=[1,1,1,1]),
+                       ErrorInvocation(TensorOfShape(2, 2, 2), padding=[1,1,2,1]),
+                       ErrorInvocation(TensorOfShape(2, 2, 2), padding=[1,1,2,2])])
+def aten〇reflection_pad2d〡shape(self: List[int], padding: List[int]) -> List[int]:
+    assert len(self) >= 2
+    vdim = self[-2]
+    hdim = self[-1]
+
+    assert len(padding) == 4, 'padding size expected to be 4'
+    padding_left = padding[0]
+    padding_right = padding[1]
+    padding_top = padding[2]
+    padding_bottom = padding[3]
+    assert padding_left < hdim and padding_right < hdim
+    assert padding_top < vdim  and padding_bottom < vdim
+
+    return pad_shape_fn(self, padding)
+
 # TODO: upstream this
 def index_tensor_like(self: List[int], indices: List[Optional[List[int]]]) -> List[int]:
     assert len(indices) <= len(self), "More indices than dimensions to index"
@@ -1645,6 +1672,11 @@ def aten〇log1p〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     return _get_dtype_of_floating_point_op(self_dtype)
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇logit〡dtype(self_rank_dtype: Tuple[int, int], eps: Optional[float] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return _get_dtype_of_floating_point_op(self_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇rsqrt〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
@@ -1838,6 +1870,11 @@ def aten〇constant_pad_nd〡dtype(self_rank_dtype: Tuple[int, int], pad: List[i
 def aten〇reflection_pad1d〡dtype(self_rank_dtype: Tuple[int, int], padding: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     assert len(padding) == 2, 'padding size expected to be 2'
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(4, 2, 2)], padding=[1,1,1,1]))
+def aten〇reflection_pad2d〡dtype(self_rank_dtype: Tuple[int, int], padding: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
