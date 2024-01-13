@@ -4136,6 +4136,52 @@ def ElementwiseBitwiseAndScalarInt8Module_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ElementwiseQuantizePerTensorModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float, True),
+    ])
+    def forward(self, x):
+        scale = 0.04
+        zp = -110
+        dtype = torch.qint8
+        # We return the int representation as we can not map to quint8 type yet on boundaries.
+        q = torch.quantize_per_tensor(x, scale, zp, dtype).int_repr()
+        return q
+
+@register_test_case(module_factory=lambda: ElementwiseQuantizePerTensorModule())
+def ElementwiseQuantizePerTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+class ElementwiseDequantizePerTensorModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int8, True),
+    ])
+    def forward(self, x):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.1, 8)
+        qx = torch.dequantize(qx)
+        return qx
+
+@register_test_case(module_factory=lambda: ElementwiseDequantizePerTensorModule())
+def ElementwiseDequantizePerTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-128, high=127).to(torch.int8))
+
+# ==============================================================================
+
 class GluStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

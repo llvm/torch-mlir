@@ -64,6 +64,12 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
     return torch_upstream::ScalarType::Byte;
   if (type.isSignedInteger(8))
     return torch_upstream::ScalarType::Char;
+  if (type.isa<QUInt8Type>())
+    return torch_upstream::ScalarType::QUInt8;
+  if (type.isa<QInt8Type>())
+    return torch_upstream::ScalarType::QInt8;
+  if (type.isa<QInt32Type>())
+    return torch_upstream::ScalarType::QInt32;
   if (type.isa<ComplexType>()) {
     mlir::Type complexElemType = type.cast<ComplexType>().getElementType();
     if (complexElemType.isF16())
@@ -109,6 +115,12 @@ Torch::getTypeForScalarType(MLIRContext *context,
     return mlir::IntegerType::get(context, 8, mlir::IntegerType::Unsigned);
   case torch_upstream::ScalarType::Char:
     return mlir::IntegerType::get(context, 8, mlir::IntegerType::Signed);
+  case torch_upstream::ScalarType::QUInt8:
+    return QUInt8Type::get(context);
+  case torch_upstream::ScalarType::QInt8:
+    return QInt8Type::get(context);
+  case torch_upstream::ScalarType::QInt32:
+    return QInt32Type::get(context);
   case torch_upstream::ScalarType::ComplexHalf:
     return mlir::ComplexType::get(Float16Type::get(context));
   case torch_upstream::ScalarType::ComplexFloat:
