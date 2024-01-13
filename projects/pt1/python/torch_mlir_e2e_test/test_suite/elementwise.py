@@ -3506,8 +3506,8 @@ class ElementwiseAtenIsneginfOpModule(torch.nn.Module):
 def ElementwiseAtenIsneginfOpModule_basic(module, tu:TestUtils):
     test_input = torch.tensor(
         [
-            [1, float('-inf'), 2, float('-inf'), float('nan')],
-            [1, float('-inf'), float('-inf'), float('nan'), 3],
+            [1, float('-inf'), 2, float('inf'), float('nan')],
+            [1, float('-inf'), float('inf'), float('nan'), 3],
         ]
     )
     module.forward(test_input)
@@ -3532,8 +3532,8 @@ class ElementwiseAtenIsposinfOpModule(torch.nn.Module):
 def ElementwiseAtenIsposinfOpModule_basic(module, tu:TestUtils):
     test_input = torch.tensor(
         [
-            [1, float('inf'), 2, float('inf'), float('nan')],
-            [1, float('inf'), float('inf'), float('nan'), 3],
+            [1, float('-inf'), 2, float('inf'), float('nan')],
+            [1, float('-inf'), float('inf'), float('nan'), 3],
         ]
     )
     module.forward(test_input)

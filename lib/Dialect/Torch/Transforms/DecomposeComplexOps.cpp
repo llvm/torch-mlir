@@ -2513,13 +2513,13 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     mlir::FloatType f64Type = rewriter.getF64Type();
-    Value lan = op.getNan();
+    Value nan = op.getNan();
     Value posinf = op.getPosinf();
     Value neginf = op.getNeginf();
     auto baseType =
         ValueTensorType::getWithLeastStaticInformation(op.getContext());
-    if (dyn_cast_or_null<ConstantNoneOp>(lan.getDefiningOp()))
-      lan = rewriter.create<ConstantFloatOp>(
+    if (dyn_cast_or_null<ConstantNoneOp>(nan.getDefiningOp()))
+      nan = rewriter.create<ConstantFloatOp>(
           loc, rewriter.getFloatAttr(
                    f64Type, APFloat::getZero(f64Type.getFloatSemantics())));
     if (dyn_cast_or_null<ConstantNoneOp>(posinf.getDefiningOp()))
@@ -2534,7 +2534,7 @@ public:
     Value isNan =
         rewriter.create<Torch::AtenIsnanOp>(loc, baseType, op.getSelf());
     Value where = rewriter.create<Torch::AtenWhereScalarSelfOp>(
-        loc, baseType, isNan, lan, op.getSelf());
+        loc, baseType, isNan, nan, op.getSelf());
     Value isposinf =
         rewriter.create<Torch::AtenIsposinfOp>(loc, baseType, where);
     where = rewriter.create<Torch::AtenWhereScalarSelfOp>(
