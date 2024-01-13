@@ -4150,8 +4150,9 @@ class ElementwiseQuantizePerTensorModule(torch.nn.Module):
         scale = 0.04
         zp = -110
         dtype = torch.qint8
-        q = torch.quantize_per_tensor(x, scale, zp, dtype)
-        return q.int_repr()
+        # We return the int representation as we can not map to quint8 type yet on boundaries.
+        q = torch.quantize_per_tensor(x, scale, zp, dtype).int_repr()
+        return q
 
 @register_test_case(module_factory=lambda: ElementwiseQuantizePerTensorModule())
 def ElementwiseQuantizePerTensorModule_basic(module, tu: TestUtils):

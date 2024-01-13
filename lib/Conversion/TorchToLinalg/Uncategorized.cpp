@@ -1318,34 +1318,54 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 
   if (isa<AtenDequantizeTensorOp, AtenDequantizeSelfOp>(op)) {
     auto value = payloadArgs[0];
+    auto valueTy = value.getType();
     auto qtensor = op->getOperand(0);
     auto qtensorTy = qtensor.getType().cast<ValueTensorType>().getDtype();
     auto makeQTensor =
         qtensor.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>();
     if (!makeQTensor) {
-      qtensor.dump();
-      op->emitError("dequantizing tensor of unknown scale / zeorpoint");
+      op->emitError(
+          "unimplemented: dequantizing tensor of unknown scale / zero-point");
       return nullptr;
     }
 
-    if (torch_to_linalg::isUnsignedTorchType(qtensorTy)) {
-      value = b.create<arith::UIToFPOp>(loc, payloadArgs[1].getType(), value);
-    } else {
-      value = b.create<arith::SIToFPOp>(loc, payloadArgs[1].getType(), value);
+    auto outFpTy = payloadArgs[1].getType();
+    auto outBw = outFpTy.getIntOrFloatBitWidth();
+    auto outIntTy = b.getIntegerType(outBw);
+
+    if (valueTy != outIntTy) {
+      if (torch_to_linalg::isUnsignedTorchType(qtensorTy)) {
+        value = b.create<arith::ExtUIOp>(loc, outIntTy, value);
+      } else {
+        value = b.create<arith::ExtSIOp>(loc, outIntTy, value);
+      }
     }
 
     Value zp = makeQTensor.getZeroPoint();
     zp = converter->materializeTargetConversion(
         b, loc, converter->convertType(zp.getType()),
         makeQTensor.getZeroPoint());
-    zp = b.create<arith::SIToFPOp>(loc, value.getType(), zp);
-    value = b.create<arith::SubFOp>(loc, value, zp);
+    auto zpTy = zp.getType();
+
+    if (zpTy != outIntTy) {
+      zp = b.create<arith::TruncIOp>(loc, outIntTy, zp);
+    }
+
+    value = b.create<arith::SubIOp>(loc, value, zp);
+
+    if (torch_to_linalg::isUnsignedTorchType(qtensorTy)) {
+      value = b.create<arith::UIToFPOp>(loc, outFpTy, value);
+    } else {
+      value = b.create<arith::SIToFPOp>(loc, outFpTy, value);
+    }
 
     Value scale = makeQTensor.getScale();
     scale = converter->materializeTargetConversion(
         b, loc, converter->convertType(scale.getType()),
         makeQTensor.getScale());
-    scale = b.create<arith::TruncFOp>(loc, value.getType(), scale);
+    if (scale.getType() != value.getType()) {
+      scale = b.create<arith::TruncFOp>(loc, value.getType(), scale);
+    }
     value = b.create<arith::MulFOp>(loc, value, scale);
     return value;
   }
