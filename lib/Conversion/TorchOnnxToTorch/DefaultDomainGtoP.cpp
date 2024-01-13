@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
+#include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 using namespace mlir;
@@ -148,6 +149,84 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 		    binder.op, resultType, lhs, rhs);
 		  return success();
 		});
+  patterns.onOp(
+      "MaxPool", 12, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        std::string autoPad;
+        if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "auto_pad bind failure");
+        if (autoPad != "NOTSET")
+          return rewriter.notifyMatchFailure(
+              binder.op, "unsupported conversion: auto_pad != NOTSET");
+
+        Torch::ValueTensorType resultType;
+        Value operand;
+        bool ceilMode;
+        int64_t storageOrder;
+        // TODO: Add support for indices output and storage_order
+        if (binder.tensorOperand(operand) ||
+            binder.s64BoolAttr(ceilMode, "ceil_mode", false) ||
+            binder.s64IntegerAttr(storageOrder, "storage_order", 0) ||
+            binder.tensorResultType(resultType))
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "operand/ceil_mode/storage_order/resultType bind failure");
+        if (storageOrder != 0)
+          return rewriter.notifyMatchFailure(
+              binder.op, "storage_order setting is not supported.");
+        // Determine the rank of input tensor.
+        std::optional<unsigned> maybeRank = Torch::getTensorRank(operand);
+        if (!maybeRank)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Unimplemented: unranked tensor");
+        unsigned rank = *maybeRank;
+
+        SmallVector<int64_t> kernel, padding, strides, dilations;
+        if (binder.s64IntegerArrayAttr(kernel, "kernel_shape", {}))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "kernel_shape bind failure");
+        if (kernel.size() != rank - 2)
+          return rewriter.notifyMatchFailure(
+              binder.op, "kernel list size does not match the number of axes");
+        if (binder.s64IntegerArrayAttr(padding, "pads", {0}))
+          return rewriter.notifyMatchFailure(binder.op, "pads bind failure");
+        if (padding.size() != 1 && padding.size() != rank - 2)
+          return rewriter.notifyMatchFailure(
+              binder.op, "padding list size does not match the number of axes");
+        if (binder.s64IntegerArrayAttr(strides, "strides", {1}))
+          return rewriter.notifyMatchFailure(binder.op, "strides bind failure");
+        if (strides.size() != 1 && strides.size() != rank - 2)
+          return rewriter.notifyMatchFailure(
+              binder.op, "strides list size does not match the number of axes");
+        if (binder.s64IntegerArrayAttr(dilations, "dilations", {}))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "dilations bind failure");
+
+        Value kernelSizeList = createConstantIntList(binder, rewriter, kernel);
+        Value paddingList = createConstantIntList(binder, rewriter, padding);
+        Value stridesList = createConstantIntList(binder, rewriter, strides);
+        Value dilationsList =
+            createConstantIntList(binder, rewriter, dilations);
+        Value cstCeilMode =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), ceilMode);
+
+        if (rank == 3)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Unimplemented: AtenMaxPool1dOp");
+        if (rank == 4) {
+          rewriter.replaceOpWithNewOp<Torch::AtenMaxPool2dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, dilationsList, cstCeilMode);
+          return success();
+        }
+        if (rank == 5) {
+          rewriter.replaceOpWithNewOp<Torch::AtenMaxPool3dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, dilationsList, cstCeilMode);
+          return success();
+        }
+        return rewriter.notifyMatchFailure(binder.op, "No rank is matched.");
+      });
   patterns.onOp("Greater", 16,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
