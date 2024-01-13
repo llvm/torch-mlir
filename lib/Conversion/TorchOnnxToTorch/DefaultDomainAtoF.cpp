@@ -7,8 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 using namespace mlir;
@@ -926,6 +928,83 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                     return failure();
                   rewriter.replaceOpWithNewOp<Torch::AtenErfOp>(
                       binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp("Flatten", 13,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  // Flatten means to partition the input tensor's dimensions
+                  // into a "left range" spanning 0 to axis - 1 and a "right range"
+                  // spanning axis to rank - 1.  Each range is then collapsed
+                  // into a single dimension, resulting in a 2-D tensor.
+                  // If either range is empty, it is replaced with a single
+                  // dimension of size 1.
+                  //
+                  // For example, for a 4-D input tensor of shape (a, b, c, d)
+                  // and axis==2, flatten produces a 2-D tensor of shape
+                  // (a*b, c*d).
+                  //
+                  // If instead axis==0, the left range is empty, and the result
+                  // is (1, a*b*c*d).
+
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  int64_t axis;
+                  if (binder.tensorOperand(operand)
+                      || binder.s64IntegerAttr(axis, "axis", 1)
+                      || binder.tensorResultType(resultType))
+                    return failure();
+
+                  
+                  // If axis is negative, count from the right instead of left
+                  int64_t rank =
+                      cast<Torch::ValueTensorType>(operand.getType()).getSizes().size();
+                  if (axis < 0)
+                    axis = rank + axis;
+
+                  // If the right range is empty, add a dim of size 1 to the
+                  // right side of the shape:
+                  // cr = torch.unsqueeze(x, x.ndim)
+                  Value collapsedRight;
+                  auto baseType = Torch::ValueTensorType::getWithLeastStaticInformation(
+                      binder.op->getContext());
+                  if (axis >= rank) {
+                    Value rankConst = rewriter.create<Torch::ConstantIntOp>(
+                        binder.getLoc(), rewriter.getI64IntegerAttr(rank));
+                    collapsedRight = rewriter.create<Torch::AtenUnsqueezeOp>(
+                        binder.getLoc(), baseType, operand, rankConst);
+                  }
+
+                  // Otherwise, collapse the right range into a single dimension:
+                  // cr = torch._prims.collapse(x, axis, x.ndim - 1)
+                  else {
+                    Value axisConst = rewriter.create<Torch::ConstantIntOp>(
+                        binder.getLoc(), rewriter.getI64IntegerAttr(axis));
+                    Value rankLess1Const = rewriter.create<Torch::ConstantIntOp>(
+                        binder.getLoc(), rewriter.getI64IntegerAttr(rank - 1));
+                    collapsedRight = rewriter.create<Torch::PrimsCollapseOp>(
+                      binder.getLoc(), baseType, operand, axisConst, rankLess1Const);
+                  }
+
+                  // If the left range is empty, add a dim of size 1 to the
+                  // left side of the shape:
+                  // result = torch.unsqueeze(cr, 0)
+                  Value result;
+                  Value zero = rewriter.create<Torch::ConstantIntOp>(
+                      binder.getLoc(), rewriter.getI64IntegerAttr(0));
+                  if (axis <= 0)
+                    result = rewriter.create<Torch::AtenUnsqueezeOp>(
+                        binder.getLoc(), resultType, collapsedRight, zero);
+
+                  // Otherwise, collapse the left range into a single dimension:
+                  // result = torch._prims.collapse(cr, 0, axis - 1)
+                  else {
+                    Value axisLess1Const = rewriter.create<Torch::ConstantIntOp>(
+                        binder.getLoc(), rewriter.getI64IntegerAttr(axis - 1));
+                    result = rewriter.create<Torch::PrimsCollapseOp>(
+                      binder.getLoc(), resultType, collapsedRight, zero, axisLess1Const);
+                  }
+
+                  rewriter.replaceOp(binder.op, result);
                   return success();
                 });
   patterns.onOp("Floor", 13,
