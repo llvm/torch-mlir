@@ -26,6 +26,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
+#include <iostream>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -4067,28 +4068,60 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
         op, "unimplemented: pin_memory must be either None or false");
   }
 
-  int64_t start, step, end;
-  if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)))
-    return rewriter.notifyMatchFailure(
-        op, "unimplemented: value `start` should be a torch constant int");
+  double start, step, end;
+  int64_t start_int, step_int, end_int;
+  bool is_all_inp_int; //Flag to check whether all inputs are integer
+  is_all_inp_int = op.getStart().getType().isa<Torch::IntType>() && op.getEnd().getType().isa<Torch::IntType>() &&  op.getStep().getType().isa<Torch::IntType>();
+  
+  if (matchPattern(op.getStart(), m_TorchConstantInt(&start_int)))
+  {
+    start = (double)(start_int);
+  }
 
-  if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end)))
+  else if(!matchPattern(op.getStart(), m_TorchConstantFloat(&start)))
     return rewriter.notifyMatchFailure(
-        op, "unimplemented: value `end` should be a torch constant int");
+        op, "unimplemented: value `start` should be a torch constant int or float");
 
-  if (!matchPattern(op.getStep(), m_TorchConstantInt(&step)))
+  if (matchPattern(op.getEnd(), m_TorchConstantInt(&end_int)))
+  {
+    end = (double)(end_int);
+  }
+  else if (!matchPattern(op.getEnd(), m_TorchConstantFloat(&end)))
     return rewriter.notifyMatchFailure(
-        op, "unimplemented: value `step` should be a torch constant int");
+        op, "unimplemented: value `end` should be a torch constant int or float");
+
+  if (matchPattern(op.getStep(), m_TorchConstantInt(&step_int)))
+  {    
+    
+    step = (double)(step_int);
+  }
+
+  else if (!matchPattern(op.getStep(), m_TorchConstantFloat(&step)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: value `step` should be a torch constant int or float");
 
   // The result will always be a 1-d tensor.
   // The size of the result is calculated as follows:
   //          ceil((end - start)/step)
-  int64_t resultShape = ceil((float)(end - start) / (float)step);
-  SmallVector<int64_t> values(resultShape, start);
-  for (unsigned i = 1; i < resultShape; i++)
-    values[i] += i * step;
-  Value result =
-      tosa::getConstTensor<int64_t>(rewriter, op, values, resultShape).value();
+  int64_t resultShape = ceil((end - start) / step);
+  Value result;
+  if (is_all_inp_int)
+  {
+    SmallVector<int64_t> values(resultShape, start);
+    for (unsigned i = 1; i < resultShape; i++)
+      values[i] += i * step;
+
+    result = tosa::getConstTensor<int64_t>(rewriter, op, values, resultShape).value();
+  }
+
+  else
+  {
+    SmallVector<float> values(resultShape, start);
+    for (unsigned i = 1; i < resultShape; i++)
+      values[i] += (i * step);
+    
+    result = tosa::getConstTensor<float>(rewriter, op, values, resultShape).value();
+  }
 
   rewriter.replaceOpWithNewOp<tosa::CastOp>(op, resultType, result);
   return success();
