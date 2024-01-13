@@ -28,14 +28,19 @@ using namespace mlir::torch::onnx_c;
 // results in a lot of ONNX test cases that all reduce to the exact same
 // thing here, so we simplify.
 
-//utilities
-// Templatized function to get an item op of a type
+// utilities
+//  Templatized function to get an item op of a type
 namespace {
-  template<typename T> Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter, Value& ofItem);
-  template<typename T> Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter, Value& ofItem) {
-     return rewriter.create<Torch::AtenItemOp>(binder.getLoc(), rewriter.getType<T>(), ofItem);
+template <typename T>
+Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
+                Value &ofItem);
+template <typename T>
+Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
+                Value &ofItem) {
+  return rewriter.create<Torch::AtenItemOp>(binder.getLoc(),
+                                            rewriter.getType<T>(), ofItem);
 }
-}
+} // namespace
 
 void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
     OnnxCustomOpConversionPattern &patterns) {
@@ -1349,32 +1354,36 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
   patterns.onOp(
       "Range", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         // ONNX.Range(start, limit, delta) -- limit is exclusive
-        
+
         Torch::ValueTensorType resultType;
         Value start, limit, delta;
         auto loc = binder.getLoc();
         Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
         if (binder.tensorOperandAtIndex(start, 0) ||
-           binder.tensorOperandAtIndex(limit, 1) ||
-           binder.tensorOperandAtIndex(delta, 2) ||
-           binder.tensorResultType(resultType))
-         return failure();
-        
-        // Convert a 0-dimensional/Scalar Tensor ([]) to Scalar Torch Numeric Value
-        // torch.tensor(1) equivalent in ONNX to 1 as an example
-        // Input type of start, limit, delta can be one of: double, float, int16, int32, int64
-        // Assuming start, limit and delta to be same type (could they be different?)
-        Torch::BaseTensorType startTesorType = start.getType().cast<Torch::BaseTensorType>();
-        bool isFloatDType = startTesorType.getDtype().isF64() || startTesorType.getDtype().isF32();
-        bool isIntDType = startTesorType.getDtype().isInteger(16) || 
+            binder.tensorOperandAtIndex(limit, 1) ||
+            binder.tensorOperandAtIndex(delta, 2) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        // Convert a 0-dimensional/Scalar Tensor ([]) to Scalar Torch Numeric
+        // Value torch.tensor(1.1) equivalent in ONNX to 1.1 as an example
+        // type of start, limit, delta can be one of: double, float, int16,
+        // int32, int64 Assuming start, limit and delta to be same type (could
+        // they be different?)
+        Torch::BaseTensorType startTesorType =
+            start.getType().cast<Torch::BaseTensorType>();
+        bool isFloatDType = startTesorType.getDtype().isF64() ||
+                            startTesorType.getDtype().isF32();
+        bool isIntDType = startTesorType.getDtype().isInteger(16) ||
                           startTesorType.getDtype().isInteger(32) ||
                           startTesorType.getDtype().isInteger(64);
-        if(!isFloatDType && !isIntDType) {
-           return rewriter.notifyMatchFailure(
-               binder.op, "Expected the start, limit, delta to be one of double, float, int16, int32, int64");
+        if (!isFloatDType && !isIntDType) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected the start, limit, delta to be one of "
+                         "double, float, int16, int32, int64");
         }
         Value scalarStart, scalarLimit, scalarDelta;
-        if(isFloatDType) {
+        if (isFloatDType) {
           scalarStart = getItemOp<Torch::FloatType>(binder, rewriter, start);
           scalarLimit = getItemOp<Torch::FloatType>(binder, rewriter, limit);
           scalarDelta = getItemOp<Torch::FloatType>(binder, rewriter, delta);
@@ -1383,8 +1392,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           scalarLimit = getItemOp<Torch::IntType>(binder, rewriter, limit);
           scalarDelta = getItemOp<Torch::IntType>(binder, rewriter, delta);
         }
-        rewriter.replaceOpWithNewOp<Torch::AtenArangeStartStepOp>(binder.op, resultType, 
-              scalarStart, scalarLimit, scalarDelta, none, none, none, none);
+        rewriter.replaceOpWithNewOp<Torch::AtenArangeStartStepOp>(
+            binder.op, resultType, scalarStart, scalarLimit, scalarDelta, none,
+            none, none, none);
         return success();
       });
 }
