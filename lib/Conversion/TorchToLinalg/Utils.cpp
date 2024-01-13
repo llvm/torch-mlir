@@ -559,3 +559,20 @@ FailureOr<Type> torch_to_linalg::getBackendTypeForScalarType(
   }
   return type;
 }
+
+bool torch_to_linalg::isUnsignedTorchType(Type type) {
+  if (auto tty = dyn_cast<ValueTensorType>(type))
+    return isUnsignedTorchType(tty.getDtype());
+  if (isa<mlir::FloatType>(type))
+    return false;
+  if (isa<QInt8Type>(type))
+    return false;
+  if (isa<QUInt8Type>(type))
+    return true;
+  if (isa<QInt32Type>(type))
+    return false;
+  if (auto intTy = dyn_cast<IntegerType>(type))
+    return intTy.isUnsigned();
+  llvm_unreachable("Unknown type checked for signedness");
+  return false;
+}

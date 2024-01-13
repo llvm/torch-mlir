@@ -1316,6 +1316,106 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::XOrIOp>(loc, payloadArgs[0], allOnesVal);
   }
 
+  if (isa<AtenDequantizeTensorOp, AtenDequantizeSelfOp>(op)) {
+    auto value = payloadArgs[0];
+    auto valueTy = value.getType();
+    auto qtensor = op->getOperand(0);
+    auto qtensorTy = qtensor.getType().cast<ValueTensorType>().getDtype();
+    auto makeQTensor =
+        qtensor.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>();
+    if (!makeQTensor) {
+      op->emitError(
+          "unimplemented: dequantizing tensor of unknown scale / zero-point");
+      return nullptr;
+    }
+
+    auto outFpTy = payloadArgs[1].getType();
+    auto outBw = outFpTy.getIntOrFloatBitWidth();
+    auto outIntTy = b.getIntegerType(outBw);
+
+    if (valueTy != outIntTy) {
+      if (torch_to_linalg::isUnsignedTorchType(qtensorTy)) {
+        value = b.create<arith::ExtUIOp>(loc, outIntTy, value);
+      } else {
+        value = b.create<arith::ExtSIOp>(loc, outIntTy, value);
+      }
+    }
+
+    Value zp = makeQTensor.getZeroPoint();
+    zp = converter->materializeTargetConversion(
+        b, loc, converter->convertType(zp.getType()),
+        makeQTensor.getZeroPoint());
+    auto zpTy = zp.getType();
+
+    if (zpTy != outIntTy) {
+      zp = b.create<arith::TruncIOp>(loc, outIntTy, zp);
+    }
+
+    value = b.create<arith::SubIOp>(loc, value, zp);
+
+    if (torch_to_linalg::isUnsignedTorchType(qtensorTy)) {
+      value = b.create<arith::UIToFPOp>(loc, outFpTy, value);
+    } else {
+      value = b.create<arith::SIToFPOp>(loc, outFpTy, value);
+    }
+
+    Value scale = makeQTensor.getScale();
+    scale = converter->materializeTargetConversion(
+        b, loc, converter->convertType(scale.getType()),
+        makeQTensor.getScale());
+    if (scale.getType() != value.getType()) {
+      scale = b.create<arith::TruncFOp>(loc, value.getType(), scale);
+    }
+    value = b.create<arith::MulFOp>(loc, value, scale);
+    return value;
+  }
+
+  if (auto quant = dyn_cast<AtenQuantizePerTensorOp>(op)) {
+    Value value = payloadArgs[0];
+    Value scale = quant.getScale();
+    Value zp = quant.getZeroPoint();
+    auto valueTy = value.getType();
+
+    zp = converter->materializeTargetConversion(
+        b, loc, converter->convertType(zp.getType()), zp);
+    zp = b.create<arith::SIToFPOp>(loc, valueTy, zp);
+
+    scale = converter->materializeTargetConversion(
+        b, loc, converter->convertType(scale.getType()), scale);
+    scale = b.create<arith::TruncFOp>(loc, valueTy, scale);
+
+    value = b.create<arith::DivFOp>(loc, value, scale);
+    value = b.create<math::RoundOp>(loc, value);
+    value = b.create<arith::AddFOp>(loc, value, zp);
+
+    auto destTy = payloadArgs[1].getType();
+    auto bitwidth = destTy.getIntOrFloatBitWidth();
+    bool isUnsigned = torch_to_linalg::isUnsignedTorchType(quant.getType());
+    APInt min = isUnsigned ? APInt::getMinValue(bitwidth)
+                           : APInt::getSignedMinValue(bitwidth);
+    APInt max = isUnsigned ? APInt::getMaxValue(bitwidth)
+                           : APInt::getSignedMaxValue(bitwidth);
+
+    Value minVal = b.create<arith::ConstantOp>(
+        loc, b.getFloatAttr(valueTy, min.getSExtValue()));
+    Value maxVal = b.create<arith::ConstantOp>(
+        loc, b.getFloatAttr(valueTy, max.getSExtValue()));
+    Value minCmp =
+        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT, value, minVal);
+    Value maxCmp =
+        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT, value, maxVal);
+    value = b.create<arith::SelectOp>(loc, minCmp, minVal, value);
+    value = b.create<arith::SelectOp>(loc, maxCmp, maxVal, value);
+
+    if (isUnsigned) {
+      value = b.create<arith::FPToUIOp>(loc, destTy, value);
+    } else {
+      value = b.create<arith::FPToSIOp>(loc, destTy, value);
+    }
+
+    return value;
+  }
+
   op->emitError("unimplemented lowering in "
                 "createLinalgPayloadCalculationForElementwiseOp");
   return nullptr;
@@ -1368,9 +1468,10 @@ public:
              AtenThresholdBackwardOp, AtenHardtanhBackwardOp, AtenCloneOp,
              AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenNegOp,
              AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
-             AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp, AtenTrilOp,
-             AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
-             AtenAtanOp, AtenAcosOp, AtenRealOp, AtenImagOp>(op))
+             AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
+             AtenTrilOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
+             AtenFillTensorOp, AtenAtanOp, AtenAcosOp, AtenRealOp, AtenImagOp,
+             AtenDequantizeSelfOp, AtenDequantizeTensorOp, AtenQuantizePerTensorOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1969,7 +2070,6 @@ public:
       associations.push_back(ReassociationIndices{i});
     }
 
-
     rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(
         op, resultRankedTensorType, adaptor.getA(), associations);
 
@@ -1991,6 +2091,127 @@ public:
                                       .cast<RankedTensorType>();
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
                                                 adaptor.getOperand());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class ConvertLogitOp : public OpConversionPattern<AtenLogitOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenLogitOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Location loc = op->getLoc();
+    Value input = adaptor.getSelf();
+    Value eps = adaptor.getEps();
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    bool handleEps = false;
+    if (succeeded(checkNotNone(rewriter, op, eps)))
+      handleEps = true;
+
+    if (handleEps && !eps.getType().isa<mlir::FloatType>()) {
+      op.emitError("Logit does not support non-floating point type");
+      return failure();
+    }
+
+    auto inputType = input.getType().cast<RankedTensorType>();
+    auto inputElementType = inputType.getElementType();
+
+    if (!inputElementType.isa<mlir::FloatType>()) {
+      op.emitError("Logit does not support non-floating point type");
+      return failure();
+    }
+
+    auto inputRank = inputType.getRank();
+
+    SmallVector<AffineMap> indexingMaps = {
+        rewriter.getMultiDimIdentityMap(inputRank), // input
+        rewriter.getMultiDimIdentityMap(inputRank), // output
+    };
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
+    Value logit =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, input.getType(),
+                /*ins=*/input,
+                /*outs=*/input,
+                /*indexingMaps=*/indexingMaps,
+                /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value input = args[0];
+
+                  TypedAttr oneAttr = b.getFloatAttr(inputElementType, 1.0);
+                  Value oneValue = b.create<arith::ConstantOp>(loc, oneAttr);
+
+                  Value zI;
+                  if (!handleEps) {
+                    zI = input;
+                  } else {
+                    Value truncEps =
+                        b.create<arith::TruncFOp>(loc, inputElementType, eps);
+                    Value oneMinusEps =
+                        b.create<arith::SubFOp>(loc, oneValue, truncEps);
+
+                    Value min =
+                        b.create<arith::MinimumFOp>(loc, input, oneMinusEps);
+                    Value clampedInput =
+                        b.create<arith::MaximumFOp>(loc, min, truncEps);
+
+                    zI = clampedInput;
+                  }
+
+                  Value probability =
+                      b.create<arith::SubFOp>(loc, oneValue, zI);
+                  Value odds = b.create<arith::DivFOp>(loc, zI, probability);
+                  Value result = b.create<math::LogOp>(loc, odds);
+
+                  b.create<linalg::YieldOp>(loc, result);
+                })
+            .getResult(0);
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, logit);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class ConvertAtenIntReprOp : public OpConversionPattern<AtenIntReprOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenIntReprOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    RankedTensorType resultType = getTypeConverter()
+                                      ->convertType(op->getResult(0).getType())
+                                      .cast<RankedTensorType>();
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
+                                                adaptor.getSelf());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class ConvertMakePerTensorQuantizedTensorOp
+    : public OpConversionPattern<Aten_MakePerTensorQuantizedTensorOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(Aten_MakePerTensorQuantizedTensorOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    RankedTensorType resultType = getTypeConverter()
+                                      ->convertType(op->getResult(0).getType())
+                                      .cast<RankedTensorType>();
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
+                                                adaptor.getSelf());
     return success();
   }
 };
@@ -2018,9 +2239,9 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
       AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp,
       AtenAcosOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
-      AtenTrilOp,
-      AtenRemainderScalarOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
-      AtenFillTensorOp, AtenRealOp, AtenImagOp>();
+      AtenTrilOp, AtenRemainderScalarOp, AtenBitwiseNotOp, AtenRoundOp,
+      AtenFillScalarOp, AtenFillTensorOp, AtenRealOp, AtenImagOp,
+      AtenDequantizeSelfOp, AtenDequantizeTensorOp, AtenQuantizePerTensorOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);
@@ -2028,6 +2249,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);
   target.addIllegalOp<AtenBatchNormOp>();
   patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
+  target.addIllegalOp<AtenLogitOp>();
+  patterns.add<ConvertLogitOp>(typeConverter, context);
   target.addIllegalOp<PrimsCollapseOp>();
   patterns.add<ConvertPrimsCollapseOp>(typeConverter, context);
   target.addIllegalOp<PrimsSplitDimOp>();
@@ -2036,4 +2259,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenNllLossBackwardOp>(typeConverter, context);
   patterns.add<ConvertTensorStaticInfoCastOp>(typeConverter, context);
   target.addIllegalOp<TensorStaticInfoCastOp>();
+  patterns.add<ConvertAtenIntReprOp>(typeConverter, context);
+  target.addIllegalOp<AtenIntReprOp>();
+  patterns.add<ConvertMakePerTensorQuantizedTensorOp>(typeConverter, context);
+  target.addIllegalOp<Aten_MakePerTensorQuantizedTensorOp>();
 }

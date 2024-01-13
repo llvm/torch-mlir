@@ -672,7 +672,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         int64_t adjustmentInt =
             cast<Torch::ValueTensorType>(data.getType()).getSizes().size();
         // convert axes (tensor) into torch int list while dealing with neg axis
-        for (int i = 0; i < axes.size(); i++) {
+        for (uint64_t i = 0; i < axes.size(); i++) {
           // Go through the axes list and get each dim in the list
           int64_t dim = axes[i];
           if (dim < 0) {
