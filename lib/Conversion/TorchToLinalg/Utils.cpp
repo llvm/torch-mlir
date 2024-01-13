@@ -573,6 +573,6 @@ bool torch_to_linalg::isUnsignedTorchType(Type type) {
     return false;
   if (auto intTy = dyn_cast<IntegerType>(type))
     return intTy.isUnsigned();
-  assert(false);
+  llvm_unreachable("Unknown type checked for signedness");
   return false;
 }
