@@ -33,9 +33,6 @@ using namespace mlir::torch::onnx_c;
 namespace {
 template <typename T>
 Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
-                Value &ofItem);
-template <typename T>
-Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
                 Value &ofItem) {
   return rewriter.create<Torch::AtenItemOp>(binder.getLoc(),
                                             rewriter.getType<T>(), ofItem);
@@ -1370,13 +1367,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // type of start, limit, delta can be one of: double, float, int16,
         // int32, int64 Assuming start, limit and delta to be same type (could
         // they be different?)
-        Torch::BaseTensorType startTesorType =
+        Torch::BaseTensorType startTensorType =
             start.getType().cast<Torch::BaseTensorType>();
-        bool isFloatDType = startTesorType.getDtype().isF64() ||
-                            startTesorType.getDtype().isF32();
-        bool isIntDType = startTesorType.getDtype().isInteger(16) ||
-                          startTesorType.getDtype().isInteger(32) ||
-                          startTesorType.getDtype().isInteger(64);
+        bool isFloatDType = startTensorType.getDtype().isF64() ||
+                            startTensorType.getDtype().isF32();
+        bool isIntDType = startTensorType.getDtype().isInteger(16) ||
+                          startTensorType.getDtype().isInteger(32) ||
+                          startTensorType.getDtype().isInteger(64);
         if (!isFloatDType && !isIntDType) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected the start, limit, delta to be one of "
