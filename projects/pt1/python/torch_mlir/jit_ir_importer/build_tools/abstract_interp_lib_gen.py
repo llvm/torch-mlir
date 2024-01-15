@@ -226,17 +226,21 @@ def prims〇convert_element_type〡shape(a: List[int], dtype: int) -> List[int]:
 
 def prims〇collapse〡shape(a: List[int], start: int, end: int) -> List[int]:
     # Obtained through trial and error on a few examples in PyTorch:
-    assert start <= len(a), "start out of bounds"
-    assert end <= len(a), "end out of bounds"
+    assert start < len(a), "start out of bounds"
+    assert end < len(a), "end out of bounds"
     assert start >= 0, "start out of bounds"
     assert end >= 0, "end out of bounds"
     assert start <= end, "start must be less than or equal to end"
 
-    # Example: 
+    # Examples: 
     #
     #  torch._prims.collapse(torch.empty(2,3,4), 1,2).shape
     #  is 
     #  torch.Size([2, 12])
+    #
+    #  torch._prims.collapse(torch.empty(2,3,4), 1,3).shape
+    #  gives
+    #  --> 524     assert idx >= 0 and idx < rank or idx == 0
 
     collapsed: List[int] = []
     for i in range(start):
