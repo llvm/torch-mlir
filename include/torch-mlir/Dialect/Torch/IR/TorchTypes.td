@@ -306,6 +306,17 @@ def Torch_QUInt8Type : Torch_Type<"QUInt8", "quint8"> {
   }];
 }
 
+def Torch_QInt32Type : Torch_Type<"QInt32", "qint32"> {
+  let summary = "Type modeling `ScalarType::QInt32`";
+  let description = [{
+    This is intended to be a 1:1 match for the Torch `ScalarType` types.
+
+    Looking at the variety / ad-hocness (e.g. `QUInt4x2`) of that set of
+    types, it is deemed preferable to import them as one-off ad-hoc types
+    instead of a single parameterized type.
+  }];
+}
+
 def Torch_LinearParamsType : Torch_Type<"LinearParams", "LinearParams"> {
   let summary = "Torch packed linear params type";
   let description = [{
