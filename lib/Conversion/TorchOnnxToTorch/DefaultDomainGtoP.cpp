@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
+#include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 using namespace mlir;
@@ -148,6 +149,84 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 		    binder.op, resultType, lhs, rhs);
 		  return success();
 		});
+  patterns.onOp(
+      "MaxPool", 12, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        std::string autoPad;
+        if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "auto_pad bind failure");
+        if (autoPad != "NOTSET")
+          return rewriter.notifyMatchFailure(
+              binder.op, "unsupported conversion: auto_pad != NOTSET");
+
+        Torch::ValueTensorType resultType;
+        Value operand;
+        bool ceilMode;
+        int64_t storageOrder;
+        // TODO: Add support for indices output and storage_order
+        if (binder.tensorOperand(operand) ||
+            binder.s64BoolAttr(ceilMode, "ceil_mode", false) ||
+            binder.s64IntegerAttr(storageOrder, "storage_order", 0) ||
+            binder.tensorResultType(resultType))
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "operand/ceil_mode/storage_order/resultType bind failure");
+        if (storageOrder != 0)
+          return rewriter.notifyMatchFailure(
+              binder.op, "storage_order setting is not supported.");
+        // Determine the rank of input tensor.
+        std::optional<unsigned> maybeRank = Torch::getTensorRank(operand);
+        if (!maybeRank)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Unimplemented: unranked tensor");
+        unsigned rank = *maybeRank;
+
+        SmallVector<int64_t> kernel, padding, strides, dilations;
+        if (binder.s64IntegerArrayAttr(kernel, "kernel_shape", {}))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "kernel_shape bind failure");
+        if (kernel.size() != rank - 2)
+          return rewriter.notifyMatchFailure(
+              binder.op, "kernel list size does not match the number of axes");
+        if (binder.s64IntegerArrayAttr(padding, "pads", {0}))
+          return rewriter.notifyMatchFailure(binder.op, "pads bind failure");
+        if (padding.size() != 1 && padding.size() != rank - 2)
+          return rewriter.notifyMatchFailure(
+              binder.op, "padding list size does not match the number of axes");
+        if (binder.s64IntegerArrayAttr(strides, "strides", {1}))
+          return rewriter.notifyMatchFailure(binder.op, "strides bind failure");
+        if (strides.size() != 1 && strides.size() != rank - 2)
+          return rewriter.notifyMatchFailure(
+              binder.op, "strides list size does not match the number of axes");
+        if (binder.s64IntegerArrayAttr(dilations, "dilations", {}))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "dilations bind failure");
+
+        Value kernelSizeList = createConstantIntList(binder, rewriter, kernel);
+        Value paddingList = createConstantIntList(binder, rewriter, padding);
+        Value stridesList = createConstantIntList(binder, rewriter, strides);
+        Value dilationsList =
+            createConstantIntList(binder, rewriter, dilations);
+        Value cstCeilMode =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), ceilMode);
+
+        if (rank == 3)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Unimplemented: AtenMaxPool1dOp");
+        if (rank == 4) {
+          rewriter.replaceOpWithNewOp<Torch::AtenMaxPool2dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, dilationsList, cstCeilMode);
+          return success();
+        }
+        if (rank == 5) {
+          rewriter.replaceOpWithNewOp<Torch::AtenMaxPool3dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, dilationsList, cstCeilMode);
+          return success();
+        }
+        return rewriter.notifyMatchFailure(binder.op, "No rank is matched.");
+      });
   patterns.onOp("Greater", 16,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -182,7 +261,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                     return failure();
 		  }
 		  Value result = operands[0];
-		  for (int i = 1; i < operands.size(); i++) {
+		  for (uint64_t i = 1; i < operands.size(); i++) {
 		    result = rewriter.create<Torch::AtenMaximumOp>(
 		               binder.getLoc(), resultType, result, operands[i]);
 		  }
@@ -200,7 +279,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                     return failure();
                   }
                   Value result = operands[0];
-                  for (int i = 1; i < operands.size(); i++) {
+                  for (uint64_t i = 1; i < operands.size(); i++) {
                     result = rewriter.create<Torch::AtenMinimumOp>(
                                binder.getLoc(), resultType, result, operands[i]);
                   }
@@ -410,6 +489,49 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
         return failure();
       });
+  patterns.onOp("LayerNormalization", 17,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType Y_type;
+                  Torch::ValueTensorType Mean_type;
+                  Torch::ValueTensorType InvStdDev_type;
+                  Value X;
+                  Value Scale;
+                  Value B;
+                  int64_t axis;
+		  float epsilon;
+                  int64_t stash_type;
+                  if (binder.tensorOperandAtIndex(X, 0) ||
+                      binder.tensorOperandAtIndex(Scale, 1) ||
+                      binder.tensorOperandAtIndex(B, 2) ||
+                      binder.tensorResultTypeAtIndex(Y_type, 0) || 
+		                  binder.tensorResultTypeAtIndex(Mean_type, 1) ||
+                      binder.tensorResultTypeAtIndex(InvStdDev_type, 2) || 
+		                  binder.s64IntegerAttr(axis, "axis", -1) ||
+                      binder.f32FloatAttr(epsilon, "epsilon", 0.00001) ||
+                      binder.s64IntegerAttr(stash_type, "stash_type", 1)) 
+                    return failure(); 
+                  Value constEpsilon = rewriter.create<Torch::ConstantFloatOp>(
+                    binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+                    rewriter.getF64FloatAttr(epsilon));
+                  unsigned rank = 1;
+                  if(std::optional<unsigned> maybeRank = Torch::getTensorRank(X))
+                    rank = *maybeRank;
+                  SmallVector<Value> normalized;
+                  axis = Torch::toPositiveDim(axis, rank);
+                  auto X_type = X.getType().cast<Torch::ValueTensorType>();
+                  ArrayRef<int64_t> X_shape = X_type.getSizes();
+                  for (int64_t n = axis; n < rank ; n++) {                      
+                    normalized.push_back(rewriter.create<Torch::ConstantIntOp>(
+                    binder.getLoc(), rewriter.getI64IntegerAttr(X_shape[n])));
+                  }
+                  Value normalized_shape = rewriter.create<Torch::PrimListConstructOp>(
+                    binder.getLoc(),
+                    Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+                    normalized);
+                  rewriter.replaceOpWithNewOp<Torch::AtenNativeLayerNormOp>(
+                      binder.op, Y_type, Mean_type, InvStdDev_type, X, normalized_shape, Scale, B, constEpsilon);
+                  return success();
+              });
   patterns.onOp("LeakyRelu", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;

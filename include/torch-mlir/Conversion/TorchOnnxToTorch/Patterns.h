@@ -60,7 +60,7 @@ struct OpBinder {
                              int64_t numOperands) {
     if (op->getNumOperands() != numOperands)
       return failure();
-    for (int i = 0; i < numOperands; i++) {
+    for (int64_t i = 0; i < numOperands; i++) {
       Value curr = op->getOperand(i);
       if (!toValidTensorType(curr.getType())) {
         return failure();
@@ -80,7 +80,7 @@ struct OpBinder {
   }
   
   ParseResult tensorOperandsList( llvm::SmallVectorImpl<Value> &values) {
-    for (int i = 0; i < op->getNumOperands(); i++) {
+    for (uint32_t i = 0; i < op->getNumOperands(); i++) {
       values.push_back(op->getOperand(i));
     }
     return success();
@@ -188,6 +188,19 @@ struct OpBinder {
       return success();
     }
     return failure();
+  }
+
+  ParseResult denseElementsAttr(ElementsAttr elementsattr,
+                                StringRef nameSuffix) {
+    SmallString<64> name("torch.onnx.");
+    name.append(nameSuffix);
+    Attribute attr = op->getAttr(name);
+    if (!attr || !isa<ElementsAttr>(attr)) {
+      return failure();
+    }
+
+    elementsattr = cast<ElementsAttr>(attr);
+    return success();
   }
 
   ParseResult customOpNameStringAttr(std::string &value, StringRef nameSuffix,

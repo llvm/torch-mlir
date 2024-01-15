@@ -59,3 +59,4 @@ def register_all_tests():
     from . import return_types
     from . import control_flow
     from . import stats
+    from . import padding

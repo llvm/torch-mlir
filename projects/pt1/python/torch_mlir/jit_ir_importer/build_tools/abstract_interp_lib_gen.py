@@ -141,6 +141,9 @@ def aten〇log10〡shape(self: List[int]) -> List[int]:
 def aten〇log1p〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇logit〡shape(self: List[int], eps: Optional[float] = None) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇rsqrt〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -218,22 +221,41 @@ def aten〇clamp_max〡shape(self: List[int], max: float) -> List[int]:
 def aten〇rsub〇Scalar〡shape(self: List[int], other: float, alpha: float = 1) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇quantize_per_tensor〡shape(self: List[int], scale: float, zero_point: int, dtype: int) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇dequantize〇self〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇dequantize〇tensor〡shape(qtensor: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(qtensor)
+
+def aten〇int_repr〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇_make_per_tensor_quantized_tensor〡shape(self: List[int], scale: float, zero_point: int) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def prims〇convert_element_type〡shape(a: List[int], dtype: int) -> List[int]:
     return upstream_shape_functions.unary(a)
 
 def prims〇collapse〡shape(a: List[int], start: int, end: int) -> List[int]:
     # Obtained through trial and error on a few examples in PyTorch:
-    assert start <= len(a), "start out of bounds"
-    assert end <= len(a), "end out of bounds"
+    assert start < len(a), "start out of bounds"
+    assert end < len(a), "end out of bounds"
     assert start >= 0, "start out of bounds"
     assert end >= 0, "end out of bounds"
     assert start <= end, "start must be less than or equal to end"
 
-    # Example: 
+    # Examples: 
     #
     #  torch._prims.collapse(torch.empty(2,3,4), 1,2).shape
     #  is 
     #  torch.Size([2, 12])
+    #
+    #  torch._prims.collapse(torch.empty(2,3,4), 1,3).shape
+    #  gives
+    #  --> 524     assert idx >= 0 and idx < rank or idx == 0
 
     collapsed: List[int] = []
     for i in range(start):
@@ -1268,6 +1290,15 @@ def pad_shape_fn(input: List[int], pad: List[int]):
 def aten〇constant_pad_nd〡shape(self: List[int], pad: List[int], value: float = 0) -> List[int]:
     return pad_shape_fn(self, pad)
 
+def aten〇replication_pad2d〡shape(self: List[int], padding: List[int]) -> List[int]:
+    assert len(self) >= 2
+    assert len(padding) == 4, 'padding size expected to be 4'
+    return pad_shape_fn(self, padding)
+
+def aten〇replication_pad2d〡dtype(self_rank_dtype: Tuple[int, int], padding: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype    
+    return self_dtype
+
 def aten〇pad〡shape(self: List[int], pad: List[int], mode: str = "constant", value: Optional[float] = None) -> List[int]:
     return pad_shape_fn(self, pad)
 
@@ -1284,6 +1315,30 @@ def aten〇reflection_pad1d〡shape(self: List[int], padding: List[int]) -> List
     padding_left = padding[0]
     padding_right = padding[1]
     assert padding_left < hdim and padding_right < hdim
+    return pad_shape_fn(self, padding)
+
+
+# Padding size must be smaller than corresponding dimension
+@check_shape_function([ErrorInvocation(TensorOfShape(2, 2, 2), padding=[2,2,1,1]),
+                       ErrorInvocation(TensorOfShape(2, 2, 2), padding=[2,1,1,1]),
+                       ErrorInvocation(TensorOfShape(2, 2, 2), padding=[2,1,1,3]),
+                       ErrorInvocation(TensorOfShape(2, 2, 2), padding=[2,1]),
+                       Invocation(TensorOfShape(2, 2, 2), padding=[1,1,1,1]),
+                       ErrorInvocation(TensorOfShape(2, 2, 2), padding=[1,1,2,1]),
+                       ErrorInvocation(TensorOfShape(2, 2, 2), padding=[1,1,2,2])])
+def aten〇reflection_pad2d〡shape(self: List[int], padding: List[int]) -> List[int]:
+    assert len(self) >= 2
+    vdim = self[-2]
+    hdim = self[-1]
+
+    assert len(padding) == 4, 'padding size expected to be 4'
+    padding_left = padding[0]
+    padding_right = padding[1]
+    padding_top = padding[2]
+    padding_bottom = padding[3]
+    assert padding_left < hdim and padding_right < hdim
+    assert padding_top < vdim  and padding_bottom < vdim
+
     return pad_shape_fn(self, padding)
 
 # TODO: upstream this
@@ -1636,6 +1691,11 @@ def aten〇log1p〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     return _get_dtype_of_floating_point_op(self_dtype)
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇logit〡dtype(self_rank_dtype: Tuple[int, int], eps: Optional[float] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return _get_dtype_of_floating_point_op(self_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇rsqrt〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
@@ -1829,6 +1889,11 @@ def aten〇constant_pad_nd〡dtype(self_rank_dtype: Tuple[int, int], pad: List[i
 def aten〇reflection_pad1d〡dtype(self_rank_dtype: Tuple[int, int], padding: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     assert len(padding) == 2, 'padding size expected to be 2'
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(4, 2, 2)], padding=[1,1,1,1]))
+def aten〇reflection_pad2d〡dtype(self_rank_dtype: Tuple[int, int], padding: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
@@ -3919,6 +3984,34 @@ def prims〇squeeze〡dtype(a_rank_dtype: Tuple[int, int], dimensions: List[int]
 def prims〇collapse〡dtype(a_rank_dtype: Tuple[int, int], start: int, end: int) -> int:
     a_rank, a_dtype = a_rank_dtype
     return a_dtype
+
+
+def aten〇quantize_per_tensor〡dtype(self_rank_dtype: Tuple[int, int], scale: float, zero_point: int, dtype: int) -> int:
+    return dtype
+
+def aten〇dequantize〇self〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    return torch.float32
+
+def aten〇dequantize〇tensor〡dtype(qtensor_rank_dtype: Tuple[int, int]) -> int:
+    return torch.float32
+
+def aten〇int_repr〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if (self_dtype == torch.quint8):
+        return torch.uint8
+    if (self_dtype == torch.qint8):
+        return torch.int8
+    return torch.int32
+
+def aten〇_make_per_tensor_quantized_tensor〡dtype(self_rank_dtype: Tuple[int, int], scale: float, zero_point: int) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if (self_dtype == torch.uint8):
+      return torch.quint8
+    if (self_dtype == torch.int8):
+      return torch.qint8
+    return torch.qint32
+
+
 
 
 
