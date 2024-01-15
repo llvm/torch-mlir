@@ -1,10 +1,10 @@
 // RUN: torch-mlir-opt %s -canonicalize | FileCheck %s
 
 // CHECK-LABEL:   func.func @torch.aten.__range_length$fold() -> (!torch.int, !torch.int, !torch.int, !torch.int) {
-// CHECK:           %[[INT1:.*]] = torch.constant.int 1
-// CHECK:           %[[INT2:.*]] = torch.constant.int 2
-// CHECK:           %[[INT3:.*]] = torch.constant.int 3
-// CHECK:           %[[INTM1:.*]] = torch.constant.int -1
+// CHECK-DAG:       %[[INT1:.*]] = torch.constant.int 1
+// CHECK-DAG:       %[[INT2:.*]] = torch.constant.int 2
+// CHECK-DAG:       %[[INT3:.*]] = torch.constant.int 3
+// CHECK-DAG:       %[[INTM1:.*]] = torch.constant.int -1
 // CHECK:           %[[NEG_STEP:.*]] = torch.aten.__range_length %[[INT1]], %[[INT3]], %[[INTM1]] : !torch.int, !torch.int, !torch.int -> !torch.int
 // CHECK:           return %[[INT2]], %[[INT2]], %[[INT1]], %[[NEG_STEP]] : !torch.int, !torch.int, !torch.int, !torch.int
 func.func @torch.aten.__range_length$fold() -> (!torch.int, !torch.int, !torch.int, !torch.int) {
