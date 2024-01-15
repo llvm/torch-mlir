@@ -121,7 +121,8 @@ LogicalResult checkDefaultStrideHelper(Operation *op, PatternRewriter &rewriter,
 // Helper to create a tensor filled with the given scalar. Scalar would be
 // converted the to the element type of the given tensor type.
 Value createInitTensor(PatternRewriter &rewriter, Location loc,
-                       BaseTensorType resultType, Value scalar, Value sizeList);
+                              BaseTensorType resultType, Value scalar,
+                              Value sizeList);
 
 // Helper to create a rank 0 tensor filled with the given `scalar`. `scalar`
 // would be converted to the element type of the given `inputType`.
@@ -130,6 +131,7 @@ Value createRank0Tensor(PatternRewriter &rewriter, Location loc,
 
 LogicalResult getTransposedType(BaseTensorType inType, int64_t dimA,
                                 int64_t dimB, Type &transposedType);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

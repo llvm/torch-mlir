@@ -39,7 +39,7 @@ std::vector<torch::lazy::Shape> compute_shape_div(const at::Tensor& self,
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
-std::vector<torch::lazy::Shape> compute_shape_isinf(const at::Tensor &self) {
+std::vector<torch::lazy::Shape> compute_shape_isinf(const at::Tensor& self) {
   return {Shape(at::kBool, self.sizes().vec())};
 }
 
@@ -431,4 +431,4 @@ std::vector<torch::lazy::Shape> compute_shape_linspace(const at::Scalar & start,
 
 
 }  // namespace lazy
-}  // namespace torch
+} // namespace torch

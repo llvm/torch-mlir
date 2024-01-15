@@ -812,8 +812,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         unsigned rank = *maybeRank;
 
         SmallVector<int64_t> padding, strides, dilations, outputPadding;
-        SmallVector<int64_t> defaultPadding, defaultStrides, defaultDilations,
-            defaultOutputPadding;
+        SmallVector<int64_t> defaultPadding, defaultStrides, defaultDilations, defaultOutputPadding;
         for (unsigned i = 0; i < rank - 2; i++) {
           defaultPadding.push_back(0);
           defaultStrides.push_back(1);

@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
+#include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 using namespace mlir;
@@ -28,8 +29,7 @@ using namespace mlir::torch::onnx_c;
 // thing here, so we simplify.
 void mlir::torch::onnx_c::populateDefaultDomainGtoP(
     OnnxCustomOpConversionPattern &patterns) {
-  patterns.onOp(
-      "HardSigmoid", 6,
+  patterns.onOp("HardSigmoid", 6,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value tensorOperand;
@@ -39,9 +39,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.f32FloatAttr(beta, "beta", 0.5f) ||
             binder.tensorResultType(resultType))
           return failure();
-
-        // HardSigmoid computes the following expression: max(0, min(1, alpha *
-        // x + beta))
+        
+        // HardSigmoid computes the following expression: max(0, min(1, alpha * x + beta))
         Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(alpha));
@@ -52,8 +51,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         // Expression: alpha * x + beta
         Value alpha_x_plus_beta = rewriter.create<Torch::AtenAddScalarOp>(
-            binder.getLoc(), resultType, tensorOperand, constBeta,
-            /*alpha=*/constAlpha);
+            binder.getLoc(), resultType, tensorOperand, constBeta, /*alpha=*/constAlpha);
 
         // Expression: min(1, alpha * x + beta)
         Value constantOne = rewriter.create<Torch::ConstantIntOp>(
@@ -103,7 +101,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
-
+  
   patterns.onOp("LessOrEqual", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -112,9 +110,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.tensorResultType(resultType)) {
                     return failure();
                   }
-                  rewriter.replaceOpWithNewOp<Torch::AtenLeTensorOp>(
+		    rewriter.replaceOpWithNewOp<Torch::AtenLeTensorOp>(
                       binder.op, resultType, lhs, rhs);
-                  return success();
+                              return success();
                 });
   patterns.onOp("Log", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
@@ -129,7 +127,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   return success();
                 });
   patterns.onOp("MatMul", 13,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value lhs, rhs;
                   if (binder.tensorOperands(lhs, rhs) ||
@@ -140,17 +138,95 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   return success();
                 });
   patterns.onOp("Mul", 7,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
+		[](OpBinder binder, ConversionPatternRewriter &rewriter) {
+		  Torch::ValueTensorType resultType;
                   Value lhs, rhs;
                   if (binder.tensorOperands(lhs, rhs) ||
                       binder.tensorResultType(resultType)) {
                     return failure();
                   }
                   rewriter.replaceOpWithNewOp<Torch::AtenMulTensorOp>(
-                      binder.op, resultType, lhs, rhs);
-                  return success();
-                });
+		    binder.op, resultType, lhs, rhs);
+		  return success();
+		});
+  patterns.onOp(
+      "MaxPool", 12, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        std::string autoPad;
+        if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "auto_pad bind failure");
+        if (autoPad != "NOTSET")
+          return rewriter.notifyMatchFailure(
+              binder.op, "unsupported conversion: auto_pad != NOTSET");
+
+        Torch::ValueTensorType resultType;
+        Value operand;
+        bool ceilMode;
+        int64_t storageOrder;
+        // TODO: Add support for indices output and storage_order
+        if (binder.tensorOperand(operand) ||
+            binder.s64BoolAttr(ceilMode, "ceil_mode", false) ||
+            binder.s64IntegerAttr(storageOrder, "storage_order", 0) ||
+            binder.tensorResultType(resultType))
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "operand/ceil_mode/storage_order/resultType bind failure");
+        if (storageOrder != 0)
+          return rewriter.notifyMatchFailure(
+              binder.op, "storage_order setting is not supported.");
+        // Determine the rank of input tensor.
+        std::optional<unsigned> maybeRank = Torch::getTensorRank(operand);
+        if (!maybeRank)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Unimplemented: unranked tensor");
+        unsigned rank = *maybeRank;
+
+        SmallVector<int64_t> kernel, padding, strides, dilations;
+        if (binder.s64IntegerArrayAttr(kernel, "kernel_shape", {}))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "kernel_shape bind failure");
+        if (kernel.size() != rank - 2)
+          return rewriter.notifyMatchFailure(
+              binder.op, "kernel list size does not match the number of axes");
+        if (binder.s64IntegerArrayAttr(padding, "pads", {0}))
+          return rewriter.notifyMatchFailure(binder.op, "pads bind failure");
+        if (padding.size() != 1 && padding.size() != rank - 2)
+          return rewriter.notifyMatchFailure(
+              binder.op, "padding list size does not match the number of axes");
+        if (binder.s64IntegerArrayAttr(strides, "strides", {1}))
+          return rewriter.notifyMatchFailure(binder.op, "strides bind failure");
+        if (strides.size() != 1 && strides.size() != rank - 2)
+          return rewriter.notifyMatchFailure(
+              binder.op, "strides list size does not match the number of axes");
+        if (binder.s64IntegerArrayAttr(dilations, "dilations", {}))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "dilations bind failure");
+
+        Value kernelSizeList = createConstantIntList(binder, rewriter, kernel);
+        Value paddingList = createConstantIntList(binder, rewriter, padding);
+        Value stridesList = createConstantIntList(binder, rewriter, strides);
+        Value dilationsList =
+            createConstantIntList(binder, rewriter, dilations);
+        Value cstCeilMode =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), ceilMode);
+
+        if (rank == 3)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Unimplemented: AtenMaxPool1dOp");
+        if (rank == 4) {
+          rewriter.replaceOpWithNewOp<Torch::AtenMaxPool2dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, dilationsList, cstCeilMode);
+          return success();
+        }
+        if (rank == 5) {
+          rewriter.replaceOpWithNewOp<Torch::AtenMaxPool3dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, dilationsList, cstCeilMode);
+          return success();
+        }
+        return rewriter.notifyMatchFailure(binder.op, "No rank is matched.");
+      });
   patterns.onOp("Greater", 16,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -388,8 +464,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             cstStrides);
-        Value cstFalse =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
         Value cstCeilMode = cstFalse;
         Value cstCountIncludePad = cstFalse;
         Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
@@ -482,7 +557,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                     return failure();
                   }
                   rewriter.replaceOpWithNewOp<Torch::AtenPowTensorTensorOp>(
-                      binder.op, resultType, lhs, rhs);
+                    binder.op, resultType, lhs, rhs);
                   return success();
                 });
 }
