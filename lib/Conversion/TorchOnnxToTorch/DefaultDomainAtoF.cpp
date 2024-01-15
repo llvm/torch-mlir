@@ -591,6 +591,59 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         return success();
       });
   patterns.onOp(
+      "Constant", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        if (binder.tensorResultType(resultType))
+          return failure();
+        auto dtype = resultType.getDtype();
+        Value scalarValue;
+
+        float floatValue;
+        if (binder.op->hasAttr("torch.onnx.value_float") &&
+            !binder.f32FloatAttr(floatValue, "value_float", 0.0)) {
+          auto splatAttr =
+              SplatElementsAttr::get(resultType.toBuiltinTensor().clone(dtype),
+                                     rewriter.getFloatAttr(dtype, floatValue));
+          rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
+              binder.op, resultType, splatAttr);
+          return success();
+        }
+
+        int64_t intValue;
+        if (binder.op->hasAttr("torch.onnx.value_int") &&
+            !binder.s64IntegerAttr(intValue, "value_int", 0)) {
+          auto splatAttr =
+              SplatElementsAttr::get(resultType.toBuiltinTensor().clone(dtype),
+                                     rewriter.getIntegerAttr(dtype, intValue));
+          rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
+              binder.op, resultType, splatAttr);
+          return success();
+        }
+
+        if (ElementsAttr attr = binder.op->getAttr("torch.onnx.value")
+                                    .dyn_cast_or_null<ElementsAttr>()) {
+          rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
+              binder.op, resultType, attr);
+          return success();
+        }
+
+        llvm::SmallVector<int64_t> intValues;
+        if (!binder.s64IntegerArrayAttr(intValues, "value_ints", {}) &&
+            !intValues.empty()) {
+          llvm::SmallVector<APInt> apValues;
+          for (auto intVal : intValues) {
+            apValues.push_back(APInt(dtype.getIntOrFloatBitWidth(), intVal));
+          }
+          auto attr = DenseElementsAttr::get(
+              resultType.toBuiltinTensor().clone(dtype), apValues);
+          rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
+              binder.op, resultType, attr);
+          return success();
+        }
+
+        return failure();
+      });
+  patterns.onOp(
       "Conv", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         std::string autoPad;
         if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
