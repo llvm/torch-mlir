@@ -166,23 +166,38 @@ static LogicalResult createPoolingOp(
 }
 
 namespace {
-template <typename OpTy, int Dim>
+template <typename OpTy>
 class ConvertAtenMaxPoolOp : public OpConversionPattern<OpTy> {
   using OpConversionPattern<OpTy>::OpConversionPattern;
 
 private:
-  LogicalResult writePoolingMax3D(AtenMaxPool3dOp &op,
-                                  typename OpTy::Adaptor &adaptor,
-                                  ConversionPatternRewriter &rewriter,
-                                  TypedAttr &smallestFPValueAttr, Value &self,
-                                  Type &elementType,
-                                  SmallVectorImpl<Value> &kernelSizeIntValues,
-                                  SmallVectorImpl<int64_t> &strideInts,
-                                  SmallVectorImpl<int64_t> &paddingInts,
-                                  SmallVectorImpl<int64_t> &dilationInts,
-                                  bool ceilMode) const {
+  template <typename T> struct DimensionTraits;
+
+  template <> struct DimensionTraits<AtenMaxPool2dOp> {
+    static const int64_t Dim = 2;
+  };
+
+  template <> struct DimensionTraits<AtenMaxPool3dOp> {
+    static const int64_t Dim = 3;
+  };
+
+  static const int64_t Dim = DimensionTraits<OpTy>::Dim;
+
+  LogicalResult createPoolingMax3D(AtenMaxPool3dOp &op, 
+                                   typename OpTy::Adaptor adaptor,
+                                   ConversionPatternRewriter &rewriter,
+                                   SmallVectorImpl<Value> &kernelSizeIntValues,
+                                   SmallVectorImpl<int64_t> &strideInts,
+                                   SmallVectorImpl<int64_t> &paddingInts,
+                                   SmallVectorImpl<int64_t> &dilationInts,
+                                   bool ceilMode) const {
     SmallVector<Value, 5> outTensorShape;
-    
+    Value self = adaptor.getSelf();
+    Type elementType = self.getType().cast<RankedTensorType>().getElementType();
+    TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
+        elementType,
+        APFloat::getInf(elementType.cast<mlir::FloatType>().getFloatSemantics(),
+                        /*Negative=*/true));
     Value initValue =
         rewriter.create<arith::ConstantOp>(op->getLoc(), smallestFPValueAttr);
 
@@ -272,7 +287,6 @@ public:
     const TypeConverter *typeConverter = this->getTypeConverter();
     Value self = adaptor.getSelf();
     int64_t selfRank = self.getType().cast<RankedTensorType>().getRank();
-    // TODO: Add support for Dim + 2 inputs.
 
     if (selfRank != Dim + 2)
       return rewriter.notifyMatchFailure(
@@ -292,15 +306,16 @@ public:
       return rewriter.notifyMatchFailure(op, "invalid pooling parameters");
 
     Type elementType = self.getType().cast<RankedTensorType>().getElementType();
-    TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
-        elementType,
-        APFloat::getInf(elementType.cast<mlir::FloatType>().getFloatSemantics(),
-                        /*Negative=*/true));
 
     if constexpr (Dim == 2) {
       SmallVector<Value, 4> outTensorShape;
       // `maxpool2d` contains the result of maxpool2d operation over the input.
       Value maxPool2d, paddedInput;
+      TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
+          elementType,
+          APFloat::getInf(
+              elementType.cast<mlir::FloatType>().getFloatSemantics(),
+              /*Negative=*/true));
       if (failed(createPoolingOp<linalg::PoolingNchwMaxOp>(
               op, rewriter, self, /*supportNonFPInput=*/true, ceilMode,
               /*dimensionality=*/2, kernelSizeIntValues, strideInts,
@@ -311,9 +326,9 @@ public:
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, maxPool2d);
       return success();
     } else {
-      return writePoolingMax3D(op, adaptor, rewriter, smallestFPValueAttr, self,
-                        elementType, kernelSizeIntValues, strideInts,
-                        paddingInts, dilationInts, ceilMode);
+      return createPoolingMax3D(op, adaptor, rewriter,
+                                kernelSizeIntValues, strideInts, paddingInts,
+                                dilationInts, ceilMode);
     }
   }
 };
@@ -595,16 +610,16 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<AtenMaxPool2dOp>();
   target.addIllegalOp<AtenMaxPool3dOp>();
-  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool2dOp, 2>>(typeConverter,
-                                                         context);
-  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dOp, 3>>(typeConverter,
-                                                         context);
+  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool2dOp>>(typeConverter, context);
+  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dOp>>(typeConverter, context);
 
   target.addIllegalOp<AtenMaxPool2dWithIndicesOp>();
   patterns.add<ConvertAtenMaxPool2dWithIndicesOp>(typeConverter, context);
   target.addIllegalOp<AtenAvgPool1dOp, AtenAvgPool2dOp>();
-  patterns.add<ConvertAtenAvgPoolOp<AtenAvgPool1dOp, linalg::PoolingNcwSumOp, 1>>(
-      typeConverter, context);
-  patterns.add<ConvertAtenAvgPoolOp<AtenAvgPool2dOp, linalg::PoolingNchwSumOp, 2>>(
-      typeConverter, context);
+  patterns
+      .add<ConvertAtenAvgPoolOp<AtenAvgPool1dOp, linalg::PoolingNcwSumOp, 1>>(
+          typeConverter, context);
+  patterns
+      .add<ConvertAtenAvgPoolOp<AtenAvgPool2dOp, linalg::PoolingNchwSumOp, 2>>(
+          typeConverter, context);
 }

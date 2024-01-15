@@ -617,6 +617,38 @@ def aten〇_unsafe_view〡shape(self: List[int], size: List[int]) -> List[int]:
 def aten〇resize_〡shape(self: List[int], size: List[int], memory_format: Optional[int] = None) -> List[int]:
     return size
 
+def _pool3d_shape_check(
+    input: List[int],
+    kD: int,
+    kH: int,
+    kW: int,
+    dD: int,
+    dH: int,
+    dW: int,
+    padD: int,
+    padH: int,
+    padW: int,
+    dilationD: int,
+    dilationH: int,
+    dilationW: int,
+    outputDepth: int,
+    outputHeight: int,
+    outputWidth: int,
+):
+    ndim = len(input)
+
+    assert kD > 0 and kH > 0 and kW > 0
+    assert dD > 0 and dH > 0 and dW > 0
+    assert dilationD > 0 and dilationH > 0 and dilationW > 0
+    assert ndim == 4 or ndim == 5, "pool3d: input dimensions must be 4 or 5"
+    if ndim == 4:
+        assert input[0] != 0 and input[1] != 0 and input[2] != 0 and input[3] != 0
+    else:
+        assert input[0] != 0 and input[1] != 0 and input[2] != 0 and input[3] != 0 and input[4] != 0
+
+    assert kD // 2 >= padD and kW // 2 >= padW and kH // 2 >= padH
+    assert outputDepth >= 1 and outputWidth >= 1 and outputHeight >= 1
+
 def _max_pool3d(
     input: List[int],
     kernel_size: List[int],
@@ -651,9 +683,8 @@ def _max_pool3d(
     ), "max_pool3d: dilation must be either a single int, or a tuple of three ints"
     (dilationD, dilationH, dilationW) = (dilation[0], dilation[0], dilation[0]) if len(dilation) == 1 else (dilation[0], dilation[1], dilation[2])
 
-    assert len(input) == 3 or len(input) == 4
-
-    nbatch = input[-5] if len(input) == 4 else 1
+    assert len(input) == 4 or len(input) == 5
+    nbatch = input[-5] if len(input) == 5 else 1
     nInputPlane = input[-4]
     inputDepth = input[-3]
     inputHeight = input[-2]
@@ -690,6 +721,13 @@ def _max_pool3d(
 def aten〇max_pool2d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0,), dilation: List[int] = (1, 1,), ceil_mode: bool = False) -> List[int]:
     return upstream_shape_functions.max_pool2d(self, kernel_size, stride, padding, dilation, ceil_mode)
 
+@check_shape_function([
+    Invocation(TensorOfShape(3, 6, 10, 10, 10), [2]), # Basic using defaults
+    Invocation(TensorOfShape(3, 6, 10, 10, 10), [4], [2], [2], [2]), # Using single values for each parameter
+    Invocation(TensorOfShape(3, 6, 64, 64, 64), [4, 6, 8], [2, 4, 2], [1, 2, 4], [1, 2, 4]), # Using dimensions should be 
+    ErrorInvocation(TensorOfShape(3, 6, 2, 2, 2), [4]), # Input is too small
+    ErrorInvocation(TensorOfShape(3, 6, 10, 10, 10), [4], [2], [4], [2]), # The following relationship between kernel and padding needs to apply: Kernel size >= 2 * padding size
+])
 def aten〇max_pool3d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0, 0,), dilation: List[int] = (1, 1, 1,), ceil_mode: bool = False) -> List[int]:
     return _max_pool3d(self, kernel_size, stride, padding, dilation, ceil_mode)
 
@@ -746,38 +784,6 @@ def avg_pool2d(input: List[int], kernel_size: List[int], stride: List[int], padd
     return [nInputPlane, outputHeight, outputWidth]
   else:
     return [nbatch, nInputPlane, outputHeight, outputWidth]
-
-def _pool3d_shape_check(
-    input: List[int],
-    kD: int,
-    kH: int,
-    kW: int,
-    dD: int,
-    dH: int,
-    dW: int,
-    padD: int,
-    padH: int,
-    padW: int,
-    dilationD: int,
-    dilationH: int,
-    dilationW: int,
-    outputDepth: int,
-    outputHeight: int,
-    outputWidth: int,
-):
-    ndim = len(input)
-
-    assert kD > 0 and kH > 0 and kW > 0
-    assert dD > 0 and dH > 0 and dW > 0
-    assert dilationD > 0 and dilationH > 0 and dilationW > 0
-    assert ndim == 4 or ndim == 5, "pool3d: input dimensions must be 4 or 5"
-    if ndim == 4:
-        assert input[0] != 0 and input[1] != 0 and input[2] != 0 and input[3] != 0
-    else:
-        assert input[0] != 0 and input[1] != 0 and input[2] != 0 and input[3] != 0 and input[4] != 0
-
-    assert kD // 2 >= padD and kW // 2 >= padW and kH // 2 >= padH
-    assert outputDepth >= 1 and outputWidth >= 1 and outputHeight >= 1
 
 # TODO: This should be upstreamed.
 # See https://github.com/pytorch/pytorch/pull/76889 for an example.
