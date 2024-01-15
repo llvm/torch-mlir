@@ -1158,6 +1158,9 @@ def aten〇conv2d〡shape(input: List[int], weight: List[int], bias: Optional[Li
 def aten〇conv_transpose2d〇input〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1,), padding: List[int] = (0, 0,), output_padding: List[int] = (0, 0,), groups: int = 1, dilation: List[int] = (1, 1,)) -> List[int]:
     return upstream_shape_functions.conv_transpose2d_input(input, weight, bias, stride, padding, output_padding, groups, dilation)
 
+def aten〇conv_tbc〡shape(self: List[int], weight: List[int], bias: List[int], pad: int = 0) -> List[int]:
+    return upstream_shape_functions.conv_forwards(self, weight, bias, stride=[1], padding=[pad], dilation=[], transposed=False, output_padding=[], groups=1, tbc=True)
+
 def aten〇convolution〡shape(input: List[int], weight: List[int], bias: Optional[List[int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int) -> List[int]:
     return upstream_shape_functions.conv_forwards(input, weight, bias, stride, padding, dilation, transposed, output_padding, groups)
 
@@ -2882,6 +2885,16 @@ def aten〇_convolution〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_d
     assert not is_complex_dtype(weight_dtype) and weight_dtype is not torch.bool
     ranks: List[Optional[int]] = [input_rank, weight_rank]
     dtypes = [input_dtype, weight_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+def aten〇conv_tbc〡dtype(self_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Tuple[int, int], pad: int = 0) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    weight_rank, weight_dtype = weight_rank_dtype
+    assert self_dtype == weight_dtype
+    assert not is_complex_dtype(self_dtype) and self_dtype is not torch.bool
+    assert not is_complex_dtype(weight_dtype) and weight_dtype is not torch.bool
+    ranks: List[Optional[int]] = [self_rank, weight_rank]
+    dtypes = [self_dtype, weight_dtype]
     return promote_dtypes(ranks, dtypes)
 
 _convolution_deprecated_kwargs = {
