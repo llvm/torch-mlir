@@ -84,7 +84,7 @@ public:
 namespace {
 
   // Lower aten.replication_pad2d operator into a sequence of
-  // tensor.extract_slice and tensor_insert_slice operations.
+  // tensor.extract_slice and tensor.concat operations.
 
   class ConvertAtenReplicationPad2dOp 
       : public OpConversionPattern<AtenReplicationPad2dOp> {
@@ -126,7 +126,7 @@ namespace {
       enum tileVLoc { TOP = 0, VCENTER = 2, BOTTOM = 1, };
       // vTile denotes the vertical size of the tile
       // hTile denotes the horizontal size of the tile
-      // the padding results are composed of following tiles
+      // The padding results are composed of following tiles:
       // vTile[TOP]hTile[LEFT], vTile[TOP]hTile[HCENTER], vTile[TOP]hTile[RIGHT]
       // vTile[VCENTER]hTile[LEFT], vTile[VCENTER]hTile[HCENTER], vTile[VCENTER]hTile[RIGHT]
       // vTile[BOTTOM]hTile[LEFT], vTile[BOTTOM]hTile[HCENTER], vTile[BOTTOM]hTile[RIGHT]
@@ -171,7 +171,7 @@ namespace {
         }
       }
 
-      //some generic helper functions
+      // Some generic helper functions to aid in constructing basic arithmetic.
       auto createAdd = [&](Value x, Value y) {
         return rewriter.create<arith::AddIOp>(loc, x, y);
       };
@@ -185,7 +185,7 @@ namespace {
         return rewriter.create<arith::SubIOp>(loc, x, y);
       };
 
-      //extract left and right pad tiles
+      // Extract left and right pad tiles.
       Value zero = getConstant(rewriter, loc, 0, indexType);
       Value one = getConstant(rewriter, loc, 1, indexType);
       Value hDimSizeMinusOne = createSub(hDimSize, one);
@@ -282,7 +282,7 @@ namespace {
         if (hasBottomPadding) {
           Value bottomRightValue = rewriter.create<tensor::ExtractOp> (loc, input, ValueRange{zero, zero, vDimSizeMinusOne, hDimSizeMinusOne});
 
-          //pad vCenterRightSlice or vRightTopPaddedSlice at the bottom
+          // Pad vCenterRightSlice or vRightTopPaddedSlice at the bottom.
           SmallVector<int64_t> lowPadding(4, 0);
           SmallVector<int64_t> highPadding(4, 0);
           highPadding[2] = padInts[3];
