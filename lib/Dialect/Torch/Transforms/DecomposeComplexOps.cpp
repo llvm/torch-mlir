@@ -933,6 +933,40 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenIsneginfOp : public OpRewritePattern<AtenIsneginfOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenIsneginfOp op,
+                                PatternRewriter &rewriter) const override {
+    mlir::FloatType f64Type = rewriter.getF64Type();
+    Value inf = rewriter.create<ConstantFloatOp>(
+        op.getLoc(),
+        rewriter.getFloatAttr(
+            f64Type, APFloat::getInf(f64Type.getFloatSemantics(), true)));
+    rewriter.replaceOpWithNewOp<AtenEqScalarOp>(op, op.getType(), op.getSelf(),
+                                                inf);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenIsposinfOp : public OpRewritePattern<AtenIsposinfOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenIsposinfOp op,
+                                PatternRewriter &rewriter) const override {
+    mlir::FloatType f64Type = rewriter.getF64Type();
+    Value inf = rewriter.create<ConstantFloatOp>(
+        op.getLoc(),
+        rewriter.getFloatAttr(f64Type,
+                              APFloat::getInf(f64Type.getFloatSemantics())));
+    rewriter.replaceOpWithNewOp<AtenEqScalarOp>(op, op.getType(), op.getSelf(),
+                                                inf);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenReshapeOp : public OpRewritePattern<AtenReshapeOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -2466,6 +2500,49 @@ public:
     Value selfTensor = createRank0Tensor(rewriter, loc, resType, op.getSelf());
     rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resType, op.getCondition(),
                                                  selfTensor, op.getOther());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenNanToNumOp : public OpRewritePattern<AtenNanToNumOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNanToNumOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    mlir::FloatType f64Type = rewriter.getF64Type();
+    Value nan = op.getNan();
+    Value posinf = op.getPosinf();
+    Value neginf = op.getNeginf();
+    auto baseType =
+        ValueTensorType::getWithLeastStaticInformation(op.getContext());
+    if (dyn_cast_or_null<ConstantNoneOp>(nan.getDefiningOp()))
+      nan = rewriter.create<ConstantFloatOp>(
+          loc, rewriter.getFloatAttr(
+                   f64Type, APFloat::getZero(f64Type.getFloatSemantics())));
+    if (dyn_cast_or_null<ConstantNoneOp>(posinf.getDefiningOp()))
+      posinf = rewriter.create<ConstantFloatOp>(
+          loc, rewriter.getFloatAttr(
+                   f64Type, APFloat::getInf(f64Type.getFloatSemantics())));
+    if (dyn_cast_or_null<ConstantNoneOp>(neginf.getDefiningOp()))
+      neginf = rewriter.create<ConstantFloatOp>(
+          loc,
+          rewriter.getFloatAttr(
+              f64Type, APFloat::getInf(f64Type.getFloatSemantics(), true)));
+    Value isNan =
+        rewriter.create<Torch::AtenIsnanOp>(loc, baseType, op.getSelf());
+    Value where = rewriter.create<Torch::AtenWhereScalarSelfOp>(
+        loc, baseType, isNan, nan, op.getSelf());
+    Value isposinf =
+        rewriter.create<Torch::AtenIsposinfOp>(loc, baseType, where);
+    where = rewriter.create<Torch::AtenWhereScalarSelfOp>(
+        loc, baseType, isposinf, posinf, where);
+    Value isneginf =
+        rewriter.create<Torch::AtenIsneginfOp>(loc, baseType, where);
+    rewriter.replaceOpWithNewOp<Torch::AtenWhereScalarSelfOp>(
+        op, op.getType(), isneginf, neginf, where);
     return success();
   }
 };
@@ -6393,6 +6470,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarOtherOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarSelfOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenNanToNumOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMaskedFillScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSizeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeOp>(patterns);
@@ -6448,6 +6526,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenEyeMOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIsnanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIsinfOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenIsneginfOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenIsposinfOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
