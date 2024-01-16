@@ -1364,27 +1364,24 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               binder.getLoc(), baseType, operand, axisConst, rankLess1Const);
         }
 
-        Value result;
         Value zero = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(0));
 
         if (axis <= 0) {
           // If the left range is empty, add a dim of size 1 to the
           // left side of the shape:
-          // result = torch.unsqueeze(cr, 0)
-          result = rewriter.replaceOpWithNewOp<Torch::AtenUnsqueezeOp>(
+          // torch.unsqueeze(cr, 0)
+          rewriter.replaceOpWithNewOp<Torch::AtenUnsqueezeOp>(
               binder.op, resultType, collapsedRight, zero);
           return success();
         }
 
         // Otherwise, collapse the left range into a single dimension:
-        // result = torch._prims.collapse(cr, 0, axis - 1)
+        // torch._prims.collapse(cr, 0, axis - 1)
         Value axisLess1Const = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(axis - 1));
-        result = rewriter.replaceOpWithNewOp<Torch::PrimsCollapseOp>(
+        rewriter.replaceOpWithNewOp<Torch::PrimsCollapseOp>(
             binder.op, resultType, collapsedRight, zero, axisLess1Const);
-
-        rewriter.replaceOp(binder.op, result);
         return success();
       });
   patterns.onOp("Floor", 13,
