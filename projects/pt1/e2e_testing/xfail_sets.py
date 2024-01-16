@@ -257,6 +257,8 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: Exception: Unsupported: missing default value for argument 0 in schema for aten.div.Tensor_mode
     "ElementwiseDivRoundingModeFloorModule_basic",
     "ElementwiseDivRoundingModeTruncModule_basic",
+    "AdaptiveAvgPool1dStaticLargerOutput_basic",
+    "AdaptiveAvgPool1dGeneralDynamic_basic",
 
     # ERROR: Exception: Unsupported op: get_attr
     "NumToTensorFloatModule_basic",
@@ -309,6 +311,10 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
     "GroupNormModule_basic",
     "GroupNormNoWeightAndBiasModule_basic",
+
+    # Dynamo does not support tracing quantized tensors
+    "ElementwiseDequantizePerTensorModule_basic",
+    "ElementwiseQuantizePerTensorModule_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -474,6 +480,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseAtenWhereSelfModule_basic",
     "ElementwiseWhereScalarOtherStaticModule_basic",
     "ElementwiseWhereScalarSelfStaticModule_basic",
+    "ElementwiseNanToNumModule_Basic",
     "ElementwiseBitwiseAndStaticShapeModule_basic",
     "ElementwiseBitwiseNotInt64Module_basic",
     "ElementwiseBitwiseNotInt32Module_basic",
@@ -1040,6 +1047,17 @@ TOSA_PASS_SET = {
     "ElementwiseAddScalar_TensorLiteralInt32_Module_basic",
     "ElementwiseAtenDivIntScalarModule_basic",
     "ElementwiseAtenIsinfOpModule_basic",
+    "ElementwiseAtenIsneginfOpModule_basic",
+    "ElementwiseAtenIsposinfOpModule_basic",
+    "ElementwiseAtenLogicalOrOpBrodcastModule_basic",
+    "ElementwiseAtenLogicalOrOpDiffArgs1Module_basic",
+    "ElementwiseAtenLogicalOrOpDiffArgs2Module_basic",
+    "ElementwiseAtenLogicalOrOpDiffArgs3Module_basic",
+    "ElementwiseAtenLogicalOrOpModule_basic",
+    "ElementwiseAtenLogicalOrOpNegativeModule_basic",
+    "ElementwiseAtenLogicalOrOpPromoteBroadcastStaticShapeModule_basic",
+    "ElementwiseAtenLogicalOrOpRandomFloatModule_basic",
+    "ElementwiseAtenLogicalOrOpRandomModule_basic",
     "ElementwiseAtenWhereSelfModule_basic",
     "ElementwiseBinaryModule_basic",
     "ElementwiseBinaryStaticShapeModule_basic",
@@ -1052,6 +1070,9 @@ TOSA_PASS_SET = {
     "ElementwiseBitwiseXorModule_basic",
     "ElementwiseBitwiseXorStaticShapeModule_basic",
     "ElementwiseCeilModule_basic",
+    "ElementwiseClampMaxModule_basic",
+    "ElementwiseClampMinModule_basic",
+    "ElementwiseClampModule_basic",
     "ElementwiseCloneChannelsLastMemoryFormatModule_basic",
     "ElementwiseCloneContiguousModule_basic",
     "ElementwiseCloneModule_basic",
@@ -1079,6 +1100,8 @@ TOSA_PASS_SET = {
     "ElementwiseGtIntTensorModule_basic",
     "ElementwiseGtMixed2ScalarModule_basic",
     "ElementwiseIsinfModule_basic",
+    "ElementwiseAtenIsneginfOpModule_basic",
+    "ElementwiseAtenIsposinfOpModule_basic",
     "ElementwiseIsnanModule_basic",
     "ElementwiseLeFloatTensorModule_basic",
     "ElementwiseLeIntTensorModule_basic",
@@ -1135,6 +1158,7 @@ TOSA_PASS_SET = {
     "ElementwiseUnaryModule_basic",
     "ElementwiseUnsqueezeBroadcastModule_basic",
     "ElementwiseWhereScalarModule_basic",
+    "ElementwiseNanToNumModule_Basic",
     "EmbeddingModule1DIndices_basic",
     "EmbeddingModuleI32Static_basic",
     "FlattenRank0Module_basic",
@@ -1331,6 +1355,7 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
 ### Tests additionally passing in make_fx_tosa
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
+    "AdaptiveAvgPool1dStaticEvenMultiple_basic",
     "NativeGroupNormBackwardModule_basic",
     "SliceWholeTensorModule_basic",
     "TensorFloatModule_basic",
@@ -1451,6 +1476,7 @@ LTC_XFAIL_SET = {
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "AtenEmbeddingBagSumExample_basic",
     "Aten_EmbeddingBagExample_basic",
+    "ElementwiseLogitModule_basic",
     "ElementwiseRemainderScalarModule_Int_Float_basic",
     "ElementwiseRemainderScalarModule_Bool_basic",
     "AtenIntTensorByteDtypeModule_basic",
@@ -1466,6 +1492,7 @@ LTC_XFAIL_SET = {
     "VarMeanUnbiasedModule_basic",
     "RandnLikeModule_basic",
     "RandnLikeDtypeModule_basic",
+    "NormalFunctionalModule_basic",
     "BernoulliFloatModule_basic",
     "BernoulliModule_basic",
     "BernoulliPModule_basic",
@@ -1499,4 +1526,7 @@ LTC_XFAIL_SET = {
     "ElementwiseBitwiseAndScalarInt64Module_basic",
     "ElementwiseBitwiseAndScalarInt32Module_basic",
     "ElementwiseBitwiseAndScalarInt8Module_basic",
+    "ElementwiseNanToNumModule_Basic",
+    "ElementwiseQuantizePerTensorModule_basic",
+    "ElementwiseDequantizePerTensorModule_basic"
 }

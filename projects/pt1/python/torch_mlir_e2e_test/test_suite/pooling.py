@@ -11,7 +11,6 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
-
 class AdaptiveAvgPool2dNonUnitOutputSizeStaticModule(torch.nn.Module):
 
     def __init__(self):
@@ -54,7 +53,6 @@ class AdaptiveAvgPool2dNonUnitOutputSizeDynamicModule(torch.nn.Module):
 def AdaptiveAvgPool2dNonUnitOutputSizeDynamicModule_basic(
         module, tu: TestUtils):
     module.forward(tu.rand(1, 512, 7, 7))
-
 
 class AdaptiveAvgPool2dUnitOutputSizeStaticModule(torch.nn.Module):
 
@@ -924,12 +922,71 @@ def AvgPool1dStaticModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class AdaptiveAvgPool1dStaticLargerOutput(torch.nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=13)
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 512, 7], torch.float32, True)
+    ])
+    def forward(self,x):
+        return self.aap1d(x)
+
+@register_test_case(
+    module_factory=lambda: AdaptiveAvgPool1dStaticLargerOutput())
+def AdaptiveAvgPool1dStaticLargerOutput_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(5, 512, 7))
+
+class AdaptiveAvgPool1dStaticEvenMultiple(torch.nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=7)
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 512, 147], torch.float32, True)
+    ])
+    def forward(self,x):
+        return self.aap1d(x)
+
+@register_test_case(
+    module_factory=lambda: AdaptiveAvgPool1dStaticEvenMultiple())
+def AdaptiveAvgPool1dStaticEvenMultiple_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(5, 512, 147))
+
+class AdaptiveAvgPool1dGeneralDynamic(torch.nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=7)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1,-1,-1], torch.float32, True)
+    ])
+    def forward(self,x):
+        return self.aap1d(x)
+
+@register_test_case(
+    module_factory=lambda: AdaptiveAvgPool1dGeneralDynamic())
+def AdaptiveAvgPool1dGeneralDynamic_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(1, 512, 10))
 
 class AdaptiveAvgPool1dNonUnitOutputSizeStaticModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.aap1d = torch.nn.AdaptiveAvgPool1d(7)
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=7)
 
     @export
     @annotate_args([
@@ -949,7 +1006,7 @@ class AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.aap1d = torch.nn.AdaptiveAvgPool1d(7)
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=7)
 
     @export
     @annotate_args([
@@ -969,7 +1026,7 @@ class AdaptiveAvgPool1dUnitOutputSizeStaticModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.aap1d = torch.nn.AdaptiveAvgPool1d(1)
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=1)
 
     @export
     @annotate_args([
@@ -989,7 +1046,7 @@ class AdaptiveAvgPool1dUnitOutputSizeDynamicModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.aap1d = torch.nn.AdaptiveAvgPool1d(1)
+        self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=1)
 
     @export
     @annotate_args([

@@ -339,6 +339,33 @@ def ElementwiseWhereScalarSelfStaticModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseNanToNumModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.float32, True)
+    ])
+    def forward(self, a):
+        return torch.ops.aten.nan_to_num(a, 0.0, 1.0, -1.0)
+
+@register_test_case(module_factory=lambda: ElementwiseNanToNumModule())
+def ElementwiseNanToNumModule_Basic(module, tu: TestUtils):
+    module.forward(torch.tensor(
+        [
+            [float('nan'), 0.0, float('nan'), 0.0],
+            [float('inf'), 0.0, float('inf'), 0.0],
+            [float('-inf'), 0.0, float('-inf'), 0.0]
+        ]
+    ))
+
+
+# ==============================================================================
+
+
 # Addition is an interesting special case of a binary op, because under the hood
 # it carries a third scalar "alpha" parameter, which needs special handling.
 class ElementwiseAddModule(torch.nn.Module):
@@ -1502,6 +1529,28 @@ class ElementwiseLog1pModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseLog1pModule())
 def ElementwiseLog1pModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseLogitModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.logit(a, eps=1e-7)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLogitModule())
+def ElementwiseLogitModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
 
@@ -3441,6 +3490,58 @@ def ElementwiseAtenIsinfOpModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAtenIsneginfOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.isneginf(x)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenIsneginfOpModule())
+def ElementwiseAtenIsneginfOpModule_basic(module, tu:TestUtils):
+    test_input = torch.tensor(
+        [
+            [1, float('-inf'), 2, float('inf'), float('nan')],
+            [1, float('-inf'), float('inf'), float('nan'), 3],
+        ]
+    )
+    module.forward(test_input)
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenIsposinfOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.isposinf(x) 
+
+@register_test_case(module_factory=lambda: ElementwiseAtenIsposinfOpModule())
+def ElementwiseAtenIsposinfOpModule_basic(module, tu:TestUtils):
+    test_input = torch.tensor(
+        [
+            [1, float('-inf'), 2, float('inf'), float('nan')],
+            [1, float('-inf'), float('inf'), float('nan'), 3],
+        ]
+    )
+    module.forward(test_input)
+
+
+# ==============================================================================
+
+
 class ElementwiseAtenLogicalNotOpPromoteModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -4111,6 +4212,52 @@ class ElementwiseBitwiseAndScalarInt8Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseBitwiseAndScalarInt8Module())
 def ElementwiseBitwiseAndScalarInt8Module_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-1000, high=1000).to(torch.int8))
+
+# ==============================================================================
+
+class ElementwiseQuantizePerTensorModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float, True),
+    ])
+    def forward(self, x):
+        scale = 0.04
+        zp = -110
+        dtype = torch.qint8
+        # We return the int representation as we can not map to quint8 type yet on boundaries.
+        q = torch.quantize_per_tensor(x, scale, zp, dtype).int_repr()
+        return q
+
+@register_test_case(module_factory=lambda: ElementwiseQuantizePerTensorModule())
+def ElementwiseQuantizePerTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+class ElementwiseDequantizePerTensorModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int8, True),
+    ])
+    def forward(self, x):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.1, 8)
+        qx = torch.dequantize(qx)
+        return qx
+
+@register_test_case(module_factory=lambda: ElementwiseDequantizePerTensorModule())
+def ElementwiseDequantizePerTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-128, high=127).to(torch.int8))
 
 # ==============================================================================
 
