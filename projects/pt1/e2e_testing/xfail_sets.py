@@ -1484,6 +1484,7 @@ LTC_XFAIL_SET = {
     "VarMeanUnbiasedModule_basic",
     "RandnLikeModule_basic",
     "RandnLikeDtypeModule_basic",
+    "NormalFunctionalModule_basic",
     "BernoulliFloatModule_basic",
     "BernoulliModule_basic",
     "BernoulliPModule_basic",
