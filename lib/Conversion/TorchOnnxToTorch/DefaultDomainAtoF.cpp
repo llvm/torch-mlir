@@ -1341,22 +1341,21 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         if (axis < 0)
           axis = rank + axis;
 
-        // If the right range is empty, add a dim of size 1 to the
-        // right side of the shape:
-        // cr = torch.unsqueeze(x, x.ndim)
         Value collapsedRight;
         auto baseType = Torch::ValueTensorType::getWithLeastStaticInformation(
             binder.op->getContext());
+
         if (axis >= rank) {
+          // If the right range is empty, add a dim of size 1 to the
+          // right side of the shape:
+          // cr = torch.unsqueeze(x, x.ndim)
           Value rankConst = rewriter.create<Torch::ConstantIntOp>(
               binder.getLoc(), rewriter.getI64IntegerAttr(rank));
           collapsedRight = rewriter.create<Torch::AtenUnsqueezeOp>(
               binder.getLoc(), baseType, operand, rankConst);
-        }
-
-        // Otherwise, collapse the right range into a single dimension:
-        // cr = torch._prims.collapse(x, axis, x.ndim - 1)
-        else {
+        } else {
+          // Otherwise, collapse the right range into a single dimension:
+          // cr = torch._prims.collapse(x, axis, x.ndim - 1)
           Value axisConst = rewriter.create<Torch::ConstantIntOp>(
               binder.getLoc(), rewriter.getI64IntegerAttr(axis));
           Value rankLess1Const = rewriter.create<Torch::ConstantIntOp>(
@@ -1365,25 +1364,26 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               binder.getLoc(), baseType, operand, axisConst, rankLess1Const);
         }
 
-        // If the left range is empty, add a dim of size 1 to the
-        // left side of the shape:
-        // result = torch.unsqueeze(cr, 0)
         Value result;
         Value zero = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(0));
-        if (axis <= 0)
-          result = rewriter.create<Torch::AtenUnsqueezeOp>(
-              binder.getLoc(), resultType, collapsedRight, zero);
+
+        if (axis <= 0) {
+          // If the left range is empty, add a dim of size 1 to the
+          // left side of the shape:
+          // result = torch.unsqueeze(cr, 0)
+          result = rewriter.replaceOpWithNewOp<Torch::AtenUnsqueezeOp>(
+              binder.op, resultType, collapsedRight, zero);
+          return success();
+        }
 
         // Otherwise, collapse the left range into a single dimension:
         // result = torch._prims.collapse(cr, 0, axis - 1)
-        else {
           Value axisLess1Const = rewriter.create<Torch::ConstantIntOp>(
               binder.getLoc(), rewriter.getI64IntegerAttr(axis - 1));
-          result = rewriter.create<Torch::PrimsCollapseOp>(
-              binder.getLoc(), resultType, collapsedRight, zero,
+          result = rewriter.replaceOpWithNewOp<Torch::PrimsCollapseOp>(
+              binder.op, resultType, collapsedRight, zero,
               axisLess1Const);
-        }
 
         rewriter.replaceOp(binder.op, result);
         return success();
