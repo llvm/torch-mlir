@@ -100,8 +100,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   rewriter.replaceOpWithNewOp<Torch::AtenLtTensorOp>(
                       binder.op, resultType, lhs, rhs);
                   return success();
-                });
-  
+                }); 
   patterns.onOp("LessOrEqual", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -149,6 +148,18 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 		    binder.op, resultType, lhs, rhs);
 		  return success();
 		});
+  patterns.onOp("NonZero", 13,
+    [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenNonzeroOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
   patterns.onOp(
       "MaxPool", 12, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         std::string autoPad;
