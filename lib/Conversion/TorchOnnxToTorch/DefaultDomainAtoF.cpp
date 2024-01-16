@@ -1379,11 +1379,10 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
         // Otherwise, collapse the left range into a single dimension:
         // result = torch._prims.collapse(cr, 0, axis - 1)
-          Value axisLess1Const = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(axis - 1));
-          result = rewriter.replaceOpWithNewOp<Torch::PrimsCollapseOp>(
-              binder.op, resultType, collapsedRight, zero,
-              axisLess1Const);
+        Value axisLess1Const = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(axis - 1));
+        result = rewriter.replaceOpWithNewOp<Torch::PrimsCollapseOp>(
+            binder.op, resultType, collapsedRight, zero, axisLess1Const);
 
         rewriter.replaceOp(binder.op, result);
         return success();
