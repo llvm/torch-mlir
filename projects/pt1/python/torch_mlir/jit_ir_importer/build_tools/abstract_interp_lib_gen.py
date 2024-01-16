@@ -1159,7 +1159,11 @@ def aten〇conv_transpose2d〇input〡shape(input: List[int], weight: List[int],
     return upstream_shape_functions.conv_transpose2d_input(input, weight, bias, stride, padding, output_padding, groups, dilation)
 
 def aten〇conv_tbc〡shape(self: List[int], weight: List[int], bias: List[int], pad: int = 0) -> List[int]:
-    return upstream_shape_functions.conv_forwards(self, weight, bias, stride=[1], padding=[pad], dilation=[], transposed=False, output_padding=[], groups=1, tbc=True)
+    output_size = upstream_shape_functions.conv_forwards(self, weight, bias, stride=[1], padding=[pad], dilation=[], transposed=False, output_padding=[], groups=1)
+    output_size_tbc = output_size[2:]
+    output_size_tbc.append(output_size[0])
+    output_size_tbc.append(output_size[1])
+    return output_size_tbc
 
 def aten〇convolution〡shape(input: List[int], weight: List[int], bias: Optional[List[int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int) -> List[int]:
     return upstream_shape_functions.conv_forwards(input, weight, bias, stride, padding, dilation, transposed, output_padding, groups)
