@@ -140,30 +140,26 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
       "MatMulInteger", 10,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
-        llvm::SmallVector<Value> operands;
-        if (binder.tensorOperands(operands, 4) ||
+        Value lhs, rhs, lhsZp, rhsZp;
+        if (binder.tensorOperandAtIndex(lhs, 0) ||
+            binder.tensorOperandAtIndex(rhs, 1) ||
             binder.tensorResultType(resultType))
           return failure();
 
-        Value lhs = operands[0];
-        Value rhs = operands[1];
-        Value lhsZp = operands[2];
-        Value rhsZp = operands[3];
-
-        auto lhsTy = dyn_cast<Torch::ValueTensorType>(lhs.getType());
-        auto rhsTy = dyn_cast<Torch::ValueTensorType>(rhs.getType());
-
-        if (!isa<Torch::ValueTensorType>(lhsZp.getType())) {
+        if (binder.tensorOperandAtIndex(lhsZp, 2)) {
           lhsZp = rewriter.create<Torch::ConstantIntOp>(
               binder.getLoc(), rewriter.getType<Torch::IntType>(),
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
         }
 
-        if (!isa<Torch::ValueTensorType>(rhsZp.getType())) {
+        if (binder.tensorOperandAtIndex(rhsZp, 3)) {
           rhsZp = rewriter.create<Torch::ConstantIntOp>(
               binder.getLoc(), rewriter.getType<Torch::IntType>(),
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
         }
+
+        auto lhsTy = dyn_cast<Torch::ValueTensorType>(lhs.getType());
+        auto rhsTy = dyn_cast<Torch::ValueTensorType>(rhs.getType());
 
         if (auto zpTy = dyn_cast<Torch::ValueTensorType>(lhsZp.getType())) {
           for (auto dim : zpTy.getSizes())
