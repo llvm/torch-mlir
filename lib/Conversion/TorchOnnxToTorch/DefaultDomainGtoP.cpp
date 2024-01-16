@@ -136,6 +136,79 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
+  patterns.onOp(
+      "MatMulInteger", 10,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        llvm::SmallVector<Value> operands;
+        if (binder.tensorOperands(operands, 4) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        Value lhs = operands[0];
+        Value rhs = operands[1];
+        Value lhsZp = operands[2];
+        Value rhsZp = operands[3];
+
+        auto lhsTy = dyn_cast<Torch::ValueTensorType>(lhs.getType());
+        auto rhsTy = dyn_cast<Torch::ValueTensorType>(rhs.getType());
+
+        if (!isa<Torch::ValueTensorType>(lhsZp.getType())) {
+          lhsZp = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+        }
+
+        if (!isa<Torch::ValueTensorType>(rhsZp.getType())) {
+          rhsZp = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+        }
+
+        if (auto zpTy = dyn_cast<Torch::ValueTensorType>(lhsZp.getType())) {
+          for (auto dim : zpTy.getSizes())
+            if (dim != 1)
+              return failure();
+          lhsZp = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), lhsZp);
+        }
+
+        if (auto zpTy = dyn_cast<Torch::ValueTensorType>(rhsZp.getType())) {
+          for (auto dim : zpTy.getSizes())
+            if (dim != 1)
+              return failure();
+          rhsZp = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), rhsZp);
+        }
+
+        Value scale = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr(1.0));
+
+        auto q = [&](Type qty) -> Type {
+          if (qty.isSignedInteger(8))
+            return rewriter.getType<Torch::QInt8Type>();
+          if (qty.isUnsignedInteger(8))
+            return rewriter.getType<Torch::QUInt8Type>();
+          if (qty.isSignedInteger(32))
+            return rewriter.getType<Torch::QInt32Type>();
+          return {};
+        };
+
+        Type lhsQTy = rewriter.getType<Torch::ValueTensorType>(
+            lhsTy.getOptionalSizes(), q(lhsTy.getDtype()));
+        Type rhsQTy = rewriter.getType<Torch::ValueTensorType>(
+            rhsTy.getOptionalSizes(), q(rhsTy.getDtype()));
+
+        lhs = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
+            binder.getLoc(), lhsQTy, lhs, scale, lhsZp);
+        rhs = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
+            binder.getLoc(), rhsQTy, rhs, scale, rhsZp);
+
+        rewriter.replaceOpWithNewOp<Torch::AtenMmOp>(binder.op, resultType, lhs,
+                                                     rhs);
+        return success();
+      });
   patterns.onOp("Mul", 7,
 		[](OpBinder binder, ConversionPatternRewriter &rewriter) {
 		  Torch::ValueTensorType resultType;
