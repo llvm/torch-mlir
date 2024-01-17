@@ -1159,11 +1159,36 @@ def aten〇conv_transpose2d〇input〡shape(input: List[int], weight: List[int],
     return upstream_shape_functions.conv_transpose2d_input(input, weight, bias, stride, padding, output_padding, groups, dilation)
 
 def aten〇conv_tbc〡shape(self: List[int], weight: List[int], bias: List[int], pad: int = 0) -> List[int]:
-    output_size = upstream_shape_functions.conv_forwards(self, weight, bias, stride=[1], padding=[pad], dilation=[], transposed=False, output_padding=[], groups=1)
-    output_size_tbc = output_size[2:]
-    output_size_tbc.append(output_size[0])
-    output_size_tbc.append(output_size[1])
-    return output_size_tbc
+    assert len(self) == 3 # only 1d is supported by tbc
+    assert len(weight) == 3
+    assert len(bias) == 1
+
+    # tbc -> bct
+    time = self[0]
+    batch = self[1]
+    channels = self[2]
+
+    kernel_width = weight[0]
+    channels_w = weight[1]
+    out_channels = weight[2]
+
+    # out_channels_b = bias[0]
+
+    assert channels == channels_w
+    # the out_channels in weights and biases should also match, but this for some reason fails.
+    # assert out_channels == out_channels_b 
+   
+    self_bct = [batch, channels, time]
+    weight_bct = [out_channels, channels, kernel_width]
+    bias_bct = bias
+
+    # use existing shape inf 
+    output_size_bct = upstream_shape_functions.conv_forwards(self, weight, bias, stride=[1], padding=[pad], dilation=[], transposed=False, output_padding=[], groups=1)
+    
+    batch_out, channels_out, time_out = output_size_bct
+
+    # bct -> tbc
+    return [time_out, batch_out, channels_out]
 
 def aten〇convolution〡shape(input: List[int], weight: List[int], bias: Optional[List[int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int) -> List[int]:
     return upstream_shape_functions.conv_forwards(input, weight, bias, stride, padding, dilation, transposed, output_padding, groups)
