@@ -348,6 +348,10 @@ public:
       return true;
     };
 
+    Type indexType = rewriter.getIndexType();
+    Value zero = getConstant(rewriter, loc, 0, indexType);
+    Value one = getConstant(rewriter, loc, 1, indexType);
+
     Value input = adaptor.getSelf();
     MLIRContext *context = rewriter.getContext();
     auto inputType = llvm::cast<RankedTensorType>(input.getType());
@@ -362,19 +366,6 @@ public:
     int64_t vDim = numDims - 2;
     Value hDimSize = inputShape[hDim];
     Value vDimSize = inputShape[vDim];
-
-    assert(getHPadArgument(LEFT) < inputType.getShape()[hDim] &&
-           "Left padding too large");
-    assert(getHPadArgument(RIGHT) < inputType.getShape()[hDim] &&
-           "Right padding too large");
-    assert(getVPadArgument(TOP) < inputType.getShape()[vDim] &&
-           "Top padding too large");
-    assert(getVPadArgument(BOTTOM) < inputType.getShape()[vDim] &&
-           "Bottom padding too large");
-
-    Type indexType = rewriter.getIndexType();
-    Value zero = getConstant(rewriter, loc, 0, indexType);
-    Value one = getConstant(rewriter, loc, 1, indexType);
 
     Value tileWidth[3];
     tileWidth[HCENTER] = hDimSize;
@@ -424,9 +415,9 @@ public:
     //     x_n,1 x_n,2 ... x_n,m
     //
     // The padding tile consists of the columns 2, ..., m + 1
-    // of the input in reverse order. The first column gets
-    // skipped because this is the column through which the
-    // reflection happens.
+    // of the input in reverse order. The first columns
+    // gets skipped because this this is the column trough
+    // which the reflection happens.
     //
     //      x_1,m x_1,m-1 ... x_1,2
     //      x_2,m x_1,m-1 ... x_2,2
@@ -437,9 +428,9 @@ public:
     //
     // The tile will be inserted to the left of the copy of the input tensor
     // in the output tensor, i.e. with horizontal offset 0.
-    // The top padding determines the vertical offset.
+    // If amount of top padding determines the vertical offset.
 
-    // Tiles on the diagonal (e.g. (TOP, LEFT)) are reflected through
+    // Tiles tiles on the diagonal (e.g. (TOP, LEFT)) are reflected through
     // two sides, i.e. their columns and rows must be reversed.
 
     // Setup information about the tiles
@@ -491,16 +482,14 @@ public:
           loc, input, extractOffsets, extractShape, allOneStrides);
 
       // Reverse the tile along the horizontal, vertical, or both
-      // dimensions.
+      // dimensions
       auto inputMap = AffineMap::getMultiDimIdentityMap(numDims, context);
-      if (shouldHReflect(horizontalPos)) {
+      if (shouldHReflect(horizontalPos))
         inputMap =
             reflectDim(inputMap, numDims, hDim, getHPadArgument(horizontalPos));
-      }
-      if (shouldVReflect(verticalPos)) {
+      if (shouldVReflect(verticalPos))
         inputMap =
             reflectDim(inputMap, numDims, vDim, getVPadArgument(verticalPos));
-      }
 
       tile = rewriter
                  .create<linalg::GenericOp>(
@@ -511,7 +500,7 @@ public:
                      })
                  .getResult(0);
 
-      // Insert the tile in the resultTensor.
+      // Insert the tile in the resultTensor
       SmallVector<Value> insertOffsets(numDims, zero);
       insertOffsets[hDim] = insertHOffset[horizontalPos];
       insertOffsets[vDim] = insertVOffset[verticalPos];

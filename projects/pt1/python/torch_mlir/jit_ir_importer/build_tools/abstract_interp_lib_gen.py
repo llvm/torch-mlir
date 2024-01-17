@@ -1333,8 +1333,6 @@ def aten〇reflection_pad1d〡shape(self: List[int], padding: List[int]) -> List
 # Padding size must be smaller than corresponding dimension
 @check_shape_function([ErrorInvocation(TensorOfShape(2, 2, 2), padding=[2,2,1,1]),
                        ErrorInvocation(TensorOfShape(2, 2, 2), padding=[2,1,1,1]),
-                       ErrorInvocation(TensorOfShape(2, 2, 2), padding=[2,1,1,3]),
-                       ErrorInvocation(TensorOfShape(2, 2, 2), padding=[2,1]),
                        Invocation(TensorOfShape(2, 2, 2), padding=[1,1,1,1]),
                        ErrorInvocation(TensorOfShape(2, 2, 2), padding=[1,1,2,1]),
                        ErrorInvocation(TensorOfShape(2, 2, 2), padding=[1,1,2,2])])
@@ -1342,8 +1340,6 @@ def aten〇reflection_pad2d〡shape(self: List[int], padding: List[int]) -> List
     assert len(self) >= 2
     vdim = self[-2]
     hdim = self[-1]
-
-    assert len(padding) == 4, 'padding size expected to be 4'
     padding_left = padding[0]
     padding_right = padding[1]
     padding_top = padding[2]
@@ -1903,9 +1899,18 @@ def aten〇reflection_pad1d〡dtype(self_rank_dtype: Tuple[int, int], padding: L
     assert len(padding) == 2, 'padding size expected to be 2'
     return self_dtype
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(4, 2, 2)], padding=[1,1,1,1]))
+@check_dtype_function([ErrorInvocation(TensorOfShape(2, 3, 4), padding=1),
+                       ErrorInvocation(TensorOfShape(2, 3, 4), padding=[]),
+                       ErrorInvocation(TensorOfShape(2, 3, 4), padding=[2]),
+                       ErrorInvocation(TensorOfShape(2, 3, 4), padding=[2,1]),
+                       ErrorInvocation(TensorOfShape(2, 3, 4), padding=[3,2,1]),
+                       Invocation(TensorOfShape(5, 5, 4), padding=[1,2,3,4]),
+                       ErrorInvocation(TensorOfShape(2, 3, 4), padding=[5,4,3,2,1])])
 def aten〇reflection_pad2d〡dtype(self_rank_dtype: Tuple[int, int], padding: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
+
+    assert len(padding) == 4, 'padding size expected to be 4'
+
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
