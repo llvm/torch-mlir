@@ -761,3 +761,23 @@ class UpSampleNearest2dSameFactor(torch.nn.Module):
 @register_test_case(module_factory=lambda: UpSampleNearest2dSameFactor())
 def UpSampleNearest2dStaticFactor_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4, 4))
+
+
+class ConvTbcModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    # shapes from https://github.com/pytorch/pytorch/blob/3e8c8ce37bbfaafa8581fb48506c0a70ea54463d/test/nn/test_convolution.py#L623
+    @export
+    @annotate_args([
+        None,
+        ([9, 4, 5], torch.float32, True),
+        ([3, 5, 6], torch.float32, True),
+        ([6], torch.float32, True),
+    ])
+    def forward(self, x, weight, bias):
+        return self.conv_tbc(x, weight, bias)
+    
+@register_test_case(module_factory=lambda: ConvTbcModule())
+def ConvTbcModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(9, 4, 5), tu.rand(3, 5, 6), tu.rand(6))
