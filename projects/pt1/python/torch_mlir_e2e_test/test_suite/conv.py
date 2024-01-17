@@ -776,7 +776,7 @@ class ConvTbcModule(torch.nn.Module):
         ([6], torch.float32, True),
     ])
     def forward(self, x, weight, bias):
-        return self.conv_tbc(x, weight, bias)
+        return torch.conv_tbc(x, weight, bias)
     
 @register_test_case(module_factory=lambda: ConvTbcModule())
 def ConvTbcModule_basic(module, tu: TestUtils):
