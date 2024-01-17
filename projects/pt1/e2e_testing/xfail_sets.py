@@ -1186,6 +1186,7 @@ TOSA_PASS_SET = {
     "MaskedFillScalarIntValueStaticModule_basic",
     "MaskedFillTensorIntValueStaticModule_basic",
     "Matmul4dStatic_basic",
+    "MatmulStaticBroadcast_basic",
     "Matmul_3d",
     "Matmul_dot",
     "MaxPool2dEmptyStrideStaticModule_basic",
@@ -1360,6 +1361,8 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
 
     # Dynamic shape, has extra unsupported broadcast ops
     "Matmul_3d",
+    # failed to legalize operation 'torch.aten.broadcast_to' that was explicitly marked illegal
+    "MatmulStaticBroadcast_basic",
 
     # failed to legalize operation 'torch.aten.max_pool2d_with_indices
     "MaxPool2dEmptyStrideStaticModule_basic",
