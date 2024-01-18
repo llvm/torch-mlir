@@ -44,7 +44,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
                   auto scaleTy = scale.getType().dyn_cast<Torch::ValueTensorType>();
                   if (!scaleTy || !scaleTy.hasSizes()) return rewriter.notifyMatchFailure(binder.op, "requires known rank");
-                  if (!resultType.hasDtype()) return rewriter.notifyMatchFailure(binder.op, "requires known resulty dtype");
+                  if (!resultType.hasDtype())
+                    return rewriter.notifyMatchFailure(
+                        binder.op, "requires known result dtype");
 
                   if (scaleTy.getSizes().size() == 0) {
                     Type qTy = resultType.getDtype();
