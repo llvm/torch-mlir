@@ -1175,7 +1175,7 @@ def aten〇conv_tbc〡shape(self: List[int], weight: List[int], bias: List[int],
     # out_channels_b = bias[0]
 
     assert channels == channels_w
-    # the out_channels in weights and biases should also match, but this for some reason fails.
+    # the out_channels in weights and biases should also match, but this assert doesn't work because typing problems
     # assert out_channels == out_channels_b 
    
     self_bct = [batch, channels, time]
