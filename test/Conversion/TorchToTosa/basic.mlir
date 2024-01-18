@@ -261,6 +261,34 @@ func.func @test_reduce_sum_dims$basic(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !
 
 // -----
 
+// CHECK-LABEL:   func.func @test_linalg_vector_norm$basic(
+// CHECK-SAME:                          %[[ARG0:.*]]: !torch.vtensor<[3,151,64],f32>) -> !torch.vtensor<[3,151,1],f32> {
+// CHECK:           %[[ARG0_BUILTIN:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[3,151,64],f32> -> tensor<3x151x64xf32>
+// CHECK:           %[[ARG1:.*]] = torch.constant.float 2.000000e+00
+// CHECK:           %[[ARG2:.*]] = torch.constant.int -1
+// CHECK:           %[[ARG3:.*]] = torch.constant.bool true
+// CHECK:           %[[ARG4:.*]] = torch.constant.none
+// CHECK:           %[[ARG5:.*]] = torch.prim.ListConstruct %[[ARG2]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[ARG6:.*]] = "tosa.const"() <{value = dense<2.000000e+00> : tensor<f32>}> : () -> tensor<f32>
+// CHECK:           %[[ARG7:.*]] = tosa.abs %[[ARG0_BUILTIN]] : (tensor<3x151x64xf32>) -> tensor<3x151x64xf32>
+// CHECK:           %[[ARG8:.*]] = tosa.pow %[[ARG7]], %[[ARG6]] : (tensor<3x151x64xf32>, tensor<f32>) -> tensor<3x151x64xf32>
+// CHECK:           %[[ARG9:.*]] = tosa.reduce_sum %[[ARG8]] {axis = 2 : i32} : (tensor<3x151x64xf32>) -> tensor<3x151x1xf32>
+// CHECK:           %[[ARG10:.*]] = tosa.reciprocal %[[ARG6]] : (tensor<f32>) -> tensor<f32>
+// CHECK:           %[[ARG11:.*]] = tosa.pow %[[ARG9]], %[[ARG10]] : (tensor<3x151x1xf32>, tensor<f32>) -> tensor<3x151x1xf32>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[ARG11]] : tensor<3x151x1xf32> -> !torch.vtensor<[3,151,1],f32>
+// CHECK:           return %[[RESULT]] : !torch.vtensor<[3,151,1],f32>
+func.func @test_linalg_vector_norm$basic(%arg0: !torch.vtensor<[3,151,64],f32>) -> (!torch.vtensor<[3,151,1],f32>) {
+  %float2.000000e00 = torch.constant.float 2.000000e+00
+  %int-1 = torch.constant.int -1
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %1 = torch.prim.ListConstruct %int-1 : (!torch.int) -> !torch.list<int>
+  %2 = torch.aten.linalg_vector_norm %arg0, %float2.000000e00, %1, %true, %none : !torch.vtensor<[3,151,64],f32>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[3,151,1],f32>
+  return %2 : !torch.vtensor<[3,151,1],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @test_reduce_sum$basic(
 // CHECK-SAME:                                %[[ARG0:.*]]: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[1],f32> {
 // CHECK:           %[[ARG0_BUILTIN:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?,?,?],f32> -> tensor<?x?x?x?xf32>

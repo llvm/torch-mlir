@@ -106,6 +106,12 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
                     RankedTensorType output_type, Value input_value,
                     ElementsAttr axes_elems, bool keep_dims);
 
+// Lowers LinalgVectorNorm to a sequence of TOSA ops.
+std::optional<Value>
+convertLinalgVectorNormOp(PatternRewriter &rewriter, Operation *op,
+                          RankedTensorType output_type, Value input_value,
+                          ElementsAttr axes_elems, bool keep_dims);
+
 } // namespace tosa
 } // namespace mlir
 

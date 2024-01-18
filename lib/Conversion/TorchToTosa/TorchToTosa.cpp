@@ -5089,6 +5089,8 @@ public:
                                       mlir::tosa::convertReduceMeanOp)
     INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenSumDimIntListOp,
                                       mlir::tosa::convertReduceSumOp)
+    INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenLinalgVectorNormOp,
+                                      mlir::tosa::convertLinalgVectorNormOp)
 #undef INSERT_NDIMS_REDUCTION_OP_PATTERN
 
 #define INSERT_ONEDIM_REDUCTION_OP_PATTERN(AtenOp, ConversionFunc)             \
