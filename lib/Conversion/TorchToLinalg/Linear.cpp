@@ -553,7 +553,7 @@ public:
       op, "unimplemented: aten::conv_tbc lowering not implemented because conv1d not implemented");
   }
 
-} //class
+}; //class
 } //namespace
 namespace {
 class ConvertAtenConvolutionOp : public OpConversionPattern<AtenConvolutionOp> {
