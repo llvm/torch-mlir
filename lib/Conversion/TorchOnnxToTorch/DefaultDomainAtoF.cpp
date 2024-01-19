@@ -1156,6 +1156,59 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.op, resultType, transposedInput, reshapeSizesList);
         return success();
       });
+  patterns.onOp(
+      "DequantizeLinear", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        llvm::SmallVector<Value> operands;
+        if (binder.tensorOperands(operands, 3) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        Value operand = operands[0];
+        Value scale = operands[1];
+        Value zeropoint = operands[2];
+
+        auto operandTy = operand.getType().cast<Torch::ValueTensorType>();
+
+        auto scaleTy = scale.getType().dyn_cast<Torch::ValueTensorType>();
+        if (!scaleTy || !scaleTy.hasSizes())
+          return rewriter.notifyMatchFailure(binder.op, "requires known rank");
+        if (!resultType.hasDtype())
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "requires known resulty dtype");
+
+        if (scaleTy.getSizes().size() == 0) {
+          Type qTy = operandTy.getDtype();
+
+          if (qTy.isUnsignedInteger(8)) {
+            qTy = rewriter.getType<Torch::QUInt8Type>();
+          } else if (qTy.isSignedInteger(8)) {
+            qTy = rewriter.getType<Torch::QInt8Type>();
+          } else if (qTy.isSignedInteger(32)) {
+            qTy = rewriter.getType<Torch::QInt32Type>();
+          } else {
+            return rewriter.notifyMatchFailure(binder.op,
+                                               "unsupported result dtype");
+          }
+
+          auto qTensorTy = rewriter.getType<Torch::ValueTensorType>(
+              resultType.getOptionalSizes(), qTy);
+          scale = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::FloatType>(), scale);
+          zeropoint = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), zeropoint);
+
+          auto quantize =
+              rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
+                  binder.getLoc(), qTensorTy, operand, scale, zeropoint);
+          rewriter.replaceOpWithNewOp<Torch::AtenDequantizeSelfOp>(
+              binder.op, resultType, quantize);
+          return success();
+        }
+
+        return failure();
+      });
   patterns.onOp("Div", 14,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;

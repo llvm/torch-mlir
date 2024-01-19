@@ -605,3 +605,24 @@ class RandnLikeDtypeModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: RandnLikeDtypeModule())
 def RandnLikeDtypeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(256, 1024).double())
+# ==============================================================================
+
+class NormalFunctionalModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float64, True),
+    ])
+    def forward(self, x):
+        a = torch.ops.aten.normal_functional(x, mean=-5.0, std=2.0)
+        mean = torch.mean(a)
+        std = torch.std(a)
+        return mean, std
+
+
+@register_test_case(module_factory=lambda: NormalFunctionalModule())
+def NormalFunctionalModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2048, 4096).double())
