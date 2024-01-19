@@ -596,7 +596,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         if (binder.tensorResultType(resultType))
           return failure();
         auto dtype = resultType.getDtype();
-        Value scalarValue;
 
         float floatValue;
         if (binder.op->hasAttr("torch.onnx.value_float") &&
