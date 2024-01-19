@@ -2590,12 +2590,56 @@ public:
 };
 } // namespace
 
+// Decompose aten.conv1d to aten.convolution
+namespace {
+class DecomposeAtenConv1dOp : public OpRewritePattern<AtenConv1dOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenConv1dOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Value emptyList = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        SmallVector<Value>());
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
+        op, op->getResultTypes(), op.getInput(), op.getWeight(), op.getBias(),
+        op.getStride(), op.getPadding(), op.getDilation(), cstFalse, emptyList,
+        op.getGroups());
+
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.conv2d to aten.convolution
 namespace {
 class DecomposeAtenConv2dOp : public OpRewritePattern<AtenConv2dOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenConv2dOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Value emptyList = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        SmallVector<Value>());
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
+        op, op->getResultTypes(), op.getInput(), op.getWeight(), op.getBias(),
+        op.getStride(), op.getPadding(), op.getDilation(), cstFalse, emptyList,
+        op.getGroups());
+
+    return success();
+  }
+};
+} // namespace
+
+// Decompose aten.conv3d to aten.convolution
+namespace {
+class DecomposeAtenConv3dOp : public OpRewritePattern<AtenConv3dOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenConv3dOp op,
                                 PatternRewriter &rewriter) const override {
 
     Value emptyList = rewriter.create<PrimListConstructOp>(

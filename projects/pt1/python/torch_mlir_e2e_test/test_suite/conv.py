@@ -762,6 +762,28 @@ class UpSampleNearest2dSameFactor(torch.nn.Module):
 def UpSampleNearest2dStaticFactor_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4, 4))
 
+class Conv1dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 1], torch.float32, True),
+        ([1, 1, 1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.conv1d(inputVec,
+                                     weight,
+                                     bias=None,
+                                     stride=[1],
+                                     padding=[0],
+                                     dilation=[1],
+                                     transposed=False,
+                                     output_padding=[0],
+                                     groups=1)
+
+
 
 class ConvTbcModule(torch.nn.Module):
     def __init__(self):

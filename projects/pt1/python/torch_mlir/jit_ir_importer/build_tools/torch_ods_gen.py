@@ -407,6 +407,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::mv : (Tensor, Tensor) -> (Tensor)")
     emit("aten::cosine_similarity : (Tensor, Tensor, int, float) -> (Tensor)")
     emit(
+        "aten::conv3d : (Tensor, Tensor, Tensor?, int[], int[], int[], int) -> (Tensor)"
+    )
+    emit(
         "aten::conv2d : (Tensor, Tensor, Tensor?, int[], int[], int[], int) -> (Tensor)"
     )
     emit(
