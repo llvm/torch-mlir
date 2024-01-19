@@ -782,6 +782,48 @@ class Conv1dModule(torch.nn.Module):
                                      transposed=False,
                                      output_padding=[0],
                                      groups=1)
+    
+class Conv2dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 1, 1], torch.float32, True),
+        ([1, 1, 1, 1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.conv2d(inputVec,
+                                     weight,
+                                     bias=None,
+                                     stride=[1, 1],
+                                     padding=[0, 0],
+                                     dilation=[1, 1],
+                                     transposed=False,
+                                     output_padding=[0, 0],
+                                     groups=1)
+
+class Conv3dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 1, 1, 1], torch.float32, True),
+        ([1, 1, 1, 1, 1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.conv3d(inputVec,
+                                     weight,
+                                     bias=None,
+                                     stride=[1, 1, 1],
+                                     padding=[0, 0, 0],
+                                     dilation=[1, 1, 1],
+                                     transposed=False,
+                                     output_padding=[0, 0, 0],
+                                     groups=1)
 
 
 
