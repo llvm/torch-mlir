@@ -808,18 +808,22 @@ public:
     weightSliceSizes.append(weightDims);
 
     Value conv;
-    // TODO: factor out the 
+    // the code so far is able to respect all numSpacialDims
+    // the code below this point is numSpacialDims specific and groupSize specific
+    // TODO: factor out the above code into a helper function, and then separate convolution into:
+    // - grouped 1d-3d
+    // - ungrouped 1d-3d
     if (groupSize == 1) {
       // TODO: 3D case
       switch (numSpacialDims) {
-      // case 1:
-      //   conv = rewriter
-      //              .create<linalg::Conv1DNcwFcwOp>(
-      //                  loc, outputTensor.getType(),
-      //                  ValueRange{paddedInput, weight}, outputTensor,
-      //                  stridesAttr, dilationAttr)
-      //              .getResult(0);
-      //   break;
+      case 1:
+        conv = rewriter
+                   .create<linalg::Conv1DNcwFcwOp>(
+                       loc, outputTensor.getType(),
+                       ValueRange{paddedInput, weight}, outputTensor,
+                       stridesAttr, dilationAttr)
+                   .getResult(0);
+        break;
       case 2:
         conv =
             rewriter
@@ -828,14 +832,14 @@ public:
                     outputTensor, stridesAttr, dilationAttr)
                 .getResult(0);
         break;
-      // case 3:
-      //   conv =
-      //       rewriter
-      //           .create<linalg::Conv3DNcdhwFcdhwOp>(
-      //               loc, outputTensor.getType(), ValueRange{paddedInput, weight},
-      //               outputTensor, stridesAttr, dilationAttr)
-      //           .getResult(0);
-      //   break;
+      case 3:
+        conv =
+            rewriter
+                .create<linalg::Conv3DNcdhwFcdhwOp>(
+                    loc, outputTensor.getType(), ValueRange{paddedInput, weight},
+                    outputTensor, stridesAttr, dilationAttr)
+                .getResult(0);
+        break;
       default:
         return rewriter.notifyMatchFailure(
             op, "unimplemented: only 1D, 2D, and 3D convolution supported");
