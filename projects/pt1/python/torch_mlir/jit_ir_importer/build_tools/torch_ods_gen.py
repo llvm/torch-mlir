@@ -290,6 +290,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::logical_xor : (Tensor, Tensor) -> (Tensor)",
             "aten::logical_not : (Tensor) -> (Tensor)",
             "aten::lerp.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)",
+            "aten::lerp.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)",
             "aten::eq.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::gt.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::ge.Tensor : (Tensor, Tensor) -> (Tensor)",

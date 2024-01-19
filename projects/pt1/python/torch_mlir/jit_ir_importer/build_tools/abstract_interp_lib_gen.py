@@ -1191,6 +1191,9 @@ def aten〇nan_to_num〡shape(self: List[int], nan: Optional[float] = None, posi
 def aten〇lerp〇Tensor〡shape(self: List[int], end: List[int], weight: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, upstream_shape_functions.broadcast(end, weight))
 
+def aten〇lerp〇Scalar〡shape(self: List[int], end: List[int], weight: float) -> List[int]:
+    return upstream_shape_functions.broadcast(self, end)
+
 def aten〇addcmul〡shape(self: List[int], tensor1: List[int], tensor2: List[int], value: float = 1) -> List[int]:
     return upstream_shape_functions.broadcast(self, upstream_shape_functions.broadcast(tensor1, tensor2))
 
@@ -3185,6 +3188,27 @@ def aten〇lerp〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], end_rank_dtyp
 
     ranks: List[Optional[int]] = [self_rank, end_rank, weight_rank]
     dtypes = [self_dtype, end_dtype, weight_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1)], weight=0.5) +
+    # Different width
+    [Invocation(TensorOfShape(4, 3, dtype=torch.float32),
+                TensorOfShape(4, 3, dtype=torch.float64),
+                weight=0.5),
+     # Different type
+     Invocation(TensorOfShape(4, 3, dtype=torch.int32),
+                TensorOfShape(4, 3, dtype=torch.float32),
+                weight=0.5),
+     Invocation(TensorOfShape(4, 3, dtype=torch.float32),
+                TensorOfShape(4, 3, dtype=torch.float32),
+                weight=2)])
+def aten〇lerp〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], end_rank_dtype: Tuple[int, int], weight: Union[int, float, complex]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    end_rank, end_dtype = end_rank_dtype
+
+    ranks: List[Optional[int]] = [self_rank, end_rank, None]
+    dtypes = [self_dtype, end_dtype, get_dtype_of_scalar(weight)]
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
