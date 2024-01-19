@@ -241,17 +241,21 @@ def prims〇convert_element_type〡shape(a: List[int], dtype: int) -> List[int]:
 
 def prims〇collapse〡shape(a: List[int], start: int, end: int) -> List[int]:
     # Obtained through trial and error on a few examples in PyTorch:
-    assert start <= len(a), "start out of bounds"
-    assert end <= len(a), "end out of bounds"
+    assert start < len(a), "start out of bounds"
+    assert end < len(a), "end out of bounds"
     assert start >= 0, "start out of bounds"
     assert end >= 0, "end out of bounds"
     assert start <= end, "start must be less than or equal to end"
 
-    # Example: 
+    # Examples: 
     #
     #  torch._prims.collapse(torch.empty(2,3,4), 1,2).shape
     #  is 
     #  torch.Size([2, 12])
+    #
+    #  torch._prims.collapse(torch.empty(2,3,4), 1,3).shape
+    #  gives
+    #  --> 524     assert idx >= 0 and idx < rank or idx == 0
 
     collapsed: List[int] = []
     for i in range(start):
@@ -337,6 +341,12 @@ def aten〇isnan〡shape(self: List[int]) -> List[int]:
 def aten〇isinf〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇isneginf〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇isposinf〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇ne〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
@@ -371,6 +381,9 @@ def aten〇div〇Scalar〡shape(self: List[int], other: float) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇remainder〇Scalar〡shape(self: List[int], other: float) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇remainder〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇floor_divide〇Scalar〡shape(self: List[int], other: float) -> List[int]:
@@ -892,6 +905,9 @@ def aten〇randn〡shape(size: List[int], dtype: Optional[int] = None, layout: O
 def aten〇randn〇generator〡shape(size: List[int], generator: Any, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return size
 
+def aten〇normal_functional〡shape(self: List[int], mean: float = 0., std: float = 1., generator: Any = None) -> List[int]:
+    return self
+
 def aten〇arange〇start_step〡shape(start: float, end: float, step: float = 1, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return upstream_shape_functions.arange_start_step(start, end, step, dtype, layout, device, pin_memory)
 
@@ -1057,6 +1073,9 @@ def aten〇where〇ScalarOther〡shape(condition: List[int], self: List[int], ot
 
 def aten〇where〇ScalarSelf〡shape(condition: List[int], self: float, other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(condition, other)
+
+def aten〇nan_to_num〡shape(self: List[int], nan: Optional[float] = None, posinf: Optional[float] = None, neginf: Optional[float] = None) -> List[int]:
+    return upstream_shape_functions.unary(self)
 
 def aten〇lerp〇Tensor〡shape(self: List[int], end: List[int], weight: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, upstream_shape_functions.broadcast(end, weight))
@@ -1285,6 +1304,15 @@ def pad_shape_fn(input: List[int], pad: List[int]):
 ])
 def aten〇constant_pad_nd〡shape(self: List[int], pad: List[int], value: float = 0) -> List[int]:
     return pad_shape_fn(self, pad)
+
+def aten〇replication_pad2d〡shape(self: List[int], padding: List[int]) -> List[int]:
+    assert len(self) >= 2
+    assert len(padding) == 4, 'padding size expected to be 4'
+    return pad_shape_fn(self, padding)
+
+def aten〇replication_pad2d〡dtype(self_rank_dtype: Tuple[int, int], padding: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype    
+    return self_dtype
 
 def aten〇pad〡shape(self: List[int], pad: List[int], mode: str = "constant", value: Optional[float] = None) -> List[int]:
     return pad_shape_fn(self, pad)
@@ -2516,6 +2544,20 @@ def aten〇isnan〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 def aten〇isinf〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     return torch.bool
 
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex128, torch.complex64}))
+def aten〇isneginf〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert self_dtype != torch.complex128 and self_dtype != torch.complex64
+    return torch.bool
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex128, torch.complex64}))
+def aten〇isposinf〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert self_dtype != torch.complex128 and self_dtype != torch.complex64
+    return torch.bool
+
 @check_dtype_function(_check_two_tensor_op())
 def aten〇ne〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
     return torch.bool
@@ -3185,6 +3227,14 @@ def aten〇remainder〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: U
     dtypes = [self_dtype, get_dtype_of_scalar(other)]
     return promote_dtypes(ranks, dtypes)
 
+@check_dtype_function(_check_two_tensor_op())
+def aten〇remainder〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    other_rank, other_dtype = other_rank_dtype
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, other_rank]
+    dtypes = [self_dtype, other_dtype]
+    return promote_dtypes(ranks, dtypes)
+
 # TODO: This should be fixed by switching to FakeTensor instead of Meta tensor
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1, 1), (1, 1, 1), (1, 1, 1)], tensor_device="cpu", error_types={torch.bool}) +
@@ -3246,6 +3296,12 @@ def aten〇where〇ScalarSelf〡dtype(condition_rank_dtype: Tuple[int, int], sel
     ranks: List[Optional[int]] = [None, other_rank]
     dtypes = [get_dtype_of_scalar(self), other_dtype]
     return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇nan_to_num〡dtype(self_rank_dtype: Tuple[int, int], nan: Optional[float] = None, posinf: Optional[float] = None, neginf: Optional[float] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype 
+    return self_dtype
 
 @check_dtype_function(
     [Invocation(TensorOfShape(2, 3, dtype=torch.float32), TensorOfShape(2, dtype=torch.int64),
@@ -3779,6 +3835,16 @@ def aten〇randn〡dtype(size: List[int], dtype: Optional[int] = None, layout: O
         return torch.float32
     assert not is_integer_dtype(dtype)
     return dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(
+        num_of_tensors=1,
+        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64}))
+def aten〇normal_functional〡dtype(self_rank_dtype: Tuple[int, int], mean: float = 0., std: float = 1., generator: Any = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if self_dtype is None:
+        return torch.float32
+    assert not is_integer_dtype(self_dtype)
+    return self_dtype
 
 @check_dtype_function([Invocation(size=[1], generator=None),
                        Invocation(size=[1], generator=None, dtype=torch.float32),

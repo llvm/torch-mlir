@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -27,8 +28,70 @@ using namespace mlir::torch::onnx_c;
 // to be more normal and a direct translation vs a special case. This
 // results in a lot of ONNX test cases that all reduce to the exact same
 // thing here, so we simplify.
+
+// utilities
+//  Templatized function to get an item op of a type
+namespace {
+template <typename T>
+Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
+                Value &ofItem) {
+  return rewriter.create<Torch::AtenItemOp>(binder.getLoc(),
+                                            rewriter.getType<T>(), ofItem);
+}
+} // namespace
+
 void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
     OnnxCustomOpConversionPattern &patterns) {
+  patterns.onOp("QuantizeLinear", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  llvm::SmallVector<Value> operands;
+                  if (binder.tensorOperands(operands, 3) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+
+                  Value operand = operands[0];
+                  Value scale = operands[1];
+                  Value zeropoint = operands[2];
+
+                  auto scaleTy = scale.getType().dyn_cast<Torch::ValueTensorType>();
+                  if (!scaleTy || !scaleTy.hasSizes()) return rewriter.notifyMatchFailure(binder.op, "requires known rank");
+                  if (!resultType.hasDtype())
+                    return rewriter.notifyMatchFailure(
+                        binder.op, "requires known result dtype");
+
+                  if (scaleTy.getSizes().size() == 0) {
+                    Type qTy = resultType.getDtype();
+
+                    if (qTy.isUnsignedInteger(8)) {
+                      qTy = rewriter.getType<Torch::QUInt8Type>();
+                    } else if (qTy.isSignedInteger(8)) {
+                      qTy = rewriter.getType<Torch::QInt8Type>();
+                    } else if (qTy.isSignedInteger(32)) {
+                      qTy = rewriter.getType<Torch::QInt32Type>();
+                    } else {
+                      return rewriter.notifyMatchFailure(binder.op, "unsupported result dtype");
+                    }
+
+                    auto qTensorTy = rewriter.getType<Torch::ValueTensorType>(resultType.getOptionalSizes(), qTy);
+                    auto torchqTy = Torch::getScalarTypeForType(qTy);
+
+                    Value tyConst = rewriter.create<Torch::ConstantIntOp>(
+                        binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                        rewriter.getIntegerAttr(rewriter.getIntegerType(64), static_cast<int64_t>(torchqTy)));
+
+                    scale = rewriter.create<Torch::AtenItemOp>(binder.getLoc(), rewriter.getType<Torch::FloatType>(), scale);
+                    zeropoint = rewriter.create<Torch::AtenItemOp>(binder.getLoc(), rewriter.getType<Torch::IntType>(), zeropoint);
+
+                    auto quantize = rewriter.create<Torch::AtenQuantizePerTensorOp>(binder.getLoc(), qTensorTy, operand, scale, zeropoint, tyConst);
+                    rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType, quantize);
+                    return success();
+                  }
+
+                  return failure();
+
+                }
+  );
   patterns.onOp("Reciprocal", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -1334,6 +1397,52 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             dimList);
         rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(binder.op, resultType,
                                                           data, dimValueList);
+        return success();
+      });
+  patterns.onOp(
+      "Range", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // ONNX.Range(start, limit, delta) -- limit is exclusive
+
+        Torch::ValueTensorType resultType;
+        Value start, limit, delta;
+        auto loc = binder.getLoc();
+        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        if (binder.tensorOperandAtIndex(start, 0) ||
+            binder.tensorOperandAtIndex(limit, 1) ||
+            binder.tensorOperandAtIndex(delta, 2) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        // Convert a 0-dimensional/Scalar Tensor ([]) to Scalar Torch Numeric
+        // Value torch.tensor(1.1) equivalent in ONNX to 1.1 as an example
+        // type of start, limit, delta can be one of: double, float, int16,
+        // int32, int64 Assuming start, limit and delta to be same type (could
+        // they be different?)
+        Torch::BaseTensorType startTensorType =
+            start.getType().cast<Torch::BaseTensorType>();
+        bool isFloatDType = startTensorType.getDtype().isF64() ||
+                            startTensorType.getDtype().isF32();
+        bool isIntDType = startTensorType.getDtype().isInteger(16) ||
+                          startTensorType.getDtype().isInteger(32) ||
+                          startTensorType.getDtype().isInteger(64);
+        if (!isFloatDType && !isIntDType) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected the start, limit, delta to be one of "
+                         "double, float, int16, int32, int64");
+        }
+        Value scalarStart, scalarLimit, scalarDelta;
+        if (isFloatDType) {
+          scalarStart = getItemOp<Torch::FloatType>(binder, rewriter, start);
+          scalarLimit = getItemOp<Torch::FloatType>(binder, rewriter, limit);
+          scalarDelta = getItemOp<Torch::FloatType>(binder, rewriter, delta);
+        } else {
+          scalarStart = getItemOp<Torch::IntType>(binder, rewriter, start);
+          scalarLimit = getItemOp<Torch::IntType>(binder, rewriter, limit);
+          scalarDelta = getItemOp<Torch::IntType>(binder, rewriter, delta);
+        }
+        rewriter.replaceOpWithNewOp<Torch::AtenArangeStartStepOp>(
+            binder.op, resultType, scalarStart, scalarLimit, scalarDelta, none,
+            none, none, none);
         return success();
       });
 }

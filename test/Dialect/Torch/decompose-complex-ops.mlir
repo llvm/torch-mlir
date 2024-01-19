@@ -84,8 +84,8 @@ func.func @torch.aten.adaptive_avg_pool2d$unit_output_size(%arg0: !torch.vtensor
 
 // CHECK-LABEL:  func.func @torch.aten.type_as$basic(
 // CHECK-SAME:                                %[[ARG_0:.*]]: !torch.tensor, %[[ARG_1:.*]]: !torch.tensor) -> !torch.tensor {
-// CHECK:          %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:          %[[NONE:.*]] = torch.constant.none
+// CHECK-DAG:      %[[FALSE:.*]] = torch.constant.bool false
+// CHECK-DAG:      %[[NONE:.*]] = torch.constant.none
 // CHECK:          %[[DTYPE:.*]] = torch.prim.dtype %[[ARG_1]] : !torch.tensor -> !torch.int
 // CHECK:          %[[VAR:.*]] = torch.aten.to.dtype %[[ARG_0]], %[[DTYPE]], %[[FALSE]], %[[FALSE]], %[[NONE]] : !torch.tensor, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.tensor
 // CHECK:          return %[[VAR]] : !torch.tensor

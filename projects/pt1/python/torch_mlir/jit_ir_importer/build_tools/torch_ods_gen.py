@@ -542,6 +542,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     # Misc tensor ops.
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")
+    emit("aten::replication_pad2d : (Tensor, int[]) -> (Tensor)")
     emit("aten::reflection_pad1d : (Tensor, int[]) -> (Tensor)")
     emit("aten::reflection_pad2d : (Tensor, int[]) -> (Tensor)")
     emit("aten::pad : (Tensor, int[], str, float?) -> (Tensor)")
@@ -566,6 +567,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::_shape_as_tensor : (Tensor) -> (Tensor)")
     emit("aten::isnan : (Tensor) -> (Tensor)")
     emit("aten::isinf : (Tensor) -> (Tensor)")
+    emit("aten::isneginf : (Tensor) -> (Tensor)")
+    emit("aten::isposinf : (Tensor) -> (Tensor)")
     emit("aten::all : (Tensor) -> (Tensor)")
     emit("aten::all.bool : (bool[]) -> (bool)")
     emit("aten::all.dim : (Tensor, int, bool) -> (Tensor)")
@@ -640,6 +643,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::where.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::where.ScalarOther : (Tensor, Tensor, Scalar) -> (Tensor)")
     emit("aten::where.ScalarSelf : (Tensor, Scalar, Tensor) -> (Tensor)")
+    emit("aten::nan_to_num : (Tensor, float?, float?, float?) -> (Tensor)")
     emit("aten::slice.Tensor : (Tensor, int, int?, int?, int) -> (Tensor)", has_folder=True)
     emit("aten::len.Tensor : (Tensor) -> (int)")
     emit("aten::cpu : (Tensor) -> (Tensor)")
