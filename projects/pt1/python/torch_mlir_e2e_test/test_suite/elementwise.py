@@ -2265,6 +2265,73 @@ def ElementwiseRemainderScalarModule_Bool_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseRemainderTensorModule_Int_Float(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return torch.remainder(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRemainderTensorModule_Int_Float())
+def ElementwiseRemainderTensorModule_Int_Float_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, high=10).to(torch.int32), tu.rand(3, 4, high=10))
+
+
+# ==============================================================================
+
+
+class ElementwiseRemainderTensorModule_Float(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return torch.remainder(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRemainderTensorModule_Float())
+def ElementwiseRemainderTensorModule_Float_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, high=10), tu.rand(3, 4, high=10))
+
+
+# ==============================================================================
+
+class ElementwiseRemainderTensorModule_Int(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, a, b):
+        return torch.remainder(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRemainderTensorModule_Int())
+def ElementwiseRemainderTensorModule_Int_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, high=10, dtype=torch.int32), tu.randint(3, 4, high=10, dtype=torch.int32))
+
+# ==============================================================================
+
+
 class ElementwiseDivTensorFloatModule(torch.nn.Module):
 
     def __init__(self):
