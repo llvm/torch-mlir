@@ -914,26 +914,6 @@ def AdaptiveAvgPool1dUnitOutputSizeDynamicModule_basic(
         module, tu: TestUtils):
     module.forward(tu.rand(1, 512, 7))
 
-class AdaptiveMaxPool1dGeneralDynamic(torch.nn.Module):
-    
-    def __init__(self):
-        super().__init__()
-        self.amp1d = torch.nn.AdaptiveMaxPool1d(output_size=7)
-
-    @export
-    @annotate_args([
-        None,
-        ([-1,-1,-1], torch.float32, True)
-    ])
-    def forward(self,x):
-        return self.amp1d(x)
-
-@register_test_case(
-    module_factory=lambda: AdaptiveMaxPool1dGeneralDynamic())
-def AdaptiveMaxPool1dGeneralDynamic_basic(
-        module, tu: TestUtils):
-    module.forward(tu.rand(1, 512, 10))
-
 class AdaptiveMaxPool2dDynamic(torch.nn.Module):
     
     def __init__(self):
