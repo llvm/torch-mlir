@@ -167,24 +167,24 @@ static LogicalResult createPoolingOp(
 }
 
 namespace {
+template <typename T> struct DimensionTraits;
+
+template <> struct DimensionTraits<AtenMaxPool2dOp> {
+  static const int64_t Dim = 2;
+};
+
+template <> struct DimensionTraits<AtenMaxPool3dOp> {
+  static const int64_t Dim = 3;
+};
+
 template <typename OpTy>
 class ConvertAtenMaxPoolOp : public OpConversionPattern<OpTy> {
   using OpConversionPattern<OpTy>::OpConversionPattern;
 
 private:
-  template <typename T> struct DimensionTraits;
-
-  template <> struct DimensionTraits<AtenMaxPool2dOp> {
-    static const int64_t Dim = 2;
-  };
-
-  template <> struct DimensionTraits<AtenMaxPool3dOp> {
-    static const int64_t Dim = 3;
-  };
-
   static const int64_t Dim = DimensionTraits<OpTy>::Dim;
 
-  LogicalResult createPoolingMax3D(AtenMaxPool3dOp &op, 
+  LogicalResult createPoolingMax3D(Operation *op,
                                    typename OpTy::Adaptor adaptor,
                                    ConversionPatternRewriter &rewriter,
                                    SmallVectorImpl<Value> &kernelSizeIntValues,
@@ -273,7 +273,8 @@ private:
                   b.create<linalg::YieldOp>(loc, max_result);
                 })
             .getResult(0);
-    Type newResultType = this->getTypeConverter()->convertType(op.getType());
+    Type newResultType =
+        this->getTypeConverter()->convertType(op->getResultTypes()[0]);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, poolingOp);
     return success();
   }
