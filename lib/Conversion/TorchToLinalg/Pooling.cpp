@@ -72,7 +72,8 @@ checkAndGetPoolingParameters(OpTy op, ConversionPatternRewriter &rewriter,
   return success();
 }
 
-static Value computeOutputTensor(Operation *op, ConversionPatternRewriter &rewriter,
+static Value
+computeOutputTensor(Operation *op, ConversionPatternRewriter &rewriter,
                     Value self, int64_t dimensionality, bool ceilMode,
                     SmallVectorImpl<int64_t> &strideInts,
                     SmallVectorImpl<int64_t> &paddingInts,
@@ -167,24 +168,29 @@ static LogicalResult createPoolingOp(
 }
 
 namespace {
+
+template <typename T> struct DimensionTraits {};
+
+template <> struct DimensionTraits<AtenMaxPool2dOp> {
+  static constexpr int64_t Dim = 2;
+  // unused const variable warning suppression:
+  static_assert(Dim == Dim);
+};
+
+template <> struct DimensionTraits<AtenMaxPool3dOp> {
+  static constexpr int64_t Dim = 3;
+  // unused const variable warning suppression:
+  static_assert(Dim == Dim);
+};
+
 template <typename OpTy>
 class ConvertAtenMaxPoolOp : public OpConversionPattern<OpTy> {
   using OpConversionPattern<OpTy>::OpConversionPattern;
 
 private:
-  template <typename T> struct DimensionTraits;
-
-  template <> struct DimensionTraits<AtenMaxPool2dOp> {
-    static const int64_t Dim = 2;
-  };
-
-  template <> struct DimensionTraits<AtenMaxPool3dOp> {
-    static const int64_t Dim = 3;
-  };
-
   static const int64_t Dim = DimensionTraits<OpTy>::Dim;
 
-  LogicalResult createPoolingMax3D(AtenMaxPool3dOp &op, 
+  LogicalResult createPoolingMax3D(AtenMaxPool3dOp &op,
                                    typename OpTy::Adaptor adaptor,
                                    ConversionPatternRewriter &rewriter,
                                    SmallVectorImpl<Value> &kernelSizeIntValues,
@@ -327,9 +333,9 @@ public:
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, maxPool2d);
       return success();
     } else {
-      return createPoolingMax3D(op, adaptor, rewriter,
-                                kernelSizeIntValues, strideInts, paddingInts,
-                                dilationInts, ceilMode);
+      return createPoolingMax3D(op, adaptor, rewriter, kernelSizeIntValues,
+                                strideInts, paddingInts, dilationInts,
+                                ceilMode);
     }
   }
 };
