@@ -645,6 +645,14 @@ public:
 };
 } // namespace
 
+// The logic for this conversion is similar to the AdaptiveAvgPool1dOp conversion.
+// Before writing any more adaptive pooling conversions, the logic in this
+// should be off-loaded to a helper function, since each of the adaptive ops 
+// are essentially the same with some minor tweaks. Instead of kSizeTensor, 
+// we named the additional output of the linalg generic op auxTensor.
+// For max pooling, auxTensor holds the indices of max values, and for
+// avg pooling, the auxTensor will be kSizeTensor, used to later divide the
+// sum pool by the kernel size.
 namespace {
 class ConvertAtenAdaptiveMaxPool2dOp
     : public OpConversionPattern<AtenAdaptiveMaxPool2dOp> {
@@ -660,9 +668,9 @@ public:
     // get rank of input (same as rank of output)
     int64_t rank =
         adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
-    // input operand should be NCHW (i.e. rank 3)
+    // input operand should be NCHW (i.e. rank 4)
     if (rank != 4) {
-      return rewriter.notifyMatchFailure(op, "only supports input type NCH");
+      return rewriter.notifyMatchFailure(op, "only supports input type NCHW");
     }
 
     // input tensor and output shape
@@ -672,17 +680,14 @@ public:
     getListConstructElements(outputShape, outShapeVector);
     outShapeVector =
         getTypeConvertedValues(rewriter, loc, typeConverter, outShapeVector);
-    //Value hIn = getDimOp(rewriter, loc, input, 2);
     SmallVector<Value> inputSpatialSizes;
     for (unsigned i = 2; i < rank ; i++){
         inputSpatialSizes.push_back(getDimOp(rewriter, loc, input, i));
     }
-    //Value hOut = outShapeVector[0];
     SmallVector<Value> outShapeIndexVector;
     for (auto v : outShapeVector){
         outShapeIndexVector.push_back(castIntToIndex(rewriter, loc, v));
     }
-    //Value hOutIndex = castIntToIndex(rewriter, loc, hOut);
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
     RankedTensorType outputType =
         typeConverter->convertType(op.getResult0().getType())
@@ -693,7 +698,7 @@ public:
 
     // make an iteration space of size kMax = 1 + ceildiv (hIn - 1) , hOut
     Type boolType = rewriter.getI1Type();
-    SmallVector<Value> kIterVector;
+    SmallVector<Value> kIterSizeVector;
     Value constantOne =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
     for (int i = 0; i < rank -2; i++){
@@ -701,10 +706,10 @@ public:
         Value kMaxMinusOne =
             rewriter.create<arith::CeilDivSIOp>(loc, hInPlusOne, outShapeIndexVector[i]);
         Value kMax = rewriter.create<arith::AddIOp>(loc, constantOne, kMaxMinusOne);
-        kIterVector.push_back(kMax);
+        kIterSizeVector.push_back(kMax);
     }
     Value kIter = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(kIterVector), boolType);
+        loc, getAsOpFoldResult(kIterSizeVector), boolType);
 
     // need to buffer input, else there will possibly be an out of bounds access
     // later buffVal = 0 for avg pooling and -inf for max pooling
@@ -731,34 +736,35 @@ public:
         outputSizes.push_back(outShapeIndexVector[i-2]);
     }
     
-
-    // initialize a kernel size tensor (only for avg pooling)
+    // for avg pooling the auxTensor should hold kernel widths (kSizeTensor)
+    // for max Pooling, it should hold the indices
     RankedTensorType outputType1 =
         typeConverter->convertType(op.getResult1().getType())
             .cast<RankedTensorType>();
     Type indicesType = outputType1.getElementType();
-    Value kSizeTensor = rewriter.create<tensor::EmptyOp>(
+    Value auxTensor  = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(outputSizes), indicesType);
+
     // initialize an output tensor
     Value initOutput =
         createInitTensor(rewriter, loc, outputSizes, elementType, buffVal);
 
     // setup indexing maps and iterator types for linalg generic op (outputShape (rank),kIter (rank -2))
-    // for kIter (d0,d1,d2,d3) -> (d3)
-    // for output (d0,d1,d2,d3) -> (d0,d1,d2)
-    // for kSizeTensor (d0,d1,d2,d3) -> (d2)
-    SmallVector<AffineExpr> kIterExprs, outputExprs, kSizeTensorExprs;
+    // for kIter (d0,d1,d2,d3,d4,d5) -> (d4,d5)
+    // for output (d0,d1,d2,d3,d4,d5) -> (d0,d1,d2,d3)
+    // for auxTensor (d0,d1,d2,d3,d4,d5) -> (d0,d1,d2,d3) (or (d2,d3) for avg pooling)
+    SmallVector<AffineExpr> kIterExprs, outputExprs, auxTensorExprs;
     //batch + channel + output spatial dims
     for (unsigned i = 0; i < rank; i++) {
         outputExprs.push_back(rewriter.getAffineDimExpr(i));
-        kSizeTensorExprs.push_back(rewriter.getAffineDimExpr(i));
+        auxTensorExprs.push_back(rewriter.getAffineDimExpr(i));
     }
     // kIter covers last rank-2 indices
     for (unsigned i = rank; i < 2*rank-2; i++){
         kIterExprs.push_back(rewriter.getAffineDimExpr(i)); 
     }
     SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
-        {kIterExprs, outputExprs, kSizeTensorExprs});
+        {kIterExprs, outputExprs, auxTensorExprs});
     SmallVector<utils::IteratorType> iteratorTypes(
         rank, utils::IteratorType::parallel);
     for (unsigned i = 0; i < rank - 2; i++){
@@ -767,9 +773,9 @@ public:
     Value indexOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
     auto maxPool = rewriter.create<linalg::GenericOp>(
         loc, /*resultTensorTypes=*/
-        TypeRange({initOutput.getType(), kSizeTensor.getType()}),
+        TypeRange({initOutput.getType(), auxTensor.getType()}),
         /*inputs=*/ValueRange({kIter}),
-        /*outputs=*/ValueRange({initOutput, kSizeTensor}),
+        /*outputs=*/ValueRange({initOutput, auxTensor}),
         /*indexingMaps=*/indexingMaps,
         /*iteratorTypes=*/iteratorTypes,
         [&](OpBuilder &b, Location loc, ValueRange args) {
@@ -814,8 +820,8 @@ public:
           }
           Value out1 = filteredInputElement[rank-2];
           Value cond1 = b.create<arith::CmpFOp>(loc,arith::CmpFPredicate::OGT, out1, res);
-          //index is (ih * input_width + iw)
-          Value indexOut0 = b.create<arith::MulIOp>(loc, inputElementIndices[2], inputSpatialSizes[0]);
+          //index location is (ih * input_width + iw)
+          Value indexOut0 = b.create<arith::MulIOp>(loc, inputElementIndices[2], inputSpatialSizes[1]);
           Value indexOut1 = b.create<arith::AddIOp>(loc, indexOut0, inputElementIndices[3]);
           Value indexOut1Int = castIndexToInt64(b, loc, indexOut1);
           Value indexOut2 = b.create<arith::SelectOp>(loc, cond1, indexOut1Int, maxIndex);
