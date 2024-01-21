@@ -374,9 +374,6 @@ class NodeImporter:
 
     def _handle_node_Constant(self, node: onnx.NodeProto) -> bool:
         # Special case only for constants specified by value attribute (for now)
-        assert len(node.output) == 1
-        const_name = node.output[0]
-        print(f"New location: Handling Constant {const_name}")
         value_proto = _get_attr(node, "value", False)
         if not value_proto:
             return False
@@ -384,10 +381,9 @@ class NodeImporter:
         # Produce an initializer for the constant, so that it can be used in
         # combination with other ops, such as ConstantOfShape, requiring
         # a constant input
-        print("Constant is a value literal")
         assert value_proto.type == onnx.AttributeProto.AttributeType.TENSOR
-        print("value_proto.t")
-        print(value_proto.t)
+        assert len(node.output) == 1
+        const_name = node.output[0]
         self.import_initializer(value_proto.t, const_name)
         self._gi.initializer_map[const_name] = value_proto.t
         return True
@@ -407,13 +403,16 @@ class NodeImporter:
         element_type = self._cc.tensor_element_type(tensor_proto.data_type)
         vtensor_type = self._cc.get_vtensor_type(tuple(shape), element_type)
         assert len(tensor_proto.dims) == 1 and tensor_proto.dims[0] == 1
+
         try:
+            # Make a splat attribute of a specific data type
             cb = ELEM_TYPE_SPLAT_TENSOR_PROTO_CB[tensor_proto.data_type]
+            value_attr = cb(tensor_proto, shape)
         except KeyError:
             raise OnnxImportError(
                 f"Unhandled splat type for ConstantOfShape: {node} (possible missing mapping in ELEM_TYPE_SPLAT_TENSOR_PROTO_CB)"
             )
-        value_attr = cb(tensor_proto, tuple(shape))
+
         literal_op = Operation.create(
             name="torch.vtensor.literal",
             results=[vtensor_type],
@@ -543,7 +542,9 @@ ELEM_TYPE_SPLAT_TENSOR_PROTO_CB = {
         RankedTensorType.get(shape, F32Type.get()), FloatAttr.get_f32(tp.float_data[0])
     ),
     onnx.TensorProto.DataType.INT64: lambda tp, shape: DenseElementsAttr.get_splat(
-        RankedTensorType.get(shape, IntegerType.get_signed(64)), IntegerAttr.get(tp.int64_data[0])
+        RankedTensorType.get(shape, IntegerType.get_signed(64)), IntegerAttr.get(
+        IntegerType.get_signed(64), int.from_bytes(tp.raw_data, "little",
+        signed=True) if tp.HasField("raw_data") else tp.int64_data[0])
     ),
     # TODO: All the rest from ELEM_TYPE_TO_IR_TYPE_CB
 }
