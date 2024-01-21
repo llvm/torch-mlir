@@ -403,16 +403,13 @@ class NodeImporter:
         element_type = self._cc.tensor_element_type(tensor_proto.data_type)
         vtensor_type = self._cc.get_vtensor_type(tuple(shape), element_type)
         assert len(tensor_proto.dims) == 1 and tensor_proto.dims[0] == 1
-
         try:
-            # Make a splat attribute of a specific data type
             cb = ELEM_TYPE_SPLAT_TENSOR_PROTO_CB[tensor_proto.data_type]
-            value_attr = cb(tensor_proto, shape)
         except KeyError:
             raise OnnxImportError(
                 f"Unhandled splat type for ConstantOfShape: {node} (possible missing mapping in ELEM_TYPE_SPLAT_TENSOR_PROTO_CB)"
             )
-
+        value_attr = cb(tensor_proto, tuple(shape))
         literal_op = Operation.create(
             name="torch.vtensor.literal",
             results=[vtensor_type],
