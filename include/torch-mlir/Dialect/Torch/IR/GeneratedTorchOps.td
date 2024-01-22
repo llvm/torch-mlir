@@ -15778,3 +15778,29 @@ def Torch_QuantizedLinearOp : Torch_Op<"quantized.linear", [
   }];
 }
 
+def Torch_C10dFunctionalAllReduceOp : Torch_Op<"c10d_functional.all_reduce", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `c10d_functional::all_reduce : (Tensor, str, str, int[], int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_StringType:$reduceOp,
+    Torch_StringType:$tag,
+    AnyTorchListOfTorchIntType:$ranks,
+    Torch_IntType:$group_size
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult C10dFunctionalAllReduceOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 5, 1);
+    }
+    void C10dFunctionalAllReduceOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 5, 1);
+    }
+  }];
+}
