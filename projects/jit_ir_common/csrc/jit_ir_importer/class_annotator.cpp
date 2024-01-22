@@ -157,9 +157,10 @@ static void fillArgAnnotations(MethodAnnotation &methodAnnotation,
 
     std::ostringstream oss;
     oss << "There must be one argument annotation per function parameter. "
-        << "Including 'self' there are " << argAnnotations.size()
-        << " arg annotations, and " << function->num_inputs()
-        << " function parameters. ";
+        << "Including 'self' the number of argument annotations is: "
+        << argAnnotations.size()
+        << ". The number of function parameters is: " << function->num_inputs()
+        << ". ";
     const auto &args = function->getSchema().arguments();
     if (args.size() > 0) {
       oss << "The function signature is (";
@@ -167,7 +168,7 @@ static void fillArgAnnotations(MethodAnnotation &methodAnnotation,
       for (auto iter = args.begin() + 1; iter != args.end(); iter++) {
         oss << ", " << *iter;
       }
-      oss << ')';
+      oss << ')' << '.';
     }
     throw std::invalid_argument(oss.str());
   }
