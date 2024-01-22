@@ -280,8 +280,8 @@ class NodeImporter:
             # should process it as a general node.
             special_key = f"_handle_node_{op_type}"
             if hasattr(self, special_key):
-                wasHandled = getattr(self, special_key)(node)
-                if wasHandled:
+                was_handled = getattr(self, special_key)(node)
+                if was_handled:
                     return
 
             # General node import.
@@ -633,10 +633,10 @@ ATTRIBUTE_TYPE_HANDLERS = {
 }
 
 
-def _get_attr(node: onnx.NodeProto, attr_name: str, isRequired: bool = True) -> onnx.AttributeProto:
+def _get_attr(node: onnx.NodeProto, attr_name: str, is_required: bool = True) -> onnx.AttributeProto:
     for attr in node.attribute:
         if attr.name == attr_name:
             return attr
-    if isRequired:
+    if is_required:
         raise OnnxImportError(f"Required attribute {attr_name} not found in {node}")
     return None
