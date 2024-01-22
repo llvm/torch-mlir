@@ -779,7 +779,7 @@ class AllBoolFalseModule(torch.nn.Module):
     def forward(self):
         input = [True, False, True, True, False]
         return torch.ops.aten.all(input)
-        
+
 @register_test_case(module_factory=lambda: AllBoolFalseModule())
 def AllBoolFalseModule_basic(module, tu: TestUtils):
     module.forward()

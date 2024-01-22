@@ -315,6 +315,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::log10 : (Tensor) -> (Tensor)",
             "aten::sqrt : (Tensor) -> (Tensor)",
             "aten::log1p : (Tensor) -> (Tensor)",
+            "aten::logit : (Tensor, float?) -> (Tensor)",
             "aten::rsqrt : (Tensor) -> (Tensor)",
             "aten::abs : (Tensor) -> (Tensor)",
             "aten::reciprocal : (Tensor) -> (Tensor)",
@@ -541,7 +542,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     # Misc tensor ops.
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")
+    emit("aten::replication_pad2d : (Tensor, int[]) -> (Tensor)")
     emit("aten::reflection_pad1d : (Tensor, int[]) -> (Tensor)")
+    emit("aten::reflection_pad2d : (Tensor, int[]) -> (Tensor)")
     emit("aten::pad : (Tensor, int[], str, float?) -> (Tensor)")
     emit("aten::squeeze.dim : (Tensor, int) -> (Tensor)", has_folder=True)
     emit("aten::squeeze : (Tensor) -> (Tensor)", has_folder=True)
@@ -564,6 +567,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::_shape_as_tensor : (Tensor) -> (Tensor)")
     emit("aten::isnan : (Tensor) -> (Tensor)")
     emit("aten::isinf : (Tensor) -> (Tensor)")
+    emit("aten::isneginf : (Tensor) -> (Tensor)")
+    emit("aten::isposinf : (Tensor) -> (Tensor)")
     emit("aten::all : (Tensor) -> (Tensor)")
     emit("aten::all.bool : (bool[]) -> (bool)")
     emit("aten::all.dim : (Tensor, int, bool) -> (Tensor)")
@@ -638,6 +643,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::where.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::where.ScalarOther : (Tensor, Tensor, Scalar) -> (Tensor)")
     emit("aten::where.ScalarSelf : (Tensor, Scalar, Tensor) -> (Tensor)")
+    emit("aten::nan_to_num : (Tensor, float?, float?, float?) -> (Tensor)")
     emit("aten::slice.Tensor : (Tensor, int, int?, int?, int) -> (Tensor)", has_folder=True)
     emit("aten::len.Tensor : (Tensor) -> (int)")
     emit("aten::cpu : (Tensor) -> (Tensor)")
@@ -802,6 +808,13 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::native_dropout_backward : (Tensor, Tensor, float) -> (Tensor)")
     emit("aten::elu_backward : (Tensor, Scalar, Scalar, Scalar, bool, Tensor) -> (Tensor)")
     emit("aten::leaky_relu_backward : (Tensor, Tensor, Scalar, bool) -> (Tensor)")
+
+    # quantized ops
+    emit("aten::quantize_per_tensor : (Tensor, float, int, int) -> (Tensor)")
+    emit("aten::dequantize.self : (Tensor) -> (Tensor)")
+    emit("aten::dequantize.tensor : (Tensor) -> (Tensor)")
+    emit("aten::int_repr : (Tensor) -> (Tensor)")
+    emit("aten::_make_per_tensor_quantized_tensor : (Tensor, float, int) -> (Tensor)")
 
     # ==========================================================================
     # `prim::` namespace.

@@ -18,6 +18,7 @@
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -3344,9 +3345,11 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
   if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)))
     return rewriter.notifyMatchFailure(op, "start must be a Scalar constant");
 
-  if (start < 0)
-    return rewriter.notifyMatchFailure(op, "Currently unsupported: start < 0");
-
+  if (start < 0) {
+    start = toPositiveDim(start, selfType.getShape()[dim]);
+    if (!isValidDim(start, selfType.getShape()[dim]))
+      return rewriter.notifyMatchFailure(op, "start is not a valid index");
+  }
   start = std::min(selfType.getShape()[dim], start);
 
   int64_t end;
@@ -3992,36 +3995,46 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "only tensor types input are currently supported");
 
-  IntegerAttr min_int, max_int;
-  FloatAttr min_fp, max_fp;
-  if (op.getMin().getType().isa<Torch::FloatType>()) {
-    double fp_min, fp_max;
-    if (!matchPattern(op.getMin(), m_TorchConstantFloat(&fp_min)))
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: value `fp_min` should be a torch constant float");
+  IntegerAttr min_int =
+      rewriter.getI64IntegerAttr(std::numeric_limits<int64_t>::min());
+  IntegerAttr max_int =
+      rewriter.getI64IntegerAttr(std::numeric_limits<int64_t>::max());
+  FloatAttr min_fp =
+      rewriter.getF32FloatAttr(std::numeric_limits<float>::lowest());
+  FloatAttr max_fp =
+      rewriter.getF32FloatAttr(std::numeric_limits<float>::max());
 
-    if (!matchPattern(op.getMax(), m_TorchConstantFloat(&fp_max)))
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: value `fp_max` should be a torch constant float");
+  auto getValAttr = [&](Value operand, IntegerAttr &intAttr,
+                        FloatAttr &fpAttr) -> LogicalResult {
+    double valFloat;
+    int64_t valInt;
+    if (matchPattern(operand, m_TorchConstantFloat(&valFloat))) {
+      intAttr = rewriter.getI64IntegerAttr(static_cast<int64_t>(valFloat));
+      fpAttr = rewriter.getF32FloatAttr(static_cast<float>(valFloat));
+    } else if (matchPattern(operand, m_TorchConstantInt(&valInt))) {
+      intAttr = rewriter.getI64IntegerAttr(valInt);
+      fpAttr = rewriter.getF32FloatAttr(static_cast<float>(valInt));
+    } else {
+      return failure();
+    }
+    return success();
+  };
 
-    min_int = rewriter.getI64IntegerAttr(static_cast<int64_t>(fp_min));
-    max_int = rewriter.getI64IntegerAttr(static_cast<int64_t>(fp_max));
-    min_fp = rewriter.getF32FloatAttr(static_cast<float>(fp_min));
-    max_fp = rewriter.getF32FloatAttr(static_cast<float>(fp_max));
-  } else {
-    int64_t int_min, int_max;
-    if (!matchPattern(op.getMin(), m_TorchConstantInt(&int_min)))
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: value `int_min` should be a torch constant int");
-
-    if (!matchPattern(op.getMax(), m_TorchConstantInt(&int_max)))
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: value `int_max` should be a torch constant int");
-
-    min_int = rewriter.getI64IntegerAttr(int_min);
-    max_int = rewriter.getI64IntegerAttr(int_max);
-    min_fp = rewriter.getF32FloatAttr(static_cast<float>(int_min));
-    max_fp = rewriter.getF32FloatAttr(static_cast<float>(int_max));
+  LogicalResult minAttrResult = getValAttr(op.getMin(), min_int, min_fp);
+  LogicalResult maxAttrResult = getValAttr(op.getMax(), max_int, max_fp);
+  if (failed(minAttrResult) && failed(maxAttrResult)) {
+    return rewriter.notifyMatchFailure(
+        op, "either `min` or `max` should be a torch constant");
+  }
+  if (failed(minAttrResult) &&
+      succeeded(checkNotNone(rewriter, op, op.getMin()))) {
+    return rewriter.notifyMatchFailure(op,
+                                       "min attr should be a torch constant");
+  }
+  if (failed(maxAttrResult) &&
+      succeeded(checkNotNone(rewriter, op, op.getMax()))) {
+    return rewriter.notifyMatchFailure(op,
+                                       "max attr should be a torch constant");
   }
 
   auto outType = getTypeConverter()->convertType(op.getType());
@@ -5033,6 +5046,7 @@ public:
   patterns.add<ConvertAtenBinaryOp<AtenOp, TosaOp>>(typeConverter, context);
     INSERT_BINARY_PATTERN(AtenMaximumOp, tosa::MaximumOp)
     INSERT_BINARY_PATTERN(AtenMinimumOp, tosa::MinimumOp)
+    INSERT_BINARY_PATTERN(AtenLogicalOrOp, tosa::LogicalOrOp)
 #undef INSERT_BINARY_PATTERN
 
 #define INSERT_BINARY_ADDSUB_PATTERN(AtenOp, TosaOp)                           \
@@ -5083,6 +5097,8 @@ public:
                                       mlir::tosa::convertReduceMeanOp)
     INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenSumDimIntListOp,
                                       mlir::tosa::convertReduceSumOp)
+    INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenLinalgVectorNormOp,
+                                      mlir::tosa::convertLinalgVectorNormOp)
 #undef INSERT_NDIMS_REDUCTION_OP_PATTERN
 
 #define INSERT_ONEDIM_REDUCTION_OP_PATTERN(AtenOp, ConversionFunc)             \

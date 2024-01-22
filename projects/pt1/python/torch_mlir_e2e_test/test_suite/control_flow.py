@@ -28,7 +28,7 @@ class TorchPrimLoopForLikeModule(torch.nn.Module):
         for i in range(x_val):
             sum += i
         return sum
-        
+
 
 @register_test_case(module_factory=lambda: TorchPrimLoopForLikeModule())
 def TorchPrimLoopForLikeModule_basic(module, tu: TestUtils):
@@ -50,7 +50,7 @@ class TorchPrimLoopWhileLikeModule(torch.nn.Module):
         while(x_val > sum):
             sum += 1
         return sum
-        
+
 
 @register_test_case(module_factory=lambda: TorchPrimLoopWhileLikeModule())
 def TorchPrimLoopWhileLikeModule_basic(module, tu: TestUtils):

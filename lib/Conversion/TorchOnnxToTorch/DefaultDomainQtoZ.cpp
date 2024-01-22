@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -27,8 +28,70 @@ using namespace mlir::torch::onnx_c;
 // to be more normal and a direct translation vs a special case. This
 // results in a lot of ONNX test cases that all reduce to the exact same
 // thing here, so we simplify.
+
+// utilities
+//  Templatized function to get an item op of a type
+namespace {
+template <typename T>
+Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
+                Value &ofItem) {
+  return rewriter.create<Torch::AtenItemOp>(binder.getLoc(),
+                                            rewriter.getType<T>(), ofItem);
+}
+} // namespace
+
 void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
     OnnxCustomOpConversionPattern &patterns) {
+  patterns.onOp("QuantizeLinear", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  llvm::SmallVector<Value> operands;
+                  if (binder.tensorOperands(operands, 3) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+
+                  Value operand = operands[0];
+                  Value scale = operands[1];
+                  Value zeropoint = operands[2];
+
+                  auto scaleTy = scale.getType().dyn_cast<Torch::ValueTensorType>();
+                  if (!scaleTy || !scaleTy.hasSizes()) return rewriter.notifyMatchFailure(binder.op, "requires known rank");
+                  if (!resultType.hasDtype())
+                    return rewriter.notifyMatchFailure(
+                        binder.op, "requires known result dtype");
+
+                  if (scaleTy.getSizes().size() == 0) {
+                    Type qTy = resultType.getDtype();
+
+                    if (qTy.isUnsignedInteger(8)) {
+                      qTy = rewriter.getType<Torch::QUInt8Type>();
+                    } else if (qTy.isSignedInteger(8)) {
+                      qTy = rewriter.getType<Torch::QInt8Type>();
+                    } else if (qTy.isSignedInteger(32)) {
+                      qTy = rewriter.getType<Torch::QInt32Type>();
+                    } else {
+                      return rewriter.notifyMatchFailure(binder.op, "unsupported result dtype");
+                    }
+
+                    auto qTensorTy = rewriter.getType<Torch::ValueTensorType>(resultType.getOptionalSizes(), qTy);
+                    auto torchqTy = Torch::getScalarTypeForType(qTy);
+
+                    Value tyConst = rewriter.create<Torch::ConstantIntOp>(
+                        binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                        rewriter.getIntegerAttr(rewriter.getIntegerType(64), static_cast<int64_t>(torchqTy)));
+
+                    scale = rewriter.create<Torch::AtenItemOp>(binder.getLoc(), rewriter.getType<Torch::FloatType>(), scale);
+                    zeropoint = rewriter.create<Torch::AtenItemOp>(binder.getLoc(), rewriter.getType<Torch::IntType>(), zeropoint);
+
+                    auto quantize = rewriter.create<Torch::AtenQuantizePerTensorOp>(binder.getLoc(), qTensorTy, operand, scale, zeropoint, tyConst);
+                    rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType, quantize);
+                    return success();
+                  }
+
+                  return failure();
+
+                }
+  );
   patterns.onOp("Reciprocal", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -643,8 +706,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         llvm::SmallVector<int64_t> axes;
         int64_t keepDims;
         int64_t noop_with_empty_axes;
-        if (binder.tensorOperand(data) ||
-            binder.tensorResultType(resultType) ||
+        if (binder.tensorOperand(data) || binder.tensorResultType(resultType) ||
             binder.s64IntegerArrayAttr(axes, "axes", 0) ||
             binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
             binder.s64IntegerAttr(noop_with_empty_axes, "noop_with_empty_axes",
@@ -670,17 +732,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           }
           return success();
         }
-        Value zero = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
         int64_t adjustmentInt =
             cast<Torch::ValueTensorType>(data.getType()).getSizes().size();
-        Value adjustment = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    adjustmentInt));
         // convert axes (tensor) into torch int list while dealing with neg axis
-        for (int i = 0; i < axes.size(); i++) {
+        for (uint64_t i = 0; i < axes.size(); i++) {
           // Go through the axes list and get each dim in the list
           int64_t dim = axes[i];
           if (dim < 0) {
@@ -1092,7 +1147,168 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         rewriter.replaceOp(binder.op, operand);
         return success();
       });
+  patterns.onOp(
+      "Slice", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultTorchType;
+        Value operand, starts, ends;
+        // Handle if axes are not provided
 
+        if (binder.tensorOperandAtIndex(operand, 0) ||
+            binder.tensorOperandAtIndex(starts, 1) ||
+            binder.tensorOperandAtIndex(ends, 2) ||
+            binder.tensorResultType(resultTorchType)) {
+          return failure();
+        }
+
+        auto context = rewriter.getContext();
+        auto operandTorchTy = operand.getType().cast<Torch::ValueTensorType>();
+        auto operandTy =
+            operandTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+
+        if (!operandTy)
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Expected tensor operator argument to be a ranked tensor type");
+
+        auto startsTorchTy = starts.getType().cast<Torch::ValueTensorType>();
+        auto startsTy =
+            startsTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+        int startSize = startsTy.getDimSize(0);
+
+        auto endsTorchTy = ends.getType().cast<Torch::ValueTensorType>();
+        auto endsTy =
+            endsTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+        int endSize = endsTy.getDimSize(0);
+        auto resultTy =
+            resultTorchType.toBuiltinTensor().dyn_cast<RankedTensorType>();
+        if (!resultTy)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected result type to be a ranked tensor type");
+
+        Location loc = binder.getLoc();
+
+        // Binding `axes` from its arguments or through a default value
+        Value axes;
+        if (binder.getNumOperands() >= 4) {
+          if (binder.tensorOperandAtIndex(axes, 3)) {
+            return failure();
+          }
+        } else {
+          // The default axes value is the range from 0 to the number of
+          // dimensions
+          Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+          auto defaultAxesType = Torch::ValueTensorType::get(
+              context, ArrayRef<int64_t>{operandTy.getRank()},
+              rewriter.getIntegerType(64, /*signed*/ 1));
+          Value arangeLength = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                      operandTy.getRank()));
+          axes = rewriter.create<Torch::AtenArangeOp>(
+              loc, defaultAxesType, arangeLength, none, none, none, none);
+        }
+
+        // Binding `steps` from its arguments or through a default value
+        Value steps;
+        if (binder.getNumOperands() >= 5) {
+          if (binder.tensorOperandAtIndex(steps, 4)) {
+            return failure();
+          }
+        } else {
+          // The default `steps` value is a 1d tensor filled with ones with a
+          // size of the dimension of the operand
+          Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+          auto defaultStepsType = Torch::ValueTensorType::get(
+              context, ArrayRef<int64_t>{operandTy.getRank()},
+              rewriter.getIntegerType(64, /*signed*/ 1));
+          Value sizeStepInput = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                      operandTy.getRank()));
+          Value sizeStepsInput = rewriter.create<Torch::PrimListConstructOp>(
+              loc,
+              Torch::ListType::get(
+                  Torch::IntType::get(binder.op->getContext())),
+              sizeStepInput);
+          steps = rewriter.create<Torch::AtenOnesOp>(
+              loc, defaultStepsType, sizeStepsInput, none, none, none, none);
+        }
+
+        if (!(endsTy.getRank() == 1 && startsTy.getRank() == 1 &&
+              startSize == endSize))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected the rank of starts and ends tensors to be 1 "
+                         "and their dimensions to match");
+
+        auto axesTorchTy = axes.getType().cast<Torch::ValueTensorType>();
+        auto axesTy =
+            axesTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+        int64_t numAxes = axesTy.getDimSize(0);
+
+        if (!(axesTy && numAxes == endSize))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Axes should be the same size of starts and ends");
+
+        auto stepsTy = steps.getType()
+                           .cast<Torch::ValueTensorType>()
+                           .toBuiltinTensor()
+                           .dyn_cast<RankedTensorType>();
+
+        if (!(stepsTy && stepsTy.getDimSize(0) == endsTy.getDimSize(0)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Steps should be the same size of starts and ends");
+
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+
+        auto select = [&](Value v, Value k) -> Value {
+          auto ty = v.getType().cast<Torch::ValueTensorType>();
+          auto sel = rewriter.create<Torch::AtenIndexSelectOp>(
+              loc,
+              Torch::ValueTensorType::get(ty.getContext(), ArrayRef<int64_t>{1},
+                                          ty.getOptionalDtype()),
+              v, zero, k);
+          Value item = rewriter.create<Torch::AtenItemOp>(
+              loc, rewriter.getType<Torch::IntType>(), sel);
+          return item;
+        };
+
+        llvm::SmallVector<int64_t> intermediateShape(operandTy.getShape());
+        for (int i = 0, s = operandTy.getRank(); i < s; ++i) {
+          if (operandTy.getDimSize(i) != resultTy.getDimSize(i)) {
+            intermediateShape[i] = -1;
+          }
+        }
+        auto intermediateType = Torch::ValueTensorType::get(
+            context, intermediateShape, resultTorchType.getOptionalDtype());
+        for (int i = 0; i < numAxes; ++i) {
+
+          Value k = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
+          Value kTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+              loc,
+              Torch::ValueTensorType::get(
+                  context, ArrayRef<int64_t>{1},
+                  rewriter.getIntegerType(64, /*signed*/ 1)),
+              k);
+
+          Value start = select(starts, kTensor);
+          Value end = select(ends, kTensor);
+          Value axis = select(axes, kTensor);
+          Value step = select(steps, kTensor);
+
+          auto sliceType = intermediateType;
+          if (i == numAxes - 1)
+            sliceType = resultTorchType;
+          operand = rewriter.create<Torch::AtenSliceTensorOp>(
+              loc, sliceType, operand, axis, start, end, step);
+        }
+
+        rewriter.replaceOp(binder.op, operand);
+        return success();
+      });
   patterns.onOp(
       "Reshape", 5, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
@@ -1181,6 +1397,52 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             dimList);
         rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(binder.op, resultType,
                                                           data, dimValueList);
+        return success();
+      });
+  patterns.onOp(
+      "Range", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // ONNX.Range(start, limit, delta) -- limit is exclusive
+
+        Torch::ValueTensorType resultType;
+        Value start, limit, delta;
+        auto loc = binder.getLoc();
+        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        if (binder.tensorOperandAtIndex(start, 0) ||
+            binder.tensorOperandAtIndex(limit, 1) ||
+            binder.tensorOperandAtIndex(delta, 2) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        // Convert a 0-dimensional/Scalar Tensor ([]) to Scalar Torch Numeric
+        // Value torch.tensor(1.1) equivalent in ONNX to 1.1 as an example
+        // type of start, limit, delta can be one of: double, float, int16,
+        // int32, int64 Assuming start, limit and delta to be same type (could
+        // they be different?)
+        Torch::BaseTensorType startTensorType =
+            start.getType().cast<Torch::BaseTensorType>();
+        bool isFloatDType = startTensorType.getDtype().isF64() ||
+                            startTensorType.getDtype().isF32();
+        bool isIntDType = startTensorType.getDtype().isInteger(16) ||
+                          startTensorType.getDtype().isInteger(32) ||
+                          startTensorType.getDtype().isInteger(64);
+        if (!isFloatDType && !isIntDType) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected the start, limit, delta to be one of "
+                         "double, float, int16, int32, int64");
+        }
+        Value scalarStart, scalarLimit, scalarDelta;
+        if (isFloatDType) {
+          scalarStart = getItemOp<Torch::FloatType>(binder, rewriter, start);
+          scalarLimit = getItemOp<Torch::FloatType>(binder, rewriter, limit);
+          scalarDelta = getItemOp<Torch::FloatType>(binder, rewriter, delta);
+        } else {
+          scalarStart = getItemOp<Torch::IntType>(binder, rewriter, start);
+          scalarLimit = getItemOp<Torch::IntType>(binder, rewriter, limit);
+          scalarDelta = getItemOp<Torch::IntType>(binder, rewriter, delta);
+        }
+        rewriter.replaceOpWithNewOp<Torch::AtenArangeStartStepOp>(
+            binder.op, resultType, scalarStart, scalarLimit, scalarDelta, none,
+            none, none, none);
         return success();
       });
 }
