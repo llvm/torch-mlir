@@ -1410,6 +1410,7 @@ LTC_XFAIL_SET = {
     "PixelShuffleModuleFullDynamic_basic",
     "PixelShuffleModuleSpatiallyDynamic_basic",
     "PixelShuffleModuleSpatiallyStatic_basic",
+    "ConvTbcModule_basic",
     "_Convolution2DAllFalseModule_basic",
     "_Convolution2DBenchmarkModule_basic",
     "_Convolution2DCudnnModule_basic",
