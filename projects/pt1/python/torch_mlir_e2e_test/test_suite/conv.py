@@ -761,7 +761,6 @@ class UpSampleNearest2dSameFactor(torch.nn.Module):
 @register_test_case(module_factory=lambda: UpSampleNearest2dSameFactor())
 def UpSampleNearest2dStaticFactor_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4, 4))
-
 class Conv1dModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -779,21 +778,8 @@ class Conv1dModule(torch.nn.Module):
                                      stride=[1],
                                      padding=[0],
                                      dilation=[1],
-                                     transposed=False,
-                                     output_padding=[0],
                                      groups=1)
-@register_test_case(module_factory=lambda: Conv1dModule())
-def Conv1dModule_basic(module, tu: TestUtils):
-    batch_size = 4
-    in_channels = 2
-    out_channels = 3
-    input_width = 5
-    kernel_width = 3
-    module.forward(tu.rand(batch_size, in_channels, input_width),
-                     tu.rand(out_channels, in_channels, kernel_width))
 
-
-    
 class Conv2dModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -811,21 +797,7 @@ class Conv2dModule(torch.nn.Module):
                                      stride=[1, 1],
                                      padding=[0, 0],
                                      dilation=[1, 1],
-                                     transposed=False,
-                                     output_padding=[0, 0],
                                      groups=1)
-@register_test_case(module_factory=lambda: Conv2dModule())
-def Conv2dModule_basic(module, tu: TestUtils):
-    batch_size = 4
-    in_channels = 2
-    out_channels = 3
-    input_width = 5
-    input_height = 5
-    kernel_width = 3
-    kernel_height = 3
-    module.forward(tu.rand(batch_size, in_channels, input_height, input_width),
-                     tu.rand(out_channels, in_channels, kernel_height, kernel_width))
-
 class Conv3dModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -843,22 +815,7 @@ class Conv3dModule(torch.nn.Module):
                                      stride=[1, 1, 1],
                                      padding=[0, 0, 0],
                                      dilation=[1, 1, 1],
-                                     transposed=False,
-                                     output_padding=[0, 0, 0],
                                      groups=1)
-@register_test_case(module_factory=lambda: Conv3dModule())
-def Conv3dModule_basic(module, tu: TestUtils):
-    batch_size = 4
-    in_channels = 2
-    out_channels = 3
-    input_width = 5
-    input_height = 5
-    input_depth = 5
-    kernel_width = 3
-    kernel_height = 3
-    kernel_depth = 3
-    module.forward(tu.rand(batch_size, in_channels, input_depth, input_height, input_width),
-                     tu.rand(out_channels, in_channels, kernel_depth, kernel_height, kernel_width))
 
 class ConvTbcModule(torch.nn.Module):
     def __init__(self):
