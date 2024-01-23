@@ -2591,6 +2591,24 @@ public:
 } // namespace
 
 namespace {
+
+  static LogicalResult createTorchTransposeOp(PatternRewriter &rewriter,
+                                              Location loc, Value input,
+                                              int64_t dimA, int64_t dimB,
+                                              Value &transposed) {
+    Type transposedType;
+    if (failed(getTransposedType(input.getType().cast<Torch::BaseTensorType>(),
+                                dimA, dimB, transposedType)))
+      return failure();
+    Value cstDimA = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(dimA));
+    Value cstDimB = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(dimB));
+    transposed = rewriter.create<Torch::AtenTransposeIntOp>(
+        loc, transposedType, input, cstDimA, cstDimB);
+    return success();
+  }
+
   class DecomposeAtenConvTbcOp : public OpRewritePattern<AtenConvTbcOp> {
   public:
     using OpRewritePattern::OpRewritePattern;
@@ -2607,11 +2625,39 @@ namespace {
           op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
           SmallVector<Value>{op.getPad()});
       Value groups = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), rewriter.getI64IntegerAttr(1));
-      rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
-          op, op->getResultTypes(), op.getSelf(), op.getWeight(), op.getBias(), stride,
+      
+      // convtbc has WNC layout for input and output
+      // and WCF layout for weight
+      // whereas Convolution is going to use Conv1DNcwFcwOp for 1d
+      // which means we need the inputs in NCW and the weight in FCW
+      Value selfWnc = op.getSelf();
+      Value selfNwc;
+      Value selfNcw;
+      if(failed(createTorchTransposeOp(rewriter, op.getLoc(), selfWnc, 0, 1, selfNwc)))
+          return rewriter.notifyMatchFailure(op, "failed to transpose input to Nwc");
+      if(failed(createTorchTransposeOp(rewriter, op.getLoc(), selfNwc, 1, 2, selfNcw)))
+          return rewriter.notifyMatchFailure(op, "failed to transpose input to Ncw");
+
+      Value weightWcf = op.getWeight();
+      Value weightFcw;
+      if(failed(createTorchTransposeOp(rewriter, op.getLoc(), weightWcf, 0, 2, weightFcw)))
+          return rewriter.notifyMatchFailure(op, "failed to transpose weight to Fcw");
+      
+
+      Value outputNcw = rewriter.create<AtenConvolutionOp>(
+          op.getLoc(), op->getResultTypes(), selfNcw, weightFcw, op.getBias(), stride,
           /*padding*/ padding, /*dilation*/ emptyList,
           /*transpose*/ cstFalse, /*output_padding*/ emptyList,
-          groups);
+          groups); 
+
+      // convert output from Ncw to Wnc
+      Value outputNwc;
+      Value outputWnc;
+      if(failed(createTorchTransposeOp(rewriter, op.getLoc(), outputNcw, 1, 2, outputNwc)))
+          return rewriter.notifyMatchFailure(op, "failed to transpose output to Nwc");
+      if(failed(createTorchTransposeOp(rewriter, op.getLoc(), outputNwc, 0, 1, outputWnc)))
+          return rewriter.notifyMatchFailure(op, "failed to transpose output to Wnc");
+      rewriter.replaceOp(op, outputWnc);
 
       return success();
     }
