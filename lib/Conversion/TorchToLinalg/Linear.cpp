@@ -566,9 +566,9 @@ public:
       return op.emitError("unimplemented: non-floating point type");
     size_t inRank = input.getType().cast<RankedTensorType>().getRank();
     size_t numSpacialDims = inRank - 2;
-    if (numSpacialDims != 2)
+    if (numSpacialDims < 1 || numSpacialDims > 3)
       return rewriter.notifyMatchFailure(
-          op, "unimplemented: only 2D convolution currently supported");
+          op, "unimplemented: only 1d-3d convolution currently supported");
 
     Type intType = IntegerType::get(context, 64);
     auto castIndexToInt = [&](Value v) {
