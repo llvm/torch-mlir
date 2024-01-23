@@ -22,7 +22,7 @@ static int64_t onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx) {
   // ONNX:
   //  https://github.com/shouxieai/tensorRT_Pro/blob/main/onnx/onnx-ml.proto
   // PyTorch:
-  //  https://github.com/pytorch/pytorch/blob/main/c10/core/ScalarType.h
+  //  https://github.com/llvm/torch-mlir/blob/main/include/torch-mlir/Dialect/Torch/Utils/TorchUpstream.h#L88
 
   int64_t dtypeIntTorch = [dtypeIntOnnx]() {
     switch (dtypeIntOnnx) {
