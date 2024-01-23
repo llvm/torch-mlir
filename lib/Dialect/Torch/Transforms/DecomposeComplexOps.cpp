@@ -2592,7 +2592,7 @@ public:
 
 namespace {
 
-  static LogicalResult createTorchTransposeOp(PatternRewriter &rewriter,
+  static LogicalResult createTorchTransposeOpForConvTbc(PatternRewriter &rewriter,
                                               Location loc, Value input,
                                               int64_t dimA, int64_t dimB,
                                               Value &transposed) {
@@ -2636,14 +2636,14 @@ namespace {
       Value selfWnc = op.getSelf();
       Value selfNwc;
       Value selfNcw;
-      if(failed(createTorchTransposeOp(rewriter, op.getLoc(), selfWnc, 0, 1, selfNwc)))
+      if(failed(createTorchTransposeOpForConvTbc(rewriter, op.getLoc(), selfWnc, 0, 1, selfNwc)))
           return rewriter.notifyMatchFailure(op, "failed to transpose input to Nwc");
-      if(failed(createTorchTransposeOp(rewriter, op.getLoc(), selfNwc, 1, 2, selfNcw)))
+      if(failed(createTorchTransposeOpForConvTbc(rewriter, op.getLoc(), selfNwc, 1, 2, selfNcw)))
           return rewriter.notifyMatchFailure(op, "failed to transpose input to Ncw");
 
       Value weightWcf = op.getWeight();
       Value weightFcw;
-      if(failed(createTorchTransposeOp(rewriter, op.getLoc(), weightWcf, 0, 2, weightFcw)))
+      if(failed(createTorchTransposeOpForConvTbc(rewriter, op.getLoc(), weightWcf, 0, 2, weightFcw)))
           return rewriter.notifyMatchFailure(op, "failed to transpose weight to Fcw");
       
 
@@ -2656,9 +2656,9 @@ namespace {
       // convert output from Ncw to Wnc
       Value outputNwc;
       Value outputWnc;
-      if(failed(createTorchTransposeOp(rewriter, op.getLoc(), outputNcw, 1, 2, outputNwc)))
+      if(failed(createTorchTransposeOpForConvTbc(rewriter, op.getLoc(), outputNcw, 1, 2, outputNwc)))
           return rewriter.notifyMatchFailure(op, "failed to transpose output to Nwc");
-      if(failed(createTorchTransposeOp(rewriter, op.getLoc(), outputNwc, 0, 1, outputWnc)))
+      if(failed(createTorchTransposeOpForConvTbc(rewriter, op.getLoc(), outputNwc, 0, 1, outputWnc)))
           return rewriter.notifyMatchFailure(op, "failed to transpose output to Wnc");
       rewriter.replaceOp(op, outputWnc);
 
@@ -2666,6 +2666,7 @@ namespace {
     }
   };
 }
+
 
 // Decompose aten.conv1d to aten.convolution
 namespace {

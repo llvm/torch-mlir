@@ -847,9 +847,9 @@ class ConvTbcModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([9, 4, 5], torch.float32, True),
-        ([3, 5, 6], torch.float32, True),
-        ([6], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
     def forward(self, x, weight, bias):
         return torch.conv_tbc(x, weight, bias)
