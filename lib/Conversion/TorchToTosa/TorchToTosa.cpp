@@ -1850,6 +1850,14 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     AtenConvolutionOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
+  bool transposed;
+  if (!matchPattern(op.getTransposed(), m_TorchConstantBool(&transposed)))
+    return rewriter.notifyMatchFailure(
+        op, "Unimplemented: non-constant value for transposed not supported");
+  if (transposed)
+    return rewriter.notifyMatchFailure(
+        op, "Unimplemented: transposed convolution not supported");
+
   auto input = adaptor.getInput();
   auto weight = adaptor.getWeight();
 
@@ -5089,6 +5097,8 @@ public:
                                       mlir::tosa::convertReduceMeanOp)
     INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenSumDimIntListOp,
                                       mlir::tosa::convertReduceSumOp)
+    INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenLinalgVectorNormOp,
+                                      mlir::tosa::convertLinalgVectorNormOp)
 #undef INSERT_NDIMS_REDUCTION_OP_PATTERN
 
 #define INSERT_ONEDIM_REDUCTION_OP_PATTERN(AtenOp, ConversionFunc)             \

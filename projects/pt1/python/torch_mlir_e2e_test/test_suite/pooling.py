@@ -213,6 +213,154 @@ def MaxPool2dCeilModeTrueModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class MaxPool3dModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.mp3d = torch.nn.MaxPool3d(kernel_size=[4, 4, 4],
+                                       stride=[2, 2, 2],
+                                       padding=[1, 1, 1],
+                                       dilation=1)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.mp3d(x)
+
+
+@register_test_case(module_factory=lambda: MaxPool3dModule())
+def MaxPool3dModule_basic(module, tu: TestUtils):
+    module.forward(torch.arange(8*8*8).view(1, 1, 8, 8, 8).float())
+
+class MaxPool3dRandomSimpleModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp3d = torch.nn.MaxPool3d(kernel_size=[4, 4, 4],
+                                       stride=[2, 2, 2],
+                                       padding=[1, 1, 1],
+                                       dilation=1)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.mp3d(x)
+
+
+@register_test_case(module_factory=lambda: MaxPool3dRandomSimpleModule())
+def MaxPool3dModuleRandomSimple_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 20, 20, 20, low=-1))
+
+class MaxPool3dLargeDataModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.mp3d = torch.nn.MaxPool3d(kernel_size=[6, 8, 8],
+                                       stride=[2, 2, 2],
+                                       padding=[3, 4, 4],
+                                       dilation=2)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.mp3d(x)
+
+
+@register_test_case(module_factory=lambda: MaxPool3dLargeDataModule())
+def MaxPool3dLargeDatadModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 20, 20, 20, low=-1))
+
+class MaxPool3dEmptyStrideStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 20, 20, 20], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.max_pool3d(x, kernel_size=2, stride=[])
+
+
+@register_test_case(module_factory=lambda: MaxPool3dEmptyStrideStaticModule())
+def MaxPool3dEmptyStrideStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 20, 20, 20, low=-1))
+
+
+class MaxPool3dStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp3d = torch.nn.MaxPool3d(kernel_size=[3, 3, 3],
+                                       stride=[2, 2, 2],
+                                       padding=[1, 1, 1],
+                                       dilation=[1, 1, 1])
+    @export
+    @annotate_args([
+        None,
+        ([1, 64, 112, 112, 112], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.mp3d(x)
+
+
+@register_test_case(module_factory=lambda: MaxPool3dStaticModule())
+def MaxPool3dStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 64, 112, 112, 112))
+
+class MaxPool3dStaticCeilModeTrueModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp3d = torch.nn.MaxPool3d(kernel_size=[3, 3, 3],
+                                       stride=[2, 2, 2],
+                                       padding=[1, 1, 1],
+                                       dilation=[1, 1, 1],
+                                       ceil_mode=True)
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 64, 112, 112, 112], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.mp3d(x)
+
+
+@register_test_case(module_factory=lambda: MaxPool3dStaticCeilModeTrueModule())
+def MaxPool3dStaticCeilModeTrueModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 64, 112, 112, 112))
+
+
+class MaxPool3dCeilModeTrueModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp3d = torch.nn.MaxPool3d(kernel_size=[6, 8, 8],
+                                       stride=[2, 2, 2],
+                                       padding=[3, 4, 4],
+                                       dilation=2,
+                                       ceil_mode=True)
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.mp3d(x)
+
+@register_test_case(module_factory=lambda: MaxPool3dCeilModeTrueModule())
+def MaxPool3dCeilModeTrueModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 20, 20, 20, low=0.5, high=1.0))
+
+
+# ==============================================================================
+
 
 class MaxPool2dWithIndicesModule(torch.nn.Module):
 

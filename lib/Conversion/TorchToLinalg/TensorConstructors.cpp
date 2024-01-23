@@ -98,11 +98,8 @@ namespace {
 
       Location loc = op->getLoc();
       Value input = adaptor.getSelf();
-      MLIRContext *context = rewriter.getContext();
       auto inputType = llvm::cast<RankedTensorType>(input.getType());
       int64_t inputRank = inputType.getRank();
-      auto outputType = llvm::cast<RankedTensorType>(
-            getTypeConverter()->convertType(op->getResult(0).getType()));
       unsigned numDims = inputType.getRank();
         assert(numDims >= 2 && "Not enough input dimensions");
 
@@ -171,16 +168,6 @@ namespace {
         }
       }
 
-      // Some generic helper functions to aid in constructing basic arithmetic.
-      auto createAdd = [&](Value x, Value y) {
-        return rewriter.create<arith::AddIOp>(loc, x, y);
-      };
-
-      auto createAdds = [&](std::initializer_list<Value> values) {
-        assert(values.size() >= 2);
-        return std::accumulate(values.begin() + 1, values.end(), data(values)[0],
-                             createAdd);
-      };
       auto createSub = [&](Value x, Value y) {
         return rewriter.create<arith::SubIOp>(loc, x, y);
       };
@@ -247,8 +234,6 @@ namespace {
         tensorsRes.push_back(leftPadTile);
       }
       if (hasTopPadding) {
-        Value topLeftValue = rewriter.create<tensor::ExtractOp>(
-            loc, input, ValueRange{zero, zero, zero, zero});
         Value topHcenterSlice = rewriter.create<tensor::ExtractSliceOp>(
             loc, input, extractOffsetsLT, extractShapeTB, allOneStrides);
         for (auto i = 0; i < padInts[2]; ++i) {
