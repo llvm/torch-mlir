@@ -1332,6 +1332,17 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
+  patterns.onOp("Exp", 6,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenExpOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
   patterns.onOp(
       "Expand", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         // uses ideas and code from onnx.Reshape
