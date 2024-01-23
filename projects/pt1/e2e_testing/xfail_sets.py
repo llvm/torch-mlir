@@ -315,6 +315,9 @@ TORCHDYNAMO_XFAIL_SET = {
     # Dynamo does not support tracing quantized tensors
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
+
+    # Dynamo not supporting conv_tbc
+    "ConvTbcModule_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
