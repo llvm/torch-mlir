@@ -37,7 +37,7 @@ def export_and_import(
     fx_importer.import_frozen_exported_program(prog)
     return fx_importer.module_op
 
-def test_import_frozen_exported_program():
+def test_import_frozen_exported_program(rank):
     class All_Reduce(nn.Module):
         def __init__(self):
             super().__init__()
@@ -47,54 +47,14 @@ def test_import_frozen_exported_program():
             return out
     x = torch.tensor([1, 2, 3, 4], dtype=torch.float32)
     m = export_and_import(All_Reduce(), x)
-    print(m)
+    if (rank == 0):
+        f = test_import_frozen_exported_program
+        print(f"{f.__name__}")
+        print("-"*len(f.__name__))
+        print(m)
+        print()
 
 # CHECK: module
-# CHECK-LABEL:   func.func @main(
-# CHECK-SAME:                    %[[VAL_0:.*]]: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4],f32> {
-# CHECK:           %[[VAL_1:.*]] = torch.constant.str "sum"
-# CHECK:           %[[VAL_2:.*]] = torch.constant.str ""
-# CHECK:           %[[VAL_3:.*]] = torch.constant.int 0
-# CHECK:           %[[VAL_4:.*]] = torch.constant.int 1
-# CHECK:           %[[VAL_5:.*]] = torch.constant.int 2
-# CHECK:           %[[VAL_6:.*]] = torch.constant.int 3
-# CHECK:           %[[VAL_7:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_4]], %[[VAL_5]], %[[VAL_6]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-# CHECK:           %[[VAL_8:.*]] = torch.constant.int 4
-# CHECK:           %[[VAL_9:.*]] = torch.c10d_functional.all_reduce %[[VAL_0]], %[[VAL_1]], %[[VAL_2]], %[[VAL_7]], %[[VAL_8]] : !torch.vtensor<[4],f32>, !torch.str, !torch.str, !torch.list<int>, !torch.int -> !torch.vtensor<[4],f32>
-# CHECK:           %[[VAL_10:.*]] = torch.operator "torch.c10d_functional.wait_tensor"(%[[VAL_9]]) : (!torch.vtensor<[4],f32>) -> !torch.vtensor<[4],f32>
-# CHECK:           return %[[VAL_10]] : !torch.vtensor<[4],f32>
-# CHECK:         }
-
-# CHECK-LABEL:   func.func @main(
-# CHECK-SAME:                    %[[VAL_0:.*]]: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4],f32> {
-# CHECK:           %[[VAL_1:.*]] = torch.constant.str "sum"
-# CHECK:           %[[VAL_2:.*]] = torch.constant.str ""
-# CHECK:           %[[VAL_3:.*]] = torch.constant.int 0
-# CHECK:           %[[VAL_4:.*]] = torch.constant.int 1
-# CHECK:           %[[VAL_5:.*]] = torch.constant.int 2
-# CHECK:           %[[VAL_6:.*]] = torch.constant.int 3
-# CHECK:           %[[VAL_7:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_4]], %[[VAL_5]], %[[VAL_6]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-# CHECK:           %[[VAL_8:.*]] = torch.constant.int 4
-# CHECK:           %[[VAL_9:.*]] = torch.c10d_functional.all_reduce %[[VAL_0]], %[[VAL_1]], %[[VAL_2]], %[[VAL_7]], %[[VAL_8]] : !torch.vtensor<[4],f32>, !torch.str, !torch.str, !torch.list<int>, !torch.int -> !torch.vtensor<[4],f32>
-# CHECK:           %[[VAL_10:.*]] = torch.operator "torch.c10d_functional.wait_tensor"(%[[VAL_9]]) : (!torch.vtensor<[4],f32>) -> !torch.vtensor<[4],f32>
-# CHECK:           return %[[VAL_10]] : !torch.vtensor<[4],f32>
-# CHECK:         }
-
-# CHECK-LABEL:   func.func @main(
-# CHECK-SAME:                    %[[VAL_0:.*]]: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4],f32> {
-# CHECK:           %[[VAL_1:.*]] = torch.constant.str "sum"
-# CHECK:           %[[VAL_2:.*]] = torch.constant.str ""
-# CHECK:           %[[VAL_3:.*]] = torch.constant.int 0
-# CHECK:           %[[VAL_4:.*]] = torch.constant.int 1
-# CHECK:           %[[VAL_5:.*]] = torch.constant.int 2
-# CHECK:           %[[VAL_6:.*]] = torch.constant.int 3
-# CHECK:           %[[VAL_7:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_4]], %[[VAL_5]], %[[VAL_6]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-# CHECK:           %[[VAL_8:.*]] = torch.constant.int 4
-# CHECK:           %[[VAL_9:.*]] = torch.c10d_functional.all_reduce %[[VAL_0]], %[[VAL_1]], %[[VAL_2]], %[[VAL_7]], %[[VAL_8]] : !torch.vtensor<[4],f32>, !torch.str, !torch.str, !torch.list<int>, !torch.int -> !torch.vtensor<[4],f32>
-# CHECK:           %[[VAL_10:.*]] = torch.operator "torch.c10d_functional.wait_tensor"(%[[VAL_9]]) : (!torch.vtensor<[4],f32>) -> !torch.vtensor<[4],f32>
-# CHECK:           return %[[VAL_10]] : !torch.vtensor<[4],f32>
-# CHECK:         }
-
 # CHECK-LABEL:   func.func @main(
 # CHECK-SAME:                    %[[VAL_0:.*]]: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4],f32> {
 # CHECK:           %[[VAL_1:.*]] = torch.constant.str "sum"
@@ -124,7 +84,7 @@ def run(
     world_size,
 ):
     setup(world_size, rank)
-    test_import_frozen_exported_program() 
+    test_import_frozen_exported_program(rank)
     cleanup()
 
 if __name__ == "__main__":
