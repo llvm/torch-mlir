@@ -544,18 +544,6 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenConvTbcOp : public OpConversionPattern<AtenConvTbcOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenConvTbcOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const override {
-    return rewriter.notifyMatchFailure(
-      op, "unimplemented: aten::conv_tbc lowering not implemented because conv1d not implemented");
-  }
-
-}; //class
-} //namespace
-namespace {
 class ConvertAtenConvolutionOp : public OpConversionPattern<AtenConvolutionOp> {
 public:
   using OpConversionPattern::OpConversionPattern;

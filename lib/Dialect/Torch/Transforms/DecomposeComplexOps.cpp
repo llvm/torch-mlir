@@ -2590,6 +2590,34 @@ public:
 };
 } // namespace
 
+namespace {
+  class DecomposeAtenConvTbcOp : public OpRewritePattern<AtenConvTbcOp> {
+  public:
+    using OpRewritePattern::OpRewritePattern;
+    LogicalResult matchAndRewrite(AtenConvTbcOp op,
+                                  PatternRewriter &rewriter) const override {
+      Value emptyList = rewriter.create<PrimListConstructOp>(
+          op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+          SmallVector<Value>());
+      Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+      Value stride = rewriter.create<PrimListConstructOp>(
+          op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+          SmallVector<Value>{rewriter.create<Torch::ConstantIntOp>(op.getLoc(), rewriter.getI64IntegerAttr(1))});
+      Value padding = rewriter.create<PrimListConstructOp>(
+          op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+          SmallVector<Value>{op.getPad()});
+      Value groups = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), rewriter.getI64IntegerAttr(1));
+      rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
+          op, op->getResultTypes(), op.getSelf(), op.getWeight(), op.getBias(), stride,
+          /*padding*/ padding, /*dilation*/ emptyList,
+          /*transpose*/ cstFalse, /*output_padding*/ emptyList,
+          groups);
+
+      return success();
+    }
+  };
+}
+
 // Decompose aten.conv1d to aten.convolution
 namespace {
 class DecomposeAtenConv1dOp : public OpRewritePattern<AtenConv1dOp> {
@@ -6687,6 +6715,12 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTriuOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenConvTbcOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenConv1dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenConv2dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenConv3dOp>(patterns);
+
+
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
