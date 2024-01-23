@@ -2617,8 +2617,11 @@ namespace {
       Value emptyList = rewriter.create<PrimListConstructOp>(
           op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
           SmallVector<Value>());
+      Value zeroList = rewriter.create<PrimListConstructOp>(
+          op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+          SmallVector<Value>{rewriter.create<Torch::ConstantIntOp>(op.getLoc(), rewriter.getI64IntegerAttr(0))});
       Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
-      Value stride = rewriter.create<PrimListConstructOp>(
+      Value oneList = rewriter.create<PrimListConstructOp>(
           op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
           SmallVector<Value>{rewriter.create<Torch::ConstantIntOp>(op.getLoc(), rewriter.getI64IntegerAttr(1))});
       Value padding = rewriter.create<PrimListConstructOp>(
@@ -2645,8 +2648,8 @@ namespace {
       
 
       Value outputNcw = rewriter.create<AtenConvolutionOp>(
-          op.getLoc(), op->getResultTypes(), selfNcw, weightFcw, op.getBias(), stride,
-          /*padding*/ padding, /*dilation*/ emptyList,
+          op.getLoc(), op->getResultTypes(), selfNcw, weightFcw, op.getBias(), /*stride*/oneList,
+          /*padding*/ padding, /*dilation*/ oneList,
           /*transpose*/ cstFalse, /*output_padding*/ emptyList,
           groups); 
 
@@ -6649,7 +6652,6 @@ public:
         DecomposeAten_ConvolutionLikeOp<Aten_ConvolutionDeprecatedOp>>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvolutionBackwardOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenConv2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvTranspose2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeStartOp>(patterns);

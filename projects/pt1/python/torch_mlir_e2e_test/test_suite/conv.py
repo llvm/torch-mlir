@@ -768,17 +768,24 @@ class Conv1dModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([1, 1, 1], torch.float32, True),
-        ([1, 1, 1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
-    def forward(self, inputVec, weight):
+    def forward(self, inputVec, weight, bias):
         return torch.ops.aten.conv1d(inputVec,
                                      weight,
-                                     bias=None,
+                                     bias=bias,
                                      stride=[1],
                                      padding=[0],
                                      dilation=[1],
                                      groups=1)
+@register_test_case(module_factory=lambda: Conv1dModule())
+def Conv1dModule_basic(module, tu: TestUtils):
+    inputVec = tu.rand(2, 2, 6)
+    weight = torch.randn(8, 2, 3)
+    bias = torch.randn(8)
+    module.forward(inputVec, weight, bias)
 
 class Conv2dModule(torch.nn.Module):
     def __init__(self):
@@ -787,17 +794,25 @@ class Conv2dModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([1, 1, 1, 1], torch.float32, True),
-        ([1, 1, 1, 1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
-    def forward(self, inputVec, weight):
+    def forward(self, inputVec, weight, bias):
         return torch.ops.aten.conv2d(inputVec,
                                      weight,
-                                     bias=None,
+                                     bias=bias,
                                      stride=[1, 1],
                                      padding=[0, 0],
                                      dilation=[1, 1],
                                      groups=1)
+@register_test_case(module_factory=lambda: Conv2dModule())
+def Conv2dModule_basic(module, tu: TestUtils):
+    inputVec = tu.rand(2, 2, 6, 6)
+    weight = torch.randn(8, 2, 3, 3)
+    bias = torch.randn(8)
+    module.forward(inputVec, weight, bias)
+
 class Conv3dModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -805,17 +820,24 @@ class Conv3dModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([1, 1, 1, 1, 1], torch.float32, True),
-        ([1, 1, 1, 1, 1], torch.float32, True),
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
-    def forward(self, inputVec, weight):
+    def forward(self, inputVec, weight, bias):
         return torch.ops.aten.conv3d(inputVec,
                                      weight,
-                                     bias=None,
+                                     bias=bias,
                                      stride=[1, 1, 1],
                                      padding=[0, 0, 0],
                                      dilation=[1, 1, 1],
                                      groups=1)
+@register_test_case(module_factory=lambda: Conv3dModule())
+def Conv3dModule_basic(module, tu: TestUtils):
+    inputVec = tu.rand(2, 2, 6, 6, 6)
+    weight = torch.randn(8, 2, 3, 3, 3)
+    bias = torch.randn(8)
+    module.forward(inputVec, weight, bias)
 
 class ConvTbcModule(torch.nn.Module):
     def __init__(self):
