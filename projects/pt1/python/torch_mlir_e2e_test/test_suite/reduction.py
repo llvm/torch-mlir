@@ -1319,7 +1319,15 @@ class TraceModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: TraceModule())
 def TraceModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(3, 4))
+    module.forward(tu.rand(3, 3))
+
+@register_test_case(module_factory=lambda: TraceModule())
+def TraceModule_nonsquare(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+@register_test_case(module_factory=lambda: TraceModule())
+def TraceModule_empty(module, tu: TestUtils):
+    module.forward(torch.empty(0,0))
 
 # ==============================================================================
 
@@ -1330,13 +1338,20 @@ class TraceIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int32, True),
+        ([-1, -1], torch.int64, True),
     ])
     def forward(self, a):
         return torch.ops.aten.trace(a)
 
 @register_test_case(module_factory=lambda: TraceIntModule())
-def TraceIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(3, 4))
+def TraceSignedIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 2, low=-10, high=10))
 
+@register_test_case(module_factory=lambda: TraceIntModule())
+def TraceUnsignedIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 2, low=0, high=10))
+
+@register_test_case(module_factory=lambda: TraceIntModule())
+def TraceUnsignedIntModule_empty(module, tu: TestUtils):
+    module.forward(tu.randint(0, 0, low=0, high=10))
 

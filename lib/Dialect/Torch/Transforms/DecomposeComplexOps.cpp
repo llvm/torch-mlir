@@ -9,6 +9,7 @@
 
 #include "PassDetail.h"
 
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -1057,7 +1058,13 @@ public:
 } // namespace
 
 namespace {
-// Decompose trace as a special case of AtenEinsum
+// Calculate the trace of the input tensor as the sum over its diagonal
+// elements. This computation is performed as:
+//
+// Step1: Obtain the diagonal using AtenDiagonalOp
+// Step2: Compute the trace using AtenSumOp.
+//
+// It is verified that the input tensor has rank two.
 class DecomposeAtenTraceOp : public OpRewritePattern<AtenTraceOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -1073,22 +1080,30 @@ public:
     if (inRank != 2)
       return rewriter.notifyMatchFailure(
           op, "Expected input tensor to have rank 2.");
-    
-    Value iiString = rewriter.create<Torch::ConstantStrOp>(
-            loc, rewriter.getType<Torch::StringType>(),
-            rewriter.getStringAttr("ii"));
-    Value none = rewriter.create<ConstantNoneOp>(loc);
-    // SmallVector<Value> tensorsVector;
-    // tensorsVector.push_back(self);
 
-    Type listElemType =
-        op.getType().cast<BaseTensorType>().getWithSizesAndDtype(
-            /*optionalSizes=*/std::nullopt, /*optionalDtype=*/nullptr);
-    Type listType = Torch::ListType::get(listElemType);
-    Value tensors = rewriter.create<PrimListConstructOp>(
-        op.getLoc(), listType, llvm::ArrayRef<Value>{self});
+    Value zero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    BaseTensorType inputType = self.getType().cast<BaseTensorType>();
 
-    rewriter.replaceOpWithNewOp<AtenEinsumOp>(op,  op.getType(), /*equation=*/iiString,  /*tensors=*/tensors, /*path=*/none);
+    Value output = op.getResult();
+    BaseTensorType outputType = output.getType().cast<BaseTensorType>();
+
+    ArrayRef<int64_t> inputShape = inputType.getSizes();
+    int64_t diagonalSize = std::min(inputShape[0], inputShape[1]);
+    SmallVector<int64_t> diagonalShape{diagonalSize};
+    Type elementType = inputType.getOptionalDtype();
+    Type diagonalType = inputType.getWithSizesAndDtype(
+        llvm::ArrayRef(diagonalShape), elementType);
+
+    Value diagonal = rewriter.create<AtenDiagonalOp>(
+        loc, diagonalType, /*input=*/self, /*offset=*/zero, /*dim1=*/zero,
+        /*dim2=*/one);
+    Value dtype = getDtypeIntValueForType(rewriter, loc, elementType);
+    Value sum = rewriter.create<AtenSumOp>(loc, outputType, /*self=*/diagonal,
+                                           /*dtype=*/dtype);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, output.getType(), sum);
     return success();
   }
 };
