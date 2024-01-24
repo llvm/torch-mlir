@@ -64,3 +64,56 @@ def Torch_C10dFunctionalWaitTensorOp : Torch_Op<"c10d_functional.wait_tensor", [
     }
   }];
 }
+
+def Torch_C10dFunctionalAllGatherIntoTensorOp : Torch_Op<"c10d_functional.all_gather_into_tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `c10d_functional::all_gather_into_tensor : (Tensor, str, int[], int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$shard,
+    Torch_StringType:$tag,
+    AnyTorchListOfTorchIntType:$ranks,
+    Torch_IntType:$group_size
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult C10dFunctionalAllGatherIntoTensorOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void C10dFunctionalAllGatherIntoTensorOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
+def Torch_C10dFunctionalReduceScatterTensorOp : Torch_Op<"c10d_functional.reduce_scatter_tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `c10d_functional::reduce_scatter_tensor : (Tensor, str, str, int[], int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    Torch_StringType:$reduceOp,
+    Torch_StringType:$tag,
+    AnyTorchListOfTorchIntType:$ranks,
+    Torch_IntType:$group_size
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult C10dFunctionalReduceScatterTensorOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 5, 1);
+    }
+    void C10dFunctionalReduceScatterTensorOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 5, 1);
+    }
+  }];
+}

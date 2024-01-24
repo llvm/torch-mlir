@@ -38,15 +38,16 @@ def export_and_import(
     return fx_importer.module_op
 
 def test_import_frozen_exported_program(rank):
-    class All_Reduce(nn.Module):
+    class Reduce_Scatter_Tensor(nn.Module):
         def __init__(self):
             super().__init__()
 
         def forward(self, x):
-            out = funcol.all_reduce(x, "sum", [0, 1, 2, 3])
+            out = funcol.reduce_scatter_tensor(x, "sum", 0, [0, 1, 2, 3])
             return out
-    x = torch.tensor([1, 2, 3, 4], dtype=torch.float32)
-    m = export_and_import(All_Reduce(), x)
+    
+    x = torch.arange(4, dtype=torch.float32) + rank * 4
+    m = export_and_import(Reduce_Scatter_Tensor(), x)
     if (rank == 0):
         f = test_import_frozen_exported_program
         print(f"{f.__name__}")
@@ -56,7 +57,7 @@ def test_import_frozen_exported_program(rank):
 
 # CHECK: module
 # CHECK-LABEL:   func.func @main(
-# CHECK-SAME:                    %[[VAL_0:.*]]: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4],f32> {
+# CHECK-SAME:                    %[[VAL_0:.*]]: !torch.vtensor<[4],f32>) -> !torch.vtensor<[1],f32> {
 # CHECK:           %[[VAL_1:.*]] = torch.constant.str "sum"
 # CHECK:           %[[VAL_2:.*]] = torch.constant.str ""
 # CHECK:           %[[VAL_3:.*]] = torch.constant.int 0
@@ -65,12 +66,12 @@ def test_import_frozen_exported_program(rank):
 # CHECK:           %[[VAL_6:.*]] = torch.constant.int 3
 # CHECK:           %[[VAL_7:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_4]], %[[VAL_5]], %[[VAL_6]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
 # CHECK:           %[[VAL_8:.*]] = torch.constant.int 4
-# CHECK:           %[[VAL_9:.*]] = torch.c10d_functional.all_reduce %[[VAL_0]], %[[VAL_1]], %[[VAL_2]], %[[VAL_7]], %[[VAL_8]] : !torch.vtensor<[4],f32>, !torch.str, !torch.str, !torch.list<int>, !torch.int -> !torch.vtensor<[4],f32>
-# CHECK:           %[[VAL_10:.*]] = torch.c10d_functional.wait_tensor %[[VAL_9]] : !torch.vtensor<[4],f32> -> !torch.vtensor<[4],f32>
-# CHECK:           return %[[VAL_10]] : !torch.vtensor<[4],f32>
+# CHECK:           %[[VAL_9:.*]] = torch.c10d_functional.reduce_scatter_tensor %[[VAL_0]], %[[VAL_1]], %[[VAL_2]], %[[VAL_7]], %[[VAL_8]] : !torch.vtensor<[4],f32>, !torch.str, !torch.str, !torch.list<int>, !torch.int -> !torch.vtensor<[1],f32>
+# CHECK:           %[[VAL_10:.*]] = torch.c10d_functional.wait_tensor %[[VAL_9]] : !torch.vtensor<[1],f32> -> !torch.vtensor<[1],f32>
+# CHECK:           return %[[VAL_10]] : !torch.vtensor<[1],f32>
 # CHECK:         }
 
-def setup(world_size, rank, port="4989", addr="localhost"):
+def setup(world_size, rank, port="4991", addr="localhost"):
     os.environ["MASTER_ADDR"] = addr
     os.environ["MASTER_PORT"] = port
     dist.init_process_group("gloo", rank=rank, world_size=world_size)
