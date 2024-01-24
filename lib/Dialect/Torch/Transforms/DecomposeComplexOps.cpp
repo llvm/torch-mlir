@@ -12,6 +12,7 @@
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
@@ -1890,6 +1891,37 @@ public:
         loc, resType, positiveOutput, scaledNegativeOutput, constantOne);
 
     rewriter.replaceOp(op, leakyReluBackwardOutput);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenLerpScalarOp : public OpRewritePattern<AtenLerpScalarOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLerpScalarOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto resType = op.getType().cast<ValueTensorType>();
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+if (!op.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      op.emitError("unimplemented: non-floating point dtype");
+      return failure();
+    }
+    auto dtype = resType.getDtype(); 
+    auto start = convertScalarToDtype(rewriter, loc, op.getSelf(), dtype);
+    auto end = convertScalarToDtype(rewriter, loc, op.getEnd(), dtype);
+    auto weight = convertScalarToDtype(rewriter, loc, op.getWeight(), dtype);
+    auto delta = rewriter.create<AtenSubFloatOp>(loc, end, start);
+    auto weightedDelta = rewriter.create<AtenMulFloatOp>(loc, delta, weight);
+    auto lerp = rewriter.create<AtenAddFloatIntOp>(loc, start, weightedDelta);
+    rewriter.replaceOp(op, lerp);
     return success();
   }
 };
@@ -6626,6 +6658,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenSeluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluBackwardOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLerpScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyStridedOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEmptyStridedOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBucketizeTensorOp>(patterns);
