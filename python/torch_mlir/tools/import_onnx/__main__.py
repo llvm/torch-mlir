@@ -49,7 +49,7 @@ def main(args):
 
 
 def load_onnx_model(file_path: Path, keep: bool) -> onnx.ModelProto:
-    # Do shape inferrence via files instead of in memory in order to handle
+    # Do shape inference via files instead of in memory in order to handle
     # models > 2 GB. See https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#shape-inference-a-large-onnx-model-2gb
     # for details about this technique.
     inferred_path = file_path.with_stem(file_path.stem + '-inferred-shape')
