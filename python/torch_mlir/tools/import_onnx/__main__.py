@@ -28,7 +28,7 @@ from ...ir import (
 
 
 def main(args):
-    model_proto = load_onnx_model(args.input_file)
+    model_proto = load_onnx_model(args.input_file, args.keep)
     context = Context()
     torch_d.register_dialect(context)
     model_info = onnx_importer.ModelInfo(model_proto)
@@ -48,9 +48,15 @@ def main(args):
         print(m.get_asm(assume_verified=not args.no_verify))
 
 
-def load_onnx_model(file_path: Path) -> onnx.ModelProto:
-    raw_model = onnx.load(file_path)
-    inferred_model = onnx.shape_inference.infer_shapes(raw_model)
+def load_onnx_model(file_path: Path, keep: bool) -> onnx.ModelProto:
+    # Do shape inferrence via files instead of in memory in order to handle
+    # models > 2 GB. See https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#shape-inference-a-large-onnx-model-2gb
+    # for details about this technique.
+    inferred_path = file_path.with_stem(file_path.stem + '-inferred-shape')
+    onnx.shape_inference.infer_shapes_path(file_path, inferred_path)
+    inferred_model = onnx.load(inferred_path)
+    if not keep:
+        inferred_path.unlink(True)
     return inferred_model
 
 
@@ -64,6 +70,9 @@ def parse_arguments(argv=None):
         "--no-verify",
         action="store_true",
         help="Disable verification prior to printing",
+    )
+    parser.add_argument(
+        "--keep", action="store_true", help="Keep intermediate files"
     )
     args = parser.parse_args(argv)
     return args
