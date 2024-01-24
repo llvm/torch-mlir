@@ -259,7 +259,7 @@ def RecomposeComplexOps : Pass<"torch-recompose-complex-ops", "func::FuncOp"> {
 }
 
 def FuseQuantizedOps : Pass<"torch-fuse-quantized-ops", "func::FuncOp"> {
-  let summary = "";
+  let summary = "QDQ: Fuse recognized QDQ op sequences.";
   let constructor = "mlir::torch::Torch::createFuseQuantizedOpsPass()";
   let description = [{
     Torch models often represents quantized operations as the sequence:
@@ -280,7 +280,7 @@ def MatchQuantizedCustomOps : Pass<"torch-match-quantized-custom-ops", "func::Fu
   let description = [{
     Torch quantization utilities generated custom op versions of known aten
     quantziation operations. We can match these specially named operations and
-    rewrite to the corresponding atne quantized operations.
+    rewrite to the corresponding aten quantized operations.
 
     We handle this post import to maintain a simplified import process.
   }];

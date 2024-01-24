@@ -64,12 +64,14 @@ public:
 
       auto clampTy = clamp.getType().cast<Torch::ValueTensorType>();
       if (!clampTy.hasDtype())
-        return failure();
+        return rewriter.notifyMatchFailure(op,
+                                           "dequantization has unknown dtype");
 
       Type dtype = clampTy.getDtype();
       Type qetype = getQuantizedType(op.getContext(), dtype);
       if (!qetype)
-        return failure();
+        return rewriter.notifyMatchFailure(op,
+                                           "dequantization has unknown qtype");
 
       Type qTy = Torch::ValueTensorType::get(
           op.getContext(), clampTy.getOptionalSizes(), qetype);
@@ -94,9 +96,8 @@ public:
 
     GreedyRewriteConfig config;
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
-                                            config))) {
+                                            config)))
       return signalPassFailure();
-    }
   }
 };
 
