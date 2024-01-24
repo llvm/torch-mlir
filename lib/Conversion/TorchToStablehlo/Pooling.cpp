@@ -569,15 +569,13 @@ LogicalResult ConvertAtenOp<AtenCumsumOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
   auto inputTy = input.getType().cast<RankedTensorType>();
-  auto outType =
-      RankedTensorType::get(inputTy.getShape(), rewriter.getI64Type());
-  input = hlo::promoteType(rewriter, op.getLoc(), input, outType);
+  auto outTy =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+  input = hlo::promoteType(rewriter, op.getLoc(), input, outTy);
   inputTy = input.getType().cast<RankedTensorType>();
   auto inputElemTy = inputTy.getElementType();
   auto inputRank = inputTy.getRank();
   auto inputShape = inputTy.getShape();
-  auto outTy =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
 
   int64_t dim;
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim))) {
