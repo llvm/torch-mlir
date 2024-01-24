@@ -201,9 +201,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.op, "kernel list size does not match the number of axes");
         if (binder.s64IntegerArrayAttr(padding, "pads", {0}))
           return rewriter.notifyMatchFailure(binder.op, "pads bind failure");
-        if (padding.size() != 1 && padding.size() != rank - 2)
+        if (padding.size() != 1 && padding.size() != 2 * (rank - 2))
           return rewriter.notifyMatchFailure(
-              binder.op, "padding list size does not match the number of axes");
+              binder.op, "padding list must contain (begin,end) pair for each "
+                         "spatial axis");
         if (binder.s64IntegerArrayAttr(strides, "strides", {1}))
           return rewriter.notifyMatchFailure(binder.op, "strides bind failure");
         if (strides.size() != 1 && strides.size() != rank - 2)

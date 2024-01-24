@@ -60,3 +60,4 @@ def register_all_tests():
     from . import control_flow
     from . import stats
     from . import padding
+    from . import diagonal
