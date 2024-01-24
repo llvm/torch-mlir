@@ -15777,3 +15777,4 @@ def Torch_QuantizedLinearOp : Torch_Op<"quantized.linear", [
     }
   }];
 }
+
