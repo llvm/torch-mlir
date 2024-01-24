@@ -53,7 +53,6 @@ def test_import_frozen_exported_program(rank):
         print("-"*len(f.__name__))
         print(m)
         print()
-
 # CHECK: module
 # CHECK-LABEL:   func.func @main(
 # CHECK-SAME:                    %[[VAL_0:.*]]: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4],f32> {
@@ -66,7 +65,7 @@ def test_import_frozen_exported_program(rank):
 # CHECK:           %[[VAL_7:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_4]], %[[VAL_5]], %[[VAL_6]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
 # CHECK:           %[[VAL_8:.*]] = torch.constant.int 4
 # CHECK:           %[[VAL_9:.*]] = torch.c10d_functional.all_reduce %[[VAL_0]], %[[VAL_1]], %[[VAL_2]], %[[VAL_7]], %[[VAL_8]] : !torch.vtensor<[4],f32>, !torch.str, !torch.str, !torch.list<int>, !torch.int -> !torch.vtensor<[4],f32>
-# CHECK:           %[[VAL_10:.*]] = torch.operator "torch.c10d_functional.wait_tensor"(%[[VAL_9]]) : (!torch.vtensor<[4],f32>) -> !torch.vtensor<[4],f32>
+# CHECK:           %[[VAL_10:.*]] = torch.c10d_functional.wait_tensor %[[VAL_9]] : !torch.vtensor<[4],f32> -> !torch.vtensor<[4],f32>
 # CHECK:           return %[[VAL_10]] : !torch.vtensor<[4],f32>
 # CHECK:         }
 
