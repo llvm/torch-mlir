@@ -708,6 +708,100 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, operand, constAlpha);
                   return success();
                 });
+  patterns.onOp(
+      "Pad", 19, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value data, pads, constantValue, axes;
+        std::string mode;
+
+        // TODO: The `axes` parameter is not supported yet.
+        if (!binder.tensorOperandAtIndex(axes, 3)) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "The axes parameter is not supported yet");
+        }
+        if (binder.tensorOperandAtIndex(data, 0) ||
+            binder.tensorOperandAtIndex(pads, 1) ||
+            binder.tensorOperandAtIndex(constantValue, 2) ||
+            binder.tensorResultType(resultType) ||
+            binder.customOpNameStringAttr(mode, "mode", "constant"))
+          return failure();
+        Location loc = binder.getLoc();
+
+        // Get pads shape and rank. The pads tensor is expected to be 1-D
+        // tensor.
+        auto padsTensorType = pads.getType().cast<Torch::ValueTensorType>();
+        if (!padsTensorType || !padsTensorType.hasSizes()) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Expect non empty pad tensor");
+        }
+        ArrayRef<int64_t> padsShape = padsTensorType.getSizes();
+        int64_t padsRank = padsShape.size();
+        if (padsRank != 1) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Expect 1-D pad tensor");
+        }
+
+        // Extract all the values of 1-D pad tensor and create a list of all
+        // these values as torch.pad op expects pad list.
+        int64_t padsSize = padsShape[0];
+        Value constZero = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(0));
+        SmallVector<Value> padsTensorValue;
+        SmallVector<int64_t> emptyShape;
+        Type padsElemType =
+            Torch::ValueTensorType::get(padsTensorType.getContext(), emptyShape,
+                                        padsTensorType.getOptionalDtype());
+        for (uint32_t i = 0; i < padsSize; ++i) {
+          Value index = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(i));
+          padsTensorValue.emplace_back(rewriter.create<Torch::AtenSelectIntOp>(
+              loc, padsElemType, pads, constZero, index));
+        }
+
+        // The torch.pad op expects a different arrangement of padding pairs for
+        // each dimension as compared to the onnx.pad op. So, rearranging pad
+        // tensor to satisfy torch.pad op semantics.
+        SmallVector<Value> padsRearrange;
+        for (uint32_t i = 0; i < padsSize / 2; i++) {
+          padsRearrange.emplace_back(padsTensorValue[(padsSize / 2) - 1 - i]);
+          padsRearrange.emplace_back(padsTensorValue[padsSize - 1 - i]);
+        }
+
+        Value padsSizeList =
+            rewriter
+                .create<Torch::PrimTolistOp>(
+                    loc,
+                    Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+                    padsRearrange)
+                .getResult(0);
+        Value modeVal = rewriter.create<Torch::ConstantStrOp>(
+            loc, rewriter.getStringAttr(mode));
+
+        // The constant value is a 0-d tensor, which needs to be converted to a
+        // float scalar as torch.pad op expects a float scalar.
+        auto constValueType =
+            constantValue.getType().cast<Torch::ValueTensorType>();
+        if (!constValueType) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Expect non-none constant value");
+        }
+        auto resultTensorType = Torch::ValueTensorType::get(
+            constValueType.getContext(), emptyShape, rewriter.getF64Type());
+        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+        Value constFloatValue = rewriter.create<Torch::AtenToDtypeOp>(
+            loc, resultTensorType, constantValue,
+            Torch::getDtypeIntValueForType(rewriter, loc,
+                                           resultTensorType.getOptionalDtype()),
+            /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+            /*memory_format=*/none);
+        Value constScalar = rewriter.create<Torch::AtenItemOp>(
+            loc, rewriter.getType<Torch::FloatType>(), constFloatValue);
+
+        rewriter.replaceOpWithNewOp<Torch::AtenPadOp>(
+            binder.op, resultType, data, padsSizeList, modeVal, constScalar);
+        return success();
+      });
   patterns.onOp("Pow", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
