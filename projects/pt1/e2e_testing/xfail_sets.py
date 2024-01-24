@@ -315,6 +315,7 @@ TORCHDYNAMO_XFAIL_SET = {
     # Dynamo does not support tracing quantized tensors
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
+    "AtenMmQuint8_basic",
 
     # Dynamo not supporting conv_tbc
     "ConvTbcModule_basic",
@@ -1539,7 +1540,4 @@ LTC_XFAIL_SET = {
     "ElementwiseBitwiseAndScalarInt64Module_basic",
     "ElementwiseBitwiseAndScalarInt32Module_basic",
     "ElementwiseBitwiseAndScalarInt8Module_basic",
-    "ElementwiseNanToNumModule_Basic",
-    "ElementwiseQuantizePerTensorModule_basic",
-    "ElementwiseDequantizePerTensorModule_basic"
 }

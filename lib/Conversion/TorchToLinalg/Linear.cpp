@@ -29,6 +29,13 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 namespace {
+
+static void getZeroPoint(Value value, Value &zeropoint) {
+  if (auto make = value.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
+    zeropoint = make.getZeroPoint();
+  }
+}
+
 class ConvertAtenMmOp : public OpConversionPattern<AtenMmOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -64,9 +71,25 @@ public:
         op.getSelf().getType().cast<ValueTensorType>();
     ValueTensorType rhsTorchType =
         op.getMat2().getType().cast<ValueTensorType>();
+
+    Value lhsZeroPoint, rhsZeroPoint;
+    getZeroPoint(op.getSelf(), lhsZeroPoint);
+    getZeroPoint(op.getMat2(), rhsZeroPoint);
+
+    if (static_cast<bool>(lhsZeroPoint) != static_cast<bool>(lhsZeroPoint)) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: aten.mm with mixed quantization");
+    }
+
     if (lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
       return rewriter.notifyMatchFailure(
           op, "unsupported: aten.mm with different input element types");
+    }
+
+    bool isUnsigned = torch_to_linalg::isUnsignedTorchType(lhsTorchType);
+    if (lhsZeroPoint && isUnsigned) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: unsigned quantized matmul not supported");
     }
 
     Value lhsDim0 = rewriter.create<tensor::DimOp>(loc, lhs, 0);
@@ -89,8 +112,26 @@ public:
         rewriter, loc, ValueRange{lhsDim0, rhsDim1}, elementType);
 
     Value matmul;
-    auto intType = dyn_cast<mlir::IntegerType>(lhsTorchType.getDtype());
-    if (intType && intType.isUnsigned()) {
+    if (lhsZeroPoint && !isUnsigned) {
+      lhsZeroPoint = typeConverter->materializeTargetConversion(
+          rewriter, loc,
+          getTypeConverter()->convertType(lhsZeroPoint.getType()),
+          lhsZeroPoint);
+      rhsZeroPoint = typeConverter->materializeTargetConversion(
+          rewriter, loc,
+          getTypeConverter()->convertType(rhsZeroPoint.getType()),
+          rhsZeroPoint);
+      lhsZeroPoint = rewriter.create<arith::TruncIOp>(
+          loc, rewriter.getI32Type(), lhsZeroPoint);
+      rhsZeroPoint = rewriter.create<arith::TruncIOp>(
+          loc, rewriter.getI32Type(), rhsZeroPoint);
+      matmul =
+          rewriter
+              .create<linalg::QuantizedMatmulOp>(
+                  loc, zeroFill.getType(),
+                  ValueRange{lhs, rhs, lhsZeroPoint, rhsZeroPoint}, zeroFill)
+              .getResult(0);
+    } else if (isUnsigned) {
       matmul = rewriter
                    .create<linalg::MatmulUnsignedOp>(
                        loc, zeroFill.getType(), ValueRange{lhs, rhs}, zeroFill)
