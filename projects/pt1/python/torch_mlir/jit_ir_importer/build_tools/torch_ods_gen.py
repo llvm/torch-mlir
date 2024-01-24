@@ -502,6 +502,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::adaptive_avg_pool3d : (Tensor, int[]) -> (Tensor)")
     emit("aten::_adaptive_avg_pool3d : (Tensor, int[]) -> (Tensor)")
     emit("aten::_adaptive_avg_pool3d_backward : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::adaptive_max_pool2d : (Tensor, int[]) -> (Tensor, Tensor)")
     emit("aten::topk : (Tensor, int, int, bool, bool) -> (Tensor, Tensor)")
     emit("aten::transpose.int : (Tensor, int, int) -> (Tensor)")
     emit("aten::pixel_shuffle : (Tensor, int) -> (Tensor)")

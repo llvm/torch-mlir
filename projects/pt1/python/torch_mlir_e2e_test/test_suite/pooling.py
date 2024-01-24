@@ -1061,3 +1061,84 @@ class AdaptiveAvgPool1dUnitOutputSizeDynamicModule(torch.nn.Module):
 def AdaptiveAvgPool1dUnitOutputSizeDynamicModule_basic(
         module, tu: TestUtils):
     module.forward(tu.rand(1, 512, 7))
+
+class AdaptiveMaxPool2dDynamic(torch.nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+        self.amp2d = torch.nn.AdaptiveMaxPool2d(output_size=(7,13), return_indices=False)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1,-1,-1,-1], torch.float32, True)
+    ])
+    def forward(self,x):
+        return self.amp2d(x)
+
+@register_test_case(
+    module_factory=lambda: AdaptiveMaxPool2dDynamic())
+def AdaptiveMaxPool2dDynamic_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(1, 512, 10, 16))
+
+class AdaptiveMaxPool2dDynamicWithIndices(torch.nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+        self.amp2d = torch.nn.AdaptiveMaxPool2d(output_size=(7,13), return_indices=True)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1,-1,-1,-1], torch.float32, True)
+    ])
+    def forward(self,x):
+        return self.amp2d(x)
+
+@register_test_case(
+    module_factory=lambda: AdaptiveMaxPool2dDynamicWithIndices())
+def AdaptiveMaxPool2dDynamicWithIndices_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(1, 512, 10, 16))
+    
+
+class AdaptiveMaxPool2dStatic(torch.nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+        self.amp2d = torch.nn.AdaptiveMaxPool2d(output_size=(7,13), return_indices=False)
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 512, 10, 9], torch.float32, True)
+    ])
+    def forward(self,x):
+        return self.amp2d(x)
+
+@register_test_case(
+    module_factory=lambda: AdaptiveMaxPool2dStatic())
+def AdaptiveMaxPool2dStatic_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(1, 512, 10, 9))
+
+class AdaptiveMaxPool2dStaticWithIndices(torch.nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+        self.amp2d = torch.nn.AdaptiveMaxPool2d(output_size=(7,13), return_indices=True)
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 512, 10, 16], torch.float32, True)
+    ])
+    def forward(self,x):
+        return self.amp2d(x)
+
+@register_test_case(
+    module_factory=lambda: AdaptiveMaxPool2dStaticWithIndices())
+def AdaptiveMaxPool2dStaticWithIndices_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(1, 512, 10, 16))
