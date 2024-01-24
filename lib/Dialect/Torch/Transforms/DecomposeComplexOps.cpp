@@ -1907,14 +1907,14 @@ public:
     if (!resType.hasDtype()) {
       return rewriter.notifyMatchFailure(op, "result should have dtype");
     }
-if (!op.getType()
+    if (!op.getType()
              .cast<ValueTensorType>()
              .getDtype()
              .isa<mlir::FloatType>()) {
       op.emitError("unimplemented: non-floating point dtype");
       return failure();
     }
-    auto dtype = resType.getDtype(); 
+    auto dtype = resType.getDtype();
     auto start = convertScalarToDtype(rewriter, loc, op.getSelf(), dtype);
     auto end = convertScalarToDtype(rewriter, loc, op.getEnd(), dtype);
     auto weight = convertScalarToDtype(rewriter, loc, op.getWeight(), dtype);
