@@ -986,24 +986,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     auto weightedDelta = b.create<arith::MulFOp>(loc, delta, weight);
     return b.create<arith::AddFOp>(loc, start, weightedDelta);
   }
-  if (auto lerpScalar = dyn_cast<AtenLerpScalarOp>(op)) {
-    if (!lerpScalar.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
-      lerpScalar.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
-    auto dtype = converter->convertType(lerpScalar.getType())
-                     .cast<RankedTensorType>()
-                     .getElementType();
-    auto start = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-    auto end = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
-    auto weight = convertScalarToDtype(b, loc, operands[2], dtype);
-    auto delta = b.create<arith::SubFOp>(loc, end, start);
-    auto weightedDelta = b.create<arith::MulFOp>(loc, delta, weight);
-    return b.create<arith::AddFOp>(loc, start, weightedDelta);
-  }
   if (auto minimum = dyn_cast<AtenMinimumOp>(op)) {
     Type dtype = minimum.getType().cast<BaseTensorType>().getDtype();
     Type elemTy = converter->convertType(minimum.getType())
@@ -1489,7 +1471,7 @@ public:
     if (!isa<AtenTanOp, AtenTanhOp, AtenSinhOp, AtenCoshOp, AtenReluOp,
              AtenPreluOp, AtenGeluOp, AtenGeluBackwardOp, AtenAddTensorOp,
              AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp,
-             AtenSubTensorOp, AtenAtan2Op, AtenLerpTensorOp,AtenLerpScalarOp, AtenSigmoidOp,
+             AtenSubTensorOp, AtenAtan2Op, AtenLerpTensorOp, AtenSigmoidOp,
              AtenExpOp, AtenExpm1Op, AtenMinimumOp, AtenMaximumOp,
              AtenToDtypeOp, AtenClampOp, AtenClampTensorOp, AtenRsubScalarOp,
              AtenMulScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp, AtenFloorOp,
@@ -2263,7 +2245,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   target.addIllegalOp<
       AtenTanOp, AtenTanhOp, AtenSinhOp, AtenCoshOp, AtenReluOp, AtenGeluOp,
       AtenGeluBackwardOp, AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp,
-      AtenDivTensorModeOp, AtenSubTensorOp, AtenLerpTensorOp, AtenLerpScalarOp,
+      AtenDivTensorModeOp, AtenSubTensorOp, AtenLerpTensorOp, 
       AtenSigmoidOp, AtenMinimumOp, AtenAtan2Op, AtenMaximumOp, AtenToDtypeOp,
       AtenClampOp, AtenClampTensorOp, AtenRsubScalarOp, AtenLogOp, AtenErfOp,
       AtenSqrtOp, AtenFloorOp, AtenCeilOp, AtenPreluOp, AtenPowScalarOp,
