@@ -1299,11 +1299,49 @@ def aten〇view_as_real〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 def aten〇conv2d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1,), padding: List[int] = (0, 0,), dilation: List[int] = (1, 1,), groups: int = 1) -> List[int]:
     return upstream_shape_functions.conv2d(input, weight, bias, stride, padding, dilation, groups)
 
+def aten〇conv3d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1, 1,), padding: List[int] = (0, 0, 0,), dilation: List[int] = (1, 1, 1,), groups: int = 1) -> List[int]:
+    return upstream_shape_functions.conv3d(input, weight, bias, stride, padding, dilation, groups)
+
 def aten〇conv_transpose2d〇input〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1,), padding: List[int] = (0, 0,), output_padding: List[int] = (0, 0,), groups: int = 1, dilation: List[int] = (1, 1,)) -> List[int]:
     return upstream_shape_functions.conv_transpose2d_input(input, weight, bias, stride, padding, output_padding, groups, dilation)
 
+def aten〇conv_tbc〡shape(self: List[int], weight: List[int], bias: List[int], pad: int = 0) -> List[int]:
+    assert len(self) == 3 # only 1d is supported by tbc
+    assert len(weight) == 3
+    assert len(bias) == 1
+
+    # tbc -> bct
+    time = self[0]
+    batch = self[1]
+    channels = self[2]
+
+    kernel_width = weight[0]
+    channels_w = weight[1]
+    out_channels = weight[2]
+
+    # out_channels_b = bias[0]
+
+    assert channels == channels_w
+    # the out_channels in weights and biases should also match, but this assert doesn't work because typing problems
+    # assert out_channels == out_channels_b 
+   
+    self_bct = [batch, channels, time]
+    weight_bct = [out_channels, channels, kernel_width]
+    bias_bct = bias
+
+    # use existing shape inf 
+    output_size_bct = upstream_shape_functions.conv_forwards(self, weight, bias, stride=[1], padding=[pad], dilation=[], transposed=False, output_padding=[], groups=1)
+    
+    batch_out, channels_out, time_out = output_size_bct
+
+    # bct -> tbc
+    return [time_out, batch_out, channels_out]
+
 def aten〇convolution〡shape(input: List[int], weight: List[int], bias: Optional[List[int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int) -> List[int]:
     return upstream_shape_functions.conv_forwards(input, weight, bias, stride, padding, dilation, transposed, output_padding, groups)
+
+def aten〇conv1d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1,), padding: List[int] = (0,), dilation: List[int] = (1,), groups: int = 1) -> List[int]:
+    return upstream_shape_functions.conv_forwards(input, weight, bias, stride, padding, dilation, transposed=False, output_padding=[], groups=1)
 
 def aten〇_convolution〡shape(input: List[int], weight: List[int], bias: Optional[List[int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int, benchmark: bool, deterministic: bool, cudnn_enabled: bool, allow_tf32: bool) -> List[int]:
     return aten〇convolution〡shape(input, weight, bias, stride, padding, dilation, transposed, output_padding, groups)
@@ -3043,6 +3081,26 @@ def aten〇_convolution〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_d
     dtypes = [input_dtype, weight_dtype]
     return promote_dtypes(ranks, dtypes)
 
+def aten〇conv1d〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None, stride: List[int] = (1,), padding: List[int] = (0,), dilation: List[int] = (1,), groups: int = 1) -> int:
+    input_rank, input_dtype = input_rank_dtype
+    weight_rank, weight_dtype = weight_rank_dtype
+    assert input_dtype == weight_dtype
+    assert not is_complex_dtype(input_dtype) and input_dtype is not torch.bool
+    assert not is_complex_dtype(weight_dtype) and weight_dtype is not torch.bool
+    ranks: List[Optional[int]] = [input_rank, weight_rank]
+    dtypes = [input_dtype, weight_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+def aten〇conv_tbc〡dtype(self_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Tuple[int, int], pad: int = 0) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    weight_rank, weight_dtype = weight_rank_dtype
+    assert self_dtype == weight_dtype
+    assert not is_complex_dtype(self_dtype) and self_dtype is not torch.bool
+    assert not is_complex_dtype(weight_dtype) and weight_dtype is not torch.bool
+    ranks: List[Optional[int]] = [self_rank, weight_rank]
+    dtypes = [self_dtype, weight_dtype]
+    return promote_dtypes(ranks, dtypes)
+
 _convolution_deprecated_kwargs = {
     "stride" : [1, 1], "padding" : [0, 0], "dilation" : [1, 1], "transposed" : False, "output_padding" : [0, 0],
     "groups" : 1, "benchmark" : False, "deterministic" : False, "cudnn_enabled" : False}
@@ -3086,6 +3144,10 @@ def aten〇_convolution〇deprecated〡dtype(input_rank_dtype: Tuple[int, int], 
      Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float16))
 ])
 def aten〇conv2d〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None, stride: List[int] = (1, 1,), padding: List[int] = (0, 0,), dilation: List[int] = (1, 1,), groups: int = 1) -> int:
+    input_rank, input_dtype = input_rank_dtype
+    return input_dtype
+
+def aten〇conv3d〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None, stride: List[int] = (1, 1, 1,), padding: List[int] = (0, 0, 0,), dilation: List[int] = (1, 1, 1,), groups: int = 1) -> int:
     input_rank, input_dtype = input_rank_dtype
     return input_dtype
 

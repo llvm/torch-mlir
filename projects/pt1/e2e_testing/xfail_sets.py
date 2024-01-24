@@ -315,6 +315,9 @@ TORCHDYNAMO_XFAIL_SET = {
     # Dynamo does not support tracing quantized tensors
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
+
+    # Dynamo not supporting conv_tbc
+    "ConvTbcModule_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -1417,6 +1420,7 @@ LTC_XFAIL_SET = {
     "PixelShuffleModuleFullDynamic_basic",
     "PixelShuffleModuleSpatiallyDynamic_basic",
     "PixelShuffleModuleSpatiallyStatic_basic",
+    "ConvTbcModule_basic",
     "_Convolution2DAllFalseModule_basic",
     "_Convolution2DBenchmarkModule_basic",
     "_Convolution2DCudnnModule_basic",

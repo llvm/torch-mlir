@@ -2590,12 +2590,134 @@ public:
 };
 } // namespace
 
+namespace {
+
+  static LogicalResult createTorchTransposeOpForConvTbc(PatternRewriter &rewriter,
+                                              Location loc, Value input,
+                                              int64_t dimA, int64_t dimB,
+                                              Value &transposed) {
+    Type transposedType;
+    if (failed(getTransposedType(input.getType().cast<Torch::BaseTensorType>(),
+                                dimA, dimB, transposedType)))
+      return failure();
+    Value cstDimA = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(dimA));
+    Value cstDimB = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(dimB));
+    transposed = rewriter.create<Torch::AtenTransposeIntOp>(
+        loc, transposedType, input, cstDimA, cstDimB);
+    return success();
+  }
+
+  class DecomposeAtenConvTbcOp : public OpRewritePattern<AtenConvTbcOp> {
+  public:
+    using OpRewritePattern::OpRewritePattern;
+    LogicalResult matchAndRewrite(AtenConvTbcOp op,
+                                  PatternRewriter &rewriter) const override {
+      Value emptyList = rewriter.create<PrimListConstructOp>(
+          op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+          SmallVector<Value>());
+      Value zeroList = rewriter.create<PrimListConstructOp>(
+          op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+          SmallVector<Value>{rewriter.create<Torch::ConstantIntOp>(op.getLoc(), rewriter.getI64IntegerAttr(0))});
+      Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+      Value oneList = rewriter.create<PrimListConstructOp>(
+          op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+          SmallVector<Value>{rewriter.create<Torch::ConstantIntOp>(op.getLoc(), rewriter.getI64IntegerAttr(1))});
+      Value padding = rewriter.create<PrimListConstructOp>(
+          op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+          SmallVector<Value>{op.getPad()});
+      Value groups = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), rewriter.getI64IntegerAttr(1));
+      
+      // convtbc has WNC layout for input and output
+      // and WCF layout for weight
+      // whereas Convolution is going to use Conv1DNcwFcwOp for 1d
+      // which means we need the inputs in NCW and the weight in FCW
+      Value selfWnc = op.getSelf();
+      Value selfNwc;
+      Value selfNcw;
+      if(failed(createTorchTransposeOpForConvTbc(rewriter, op.getLoc(), selfWnc, 0, 1, selfNwc)))
+          return rewriter.notifyMatchFailure(op, "failed to transpose input to Nwc");
+      if(failed(createTorchTransposeOpForConvTbc(rewriter, op.getLoc(), selfNwc, 1, 2, selfNcw)))
+          return rewriter.notifyMatchFailure(op, "failed to transpose input to Ncw");
+
+      Value weightWcf = op.getWeight();
+      Value weightFcw;
+      if(failed(createTorchTransposeOpForConvTbc(rewriter, op.getLoc(), weightWcf, 0, 2, weightFcw)))
+          return rewriter.notifyMatchFailure(op, "failed to transpose weight to Fcw");
+      
+
+      Value outputNcw = rewriter.create<AtenConvolutionOp>(
+          op.getLoc(), op->getResultTypes(), selfNcw, weightFcw, op.getBias(), /*stride*/oneList,
+          /*padding*/ padding, /*dilation*/ oneList,
+          /*transpose*/ cstFalse, /*output_padding*/ emptyList,
+          groups); 
+
+      // convert output from Ncw to Wnc
+      Value outputNwc;
+      Value outputWnc;
+      if(failed(createTorchTransposeOpForConvTbc(rewriter, op.getLoc(), outputNcw, 1, 2, outputNwc)))
+          return rewriter.notifyMatchFailure(op, "failed to transpose output to Nwc");
+      if(failed(createTorchTransposeOpForConvTbc(rewriter, op.getLoc(), outputNwc, 0, 1, outputWnc)))
+          return rewriter.notifyMatchFailure(op, "failed to transpose output to Wnc");
+      rewriter.replaceOp(op, outputWnc);
+
+      return success();
+    }
+  };
+}
+
+
+// Decompose aten.conv1d to aten.convolution
+namespace {
+class DecomposeAtenConv1dOp : public OpRewritePattern<AtenConv1dOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenConv1dOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Value emptyList = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        SmallVector<Value>());
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
+        op, op->getResultTypes(), op.getInput(), op.getWeight(), op.getBias(),
+        op.getStride(), op.getPadding(), op.getDilation(), cstFalse, emptyList,
+        op.getGroups());
+
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.conv2d to aten.convolution
 namespace {
 class DecomposeAtenConv2dOp : public OpRewritePattern<AtenConv2dOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenConv2dOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Value emptyList = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        SmallVector<Value>());
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
+        op, op->getResultTypes(), op.getInput(), op.getWeight(), op.getBias(),
+        op.getStride(), op.getPadding(), op.getDilation(), cstFalse, emptyList,
+        op.getGroups());
+
+    return success();
+  }
+};
+} // namespace
+
+// Decompose aten.conv3d to aten.convolution
+namespace {
+class DecomposeAtenConv3dOp : public OpRewritePattern<AtenConv3dOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenConv3dOp op,
                                 PatternRewriter &rewriter) const override {
 
     Value emptyList = rewriter.create<PrimListConstructOp>(
@@ -6531,7 +6653,6 @@ public:
         DecomposeAten_ConvolutionLikeOp<Aten_ConvolutionDeprecatedOp>>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvolutionBackwardOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenConv2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvTranspose2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeStartOp>(patterns);
@@ -6643,6 +6764,13 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTriuOp>(patterns);
+    // More specific conv ops
+    addPatternIfTargetOpIsIllegal<DecomposeAtenConvTbcOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenConv1dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenConv2dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenConv3dOp>(patterns);
+
+
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

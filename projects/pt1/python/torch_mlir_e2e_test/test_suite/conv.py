@@ -761,3 +761,99 @@ class UpSampleNearest2dSameFactor(torch.nn.Module):
 @register_test_case(module_factory=lambda: UpSampleNearest2dSameFactor())
 def UpSampleNearest2dStaticFactor_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4, 4))
+class Conv1dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight, bias):
+        return torch.ops.aten.conv1d(inputVec,
+                                     weight,
+                                     bias=bias,
+                                     stride=[1],
+                                     padding=[0],
+                                     dilation=[1],
+                                     groups=1)
+@register_test_case(module_factory=lambda: Conv1dModule())
+def Conv1dModule_basic(module, tu: TestUtils):
+    inputVec = tu.rand(2, 2, 6)
+    weight = torch.randn(8, 2, 3)
+    bias = torch.randn(8)
+    module.forward(inputVec, weight, bias)
+
+class Conv2dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight, bias):
+        return torch.ops.aten.conv2d(inputVec,
+                                     weight,
+                                     bias=bias,
+                                     stride=[1, 1],
+                                     padding=[0, 0],
+                                     dilation=[1, 1],
+                                     groups=1)
+@register_test_case(module_factory=lambda: Conv2dModule())
+def Conv2dModule_basic(module, tu: TestUtils):
+    inputVec = tu.rand(2, 2, 6, 6)
+    weight = torch.randn(8, 2, 3, 3)
+    bias = torch.randn(8)
+    module.forward(inputVec, weight, bias)
+
+class Conv3dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight, bias):
+        return torch.ops.aten.conv3d(inputVec,
+                                     weight,
+                                     bias=bias,
+                                     stride=[1, 1, 1],
+                                     padding=[0, 0, 0],
+                                     dilation=[1, 1, 1],
+                                     groups=1)
+@register_test_case(module_factory=lambda: Conv3dModule())
+def Conv3dModule_basic(module, tu: TestUtils):
+    inputVec = tu.rand(2, 2, 6, 6, 6)
+    weight = torch.randn(8, 2, 3, 3, 3)
+    bias = torch.randn(8)
+    module.forward(inputVec, weight, bias)
+
+class ConvTbcModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    # shapes from https://github.com/pytorch/pytorch/blob/3e8c8ce37bbfaafa8581fb48506c0a70ea54463d/test/nn/test_convolution.py#L623
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, x, weight, bias):
+        return torch.conv_tbc(x, weight, bias)
+    
+@register_test_case(module_factory=lambda: ConvTbcModule())
+def ConvTbcModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(9, 4, 5), tu.rand(3, 5, 6), tu.rand(6))

@@ -566,9 +566,9 @@ public:
       return op.emitError("unimplemented: non-floating point type");
     size_t inRank = input.getType().cast<RankedTensorType>().getRank();
     size_t numSpacialDims = inRank - 2;
-    if (numSpacialDims != 2)
+    if (numSpacialDims < 1 || numSpacialDims > 3)
       return rewriter.notifyMatchFailure(
-          op, "unimplemented: only 2D convolution currently supported");
+          op, "unimplemented: only 1d-3d convolution currently supported");
 
     Type intType = IntegerType::get(context, 64);
     auto castIndexToInt = [&](Value v) {
@@ -796,15 +796,50 @@ public:
     weightSliceSizes.append(weightDims);
 
     Value conv;
+    // the code so far is able to respect all numSpacialDims
+    // the code below this point is numSpacialDims specific and groupSize specific
+    // TODO: factor out the above code into a helper function, and then separate convolution into:
+    // - grouped 1d-3d
+    // - ungrouped 1d-3d
     if (groupSize == 1) {
-      // TODO: add 1D and 3D case
-      conv =
-          rewriter
-              .create<linalg::Conv2DNchwFchwOp>(
-                  loc, outputTensor.getType(), ValueRange{paddedInput, weight},
-                  outputTensor, stridesAttr, dilationAttr)
-              .getResult(0);
+      // TODO: 3D case
+      switch (numSpacialDims) {
+      case 1:
+        conv = rewriter
+                   .create<linalg::Conv1DNcwFcwOp>(
+                       loc, outputTensor.getType(),
+                       ValueRange{paddedInput, weight}, outputTensor,
+                       stridesAttr, dilationAttr)
+                   .getResult(0);
+        break;
+      case 2:
+        conv =
+            rewriter
+                .create<linalg::Conv2DNchwFchwOp>(
+                    loc, outputTensor.getType(), ValueRange{paddedInput, weight},
+                    outputTensor, stridesAttr, dilationAttr)
+                .getResult(0);
+        break;
+      case 3:
+        conv =
+            rewriter
+                .create<linalg::Conv3DNcdhwFcdhwOp>(
+                    loc, outputTensor.getType(), ValueRange{paddedInput, weight},
+                    outputTensor, stridesAttr, dilationAttr)
+                .getResult(0);
+        break;
+      default:
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: only 1D, 2D, and 3D convolution supported");
+      };
+      Type newResultType = getTypeConverter()->convertType(op.getType());
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
+      return success();
     } else {
+      if(numSpacialDims != 2)
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: only 2D grouped convolution supported");
+      
       // Special depthwise case
       auto inShape = makeShapeTorchCompatible(
           input.getType().cast<RankedTensorType>().getShape());
@@ -824,11 +859,11 @@ public:
             loc, collapsedType, weight, collapsedDims);
 
         conv = rewriter
-                   .create<linalg::DepthwiseConv2DNchwChwOp>(
-                       loc, outputTensor.getType(),
-                       ValueRange{paddedInput, collapsedWeight}, outputTensor,
-                       stridesAttr, dilationAttr)
-                   .getResult(0);
+                  .create<linalg::DepthwiseConv2DNchwChwOp>(
+                      loc, outputTensor.getType(),
+                      ValueRange{paddedInput, collapsedWeight}, outputTensor,
+                      stridesAttr, dilationAttr)
+                  .getResult(0);
 
         Type newResultType = getTypeConverter()->convertType(op.getType());
         rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
@@ -902,11 +937,10 @@ public:
       conv = rewriter.create<tensor::CollapseShapeOp>(
           loc, outputTensor.getType(), conv,
           expandOutputTensor.getReassociationIndices());
+          Type newResultType = getTypeConverter()->convertType(op.getType());
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
+      return success();
     }
-
-    Type newResultType = getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
-    return success();
   }
 };
 } // namespace
