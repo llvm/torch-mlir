@@ -653,12 +653,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
       "LayerNormalization", 17,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType yType, meanType, invStdDevType;
-        Value x;
-        Value scale;
-        Value b;
-        int64_t axis;
+        Value x, scale, b;
+        int64_t axis, stashType;
         float epsilon;
-        int64_t stashType;
         if (binder.tensorOperandAtIndex(x, 0) ||
             binder.tensorOperandAtIndex(scale, 1) ||
             binder.tensorOperandAtIndex(b, 2) ||
