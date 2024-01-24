@@ -817,18 +817,14 @@ public:
           Value inElt = b.create<tensor::ExtractOp>(loc, elementType, buffInput,
                                                     inputElementIndices);
           // check if we extracted at windex < end index
-          SmallVector<Value> filteredInputElement;
-          filteredInputElement.push_back(inElt);
           for (unsigned i = 0; i < rank - 2; i++) {
             Value cond =
                 b.create<arith::CmpIOp>(loc, arith::CmpIPredicate(6),
                                         inputElementIndices[i + 2], ends[i]);
-            filteredInputElement.push_back(b.create<arith::SelectOp>(
-                loc, cond, filteredInputElement[i], buffVal));
+            inElt = b.create<arith::SelectOp>(loc, cond, inElt, buffVal);
           }
-          Value out1 = filteredInputElement[rank - 2];
           Value cond1 = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OGT,
-                                                out1, res);
+                                                inElt, res);
           // index location is (ih * input_width + iw)
           Value indexOut0 = b.create<arith::MulIOp>(loc, inputElementIndices[2],
                                                     inputSpatialSizes[1]);
@@ -837,7 +833,7 @@ public:
           Value indexOut1Int = castIndexToInt64(b, loc, indexOut1);
           Value indexOut2 =
               b.create<arith::SelectOp>(loc, cond1, indexOut1Int, maxIndex);
-          Value out2 = b.create<arith::SelectOp>(loc, cond1, out1, res);
+          Value out2 = b.create<arith::SelectOp>(loc, cond1, inElt, res);
           b.create<linalg::YieldOp>(loc, ValueRange({out2, indexOut2}));
         });
 
