@@ -626,10 +626,6 @@ This is problematic for linalg ops for a few reasons:
 h! Although it is a bit like using a hammer to paint, our workaround is to use
 tensor.extract to access the elements of the input tensor inside our linalg
 generic op's payload.
-
-Current TODO's:
-    1. Implement more efficient passes for when the kernel-size, input spatial
-dims, and output spatial dims are constant.
 */
 
 static LogicalResult createAdaptivePoolingOp(
@@ -866,8 +862,7 @@ public:
           op, "failed to create an adaptive pooling op");
     }
 
-    // make a linalg generic to divide each element by the corresponding
-    // Kernel Width. This step is only necessary for avg pooling.
+    // divide each sumpool element by the corresponding kernel volume.
     SmallVector<AffineExpr> outputExprs, kSizeTensorExprs;
     for (unsigned i = 0; i < rank; i++) {
       outputExprs.push_back(rewriter.getAffineDimExpr(i));
