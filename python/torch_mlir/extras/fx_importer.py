@@ -187,17 +187,18 @@ PY_BUILTIN_TO_TORCH_OP = {
 }
 
 SYMBOLIC_TORCH_OPS = {
-    torch.ops.aten.sym_size,
-    torch.ops.aten.sym_stride,
-    torch.ops.aten.sym_numel,
+    torch.ops.aten.sym_size.int,
+    torch.ops.aten.sym_stride.int,
+    torch.ops.aten.sym_numel.default,
 }
 
+#pytorch now emits the .int, .default instead of just sym_*
 SYMBOLIC_OP_TO_TORCH_OP = {
-    (torch.ops.aten.sym_size, 1): torch.ops.aten.size.default,
-    (torch.ops.aten.sym_size, 2): torch.ops.aten.size.int,
-    (torch.ops.aten.sym_stride, 1): torch.ops.aten.stride.default,
-    (torch.ops.aten.sym_stride, 2): torch.ops.aten.stride.int,
-    (torch.ops.aten.sym_numel, 1): torch.ops.aten.numel.default,
+    torch.ops.aten.sym_size.default: torch.ops.aten.size.default,
+    torch.ops.aten.sym_size.int : torch.ops.aten.size.int,
+    torch.ops.aten.sym_stride.default : torch.ops.aten.stride.default,
+    torch.ops.aten.sym_stride.int : torch.ops.aten.stride.int,
+    torch.ops.aten.sym_numel.default : torch.ops.aten.numel.default,
 }
 
 
