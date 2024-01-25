@@ -902,7 +902,7 @@ def aten〇avg_pool2d〡shape(self: List[int], kernel_size: List[int], stride: L
 def aten〇adaptive_avg_pool2d〡shape(self: List[int], output_size: List[int]) -> List[int]:
     return upstream_shape_functions.adaptive_avg_pool2d(self, output_size)
 
-def adaptive_max_pool(self: List[int], out: List[int], dim: int):
+def adaptive_pool(self: List[int], out: List[int], dim: int):
     assert len(out) == dim 
     assert len(self) == dim + 1 or len(self) == dim + 2
 
@@ -918,13 +918,16 @@ def adaptive_max_pool(self: List[int], out: List[int], dim: int):
     return shape, shape
 
 def aten〇adaptive_max_pool1d〡shape(self: List[int], output_size: List[int]) -> Tuple[List[int], List[int]]:
-    return adaptive_max_pool(self, output_size, 1)
+    return adaptive_pool(self, output_size, 1)
 
 def aten〇adaptive_max_pool2d〡shape(self: List[int], output_size: List[int]) -> Tuple[List[int], List[int]]:
-    return adaptive_max_pool(self, output_size, 2)
+    return adaptive_pool(self, output_size, 2)
 
 def aten〇adaptive_max_pool3d〡shape(self: List[int], output_size: List[int]) -> Tuple[List[int], List[int]]:
-    return adaptive_max_pool(self, output_size, 3)
+    return adaptive_pool(self, output_size, 3)
+
+def aten〇adaptive_avg_pool3d〡shape(self: List[int], output_size: List[int]) -> List[int]:
+    return adaptive_pool(self, output_size, 3)[0]
 
 def aten〇flatten〇using_ints〡shape(self: List[int], start_dim: int = 0, end_dim: int = -1) -> List[int]:
     return upstream_shape_functions.flatten(self, start_dim, end_dim)
@@ -1975,6 +1978,11 @@ def aten〇avg_pool1d〡dtype(self_rank_dtype: Tuple[int, int], kernel_size: Lis
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7)], output_size=[2, 2]))
 def aten〇adaptive_avg_pool2d〡dtype(self_rank_dtype: Tuple[int, int], output_size: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7, 9)], output_size=[2, 2, 2]))
+def aten〇adaptive_avg_pool3d〡dtype(self_rank_dtype: Tuple[int, int], output_size: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 

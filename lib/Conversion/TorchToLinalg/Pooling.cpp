@@ -816,32 +816,31 @@ static LogicalResult createAdaptivePoolingOp(
   return success();
 }
 
-// TODO: Template this conversion to work for other dims
+// AtenAdaptiveAvgPool1,2,3d
 namespace {
-class ConvertAtenAdaptiveAvgPool1dOp
-    : public OpConversionPattern<AtenAdaptiveAvgPool1dOp> {
+template <typename OpTy, int Dim>
+class ConvertAtenAdaptiveAvgPoolOp : public OpConversionPattern<OpTy> {
 public:
-  using OpConversionPattern::OpConversionPattern;
+  using OpConversionPattern<OpTy>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenAdaptiveAvgPool1dOp op, OpAdaptor adaptor,
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
     Location loc = op->getLoc();
-    const TypeConverter *typeConverter = getTypeConverter();
-
-    // get rank of input (same as rank of output)
-    int64_t rank =
-        adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
-    int64_t nonSpatial;
-    if (rank == 3 || rank == 2) {
-      nonSpatial = rank - 1;
-    } else {
-      return rewriter.notifyMatchFailure(op,
-                                         "only supports input type NCH or CH");
-    }
-
-    // input tensor and output shape
+    const TypeConverter *typeConverter = this->getTypeConverter();
     Value input = adaptor.getSelf();
+    // get rank of input (same as rank of output)
+    int64_t rank = input.getType().cast<RankedTensorType>().getRank();
+    // get number of non-spatial dims
+    int64_t nonSpatial;
+    if (rank == Dim + 2 || rank == Dim + 1) {
+      nonSpatial = rank - Dim;
+    } else {
+      return rewriter.notifyMatchFailure(
+          op, "only supports inputs with one or two non-spatial dims");
+    }
+    // input tensor and output shape
+
     Value outputShape = op.getOutputSize();
     SmallVector<Value> outShapeVector;
     getListConstructElements(outputShape, outShapeVector);
@@ -849,7 +848,7 @@ public:
         getTypeConvertedValues(rewriter, loc, typeConverter, outShapeVector);
     RankedTensorType outputType =
         typeConverter->convertType(op.getResult().getType())
-            .cast<RankedTensorType>();
+            .template cast<RankedTensorType>();
     Type elementType = outputType.getElementType();
     Value buffVal = rewriter.create<arith::ConstantOp>(
         loc, elementType, rewriter.getFloatAttr(elementType, 0));
@@ -977,8 +976,14 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
   patterns
       .add<ConvertAtenAvgPoolOp<AtenAvgPool2dOp, linalg::PoolingNchwSumOp, 2>>(
           typeConverter, context);
-  target.addIllegalOp<AtenAdaptiveAvgPool1dOp>();
-  patterns.add<ConvertAtenAdaptiveAvgPool1dOp>(typeConverter, context);
+  target.addIllegalOp<AtenAdaptiveAvgPool1dOp, AtenAdaptiveAvgPool2dOp,
+                      AtenAdaptiveAvgPool3dOp>();
+  patterns.add<ConvertAtenAdaptiveAvgPoolOp<AtenAdaptiveAvgPool1dOp, 1>>(
+      typeConverter, context);
+  patterns.add<ConvertAtenAdaptiveAvgPoolOp<AtenAdaptiveAvgPool2dOp, 2>>(
+      typeConverter, context);
+  patterns.add<ConvertAtenAdaptiveAvgPoolOp<AtenAdaptiveAvgPool3dOp, 3>>(
+      typeConverter, context);
   target.addIllegalOp<AtenAdaptiveMaxPool1dOp, AtenAdaptiveMaxPool2dOp,
                       AtenAdaptiveMaxPool3dOp>();
   patterns.add<ConvertAtenAdaptiveMaxPoolOp<AtenAdaptiveMaxPool1dOp, 1>>(
