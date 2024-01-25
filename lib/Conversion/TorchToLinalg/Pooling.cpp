@@ -632,13 +632,11 @@ Current TODO's:
 dims, and output spatial dims are constant.
 */
 
-static LogicalResult
-createAdaptivePoolingOp(Operation *op, ConversionPatternRewriter &rewriter,
-                        Value input, bool isMaxPool, int64_t rank,
-                        int64_t nonSpatial,
-                        SmallVectorImpl<Value> &outShapeVector, Value &output,
-                        Value buffVal, RankedTensorType outputType,
-                        Value &auxTensorReturn, Type auxTensorElementType) {
+static LogicalResult createAdaptivePoolingOp(
+    Operation *op, ConversionPatternRewriter &rewriter, Value input,
+    bool isMaxPool, int64_t rank, int64_t nonSpatial,
+    SmallVectorImpl<Value> &outShapeVector, Value &output, Value buffVal,
+    Value &auxTensorReturn, Type auxTensorElementType) {
 
   Location loc = op->getLoc();
 
@@ -860,10 +858,10 @@ public:
     Value buffVal = rewriter.create<arith::ConstantOp>(
         loc, elementType, rewriter.getFloatAttr(elementType, 0));
     Value sumPoolOutput, auxTensorReturn;
-    if (failed(createAdaptivePoolingOp(
-            op, rewriter, input, /*isMaxPool=*/false, rank, nonSpatial,
-            outShapeVector, sumPoolOutput, buffVal, outputType, auxTensorReturn,
-            /*auxTensorElementType=*/elementType))) {
+    if (failed(createAdaptivePoolingOp(op, rewriter, input, /*isMaxPool=*/false,
+                                       rank, nonSpatial, outShapeVector,
+                                       sumPoolOutput, buffVal, auxTensorReturn,
+                                       /*auxTensorElementType=*/elementType))) {
       return rewriter.notifyMatchFailure(
           op, "failed to create an adaptive pooling op");
     }
@@ -951,7 +949,7 @@ public:
     Value output, auxTensorReturn;
     if (failed(createAdaptivePoolingOp(op, rewriter, input, /*isMaxPool=*/true,
                                        rank, nonSpatial, outShapeVector, output,
-                                       buffVal, outputType, auxTensorReturn,
+                                       buffVal, auxTensorReturn,
                                        auxTensorElementType))) {
       return rewriter.notifyMatchFailure(
           op, "failed to create an adaptive pooling op");
