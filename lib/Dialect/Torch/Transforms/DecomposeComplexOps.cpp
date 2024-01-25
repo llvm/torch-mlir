@@ -1903,7 +1903,7 @@ public:
   LogicalResult matchAndRewrite(AtenLerpScalarOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    auto resType = op.getType().cast<ValueTensorType>();
+    auto resType = op.getType().cast<BaseTensorType>();
     if (!resType.hasDtype()) {
       return rewriter.notifyMatchFailure(op, "result should have dtype");
     }
