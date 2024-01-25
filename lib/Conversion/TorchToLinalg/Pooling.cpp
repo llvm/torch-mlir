@@ -782,8 +782,7 @@ createAdaptivePoolingOp(Operation *op, ConversionPatternRewriter &rewriter,
               loc, arith::CmpIPredicate(6), inputElementIndices[i + nonSpatial],
               ends[i]);
           // if out-of-bounds, replace the extracted element with buffVal
-          inElt = b.create<arith::SelectOp>(
-              loc, cond, inElt, buffVal);
+          inElt = b.create<arith::SelectOp>(loc, cond, inElt, buffVal);
         }
         Value out2, auxOut;
         // customize for max vs. avg:
@@ -793,19 +792,17 @@ createAdaptivePoolingOp(Operation *op, ConversionPatternRewriter &rewriter,
                                                 inElt, res);
           out2 = b.create<arith::SelectOp>(loc, cond1, inElt, res);
           // index in different dims (n x c x d x h x w)
-          // 1d: (iw) 
-          // 2d: (ih*W + iw) 
+          // 1d: (iw)
+          // 2d: (ih*W + iw)
           // 3d: (id*H*W + ih*W + iw)
           Value currIndex = inputElementIndices[nonSpatial];
           for (unsigned i = 0; i < rank - nonSpatial - 1; i++) {
             Value prevTimesNewSize = b.create<arith::MulIOp>(
                 loc, currIndex, inputSpatialSizes[i + 1]);
             currIndex = b.create<arith::AddIOp>(
-                loc, prevTimesNewSize,
-                inputElementIndices[nonSpatial + i + 1]);
+                loc, prevTimesNewSize, inputElementIndices[nonSpatial + i + 1]);
           }
-          Value indexOut1Int = castIndexToInt64(
-              b, loc, currIndex);
+          Value indexOut1Int = castIndexToInt64(b, loc, currIndex);
           auxOut =
               b.create<arith::SelectOp>(loc, cond1, indexOut1Int, maxIndex);
         } else {
