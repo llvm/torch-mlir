@@ -2272,7 +2272,7 @@ public:
         4, {rewriter.getMultiDimIdentityMap(resultType.getRank())});
     auto broadcastMap = AffineMap::get(
         resultType.getRank(), /*symbolCount=*/0,
-        {rewriter.getAffineDimExpr(axisAttr.getSInt())}, rewriter.getContext());
+        {rewriter.getAffineDimExpr(axisAttr.getInt())}, rewriter.getContext());
     maps[1] = broadcastMap;
     maps[2] = broadcastMap;
 
