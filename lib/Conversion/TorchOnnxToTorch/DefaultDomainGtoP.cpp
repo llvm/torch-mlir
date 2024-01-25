@@ -852,19 +852,20 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
       });
   patterns.onOp(
       "Mean", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         if (binder.op->getNumOperands() == 1) {
           Torch::ValueTensorType resultType;
           Value x;
           if (binder.tensorOperand(x) || binder.tensorResultType(resultType))
             return failure();
-          rewriter.replaceOpWithNewOp<Torch::AtenMeanOp>(binder.op, resultType,
-                                                         x, /*dtype=*/noneVal);
+          rewriter.replaceOp(binder.op, x);
           return success();
         }
         Torch::ValueTensorType resultType;
         SmallVector<Value> valList;
         int64_t numOperands = binder.op->getNumOperands();
+        Value numOperandsConstant = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), numOperands));
         if (binder.tensorOperands(valList, numOperands) ||
             binder.tensorResultType(resultType))
           return failure();
@@ -876,8 +877,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           Value sum = rewriter.create<Torch::AtenAddTensorOp>(
               binder.getLoc(), resultType, valList[0], valList[1], const1);
 
-          rewriter.replaceOpWithNewOp<Torch::AtenMeanOp>(
-              binder.op, resultType, sum, /*dtype=*/noneVal);
+          rewriter.replaceOpWithNewOp<Torch::AtenDivScalarOp>(
+              binder.op, resultType, sum, numOperandsConstant);
           return success();
         }
         // When binder.op->getNumOperands() > 2
@@ -894,8 +895,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                 binder.getLoc(), baseType, curr, valList[i], const1);
           }
         }
-        rewriter.replaceOpWithNewOp<Torch::AtenMeanOp>(binder.op, resultType,
-                                                       curr, /*dtype=*/noneVal);
+        rewriter.replaceOpWithNewOp<Torch::AtenDivScalarOp>(
+            binder.op, resultType, curr, numOperandsConstant);
         return success();
       });
   patterns.onOp(

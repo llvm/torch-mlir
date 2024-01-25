@@ -575,18 +575,16 @@ func.func @test_not_2d(%arg0: !torch.vtensor<[3,4],i1>) -> !torch.vtensor<[3,4],
 
 // CHECK-LABEL: func.func @test_mean_one_input
   func.func @test_mean_one_input(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-    // CHECK: %[[NONE:.*]] = torch.constant.none
-    // CHECK: torch.aten.mean %arg0, %none : !torch.vtensor<[3],f32>, !torch.none -> !torch.vtensor<[3],f32>
     %0 = torch.operator "onnx.Mean"(%arg0) : (!torch.vtensor<[3],f32>) -> !torch.vtensor<[3],f32>
     return %0 : !torch.vtensor<[3],f32>
   }
 
 // CHECK-LABEL: func.func @test_mean_two_inputs
   func.func @test_mean_two_inputs(%arg0: !torch.vtensor<[3],f32>, %arg1: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-    // CHECK: %[[NONE:.*]] = torch.constant.none
+    // CHECK: %[[INT2:.*]] = torch.constant.int 2
     // CHECK: %[[INT1:.*]] = torch.constant.int 1
     // CHECK: torch.aten.add.Tensor %arg0, %arg1, %int1 : !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>, !torch.int -> !torch.vtensor<[3],f32>
-    // CHECK: torch.aten.mean %0, %none : !torch.vtensor<[3],f32>, !torch.none -> !torch.vtensor<[3],f32>
+    // CHECK: torch.aten.div.Scalar %0, %int2 : !torch.vtensor<[3],f32>, !torch.int -> !torch.vtensor<[3],f32>
     %0 = torch.operator "onnx.Mean"(%arg0, %arg1) : (!torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>) -> !torch.vtensor<[3],f32>
     return %0 : !torch.vtensor<[3],f32>
   }
