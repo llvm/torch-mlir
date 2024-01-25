@@ -9,9 +9,10 @@
 
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "mlir/IR/TensorEncoding.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/STLExtras.h"
 
 using namespace mlir;
@@ -239,7 +240,7 @@ ValueTensorType BaseTensorType::getWithValueSemantics() const {
 static LogicalResult
 verifyTensorType(function_ref<InFlightDiagnostic()> emitError,
                  std::optional<ArrayRef<int64_t>> optionalSizes,
-                 Type optionalDtype) {
+                 Type optionalDtype, Attribute optionalEncoding) {
   if (optionalDtype && !isValidTorchDtype(optionalDtype)) {
     emitError() << "invalid dtype " << optionalDtype
                 << " for !torch.tensor type";
@@ -253,6 +254,18 @@ verifyTensorType(function_ref<InFlightDiagnostic()> emitError,
       }
     }
   }
+  // Verify encoding against a known type and shape using the
+  // encoding verification interface. Any implementation emits
+  // a diagnostic on failure.
+  if (optionalDtype && optionalSizes.has_value() && optionalEncoding) {
+    if (auto venc = llvm::dyn_cast_or_null<VerifiableTensorEncoding>(
+            optionalEncoding)) {
+      if (failed(venc.verifyEncoding(optionalSizes.value(), optionalDtype,
+                                     emitError))) {
+        return failure();
+      }
+    }
+  }
   return success();
 }
 
@@ -262,7 +275,8 @@ Type parseTensorType(MLIRContext *context, AsmParser &parser,
   if (parser.parseOptionalLess())
     return getTensorType(context,
                          /*optionalSizes=*/std::nullopt,
-                         /*optionalDtype=*/Type());
+                         /*optionalDtype=*/Type(),
+                         /*optionalEncoding=*/Attribute());
   bool hasSizes;
   SmallVector<int64_t> sizes;
   if (succeeded(parser.parseOptionalStar())) {
@@ -307,6 +321,12 @@ Type parseTensorType(MLIRContext *context, AsmParser &parser,
     if (parser.parseType(optionalDtype))
       return Type();
   }
+  Attribute optionalEncoding;
+  if (succeeded(parser.parseOptionalComma())) {
+    // Explicit encoding.
+    if (parser.parseAttribute(optionalEncoding))
+      return Type();
+  }
   if (parser.parseGreater())
     return Type();
   std::optional<ArrayRef<int64_t>> optionalSizes;
@@ -314,15 +334,15 @@ Type parseTensorType(MLIRContext *context, AsmParser &parser,
     optionalSizes.emplace(sizes);
 
   if (failed(verifyTensorType([&]() { return parser.emitError(startLoc); },
-                              optionalSizes, optionalDtype)))
+                              optionalSizes, optionalDtype, optionalEncoding)))
     return Type();
 
-  return getTensorType(context, optionalSizes, optionalDtype);
+  return getTensorType(context, optionalSizes, optionalDtype, optionalEncoding);
 }
 
 static void printTensorType(AsmPrinter &printer,
                             std::optional<ArrayRef<int64_t>> optionalSizes,
-                            Type optionalDtype) {
+                            Type optionalDtype, Attribute optionalEncoding) {
   if (!optionalSizes && !optionalDtype)
     return;
   printer << "<";
@@ -345,6 +365,10 @@ static void printTensorType(AsmPrinter &printer,
     printer.printType(optionalDtype);
   else
     printer << "unk";
+  if (optionalEncoding) {
+    printer << ",";
+    printer.printAttribute(optionalEncoding);
+  }
   printer << ">";
 }
 
@@ -367,8 +391,9 @@ NonValueTensorType::getWithLeastStaticInformation(MLIRContext *context) {
 LogicalResult
 NonValueTensorType::verify(function_ref<InFlightDiagnostic()> emitError,
                            std::optional<ArrayRef<int64_t>> optionalSizes,
-                           Type optionalDtype) {
-  return verifyTensorType(emitError, optionalSizes, optionalDtype);
+                           Type optionalDtype, Attribute optionalEncoding) {
+  return verifyTensorType(emitError, optionalSizes, optionalDtype,
+                          optionalEncoding);
 }
 
 Type NonValueTensorType::parse(AsmParser &parser) {
@@ -376,13 +401,15 @@ Type NonValueTensorType::parse(AsmParser &parser) {
   return parseTensorType(
       context, parser,
       [](MLIRContext *context, std::optional<ArrayRef<int64_t>> optionalSizes,
-         Type optionalType) {
-        return NonValueTensorType::get(context, optionalSizes, optionalType);
+         Type optionalType, Attribute optionalEncoding) {
+        return NonValueTensorType::get(context, optionalSizes, optionalType,
+                                       optionalEncoding);
       });
 }
 
 void NonValueTensorType::print(AsmPrinter &printer) const {
-  printTensorType(printer, getOptionalSizes(), getOptionalDtype());
+  printTensorType(printer, getOptionalSizes(), getOptionalDtype(),
+                  getOptionalEncoding());
 }
 
 //===----------------------------------------------------------------------===//
@@ -440,8 +467,9 @@ TensorType ValueTensorType::toBuiltinTensor() const {
 LogicalResult
 ValueTensorType::verify(function_ref<InFlightDiagnostic()> emitError,
                         std::optional<ArrayRef<int64_t>> optionalSizes,
-                        Type optionalDtype) {
-  return verifyTensorType(emitError, optionalSizes, optionalDtype);
+                        Type optionalDtype, Attribute optionalEncoding) {
+  return verifyTensorType(emitError, optionalSizes, optionalDtype,
+                          optionalEncoding);
 }
 
 Type ValueTensorType::parse(AsmParser &parser) {
@@ -449,13 +477,15 @@ Type ValueTensorType::parse(AsmParser &parser) {
   return parseTensorType(
       context, parser,
       [](MLIRContext *context, std::optional<ArrayRef<int64_t>> optionalSizes,
-         Type optionalType) {
-        return ValueTensorType::get(context, optionalSizes, optionalType);
+         Type optionalType, Attribute optionalEncoding) {
+        return ValueTensorType::get(context, optionalSizes, optionalType,
+                                    optionalEncoding);
       });
 }
 
 void ValueTensorType::print(AsmPrinter &printer) const {
-  printTensorType(printer, getOptionalSizes(), getOptionalDtype());
+  printTensorType(printer, getOptionalSizes(), getOptionalDtype(),
+                  getOptionalEncoding());
 }
 
 Type Torch::meetTensorTypes(BaseTensorType lhs, BaseTensorType rhs) {
