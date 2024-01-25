@@ -63,13 +63,13 @@ class AnyTorchTensorType<string name, string typeMnemonic>
 
     ```
     tensor-type ::= (`!torch.tensor` | `!torch.vtensor`) tensor-modifiers?
-    tensor-modifiers ::= `<` sizes-spec `,` dtype-spec (',' encoding)? `>`
+    tensor-modifiers ::= `<` sizes-spec `,` dtype-spec (',' sparsity)? `>`
     sizes-spec ::= `*` | `[` size-list `]`
     size-list ::= /*empty*/ | size-list-nonempty
     size-list-nonempty = size (`,` size)*
     size ::= `?` | decimal-literal
     dtype-spec ::= `unk` | type
-    encoding ::= attribute-value
+    sparsity ::= attribute-value
     ```
 
     Represents a multi-dimensional array to model Torch's `torch.Tensor` type.
@@ -134,10 +134,11 @@ class AnyTorchTensorType<string name, string typeMnemonic>
     |-------------------|--------------------|
     ```
 
-    The `encoding` attribute directly mirrors the additional tensor information
-    defined by upstream MLIR on the RankedTensorType. An empty attribute denotes
-    a straightforward tensor without any specific structure. But particular
-    properties, like sparsity, can be encoded through this attribute.
+    The `sparsity` attribute directly mirrors the additional tensor `encoding`
+    defined by upstream MLIR on the RankedTensorType. Unlike the upstream
+    attribute, however, this attribute is exclusively used to denote a
+    straightforward tensor (with an empty attribute) or a sparse tensor
+    (with a SparseTensorEncodingAttr).
 
     TODO: Support the full set of Torch dtypes.
     TODO: Use si1?
@@ -145,7 +146,6 @@ class AnyTorchTensorType<string name, string typeMnemonic>
     Note: We avoid the C++ identifier `TensorType` to avoid C++ name ambiguities
     with `mlir::TensorType`, since most code is transitively nested in
     both `::mlir` and `::mlir::torch::Torch` namespaces.
-
 
     Note: We use the Torch-aligned terminology "sizes" and "dtype" instead of
     the MLIR-aligned terminology "rank/shape" and "element type". The cheat
@@ -157,16 +157,16 @@ class AnyTorchTensorType<string name, string typeMnemonic>
   let parameters = (ins
     OptionalArrayRefTorchParameter<"int64_t", "sizes of dimensions">:$optionalSizes,
     "::mlir::Type":$optionalDtype,
-    "Attribute":$optionalEncoding
+    "Attribute":$optionalSparsity
   );
   let builders = [
-    // Provide builder where optionalEncoding is empty by default.
+    // Provide builder where optionalSparsity is empty by default.
     TypeBuilder<(ins
       "::std::optional<ArrayRef<int64_t>>":$optionalSizes,
       "::mlir::Type":$optionalDtype,
-      CArg<"Attribute", "{}">:$optionalEncoding
+      CArg<"Attribute", "{}">:$optionalSparsity
     ), [{
-      return $_get(context, optionalSizes, optionalDtype, optionalEncoding);
+      return $_get(context, optionalSizes, optionalDtype, optionalSparsity);
     }]>
   ];
   let skipDefaultBuilders = 1;

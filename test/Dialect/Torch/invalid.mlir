@@ -370,3 +370,8 @@ func.func @torch.permute$invalid_index_in_permutation (%arg0: !torch.vtensor<[1,
 func.func @foo(%arg0: !torch.vtensor<[64,64],f32,#SV>) -> !torch.vtensor<[64,64],f32,#SV> {
   return %arg0 : !torch.vtensor<[64,64],f32,#SV>
 }
+
+// -----
+
+// expected-error @+1 {{invalid sparsity encoding attribute}}
+func.func private @tensor.sparse() -> !torch.vtensor<[64,64],f32,12345>
