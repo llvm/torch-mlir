@@ -707,10 +707,10 @@ createAdaptivePoolingOp(Operation *op, ConversionPatternRewriter &rewriter,
 
   // setup indexing maps and iterator types for linalg generic op
   // for example, with rank = 4 and nonSpatial = 2:
-  // for kIter (d0,d1,d2,d3,d4,d5) -> (d4,d5)
-  // for output (d0,d1,d2,d3,d4,d5) -> (d0,d1,d2,d3)
-  // for auxTensor (maxPool) (d0,d1,d2,d3,d4,d5) -> (d0,d1,d2,d3)
-  // for auxTensor (avgPool) (d0,d1,d2,d3,d4,d5) -> (d2,d3)
+  // kIter (d0,d1,d2,d3,d4,d5) -> (d4,d5)
+  // output (d0,d1,d2,d3,d4,d5) -> (d0,d1,d2,d3)
+  // auxTensor (maxPool) (d0,d1,d2,d3,d4,d5) -> (d0,d1,d2,d3)
+  // auxTensor (avgPool) (d0,d1,d2,d3,d4,d5) -> (d2,d3)
   SmallVector<AffineExpr> kIterExprs, outputExprs, auxTensorExprs;
   // batch + channel + output spatial dims
   for (unsigned i = 0; i < rank; i++) {
@@ -777,51 +777,45 @@ createAdaptivePoolingOp(Operation *op, ConversionPatternRewriter &rewriter,
         Value inElt = b.create<tensor::ExtractOp>(loc, elementType, buffInput,
                                                   inputElementIndices);
         // check if we extracted at windex < end index
-        SmallVector<Value> filteredInputElement;
-        filteredInputElement.push_back(inElt);
         for (unsigned i = 0; i < rank - nonSpatial; i++) {
           Value cond = b.create<arith::CmpIOp>(
               loc, arith::CmpIPredicate(6), inputElementIndices[i + nonSpatial],
               ends[i]);
-          filteredInputElement.push_back(b.create<arith::SelectOp>(
-              loc, cond, filteredInputElement[i], buffVal));
+          // if out-of-bounds, replace the extracted element with buffVal
+          inElt = b.create<arith::SelectOp>(
+              loc, cond, inElt, buffVal);
         }
-        Value out1 = filteredInputElement[rank - nonSpatial];
         Value out2, auxOut;
         // customize for max vs. avg:
         if (isMaxPool) {
           // compute max using select, since cond1 will be used for indices
           Value cond1 = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OGT,
-                                                out1, res);
-          out2 = b.create<arith::SelectOp>(loc, cond1, out1, res);
-          // index location (iw) (ih*W + iw) (id*H*W + ih*W + iw)
-          // start at first spatial index ix0
-          // if there's another, multiply the current value by the max size of
-          // the next and add that product to the new index: (ix0*X1 + ix1)*X2 +
-          // ix2
-          SmallVector<Value> cumIndexComputation(
-              1, inputElementIndices[nonSpatial]);
+                                                inElt, res);
+          out2 = b.create<arith::SelectOp>(loc, cond1, inElt, res);
+          // index in different dims (n x c x d x h x w)
+          // 1d: (iw) 
+          // 2d: (ih*W + iw) 
+          // 3d: (id*H*W + ih*W + iw)
+          Value currIndex = inputElementIndices[nonSpatial];
           for (unsigned i = 0; i < rank - nonSpatial - 1; i++) {
             Value prevTimesNewSize = b.create<arith::MulIOp>(
-                loc, cumIndexComputation[i], inputSpatialSizes[i + 1]);
-            cumIndexComputation.push_back(b.create<arith::AddIOp>(
+                loc, currIndex, inputSpatialSizes[i + 1]);
+            currIndex = b.create<arith::AddIOp>(
                 loc, prevTimesNewSize,
-                inputElementIndices[nonSpatial + i + 1]));
+                inputElementIndices[nonSpatial + i + 1]);
           }
           Value indexOut1Int = castIndexToInt64(
-              b, loc, cumIndexComputation[rank - nonSpatial - 1]);
+              b, loc, currIndex);
           auxOut =
               b.create<arith::SelectOp>(loc, cond1, indexOut1Int, maxIndex);
         } else {
-          out2 = b.create<arith::AddFOp>(loc, out1, res);
-          SmallVector<Value> cumMultKernelSizes(1, indexOne);
+          out2 = b.create<arith::AddFOp>(loc, inElt, res);
+          Value kernelVolume = indexOne;
           for (unsigned i = 0; i < rank - nonSpatial; i++) {
             Value currSize = b.create<arith::SubIOp>(loc, ends[i], starts[i]);
-            cumMultKernelSizes.push_back(
-                b.create<arith::MulIOp>(loc, cumMultKernelSizes[i], currSize));
+            kernelVolume = b.create<arith::MulIOp>(loc, kernelVolume, currSize);
           }
-          Value auxOutIndex = cumMultKernelSizes[rank - nonSpatial];
-          Value auxOutSI = castIndexToInt64(b, loc, auxOutIndex);
+          Value auxOutSI = castIndexToInt64(b, loc, kernelVolume);
           auxOut = b.create<arith::SIToFPOp>(loc, elementType, auxOutSI);
         }
         b.create<linalg::YieldOp>(loc, ValueRange({out2, auxOut}));
@@ -831,6 +825,7 @@ createAdaptivePoolingOp(Operation *op, ConversionPatternRewriter &rewriter,
   return success();
 }
 
+// TODO: Template this conversion to work for other dims
 namespace {
 class ConvertAtenAdaptiveAvgPool1dOp
     : public OpConversionPattern<AtenAdaptiveAvgPool1dOp> {
@@ -907,14 +902,11 @@ public:
 };
 } // namespace
 
-// The logic for this conversion is similar to the AdaptiveAvgPool1dOp
-// conversion. Before writing any more adaptive pooling conversions, the logic
-// in this should be off-loaded to a helper function, since each of the adaptive
-// ops are essentially the same with some minor tweaks. Instead of kSizeTensor,
-// we named the additional output of the linalg generic op auxTensor.
-// For max pooling, auxTensor holds the indices of max values, and for
-// avg pooling, the auxTensor will be kSizeTensor, used to later divide the
-// sum pool by the kernel size.
+// The following is for converting AtenAdaptiveMaxPool(n)dOp for n=1,2,3.
+// The current pytorch implementation for the adaptive max pool functions
+// is such that the indices must be computed regardless of whether the user
+// desires them. If return_indices is set to False, then it will return
+// only the first tensor in the tuple[Tensor,Tensor] output of this op.
 namespace {
 template <typename OpTy, int Dim>
 class ConvertAtenAdaptiveMaxPoolOp : public OpConversionPattern<OpTy> {
