@@ -467,7 +467,8 @@ TensorType ValueTensorType::toBuiltinTensor() const {
   Type elementType = convertDtypeToBuiltinElementType(getContext(), getDtype());
   if (!elementType)
     return nullptr;
-  return RankedTensorType::get(makeShapeLLVMCompatible(getSizes()), elementType);
+  return RankedTensorType::get(makeShapeLLVMCompatible(getSizes()), elementType,
+                               getOptionalSparsity());
 }
 
 LogicalResult

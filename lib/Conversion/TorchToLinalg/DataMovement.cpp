@@ -110,22 +110,29 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
 // Example:
 // input =  tensor([[[0., 1., 2., 3.],
 //                   [4., 5., 6., 7.]]])
-// torch.ops.aten.reflection_pad1d(input, (3,1)) ; padding_left = 3, padding_right = 1
-// tensor([[[3., 2., 1., 0., 1., 2., 3., 2.],
+// torch.ops.aten.reflection_pad1d(input, (3,1)) ; padding_left = 3,
+// padding_right = 1 tensor([[[3., 2., 1., 0., 1., 2., 3., 2.],
 //          [7., 6., 5., 4., 5., 6., 7., 6.]]])
-// Checks: 1) Each of padding_left and padding_right must be non-negative less than size of last dimension 
-// Implementation: a) Construct a result tensor of shape of input tensor except for the last dimension.
-//                    The last dimension of the result tensor should be last dimension of input tensor +
-//                    left padding size + right padding size. INitialize result tensor to all zeros
-//                 b) Setup affine map to take slice from input tensor of size left padding starting from
-//                    second column onwards as first column is reflection boundary
+// Checks: 1) Each of padding_left and padding_right must be non-negative less
+// than size of last dimension Implementation: a) Construct a result tensor of
+// shape of input tensor except for the last dimension.
+//                    The last dimension of the result tensor should be last
+//                    dimension of input tensor + left padding size + right
+//                    padding size. INitialize result tensor to all zeros
+//                 b) Setup affine map to take slice from input tensor of size
+//                 left padding starting from
+//                    second column onwards as first column is reflection
+//                    boundary
 //                 c) Reflect the affine map to have resultant slice reflected
 //                 d) Take the slice and write from begining in result tensor
 //                 e) write the original tensor next into result tensor
-//                 f) Setup affine map to take slice from input tensor of right padding size ending 
-//                    at second last column as last column is reflection boundary for right padding
+//                 f) Setup affine map to take slice from input tensor of right
+//                 padding size ending
+//                    at second last column as last column is reflection
+//                    boundary for right padding
 //                 g) Reflect the affine map to have resultant slice reflected
-//                 h) Take the slice and write from left padding size + orignal tensor last dim size 
+//                 h) Take the slice and write from left padding size + orignal
+//                 tensor last dim size
 //                    into result tensor
 // Uses the ideas/code used for AtenReflectionPad2dOp
 namespace {
@@ -138,7 +145,7 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
-    
+
     SmallVector<int64_t> padInts;
     if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(padInts)))
       return rewriter.notifyMatchFailure(
@@ -173,7 +180,7 @@ public:
     Value lastDimSize = inputShape[lastDim]; // input [1,2,4], then lastDim = 2, inputShape[2] will give 4
 
     Value tileWidth[3], extractOffset[3], insertOffset[3];
-   
+
     tileWidth[PAD_LEFT] = getConstant(rewriter, loc, padInts[PAD_LEFT], indexType);
     tileWidth[PAD_RIGHT] = getConstant(rewriter, loc, padInts[PAD_RIGHT], indexType);
     tileWidth[PAD_CENTER] = lastDimSize;
@@ -181,13 +188,13 @@ public:
     extractOffset[PAD_LEFT] = one;
     // for (1,2,4) input, padding (3,1) lastDimSize=4, 4 - 1 - 1 = 2   [3,5, 6,7], so start offset to 6, which is right
     // lasDimSize - (tileWidth[PAD_RIGHT] + one)
-    extractOffset[PAD_RIGHT] = createISub(lastDimSize, createIAdd(tileWidth[PAD_RIGHT], one)); 
+    extractOffset[PAD_RIGHT] =
+        createISub(lastDimSize, createIAdd(tileWidth[PAD_RIGHT], one));
     extractOffset[PAD_CENTER] = zero;
 
     insertOffset[PAD_LEFT] = zero;
     insertOffset[PAD_RIGHT] = createIAdd(lastDimSize, tileWidth[PAD_LEFT]);
     insertOffset[PAD_CENTER] = tileWidth[PAD_LEFT];
-    
 
     SmallVector<Value> resultShape{inputShape};
     // Result's last dimension will have shape lastDimSize + left padding size + right padding size
@@ -214,7 +221,7 @@ public:
       Value tile = rewriter.create<tensor::ExtractSliceOp>(
           loc, input, extractOffsets, extractShape, allOneStrides);
 
-      
+
       auto inputMap = AffineMap::getMultiDimIdentityMap(numDims, context);
       // Setup the affine map function to resverse the tile along the horizontal for left and right slices
       if(padPosition < PAD_CENTER) {
@@ -231,7 +238,7 @@ public:
       insertOffsets[lastDim] = insertOffset[padPosition];
       resultTensor = rewriter.create<tensor::InsertSliceOp>(loc, tile, resultTensor, insertOffsets, extractShape, allOneStrides);
     };
-   
+
     if(padInts[PAD_LEFT] > 0)
        addTileToResult(PAD_LEFT);
     if(padInts[PAD_RIGHT] > 0)
@@ -978,6 +985,7 @@ public:
       return success();
     }
 
+    // TODO: audit possibility of sparsity on these tensors
     Type adjustedResultType = RankedTensorType::get(
         makeShapeLLVMCompatible(outputShape), resultType.getElementType());
     Type adjustedInputType = RankedTensorType::get(
@@ -1005,6 +1013,7 @@ public:
         intermediateShape.push_back(sum);
       }
 
+      // TODO: audit possibility of sparsity on this tensor
       Type intermediateResultType =
           RankedTensorType::get(makeShapeLLVMCompatible(intermediateShape),
                                 resultType.getElementType());
@@ -1657,6 +1666,7 @@ public:
     auto srcType = src.getType().cast<RankedTensorType>();
     int64_t srcRank = srcType.getRank();
     SmallVector<int64_t> srcAbstractSizes(srcRank, kUnknownSize);
+    // TODO: audit possibility of sparsity on this tensor
     auto abstractSrcType = RankedTensorType::get(
         makeShapeLLVMCompatible(srcAbstractSizes), srcType.getElementType());
     Value abstractSrc =

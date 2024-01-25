@@ -206,8 +206,8 @@ namespace {
 //
 // TODO: Find an optimal lowering.
 //       current lowering is not optimal for bags of large embeddings.
-//       Since it traverses the output tensor multiple times. 
-//      
+//       Since it traverses the output tensor multiple times.
+//
 //
 
 class ConvertAtenEmbeddingBagPaddingIdxOp
