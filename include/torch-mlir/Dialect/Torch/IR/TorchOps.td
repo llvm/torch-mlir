@@ -23,7 +23,6 @@ class Torch_Op<string mnemonic, list<Trait> traits = []>
 }
 
 include "torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td"
-include "torch-mlir/Dialect/Torch/IR/TorchFunctionalCommunicationOps.td"
 
 //===----------------------------------------------------------------------===//
 // TorchScript `torch.nn.Module` object instantiation ops.
@@ -1336,6 +1335,115 @@ def Torch_DtypeCalculateYieldDtypesOp : Torch_Op<"dtype.calculate.yield.dtypes",
   }];
 
   let hasVerifier = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// Torch c10d Functional Communication Ops
+//===----------------------------------------------------------------------===//
+// These ops is manully added because nightly-build torch's signature is
+// not convergent. Generate them if torch has stable op signature.
+
+def Torch_C10dFunctionalAllReduceOp : Torch_Op<"c10d_functional.all_reduce", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `c10d_functional::all_reduce : (Tensor, str, str, int[], int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_StringType:$reduceOp,
+    Torch_StringType:$tag,
+    AnyTorchListOfTorchIntType:$ranks,
+    Torch_IntType:$group_size
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult C10dFunctionalAllReduceOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 5, 1);
+    }
+    void C10dFunctionalAllReduceOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 5, 1);
+    }
+  }];
+}
+
+def Torch_C10dFunctionalWaitTensorOp : Torch_Op<"c10d_functional.wait_tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `c10d_functional::wait_tensor : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult C10dFunctionalWaitTensorOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void C10dFunctionalWaitTensorOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
+def Torch_C10dFunctionalAllGatherIntoTensorOp : Torch_Op<"c10d_functional.all_gather_into_tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `c10d_functional::all_gather_into_tensor : (Tensor, str, int[], int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$shard,
+    Torch_StringType:$tag,
+    AnyTorchListOfTorchIntType:$ranks,
+    Torch_IntType:$group_size
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult C10dFunctionalAllGatherIntoTensorOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void C10dFunctionalAllGatherIntoTensorOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
+def Torch_C10dFunctionalReduceScatterTensorOp : Torch_Op<"c10d_functional.reduce_scatter_tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `c10d_functional::reduce_scatter_tensor : (Tensor, str, str, int[], int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    Torch_StringType:$reduceOp,
+    Torch_StringType:$tag,
+    AnyTorchListOfTorchIntType:$ranks,
+    Torch_IntType:$group_size
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult C10dFunctionalReduceScatterTensorOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 5, 1);
+    }
+    void C10dFunctionalReduceScatterTensorOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 5, 1);
+    }
+  }];
 }
 
 #endif // TORCH_OPS
