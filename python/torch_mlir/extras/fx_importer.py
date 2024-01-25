@@ -5,10 +5,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-from sys import version_info
-if version_info.major == 3 and version_info.minor >= 10:
+try:
     from types import NoneType
-else:
+except ImportError:
+    # python less than 3.10 doesn't have NoneType
     NoneType = type(None)
 
 import logging
