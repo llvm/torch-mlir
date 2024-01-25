@@ -39,6 +39,20 @@ std::vector<torch::lazy::Shape> compute_shape_div(const at::Tensor& self,
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
+std::vector<torch::lazy::Shape>
+compute_shape__make_per_channel_quantized_tensor(const at::Tensor &self,
+                                                 const at::Tensor &scale,
+                                                 const at::Tensor &zero_point,
+                                                 int64_t axis) {
+  if (self.scalar_type() == at::kChar)
+    return {Shape(at::kQInt8, self.sizes().vec())};
+  if (self.scalar_type() == at::kByte)
+    return {Shape(at::kQUInt8, self.sizes().vec())};
+  if (self.scalar_type() == at::kInt)
+    return {Shape(at::kQInt32, self.sizes().vec())};
+  assert(false);
+}
+
 std::vector<torch::lazy::Shape> compute_shape__make_per_tensor_quantized_tensor(
     const at::Tensor &self, double scale, int64_t zero_point) {
   if (self.scalar_type() == at::kChar)
@@ -75,61 +89,10 @@ std::vector<torch::lazy::Shape> compute_shape_isinf(const at::Tensor& self) {
   return {Shape(at::kBool, self.sizes().vec())};
 }
 
-std::vector<torch::lazy::Shape> compute_shape__make_per_channel_quantized_tensor(const at::Tensor & self,
-                                                                                 const at::Tensor & scale,
-                                                                                 const at::Tensor & zero_point,
-                                                                                 int64_t axis) {
-  at::ScalarType scalar = self.scalar_type();
-  if (scalar == at::ScalarType::Byte)
-    scalar = at::ScalarType::QUInt8;
-  if (scalar == at::ScalarType::Char)
-    scalar = at::ScalarType::QInt8;
-  if (scalar == at::ScalarType::Int)
-    scalar = at::ScalarType::QInt32;
-  return {Shape(scalar, self.sizes().vec())};
-}
-
-std::vector<torch::lazy::Shape> compute_shape__make_per_tensor_quantized_tensor(const at::Tensor & self,
-                                                                                double scale,
-                                                                                int64_t zero_point) {
-  at::ScalarType scalar = self.scalar_type();
-  if (scalar == at::ScalarType::Byte)
-    scalar = at::ScalarType::QUInt8;
-  if (scalar == at::ScalarType::Char)
-    scalar = at::ScalarType::QInt8;
-  if (scalar == at::ScalarType::Int)
-    scalar = at::ScalarType::QInt32;
-  return {Shape(scalar, self.sizes().vec())};
-}
-
-std::vector<torch::lazy::Shape> compute_shape_dequantize(const at::Tensor & self) {
-  return {Shape(at::ScalarType::Float, self.sizes().vec())};
-}
-
-std::vector<torch::lazy::Shape> compute_shape_quantize_per_channel(const at::Tensor & self,
-                                                                   const at::Tensor & scales,
-                                                                   const at::Tensor & zero_points, 
-                                                                   int64_t axis,
-                                                                   at::ScalarType dtype) {
+std::vector<torch::lazy::Shape> compute_shape_quantize_per_channel(
+    const at::Tensor &self, const at::Tensor &scales,
+    const at::Tensor &zero_points, int64_t axis, at::ScalarType dtype) {
   return {Shape(dtype, self.sizes().vec())};
-}
-
-std::vector<torch::lazy::Shape> compute_shape_quantize_per_tensor(const at::Tensor & self,
-                                                                  double scale,
-                                                                  int64_t zero_point,
-                                                                  at::ScalarType dtype) {
-  return {Shape(dtype, self.sizes().vec())};
-}
-
-std::vector<torch::lazy::Shape> compute_shape_int_repr(const at::Tensor & self) {
-  at::ScalarType scalar = self.scalar_type();
-  if (scalar == at::ScalarType::QUInt8)
-    scalar = at::ScalarType::Byte;
-  if (scalar == at::ScalarType::QInt8)
-    scalar = at::ScalarType::Char;
-  if (scalar == at::ScalarType::QInt32)
-    scalar = at::ScalarType::Int;
-  return {Shape(scalar, self.sizes().vec())};
 }
 
 std::vector<torch::lazy::Shape> compute_shape_max_pool3d_with_indices(
