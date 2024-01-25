@@ -1909,13 +1909,16 @@ public:
     }
     Value cstOne =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-    auto start = op.getSelf(); 
+    auto start = op.getSelf();
     auto inputType = start.getType().cast<BaseTensorType>();
 
-    auto delta = rewriter.create<AtenSubTensorOp>(loc, inputType, op.getEnd(), start, cstOne);
+    auto delta = rewriter.create<AtenSubTensorOp>(loc, inputType, op.getEnd(),
+                                                  start, cstOne);
 
-    auto weightedDelta = rewriter.create<AtenMulScalarOp>(loc, inputType, delta, op.getWeight());
-    auto lerp = rewriter.create<AtenAddTensorOp>(loc, inputType, start, weightedDelta, cstOne);
+    auto weightedDelta =
+        rewriter.create<AtenMulScalarOp>(loc, inputType, delta, op.getWeight());
+    auto lerp = rewriter.create<AtenAddTensorOp>(loc, inputType, start,
+                                                 weightedDelta, cstOne);
     rewriter.replaceOp(op, lerp);
     return success();
   }
