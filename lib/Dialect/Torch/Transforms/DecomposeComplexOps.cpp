@@ -1907,20 +1907,15 @@ public:
     if (!resType.hasDtype()) {
       return rewriter.notifyMatchFailure(op, "result should have dtype");
     }
-    if (!op.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
-      op.emitError("unimplemented: non-floating point dtype");
-      return failure();
-    }
-    auto dtype = resType.getDtype();
-    auto start = convertScalarToDtype(rewriter, loc, op.getSelf(), dtype);
-    auto end = convertScalarToDtype(rewriter, loc, op.getEnd(), dtype);
-    auto weight = convertScalarToDtype(rewriter, loc, op.getWeight(), dtype);
-    auto delta = rewriter.create<AtenSubFloatOp>(loc, end, start);
-    auto weightedDelta = rewriter.create<AtenMulFloatOp>(loc, delta, weight);
-    auto lerp = rewriter.create<AtenAddFloatIntOp>(loc, start, weightedDelta);
+    Value cstOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    auto start = op.getSelf(); 
+    auto inputType = start.getType().cast<BaseTensorType>();
+
+    auto delta = rewriter.create<AtenSubTensorOp>(loc, inputType, op.getEnd(), start, cstOne);
+
+    auto weightedDelta = rewriter.create<AtenMulScalarOp>(loc, inputType, delta, op.getWeight());
+    auto lerp = rewriter.create<AtenAddTensorOp>(loc, inputType, start, weightedDelta, cstOne);
     rewriter.replaceOp(op, lerp);
     return success();
   }

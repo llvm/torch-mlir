@@ -549,6 +549,25 @@ def ElementwiseLeakyReluStaticModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseLerpScalarIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return torch.ops.aten.lerp(a, b, weight=2)
+
+@register_test_case(module_factory=lambda: ElementwiseLerpScalarIntModule())
+def ElementwiseLerpScalarIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5,3), tu.rand(5,3))
+
+
 class ElementwiseLerpScalarFloatModule(torch.nn.Module):
 
     def __init__(self):
@@ -559,14 +578,13 @@ class ElementwiseLerpScalarFloatModule(torch.nn.Module):
         None,
         ([-1, -1], torch.float32, True),
         ([-1, -1], torch.float32, True),
-        ([], torch.float32, True),
     ])
-    def forward(self, a, b, c):
-        return torch.ops.aten.lerp(a, b, weight=c)
+    def forward(self, a, b):
+        return torch.ops.aten.lerp(a, b, weight=0.5)
 
 @register_test_case(module_factory=lambda: ElementwiseLerpScalarFloatModule())
 def ElementwiseLerpScalarFloatModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(5,3), tu.rand(5,3), torch.tensor(0.5, dtype=torch.float32))
+    module.forward(tu.rand(5,3), tu.rand(5,3))
 
 
 # ==============================================================================
