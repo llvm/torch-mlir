@@ -1342,9 +1342,20 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     auto valueTy = value.getType();
     auto qtensor = op->getOperand(0);
     auto qtensorTy = qtensor.getType().cast<ValueTensorType>().getDtype();
-    auto makeQTensor =
-        qtensor.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>();
-    if (!makeQTensor) {
+
+    Value zp, scale;
+    if (auto makeQTensor =
+            qtensor.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
+      zp = makeQTensor.getZeroPoint();
+      scale = makeQTensor.getScale();
+    }
+
+    if (auto quant = qtensor.getDefiningOp<AtenQuantizePerTensorOp>()) {
+      zp = quant.getZeroPoint();
+      scale = quant.getScale();
+    }
+
+    if (!zp || !scale) {
       op->emitWarning(
           "unimplemented: dequantizing tensor of unknown scale / zero-point");
       return nullptr;
@@ -1362,10 +1373,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       }
     }
 
-    Value zp = makeQTensor.getZeroPoint();
     zp = converter->materializeTargetConversion(
-        b, loc, converter->convertType(zp.getType()),
-        makeQTensor.getZeroPoint());
+        b, loc, converter->convertType(zp.getType()), zp);
     auto zpTy = zp.getType();
 
     if (zpTy != outIntTy) {
@@ -1380,10 +1389,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       value = b.create<arith::SIToFPOp>(loc, outFpTy, value);
     }
 
-    Value scale = makeQTensor.getScale();
     scale = converter->materializeTargetConversion(
-        b, loc, converter->convertType(scale.getType()),
-        makeQTensor.getScale());
+        b, loc, converter->convertType(scale.getType()), scale);
     if (scale.getType() != value.getType()) {
       scale = b.create<arith::TruncFOp>(loc, value.getType(), scale);
     }
