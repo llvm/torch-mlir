@@ -104,14 +104,14 @@ public:
         op.getLoc(),
         rewriter.getType<ValueTensorType>(
             biasTy.getOptionalSizes(),
-            rewriter.getIntegerType(32, IntegerType::isSigned)),
+            rewriter.getIntegerType(32, IntegerType::Signed)),
         bias);
 
     operands[2] = bias;
 
     auto convTy = rewriter.getType<ValueTensorType>(
         resultTy.getOptionalSizes(),
-        rewriter.getIntegerType(32, IntegerType::isSigned));
+        rewriter.getIntegerType(32, IntegerType::Signed));
     auto conv = rewriter.create<SrcOp>(op.getLoc(), convTy, operands);
 
     auto convQTy =
