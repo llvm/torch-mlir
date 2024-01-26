@@ -377,8 +377,8 @@ public:
       // TODO: Improve usage of static shape information.
       SmallVector<int64_t> lhsTargetShape(lhsBroadcastToShape.size(),
                                           ShapedType::kDynamic);
-      auto lhsBroadcastType =
-          RankedTensorType::get(lhsTargetShape, lhsType.getElementType());
+      auto lhsBroadcastType = RankedTensorType::get(
+          lhsTargetShape, lhsType.getElementType(), lhsType.getEncoding());
       if (failed(torch_to_linalg::broadcastToGivenShape(
               op, rewriter, lhs, lhsBroadcastToShape, lhsBroadcastType,
               broadcastedLhs))) {
@@ -387,8 +387,8 @@ public:
       }
       SmallVector<int64_t> rhsTargetShape(rhsBroadcastToShape.size(),
                                           ShapedType::kDynamic);
-      auto rhsBroadcastType =
-          RankedTensorType::get(rhsTargetShape, rhsType.getElementType());
+      auto rhsBroadcastType = RankedTensorType::get(
+          rhsTargetShape, rhsType.getElementType(), rhsType.getEncoding());
       if (failed(torch_to_linalg::broadcastToGivenShape(
               op, rewriter, rhs, rhsBroadcastToShape, rhsBroadcastType,
               broadcastedRhs))) {
@@ -880,7 +880,7 @@ public:
       if(numSpacialDims != 2)
         return rewriter.notifyMatchFailure(
             op, "unimplemented: only 2D grouped convolution supported");
-      
+
       // Special depthwise case
       auto inShape = makeShapeTorchCompatible(
           input.getType().cast<RankedTensorType>().getShape());
@@ -894,6 +894,7 @@ public:
             (weightShape[0] == kUnknownSize ? kUnknownSize
                                             : weightShape[0] * weightShape[1]),
             weightShape[2], weightShape[3]};
+        // TODO: audit possibility of sparsity on this tensor
         Type collapsedType = RankedTensorType::get(
             makeShapeLLVMCompatible(collapsedShape), elementType);
         Value collapsedWeight = rewriter.create<tensor::CollapseShapeOp>(

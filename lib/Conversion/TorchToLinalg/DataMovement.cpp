@@ -978,6 +978,7 @@ public:
       return success();
     }
 
+    // TODO: audit possibility of sparsity on these tensors
     Type adjustedResultType = RankedTensorType::get(
         makeShapeLLVMCompatible(outputShape), resultType.getElementType());
     Type adjustedInputType = RankedTensorType::get(
@@ -1005,6 +1006,7 @@ public:
         intermediateShape.push_back(sum);
       }
 
+      // TODO: audit possibility of sparsity on these tensor
       Type intermediateResultType =
           RankedTensorType::get(makeShapeLLVMCompatible(intermediateShape),
                                 resultType.getElementType());
@@ -1657,6 +1659,7 @@ public:
     auto srcType = src.getType().cast<RankedTensorType>();
     int64_t srcRank = srcType.getRank();
     SmallVector<int64_t> srcAbstractSizes(srcRank, kUnknownSize);
+    // TODO: audit possibility of sparsity on these tensor
     auto abstractSrcType = RankedTensorType::get(
         makeShapeLLVMCompatible(srcAbstractSizes), srcType.getElementType());
     Value abstractSrc =

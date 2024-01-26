@@ -87,6 +87,7 @@ Value torch_to_linalg::getDynamicZeroPaddedTensor(
     *pad = castIntToIndex(b, loc, *pad);
 
   Type elementType = input.getType().cast<RankedTensorType>().getElementType();
+  // TODO: audit possibility of sparsity on this tensor
   Type inputType =
       RankedTensorType::get(makeShapeLLVMCompatible(llvm::ArrayRef<int64_t>(
                                 SmallVector<int64_t>(inRank, kUnknownSize))),
