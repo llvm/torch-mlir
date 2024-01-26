@@ -14,8 +14,10 @@ Or from Python:
   python -m torch_mlir.tools.import_onnx ...
 """
 import argparse
+import os
 from pathlib import Path
 import sys
+import tempfile
 
 import onnx
 
@@ -27,8 +29,8 @@ from ...ir import (
 )
 
 
-def main(args):
-    model_proto = load_onnx_model(args.input_file, args.keep)
+def main(args: argparse.Namespace):
+    model_proto = load_onnx_model(args)
     context = Context()
     torch_d.register_dialect(context)
     model_info = onnx_importer.ModelInfo(model_proto)
@@ -48,19 +50,27 @@ def main(args):
         print(m.get_asm(assume_verified=not args.no_verify))
 
 
-def load_onnx_model(file_path: Path, keep: bool) -> onnx.ModelProto:
+def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
     # Do shape inference via files instead of in memory in order to handle
     # models > 2 GB. See https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#shape-inference-a-large-onnx-model-2gb
     # for details about this technique.
-    inferred_path = file_path.with_stem(file_path.stem + '-inferred-shape')
-    onnx.shape_inference.infer_shapes_path(file_path, inferred_path)
-    inferred_model = onnx.load(inferred_path)
-    if not keep:
-        inferred_path.unlink(True)
-    return inferred_model
+    input_dir = os.path.dirname(os.path.abspath(args.input_file))
+    temp_dir = input_dir if args.temp_dir is None else args.temp_dir
+    with tempfile.TemporaryDirectory(dir=temp_dir, delete=not args.keep_temps) as td:
+        # Infer shapes of the input file, saving results to a temp file
+        temp_path = Path(td.name, "inferred.onnx")
+        onnx.shape_inference.infer_shapes_path(args.file_path, temp_path)
+
+        # Load the temp file and the external data.  External data does not
+        # participate in shape inference, so the external data is the same
+        # as would be used with the original model.
+        inferred_model = onnx.load(temp_path, load_external_data=False)
+        data_dir = input_dir if args.data_dir is None else args.data_dir
+        onnx.load_external_data_for_model(inferred_model, data_dir)
+        return inferred_model
 
 
-def parse_arguments(argv=None):
+def parse_arguments(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Torch-mlir ONNX import tool")
     parser.add_argument("input_file", help="ONNX protobuf input", type=Path)
     parser.add_argument(
@@ -72,7 +82,19 @@ def parse_arguments(argv=None):
         help="Disable verification prior to printing",
     )
     parser.add_argument(
-        "--keep", action="store_true", help="Keep intermediate files"
+        "--keep-temps", action="store_true", help="Keep intermediate files"
+    )
+    parser.add_argument(
+        "--temp-dir",
+        help="Pre-existing directory in which to create temporary files."
+            " Defaults to the directory of the input file.",
+        type=Path
+    )
+    parser.add_argument(
+        "--data-path",
+        help="Directory containing the external data file(s)."
+            " Defaults to the directory of the input file.",
+        type=Path
     )
     args = parser.parse_args(argv)
     return args
