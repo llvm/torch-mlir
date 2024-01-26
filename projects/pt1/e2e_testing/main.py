@@ -28,6 +28,7 @@ from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import LinalgOnTensorsT
 
 from .xfail_sets import (
     LINALG_XFAIL_SET,
+    LINALG_CRASH_SET,
     MAKE_FX_TOSA_PASS_SET,
     STABLEHLO_PASS_SET,
     STABLEHLO_CRASHING_SET,
@@ -89,7 +90,7 @@ def main():
     if args.config == "linalg":
         config = LinalgOnTensorsBackendTestConfig(RefBackendLinalgOnTensorsBackend())
         xfail_set = LINALG_XFAIL_SET
-        crashing_set = set()
+        crashing_set = LINALG_CRASH_SET
     elif args.config == "tosa":
         config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend())
         xfail_set = all_test_unique_names - TOSA_PASS_SET

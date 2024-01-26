@@ -23,6 +23,10 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "IscloseStaticModuleTrue_basic"
 }
 
+LINALG_CRASH_SET = {
+    "Aten_EmbeddingBagExample_basic"
+}
+
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
 
