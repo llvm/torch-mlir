@@ -1356,8 +1356,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
 
     if (!zp || !scale) {
-      op->emitWarning(
-          "unimplemented: dequantizing tensor of unknown scale / zero-point");
       return nullptr;
     }
 

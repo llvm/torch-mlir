@@ -630,10 +630,9 @@ public:
       input = make.getSelf();
       inputZp = make.getZeroPoint();
       input = typeConverter->materializeTargetConversion(
-          rewriter, loc, getTypeConverter()->convertType(input.getType()),
-          input);
+          rewriter, loc, typeConverter->convertType(input.getType()), input);
       inputZp = typeConverter->materializeTargetConversion(
-          rewriter, loc, getTypeConverter()->convertType(inputZp.getType()),
+          rewriter, loc, typeConverter->convertType(inputZp.getType()),
           inputZp);
     }
 
@@ -643,10 +642,9 @@ public:
       weightZp = make.getZeroPoint();
 
       weight = typeConverter->materializeTargetConversion(
-          rewriter, loc, getTypeConverter()->convertType(weight.getType()),
-          weight);
+          rewriter, loc, typeConverter->convertType(weight.getType()), weight);
       weightZp = typeConverter->materializeTargetConversion(
-          rewriter, loc, getTypeConverter()->convertType(weightZp.getType()),
+          rewriter, loc, typeConverter->convertType(weightZp.getType()),
           weightZp);
     }
 
@@ -670,7 +668,7 @@ public:
 
     auto inputDTy = input.getType().cast<RankedTensorType>().getElementType();
     auto weightDTy = weight.getType().cast<RankedTensorType>().getElementType();
-    auto resultDTy = resultTy.getDtype();
+    auto resultDTy = resultTy.toBuiltinTensor().getElementType();
 
     if (!inputDTy.isa<mlir::FloatType, mlir::IntegerType>() ||
         !weightDTy.isa<mlir::FloatType, mlir::IntegerType>() ||
@@ -849,9 +847,29 @@ public:
       strideInts.append(numSpatialDims, 1);
 
     } else {
+      Value pad = inputZp;
+      if (!inputZp) {
+        if (isa<mlir::FloatType>(inputDTy))
+          pad = rewriter.create<arith::ConstantOp>(
+              op.getLoc(), rewriter.getFloatAttr(inputDTy, 0.0));
+        if (isa<mlir::IntegerType>(inputDTy))
+          pad = rewriter.create<arith::ConstantOp>(
+              op.getLoc(), rewriter.getIntegerAttr(inputDTy, 0));
+      }
+
+      if (inputZp.getType() != inputDTy) {
+        if (isa<mlir::FloatType>(inputDTy))
+          pad =
+              rewriter.create<arith::TruncFOp>(op.getLoc(), inputDTy, inputZp);
+
+        if (isa<mlir::IntegerType>(inputDTy))
+          pad =
+              rewriter.create<arith::TruncIOp>(op.getLoc(), inputDTy, inputZp);
+      }
+
       // Pad input
       paddedInput = torch_to_linalg::getDynamicZeroPaddedTensor(
-          op, rewriter, input, paddingIntValues, /*unpaddedDims=*/2);
+          op, rewriter, input, paddingIntValues, /*unpaddedDims=*/2, pad);
 
       // Calculate output dims
       for (size_t i = 0; i < numSpatialDims; i++)

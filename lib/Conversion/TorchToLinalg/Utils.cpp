@@ -70,7 +70,7 @@ Value torch_to_linalg::getZeroPaddedTensor(
 // padding value is zero.
 Value torch_to_linalg::getDynamicZeroPaddedTensor(
     Operation *op, OpBuilder &b, Value &input, SmallVectorImpl<Value> &padding,
-    int unpaddedDims) {
+    int unpaddedDims, Value pad) {
   assert(input.getType().isa<RankedTensorType>() &&
          "input must be RankedTensorType");
   unsigned int inRank = input.getType().cast<RankedTensorType>().getRank();
@@ -93,12 +93,10 @@ Value torch_to_linalg::getDynamicZeroPaddedTensor(
                                 SmallVector<int64_t>(inRank, kUnknownSize))),
                             elementType);
 
-  Value cf0 =
-      b.create<arith::ConstantOp>(loc, b.getFloatAttr(elementType, 0.0));
   SmallVector<OpFoldResult> paddingValues =
       getAsOpFoldResult(paddingIncludingUnchanged);
   return b.create<tensor::PadOp>(loc, inputType, input, /*low=*/paddingValues,
-                                 /*high=*/paddingValues, cf0);
+                                 /*high=*/paddingValues, pad);
 }
 
 Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
