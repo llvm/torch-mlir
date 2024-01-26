@@ -110,15 +110,18 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
 // Example:
 // input =  tensor([[[0., 1., 2., 3.],
 //                   [4., 5., 6., 7.]]])
-// torch.ops.aten.reflection_pad1d(input, (3,1)) ; padding_left = 3,
-// padding_right = 1 tensor([[[3., 2., 1., 0., 1., 2., 3., 2.],
-//          [7., 6., 5., 4., 5., 6., 7., 6.]]])
-// Checks: 1) Each of padding_left and padding_right must be non-negative less
-// than size of last dimension Implementation: a) Construct a result tensor of
+// torch.ops.aten.reflection_pad1d(input, (3,1));
+//                                 padding_left = 3,
+//                                 padding_right = 1
+// output = tensor([[[3., 2., 1., 0., 1., 2., 3., 2.],
+//                   [7., 6., 5., 4., 5., 6., 7., 6.]]])
+// Checks: 1) Each of padding_left and padding_right must be non-negative and
+//            less than the size of the last dimension.
+// Implementation: a) Construct a result tensor of
 // shape of input tensor except for the last dimension.
 //                    The last dimension of the result tensor should be last
 //                    dimension of input tensor + left padding size + right
-//                    padding size. INitialize result tensor to all zeros
+//                    padding size. Initialize result tensor to all zeros
 //                 b) Setup affine map to take slice from input tensor of size
 //                 left padding starting from
 //                    second column onwards as first column is reflection
@@ -190,9 +193,8 @@ public:
     tileWidth[PAD_CENTER] = lastDimSize;
 
     extractOffset[PAD_LEFT] = one;
-    // for (1,2,4) input, padding (3,1) lastDimSize=4, 4 - 1 - 1 = 2   [3,5,
-    // 6,7], so start offset to 6, which is right lasDimSize -
-    // (tileWidth[PAD_RIGHT] + one)
+    // The offset for the right hand padding "bar" is:
+    //   [right] lastDimSize - (tileWidth[PAD_RIGHT] + one)
     extractOffset[PAD_RIGHT] =
         createISub(lastDimSize, createIAdd(tileWidth[PAD_RIGHT], one));
     extractOffset[PAD_CENTER] = zero;
@@ -202,8 +204,8 @@ public:
     insertOffset[PAD_CENTER] = tileWidth[PAD_LEFT];
 
     SmallVector<Value> resultShape{inputShape};
-    // Result's last dimension will have shape lastDimSize + left padding size +
-    // right padding size
+    // Result's last dimension will have size:
+    // lastDimSize + left padding size + right padding size
     resultShape[lastDim] =
         createIAdd(resultShape[lastDim],
                    createIAdd(tileWidth[PAD_LEFT], tileWidth[PAD_RIGHT]));

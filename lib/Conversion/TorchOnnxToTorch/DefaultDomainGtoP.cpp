@@ -41,8 +41,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType))
           return failure();
 
-        // HardSigmoid computes the following expression: max(0, min(1, alpha *
-        // x + beta))
+        // HardSigmoid computes the following expression:
+        //   max(0, min(1, alpha * x + beta))
         Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(alpha));
