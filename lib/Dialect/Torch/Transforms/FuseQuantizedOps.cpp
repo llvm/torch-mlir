@@ -102,14 +102,16 @@ public:
         op.getLoc(), newBiasTy, bias, biasScale, zero, dtype);
     bias = rewriter.create<AtenIntReprOp>(
         op.getLoc(),
-        rewriter.getType<ValueTensorType>(biasTy.getOptionalSizes(),
-                                          rewriter.getI32Type()),
+        rewriter.getType<ValueTensorType>(
+            biasTy.getOptionalSizes(),
+            rewriter.getIntegerType(32, IntegerType::isSigned)),
         bias);
 
     operands[2] = bias;
 
-    auto convTy = rewriter.getType<ValueTensorType>(resultTy.getOptionalSizes(),
-                                                    rewriter.getI32Type());
+    auto convTy = rewriter.getType<ValueTensorType>(
+        resultTy.getOptionalSizes(),
+        rewriter.getIntegerType(32, IntegerType::isSigned));
     auto conv = rewriter.create<SrcOp>(op.getLoc(), convTy, operands);
 
     auto convQTy =
