@@ -2615,11 +2615,9 @@ namespace {
     LogicalResult matchAndRewrite(AtenConvTbcOp op,
                                   PatternRewriter &rewriter) const override {
       Value emptyList = rewriter.create<PrimListConstructOp>(
-          op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+          op.getLoc(),
+          Torch::ListType::get(Torch::IntType::get(op.getContext())),
           SmallVector<Value>());
-      Value zeroList = rewriter.create<PrimListConstructOp>(
-          op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
-          SmallVector<Value>{rewriter.create<Torch::ConstantIntOp>(op.getLoc(), rewriter.getI64IntegerAttr(0))});
       Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
       Value oneList = rewriter.create<PrimListConstructOp>(
           op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
@@ -5406,8 +5404,8 @@ public:
     auto resultType2 = op->getResult(2).getType();
     auto resultType3 = op->getResult(3).getType();
 
-    mlir::TypeRange returnTypes{resultType0, resultType1, resultType2,
-                                resultType3};
+    llvm::SmallVector<Type> returnTypes{resultType0, resultType1, resultType2,
+                                        resultType3};
 
     rewriter.replaceOpWithNewOp<AtenEmbeddingBagPaddingIdxOp>(
         op, returnTypes, weight, indices, offsets, scaleGradByFreq, mode,
