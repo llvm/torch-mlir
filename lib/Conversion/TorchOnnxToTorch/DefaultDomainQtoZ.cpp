@@ -1244,6 +1244,12 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           current[i] = i;
         }
 
+        // Convert dynamic shape dimension.
+        for (unsigned i = 0; i < shape.size(); i++){
+          if (shape[i] == ShapedType::kDynamic)
+            shape[i] = Torch::kUnknownSize;
+        }
+
         for (int64_t i = 0; i < rank; ++i) {
           if (current[i] == permutations[i])
             continue;
