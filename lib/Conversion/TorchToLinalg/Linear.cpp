@@ -983,25 +983,6 @@ public:
       return rewriter.notifyMatchFailure(
           op, "unimplemented: only 2D grouped convolution supported");
 
-    // Special depthwise case
-    auto inShape = makeShapeTorchCompatible(
-        input.getType().cast<RankedTensorType>().getShape());
-    auto weightShape = makeShapeTorchCompatible(
-        weight.getType().cast<RankedTensorType>().getShape());
-    if (weightShape[0] != kUnknownSize && inShape[1] == groupSize &&
-        weightShape[0] % inShape[1] == 0 && weightShape[1] == 1) {
-      // Collapse weight shape
-      SmallVector<ReassociationIndices, 4> collapsedDims = {{0, 1}, {2}, {3}};
-      SmallVector<int64_t> collapsedShape{
-          (weightShape[0] == kUnknownSize ? kUnknownSize
-                                          : weightShape[0] * weightShape[1]),
-          weightShape[2], weightShape[3]};
-      // TODO: audit possibility of sparsity on this tensor
-      Type collapsedType = RankedTensorType::get(
-          makeShapeLLVMCompatible(collapsedShape), weightDTy);
-      Value collapsedWeight = rewriter.create<tensor::CollapseShapeOp>(
-          loc, collapsedType, weight, collapsedDims);
-
     if (groupSize == 1 && inputZp && weightZp) {
       // The quantized version uses a different channel ordering so we need to
       // permute the tensors in order to use the existing path. We should
