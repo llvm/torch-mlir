@@ -624,7 +624,7 @@ public:
     Value bias = adaptor.getBias();
     auto resultTy = op.getType().cast<ValueTensorType>();
 
-    Value inputZp, weightZp, biasZp;
+    Value inputZp, weightZp;
     if (auto make = op.getInput()
                         .getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
       input = make.getSelf();
