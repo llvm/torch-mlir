@@ -21,8 +21,8 @@ jobs:
       fail-fast: true
       matrix:
         torch-version: [nightly, stable]
-      name: Build and Test (Linux, ASSERTIONS)
-      runs-on: torch-mlir-cpubuilder-manylinux-x86-64
+    name: Build and Test (Linux, ASSERTIONS)
+    runs-on: torch-mlir-cpubuilder-manylinux-x86-64
     env:
       CACHE_DIR: ${{ github.workspace }}/.container-cache
     steps:
