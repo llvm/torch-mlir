@@ -1,0 +1,17 @@
+name: Lint Checks
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  static_lint_checks:
+    name: Static Lint Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Validate YAML file
+        run: |
+          yamllint -f github ./github/workflows/ ./.github/actions/
