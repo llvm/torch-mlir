@@ -81,7 +81,7 @@ public:
       }
       newResultTypes.push_back(type);
     }
-    rewriter.updateRootInPlace(func, [&] {
+    rewriter.modifyOpInPlace(func, [&] {
       func.setType(FunctionType::get(
           getContext(), conversion.getConvertedTypes(), newResultTypes));
       // Clear out the type bounds, now that the type incorporates them.
@@ -194,14 +194,12 @@ static LogicalResult adjustCallingConventions(func::FuncOp func,
   TypeConverter typeConverter;
   typeConverter.addConversion([](Type type) { return type; });
   typeConverter.addConversion(
-      [](Torch::TupleType type,
-         SmallVectorImpl<Type> &types) -> LogicalResult {
+      [](Torch::TupleType type, SmallVectorImpl<Type> &types) -> LogicalResult {
         llvm::append_range(types, type.getContainedTypes());
         return success();
       });
   typeConverter.addConversion(
-      [](Torch::NoneType type,
-         SmallVectorImpl<Type> &types) -> LogicalResult {
+      [](Torch::NoneType type, SmallVectorImpl<Type> &types) -> LogicalResult {
         return success();
       });
 
