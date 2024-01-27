@@ -1,11 +1,11 @@
 name: Build and Test
 
 on:
-  pull_request:
-    branches: [ main ]
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+  # pull_request:
+  #   branches: [ main ]
+  # push:
+  #   branches: [ main ]
+  # workflow_dispatch:
 
 # Ensure that only a single job or workflow using the same
 # concurrency group will run at a time. This would cancel
@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os-arch: [ubuntu-x86_64, macos-arm64, windows-x86_64]
+        os-arch: [macos-arm64, windows-x86_64]
         llvm-build: [in-tree, out-of-tree]
         torch-binary: [ON]
         torch-version: [nightly, stable]

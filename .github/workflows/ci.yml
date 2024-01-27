@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+concurrency:
+  # A PR number if a pull request and otherwise the commit hash. This cancels
+  # queued and in-progress runs for the same PR (presubmit) or commit
+  # (postsubmit).
+  group: ci-build-test-cpp-linux-${{ github.event.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  build_test_linux:
+    matrix:
+      torch-version: [nightly, stable]
+    name: Build and Test (Linux, ASSERTIONS)
+    runs-on: torch-mlir-cpubuilder-manylinux-x86-64
+    strategy:
+      fail-fast: true
+    env:
+      CACHE_DIR: ${{ github.workspace }}/.container-cache
+    steps:
+      - name: Configure local git mirrors
+        run: |
+          # Our stock runners have access to certain local git caches. If these
+          # files are available, it will prime the cache and configure git to
+          # use them. Practically, this eliminates network/latency for cloning
+          # llvm.
+          if [[ -x /gitmirror/scripts/trigger_update_mirrors.sh ]]; then
+            /gitmirror/scripts/trigger_update_mirrors.sh
+            /gitmirror/scripts/git_config.sh
+          fi
+      - name: "Checking out repository"
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+        with:
+          submodules: true
+
+      - name: Enable cache
+        uses: actions/cache/restore@v3
+        with:
+          path: ${{ env.CACHE_DIR }}
+          key: linux-build-test-cpp-asserts-manylinux-v2-${{ github.sha }}
+          restore-keys: |
+            linux-build-test-cpp-
+      
+      - name: Build packages
+        run: |
+          export cache_dir="${{ env.CACHE_DIR }}"
+          bash build_tools/ci/build_test_cpp.sh
+
+      - name: Save cache
+        uses: actions/cache/save@v3
+        if: ${{ !cancelled() }}
+        with:
+          path: ${{ env.CACHE_DIR }}
+          key: linux-build-test-cpp-asserts-manylinux-v2-${{ github.sha }}
