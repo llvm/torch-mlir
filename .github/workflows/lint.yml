@@ -12,6 +12,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Validate YAML file
+      - name: Validate GitHub Actions yaml files
         run: |
           yamllint ./.github/workflows/ ./.github/actions/
