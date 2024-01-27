@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
   workflow_call:
   pull_request:
-    branches: [ main ]
+    branches: [main]
   push:
-    branches: [ main ]
+    branches: [main]
 
 concurrency:
   # A PR number if a pull request and otherwise the commit hash. This cancels
@@ -48,7 +48,7 @@ jobs:
           key: linux-build-test-cpp-asserts-manylinux-v2-${{ github.sha }}
           restore-keys: |
             linux-build-test-cpp-
-      
+
       - name: Build packages
         run: |
           export cache_dir="${{ env.CACHE_DIR }}"
