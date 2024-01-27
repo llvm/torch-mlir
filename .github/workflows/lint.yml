@@ -2,9 +2,9 @@ name: Lint Checks
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   static_lint_checks:
