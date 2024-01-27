@@ -16,13 +16,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build_test_linux:
-    matrix:
-      torch-version: [nightly, stable]
-    name: Build and Test (Linux, ASSERTIONS)
-    runs-on: torch-mlir-cpubuilder-manylinux-x86-64
+  build-test-linux:
     strategy:
       fail-fast: true
+      matrix:
+        torch-version: [nightly, stable]
+      name: Build and Test (Linux, ASSERTIONS)
+      runs-on: torch-mlir-cpubuilder-manylinux-x86-64
     env:
       CACHE_DIR: ${{ github.workspace }}/.container-cache
     steps:
