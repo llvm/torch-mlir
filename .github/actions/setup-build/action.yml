@@ -1,3 +1,4 @@
+# yamllint disable rule:line-length
 name: "Setup build environment"
 description: "Setup the build environment. An action so that it can be shared between in-tree/out-of-tree jobs"
 
@@ -24,59 +25,59 @@ runs:
   using: "composite"
 
   steps:
-  - name: Set up Python
-    if: ${{ runner.arch == 'X64' }}
-    uses: actions/setup-python@v4
-    with:
-      python-version: '3.11'
+    - name: Set up Python
+      if: ${{ runner.arch == 'X64' }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
 
-  - name: Install MLIR Python depends
-    if: ${{ runner.os != 'Linux' }}
-    run: |
-      python -m pip install -r $GITHUB_WORKSPACE/externals/llvm-project/mlir/python/requirements.txt
-    shell: bash
+    - name: Install MLIR Python depends
+      if: ${{ runner.os != 'Linux' }}
+      run: |
+        python -m pip install -r $GITHUB_WORKSPACE/externals/llvm-project/mlir/python/requirements.txt
+      shell: bash
 
-  - name: Install PyTorch nightly depends
-    if: ${{ runner.os != 'Linux' }}
-    run: |
-      python -m pip install -r pytorch-requirements.txt
-      python -m pip install -r build-requirements.txt
-    shell: bash
+    - name: Install PyTorch nightly depends
+      if: ${{ runner.os != 'Linux' }}
+      run: |
+        python -m pip install -r pytorch-requirements.txt
+        python -m pip install -r build-requirements.txt
+      shell: bash
 
-  - name: Install prerequisites (Linux)
-    if: ${{ runner.os == 'Linux' }}
-    run: sudo apt-get install --yes ccache ninja-build
-    shell: bash
+    - name: Install prerequisites (Linux)
+      if: ${{ runner.os == 'Linux' }}
+      run: sudo apt-get install --yes ccache ninja-build
+      shell: bash
 
-  - name: Install prerequisites (macOS)
-    if: ${{ runner.os == 'macOS' }}
-    run: brew install ccache ninja
-    shell: bash
+    - name: Install prerequisites (macOS)
+      if: ${{ runner.os == 'macOS' }}
+      run: brew install ccache ninja
+      shell: bash
 
-  - name: Install prerequisites (Windows)
-    if: ${{ runner.os == 'Windows' }}
-    run: |
-      pip install ninja
-      choco install ccache --yes
-    shell: bash
+    - name: Install prerequisites (Windows)
+      if: ${{ runner.os == 'Windows' }}
+      run: |
+        pip install ninja
+        choco install ccache --yes
+      shell: bash
 
-  - name: Configure ccache
-    if: ${{ inputs.cache-enabled == 'true' }}
-    run: |
-      rm -rf ${{ github.workspace }}/.ccache
-      mkdir -p ${{ github.workspace }}/.ccache
-      ccache --set-config "cache_dir=${{ github.workspace }}/.ccache"
-      ccache --set-config "compression=true"
-      ccache --set-config "max_size=300M"
-      ccache --zero-stats
-    shell: bash
+    - name: Configure ccache
+      if: ${{ inputs.cache-enabled == 'true' }}
+      run: |
+        rm -rf ${{ github.workspace }}/.ccache
+        mkdir -p ${{ github.workspace }}/.ccache
+        ccache --set-config "cache_dir=${{ github.workspace }}/.ccache"
+        ccache --set-config "compression=true"
+        ccache --set-config "max_size=300M"
+        ccache --zero-stats
+      shell: bash
 
-  - name: Enable ccache
-    if: ${{ inputs.cache-enabled == 'true' }}
-    uses: actions/cache@v3
-    with:
-      path: ${{ github.workspace }}/.ccache
-      key: ${{ runner.os }}-${{ inputs.cache-suffix }}-${{ github.sha }}
-      restore-keys: |
-        ${{ runner.os }}-${{ inputs.cache-suffix }}-
-        ${{ runner.os }}-
+    - name: Enable ccache
+      if: ${{ inputs.cache-enabled == 'true' }}
+      uses: actions/cache@v3
+      with:
+        path: ${{ github.workspace }}/.ccache
+        key: ${{ runner.os }}-${{ inputs.cache-suffix }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-${{ inputs.cache-suffix }}-
+          ${{ runner.os }}-

@@ -1,8 +1,9 @@
+# yamllint disable rule:line-length
 name: Bazel Build and Test
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 # Ensure that only a single job or workflow using the same
@@ -24,90 +25,90 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Prepare workspace
-      run: |
-        # Clear the workspace directory so that we don't run into errors about
-        # existing lock files.
-        sudo rm -rf $GITHUB_WORKSPACE/*
+      - name: Prepare workspace
+        run: |
+          # Clear the workspace directory so that we don't run into errors about
+          # existing lock files.
+          sudo rm -rf $GITHUB_WORKSPACE/*
 
-    - name: Checkout torch-mlir
-      uses: actions/checkout@v3
-      with:
-        submodules: 'true'
+      - name: Checkout torch-mlir
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
 
-    # Continually update cache even if there's a "hit" during
-    # restore to avoid the cache going stale over time
-    # https://github.com/actions/cache/blob/main/workarounds.md#update-a-cache
-    - name: Setup cache for bazel
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/bazel
-        key: torch_mlir-bazel-build-cache-${{ runner.os }}-${{ github.sha }}
-        restore-keys: |
-          torch_mlir-bazel-build-cache-${{ runner.os }}
+      # Continually update cache even if there's a "hit" during
+      # restore to avoid the cache going stale over time
+      # https://github.com/actions/cache/blob/main/workarounds.md#update-a-cache
+      - name: Setup cache for bazel
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/bazel
+          key: torch_mlir-bazel-build-cache-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            torch_mlir-bazel-build-cache-${{ runner.os }}
 
-    # Change bazel cache directory to root ownership
-    # to allow writing to it from within the docker container.
-    # If no cache hits, this directory is not present
-    # so don't run chown (will error otherwise).
-    - name: Set bazel cache permissions
-      run: |
-        if [ -d "${HOME}/.cache/bazel" ]; then
-          sudo chown -R root:root "${HOME}/.cache/bazel"
-        fi
+      # Change bazel cache directory to root ownership
+      # to allow writing to it from within the docker container.
+      # If no cache hits, this directory is not present
+      # so don't run chown (will error otherwise).
+      - name: Set bazel cache permissions
+        run: |
+          if [ -d "${HOME}/.cache/bazel" ]; then
+            sudo chown -R root:root "${HOME}/.cache/bazel"
+          fi
 
-    - name: Build docker image
-      run: |
-        docker build -f utils/bazel/docker/Dockerfile \
-                     -t torch-mlir:ci \
-                     .
+      - name: Build docker image
+        run: |
+          docker build -f utils/bazel/docker/Dockerfile \
+                      -t torch-mlir:ci \
+                      .
 
-    - name: Verify buildifier was run (bazel lint)
-      run: |
-        docker run --rm \
-                   -v "$(pwd)":"/opt/src/torch-mlir" \
-                   -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
-                   torch-mlir:ci \
-                   bazel run @torch-mlir//:buildifier
-        if [ -n "$(git status --porcelain)" ]; then
-          echo "Please 'bazel run @torch-mlir//:buildifier' and commit changes."
-          exit 1
-        fi
+      - name: Verify buildifier was run (bazel lint)
+        run: |
+          docker run --rm \
+                    -v "$(pwd)":"/opt/src/torch-mlir" \
+                    -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
+                    torch-mlir:ci \
+                    bazel run @torch-mlir//:buildifier
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Please 'bazel run @torch-mlir//:buildifier' and commit changes."
+            exit 1
+          fi
 
-    - name: Bazel build torch-mlir
-      run: |
-        docker run --rm \
-                   -v "$(pwd)":"/opt/src/torch-mlir" \
-                   -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
-                   torch-mlir:ci \
-                   bazel build @torch-mlir//:torch-mlir-opt
+      - name: Bazel build torch-mlir
+        run: |
+          docker run --rm \
+                    -v "$(pwd)":"/opt/src/torch-mlir" \
+                    -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
+                    torch-mlir:ci \
+                    bazel build @torch-mlir//:torch-mlir-opt
 
-    - name: Bazel test torch-mlir (lit tests)
-      run: |
-        docker run --rm \
-                   -v "$(pwd)":"/opt/src/torch-mlir" \
-                   -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
-                   torch-mlir:ci \
-                   bazel test @torch-mlir//test/...
+      - name: Bazel test torch-mlir (lit tests)
+        run: |
+          docker run --rm \
+                    -v "$(pwd)":"/opt/src/torch-mlir" \
+                    -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
+                    torch-mlir:ci \
+                    bazel test @torch-mlir//test/...
 
-    # Switch back bazel cache directory to user ownership
-    # to allow GHA post-cache step to save cache without
-    # permissions issue.
-    - name: Switch bazel cache permissions
-      run: |
-        if [ -d "${HOME}/.cache/bazel" ]; then
-          sudo chown -R "$USER":"$USER" "${HOME}/.cache/bazel"
-        fi
+      # Switch back bazel cache directory to user ownership
+      # to allow GHA post-cache step to save cache without
+      # permissions issue.
+      - name: Switch bazel cache permissions
+        run: |
+          if [ -d "${HOME}/.cache/bazel" ]; then
+            sudo chown -R "$USER":"$USER" "${HOME}/.cache/bazel"
+          fi
 
-    - name: Send mail
-      if: failure()
-      uses: dawidd6/action-send-mail@v3
-      with:
-        server_address: ${{ secrets.SMTP_SERVER }}
-        server_port: ${{ secrets.SMTP_PORT }}
-        username: ${{ secrets.SMTP_USERNAME }}
-        password: ${{ secrets.SMTP_PASSWORD }}
-        subject: GitHub Action Bazel Build and Test failed!
-        body: Bazel Build job failed! See https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }} for more information.
-        to: ${{ secrets.MAIL_RECEIVER }}
-        from: Torch-MLIR Bazel Build GitHub Actions
+      - name: Send mail
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: GitHub Action Bazel Build and Test failed!
+          body: Bazel Build job failed! See https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }} for more information.
+          to: ${{ secrets.MAIL_RECEIVER }}
+          from: Torch-MLIR Bazel Build GitHub Actions
