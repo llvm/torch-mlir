@@ -24,6 +24,7 @@ import abc
 from typing import Any, Callable, List, NamedTuple, Optional, TypeVar, Union, Dict
 from itertools import repeat
 
+import os
 import sys
 import traceback
 
@@ -323,8 +324,16 @@ def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
 
 
 def run_tests(tests: List[Test], config: TestConfig, sequential=False, verbose=False) -> List[TestResult]:
-    """Invoke the given `Test`'s with the provided `TestConfig`."""
-    num_processes = min(int(mp.cpu_count() / 8) + 1, len(tests))
+    """Invoke the given `Test`'s with the provided `TestConfig`.""" 
+    num_processes = min(int(mp.cpu_count() / 2) + 1, len(tests))
+    try:
+        env_concurrency = int(os.getenv("TORCH_MLIR_TEST_CONCURRENCY", "0"))
+    except ValueError as e:
+        raise ValueError("Bad value for TORCH_MLIR_TEST_CONCURRENCY env var: "
+                         "Expected integer.") from e
+    if env_concurrency > 0:
+        num_processes = min(num_processes, env_concurrency)
+        
     # TODO: We've noticed that on certain 2 core machine parallelizing the tests
     # makes the llvm backend legacy pass manager 20x slower than using a
     # single process. Need to investigate the root cause eventually. This is a
