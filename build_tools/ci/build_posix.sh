@@ -56,5 +56,9 @@ echo "::group::Build"
 cmake --build "$build_dir" --target tools/torch-mlir/all -- -k 0
 echo "::endgroup::"
 
+echo "::group::Unit tests"
+cmake --build $repo_root/build --target check-torch-mlir-all
+echo "::endgroup::"
+
 # Show ccache stats.
 ccache --show-stats
