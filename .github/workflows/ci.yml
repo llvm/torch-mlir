@@ -66,9 +66,13 @@ jobs:
           path: ${{ env.CACHE_DIR }}
           key: build-test-cpp-asserts-manylinux-v2-${{ github.sha }}
 
-      - name: Test project (torch-${{ matrix.torch-version }})
+      - name: Unit tests
         run: |
           export cache_dir="${{ env.CACHE_DIR }}"
+          bash build_tools/ci/unit_test_posix.sh
+
+      - name: Integration tests (torch-${{ matrix.torch-version }})
+        run: |
           bash build_tools/ci/test_posix.sh ${{ matrix.torch-version }}
 
       - name: Check generated sources (torch-nightly only)
