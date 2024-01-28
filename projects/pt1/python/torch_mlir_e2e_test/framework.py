@@ -27,8 +27,11 @@ from itertools import repeat
 import sys
 import traceback
 
+import multiprocessing as mp
+from multiprocessing import set_start_method
+set_start_method("spawn")
+
 import torch
-import multiprocess as mp
 
 TorchScriptValue = Union[int, float, List['TorchScriptValue'],
                          Dict['TorchScriptValue',
