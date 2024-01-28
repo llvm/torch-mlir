@@ -324,7 +324,7 @@ def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
 
 def run_tests(tests: List[Test], config: TestConfig, sequential=False, verbose=False) -> List[TestResult]:
     """Invoke the given `Test`'s with the provided `TestConfig`."""
-    num_processes = min(int(mp.cpu_count() * 1.1), len(tests))
+    num_processes = min(int(mp.cpu_count() / 4) + 1, len(tests))
     # TODO: We've noticed that on certain 2 core machine parallelizing the tests
     # makes the llvm backend legacy pass manager 20x slower than using a
     # single process. Need to investigate the root cause eventually. This is a
