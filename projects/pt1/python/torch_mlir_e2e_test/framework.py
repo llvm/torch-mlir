@@ -27,9 +27,13 @@ from itertools import repeat
 import sys
 import traceback
 
-import multiprocessing as mp
-from multiprocessing import set_start_method
-set_start_method("spawn")
+import multiprocess as mp
+from multiprocess import set_start_method
+try:
+    set_start_method("spawn")
+except RuntimeError:
+    # Children can error here so we suppress.
+    pass
 
 import torch
 
