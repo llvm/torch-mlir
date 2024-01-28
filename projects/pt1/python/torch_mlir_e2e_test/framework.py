@@ -351,7 +351,7 @@ def run_tests(tests: List[Test], config: TestConfig, sequential=False, verbose=F
     pool = mp.Pool(num_processes)
     arg_list = zip(tests, repeat(config))
     handles = pool.starmap_async(compile_and_run_test, arg_list)
-    results = handles.get()
+    results = handles.get(timeout=360)
 
     tests_with_results = {result.unique_name for result in results}
     all_tests = {test.unique_name for test in tests}
