@@ -334,7 +334,8 @@ LogicalResult ConvertAtenOp<AtenEmbeddingBagPaddingIdxOp>::matchAndRewrite(
     return failure();
 
   auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op.getLoc(), gatherOutput, initValue, rewriter.getI64TensorAttr({0}));
+      op.getLoc(), gatherOutput, initValue, rewriter.getDenseI64ArrayAttr({0}),
+      elementTy);
 
   Region &region = stablehloReduceOp.getBody();
   Block &block = region.emplaceBlock();
@@ -666,7 +667,8 @@ LogicalResult ConvertAtenOp<AtenScatterSrcOp>::matchAndRewrite(
       /*indexVectorDim=*/indexVecDim);
 
   auto stablehloScatterOp = rewriter.create<stablehlo::ScatterOp>(
-      loc, input, scatterIndicies, src, scatterDimensionNumbers, false, false);
+      loc, inputType, input, scatterIndicies, src, scatterDimensionNumbers,
+      false, false);
 
   // config update computation function: just return the element from src.
   Block &block = stablehloScatterOp.getUpdateComputation().emplaceBlock();
