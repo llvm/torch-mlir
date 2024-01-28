@@ -34,11 +34,9 @@ export CMAKE_CXX_COMPILER_LAUNCHER=ccache
 # Clear ccache stats.
 ccache -z
 
-echo "Configuring torch-mlir"
-echo "======================"
-
 cd $repo_root
 
+echo "::group::CMake configure"
 cmake -S "$repo_root/externals/llvm-project/llvm" -B "$build_dir" \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
@@ -52,10 +50,11 @@ cmake -S "$repo_root/externals/llvm-project/llvm" -B "$build_dir" \
   -DLLVM_TARGETS_TO_BUILD=host \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   -DTORCH_MLIR_ENABLE_LTC=ON
+echo "::endgroup::"
 
-echo "Building all"
-echo "------------"
+echo "::group::Build"
 cmake --build "$build_dir" --target tools/torch-mlir/all -- -k 0
+echo "::endgroup::"
 
 # Show ccache stats.
 ccache --show-stats
