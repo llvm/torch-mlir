@@ -30,5 +30,5 @@ case $torch_version in
 esac
 
 echo "::group::installing test requirements"
-python -m pip install --no-cache-dir -r $repo_root/test_requirements.txt
+python -m pip install --no-cache-dir -r $repo_root/test-requirements.txt
 echo "::endgroup::"
