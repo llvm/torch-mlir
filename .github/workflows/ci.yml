@@ -45,11 +45,16 @@ jobs:
         uses: actions/cache/restore@v3
         with:
           path: ${{ env.CACHE_DIR }}
-          key: linux-build-test-cpp-asserts-manylinux-v2-${{ github.sha }}
+          key: build-test-cpp-asserts-manylinux-v2-${{ github.sha }}
           restore-keys: |
-            linux-build-test-cpp-
+            build-test-cpp-asserts-manylinux-v2-
 
-      - name: Build packages
+      - name: Install python deps
+        run: |
+          export cache_dir="${{ env.CACHE_DIR }}"
+          bash build_tools/ci/install_python_deps.sh
+
+      - name: Build and test project
         run: |
           export cache_dir="${{ env.CACHE_DIR }}"
           bash build_tools/ci/build_test_cpp.sh
@@ -59,4 +64,4 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           path: ${{ env.CACHE_DIR }}
-          key: linux-build-test-cpp-asserts-manylinux-v2-${{ github.sha }}
+          key: build-test-cpp-asserts-manylinux-v2-${{ github.sha }}
