@@ -52,7 +52,7 @@ cmake -S "$repo_root/externals/llvm-project/llvm" -B "$build_dir" \
   -DCMAKE_INSTALL_LIBDIR=lib \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
-  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$repo_root/torch-mlir" \
+  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$repo_root" \
   -DLLVM_TARGETS_TO_BUILD=host \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   -DTORCH_MLIR_ENABLE_LTC=ON
