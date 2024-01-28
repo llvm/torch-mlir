@@ -45,9 +45,9 @@ jobs:
         uses: actions/cache/restore@v3
         with:
           path: ${{ env.CACHE_DIR }}
-          key: build-test-cpp-asserts-manylinux-v2-${{ github.sha }}
+          key: build-test-cpp-asserts-manylinux-${{ matrix.torch-version }}-v2-${{ github.sha }}
           restore-keys: |
-            build-test-cpp-asserts-manylinux-v2-
+            build-test-cpp-asserts-manylinux-${{ matrix.torch-version }}-v2-
 
       - name: Install python deps (torch-${{ matrix.torch-version }})
         run: |
@@ -64,7 +64,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           path: ${{ env.CACHE_DIR }}
-          key: build-test-cpp-asserts-manylinux-v2-${{ github.sha }}
+          key: build-test-cpp-asserts-manylinux-${{ matrix.torch-version }}-v2-${{ github.sha }}
 
       - name: Integration tests (torch-${{ matrix.torch-version }})
         run: |
