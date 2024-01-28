@@ -52,7 +52,7 @@ jobs:
       - name: Install python deps
         run: |
           export cache_dir="${{ env.CACHE_DIR }}"
-          bash build_tools/ci/install_python_deps.sh
+          bash build_tools/ci/install_python_deps.sh ${{ matrix.torch-version }}
 
       - name: Build and test project
         run: |
