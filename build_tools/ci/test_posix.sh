@@ -1,0 +1,39 @@
+#!/bin/bash
+
+set -eu -o errtrace
+
+this_dir="$(cd $(dirname $0) && pwd)"
+repo_root="$(cd $this_dir/../.. && pwd)"
+torch_version="${1:-unknown}"
+
+export PYTHONPATH="$repo_root/build/tools/torch-mlir/python_packages/torch_mlir:$repo_root/projects/pt1"
+
+echo "::group::Run Linalg e2e integration tests"
+python -m e2e_testing.main --config=linalg -v
+echo "::endgroup::"
+
+echo "::group::Run TorchDynamo e2e integration tests"
+python -m e2e_testing.main --config=torchdynamo -v
+echo "::endgroup::"
+
+echo "::group::Run make_fx + TOSA e2e integration tests"
+python -m e2e_testing.main --config=make_fx_tosa -v
+echo "::endgroup::"
+
+echo "::group::Run TOSA e2e integration tests"
+python -m e2e_testing.main --config=tosa -v
+echo "::endgroup::"
+
+case $torch_version in
+  nightly)
+    echo "::group::Run Lazy Tensor Core e2e integration tests"
+    python -m e2e_testing.main --config=lazy_tensor_core -v
+    echo "::endgroup::"
+    ;;
+  stable)
+    ;;
+  *)
+    echo "Unrecognized torch version '$torch_version' (specify 'nightly' or 'stable' with cl arg)"
+    exit 1
+    ;;
+esac

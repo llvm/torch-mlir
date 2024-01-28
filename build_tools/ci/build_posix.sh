@@ -27,7 +27,7 @@ export CMAKE_TOOLCHAIN_FILE="$this_dir/linux_default_toolchain.cmake"
 export CC=clang
 export CXX=clang++
 export CCACHE_DIR="${cache_dir}/ccache"
-export CCACHE_MAXSIZE="700M"
+export CCACHE_MAXSIZE="350M"
 export CMAKE_C_COMPILER_LAUNCHER=ccache
 export CMAKE_CXX_COMPILER_LAUNCHER=ccache
 
@@ -38,10 +38,6 @@ echo "Configuring torch-mlir"
 echo "======================"
 
 cd $repo_root
-# -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
-# -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
-# -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
-# -DTM_PYTORCH_INSTALL_WITHOUT_REBUILD=${TM_PYTORCH_INSTALL_WITHOUT_REBUILD} \
 
 cmake -S "$repo_root/externals/llvm-project/llvm" -B "$build_dir" \
   -GNinja \
@@ -57,15 +53,9 @@ cmake -S "$repo_root/externals/llvm-project/llvm" -B "$build_dir" \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   -DTORCH_MLIR_ENABLE_LTC=ON
 
-
 echo "Building all"
 echo "------------"
 cmake --build "$build_dir" --target tools/torch-mlir/all -- -k 0
-
-# echo "Installing"
-# echo "----------"
-# echo "Install to: $install_dir"
-# cmake --build "$build_dir" --target iree-install-dist
 
 # Show ccache stats.
 ccache --show-stats
