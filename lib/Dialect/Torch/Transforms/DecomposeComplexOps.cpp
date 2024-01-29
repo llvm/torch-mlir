@@ -1073,14 +1073,11 @@ public:
     Location loc = op.getLoc();
     Value self = op.getSelf();
     std::optional<unsigned> inRank = getTensorRank(self);
-    if (!inRank) {
-      return rewriter.notifyMatchFailure(
-          op, "Expected input tensor to have known rank.");
-    }
     if (inRank != 2)
       return rewriter.notifyMatchFailure(
           op, "Expected input tensor to have rank 2.");
 
+    Value none = rewriter.create<ConstantNoneOp>(loc);
     Value zero =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
     Value one =
@@ -1100,10 +1097,9 @@ public:
     Value diagonal = rewriter.create<AtenDiagonalOp>(
         loc, diagonalType, /*input=*/self, /*offset=*/zero, /*dim1=*/zero,
         /*dim2=*/one);
-    Value dtype = getDtypeIntValueForType(rewriter, loc, elementType);
     Value sum = rewriter.create<AtenSumOp>(loc, outputType, /*self=*/diagonal,
-                                           /*dtype=*/dtype);
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, output.getType(), sum);
+                                           /*dtype=*/none);
+    rewriter.replaceOp(op, sum);
     return success();
   }
 };
