@@ -210,16 +210,13 @@ SYMBOLIC_OP_TO_TORCH_OP = {
 def sparsity_encoding(shape: torch.Size, sparse_layout : torch.layout) -> str:
    """Returns sparse tensor encoding for the given sparse layout as string.
 
-   Note that we currently rely on string parsing to construct the MLIR tensor
-   type (both for dense as well as sparse). In the long run this should be
-   replaced by proper IR building, obviously.
-
-   Also note this method currently just supports 2-dim sparse formats. This should
-   be generalized to the torch.sparse encodings for prefix dense batch dimensions
+   The method currently just supports 2-dim sparse formats. This should be
+   generalized to the torch.sparse encodings for prefix dense batch dimensions
    and suffix dense subtensor dimensions. Since MLIR supports a superset of what
    is currently implememented in torch.sparse, this should not a be problem.
    """
 
+   # TODO: any rank
    if len(shape) != 2:
        raise RuntimeError(f"Unsupported sparse rank {len(shape)}")
 
