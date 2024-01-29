@@ -440,7 +440,7 @@ static Type convertDtypeToBuiltinElementType(MLIRContext *context, Type dtype) {
   } else if (auto integerType = dtype.dyn_cast<IntegerType>()) {
     return IntegerType::get(context, integerType.getWidth(),
                             IntegerType::Signless);
-  } else if (dtype.isa<mlir::ComplexType>()){
+  } else if (dtype.isa<mlir::ComplexType>()) {
     return dtype;
   }
 
@@ -556,9 +556,9 @@ Type Torch::meetTensorTypes(BaseTensorType lhs, BaseTensorType rhs) {
 
 // TODO: These are not DRY in that the two type predicates AnyTorchDictKeyType
 // and AnyTorchType generate the exact same code (in TorchOps.cpp.inc).
-// Unfortunately the generated implementations aren't visible/exposed ("static" linkage)
-// and the predicates themselves can't be added/used in the specification of the parameters
-// of the Torch_DictType.
+// Unfortunately the generated implementations aren't visible/exposed ("static"
+// linkage) and the predicates themselves can't be added/used in the
+// specification of the parameters of the Torch_DictType.
 static bool isAnyTorchDictKeyType(Type type) {
   return type.isa<Torch::AnyType>() || type.isa<Torch::IntType>() ||
          type.isa<Torch::BoolType>() || type.isa<Torch::FloatType>() ||

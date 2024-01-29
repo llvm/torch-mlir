@@ -20,19 +20,19 @@ public:
     return torch::lazy::OpKind(at::aten::split_with_sizes_copy);
   }
 
-  SplitWithSizesCopy(const torch::lazy::Value& self,
-                     const ::std::vector<int64_t>& split_sizes,
-                     const int64_t& dim,
-                     std::vector<torch::lazy::Shape>&& shapes);
+  SplitWithSizesCopy(const torch::lazy::Value &self,
+                     const ::std::vector<int64_t> &split_sizes,
+                     const int64_t &dim,
+                     std::vector<torch::lazy::Shape> &&shapes);
 
   std::string ToString() const override;
 
-  bool CanBeReused(const torch::lazy::Value& self,
-                   const ::std::vector<int64_t>& split_sizes,
-                   const int64_t& dim) const;
+  bool CanBeReused(const torch::lazy::Value &self,
+                   const ::std::vector<int64_t> &split_sizes,
+                   const int64_t &dim) const;
 
   TorchMlirOpVector Lower(TorchMlirFunction function,
-                          TorchMlirLoweringContext* loctx) const override;
+                          TorchMlirLoweringContext *loctx) const override;
 
   std::vector<int64_t> split_sizes;
   int64_t dim;
@@ -44,19 +44,19 @@ public:
     return torch::lazy::OpKind(at::aten::split_copy);
   }
 
-  SplitCopyTensor(const torch::lazy::Value& self,
-                  const torch::lazy::Value& split_size, const int64_t& dim,
-                  std::vector<torch::lazy::Shape>&& shapes,
+  SplitCopyTensor(const torch::lazy::Value &self,
+                  const torch::lazy::Value &split_size, const int64_t &dim,
+                  std::vector<torch::lazy::Shape> &&shapes,
                   const size_t num_outputs = 1);
 
   std::string ToString() const override;
 
-  bool CanBeReused(const torch::lazy::Value& self,
-                   const torch::lazy::Value& split_size,
-                   const int64_t& dim) const;
+  bool CanBeReused(const torch::lazy::Value &self,
+                   const torch::lazy::Value &split_size,
+                   const int64_t &dim) const;
 
   TorchMlirOpVector Lower(TorchMlirFunction function,
-                          TorchMlirLoweringContext* loctx) const override;
+                          TorchMlirLoweringContext *loctx) const override;
 
   int64_t dim;
 };

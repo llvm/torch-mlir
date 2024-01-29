@@ -170,8 +170,8 @@ private:
       auto attr = std::get<1>(t);
       nameStack.push_back(attr.getName().str());
       if (attr.getType().isa<NnModuleType>()) {
-        if (failed(
-                recursivelyTraverse(slot.getValue().getDefiningOp<NnModuleOp>())))
+        if (failed(recursivelyTraverse(
+                slot.getValue().getDefiningOp<NnModuleOp>())))
           return failure();
       } else if (usedSlots.find(slot) != usedSlots.end()) {
         // Only create the GlobalSlotOp if the slot is used at all.
@@ -190,8 +190,8 @@ private:
     }
     for (auto method : classType.getOps<MethodOp>()) {
       nameStack.push_back(method.getName().str());
-      funcLinkageInfo[{nnModule,
-                       symbolTable.lookup<func::FuncOp>(method.getFunction())}] =
+      funcLinkageInfo[{
+          nnModule, symbolTable.lookup<func::FuncOp>(method.getFunction())}] =
           LinkageInfo{llvm::join(nameStack, "."), method.getIsPrivate()};
       nameStack.pop_back();
     }
@@ -501,21 +501,24 @@ static LogicalResult rewriteMonomorphizedFuncClone(
 
   SmallVector<Operation *> toErase;
   auto handlePrimSetAttr = [&](PrimSetAttrOp op) {
-    auto instance = mapping.lookup(op.getReceiver()).getDefiningOp<NnModuleOp>();
+    auto instance =
+        mapping.lookup(op.getReceiver()).getDefiningOp<NnModuleOp>();
     SlotOp affectedSlot;
     for (auto slot : instance.getOps<SlotOp>()) {
       if (slot.getName() == op.getName())
         affectedSlot = slot;
     }
     OpBuilder(op).create<GlobalSlotSetOp>(
-        op.getLoc(), objectGraphInfo.getGlobalSlotFor(affectedSlot).getSymName(),
+        op.getLoc(),
+        objectGraphInfo.getGlobalSlotFor(affectedSlot).getSymName(),
         op.getValue());
     toErase.push_back(op);
     return WalkResult::advance();
   };
   auto handlePrimGetAttr = [&](PrimGetAttrOp op) {
     if (!op.getType().isa<NnModuleType>()) {
-      auto instance = mapping.lookup(op.getReceiver()).getDefiningOp<NnModuleOp>();
+      auto instance =
+          mapping.lookup(op.getReceiver()).getDefiningOp<NnModuleOp>();
       SlotOp affectedSlot;
       for (auto slot : instance.getOps<SlotOp>()) {
         if (slot.getName() == op.getName())

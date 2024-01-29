@@ -100,11 +100,11 @@ public:
         if (integerTy.isUnsigned())
           return rewriter.notifyMatchFailure(
               op, opName + " to linalg.* requires input element type "
-                        "to be signed in case of integer");
+                           "to be signed in case of integer");
       } else {
         return rewriter.notifyMatchFailure(
             op, opName + " to linalg.* requires Float or Integer "
-                      "input element type");
+                         "input element type");
       }
     }
 
@@ -144,8 +144,7 @@ public:
     }
 
     Value filledTensorVal =
-        rewriter.create<linalg::FillOp>(loc, fillValue, initTensorVal)
-            .result();
+        rewriter.create<linalg::FillOp>(loc, fillValue, initTensorVal).result();
 
     // Create the affine expressions that will be used to
     // iterate over the input and output tensors.
@@ -186,7 +185,7 @@ public:
 
           Value resultVal, predicate;
           if (inElementType.isa<mlir::FloatType>()) {
-	    arith::CmpFPredicate predType;
+            arith::CmpFPredicate predType;
             if (isMax) {
               predType = arith::CmpFPredicate::OGT;
               resultVal = rewriter.create<arith::MaximumFOp>(
@@ -198,7 +197,7 @@ public:
             }
 
             predicate = rewriter.create<arith::CmpFOp>(nestedLoc, predType,
-						       newValue, oldValue);
+                                                       newValue, oldValue);
           } else {
             arith::CmpIPredicate predType;
             if (isMax) {
@@ -220,8 +219,8 @@ public:
         });
 
     // This cast is required to fix the shape in the case of keepDim=True
-    Value valuesCast = rewriter.create<tensor::CastOp>(
-        loc, valResultType, linalgOp.getResult(0));
+    Value valuesCast = rewriter.create<tensor::CastOp>(loc, valResultType,
+                                                       linalgOp.getResult(0));
     Value idxCast = rewriter.create<tensor::CastOp>(loc, idxResultType,
                                                     linalgOp.getResult(1));
     rewriter.replaceOp(op, {valuesCast, idxCast});
@@ -345,7 +344,8 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     Value self = convertScalarToDtype(b, loc, elem, resultElementType);
     auto abs = b.create<math::AbsFOp>(loc, self);
     AtenLinalgVectorNormOp::Adaptor adaptor(operands);
-    Value ord = convertScalarToDtype(b, loc, adaptor.getOrd(), resultElementType);
+    Value ord =
+        convertScalarToDtype(b, loc, adaptor.getOrd(), resultElementType);
     auto pow = b.create<math::PowFOp>(loc, abs, ord);
     return b.create<arith::AddFOp>(loc, pow, result);
   } else if (isa<AtenFrobeniusNormDimOp>(op)) {
@@ -427,8 +427,8 @@ private:
       opInfo.tensorOperand = operands[0];
       auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
 
-      // `AtenSumOp`, `AtenMaxOp`, and `AtenMinOp` each reduce along all the dimensions of the
-      // input tensor.
+      // `AtenSumOp`, `AtenMaxOp`, and `AtenMinOp` each reduce along all the
+      // dimensions of the input tensor.
       for (int64_t i = 0; i < inputType.getRank(); i++)
         opInfo.dimSet.insert(i);
 

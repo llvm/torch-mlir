@@ -194,7 +194,6 @@ public:
 };
 } // namespace
 
-
 void mlir::torch::torch_to_linalg::populateRandomPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
