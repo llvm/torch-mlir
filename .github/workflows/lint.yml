@@ -1,3 +1,4 @@
+# yamllint disable rule:line-length
 name: Lint Checks
 
 on:
@@ -12,6 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: false
+          fetch-depth: 2
       - name: Validate GitHub Actions yaml files
         run: |
           yamllint ./.github/workflows/ ./.github/actions/
+      - name: Check clang-format
+        run: |
+          wget -q https://raw.githubusercontent.com/llvm/llvm-project/main/clang/tools/clang-format/git-clang-format
+          python3 git-clang-format --diff HEAD~1
