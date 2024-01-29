@@ -30,6 +30,4 @@ namespace {
 #include "torch-mlir/Conversion/Passes.h.inc"
 } // end namespace
 
-void mlir::torch::registerConversionPasses() {
-  ::registerPasses();
-}
+void mlir::torch::registerConversionPasses() { ::registerPasses(); }

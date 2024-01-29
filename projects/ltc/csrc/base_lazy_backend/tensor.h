@@ -18,7 +18,8 @@ namespace lazy {
 // should have explicit tensor functinoalization. Otherwise we can get
 // unfanctionalized primitives or in the worst case if we apply inplace
 // operations to unfunctionalized tensor it won't be captured in LTC graph.
-TORCH_API at::Tensor CreateFunctionalizedAtenFromLtcTensor(const LazyTensorPtr& ltc_tensor);
+TORCH_API at::Tensor
+CreateFunctionalizedAtenFromLtcTensor(const LazyTensorPtr &ltc_tensor);
 
 } // namespace lazy
 } // namespace torch

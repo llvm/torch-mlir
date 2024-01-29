@@ -158,9 +158,11 @@ void Torch::importLibraryFunctions(ModuleOp module, ModuleOp library,
   }
 }
 
-FailureOr<Value> Torch::adjustFunctionArg(
-    OpBuilder &b, Location loc, Value operand, Type desiredType,
-    function_ref<Value(OpBuilder &, Location, Value, Type)> baseTransformation) {
+FailureOr<Value>
+Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
+                         Type desiredType,
+                         function_ref<Value(OpBuilder &, Location, Value, Type)>
+                             baseTransformation) {
   operand = baseTransformation(b, loc, operand, desiredType);
 
   // No need for adjustment if they already match.

@@ -822,10 +822,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::leaky_relu_backward : (Tensor, Tensor, Scalar, bool) -> (Tensor)")
 
     # quantized ops
+    emit("aten::quantize_per_channel : (Tensor, Tensor, Tensor, int, int) -> (Tensor)")
     emit("aten::quantize_per_tensor : (Tensor, float, int, int) -> (Tensor)")
     emit("aten::dequantize.self : (Tensor) -> (Tensor)")
     emit("aten::dequantize.tensor : (Tensor) -> (Tensor)")
     emit("aten::int_repr : (Tensor) -> (Tensor)")
+    emit("aten::_make_per_channel_quantized_tensor : (Tensor, Tensor, Tensor, int) -> (Tensor)")
     emit("aten::_make_per_tensor_quantized_tensor : (Tensor, float, int) -> (Tensor)")
 
     # ==========================================================================

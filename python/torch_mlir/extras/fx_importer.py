@@ -5,10 +5,16 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
+try:
+    from types import NoneType
+except ImportError:
+    # python less than 3.10 doesn't have NoneType
+    NoneType = type(None)
+
 import logging
 import operator
 import re
-from types import NoneType, BuiltinMethodType, BuiltinFunctionType
+from types import BuiltinMethodType, BuiltinFunctionType
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 import weakref
 

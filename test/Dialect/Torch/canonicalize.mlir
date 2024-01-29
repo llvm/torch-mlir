@@ -2129,7 +2129,7 @@ func.func @torch.aten.floor$canonicalize(%arg0: !torch.vtensor<[?,?],si64>) -> !
 }
 
 // CHECK-LABEL:   func.func @torch.aten.numel$canonicalize
-// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[3,4],f32> 
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[3,4],f32>
 // CHECK-NEXT:      %int12 = torch.constant.int 12
 // CHECK-NEXT:      return %int12 : !torch.int
 func.func @torch.aten.numel$canonicalize(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.int {

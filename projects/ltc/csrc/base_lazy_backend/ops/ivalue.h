@@ -18,20 +18,20 @@ namespace lazy {
 // parameter which is helpful in different usecases when we need custom
 // native ops lowering to torch-mlir IR nodes.
 class IValueConstant : public torch::lazy::TorchMlirNode {
- public:
+public:
   static torch::lazy::OpKind ClassOpKind() {
     return torch::lazy::OpKind(at::prim::Constant);
   }
 
-  IValueConstant(const c10::IValue& value);
+  IValueConstant(const c10::IValue &value);
 
   std::string ToString() const override;
 
   TorchMlirOpVector Lower(TorchMlirFunction function,
-                          TorchMlirLoweringContext* loctx) const override;
+                          TorchMlirLoweringContext *loctx) const override;
 
   c10::IValue value;
 };
 
-}  // namespace lazy
-}  // namespace torch
+} // namespace lazy
+} // namespace torch

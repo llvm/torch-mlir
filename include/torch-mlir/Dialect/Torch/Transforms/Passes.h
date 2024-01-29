@@ -61,7 +61,8 @@ struct TorchLoweringPipelineOptions
 
   Option<std::string> extraLibrary{
       *this, "extra-library",
-      llvm::cl::desc("Filename of MLIR module for splicing into the abstract interpretation library.")};
+      llvm::cl::desc("Filename of MLIR module for splicing into the abstract "
+                     "interpretation library.")};
 };
 
 /// Creates a pipeline that lowers the object graph IR that is produced by
@@ -125,8 +126,7 @@ createSimplifyDtypeCalculationsPass();
 std::unique_ptr<OperationPass<func::FuncOp>>
 createDropAbstractInterpCalculationsPass();
 
-std::unique_ptr<OperationPass<ModuleOp>>
-createEraseModuleInitializerPass();
+std::unique_ptr<OperationPass<ModuleOp>> createEraseModuleInitializerPass();
 
 std::unique_ptr<OperationPass<ModuleOp>>
 createLowerToBackendContractPass(int maxIterations, bool decompose,
