@@ -2238,7 +2238,6 @@ public:
     auto qoperand = op.getOperand();
     auto make = qoperand.getDefiningOp<Aten_MakePerChannelQuantizedTensorOp>();
     if (!make) {
-      llvm::errs() << "Did not find make per channel\n";
       return rewriter.notifyMatchFailure(op, "did not find per channel qint");
     }
 

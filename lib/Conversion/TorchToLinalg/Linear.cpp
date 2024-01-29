@@ -845,10 +845,9 @@ public:
       // Set stride to 1
       strideInts.clear();
       strideInts.append(numSpatialDims, 1);
-
     } else {
       Value pad = inputZp;
-      if (!inputZp) {
+      if (!pad) {
         if (isa<mlir::FloatType>(inputDTy))
           pad = rewriter.create<arith::ConstantOp>(
               op.getLoc(), rewriter.getFloatAttr(inputDTy, 0.0));
@@ -857,14 +856,12 @@ public:
               op.getLoc(), rewriter.getIntegerAttr(inputDTy, 0));
       }
 
-      if (inputZp.getType() != inputDTy) {
+      if (pad.getType() != inputDTy) {
         if (isa<mlir::FloatType>(inputDTy))
-          pad =
-              rewriter.create<arith::TruncFOp>(op.getLoc(), inputDTy, inputZp);
+          pad = rewriter.create<arith::TruncFOp>(op.getLoc(), inputDTy, pad);
 
         if (isa<mlir::IntegerType>(inputDTy))
-          pad =
-              rewriter.create<arith::TruncIOp>(op.getLoc(), inputDTy, inputZp);
+          pad = rewriter.create<arith::TruncIOp>(op.getLoc(), inputDTy, pad);
       }
 
       // Pad input

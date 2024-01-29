@@ -858,37 +858,37 @@ class ConvTbcModule(torch.nn.Module):
 def ConvTbcModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(9, 4, 5), tu.rand(3, 5, 6), tu.rand(6))
 
-# class Conv2dQInt8Module(torch.nn.Module):
-#     def __init__(self):
-#         super().__init__()
-# 
-#     @export
-#     @annotate_args([
-#         None,
-#         ([-1, -1, -1, -1], torch.int8, True),
-#         ([-1, -1, -1, -1], torch.int8, True),
-#         ([-1], torch.float, True),
-#     ])
-#     def forward(self, inputVec, weight, bias):
-#         inputVec = torch._make_per_tensor_quantized_tensor(inputVec, 0.01, 7)
-#         inputVec = torch.dequantize(inputVec)
-# 
-#         weight = torch._make_per_tensor_quantized_tensor(weight, 0.01, 3)
-#         weight = torch.dequantize(weight)
-# 
-#         bias = torch.quantize_per_tensor(bias, 0.0001, 0, torch.qint32)
-#         bias = torch.dequantize(bias)
-# 
-#         return torch.ops.aten.conv2d(inputVec,
-#                                      weight,
-#                                      bias=bias,
-#                                      stride=[1, 1],
-#                                      padding=[0, 0],
-#                                      dilation=[1, 1],
-#                                      groups=1)
-# @register_test_case(module_factory=lambda: Conv2dQInt8Module())
-# def Conv2dQInt8Module_basic(module, tu: TestUtils):
-#     inputVec = tu.randint(2, 4, 7, 8, low=-128, high=127).to(torch.int8)
-#     weight = tu.randint(3, 4, 3, 2, low=-128, high=127).to(torch.int8)
-#     bias = torch.rand(3)
-#     module.forward(inputVec, weight, bias)
+class Conv2dQInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.int8, True),
+        ([-1, -1, -1, -1], torch.int8, True),
+        ([-1], torch.float, True),
+    ])
+    def forward(self, inputVec, weight, bias):
+        inputVec = torch._make_per_tensor_quantized_tensor(inputVec, 0.01, 7)
+        inputVec = torch.dequantize(inputVec)
+
+        weight = torch._make_per_tensor_quantized_tensor(weight, 0.01, 3)
+        weight = torch.dequantize(weight)
+
+        bias = torch.quantize_per_tensor(bias, 0.0001, 0, torch.qint32)
+        bias = torch.dequantize(bias)
+
+        return torch.ops.aten.conv2d(inputVec,
+                                     weight,
+                                     bias=bias,
+                                     stride=[1, 1],
+                                     padding=[0, 0],
+                                     dilation=[1, 1],
+                                     groups=1)
+@register_test_case(module_factory=lambda: Conv2dQInt8Module())
+def Conv2dQInt8Module_basic(module, tu: TestUtils):
+    inputVec = tu.randint(2, 4, 7, 8, low=-128, high=127).to(torch.int8)
+    weight = tu.randint(3, 4, 3, 2, low=-128, high=127).to(torch.int8)
+    bias = torch.rand(3)
+    module.forward(inputVec, weight, bias)
