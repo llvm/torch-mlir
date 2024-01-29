@@ -642,11 +642,13 @@ public:
     constexpr bool isMaxPool =
         (llvm::is_one_of<OpTy, AtenAdaptiveMaxPool1dOp, AtenAdaptiveMaxPool2dOp,
                          AtenAdaptiveMaxPool3dOp>::value);
-    static_assert(isMaxPool || llvm::is_one_of<OpTy, AtenAdaptiveAvgPool1dOp,
-                                               AtenAdaptiveAvgPool2dOp,
-                                               AtenAdaptiveAvgPool3dOp>::value,
-                  "Adaptive Pooling Conversion only supports AdaptiveMaxPoolNd "
-                  "and AdaptiveAvgPoolNd for N = 1,2,3.");
+    static_assert(
+        isMaxPool ||
+            llvm::is_one_of<OpTy, AtenAdaptiveAvgPool1dOp,
+                            AtenAdaptiveAvgPool2dOp, AtenAdaptiveAvgPool3dOp,
+                            Aten_AdaptiveAvgPool3dOp>::value,
+        "Adaptive Pooling Conversion only supports AdaptiveMaxPoolNd "
+        "and AdaptiveAvgPoolNd for N = 1,2,3.");
 
     Location loc = op->getLoc();
     const TypeConverter *typeConverter = this->getTypeConverter();
@@ -916,12 +918,14 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
       .add<ConvertAtenAvgPoolOp<AtenAvgPool2dOp, linalg::PoolingNchwSumOp, 2>>(
           typeConverter, context);
   target.addIllegalOp<AtenAdaptiveAvgPool1dOp, AtenAdaptiveAvgPool2dOp,
-                      AtenAdaptiveAvgPool3dOp>();
+                      AtenAdaptiveAvgPool3dOp, Aten_AdaptiveAvgPool3dOp>();
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool1dOp, 1>>(
       typeConverter, context);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool2dOp, 2>>(
       typeConverter, context);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool3dOp, 3>>(
+      typeConverter, context);
+  patterns.add<ConvertAtenAdaptivePoolOp<Aten_AdaptiveAvgPool3dOp, 3>>(
       typeConverter, context);
   target.addIllegalOp<AtenAdaptiveMaxPool1dOp, AtenAdaptiveMaxPool2dOp,
                       AtenAdaptiveMaxPool3dOp>();
