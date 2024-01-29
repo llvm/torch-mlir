@@ -20,15 +20,15 @@ public:
     return torch::lazy::OpKind(at::aten::unbind_copy);
   }
 
-  UnbindCopyInt(const torch::lazy::Value& self, const int64_t& dim,
-                std::vector<torch::lazy::Shape>&& shapes);
+  UnbindCopyInt(const torch::lazy::Value &self, const int64_t &dim,
+                std::vector<torch::lazy::Shape> &&shapes);
 
   std::string ToString() const override;
 
-  bool CanBeReused(const torch::lazy::Value& self, const int64_t& dim) const;
+  bool CanBeReused(const torch::lazy::Value &self, const int64_t &dim) const;
 
   TorchMlirOpVector Lower(TorchMlirFunction function,
-                          TorchMlirLoweringContext* loctx) const override;
+                          TorchMlirLoweringContext *loctx) const override;
 
   int64_t dim;
 };

@@ -426,10 +426,11 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (isa<AtenAbsOp>(op))
     return b.create<math::AbsFOp>(loc, payloadArgs[0]);
-  if (isa<AtenIsinfOp>(op)){
+  if (isa<AtenIsinfOp>(op)) {
     Value abs = b.create<math::AbsFOp>(loc, payloadArgs[0]);
     Value infinity = b.create<arith::ConstantOp>(
-        loc, b.getFloatAttr(abs.getType(), std::numeric_limits<double>::infinity()));
+        loc,
+        b.getFloatAttr(abs.getType(), std::numeric_limits<double>::infinity()));
     return createEqual(b, loc, abs.getType(), abs, infinity);
   }
   if (isa<AtenSigmoidOp>(op)) {

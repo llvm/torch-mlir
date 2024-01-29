@@ -37,32 +37,30 @@ TosaOpT createBinaryOpAndCast(PatternRewriter &rewriter, Operation *op,
   return CreateOpAndInfer<TosaOpT>(rewriter, op->getLoc(), outType, lhs, rhs);
 }
 
-// This specialization is for Div op. Unlike other binary ops, it doesn't support
-// floating type.
+// This specialization is for Div op. Unlike other binary ops, it doesn't
+// support floating type.
 template <>
 tosa::DivOp createBinaryOpAndCast<DivOp>(PatternRewriter &rewriter,
                                          Operation *op, TensorType outType,
                                          Value lhs, Value rhs);
 
 std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
-                                                   Operation *op,
-                                                   Value params_value,
-                                                   Value index_value,
-                                                   int32_t axis);
+                                                  Operation *op,
+                                                  Value params_value,
+                                                  Value index_value,
+                                                  int32_t axis);
 
 // Lowers torch.aten.Gather operators to a sequence of TOSA ops.
 // Revised from
 // https://github.com/tensorflow/tensorflow/blob/master/tensorflow/compiler/mlir/tosa/transforms/legalize_common.cc
-std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter,
-                                        Operation *op, Type out_type,
-                                        Value params_value,
-                                        Value indices_value);
+std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter, Operation *op,
+                                       Type out_type, Value params_value,
+                                       Value indices_value);
 
 std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
                                         Operation *op, Type outType,
                                         Value paramsValue, Value indicesValue,
                                         Value fillValues);
-
 
 // Lowers ReduceAll to a sequence of TOSA ops.
 std::optional<Value>

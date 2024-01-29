@@ -13,10 +13,10 @@ namespace torch {
 namespace lazy {
 
 SplitWithSizesCopy::SplitWithSizesCopy(
-    const torch::lazy::Value& self, const ::std::vector<int64_t>& split_sizes,
-    const int64_t& dim, std::vector<torch::lazy::Shape>&& shapes)
+    const torch::lazy::Value &self, const ::std::vector<int64_t> &split_sizes,
+    const int64_t &dim, std::vector<torch::lazy::Shape> &&shapes)
     : torch::lazy::TorchMlirNode(SplitWithSizesCopy::ClassOpKind(),
-                                 OpList{ self }, std::move(shapes),
+                                 OpList{self}, std::move(shapes),
                                  split_sizes.size() /* num_outputs */,
                                  torch::lazy::MHash(split_sizes, dim)),
       split_sizes(split_sizes), dim(dim) {}
@@ -29,15 +29,15 @@ std::string SplitWithSizesCopy::ToString() const {
   return ss.str();
 }
 
-bool SplitWithSizesCopy::CanBeReused(const torch::lazy::Value& self,
-                                     const ::std::vector<int64_t>& split_sizes,
-                                     const int64_t& dim) const {
+bool SplitWithSizesCopy::CanBeReused(const torch::lazy::Value &self,
+                                     const ::std::vector<int64_t> &split_sizes,
+                                     const int64_t &dim) const {
   return false;
 }
 
 TorchMlirOpVector
 SplitWithSizesCopy::Lower(TorchMlirFunction function,
-                          TorchMlirLoweringContext* loctx) const {
+                          TorchMlirLoweringContext *loctx) const {
   PRINT_FUNCTION();
   std::vector<torch::jit::NamedValue> arguments;
   std::vector<torch::jit::NamedValue> kwarguments;
@@ -55,13 +55,13 @@ SplitWithSizesCopy::Lower(TorchMlirFunction function,
   return split_with_sizes_copy_out;
 }
 
-SplitCopyTensor::SplitCopyTensor(const torch::lazy::Value& self,
-                                 const torch::lazy::Value& split_size,
-                                 const int64_t& dim,
-                                 std::vector<torch::lazy::Shape>&& shapes,
+SplitCopyTensor::SplitCopyTensor(const torch::lazy::Value &self,
+                                 const torch::lazy::Value &split_size,
+                                 const int64_t &dim,
+                                 std::vector<torch::lazy::Shape> &&shapes,
                                  const size_t num_outputs)
     : torch::lazy::TorchMlirNode(SplitCopyTensor::ClassOpKind(),
-                                 OpList{ self, split_size }, std::move(shapes),
+                                 OpList{self, split_size}, std::move(shapes),
                                  num_outputs, torch::lazy::MHash(dim)),
       dim(dim) {}
 
@@ -72,15 +72,15 @@ std::string SplitCopyTensor::ToString() const {
   return ss.str();
 }
 
-bool SplitCopyTensor::CanBeReused(const torch::lazy::Value& self,
-                                  const torch::lazy::Value& split_size,
-                                  const int64_t& dim) const {
+bool SplitCopyTensor::CanBeReused(const torch::lazy::Value &self,
+                                  const torch::lazy::Value &split_size,
+                                  const int64_t &dim) const {
   return false;
 }
 
 TorchMlirOpVector
 SplitCopyTensor::Lower(TorchMlirFunction function,
-                       TorchMlirLoweringContext* loctx) const {
+                       TorchMlirLoweringContext *loctx) const {
   PRINT_FUNCTION();
   std::vector<torch::jit::NamedValue> arguments;
   std::vector<torch::jit::NamedValue> kwarguments;

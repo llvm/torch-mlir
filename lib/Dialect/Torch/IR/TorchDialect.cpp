@@ -157,7 +157,7 @@ Operation *TorchDialect::materializeConstant(OpBuilder &builder,
       return builder.create<Torch::ConstantNumberOp>(loc, intValue);
     }
   }
-  
+
   if (type.isa<Torch::BoolType>()) {
     return builder.create<Torch::ConstantBoolOp>(loc,
                                                  value.cast<IntegerAttr>());

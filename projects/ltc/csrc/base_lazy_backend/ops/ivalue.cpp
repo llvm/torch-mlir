@@ -15,7 +15,7 @@
 namespace torch {
 namespace lazy {
 
-IValueConstant::IValueConstant(const c10::IValue& value)
+IValueConstant::IValueConstant(const c10::IValue &value)
     : torch::lazy::TorchMlirNode(IValueConstant::ClassOpKind(), OpList{},
                                  std::vector<Shape>{},
                                  /* num_outputs */ 1, torch::lazy::MHash()),
@@ -28,9 +28,9 @@ std::string IValueConstant::ToString() const {
 }
 
 TorchMlirOpVector IValueConstant::Lower(TorchMlirFunction function,
-                                        TorchMlirLoweringContext* loctx) const {
+                                        TorchMlirLoweringContext *loctx) const {
   return {loctx->graph()->insertConstant(value)};
 }
 
-}  // namespace lazy
-}  // namespace torch
+} // namespace lazy
+} // namespace torch

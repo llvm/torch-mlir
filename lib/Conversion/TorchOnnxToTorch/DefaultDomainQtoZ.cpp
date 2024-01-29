@@ -42,56 +42,63 @@ Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
 
 void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
     OnnxCustomOpConversionPattern &patterns) {
-  patterns.onOp("QuantizeLinear", 1,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  llvm::SmallVector<Value> operands;
-                  if (binder.tensorOperands(operands, 3) ||
-                      binder.tensorResultType(resultType))
-                    return failure();
+  patterns.onOp(
+      "QuantizeLinear", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        llvm::SmallVector<Value> operands;
+        if (binder.tensorOperands(operands, 3) ||
+            binder.tensorResultType(resultType))
+          return failure();
 
-                  Value operand = operands[0];
-                  Value scale = operands[1];
-                  Value zeropoint = operands[2];
+        Value operand = operands[0];
+        Value scale = operands[1];
+        Value zeropoint = operands[2];
 
-                  auto scaleTy = scale.getType().dyn_cast<Torch::ValueTensorType>();
-                  if (!scaleTy || !scaleTy.hasSizes())
-                    return rewriter.notifyMatchFailure(binder.op,
-                                                       "requires known rank");
-                  if (!resultType.hasDtype())
-                    return rewriter.notifyMatchFailure(
-                        binder.op, "requires known result dtype");
+        auto scaleTy = scale.getType().dyn_cast<Torch::ValueTensorType>();
+        if (!scaleTy || !scaleTy.hasSizes())
+          return rewriter.notifyMatchFailure(binder.op, "requires known rank");
+        if (!resultType.hasDtype())
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "requires known result dtype");
 
-                  if (scaleTy.getSizes().size() == 0) {
-                    Type qTy = resultType.getDtype();
+        if (scaleTy.getSizes().size() == 0) {
+          Type qTy = resultType.getDtype();
 
-                    if (qTy.isUnsignedInteger(8)) {
-                      qTy = rewriter.getType<Torch::QUInt8Type>();
-                    } else if (qTy.isSignedInteger(8)) {
-                      qTy = rewriter.getType<Torch::QInt8Type>();
-                    } else if (qTy.isSignedInteger(32)) {
-                      qTy = rewriter.getType<Torch::QInt32Type>();
-                    } else {
-                      return rewriter.notifyMatchFailure(binder.op, "unsupported result dtype");
-                    }
+          if (qTy.isUnsignedInteger(8)) {
+            qTy = rewriter.getType<Torch::QUInt8Type>();
+          } else if (qTy.isSignedInteger(8)) {
+            qTy = rewriter.getType<Torch::QInt8Type>();
+          } else if (qTy.isSignedInteger(32)) {
+            qTy = rewriter.getType<Torch::QInt32Type>();
+          } else {
+            return rewriter.notifyMatchFailure(binder.op,
+                                               "unsupported result dtype");
+          }
 
-                    auto qTensorTy = rewriter.getType<Torch::ValueTensorType>(resultType.getOptionalSizes(), qTy);
-                    auto torchqTy = Torch::getScalarTypeForType(qTy);
+          auto qTensorTy = rewriter.getType<Torch::ValueTensorType>(
+              resultType.getOptionalSizes(), qTy);
+          auto torchqTy = Torch::getScalarTypeForType(qTy);
 
-                    Value tyConst = rewriter.create<Torch::ConstantIntOp>(
-                        binder.getLoc(), rewriter.getType<Torch::IntType>(),
-                        rewriter.getIntegerAttr(rewriter.getIntegerType(64), static_cast<int64_t>(torchqTy)));
+          Value tyConst = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                      static_cast<int64_t>(torchqTy)));
 
-                    scale = rewriter.create<Torch::AtenItemOp>(binder.getLoc(), rewriter.getType<Torch::FloatType>(), scale);
-                    zeropoint = rewriter.create<Torch::AtenItemOp>(binder.getLoc(), rewriter.getType<Torch::IntType>(), zeropoint);
+          scale = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::FloatType>(), scale);
+          zeropoint = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), zeropoint);
 
-                    auto quantize = rewriter.create<Torch::AtenQuantizePerTensorOp>(binder.getLoc(), qTensorTy, operand, scale, zeropoint, tyConst);
-                    rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType, quantize);
-                    return success();
-                  }
+          auto quantize = rewriter.create<Torch::AtenQuantizePerTensorOp>(
+              binder.getLoc(), qTensorTy, operand, scale, zeropoint, tyConst);
+          rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(
+              binder.op, resultType, quantize);
+          return success();
+        }
 
-                  return failure();
-                });
+        return failure();
+      });
   patterns.onOp(
       "QLinearMatMul", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
@@ -1245,7 +1252,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         }
 
         // Convert dynamic shape dimension.
-        for (unsigned i = 0; i < shape.size(); i++){
+        for (unsigned i = 0; i < shape.size(); i++) {
           if (shape[i] == ShapedType::kDynamic)
             shape[i] = Torch::kUnknownSize;
         }
