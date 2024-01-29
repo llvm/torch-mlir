@@ -349,8 +349,11 @@ class NodeImporter:
                 continue
             elif handler is False:
                 # Active error.
+                # try matching attribute type ID to name for a more descriptive error message
+                attr_type_name = onnx.AttributeProto.AttributeType.Name(attr_type)
                 raise OnnxImportError(
-                    f"ONNX importer does not support generic node attribute type {attr_type}. "
+                    f"ONNX importer does not support generic node attribute type {attr_type_name} "
+                    f"with ID {attr_type}. "
                     f"This likely means that this is a special node which requires specific "
                     f"handling in the importer: {onnx_attr}"
                 )
