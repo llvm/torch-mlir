@@ -14,16 +14,16 @@
 namespace torch {
 namespace lazy {
 
-at::Tensor CreateFunctionalizedAtenFromLtcTensor(
-    const LazyTensorPtr& ltc_tensor) {
+at::Tensor
+CreateFunctionalizedAtenFromLtcTensor(const LazyTensorPtr &ltc_tensor) {
   at::Tensor tensor = CreateAtenFromLtcTensor(ltc_tensor);
   if (!c10::impl::tls_is_dispatch_key_excluded(
-           c10::DispatchKey::Functionalize) &&
+          c10::DispatchKey::Functionalize) &&
       !at::functionalization::impl::isFunctionalTensor(tensor)) {
     return at::functionalization::impl::to_functional_tensor(tensor);
   }
   return tensor;
 }
 
-}  // namespace lazy
-}  // namespace torch
+} // namespace lazy
+} // namespace torch

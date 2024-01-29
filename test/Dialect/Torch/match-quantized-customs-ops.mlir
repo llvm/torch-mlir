@@ -7,7 +7,7 @@ func.func @quantize_per_tensor(%arg0: !torch.vtensor<[1,3,8,8],f32>) -> !torch.v
   %min = torch.constant.int -128
   %max = torch.constant.int 127
   %dtype = torch.constant.int 1
-  
+
   // CHECK-DAG: %[[SCALE:.+]] = torch.constant.float 5.000000e-01
   // CHECK-DAG: %[[ZP:.+]] = torch.constant.int 17
   // CHECK-DAG: %[[MIN:.+]] = torch.constant.int -128

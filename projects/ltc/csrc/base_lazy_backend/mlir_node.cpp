@@ -18,11 +18,10 @@ namespace lazy {
 
 namespace {
 
-hash_t OperandHashes(
-    const OpList& operands, const c10::ArrayRef<Shape>& shapes,
-    const hash_t& seed, bool bakeInSizes) {
+hash_t OperandHashes(const OpList &operands, const c10::ArrayRef<Shape> &shapes,
+                     const hash_t &seed, bool bakeInSizes) {
   hash_t hash = seed;
-  for (auto& operand : operands) {
+  for (auto &operand : operands) {
     if (!operand) {
       hash = HashCombine(hash, static_cast<uint64_t>(kNullOpt));
       continue;
@@ -30,7 +29,7 @@ hash_t OperandHashes(
     auto operand_hash = bakeInSizes ? operand.shapeHash() : operand.hash();
     hash = HashCombine(hash, operand_hash);
   }
-  for (auto& shape : shapes) {
+  for (auto &shape : shapes) {
     hash = HashCombine(hash, shape.hash(bakeInSizes));
   }
   return hash;
@@ -38,53 +37,51 @@ hash_t OperandHashes(
 
 } // namespace
 
-
-// Adds a static hook that is run after every single TorchMlirNode is initialized
-static std::vector<std::function<void(TorchMlirNode*)>> constructor_hooks;
-void TorchMlirNode::addConstructorHook(std::function<void(TorchMlirNode*)> f) {
+// Adds a static hook that is run after every single TorchMlirNode is
+// initialized
+static std::vector<std::function<void(TorchMlirNode *)>> constructor_hooks;
+void TorchMlirNode::addConstructorHook(std::function<void(TorchMlirNode *)> f) {
   constructor_hooks.emplace_back(f);
 }
 
-TorchMlirNode::TorchMlirNode(
-    OpKind op, OpList operands, std::vector<Shape>&& shapes, size_t num_outputs,
-    hash_t hash_seed)
+TorchMlirNode::TorchMlirNode(OpKind op, OpList operands,
+                             std::vector<Shape> &&shapes, size_t num_outputs,
+                             hash_t hash_seed)
     : Node(op, operands, std::move(shapes), num_outputs) {
   hash_seed = HashCombine(op.hash(), hash_seed);
   shape_hash_ = OperandHashes(operands, this->shapes(), hash_seed, true);
-  dag_hash_ =
-      (enableDynamicShape()
-           ? OperandHashes(operands, this->shapes(), hash_seed, false)
-           : shape_hash_);
+  dag_hash_ = (enableDynamicShape()
+                   ? OperandHashes(operands, this->shapes(), hash_seed, false)
+                   : shape_hash_);
 
-  for (std::function<void(TorchMlirNode*)>& f : constructor_hooks) {
+  for (std::function<void(TorchMlirNode *)> &f : constructor_hooks) {
     f(this);
   }
 }
 
-TorchMlirNode::TorchMlirNode(
-    OpKind op, OpList operands, const std::function<Shape()>& shape_fn,
-    size_t num_outputs, hash_t hash_seed)
-    : TorchMlirNode(
-          op, operands, std::vector<Shape>{}, num_outputs, hash_seed) {
+TorchMlirNode::TorchMlirNode(OpKind op, OpList operands,
+                             const std::function<Shape()> &shape_fn,
+                             size_t num_outputs, hash_t hash_seed)
+    : TorchMlirNode(op, operands, std::vector<Shape>{}, num_outputs,
+                    hash_seed) {
   addComputedShape(shape_fn);
 }
 
-TorchMlirNode::TorchMlirNode(
-    OpKind op, OpList operands, size_t num_outputs, hash_t hash_seed)
-    : TorchMlirNode(
-          op, operands, std::vector<Shape>{}, num_outputs, hash_seed) {}
+TorchMlirNode::TorchMlirNode(OpKind op, OpList operands, size_t num_outputs,
+                             hash_t hash_seed)
+    : TorchMlirNode(op, operands, std::vector<Shape>{}, num_outputs,
+                    hash_seed) {}
 
-TorchMlirNode::TorchMlirNode(
-    OpKind op, Shape shape, size_t num_outputs, hash_t hash_seed)
+TorchMlirNode::TorchMlirNode(OpKind op, Shape shape, size_t num_outputs,
+                             hash_t hash_seed)
     : TorchMlirNode(op, {}, {std::move(shape)}, num_outputs, hash_seed) {}
 
 hash_t TorchMlirNode::hash() const { return dag_hash_; }
 
 hash_t TorchMlirNode::shapeHash() const { return shape_hash_; }
 
-
-TorchMlirNode* TorchMlirNode::mlir_node(int index) const {
-  return dynamic_cast<TorchMlirNode*>(operands_.at(index).get());
+TorchMlirNode *TorchMlirNode::mlir_node(int index) const {
+  return dynamic_cast<TorchMlirNode *>(operands_.at(index).get());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -107,11 +104,12 @@ TorchMlirTensorList::TorchMlirTensorList(OpList values)
           /*num_outputs=*/1,
           /*hash_seed=*/kHashSeed) {}
 
-torch::lazy::TorchMlirOpVector TorchMlirTensorList::Lower(
-    TorchMlirFunction function, TorchMlirLoweringContext* loctx) const {
-  std::vector<torch::jit::Value*> tensor_list;
+torch::lazy::TorchMlirOpVector
+TorchMlirTensorList::Lower(TorchMlirFunction function,
+                           TorchMlirLoweringContext *loctx) const {
+  std::vector<torch::jit::Value *> tensor_list;
   CHECK(!operands().empty());
-  for (const torch::lazy::Output& operand : operands()) {
+  for (const torch::lazy::Output &operand : operands()) {
     tensor_list.emplace_back(loctx->GetOutputOp(operand));
   }
   auto graph = function->graph();
@@ -140,16 +138,17 @@ TorchMlirOptionalTensorList::TorchMlirOptionalTensorList(OpList values)
           /*num_outputs=*/1,
           /*hash_seed=*/kHashSeed) {}
 
-torch::lazy::TorchMlirOpVector TorchMlirOptionalTensorList::Lower(
-    TorchMlirFunction function, TorchMlirLoweringContext* loctx) const {
-  std::vector<torch::jit::Value*> tensor_list;
+torch::lazy::TorchMlirOpVector
+TorchMlirOptionalTensorList::Lower(TorchMlirFunction function,
+                                   TorchMlirLoweringContext *loctx) const {
+  std::vector<torch::jit::Value *> tensor_list;
   CHECK(!operands().empty());
-  for (const torch::lazy::Output& operand : operands()) {
+  for (const torch::lazy::Output &operand : operands()) {
     tensor_list.emplace_back(loctx->GetOutputOp(operand));
   }
   auto graph = function->graph();
-  auto listnode =
-      graph->insertNode(graph->createList(c10::OptionalType::create(c10::TensorType::get()), tensor_list));
+  auto listnode = graph->insertNode(graph->createList(
+      c10::OptionalType::create(c10::TensorType::get()), tensor_list));
   return {listnode->output()};
 }
 

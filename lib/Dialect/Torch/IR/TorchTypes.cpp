@@ -8,10 +8,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
+#include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/STLExtras.h"
 
 using namespace mlir;
@@ -239,7 +240,7 @@ ValueTensorType BaseTensorType::getWithValueSemantics() const {
 static LogicalResult
 verifyTensorType(function_ref<InFlightDiagnostic()> emitError,
                  std::optional<ArrayRef<int64_t>> optionalSizes,
-                 Type optionalDtype) {
+                 Type optionalDtype, Attribute optionalSparsity) {
   if (optionalDtype && !isValidTorchDtype(optionalDtype)) {
     emitError() << "invalid dtype " << optionalDtype
                 << " for !torch.tensor type";
@@ -253,6 +254,24 @@ verifyTensorType(function_ref<InFlightDiagnostic()> emitError,
       }
     }
   }
+  // Verify sparsity encoding against a known type and shape using the encoding
+  // verification interface. Any implementation emits a diagnostic on failure.
+  // Also verify sparsity encoding is truly a sparse encoding attrbute.
+  if (optionalSparsity) {
+    if (optionalDtype && optionalSizes.has_value()) {
+      if (auto venc = llvm::dyn_cast_or_null<VerifiableTensorEncoding>(
+              optionalSparsity)) {
+        if (failed(venc.verifyEncoding(optionalSizes.value(), optionalDtype,
+                                       emitError))) {
+          return failure();
+        }
+      }
+    }
+    if (!optionalSparsity.isa<sparse_tensor::SparseTensorEncodingAttr>()) {
+      emitError() << "invalid sparsity encoding attribute";
+      return failure();
+    }
+  }
   return success();
 }
 
@@ -262,7 +281,8 @@ Type parseTensorType(MLIRContext *context, AsmParser &parser,
   if (parser.parseOptionalLess())
     return getTensorType(context,
                          /*optionalSizes=*/std::nullopt,
-                         /*optionalDtype=*/Type());
+                         /*optionalDtype=*/Type(),
+                         /*optionalSparsity=*/Attribute());
   bool hasSizes;
   SmallVector<int64_t> sizes;
   if (succeeded(parser.parseOptionalStar())) {
@@ -307,6 +327,12 @@ Type parseTensorType(MLIRContext *context, AsmParser &parser,
     if (parser.parseType(optionalDtype))
       return Type();
   }
+  Attribute optionalSparsity;
+  if (succeeded(parser.parseOptionalComma())) {
+    // Explicit encoding.
+    if (parser.parseAttribute(optionalSparsity))
+      return Type();
+  }
   if (parser.parseGreater())
     return Type();
   std::optional<ArrayRef<int64_t>> optionalSizes;
@@ -314,15 +340,15 @@ Type parseTensorType(MLIRContext *context, AsmParser &parser,
     optionalSizes.emplace(sizes);
 
   if (failed(verifyTensorType([&]() { return parser.emitError(startLoc); },
-                              optionalSizes, optionalDtype)))
+                              optionalSizes, optionalDtype, optionalSparsity)))
     return Type();
 
-  return getTensorType(context, optionalSizes, optionalDtype);
+  return getTensorType(context, optionalSizes, optionalDtype, optionalSparsity);
 }
 
 static void printTensorType(AsmPrinter &printer,
                             std::optional<ArrayRef<int64_t>> optionalSizes,
-                            Type optionalDtype) {
+                            Type optionalDtype, Attribute optionalSparsity) {
   if (!optionalSizes && !optionalDtype)
     return;
   printer << "<";
@@ -345,6 +371,10 @@ static void printTensorType(AsmPrinter &printer,
     printer.printType(optionalDtype);
   else
     printer << "unk";
+  if (optionalSparsity) {
+    printer << ",";
+    printer.printAttribute(optionalSparsity);
+  }
   printer << ">";
 }
 
@@ -367,8 +397,9 @@ NonValueTensorType::getWithLeastStaticInformation(MLIRContext *context) {
 LogicalResult
 NonValueTensorType::verify(function_ref<InFlightDiagnostic()> emitError,
                            std::optional<ArrayRef<int64_t>> optionalSizes,
-                           Type optionalDtype) {
-  return verifyTensorType(emitError, optionalSizes, optionalDtype);
+                           Type optionalDtype, Attribute optionalSparsity) {
+  return verifyTensorType(emitError, optionalSizes, optionalDtype,
+                          optionalSparsity);
 }
 
 Type NonValueTensorType::parse(AsmParser &parser) {
@@ -376,13 +407,15 @@ Type NonValueTensorType::parse(AsmParser &parser) {
   return parseTensorType(
       context, parser,
       [](MLIRContext *context, std::optional<ArrayRef<int64_t>> optionalSizes,
-         Type optionalType) {
-        return NonValueTensorType::get(context, optionalSizes, optionalType);
+         Type optionalType, Attribute optionalSparsity) {
+        return NonValueTensorType::get(context, optionalSizes, optionalType,
+                                       optionalSparsity);
       });
 }
 
 void NonValueTensorType::print(AsmPrinter &printer) const {
-  printTensorType(printer, getOptionalSizes(), getOptionalDtype());
+  printTensorType(printer, getOptionalSizes(), getOptionalDtype(),
+                  getOptionalSparsity());
 }
 
 //===----------------------------------------------------------------------===//
@@ -407,7 +440,7 @@ static Type convertDtypeToBuiltinElementType(MLIRContext *context, Type dtype) {
   } else if (auto integerType = dtype.dyn_cast<IntegerType>()) {
     return IntegerType::get(context, integerType.getWidth(),
                             IntegerType::Signless);
-  } else if (dtype.isa<mlir::ComplexType>()){
+  } else if (dtype.isa<mlir::ComplexType>()) {
     return dtype;
   }
 
@@ -434,14 +467,16 @@ TensorType ValueTensorType::toBuiltinTensor() const {
   Type elementType = convertDtypeToBuiltinElementType(getContext(), getDtype());
   if (!elementType)
     return nullptr;
-  return RankedTensorType::get(makeShapeLLVMCompatible(getSizes()), elementType);
+  return RankedTensorType::get(makeShapeLLVMCompatible(getSizes()), elementType,
+                               getOptionalSparsity());
 }
 
 LogicalResult
 ValueTensorType::verify(function_ref<InFlightDiagnostic()> emitError,
                         std::optional<ArrayRef<int64_t>> optionalSizes,
-                        Type optionalDtype) {
-  return verifyTensorType(emitError, optionalSizes, optionalDtype);
+                        Type optionalDtype, Attribute optionalSparsity) {
+  return verifyTensorType(emitError, optionalSizes, optionalDtype,
+                          optionalSparsity);
 }
 
 Type ValueTensorType::parse(AsmParser &parser) {
@@ -449,13 +484,15 @@ Type ValueTensorType::parse(AsmParser &parser) {
   return parseTensorType(
       context, parser,
       [](MLIRContext *context, std::optional<ArrayRef<int64_t>> optionalSizes,
-         Type optionalType) {
-        return ValueTensorType::get(context, optionalSizes, optionalType);
+         Type optionalType, Attribute optionalSparsity) {
+        return ValueTensorType::get(context, optionalSizes, optionalType,
+                                    optionalSparsity);
       });
 }
 
 void ValueTensorType::print(AsmPrinter &printer) const {
-  printTensorType(printer, getOptionalSizes(), getOptionalDtype());
+  printTensorType(printer, getOptionalSizes(), getOptionalDtype(),
+                  getOptionalSparsity());
 }
 
 Type Torch::meetTensorTypes(BaseTensorType lhs, BaseTensorType rhs) {
@@ -519,9 +556,9 @@ Type Torch::meetTensorTypes(BaseTensorType lhs, BaseTensorType rhs) {
 
 // TODO: These are not DRY in that the two type predicates AnyTorchDictKeyType
 // and AnyTorchType generate the exact same code (in TorchOps.cpp.inc).
-// Unfortunately the generated implementations aren't visible/exposed ("static" linkage)
-// and the predicates themselves can't be added/used in the specification of the parameters
-// of the Torch_DictType.
+// Unfortunately the generated implementations aren't visible/exposed ("static"
+// linkage) and the predicates themselves can't be added/used in the
+// specification of the parameters of the Torch_DictType.
 static bool isAnyTorchDictKeyType(Type type) {
   return type.isa<Torch::AnyType>() || type.isa<Torch::IntType>() ||
          type.isa<Torch::BoolType>() || type.isa<Torch::FloatType>() ||

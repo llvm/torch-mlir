@@ -45,7 +45,8 @@ class VerifyStablehloBackendContractPass
     ConversionTarget target(*context);
 
     // Structural operations.
-    target.addDynamicallyLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>(opHasLegalTypes);
+    target.addDynamicallyLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>(
+        opHasLegalTypes);
     // Shape operations.
     target.addDynamicallyLegalOp<shape::ShapeOfOp>(opHasLegalTypes);
 

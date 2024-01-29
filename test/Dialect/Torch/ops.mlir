@@ -1,5 +1,7 @@
 // RUN: torch-mlir-opt %s | torch-mlir-opt | FileCheck %s
 
+// CHECK: #[[$ENCODING:.*]] = #sparse_tensor.encoding<{ map = (d0, d1) -> (d0 : dense, d1 : compressed) }>
+
 // CHECK-LABEL: func.func @torch.operator(
 func.func @torch.operator(%arg0: !torch.tensor, %arg1: !torch.tensor) -> !torch.tensor {
   // CHECK: torch.operator "ns.unqual.overload"(%arg0, %arg1) : (!torch.tensor, !torch.tensor) -> !torch.tensor
@@ -27,6 +29,10 @@ func.func private @tensor.ranked() -> !torch.tensor<[?,?,?],unk>
 func.func private @tensor.some_sizes_known() -> !torch.tensor<[?,2,?,4],unk>
 // CHECK: @tensor.fully_determined() -> !torch.vtensor<[1,2,3,4],f32>
 func.func private @tensor.fully_determined() -> !torch.vtensor<[1,2,3,4],f32>
+
+// CHECK: @tensor.sparse() -> !torch.vtensor<[64,64],f32,#[[$ENCODING]]>
+#CSR = #sparse_tensor.encoding<{ map = (d0, d1) -> (d0 : dense, d1 : compressed) }>
+func.func private @tensor.sparse() -> !torch.vtensor<[64,64],f32,#CSR>
 
 // CHECK: @tuple.empty() -> !torch.tuple<>
 func.func private @tuple.empty() -> !torch.tuple<>

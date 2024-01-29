@@ -7,9 +7,9 @@
 namespace torch {
 namespace jit {
 
-void ConvertScalarImplicit(std::shared_ptr<Graph>& graph) {
+void ConvertScalarImplicit(std::shared_ptr<Graph> &graph) {
   DepthFirstGraphNodeIterator it(graph);
-  for (auto* node = it.next(); node != nullptr; node = it.next()) {
+  for (auto *node = it.next(); node != nullptr; node = it.next()) {
     if (node->kind() != c10::aten::ScalarImplicit) {
       continue;
     }
@@ -27,15 +27,13 @@ void ConvertScalarImplicit(std::shared_ptr<Graph>& graph) {
       node_type = c10::aten::FloatImplicit;
       output_type = FloatType::get();
     } else {
-      throw std::runtime_error(
-        "Expected isIntegralType or isFloatingType");
+      throw std::runtime_error("Expected isIntegralType or isFloatingType");
     }
 
-    Value * output = graph
-        ->create(node_type, {input})
-        ->insertBefore(node)
-        ->output()
-        ->setType(output_type);
+    Value *output = graph->create(node_type, {input})
+                        ->insertBefore(node)
+                        ->output()
+                        ->setType(output_type);
     node->output()->replaceAllUsesWith(output);
     node->destroy();
   }

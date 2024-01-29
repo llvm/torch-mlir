@@ -90,7 +90,8 @@ public:
                                 PatternRewriter &rewriter) const override {
     SmallVector<std::optional<int64_t>> ranks;
     SmallVector<int64_t> dtypes;
-    if (!matchPattern(op.getRanks(), m_TorchListOfOptionalConstantInts(ranks))) {
+    if (!matchPattern(op.getRanks(),
+                      m_TorchListOfOptionalConstantInts(ranks))) {
       return rewriter.notifyMatchFailure(
           op, "Expected `ranks` to be a list of optional constant ints");
     }

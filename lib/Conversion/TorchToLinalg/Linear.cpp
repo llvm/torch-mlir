@@ -165,7 +165,8 @@ public:
     Location loc = op->getLoc();
     MLIRContext *context = op.getContext();
     Value self = adaptor.getSelf();
-    auto selfRank = adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
+    auto selfRank =
+        adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
     Type elementType =
         adaptor.getSelf().getType().cast<RankedTensorType>().getElementType();
     Value c1 =
@@ -377,8 +378,8 @@ public:
       // TODO: Improve usage of static shape information.
       SmallVector<int64_t> lhsTargetShape(lhsBroadcastToShape.size(),
                                           ShapedType::kDynamic);
-      auto lhsBroadcastType =
-          RankedTensorType::get(lhsTargetShape, lhsType.getElementType());
+      auto lhsBroadcastType = RankedTensorType::get(
+          lhsTargetShape, lhsType.getElementType(), lhsType.getEncoding());
       if (failed(torch_to_linalg::broadcastToGivenShape(
               op, rewriter, lhs, lhsBroadcastToShape, lhsBroadcastType,
               broadcastedLhs))) {
@@ -387,8 +388,8 @@ public:
       }
       SmallVector<int64_t> rhsTargetShape(rhsBroadcastToShape.size(),
                                           ShapedType::kDynamic);
-      auto rhsBroadcastType =
-          RankedTensorType::get(rhsTargetShape, rhsType.getElementType());
+      auto rhsBroadcastType = RankedTensorType::get(
+          rhsTargetShape, rhsType.getElementType(), rhsType.getEncoding());
       if (failed(torch_to_linalg::broadcastToGivenShape(
               op, rewriter, rhs, rhsBroadcastToShape, rhsBroadcastType,
               broadcastedRhs))) {
@@ -535,7 +536,8 @@ public:
     RankedTensorType lhsType = lhs.getType().cast<RankedTensorType>();
     RankedTensorType rhsType = rhs.getType().cast<RankedTensorType>();
     Type newResultType = getTypeConverter()->convertType(op.getType());
-    Type resultElementType = newResultType.cast<RankedTensorType>().getElementType();
+    Type resultElementType =
+        newResultType.cast<RankedTensorType>().getElementType();
     Type lhsElementType = lhsType.cast<RankedTensorType>().getElementType();
     Type rhsElementType = rhsType.cast<RankedTensorType>().getElementType();
 
@@ -547,13 +549,15 @@ public:
     // Convert the inputs element type equivalent to the result' element type.
     if (lhsElementType != rhsElementType) {
       if (lhsElementType != resultElementType) {
-        // True if the lhs element type is not equal to the result' element type.
-        lhs = torch_to_linalg::convertTensorToElementType(
-            rewriter, loc, lhs, resultElementType);
+        // True if the lhs element type is not equal to the result' element
+        // type.
+        lhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, lhs,
+                                                          resultElementType);
       } else {
-        // True if the rhs element type is not equal to the result' element type.
-        rhs = torch_to_linalg::convertTensorToElementType(
-            rewriter, loc, rhs, resultElementType);
+        // True if the rhs element type is not equal to the result' element
+        // type.
+        rhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, rhs,
+                                                          resultElementType);
       }
     }
 
@@ -571,7 +575,8 @@ public:
     checkDimEqualHelper(rewriter, loc, lhsDim2, rhsDim1);
 
     Value initTensor0 = createZeroInitTensor(
-        rewriter, loc, ValueRange{lhsDim0, lhsDim1, rhsDim2}, resultElementType);
+        rewriter, loc, ValueRange{lhsDim0, lhsDim1, rhsDim2},
+        resultElementType);
 
     Value bmm =
         rewriter
@@ -634,7 +639,8 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int strides");
     SmallVector<int64_t> dilationInts;
-    if (!matchPattern(op.getDilation(), m_TorchListOfConstantInts(dilationInts)))
+    if (!matchPattern(op.getDilation(),
+                      m_TorchListOfConstantInts(dilationInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int dilations");
 
@@ -838,8 +844,10 @@ public:
 
     Value conv;
     // the code so far is able to respect all numSpacialDims
-    // the code below this point is numSpacialDims specific and groupSize specific
-    // TODO: factor out the above code into a helper function, and then separate convolution into:
+    // the code below this point is numSpacialDims specific and groupSize
+    // specific
+    // TODO: factor out the above code into a helper function, and then separate
+    // convolution into:
     // - grouped 1d-3d
     // - ungrouped 1d-3d
     if (groupSize == 1) {
@@ -854,20 +862,20 @@ public:
                    .getResult(0);
         break;
       case 2:
-        conv =
-            rewriter
-                .create<linalg::Conv2DNchwFchwOp>(
-                    loc, outputTensor.getType(), ValueRange{paddedInput, weight},
-                    outputTensor, stridesAttr, dilationAttr)
-                .getResult(0);
+        conv = rewriter
+                   .create<linalg::Conv2DNchwFchwOp>(
+                       loc, outputTensor.getType(),
+                       ValueRange{paddedInput, weight}, outputTensor,
+                       stridesAttr, dilationAttr)
+                   .getResult(0);
         break;
       case 3:
-        conv =
-            rewriter
-                .create<linalg::Conv3DNcdhwFcdhwOp>(
-                    loc, outputTensor.getType(), ValueRange{paddedInput, weight},
-                    outputTensor, stridesAttr, dilationAttr)
-                .getResult(0);
+        conv = rewriter
+                   .create<linalg::Conv3DNcdhwFcdhwOp>(
+                       loc, outputTensor.getType(),
+                       ValueRange{paddedInput, weight}, outputTensor,
+                       stridesAttr, dilationAttr)
+                   .getResult(0);
         break;
       default:
         return rewriter.notifyMatchFailure(
@@ -877,10 +885,10 @@ public:
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
     } else {
-      if(numSpacialDims != 2)
+      if (numSpacialDims != 2)
         return rewriter.notifyMatchFailure(
             op, "unimplemented: only 2D grouped convolution supported");
-      
+
       // Special depthwise case
       auto inShape = makeShapeTorchCompatible(
           input.getType().cast<RankedTensorType>().getShape());
@@ -894,17 +902,18 @@ public:
             (weightShape[0] == kUnknownSize ? kUnknownSize
                                             : weightShape[0] * weightShape[1]),
             weightShape[2], weightShape[3]};
+        // TODO: audit possibility of sparsity on this tensor
         Type collapsedType = RankedTensorType::get(
             makeShapeLLVMCompatible(collapsedShape), elementType);
         Value collapsedWeight = rewriter.create<tensor::CollapseShapeOp>(
             loc, collapsedType, weight, collapsedDims);
 
         conv = rewriter
-                  .create<linalg::DepthwiseConv2DNchwChwOp>(
-                      loc, outputTensor.getType(),
-                      ValueRange{paddedInput, collapsedWeight}, outputTensor,
-                      stridesAttr, dilationAttr)
-                  .getResult(0);
+                   .create<linalg::DepthwiseConv2DNchwChwOp>(
+                       loc, outputTensor.getType(),
+                       ValueRange{paddedInput, collapsedWeight}, outputTensor,
+                       stridesAttr, dilationAttr)
+                   .getResult(0);
 
         Type newResultType = getTypeConverter()->convertType(op.getType());
         rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
@@ -978,7 +987,7 @@ public:
       conv = rewriter.create<tensor::CollapseShapeOp>(
           loc, outputTensor.getType(), conv,
           expandOutputTensor.getReassociationIndices());
-          Type newResultType = getTypeConverter()->convertType(op.getType());
+      Type newResultType = getTypeConverter()->convertType(op.getType());
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
     }

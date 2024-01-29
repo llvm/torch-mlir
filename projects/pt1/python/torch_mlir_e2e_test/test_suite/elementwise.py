@@ -4328,6 +4328,33 @@ def ElementwiseDequantizePerTensorModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ElementwiseDequantizePerChannelModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.int8, True),
+        ([4], torch.int8, True),
+        ([4], torch.float, True),
+    ])
+    def forward(self, x, zeropoint, scale):
+        qx = torch._make_per_channel_quantized_tensor(x, scale, zeropoint, axis=1)
+        qx = torch.dequantize(qx)
+        return qx
+
+@register_test_case(module_factory=lambda: ElementwiseDequantizePerChannelModule())
+def ElementwiseDequantizePerChannelModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=-128, high=127).to(torch.int8),
+        tu.randint(4, low=-128, high=127).to(torch.int8),
+        tu.rand(4)
+    )
+
+# ==============================================================================
+
 class GluStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

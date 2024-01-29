@@ -35,7 +35,8 @@ static Value createInitialValueForAtenPoolingOp(Operation *op, Type elementTy,
                                                 PatternRewriter &rewriter) {
   auto constType = RankedTensorType::get({}, elementTy);
   // Avg pooling
-  if (isa<AtenAvgPool1dOp, AtenAdaptiveAvgPool2dOp, AtenAvgPool2dOp, AtenCumsumOp>(op)) {
+  if (isa<AtenAvgPool1dOp, AtenAdaptiveAvgPool2dOp, AtenAvgPool2dOp,
+          AtenCumsumOp>(op)) {
     if (elementTy.isa<mlir::FloatType>()) {
       auto constAttr = DenseElementsAttr::get(
           constType, {APFloat::getZero(
@@ -373,7 +374,6 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
   return success();
 }
 
-
 namespace {
 template <typename AtenOpT, int Dim>
 class ConvertAtenAvgPoolOp : public ConvertAtenOp<AtenOpT> {
@@ -388,45 +388,45 @@ public:
     Type inputElemTy = inputTy.getElementType();
     int64_t inputRank = inputTy.getRank();
     RankedTensorType outTy = ConvertAtenOp<AtenOpT>::getTypeConverter()
-                        ->convertType(op.getType())
-                        .template cast<RankedTensorType>();
+                                 ->convertType(op.getType())
+                                 .template cast<RankedTensorType>();
     auto outShape = outTy.getShape();
 
-
     if (inputRank <= Dim) {
-        return op.emitError(
-            "avg_pooling1d/2d only supports inputs with rank higher than 1/2");
+      return op.emitError(
+          "avg_pooling1d/2d only supports inputs with rank higher than 1/2");
     }
     SmallVector<int64_t, Dim> padding, kernelSize, stride;
     bool ceilMode = false;
     bool countIncludePad = true;
 
     if (!(matchPattern(op.getKernelSize(),
-                        m_TorchListOfConstantInts(kernelSize)))) {
-        return rewriter.notifyMatchFailure(
-            op, "non-const int kernel size unsupported!");
+                       m_TorchListOfConstantInts(kernelSize)))) {
+      return rewriter.notifyMatchFailure(
+          op, "non-const int kernel size unsupported!");
     }
     if (!(matchPattern(op.getStride(), m_TorchListOfConstantInts(stride)))) {
-        return rewriter.notifyMatchFailure(op, "non-const int stride unsupported!");
+      return rewriter.notifyMatchFailure(op,
+                                         "non-const int stride unsupported!");
     }
     if (!(matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding)))) {
-        return rewriter.notifyMatchFailure(op,
-                                        "non-const int padding unsupported!");
+      return rewriter.notifyMatchFailure(op,
+                                         "non-const int padding unsupported!");
     }
     if (!(matchPattern(op.getCeilMode(), m_TorchConstantBool(&ceilMode)))) {
-        return rewriter.notifyMatchFailure(op,
-                                        "non-const bool ceil_mode unsupported!");
+      return rewriter.notifyMatchFailure(
+          op, "non-const bool ceil_mode unsupported!");
     }
     if (!(matchPattern(op.getCountIncludePad(),
-                        m_TorchConstantBool(&countIncludePad)))) {
-        return rewriter.notifyMatchFailure(
-            op, "non-const bool count_include_pad unsupported!");
+                       m_TorchConstantBool(&countIncludePad)))) {
+      return rewriter.notifyMatchFailure(
+          op, "non-const bool count_include_pad unsupported!");
     }
 
     if constexpr (std::is_same<AtenOpT, AtenAvgPool2dOp>()) {
-        if (succeeded(checkNotNone(rewriter, op, op.getDivisorOverride())))
-            return rewriter.notifyMatchFailure(
-                op, "only None divisor_override supported for now!");
+      if (succeeded(checkNotNone(rewriter, op, op.getDivisorOverride())))
+        return rewriter.notifyMatchFailure(
+            op, "only None divisor_override supported for now!");
     }
 
     // Prepend 1 to kernelSize, stride, dilation until they are of same rank
@@ -437,33 +437,35 @@ public:
     SmallVector<int64_t> stablehloPadding(inputRank * 2, 0);
 
     std::copy(stride.begin(), stride.end(),
-                stablehloStride.begin() + inputRank - Dim);
+              stablehloStride.begin() + inputRank - Dim);
     std::copy(kernelSize.begin(), kernelSize.end(),
-                stablehloKernelSize.begin() + inputRank - Dim);
+              stablehloKernelSize.begin() + inputRank - Dim);
     if (Dim == 1) {
-        stablehloPadding[stablehloPadding.size() - 2] = padding[0];
-        stablehloPadding[stablehloPadding.size() - 1] = padding[0];
+      stablehloPadding[stablehloPadding.size() - 2] = padding[0];
+      stablehloPadding[stablehloPadding.size() - 1] = padding[0];
     } else {
-        stablehloPadding[stablehloPadding.size() - 4] = padding[0];
-        stablehloPadding[stablehloPadding.size() - 3] = padding[0];
-        stablehloPadding[stablehloPadding.size() - 2] = padding[1];
-        stablehloPadding[stablehloPadding.size() - 1] = padding[1];
+      stablehloPadding[stablehloPadding.size() - 4] = padding[0];
+      stablehloPadding[stablehloPadding.size() - 3] = padding[0];
+      stablehloPadding[stablehloPadding.size() - 2] = padding[1];
+      stablehloPadding[stablehloPadding.size() - 1] = padding[1];
     }
 
-    Value initVal = createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter);
+    Value initVal =
+        createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter);
 
     DenseIntElementsAttr windowDimensions = DenseIntElementsAttr::get(
-        RankedTensorType::get({static_cast<int64_t>(stablehloKernelSize.size())},
-                                rewriter.getI64Type()),
+        RankedTensorType::get(
+            {static_cast<int64_t>(stablehloKernelSize.size())},
+            rewriter.getI64Type()),
         stablehloKernelSize);
     DenseIntElementsAttr windowStrides = DenseIntElementsAttr::get(
         RankedTensorType::get({static_cast<int64_t>(stablehloStride.size())},
-                                rewriter.getI64Type()),
+                              rewriter.getI64Type()),
         stablehloStride);
     DenseIntElementsAttr baseDilations;
     DenseIntElementsAttr windowDilations = DenseIntElementsAttr::get(
         RankedTensorType::get({static_cast<int64_t>(stablehloDilation.size())},
-                                rewriter.getI64Type()),
+                              rewriter.getI64Type()),
         stablehloDilation);
     DenseIntElementsAttr pad = DenseIntElementsAttr::get(
         RankedTensorType::get(
@@ -485,31 +487,31 @@ public:
     auto secondArg = *sumBlock.args_rbegin();
 
     {
-        OpBuilder::InsertionGuard guard(rewriter);
-        rewriter.setInsertionPointToStart(&sumBlock);
+      OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToStart(&sumBlock);
 
-        Value sumResult =
-            rewriter.create<stablehlo::AddOp>(op->getLoc(), firstArg, secondArg);
-        rewriter.create<stablehlo::ReturnOp>(op->getLoc(), sumResult);
+      Value sumResult =
+          rewriter.create<stablehlo::AddOp>(op->getLoc(), firstArg, secondArg);
+      rewriter.create<stablehlo::ReturnOp>(op->getLoc(), sumResult);
     }
 
     // Use kernel size as the divisor
     if (countIncludePad) {
-        Value divisor;
-        if (Dim == 1) {
-            divisor =
-                hlo::getConstTensor<int64_t>(rewriter, op, {kernelSize[0]}, {})
-                    .value();
-        } else {
-            divisor = hlo::getConstTensor<int64_t>(
-                        rewriter, op, {kernelSize[0] * kernelSize[1]}, {})
-                        .value();
-        }
-        divisor = hlo::promoteType(rewriter, op.getLoc(), divisor, outTy);
-        DenseIntElementsAttr bcastDimensions;
-        rewriter.replaceOpWithNewOp<mlir::chlo::BroadcastDivOp>(
-            op, outTy, reduceWindowSum.getResult(0), divisor, bcastDimensions);
-        return success();
+      Value divisor;
+      if (Dim == 1) {
+        divisor =
+            hlo::getConstTensor<int64_t>(rewriter, op, {kernelSize[0]}, {})
+                .value();
+      } else {
+        divisor = hlo::getConstTensor<int64_t>(
+                      rewriter, op, {kernelSize[0] * kernelSize[1]}, {})
+                      .value();
+      }
+      divisor = hlo::promoteType(rewriter, op.getLoc(), divisor, outTy);
+      DenseIntElementsAttr bcastDimensions;
+      rewriter.replaceOpWithNewOp<mlir::chlo::BroadcastDivOp>(
+          op, outTy, reduceWindowSum.getResult(0), divisor, bcastDimensions);
+      return success();
     }
 
     // Use another mhlo.ReduceWindowOp to get the divisor
@@ -518,8 +520,8 @@ public:
     windowSizeConst =
         hlo::promoteType(rewriter, op.getLoc(), windowSizeConst, outTy);
     const auto &options = ConvertAtenOp<AtenOpT>::getOptions();
-    auto inputShapeVec =
-        *hlo::getDimSizesOfTensor(rewriter, op, input, options.dimSizeIndexBits);
+    auto inputShapeVec = *hlo::getDimSizesOfTensor(rewriter, op, input,
+                                                   options.dimSizeIndexBits);
     auto inputShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
         op->getLoc(), inputShapeVec);
 
@@ -544,23 +546,20 @@ public:
     secondArg = *sizeBlock.args_rbegin();
 
     {
-        OpBuilder::InsertionGuard guard(rewriter);
-        rewriter.setInsertionPointToStart(&sizeBlock);
+      OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToStart(&sizeBlock);
 
-        Value sumResult =
-            rewriter.create<stablehlo::AddOp>(op->getLoc(), firstArg, secondArg);
-        rewriter.create<stablehlo::ReturnOp>(op->getLoc(), sumResult);
+      Value sumResult =
+          rewriter.create<stablehlo::AddOp>(op->getLoc(), firstArg, secondArg);
+      rewriter.create<stablehlo::ReturnOp>(op->getLoc(), sumResult);
     }
 
     rewriter.replaceOpWithNewOp<stablehlo::DivOp>(
         op, outTy, reduceWindowSum.getResult(0), reduceWindowSize.getResult(0));
     return success();
-
   }
-
 };
-}
-
+} // namespace
 
 // AtenCumsumOp
 template <>
@@ -660,10 +659,10 @@ void mlir::torch::torch_to_stablehlo::populatePoolingOpPatternsAndLegality(
                                                           context, options);
   target.addIllegalOp<AtenCumsumOp>();
   patterns.add<ConvertAtenOp<AtenCumsumOp>>(typeConverter, context, options);
-#define INSERT_ATEN_AVGPOOL_PATTERN(AtenOp, Dim)                             \
+#define INSERT_ATEN_AVGPOOL_PATTERN(AtenOp, Dim)                               \
   target.addIllegalOp<AtenOp>();                                               \
-  patterns.add<ConvertAtenAvgPoolOp<AtenOp, Dim>>(                             \
-      typeConverter, context, options)
+  patterns.add<ConvertAtenAvgPoolOp<AtenOp, Dim>>(typeConverter, context,      \
+                                                  options)
   INSERT_ATEN_AVGPOOL_PATTERN(AtenAvgPool1dOp, 1);
   INSERT_ATEN_AVGPOOL_PATTERN(AtenAvgPool2dOp, 2);
 #undef INSERT_ATEN_AVGPOOL_PATTERN

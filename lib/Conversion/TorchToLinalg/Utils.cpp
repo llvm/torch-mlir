@@ -7,13 +7,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -87,6 +87,7 @@ Value torch_to_linalg::getDynamicZeroPaddedTensor(
     *pad = castIntToIndex(b, loc, *pad);
 
   Type elementType = input.getType().cast<RankedTensorType>().getElementType();
+  // TODO: audit possibility of sparsity on this tensor
   Type inputType =
       RankedTensorType::get(makeShapeLLVMCompatible(llvm::ArrayRef<int64_t>(
                                 SmallVector<int64_t>(inRank, kUnknownSize))),
