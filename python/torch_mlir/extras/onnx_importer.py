@@ -602,6 +602,12 @@ ELEM_TYPE_TO_NUMPY_DTYPE = {
     # Ommitted: STRING,
 }
 
+def graph_attribute_handler(attr: onnx.AttributeProto, cc: ContextCache) -> Attribute:
+    """Handles a Graph attribute."""
+    print(dir(attr))
+    print(cc)
+    raise OnnxImportError("Graph attributes not supported yet")
+
 # Mapping of AttributeType code to one of:
 #   None: Ignore attribute and do not output to MLIR
 #   False: Error if an attribute of this type is present
@@ -618,7 +624,7 @@ ATTRIBUTE_TYPE_HANDLERS = {
     onnx.AttributeProto.AttributeType.TENSOR: lambda a, cc: cc.tensor_proto_to_attr(
         a.t
     ),
-    onnx.AttributeProto.AttributeType.GRAPH: False,
+    onnx.AttributeProto.AttributeType.GRAPH: graph_attribute_handler,
     onnx.AttributeProto.AttributeType.SPARSE_TENSOR: False,
     onnx.AttributeProto.AttributeType.TYPE_PROTO: False,
     onnx.AttributeProto.AttributeType.FLOATS: lambda a, cc: ArrayAttr.get(
