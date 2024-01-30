@@ -317,6 +317,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
     "AtenMmQuint8_basic",
+    "Conv2dQInt8Module_basic",
 
     # Dynamo not supporting conv_tbc
     "ConvTbcModule_basic",
@@ -1541,4 +1542,5 @@ LTC_XFAIL_SET = {
     "ElementwiseBitwiseAndScalarInt64Module_basic",
     "ElementwiseBitwiseAndScalarInt32Module_basic",
     "ElementwiseBitwiseAndScalarInt8Module_basic",
+    "Conv2dQInt8Module_basic",
 }
