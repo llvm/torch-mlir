@@ -255,3 +255,22 @@ func.func @torch.aten.view$dynamicInferredSame(%arg0: !torch.vtensor<[10,?,2,3],
   return %1 : !torch.vtensor<[2,5,?,6],f32>
 }
 
+// -----
+// CHECK-LABEL: func.func @torch.aten$reshapePrepend(
+// CHECK-SAME:    %[[ARG:.*]]: !torch.vtensor<[6,768],f32>) -> !torch.vtensor<[1,6,768],f32> {
+// CHECK:     %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[6,768],f32> -> tensor<6x768xf32>
+// CHECK:   %[[EXPAND:.*]] = tensor.expand_shape %[[BUILTIN_TENSOR]] {{\[\[}}0, 1], [2]] : tensor<6x768xf32> into tensor<1x6x768xf32>
+// CHECK: %[[BUILTIN_TENSOR_CAST:.*]] = torch_c.from_builtin_tensor %[[EXPAND]] : tensor<1x6x768xf32> -> !torch.vtensor<[1,6,768],f32>
+// CHECK: return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[1,6,768],f32>
+
+
+func.func @torch.aten$reshapePrepend(%arg0: !torch.vtensor<[6,768],f32>) -> !torch.vtensor<[1,6,768],f32> {
+  %int1 = torch.constant.int 1
+  %int6 = torch.constant.int 6
+  %int768 = torch.constant.int 768
+  %0 = torch.prim.ListConstruct %int1, %int6, %int768 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.view %arg0, %0 : !torch.vtensor<[6,768],f32>, !torch.list<int> -> !torch.vtensor<[1,6,768],f32>
+  return %1 : !torch.vtensor<[1,6,768],f32>
+}
+
+
