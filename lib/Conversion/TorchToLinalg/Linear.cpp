@@ -766,7 +766,7 @@ public:
       std::iter_swap(weightInitDims.begin(), weightInitDims.begin() + 1);
       outDims[1] = weightInitDims[0];
       Value weightInitTensor =
-          createZeroInitTensor(rewriter, loc, weightInitDims, inputDTy);
+          createZeroInitTensor(rewriter, loc, weightInitDims, weightDTy);
       SmallVector<utils::IteratorType> iteratorTypes(
           inRank, utils::IteratorType::parallel);
       SmallVector<AffineMap> indexingMaps{
@@ -823,7 +823,7 @@ public:
 
       // Allocate padded input tensor
       Value initTensor =
-          createZeroInitTensor(rewriter, loc, outerSizes, resultDTy);
+          createZeroInitTensor(rewriter, loc, outerSizes, inputDTy);
 
       // Insert input into allocated tensor
       SmallVector<Value> strideIndexValues{c1, c1};
@@ -880,17 +880,17 @@ public:
 
     Value outputTensor;
     if (bias.getType().isa<Torch::NoneType>()) {
+      Value c0;
       if (resultDTy.isa<mlir::FloatType>()) {
-        Value c0float = rewriter.create<arith::ConstantOp>(
+        c0 = rewriter.create<arith::ConstantOp>(
             loc, FloatAttr::get(resultDTy, 0.0));
-        outputTensor = rewriter.create<linalg::FillOp>(loc, c0float, initTensor)
-                           .getResult(0);
       } else if (resultDTy.isa<mlir::IntegerType>()) {
-        Value c0int = rewriter.create<arith::ConstantOp>(
+        c0 = rewriter.create<arith::ConstantOp>(
             loc, IntegerAttr::get(resultDTy, 0));
-        outputTensor = rewriter.create<linalg::FillOp>(loc, c0int, initTensor)
-                           .getResult(0);
       }
+      outputTensor = rewriter.create<linalg::FillOp>(loc, c0, initTensor)
+                         .getResult(0);
+
     } else {
       auto biasType = bias.getType().cast<RankedTensorType>();
       if (biasType.getRank() != 1)
@@ -976,10 +976,6 @@ public:
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
 
-    if(numSpatialDims != 2)
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only 2D grouped convolution supported");
-
     if (groupSize == 1 && inputZp && weightZp) {
       // The quantized version uses a different channel ordering so we need to
       // permute the tensors in order to use the existing path. We should
@@ -1061,11 +1057,11 @@ public:
           loc, collapsedType, weight, collapsedDims);
 
       conv = rewriter
-                 .create<linalg::DepthwiseConv2DNchwChwOp>(
-                     loc, outputTensor.getType(),
-                     ValueRange{paddedInput, collapsedWeight}, outputTensor,
-                     stridesAttr, dilationAttr)
-                 .getResult(0);
+                .create<linalg::DepthwiseConv2DNchwChwOp>(
+                    loc, outputTensor.getType(),
+                    ValueRange{paddedInput, collapsedWeight}, outputTensor,
+                    stridesAttr, dilationAttr)
+                .getResult(0);
 
       Type newResultType = getTypeConverter()->convertType(op.getType());
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
