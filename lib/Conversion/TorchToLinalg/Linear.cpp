@@ -975,6 +975,7 @@ public:
       Type newResultType = getTypeConverter()->convertType(op.getType());
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
+    }
 
     if (groupSize == 1 && inputZp && weightZp) {
       // The quantized version uses a different channel ordering so we need to
