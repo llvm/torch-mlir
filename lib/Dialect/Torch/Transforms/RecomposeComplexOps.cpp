@@ -22,8 +22,8 @@ namespace {
 
 // calculate: (a + b - 1) // b
 // a/b's type should be !torch.int
-Value getIntCeilDiv(PatternRewriter &rewriter, Location loc, Value a, Value b) {
-  Value cstOne =
+Value getIntCeilDiv(  PatternRewriter &rewriter, Location loc, Value a, Value b) {
+    Value cstOne =
       rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
   Value dividend = rewriter.create<AtenAddIntOp>(loc, a, b);
   dividend = rewriter.create<AtenSubIntOp>(loc, dividend, cstOne);
