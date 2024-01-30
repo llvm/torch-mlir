@@ -14,7 +14,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          submodules: false
+          # `git-clang-format` needs access to the commit before the
+          # current merge commit to know what changes to format.
           fetch-depth: 2
       - name: Validate GitHub Actions yaml files
         run: |
