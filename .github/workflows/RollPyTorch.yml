@@ -9,7 +9,7 @@ on:
 jobs:
   build_linux:
     name: Manylinux Build
-    runs-on: a100
+    runs-on: torch-mlir-cpubuilder-manylinux-x86-64
 
     # Don't run this in everyone's forks.
     if: github.repository == 'llvm/torch-mlir'
