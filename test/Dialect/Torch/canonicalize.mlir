@@ -2146,3 +2146,10 @@ func.func @torch.aten.masked_fill.Tensor$canonicalize(%arg0: !torch.vtensor<[?,?
   %1 = torch.aten.masked_fill.Tensor %arg0, %arg1, %0 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],i1>, !torch.vtensor<[],f32> -> !torch.vtensor<[?,?],f32>
   return %1 : !torch.vtensor<[?,?],f32>
 }
+
+// CHECK-LABEL:   func.func @torch.aten.detach$canonicalize
+// CHECK-NEXT:      torch.aten.detach
+func.func @torch.aten.detach$canonicalize(%arg0: !torch.tensor<[1],f32>) -> !torch.tensor {
+  %1 = torch.aten.detach %arg0 : !torch.tensor<[1],f32> -> !torch.tensor
+  return %1 : !torch.tensor
+}

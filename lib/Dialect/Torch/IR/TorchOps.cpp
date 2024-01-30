@@ -1465,7 +1465,11 @@ static OpFoldResult intComparatorFoldHelper(OpTy op,
 // AtenDetachOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult AtenDetachOp::fold(FoldAdaptor adaptor) { return getSelf(); }
+OpFoldResult AtenDetachOp::fold(FoldAdaptor adaptor) {
+  if (getSelf().getType() != getResult().getType())
+    return {};
+  return getSelf();
+}
 
 //===----------------------------------------------------------------------===//
 // AtenNeIntOp
