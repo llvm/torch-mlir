@@ -46,7 +46,7 @@ static bool isNoneOrFloatDtype(MLIRContext *context, Value dtype) {
 static Type computeReductionType(PatternRewriter &rewriter, Operation *op,
                                  BaseTensorType tensorType, Value dim,
                                  bool keepDim) {
-     SmallVector<int64_t> sizes;
+  SmallVector<int64_t> sizes;
   int64_t dimInt;
   if (tensorType.hasSizes()) {
     ArrayRef<int64_t> inputShape = tensorType.getSizes();
@@ -6800,6 +6800,6 @@ public:
 
 std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::Torch::createDecomposeComplexOpsPass(
-    ArrayRef<std::string>      legalOps) {
+    ArrayRef<std::string> legalOps) {
   return std::make_unique<DecomposeComplexOpsPass>(legalOps);
 }
