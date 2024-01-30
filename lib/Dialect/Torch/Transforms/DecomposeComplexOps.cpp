@@ -6800,6 +6800,6 @@ public:
 
 std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::Torch::createDecomposeComplexOpsPass(
-    ArrayRef<std::string> legalOps) {
+    ArrayRef<std::string>      legalOps) {
   return std::make_unique<DecomposeComplexOpsPass>(legalOps);
 }
