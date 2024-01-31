@@ -130,6 +130,10 @@ TORCHDYNAMO_XFAIL_SET = {
     'ViewCollapseDynamicWithAtenSizeIntModule_basic',
     # END tests failing due to: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
 
+    # ERROR: torch._dynamo.exc.Unsupported: Tensor.item
+    'AtenItemIntOpModule_basic',
+    'AtenItemFpOpModule_basic',
+
     # ERROR: torch._dynamo.exc.Unsupported: call_method ListVariable() sort [] {'reverse': ConstantVariable(bool)}
     'SortIntListReverse_basic',
 
