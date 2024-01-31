@@ -20,6 +20,7 @@
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
+#include "torch-mlir/Conversion/TorchToTensor/TorchToTensor.h"
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
@@ -76,6 +77,7 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   pm.addNestedPass<func::FuncOp>(createConvertTorchToLinalgPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToSCFPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToArithPass());
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToTensorPass());
   pm.addPass(createConvertTorchConversionToMLProgramPass());
   pm.addNestedPass<func::FuncOp>(memref::createExpandOpsPass());
 
