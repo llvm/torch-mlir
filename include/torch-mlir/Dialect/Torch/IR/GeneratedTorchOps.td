@@ -10581,6 +10581,7 @@ def Torch_AtenViewOp : Torch_Op<"aten.view", [
     }
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_Aten_UnsafeViewOp : Torch_Op<"aten._unsafe_view", [

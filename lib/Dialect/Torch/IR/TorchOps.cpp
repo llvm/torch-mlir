@@ -927,6 +927,60 @@ OpFoldResult AtenViewOp::fold(FoldAdaptor adaptor) {
   return getOperand(0);
 }
 
+void AtenViewOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                             MLIRContext *context) {
+  // Canonicalize `aten.view` to `aten.unsqueeze`
+  patterns.add(+[](AtenViewOp op, PatternRewriter &rewriter) {
+    Location loc = op->getLoc();
+    auto inputType = op.getSelf().getType().dyn_cast<BaseTensorType>();
+    if (!inputType || !inputType.hasSizes())
+      return failure();
+    ArrayRef<int64_t> inputShape = inputType.getSizes();
+    int64_t inputRank = inputShape.size();
+
+    auto resType = op.getType().dyn_cast<BaseTensorType>();
+    if (!resType || !resType.hasSizes())
+      return failure();
+    ArrayRef<int64_t> resShape = resType.getSizes();
+    int64_t resRank = resShape.size();
+    if (inputRank >= resRank)
+      return failure();
+    SmallVector<int64_t> dimList;
+    int64_t inputPtr = 0;
+    for (uint64_t i = 0; i < resRank; i++) {
+      if (inputPtr < inputRank && inputShape[inputPtr] == resShape[i]) {
+        inputPtr++;
+        continue;
+      }
+      if (resShape[i] == 1) {
+        dimList.emplace_back(i);
+        continue;
+      }
+      return failure();
+    }
+    if (inputPtr != inputRank)
+      return failure();
+
+    Value operand = op.getSelf();
+    Value unsqueeze;
+    SmallVector<int64_t> outShape(inputShape);
+    Type outType;
+    for (int64_t dim : dimList) {
+      Value dimVal = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(dim));
+      outShape.insert(outShape.begin() + dim, 1);
+      outType = ValueTensorType::get(resType.getContext(), outShape,
+                                     resType.getDtype());
+      unsqueeze =
+          rewriter.create<AtenUnsqueezeOp>(loc, outType, operand, dimVal);
+      operand = unsqueeze;
+    }
+
+    rewriter.replaceOp(op, unsqueeze);
+    return success();
+  });
+}
+
 //===----------------------------------------------------------------------===//
 // PrimsViewOfOp
 //===----------------------------------------------------------------------===//
