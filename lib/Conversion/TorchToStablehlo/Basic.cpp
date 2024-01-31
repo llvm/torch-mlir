@@ -923,8 +923,7 @@ LogicalResult ConvertAtenOp<AtenScalarImplicitOp>::matchAndRewrite(
       op.getA().getType().template cast<BaseTensorType>().getDtype();
   Type resultType =
       this->getTypeConverter()->convertType(op->getResult(0).getType());
-  auto result =
-      rewriter.create<tensor::ExtractOp>(loc, adaptor.getA());
+  auto result = rewriter.create<tensor::ExtractOp>(loc, adaptor.getA());
 
   rewriter.replaceOp(
       op, convertScalarToDtype(rewriter, loc, result, resultType, inputDtype));
@@ -1764,7 +1763,6 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
 #define INSERT_UNARY_PATTERN(AtenOp, StablehloOp)                              \
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenUnaryOp<AtenOp, StablehloOp>>(typeConverter, context)
-  INSERT_UNARY_PATTERN(AtenCloneOp, stablehlo::ConvertOp);
   INSERT_UNARY_PATTERN(AtenNegOp, stablehlo::NegOp);
   INSERT_UNARY_PATTERN(AtenLogicalNotOp, stablehlo::NotOp);
   INSERT_UNARY_PATTERN(AtenBitwiseNotOp, stablehlo::NotOp);
@@ -1797,8 +1795,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
 
 #define INSERT_TENSOR_TO_SCALAR_PATTERN(AtenOp)                                \
   target.addIllegalOp<AtenOp>();                                               \
-  patterns.add<ConvertAtenTensorToScalarLikeOp<AtenOp>>(typeConverter,         \
-                                                        context)
+  patterns.add<ConvertAtenTensorToScalarLikeOp<AtenOp>>(typeConverter, context)
 
   INSERT_TENSOR_TO_SCALAR_PATTERN(AtenIntTensorOp);
   INSERT_TENSOR_TO_SCALAR_PATTERN(AtenFloatTensorOp);

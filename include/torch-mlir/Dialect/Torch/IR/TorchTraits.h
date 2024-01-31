@@ -36,8 +36,7 @@ class HasValueSemantics
 // This is a weaker form of HasValueSemantics, since that trait also requires no
 // aliasing. That is, HasValueSemantics implies this trait.
 template <typename ConcreteType>
-class ReadOnly
-    : public ::mlir::OpTrait::TraitBase<ConcreteType, ReadOnly> {};
+class ReadOnly : public ::mlir::OpTrait::TraitBase<ConcreteType, ReadOnly> {};
 
 // If a Torch op has this trait, it means that the op is a "trailing underscore"
 // op variant that performs an in-place operation on its first argument. These
@@ -62,7 +61,8 @@ class AllowsTypeRefinement
 // by the IValue importer.
 template <typename ConcreteType>
 class AllowedInModuleInitializer
-    : public ::mlir::OpTrait::TraitBase<ConcreteType, AllowedInModuleInitializer> {};
+    : public ::mlir::OpTrait::TraitBase<ConcreteType,
+                                        AllowedInModuleInitializer> {};
 
 } // namespace OpTrait
 } // namespace Torch

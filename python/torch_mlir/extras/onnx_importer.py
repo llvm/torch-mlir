@@ -343,10 +343,14 @@ class NodeImporter:
         with InsertionPoint(self._b), Location.name(iname):
             value_attr = self._cc.tensor_proto_to_attr(initializer)
             vtensor_type = self._cc.tensor_proto_to_type(initializer)
+            attrs = {
+                "name": StringAttr.get(f"onnx.Constant"),
+                "torch.onnx.value": value_attr,
+            }
             literal_op = Operation.create(
-                name="torch.vtensor.literal",
+                name="torch.operator",
                 results=[vtensor_type],
-                attributes={"value": value_attr},
+                attributes=attrs,
             )
             self._nv_map[iname] = literal_op.result
         return literal_op.result

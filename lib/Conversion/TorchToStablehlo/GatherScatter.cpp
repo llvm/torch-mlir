@@ -30,8 +30,8 @@ using namespace mlir::torch::torch_to_stablehlo;
 
 namespace {
 static Value createInitialValueForGatherScatterOp(Operation *op,
-                                           RankedTensorType constType,
-                                           PatternRewriter &rewriter) {
+                                                  RankedTensorType constType,
+                                                  PatternRewriter &rewriter) {
   auto elementTy = constType.getElementType();
   if (isa<AtenEmbeddingBagPaddingIdxOp>(op)) {
     if (elementTy.isa<mlir::FloatType>()) {

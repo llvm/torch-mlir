@@ -12,9 +12,9 @@
 namespace torch {
 namespace lazy {
 
-UnbindCopyInt::UnbindCopyInt(const torch::lazy::Value& self, const int64_t& dim,
-                             std::vector<torch::lazy::Shape>&& shapes)
-    : torch::lazy::TorchMlirNode(UnbindCopyInt::ClassOpKind(), OpList{ self },
+UnbindCopyInt::UnbindCopyInt(const torch::lazy::Value &self, const int64_t &dim,
+                             std::vector<torch::lazy::Shape> &&shapes)
+    : torch::lazy::TorchMlirNode(UnbindCopyInt::ClassOpKind(), OpList{self},
                                  std::move(shapes),
                                  self.shape().size(dim), /* num_outputs */
                                  torch::lazy::MHash(dim)),
@@ -27,13 +27,13 @@ std::string UnbindCopyInt::ToString() const {
   return ss.str();
 }
 
-bool UnbindCopyInt::CanBeReused(const torch::lazy::Value& self,
-                                const int64_t& dim) const {
+bool UnbindCopyInt::CanBeReused(const torch::lazy::Value &self,
+                                const int64_t &dim) const {
   return false;
 }
 
 TorchMlirOpVector UnbindCopyInt::Lower(TorchMlirFunction function,
-                                       TorchMlirLoweringContext* loctx) const {
+                                       TorchMlirLoweringContext *loctx) const {
   PRINT_FUNCTION();
   std::vector<torch::jit::NamedValue> arguments;
   std::vector<torch::jit::NamedValue> kwarguments;

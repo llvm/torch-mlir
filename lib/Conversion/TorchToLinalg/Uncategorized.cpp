@@ -426,10 +426,11 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (isa<AtenAbsOp>(op))
     return b.create<math::AbsFOp>(loc, payloadArgs[0]);
-  if (isa<AtenIsinfOp>(op)){
+  if (isa<AtenIsinfOp>(op)) {
     Value abs = b.create<math::AbsFOp>(loc, payloadArgs[0]);
     Value infinity = b.create<arith::ConstantOp>(
-        loc, b.getFloatAttr(abs.getType(), std::numeric_limits<double>::infinity()));
+        loc,
+        b.getFloatAttr(abs.getType(), std::numeric_limits<double>::infinity()));
     return createEqual(b, loc, abs.getType(), abs, infinity);
   }
   if (isa<AtenSigmoidOp>(op)) {
@@ -1341,11 +1342,20 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     auto valueTy = value.getType();
     auto qtensor = op->getOperand(0);
     auto qtensorTy = qtensor.getType().cast<ValueTensorType>().getDtype();
-    auto makeQTensor =
-        qtensor.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>();
-    if (!makeQTensor) {
-      op->emitError(
-          "unimplemented: dequantizing tensor of unknown scale / zero-point");
+
+    Value zp, scale;
+    if (auto makeQTensor =
+            qtensor.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
+      zp = makeQTensor.getZeroPoint();
+      scale = makeQTensor.getScale();
+    }
+
+    if (auto quant = qtensor.getDefiningOp<AtenQuantizePerTensorOp>()) {
+      zp = quant.getZeroPoint();
+      scale = quant.getScale();
+    }
+
+    if (!zp || !scale) {
       return nullptr;
     }
 
@@ -1361,10 +1371,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       }
     }
 
-    Value zp = makeQTensor.getZeroPoint();
     zp = converter->materializeTargetConversion(
-        b, loc, converter->convertType(zp.getType()),
-        makeQTensor.getZeroPoint());
+        b, loc, converter->convertType(zp.getType()), zp);
     auto zpTy = zp.getType();
 
     if (zpTy != outIntTy) {
@@ -1379,10 +1387,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       value = b.create<arith::SIToFPOp>(loc, outFpTy, value);
     }
 
-    Value scale = makeQTensor.getScale();
     scale = converter->materializeTargetConversion(
-        b, loc, converter->convertType(scale.getType()),
-        makeQTensor.getScale());
+        b, loc, converter->convertType(scale.getType()), scale);
     if (scale.getType() != value.getType()) {
       scale = b.create<arith::TruncFOp>(loc, value.getType(), scale);
     }
@@ -2221,16 +2227,108 @@ public:
 } // namespace
 
 namespace {
-class ConvertMakePerTensorQuantizedTensorOp
-    : public OpConversionPattern<Aten_MakePerTensorQuantizedTensorOp> {
+class ConvertDequantizePerChannel
+    : public OpConversionPattern<AtenDequantizeSelfOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(Aten_MakePerTensorQuantizedTensorOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenDequantizeSelfOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    auto loc = op.getLoc();
+    auto qoperand = op.getOperand();
+    auto make = qoperand.getDefiningOp<Aten_MakePerChannelQuantizedTensorOp>();
+    if (!make) {
+      return rewriter.notifyMatchFailure(op, "did not find per channel qint");
+    }
+
+    auto converter = getTypeConverter();
+    auto operand = make.getOperand(0);
+    auto scale = make.getScale();
+    auto zeropoint = make.getZeroPoint();
+    auto axis = make.getAxis();
+
+    IntegerAttr axisAttr;
+    if (!matchPattern(axis, m_Constant(&axisAttr))) {
+      return failure();
+    }
+
+    auto operandDTy = operand.getType().cast<ValueTensorType>().getDtype();
+    auto zeropointDTy = zeropoint.getType().cast<ValueTensorType>().getDtype();
+    operand = converter->materializeTargetConversion(
+        rewriter, loc, converter->convertType(operand.getType()), operand);
+    scale = converter->materializeTargetConversion(
+        rewriter, loc, converter->convertType(scale.getType()), scale);
+    zeropoint = converter->materializeTargetConversion(
+        rewriter, loc, converter->convertType(zeropoint.getType()), zeropoint);
+
+    auto resultType = converter->convertType(op->getResult(0).getType())
+                          .cast<RankedTensorType>();
+
+    llvm::SmallVector<Value> dynSizes;
+    for (auto [index, dim] : llvm::enumerate(resultType.getShape())) {
+      if (ShapedType::isDynamic(dim)) {
+        dynSizes.push_back(rewriter.create<tensor::DimOp>(loc, operand, index));
+      }
+    }
+
+    llvm::SmallVector<utils::IteratorType> iterators(
+        resultType.getRank(), utils::IteratorType::parallel);
+    llvm::SmallVector<AffineMap> maps(
+        4, {rewriter.getMultiDimIdentityMap(resultType.getRank())});
+    auto broadcastMap = AffineMap::get(
+        resultType.getRank(), /*symbolCount=*/0,
+        {rewriter.getAffineDimExpr(axisAttr.getInt())}, rewriter.getContext());
+    maps[1] = broadcastMap;
+    maps[2] = broadcastMap;
+
+    auto empty =
+        rewriter.create<tensor::EmptyOp>(op.getLoc(), resultType, dynSizes);
+    auto linalgOp = rewriter.create<linalg::GenericOp>(
+        loc, resultType, ValueRange{operand, scale, zeropoint},
+        ValueRange{empty}, maps, iterators,
+        [&](OpBuilder &b, Location loc, ValueRange args) {
+          Value operand = args[0];
+          Value scale = args[1];
+          Value zeropoint = args[2];
+          if (operandDTy.isUnsignedInteger(8)) {
+            operand = b.create<arith::ExtUIOp>(loc, b.getI32Type(), operand);
+          } else if (operandDTy.isSignedInteger(8)) {
+            operand = b.create<arith::ExtSIOp>(loc, b.getI32Type(), operand);
+          }
+
+          if (zeropointDTy.isUnsignedInteger(8)) {
+            zeropoint =
+                b.create<arith::ExtUIOp>(loc, b.getI32Type(), zeropoint);
+          } else if (zeropointDTy.isSignedInteger(8)) {
+            zeropoint =
+                b.create<arith::ExtSIOp>(loc, b.getI32Type(), zeropoint);
+          }
+
+          Value sub = rewriter.create<arith::SubIOp>(loc, operand, zeropoint);
+          Value fp =
+              rewriter.create<arith::SIToFPOp>(loc, args[3].getType(), sub);
+          Value mul = rewriter.create<arith::MulFOp>(loc, fp, scale);
+          b.create<linalg::YieldOp>(loc, mul);
+        });
+    rewriter.replaceOp(op, linalgOp.getResults());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+
+template <typename OpTy>
+class ConvertCastEquivalentOp : public OpConversionPattern<OpTy> {
+  using OpConversionPattern<OpTy>::OpConversionPattern;
+  using OpAdaptor = typename OpTy::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(OpTy op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto converter = this->getTypeConverter();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        converter->convertType(op->getResult(0).getType()));
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
                                                 adaptor.getSelf());
     return success();
@@ -2283,6 +2381,11 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   target.addIllegalOp<TensorStaticInfoCastOp>();
   patterns.add<ConvertAtenIntReprOp>(typeConverter, context);
   target.addIllegalOp<AtenIntReprOp>();
-  patterns.add<ConvertMakePerTensorQuantizedTensorOp>(typeConverter, context);
+  patterns.add<ConvertCastEquivalentOp<Aten_MakePerChannelQuantizedTensorOp>>(
+      typeConverter, context);
+  target.addIllegalOp<Aten_MakePerChannelQuantizedTensorOp>();
+  patterns.add<ConvertCastEquivalentOp<Aten_MakePerTensorQuantizedTensorOp>>(
+      typeConverter, context);
   target.addIllegalOp<Aten_MakePerTensorQuantizedTensorOp>();
+  patterns.add<ConvertDequantizePerChannel>(typeConverter, context);
 }

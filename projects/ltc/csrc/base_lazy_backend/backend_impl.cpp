@@ -31,18 +31,18 @@ TorchMlirBackendData::TorchMlirBackendData(BackendDevice device, Shape shape)
   PRINT_FUNCTION();
 }
 TorchMlirBackendData::TorchMlirBackendData(
-  BackendDevice device, Shape shape, std::shared_ptr<BackendData::Info> info)
+    BackendDevice device, Shape shape, std::shared_ptr<BackendData::Info> info)
     : BackendData(device, shape), info_(info) {
   PRINT_FUNCTION();
 }
-TorchMlirBackendData::TorchMlirBackendData(
-    const at::Scalar& scalar, BackendDevice device)
+TorchMlirBackendData::TorchMlirBackendData(const at::Scalar &scalar,
+                                           BackendDevice device)
     : BackendData(device, Shape(scalar.type(), {})),
       info_(std::make_shared<TorchMlirBackendData::Info>(scalar)) {
   PRINT_FUNCTION();
 }
-TorchMlirBackendData::TorchMlirBackendData(
-    const at::Tensor& tensor, BackendDevice device, Shape shape)
+TorchMlirBackendData::TorchMlirBackendData(const at::Tensor &tensor,
+                                           BackendDevice device, Shape shape)
     : BackendData(device, shape),
       info_(std::make_shared<TorchMlirBackendData::Info>(tensor)) {
   PRINT_FUNCTION();
@@ -52,19 +52,18 @@ BackendData::Handle TorchMlirBackendData::GetHandle() {
   return reinterpret_cast<int64_t>(this);
 }
 
-void TorchMlirBackendData::Assign(const BackendData& data) {
-  const TorchMlirBackendData* torch_mlir_data =
-      dynamic_cast<const TorchMlirBackendData*>(&data);
-  TORCH_CHECK(
-      torch_mlir_data,
-      "Invalid Backend Data Pointer. Expected TorchMlirBackendData.");
+void TorchMlirBackendData::Assign(const BackendData &data) {
+  const TorchMlirBackendData *torch_mlir_data =
+      dynamic_cast<const TorchMlirBackendData *>(&data);
+  TORCH_CHECK(torch_mlir_data,
+              "Invalid Backend Data Pointer. Expected TorchMlirBackendData.");
 
   info_ = torch_mlir_data->info_;
 }
 
 bool TorchMlirBackendData::HasValue() const { return bool(info_); }
 
-BackendData::Info* TorchMlirBackendData::mlir_info() const {
+BackendData::Info *TorchMlirBackendData::mlir_info() const {
   return info_.get();
 }
 
@@ -77,8 +76,8 @@ void TorchMlirBackendImpl::PrepareToExit() const {}
  * IR Tracing
  * */
 
-const IrBuilder* TorchMlirBackendImpl::GetIrBuilder() const {
-  static const IrBuilder* builder = new TorchMlirIrBuilder();
+const IrBuilder *TorchMlirBackendImpl::GetIrBuilder() const {
+  static const IrBuilder *builder = new TorchMlirIrBuilder();
   return builder;
 }
 
@@ -87,28 +86,29 @@ const IrBuilder* TorchMlirBackendImpl::GetIrBuilder() const {
  * */
 
 BackendDataPtr TorchMlirBackendImpl::MakeComputationDataFromTensor(
-    const at::Tensor& tensor, const Shape& shape,
-    const BackendDevice& device) const {
+    const at::Tensor &tensor, const Shape &shape,
+    const BackendDevice &device) const {
   PRINT_FUNCTION();
   return std::make_shared<TorchMlirBackendData>(tensor, device, shape);
 }
 
 BackendDataPtr TorchMlirBackendImpl::MakeComputationDataFromScalar(
-    const at::Scalar& scalar, const BackendDevice& device) const {
+    const at::Scalar &scalar, const BackendDevice &device) const {
   PRINT_FUNCTION();
   return std::make_shared<TorchMlirBackendData>(scalar, device);
 }
 
-BackendDataPtr TorchMlirBackendImpl::CreateDataPlaceholder(
-    const BackendDevice& device, const Shape& shape) const {
+BackendDataPtr
+TorchMlirBackendImpl::CreateDataPlaceholder(const BackendDevice &device,
+                                            const Shape &shape) const {
   PRINT_FUNCTION();
   return std::make_shared<TorchMlirBackendData>(device, shape);
 }
 
 BackendDataPtr
-TorchMlirBackendImpl::GetComputationDataFromNode(const Node* node) const {
+TorchMlirBackendImpl::GetComputationDataFromNode(const Node *node) const {
   PRINT_FUNCTION();
-  const auto* device_data_node = dynamic_cast<const DeviceData*>(node);
+  const auto *device_data_node = dynamic_cast<const DeviceData *>(node);
   if (!device_data_node) {
     return nullptr;
   }
@@ -120,14 +120,13 @@ at::Tensor TorchMlirBackendImpl::MakeTensorFromComputationData(
     c10::optional<at::ScalarType> logical_scalar_type) const {
   PRINT_FUNCTION();
 
-  TorchMlirBackendData* torch_mlir_data =
-      dynamic_cast<TorchMlirBackendData*>(data.get());
-  TORCH_CHECK(
-      torch_mlir_data,
-      "Invalid Backend Data Pointer. Expected TorchMlirBackendData.");
+  TorchMlirBackendData *torch_mlir_data =
+      dynamic_cast<TorchMlirBackendData *>(data.get());
+  TORCH_CHECK(torch_mlir_data,
+              "Invalid Backend Data Pointer. Expected TorchMlirBackendData.");
 
-  TorchMlirBackendData::Info* info =
-      dynamic_cast<TorchMlirBackendData::Info*>(torch_mlir_data->mlir_info());
+  TorchMlirBackendData::Info *info =
+      dynamic_cast<TorchMlirBackendData::Info *>(torch_mlir_data->mlir_info());
   TORCH_CHECK(
       info,
       "Invalid Backend Data Pointer. Expected TorchMlirBackendData::Info.");
@@ -140,17 +139,19 @@ at::Tensor TorchMlirBackendImpl::MakeTensorFromComputationData(
  * */
 
 std::unique_ptr<LoweringContext> TorchMlirBackendImpl::CreateLoweringContext(
-    const std::string& name, BackendDevice device,
-    c10::ArrayRef<const Node*> post_order, Util::EmissionMap emit_status) const {
+    const std::string &name, BackendDevice device,
+    c10::ArrayRef<const Node *> post_order,
+    Util::EmissionMap emit_status) const {
   PRINT_FUNCTION();
   return std::make_unique<TorchMlirLoweringContext>(
       name, std::forward<BackendDevice>(device),
-      std::forward<c10::ArrayRef<const Node*>>(post_order),
+      std::forward<c10::ArrayRef<const Node *>>(post_order),
       std::forward<Util::EmissionMap>(emit_status));
 }
 
-std::unique_ptr<LoweringContext> TorchMlirBackendImpl::CreateLoweringContext(
-    const std::string& name, BackendDevice device) const {
+std::unique_ptr<LoweringContext>
+TorchMlirBackendImpl::CreateLoweringContext(const std::string &name,
+                                            BackendDevice device) const {
   PRINT_FUNCTION();
   return std::make_unique<TorchMlirLoweringContext>(
       name, std::forward<BackendDevice>(device));
@@ -175,9 +176,8 @@ at::DeviceType TorchMlirBackendImpl::EagerFallbackDeviceType() const {
 // Query all available backend devices
 std::vector<BackendDevice> TorchMlirBackendImpl::GetBackendDevices() const {
   PRINT_FUNCTION();
-  return {
-      GetBackendDevice(c10::Device(c10::kLazy, 0)),
-      GetBackendDevice(c10::Device(c10::kCPU, 0))};
+  return {GetBackendDevice(c10::Device(c10::kLazy, 0)),
+          GetBackendDevice(c10::Device(c10::kCPU, 0))};
 }
 
 // Map a particular c10:: device to a concrete backend device

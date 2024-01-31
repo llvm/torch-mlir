@@ -1,3 +1,4 @@
+# yamllint disable rule:line-length
 name: Roll PyTorch
 
 on:
@@ -8,139 +9,138 @@ on:
 jobs:
   build_linux:
     name: Manylinux Build
-    runs-on: a100
+    runs-on: torch-mlir-cpubuilder-manylinux-x86-64
 
     # Don't run this in everyone's forks.
     if: github.repository == 'llvm/torch-mlir'
 
     steps:
+      - name: Prepare workspace
+        run: |
+          # Clear the workspace directory so that we don't run into errors about
+          # existing lock files.
+          sudo rm -rf $GITHUB_WORKSPACE/*
 
-    - name: Prepare workspace
-      run: |
-        # Clear the workspace directory so that we don't run into errors about
-        # existing lock files.
-        sudo rm -rf $GITHUB_WORKSPACE/*
+      - name: Get torch-mlir
+        uses: actions/checkout@v3
+        with:
+          submodules: 'false'
+          token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
 
-    - name: Get torch-mlir
-      uses: actions/checkout@v3
-      with:
-        submodules: 'false'
-        token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+      - name: Get LLVM and StableHlo submodules
+        run: |
+          set -eo pipefail
+          cd ${GITHUB_WORKSPACE}
 
-    - name: Get LLVM and StableHlo submodules
-      run: |
-        set -eo pipefail
-        cd ${GITHUB_WORKSPACE}
+          # Fetching the submodules concurrently may cause problems, so we fetch
+          # them one after another.
+          rm -f .git/modules/externals/llvm-project/index.lock
+          rm -f .git/modules/externals/stablehlo/index.lock
+          git submodule update --init --recursive externals/llvm-project
+          git submodule update --init --recursive externals/stablehlo
 
-        # Fetching the submodules concurrently may cause problems, so we fetch
-        # them one after another.
-        rm -f .git/modules/externals/llvm-project/index.lock
-        rm -f .git/modules/externals/stablehlo/index.lock
-        git submodule update --init --recursive externals/llvm-project
-        git submodule update --init --recursive externals/stablehlo
+      - name: Setup ccache
+        uses: ./.github/actions/setup-build
+        with:
+          cache-suffix: 'rollPyTorch'
 
-    - name: Setup ccache
-      uses: ./.github/actions/setup-build
-      with:
-        cache-suffix: 'rollPyTorch'
+      - name: Determine nightly PyTorch version
+        run: |
+          set -eo pipefail
 
-    - name: Determine nightly PyTorch version
-      run: |
-        set -eo pipefail
+          cd ${GITHUB_WORKSPACE}
+          python -m pip install wheel
+          sudo apt-get install unzip
 
-        cd ${GITHUB_WORKSPACE}
-        python -m pip install wheel
-        sudo apt-get install unzip
+          # Fetch the most recent nightly torchvision release
+          VISION_RELEASE=$(python -m pip index versions -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html --pre torchvision | grep "Available versions" | tr ' ' '\n' | grep "^[0-9]" | sort --version-sort --reverse | head -n1 | tr -d ',' | sed 's/\([^+]*\).*/\1/')
+          echo "Found torchvision release ${VISION_RELEASE}"
 
-        # Fetch the most recent nightly torchvision release
-        VISION_RELEASE=$(python -m pip index versions -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html --pre torchvision | grep "Available versions" | tr ' ' '\n' | grep "^[0-9]" | sort --version-sort --reverse | head -n1 | tr -d ',' | sed 's/\([^+]*\).*/\1/')
-        echo "Found torchvision release ${VISION_RELEASE}"
+          # Fetch the whl file associated with the nightly torchvision release
+          rm -f torch*.whl
+          python -m pip download -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html --pre "torchvision==${VISION_RELEASE}"
 
-        # Fetch the whl file associated with the nightly torchvision release
-        rm -f torch*.whl
-        python -m pip download -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html --pre "torchvision==${VISION_RELEASE}"
+          # Downloading the torchvision WHL also downloads the PyTorch WHL file
+          # Read the version from the downloaded whl file without extracting it
+          PT_RELEASE=$(unzip -p torch-*.whl 'torch-*/METADATA' | grep "^Version:" | awk '{ print $2 }' | sed 's/\([^+]*\).*/\1/')
+          echo "Found torch release ${PT_RELEASE}"
+          printf -- "-f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html\n--pre\ntorch==%s\n" "${PT_RELEASE}" > pytorch-requirements.txt
+          printf -- "-f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html\n--pre\ntorchvision==%s\n" "${VISION_RELEASE}" > torchvision-requirements.txt
 
-        # Downloading the torchvision WHL also downloads the PyTorch WHL file
-        # Read the version from the downloaded whl file without extracting it
-        PT_RELEASE=$(unzip -p torch-*.whl 'torch-*/METADATA' | grep "^Version:" | awk '{ print $2 }' | sed 's/\([^+]*\).*/\1/')
-        echo "Found torch release ${PT_RELEASE}"
-        printf -- "-f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html\n--pre\ntorch==%s\n" "${PT_RELEASE}" > pytorch-requirements.txt
-        printf -- "-f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html\n--pre\ntorchvision==%s\n" "${VISION_RELEASE}" > torchvision-requirements.txt
+          # Read the commit hash from the downloaded whl file without extracting it
+          PT_HASH=$(unzip -p torch-"${PT_RELEASE}"*.whl torch/version.py | grep git_version | tail -1 | awk '{ print $3 }' | tr -d "'")
+          echo "Found torch commit hash ${PT_HASH}"
 
-        # Read the commit hash from the downloaded whl file without extracting it
-        PT_HASH=$(unzip -p torch-"${PT_RELEASE}"*.whl torch/version.py | grep git_version | awk '{ print $3 }' | tr -d "'")
-        echo "Found torch commit hash ${PT_HASH}"
+          PT_HASH_CHANGED=0
+          echo "${PT_HASH}" | cmp - pytorch-hash.txt --quiet || PT_HASH_CHANGED=$?
+          echo "${PT_HASH}" > pytorch-hash.txt
+          rm torch-"${PT_RELEASE}"*.whl
 
-        PT_HASH_CHANGED=0
-        echo "${PT_HASH}" | cmp - pytorch-hash.txt --quiet || PT_HASH_CHANGED=$?
-        echo "${PT_HASH}" > pytorch-hash.txt
-        rm torch-"${PT_RELEASE}"*.whl
+          # Write the release and hash to the environment file so that we can
+          # retrieve them when creating a PR
+          echo "PT_HASH=${PT_HASH}" >> ${GITHUB_ENV}
+          echo "PT_RELEASE=${PT_RELEASE}" >> ${GITHUB_ENV}
+          echo "PTVISION_RELEASE=${VISION_RELEASE}" >> ${GITHUB_ENV}
+          echo "PT_HASH_CHANGED=${PT_HASH_CHANGED}" >> ${GITHUB_ENV}
 
-        # Write the release and hash to the environment file so that we can
-        # retrieve them when creating a PR
-        echo "PT_HASH=${PT_HASH}" >> ${GITHUB_ENV}
-        echo "PT_RELEASE=${PT_RELEASE}" >> ${GITHUB_ENV}
-        echo "PTVISION_RELEASE=${VISION_RELEASE}" >> ${GITHUB_ENV}
-        echo "PT_HASH_CHANGED=${PT_HASH_CHANGED}" >> ${GITHUB_ENV}
+      - name: Build and test (out-of-tree), also update ODS and abstract interpretation library
+        if: env.PT_HASH_CHANGED != '0'
+        run: |
+          cd ${GITHUB_WORKSPACE}
+          TM_PACKAGES="out-of-tree" TM_USE_PYTORCH_BINARY="OFF" \
+          TORCH_MLIR_SRC_PYTORCH_BRANCH="${{ env.PT_HASH }}" \
+          TORCH_MLIR_SRC_PYTORCH_RELEASE="${{ env.PT_RELEASE }}" \
+          TM_UPDATE_ODS_AND_ABSTRACT_INTERP_LIB="ON" \
+          ./build_tools/python_deploy/build_linux_packages.sh
 
-    - name: Build and test (out-of-tree), also update ODS and abstract interpretation library
-      if: env.PT_HASH_CHANGED != '0'
-      run: |
-        cd ${GITHUB_WORKSPACE}
-        TM_PACKAGES="out-of-tree" TM_USE_PYTORCH_BINARY="OFF" \
-        TORCH_MLIR_SRC_PYTORCH_BRANCH="${{ env.PT_HASH }}" \
-        TORCH_MLIR_SRC_PYTORCH_RELEASE="${{ env.PT_RELEASE }}" \
-        TM_UPDATE_ODS_AND_ABSTRACT_INTERP_LIB="ON" \
-        ./build_tools/python_deploy/build_linux_packages.sh
+      - name: Post issue comment on build failure
+        if: failure()
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: 1690
+          body: |
+            The RollPyTorch action has failed.  See [CI log](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
 
-    - name: Post issue comment on build failure
-      if: failure()
-      uses: peter-evans/create-or-update-comment@v2
-      with:
-        issue-number: 1690
-        body: |
-          The RollPyTorch action has failed.  See [CI log](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+            The following information may come handy when fixing the code.
+            ```
+            torch version: ${{ env.PT_RELEASE }}
+            torch commit hash: ${{ env.PT_HASH }}
+            torchvision version: ${{ env.PTVISION_RELEASE }}
+            ```
 
-          The following information may come handy when fixing the code.
-          ```
-          torch version: ${{ env.PT_RELEASE }}
-          torch commit hash: ${{ env.PT_HASH }}
-          torchvision version: ${{ env.PTVISION_RELEASE }}
-          ```
+      - name: Update PyTorch Build Cache (if running on main branch)
+        if: github.ref_name == 'main'
+        id: cache-pytorch
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
+          key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
 
-    - name: Update PyTorch Build Cache (if running on main branch)
-      if: github.ref_name == 'main'
-      id: cache-pytorch
-      uses: actions/cache@v3
-      with:
-        path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
-        key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
+      - name: Commit changes locally
+        if: env.PT_HASH_CHANGED != '0'
+        run: |
+          cd ${GITHUB_WORKSPACE}
+          git config user.email "torch-mlir@users.noreply.github.com"
+          git config user.name "Roll PyTorch Action"
+          git fetch --recurse-submodules=no
+          git checkout main
+          git pull origin main
 
-    - name: Commit changes locally
-      if: env.PT_HASH_CHANGED != '0'
-      run: |
-        cd ${GITHUB_WORKSPACE}
-        git config user.email "torch-mlir@users.noreply.github.com"
-        git config user.name "Roll PyTorch Action"
-        git fetch --recurse-submodules=no
-        git checkout main
-        git pull origin main
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v5.0.1
+        with:
+          author: Roll PyTorch Action <torch-mlir@users.noreply.github.com>
+          branch: rollpytorch
+          body: |
+            torch version: ${{ env.PT_RELEASE }}
+            torch commit hash: ${{ env.PT_HASH }}
+            torchvision version: ${{ env.PTVISION_RELEASE }}
+          commit-message: |
+            update PyTorch version to ${{ env.PT_RELEASE }}
 
-    - name: Create pull request
-      uses: peter-evans/create-pull-request@v5.0.1
-      with:
-        author: Roll PyTorch Action <torch-mlir@users.noreply.github.com>
-        branch: rollpytorch
-        body: |
-          torch version: ${{ env.PT_RELEASE }}
-          torch commit hash: ${{ env.PT_HASH }}
-          torchvision version: ${{ env.PTVISION_RELEASE }}
-        commit-message: |
-          update PyTorch version to ${{ env.PT_RELEASE }}
-
-           - torch version: ${{ env.PT_RELEASE }}
-           - torch commit hash: ${{ env.PT_HASH }}
-           - torchvision version: ${{ env.PTVISION_RELEASE }}
-        committer: Roll PyTorch Action <torch-mlir@users.noreply.github.com>
-        title: update PyTorch version to ${{ env.PT_RELEASE }}
-        token: ${{ secrets.ROLLPYTORCH_TOKEN0 }}
+            - torch version: ${{ env.PT_RELEASE }}
+            - torch commit hash: ${{ env.PT_HASH }}
+            - torchvision version: ${{ env.PTVISION_RELEASE }}
+          committer: Roll PyTorch Action <torch-mlir@users.noreply.github.com>
+          title: update PyTorch version to ${{ env.PT_RELEASE }}
+          token: ${{ secrets.ROLLPYTORCH_TOKEN0 }}

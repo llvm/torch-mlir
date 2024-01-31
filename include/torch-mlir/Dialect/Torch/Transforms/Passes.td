@@ -258,6 +258,34 @@ def RecomposeComplexOps : Pass<"torch-recompose-complex-ops", "func::FuncOp"> {
   }];
 }
 
+def FuseQuantizedOps : Pass<"torch-fuse-quantized-ops", "func::FuncOp"> {
+  let summary = "QDQ: Fuse recognized QDQ op sequences.";
+  let constructor = "mlir::torch::Torch::createFuseQuantizedOpsPass()";
+  let description = [{
+    Torch models often represents quantized operations as the sequence:
+      Dequantize
+      DenseOp
+      Quantize
+    This allows the existing dense operations to be used without specifically
+    representing quantized types. It is more computationally efficient to
+    perform the dense operation in the quantized domain, so we fuse the
+    quantization / dequantization behavior together and represent as purely
+    quantized operations.
+  }];
+}
+
+def MatchQuantizedCustomOps : Pass<"torch-match-quantized-custom-ops", "func::FuncOp"> {
+  let summary = "Match quantized operations that occur in different namespace.";
+  let constructor = "mlir::torch::Torch::createMatchQuantizedCustomOpsPass()";
+  let description = [{
+    Torch quantization utilities generated custom op versions of known aten
+    quantziation operations. We can match these specially named operations and
+    rewrite to the corresponding aten quantized operations.
+
+    We handle this post import to maintain a simplified import process.
+  }];
+}
+
 def ReifyShapeCalculations : Pass<"torch-reify-shape-calculations", "ModuleOp"> {
   let summary = "Reify shape calculations.";
   let constructor = [{
