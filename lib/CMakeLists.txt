@@ -1,8 +1,4 @@
-if(TORCH_MLIR_ENABLE_WERROR_FLAG)
-  if(NOT MSVC)
-    add_compile_options(-Werror)
-  endif()
-endif()
+torch_mlir_enable_werror()
 
 add_subdirectory(CAPI)
 add_subdirectory(Conversion)
