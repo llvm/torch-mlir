@@ -26,6 +26,10 @@ namespace TorchConversion {
 /// linalg-on-tensors backend contract.
 void createTorchBackendToLinalgOnTensorsBackendPipeline(OpPassManager &pm);
 
+/// Creates a pipeline that lowers from the onnx backend contract to the
+/// linalg-on-tensors backend contract.
+void createOnnxBackendToLinalgOnTensorsBackendPipeline(OpPassManager &pm);
+
 /// Creates a pipeline that lowers from the torch backend contract to the
 /// TOSA backend contract.
 void createTorchBackendToTosaBackendPipeline(OpPassManager &pm);

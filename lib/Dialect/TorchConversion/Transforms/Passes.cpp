@@ -16,6 +16,7 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
+#include "torch-mlir/Conversion/TorchOnnxToTorch/Passes.h"
 #include "torch-mlir/Conversion/TorchToArith/TorchToArith.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
@@ -48,7 +49,11 @@ void mlir::torch::registerTorchConversionPasses() {
       "Pipeline lowering torch backend contract to linalg-on-tensors backend "
       "contract.",
       TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline);
-
+  mlir::PassPipelineRegistration<>(
+      "onnx-backend-to-linalg-on-tensors-backend-pipeline",
+      "Pipeline lowering onnx backend contract to linalg-on-tensors backend "
+      "contract.",
+      TorchConversion::createOnnxBackendToLinalgOnTensorsBackendPipeline);
   mlir::PassPipelineRegistration<>(
       "torch-backend-to-tosa-backend-pipeline",
       "Pipeline lowering torch backend contract to TOSA backend "
@@ -101,6 +106,14 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   // expect. This fails compilation (signalPassFailure) if the IR is not in the
   // correct form.
   pm.addPass(TorchConversion::createVerifyLinalgOnTensorsBackendContractPass());
+}
+
+void TorchConversion::createOnnxBackendToLinalgOnTensorsBackendPipeline(
+    OpPassManager &pm) {
+  pm.addNestedPass<func::FuncOp>(onnx_c::createTorchOnnxToTorchPass());
+  Torch::TorchLoweringPipelineOptions options;
+  Torch::createTorchFunctionToTorchBackendPipeline(pm, options);
+  createTorchBackendToLinalgOnTensorsBackendPipeline(pm);
 }
 
 void TorchConversion::createTorchBackendToTosaBackendPipeline(
