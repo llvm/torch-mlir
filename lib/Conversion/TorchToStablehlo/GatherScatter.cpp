@@ -511,7 +511,7 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
 
   rewriter.replaceOpWithNewOp<stablehlo::GatherOp>(
       op, input, gatherIndicies, dimsAttr,
-      rewriter.getI64TensorAttr(sliceSizes));
+      rewriter.getDenseI64ArrayAttr(sliceSizes));
   return success();
 }
 
@@ -835,7 +835,7 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
 
   rewriter.replaceOpWithNewOp<stablehlo::GatherOp>(
       op, resultType, input, finalIndexTensor, dimsAttr,
-      rewriter.getI64TensorAttr(sliceSizes));
+      rewriter.getDenseI64ArrayAttr(sliceSizes));
   return success();
 }
 
