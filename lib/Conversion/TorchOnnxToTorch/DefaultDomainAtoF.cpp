@@ -654,7 +654,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           // require swizzling.
           if (!Endian::little) {
             binder.op->emitError(
-                "unimplemented: importing on bit endian systems");
+                "unimplemented: importing on big endian systems");
             return failure();
           }
 
