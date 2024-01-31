@@ -27,23 +27,22 @@ namespace lazy {
 
 class TORCH_API TorchMlirNode : public torch::lazy::Node {
 public:
-  TorchMlirNode(
-      OpKind op, OpList operands, std::vector<Shape>&& shapes,
-      size_t num_outputs, hash_t hash_seed = kHashSeed);
+  TorchMlirNode(OpKind op, OpList operands, std::vector<Shape> &&shapes,
+                size_t num_outputs, hash_t hash_seed = kHashSeed);
 
-  TorchMlirNode(
-      OpKind op, OpList operands, const std::function<Shape()>& shape_fn,
-      size_t num_outputs, hash_t hash_seed = kHashSeed);
+  TorchMlirNode(OpKind op, OpList operands,
+                const std::function<Shape()> &shape_fn, size_t num_outputs,
+                hash_t hash_seed = kHashSeed);
 
-  TorchMlirNode(
-      OpKind op, OpList operands, size_t num_outputs,
-      hash_t hash_seed = kHashSeed);
+  TorchMlirNode(OpKind op, OpList operands, size_t num_outputs,
+                hash_t hash_seed = kHashSeed);
 
-  TorchMlirNode(
-      OpKind op, Shape shape, size_t num_outputs, hash_t hash_seed = kHashSeed);
+  TorchMlirNode(OpKind op, Shape shape, size_t num_outputs,
+                hash_t hash_seed = kHashSeed);
 
-  // Adds a static hook that is run after every single TorchMlirNode is constructed
-  static void addConstructorHook(std::function<void(TorchMlirNode*)>);
+  // Adds a static hook that is run after every single TorchMlirNode is
+  // constructed
+  static void addConstructorHook(std::function<void(TorchMlirNode *)>);
 
   ~TorchMlirNode() override = default;
 
@@ -51,10 +50,10 @@ public:
 
   hash_t shapeHash() const override;
 
-  TorchMlirNode* mlir_node(int index) const;
+  TorchMlirNode *mlir_node(int index) const;
 
-  virtual TorchMlirOpVector
-  Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const;
+  virtual TorchMlirOpVector Lower(TorchMlirFunction function,
+                                  TorchMlirLoweringContext *loctx) const;
 
 private:
   // The hash of the dag WITH size info. Used for shape caching
@@ -86,22 +85,23 @@ struct TORCH_API TorchMlirTensorList : public TorchMlirNode {
   TorchMlirTensorList() = delete;
   TorchMlirTensorList(OpList values);
 
-  torch::lazy::TorchMlirOpVector Lower(
-      TorchMlirFunction function,
-      TorchMlirLoweringContext* loctx) const override;
+  torch::lazy::TorchMlirOpVector
+  Lower(TorchMlirFunction function,
+        TorchMlirLoweringContext *loctx) const override;
 };
 
-// TorchMlirOptionalTensorList is similar to TorchMlirTensorList but it can also represent
-// optional tensors, so the output type for this op is !torch.list<optional<vtensor>>.
+// TorchMlirOptionalTensorList is similar to TorchMlirTensorList but it can also
+// represent optional tensors, so the output type for this op is
+// !torch.list<optional<vtensor>>.
 struct TORCH_API TorchMlirOptionalTensorList : public TorchMlirNode {
   static OpKind ClassOpKind();
 
   TorchMlirOptionalTensorList() = delete;
   TorchMlirOptionalTensorList(OpList values);
 
-  torch::lazy::TorchMlirOpVector Lower(
-      TorchMlirFunction function,
-      TorchMlirLoweringContext* loctx) const override;
+  torch::lazy::TorchMlirOpVector
+  Lower(TorchMlirFunction function,
+        TorchMlirLoweringContext *loctx) const override;
 };
 
 } // namespace lazy

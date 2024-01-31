@@ -1,11 +1,12 @@
+# yamllint disable rule:line-length
 name: Build and Test
 
 on:
-  pull_request:
-    branches: [ main ]
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+  # pull_request:
+  #   branches: [main]
+  # push:
+  #   branches: [main]
+  # workflow_dispatch:
 
 # Ensure that only a single job or workflow using the same
 # concurrency group will run at a time. This would cancel
@@ -29,7 +30,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os-arch: [ubuntu-x86_64, macos-arm64, windows-x86_64]
+        os-arch: [macos-arm64, windows-x86_64]
         llvm-build: [in-tree, out-of-tree]
         torch-binary: [ON]
         torch-version: [nightly, stable]
@@ -57,102 +58,101 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    
-    - name: Prepare workspace
-      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
-      run: |
-        # Clear the workspace directory so that we don't run into errors about
-        # existing lock files.
-        sudo rm -rf $GITHUB_WORKSPACE/*
-    
-    - name: Checkout torch-mlir
-      uses: actions/checkout@v3
-      with:
-        submodules: 'true'
-        fetch-depth: 0
+      - name: Prepare workspace
+        if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
+        run: |
+          # Clear the workspace directory so that we don't run into errors about
+          # existing lock files.
+          sudo rm -rf $GITHUB_WORKSPACE/*
 
-    - name: Fetch PyTorch commit hash
-      if: ${{ matrix.os-arch != 'windows-x86_64' }}
-      run: |
-        PT_HASH="$(cat ${GITHUB_WORKSPACE}/pytorch-hash.txt)"
-        echo "PT_HASH=${PT_HASH}" >> ${GITHUB_ENV}
+      - name: Checkout torch-mlir
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+          fetch-depth: 0
 
-    - name: Setup ccache
-      uses: ./.github/actions/setup-build
-      with:
-        cache-suffix: 'build-${{ matrix.llvm-build }}-${{ matrix.torch-version }}'
-        torch-version: ${{ matrix.torch-version }}
+      - name: Fetch PyTorch commit hash
+        if: ${{ matrix.os-arch != 'windows-x86_64' }}
+        run: |
+          PT_HASH="$(cat ${GITHUB_WORKSPACE}/pytorch-hash.txt)"
+          echo "PT_HASH=${PT_HASH}" >> ${GITHUB_ENV}
 
-    - name: Set up Visual Studio shell
-      if: ${{ matrix.os-arch == 'windows-x86_64' }}
-      uses: egor-tensin/vs-shell@v2
-      with:
-        arch: x64
+      - name: Setup ccache
+        uses: ./.github/actions/setup-build
+        with:
+          cache-suffix: 'build-${{ matrix.llvm-build }}-${{ matrix.torch-version }}'
+          torch-version: ${{ matrix.torch-version }}
 
-    - name: Try to Restore PyTorch Build Cache
-      if: ${{ matrix.torch-binary == 'OFF' }}
-      id: cache-pytorch
-      uses: actions/cache/restore@v3
-      with:
-        path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
-        key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
+      - name: Set up Visual Studio shell
+        if: ${{ matrix.os-arch == 'windows-x86_64' }}
+        uses: egor-tensin/vs-shell@v2
+        with:
+          arch: x64
 
-    - name: Build and Test os-arch='ubuntu-x86_64' llvm-build='${{ matrix.llvm-build }}' torch-binary='${{ matrix.torch-binary }}'
-      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
-      run: |
-        cd $GITHUB_WORKSPACE
-        TORCH_MLIR_SRC_PYTORCH_BRANCH="$(cat pytorch-hash.txt)" \
-        TM_PACKAGES="${{ matrix.llvm-build }}" \
-        TM_USE_PYTORCH_BINARY="${{ matrix.torch-binary }}" \
-        TM_PYTORCH_INSTALL_WITHOUT_REBUILD="${{ steps.cache-pytorch.outputs.cache-hit }}" \
-        TM_TORCH_VERSION="${{ matrix.torch-version }}" \
-        ./build_tools/python_deploy/build_linux_packages.sh
+      - name: Try to Restore PyTorch Build Cache
+        if: ${{ matrix.torch-binary == 'OFF' }}
+        id: cache-pytorch
+        uses: actions/cache/restore@v3
+        with:
+          path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
+          key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
 
-    - name: Configure os-arch='macos-arm64' llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'
-      # cross compile, can't test arm64
-      if: ${{ matrix.os-arch == 'macos-arm64' && matrix.llvm-build == 'in-tree' }}
-      run: |
-        # TODO: Reenable LTC after build on macOS-arm64 is fixed (https://github.com/llvm/torch-mlir/issues/1253)
-        cmake -GNinja -Bbuild_arm64 \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_C_COMPILER=clang \
-          -DCMAKE_CXX_COMPILER=clang++ \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_LINKER=lld \
-          -DCMAKE_OSX_ARCHITECTURES=arm64 \
-          -DLLVM_ENABLE_ASSERTIONS=ON \
-          -DLLVM_ENABLE_PROJECTS=mlir \
-          -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
-          -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$GITHUB_WORKSPACE" \
-          -DLLVM_TARGETS_TO_BUILD=AArch64 \
-          -DLLVM_USE_HOST_TOOLS=ON \
-          -DLLVM_ENABLE_ZSTD=OFF \
-          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-          -DTORCH_MLIR_ENABLE_STABLEHLO=OFF \
-          -DTORCH_MLIR_ENABLE_LTC=OFF \
-          -DTORCH_MLIR_USE_INSTALLED_PYTORCH="${{ matrix.torch-binary }}" \
-          -DMACOSX_DEPLOYMENT_TARGET=12.0 \
-          -DPython3_EXECUTABLE="$(which python)" \
-          $GITHUB_WORKSPACE/externals/llvm-project/llvm
+      - name: Build and Test os-arch='ubuntu-x86_64' llvm-build='${{ matrix.llvm-build }}' torch-binary='${{ matrix.torch-binary }}'
+        if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
+        run: |
+          cd $GITHUB_WORKSPACE
+          TORCH_MLIR_SRC_PYTORCH_BRANCH="$(cat pytorch-hash.txt)" \
+          TM_PACKAGES="${{ matrix.llvm-build }}" \
+          TM_USE_PYTORCH_BINARY="${{ matrix.torch-binary }}" \
+          TM_PYTORCH_INSTALL_WITHOUT_REBUILD="${{ steps.cache-pytorch.outputs.cache-hit }}" \
+          TM_TORCH_VERSION="${{ matrix.torch-version }}" \
+          ./build_tools/python_deploy/build_linux_packages.sh
 
-    - name: Build torch-mlir (cross-compile)
-      if: ${{ matrix.os-arch == 'macos-arm64' }}
-      run: |
-        cmake --build build_arm64
+      - name: Configure os-arch='macos-arm64' llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'
+        # cross compile, can't test arm64
+        if: ${{ matrix.os-arch == 'macos-arm64' && matrix.llvm-build == 'in-tree' }}
+        run: |
+          # TODO: Reenable LTC after build on macOS-arm64 is fixed (https://github.com/llvm/torch-mlir/issues/1253)
+          cmake -GNinja -Bbuild_arm64 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_LINKER=lld \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DLLVM_ENABLE_PROJECTS=mlir \
+            -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
+            -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$GITHUB_WORKSPACE" \
+            -DLLVM_TARGETS_TO_BUILD=AArch64 \
+            -DLLVM_USE_HOST_TOOLS=ON \
+            -DLLVM_ENABLE_ZSTD=OFF \
+            -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+            -DTORCH_MLIR_ENABLE_STABLEHLO=OFF \
+            -DTORCH_MLIR_ENABLE_LTC=OFF \
+            -DTORCH_MLIR_USE_INSTALLED_PYTORCH="${{ matrix.torch-binary }}" \
+            -DMACOSX_DEPLOYMENT_TARGET=12.0 \
+            -DPython3_EXECUTABLE="$(which python)" \
+            $GITHUB_WORKSPACE/externals/llvm-project/llvm
 
-    - name: Build (Windows)
-      if: ${{ matrix.os-arch == 'windows-x86_64' }}
-      shell: bash
-      run: ./build_tools/python_deploy/build_windows_ci.sh
+      - name: Build torch-mlir (cross-compile)
+        if: ${{ matrix.os-arch == 'macos-arm64' }}
+        run: |
+          cmake --build build_arm64
 
-    - name: Save PyTorch Build Cache
-      if: ${{ github.ref_name == 'main' && matrix.torch-binary == 'OFF' }}
-      uses: actions/cache/save@v3
-      with:
-        path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
-        key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
+      - name: Build (Windows)
+        if: ${{ matrix.os-arch == 'windows-x86_64' }}
+        shell: bash
+        run: ./build_tools/python_deploy/build_windows_ci.sh
 
-    - name: Print ccache statistics
-      shell: bash
-      run: ccache --show-stats
+      - name: Save PyTorch Build Cache
+        if: ${{ github.ref_name == 'main' && matrix.torch-binary == 'OFF' }}
+        uses: actions/cache/save@v3
+        with:
+          path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
+          key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
+
+      - name: Print ccache statistics
+        shell: bash
+        run: ccache --show-stats

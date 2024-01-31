@@ -78,8 +78,8 @@ struct OpBinder {
       return failure();
     return success();
   }
-  
-  ParseResult tensorOperandsList( llvm::SmallVectorImpl<Value> &values) {
+
+  ParseResult tensorOperandsList(llvm::SmallVectorImpl<Value> &values) {
     for (uint32_t i = 0; i < op->getNumOperands(); i++) {
       values.push_back(op->getOperand(i));
     }
@@ -97,7 +97,8 @@ struct OpBinder {
     return success();
   }
 
-  ParseResult tensorResultTypeAtIndex(Torch::ValueTensorType &typeIdx, int64_t idx) {
+  ParseResult tensorResultTypeAtIndex(Torch::ValueTensorType &typeIdx,
+                                      int64_t idx) {
     if (idx >= op->getNumResults())
       return failure();
     auto t = toValidTensorType(op->getResult(idx).getType());

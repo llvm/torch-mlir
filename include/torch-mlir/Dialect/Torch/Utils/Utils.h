@@ -121,8 +121,7 @@ LogicalResult checkDefaultStrideHelper(Operation *op, PatternRewriter &rewriter,
 // Helper to create a tensor filled with the given scalar. Scalar would be
 // converted the to the element type of the given tensor type.
 Value createInitTensor(PatternRewriter &rewriter, Location loc,
-                              BaseTensorType resultType, Value scalar,
-                              Value sizeList);
+                       BaseTensorType resultType, Value scalar, Value sizeList);
 
 // Helper to create a rank 0 tensor filled with the given `scalar`. `scalar`
 // would be converted to the element type of the given `inputType`.

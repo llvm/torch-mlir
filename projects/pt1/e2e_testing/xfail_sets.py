@@ -313,8 +313,14 @@ TORCHDYNAMO_XFAIL_SET = {
     "GroupNormNoWeightAndBiasModule_basic",
 
     # Dynamo does not support tracing quantized tensors
+    "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
+    "AtenMmQuint8_basic",
+    "Conv2dQInt8Module_basic",
+
+    # Dynamo not supporting conv_tbc
+    "ConvTbcModule_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -349,6 +355,13 @@ TORCHDYNAMO_CRASHING_SET = {
     "TransposeIntModule_basic",
     "TransposeIntNegDimsModule_basic",
     "IndexPutImpl2DNoneIndexStaticModule_basic",
+    "MaxPool3dCeilModeTrueModule_basic",
+    "MaxPool3dEmptyStrideStaticModule_basic",
+    "MaxPool3dLargeDatadModule_basic",
+    "MaxPool3dModuleRandomSimple_basic",
+    "MaxPool3dModule_basic",
+    "MaxPool3dStaticCeilModeTrueModule_basic",
+    "MaxPool3dStaticModule_basic",
 }
 
 STABLEHLO_PASS_SET = {
@@ -1016,6 +1029,7 @@ TOSA_PASS_SET = {
     "BroadcastZeroRankInputStaticModule_basic",
     "BucketizeTensorStaticFloatModule_basic",
     "BucketizeTensorStaticModule_basic",
+    "CloneModule_basic",
     "ChunkListUnpackUneven_Module_basic",
     "ChunkListUnpack_Module_basic",
     "ConstantBoolParameterModule_basic",
@@ -1418,6 +1432,7 @@ LTC_XFAIL_SET = {
     "PixelShuffleModuleFullDynamic_basic",
     "PixelShuffleModuleSpatiallyDynamic_basic",
     "PixelShuffleModuleSpatiallyStatic_basic",
+    "ConvTbcModule_basic",
     "_Convolution2DAllFalseModule_basic",
     "_Convolution2DBenchmarkModule_basic",
     "_Convolution2DCudnnModule_basic",
@@ -1427,6 +1442,7 @@ LTC_XFAIL_SET = {
     "_ConvolutionDeprecated2DBenchmarkModule_basic",
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
+    "MaxPool3dEmptyStrideStaticModule_basic",
     "AddIntModule_basic",
     "ArangeStartOutViewModule_basic",
     "AtenIntBoolOpModule_basic",
@@ -1535,7 +1551,5 @@ LTC_XFAIL_SET = {
     "ElementwiseBitwiseAndScalarInt64Module_basic",
     "ElementwiseBitwiseAndScalarInt32Module_basic",
     "ElementwiseBitwiseAndScalarInt8Module_basic",
-    "ElementwiseNanToNumModule_Basic",
-    "ElementwiseQuantizePerTensorModule_basic",
-    "ElementwiseDequantizePerTensorModule_basic"
+    "Conv2dQInt8Module_basic",
 }

@@ -67,7 +67,7 @@ Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType);
 // op. This allows shape inference during the framework to TOSA lowering.
 template <typename TosaOp, typename... Args>
 TosaOp CreateOpAndInfer(PatternRewriter &rewriter, Location loc, Type result_ty,
-                        Args &&... args) {
+                        Args &&...args) {
   auto op = rewriter.create<TosaOp>(loc, result_ty, args...);
 
   InferShapedTypeOpInterface shapeInterface =
@@ -111,7 +111,7 @@ TosaOp CreateOpAndInfer(PatternRewriter &rewriter, Location loc, Type result_ty,
 
 template <typename TosaOp, typename... Args>
 void CreateReplaceOpAndInfer(PatternRewriter &rewriter, Operation *op,
-                             Type result_ty, Args &&... args) {
+                             Type result_ty, Args &&...args) {
   auto result =
       CreateOpAndInfer<TosaOp>(rewriter, op->getLoc(), result_ty, args...);
   rewriter.replaceOp(op, result->getResults());
@@ -119,7 +119,7 @@ void CreateReplaceOpAndInfer(PatternRewriter &rewriter, Operation *op,
 
 // Get accumulator type for AvgPool2dOp.
 LogicalResult getAvgPool2dAccType(PatternRewriter &rewriter, Value input,
-                                    TypeAttr &accType);
+                                  TypeAttr &accType);
 
 } // namespace tosa
 } // namespace mlir

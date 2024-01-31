@@ -163,7 +163,8 @@ LogicalResult InlineGlobalSlotsAnalysis::initialize(Operation *top) {
     }
     if (auto globalSlotSet = dyn_cast<Torch::GlobalSlotSetOp>(op)) {
       auto *state = getOrCreate<InlineGlobalSlotsAnalysisState>(
-          getProgramPoint<FlatSymbolRefProgramPoint>(globalSlotSet.getSlotAttr()));
+          getProgramPoint<FlatSymbolRefProgramPoint>(
+              globalSlotSet.getSlotAttr()));
       propagateIfChanged(state, state->setSafe(false));
     }
     // Save the InitializeGlobalSlotsOp for later referencee
@@ -211,8 +212,8 @@ LogicalResult InlineGlobalSlotsAnalysis::visit(ProgramPoint point) {
         auto it =
             llvm::find(initializeGlobalSlotsOp.getSlotSymNames(),
                        static_cast<Attribute>(flatSymbolRefPoint->getValue()));
-        Value value = initializeGlobalSlotsOp->getOperand(
-            std::distance(initializeGlobalSlotsOp.getSlotSymNames().begin(), it));
+        Value value = initializeGlobalSlotsOp->getOperand(std::distance(
+            initializeGlobalSlotsOp.getSlotSymNames().begin(), it));
         auto *flatSymbolRefState =
             getOrCreateFor<InlineGlobalSlotsAnalysisState>(value,
                                                            flatSymbolRefPoint);
@@ -331,7 +332,8 @@ class InlineGlobalSlotsPass
 
     DenseSet</*FlatSymbolRefAttr*/ Attribute> safeToInline;
     for (int i = 0, e = initialize->getNumOperands(); i != e; i++) {
-      auto slotSymName = initialize.getSlotSymNames()[i].cast<FlatSymbolRefAttr>();
+      auto slotSymName =
+          initialize.getSlotSymNames()[i].cast<FlatSymbolRefAttr>();
       Value operand = initialize.getOperand(i);
       auto symbolRefPoint = solver.getProgramPoint<FlatSymbolRefProgramPoint>(
           initialize.getSlotSymNames()[i].cast<FlatSymbolRefAttr>());
@@ -405,7 +407,8 @@ class InlineGlobalSlotsPass
     SmallVector<Attribute> newSlotSymNames;
     SmallVector<Value> newInitialValues;
     for (int i = 0, e = initialize.getNumOperands(); i != e; i++) {
-      auto slotSymName = initialize.getSlotSymNames()[i].cast<FlatSymbolRefAttr>();
+      auto slotSymName =
+          initialize.getSlotSymNames()[i].cast<FlatSymbolRefAttr>();
       if (!safeToInline.count(slotSymName)) {
         newSlotSymNames.push_back(slotSymName);
         newInitialValues.push_back(initialize.getOperand(i));

@@ -87,7 +87,8 @@ static TMTensorOp createTMTensorOpOnBuffers(ConversionPatternRewriter &rewriter,
                                             ValueRange outputs) {
   SmallVector<Value, 8> newOperands = inputs;
   newOperands.append(outputs.begin(), outputs.end());
-  return cast<TMTensorOp>(tmtensorOp.clone(rewriter, tmtensorOp->getLoc(), {}, newOperands));
+  return cast<TMTensorOp>(
+      tmtensorOp.clone(rewriter, tmtensorOp->getLoc(), {}, newOperands));
 }
 
 /// Generic conversion pattern that matches any TMTensorOp. This avoids template

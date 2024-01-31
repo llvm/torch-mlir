@@ -1,0 +1,26 @@
+# yamllint disable rule:line-length
+name: Lint Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  static_lint_checks:
+    name: Static Lint Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          # `git-clang-format` needs access to the commit before the
+          # current merge commit to know what changes to format.
+          fetch-depth: 2
+      - name: Validate GitHub Actions yaml files
+        run: |
+          yamllint ./.github/workflows/ ./.github/actions/
+      - name: Check clang-format
+        run: |
+          wget -q https://raw.githubusercontent.com/llvm/llvm-project/main/clang/tools/clang-format/git-clang-format
+          python3 git-clang-format --diff HEAD~1

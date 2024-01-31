@@ -52,7 +52,7 @@ Meeting links can be found [here](https://discourse.llvm.org/t/new-community-mee
 
 ## Install torch-mlir snapshot
 
-At the time of writing, we release pre-built snapshot of torch-mlir for Python 3.11 on Linux and macOS.
+At the time of writing, we release pre-built snapshots of torch-mlir for Python 3.11.
 
 If you have Python 3.11, the following commands initialize a virtual environment.
 ```shell

@@ -9,6 +9,7 @@
 
 #include "class_annotator.h"
 
+#include <sstream>
 #include <stdexcept>
 
 using namespace torch_mlir;
@@ -150,11 +151,26 @@ ClassAnnotator::getOrCreateClassAnnotation(c10::ClassType *classType) {
 }
 
 static void fillArgAnnotations(MethodAnnotation &methodAnnotation,
-                               std::vector<ArgAnnotation> argAnnotations,
+                               const std::vector<ArgAnnotation> &argAnnotations,
                                torch::jit::Function *function) {
   if (argAnnotations.size() != function->num_inputs()) {
-    throw std::invalid_argument("Arg annotations should have one entry per "
-                                "function parameter (including self).");
+
+    std::ostringstream oss;
+    oss << "There must be one argument annotation per function parameter. "
+        << "Including 'self' the number of argument annotations is: "
+        << argAnnotations.size()
+        << ". The number of function parameters is: " << function->num_inputs()
+        << ". ";
+    const auto &args = function->getSchema().arguments();
+    if (args.size() > 0) {
+      oss << "The function signature is (";
+      oss << args[0];
+      for (auto iter = args.begin() + 1; iter != args.end(); iter++) {
+        oss << ", " << *iter;
+      }
+      oss << ')' << '.';
+    }
+    throw std::invalid_argument(oss.str());
   }
   if (!methodAnnotation.argAnnotations.has_value()) {
     methodAnnotation.argAnnotations.emplace(function->num_inputs(),

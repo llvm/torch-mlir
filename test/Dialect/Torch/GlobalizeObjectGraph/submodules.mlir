@@ -1,6 +1,6 @@
 // RUN: torch-mlir-opt -torch-globalize-object-graph -split-input-file %s | FileCheck %s
 
-// Check that linkage names consist of the dotted path from the root. 
+// Check that linkage names consist of the dotted path from the root.
 
 // CHECK-LABEL:   torch.global_slot.module_initializer {
 // CHECK:           %[[FLOAT:.*]] = torch.constant.float 4.200000e+01
