@@ -275,6 +275,10 @@ def aten〇_make_per_tensor_quantized_tensor〡shape(self: List[int], scale: flo
 def prims〇convert_element_type〡shape(a: List[int], dtype: int) -> List[int]:
     return upstream_shape_functions.unary(a)
 
+def aten〇grid_sampler〡shape(input: List[int], grid: List[int], interpolation_mode: int, padding_mode: int, align_corners: bool) -> List[int]:
+    output = [input[0],input[1],grid[1],grid[2]]
+    return output
+
 def prims〇collapse〡shape(a: List[int], start: int, end: int) -> List[int]:
     # Obtained through trial and error on a few examples in PyTorch:
     assert start < len(a), "start out of bounds"
@@ -2105,6 +2109,10 @@ def aten〇constant_pad_nd〡dtype(self_rank_dtype: Tuple[int, int], pad: List[i
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
+def aten〇grid_sampler〡dtype(input_rank_dtype: Tuple[int, int], grid_rank_dtype: Tuple[int, int], interpolation_mode: int, padding_mode: int, align_corners: bool) -> int:
+    input_rank, input_dtype = input_rank_dtype
+    grid_rank, grid_dtype = input_rank_dtype
+    return input_dtype
 
 @check_dtype_function([ErrorInvocation(TensorOfShape(2, 3, 4), padding=1),
                        ErrorInvocation(TensorOfShape(2, 3, 4), padding=[]),
