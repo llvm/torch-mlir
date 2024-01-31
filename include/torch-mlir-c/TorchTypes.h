@@ -53,7 +53,7 @@ MLIR_CAPI_EXPORTED MlirType
 torchMlirTorchOptionalTypeGetContained(MlirType containedType);
 
 /// Gets the !torch.optional typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchOptionalTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchOptionalTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // torch.tuple<T1, T2, T3> type.

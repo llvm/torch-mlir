@@ -35,7 +35,7 @@ int64_t SizeNode::getStaticValue() const {
 std::string SizeNode::ToString() const { return "SizeNode"; }
 
 SizeAdd::SizeAdd(Value a, Value b)
-    : DimensionNode(OpKind{c10::Symbol::fromQualString("aten::add")}, {a, b}){};
+    : DimensionNode(OpKind{c10::Symbol::fromQualString("aten::add")}, {a, b}) {}
 
 int64_t SizeAdd::getStaticValue() const {
   return dynamic_cast<const DimensionNode *>(operand(0).node)

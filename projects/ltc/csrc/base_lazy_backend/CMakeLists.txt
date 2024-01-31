@@ -2,11 +2,6 @@
 # Setup PyTorch/LTC
 #-------------------------------------------------------------------------------
 
-if(NOT MSVC)
-  # Disable some chatty warnings due to LTC coding style.
-  add_compile_options(-Wno-unused-function)
-endif()
-
 set(LTC_GENERATED
   generated/LazyNativeFunctions.cpp
   generated/RegisterLazy.cpp
