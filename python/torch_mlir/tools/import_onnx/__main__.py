@@ -16,8 +16,8 @@ Or from Python:
 import argparse
 import os
 from pathlib import Path
+import shutil
 import sys
-import tempfile
 
 import onnx
 
@@ -52,22 +52,66 @@ def main(args: argparse.Namespace):
 
 def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
     # Do shape inference via files instead of in memory in order to handle
-    # models > 2 GB. See https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#shape-inference-a-large-onnx-model-2gb
+    # models > 2 GB. See
+    # https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#shape-inference-a-large-onnx-model-2gb
     # for details about this technique.
-    input_dir = os.path.dirname(os.path.abspath(args.input_file))
-    temp_dir = input_dir if args.temp_dir is None else args.temp_dir
-    with tempfile.TemporaryDirectory(dir=temp_dir, delete=not args.keep_temps) as td:
-        # Infer shapes of the input file, saving results to a temp file
-        temp_path = Path(td.name, "inferred.onnx")
-        onnx.shape_inference.infer_shapes_path(args.file_path, temp_path)
 
-        # Load the temp file and the external data.  External data does not
-        # participate in shape inference, so the external data is the same
-        # as would be used with the original model.
-        inferred_model = onnx.load(temp_path, load_external_data=False)
-        data_dir = input_dir if args.data_dir is None else args.data_dir
-        onnx.load_external_data_for_model(inferred_model, data_dir)
-        return inferred_model
+    # Make a temp dir for all the temp files we'll be generating as a side
+    # effect of infering shapes.  For now, the only file is a new .onnx holding
+    # the revised model with shapes.
+    input_dir = os.path.dirname(os.path.abspath(args.input_file))
+    temp_dir = (
+        Path(input_dir if args.temp_dir is None else args.temp_dir)
+        / "onnx-importer-temp"
+    )
+    shutil.rmtree(temp_dir, ignore_errors=True)
+    temp_dir.mkdir(exist_ok=True)
+
+    # # Load the model, with possible external data coming from the default
+    # # location, or the location specified on the conmand line.
+    # if args.data_dir is None:
+    #     raw_model = onnx.load(args.input_file)
+    # else:
+    #     raw_model = onnx.load(args.input_file, load_external_data=False)
+    #     onnx.load_external_data_for_model(raw_model, args.data_dir)
+
+    # # Run the checker to test whether the file is above the threshold for
+    # # in-memory shape inference.  If not, go ahead and do the shape inference.
+    # try:
+    #     onnx.checker.check_model(raw_model)
+    #     inferred_model = onnx.shape_inference.infer_shapes(raw_model)
+    #     return inferred_model
+    # except ValueError:
+    #     pass
+
+    # The following code was an attempt to work around the bug where models
+    # with external data produce invalid output shapes after infer_shapes_path.
+    # It works with small models but threw an error for llama seeming to
+    # indicate that the protobuf is corrupt.
+    #
+    # temp_raw_file = temp_dir / "raw.onnx"
+    # onnx.save(raw_model, temp_raw_file, save_as_external_data=False)
+    # onnx.shape_inference.infer_shapes_path(temp_raw_file, temp_inferred_file)
+    # inferred_model = onnx.load(temp_inferred_file)
+
+    # Model is too big for in-memory inference: do file-based shape inference
+    # to a temp file.
+    temp_inferred_file = temp_dir / "inferred.onnx"
+    onnx.shape_inference.infer_shapes_path(args.input_file, temp_inferred_file)
+
+    # Load the temp file and the external data.
+    inferred_model = onnx.load(temp_inferred_file, load_external_data=False)
+    data_dir = Path(input_dir if args.temp_dir is None else args.data_dir)
+    onnx.load_external_data_for_model(inferred_model, data_dir)
+
+    # Remove the inferred shape file unless asked to keep it
+    if not args.keep_temps:
+        shutil.rmtree(temp_dir)
+
+    # Sanity check the shape-inferred model to be sure we have a good model
+    # for the importer.
+    onnx.checker.check_model(inferred_model)
+    return inferred_model
 
 
 def parse_arguments(argv=None) -> argparse.Namespace:
@@ -87,14 +131,20 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     parser.add_argument(
         "--temp-dir",
         help="Pre-existing directory in which to create temporary files."
-            " Defaults to the directory of the input file.",
-        type=Path
+        ' For example, to place temporaries under the directory "foo/bar",'
+        ' specify --temp-dir=foo/bar.  "foo/bar" must already exist.'
+        " Defaults to the directory of the input file.",
+        type=Path,
     )
     parser.add_argument(
-        "--data-path",
-        help="Directory containing the external data file(s)."
-            " Defaults to the directory of the input file.",
-        type=Path
+        "--data-dir",
+        help="Path between CWD and the base directory of the data,"
+        " excluding the directories given in the 'location' argument of "
+        " convert_model_to_external_data.  For example, if 'location' was"
+        ' "data/data.bin" and the relative path from CWD to that .bin file is'
+        ' a/b/data/data.bin, then set data-dir to "a/b".'
+        " Defaults to the directory of the input file.",
+        type=Path,
     )
     args = parser.parse_args(argv)
     return args
