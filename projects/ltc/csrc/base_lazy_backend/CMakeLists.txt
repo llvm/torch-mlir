@@ -13,7 +13,7 @@ set(LTC_GENERATED
 # The auto generated files trigger some warnings we can't do anything about.
 if(NOT MSVC)
   set_source_files_properties(${LTC_GENERATED}
-    PROPERTIES COMPILE_FLAGS "-Wno-sign-compare -Wno-unused-function "
+    PROPERTIES COMPILE_FLAGS "-Wno-sign-compare;-Wno-unused-function"
   )
 endif()
 
