@@ -628,28 +628,57 @@ tensor.extract to access the elements of the input tensor inside our linalg
 generic op's payload.
 */
 
-// TODO: infer template Dim from OpTy
 namespace {
-template <typename OpTy, int Dim>
+
+template <typename T> struct AdaptivePoolingOpTraits {};
+
+template <> struct AdaptivePoolingOpTraits<AtenAdaptiveMaxPool1dOp> {
+  static constexpr int64_t Dim = 1;
+  static constexpr bool isMaxPool = true;
+};
+
+template <> struct AdaptivePoolingOpTraits<AtenAdaptiveMaxPool2dOp> {
+  static constexpr int64_t Dim = 2;
+  static constexpr bool isMaxPool = true;
+};
+
+template <> struct AdaptivePoolingOpTraits<AtenAdaptiveMaxPool3dOp> {
+  static constexpr int64_t Dim = 3;
+  static constexpr bool isMaxPool = true;
+};
+
+template <> struct AdaptivePoolingOpTraits<AtenAdaptiveAvgPool1dOp> {
+  static constexpr int64_t Dim = 1;
+  static constexpr bool isMaxPool = false;
+};
+
+template <> struct AdaptivePoolingOpTraits<AtenAdaptiveAvgPool2dOp> {
+  static constexpr int64_t Dim = 2;
+  static constexpr bool isMaxPool = false;
+};
+
+template <> struct AdaptivePoolingOpTraits<AtenAdaptiveAvgPool3dOp> {
+  static constexpr int64_t Dim = 3;
+  static constexpr bool isMaxPool = false;
+};
+
+template <> struct AdaptivePoolingOpTraits<Aten_AdaptiveAvgPool3dOp> {
+  static constexpr int64_t Dim = 3;
+  static constexpr bool isMaxPool = false;
+};
+
+template <typename OpTy>
 class ConvertAtenAdaptivePoolOp : public OpConversionPattern<OpTy> {
-public:
   using OpConversionPattern<OpTy>::OpConversionPattern;
+
+private:
+  static const int64_t Dim = AdaptivePoolingOpTraits<OpTy>::Dim;
+  static constexpr bool isMaxPool = AdaptivePoolingOpTraits<OpTy>::isMaxPool;
+
+public:
   LogicalResult
   matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-
-    // check if we are doing a max pool or avg pool.
-    constexpr bool isMaxPool =
-        (llvm::is_one_of<OpTy, AtenAdaptiveMaxPool1dOp, AtenAdaptiveMaxPool2dOp,
-                         AtenAdaptiveMaxPool3dOp>::value);
-    static_assert(
-        isMaxPool ||
-            llvm::is_one_of<OpTy, AtenAdaptiveAvgPool1dOp,
-                            AtenAdaptiveAvgPool2dOp, AtenAdaptiveAvgPool3dOp,
-                            Aten_AdaptiveAvgPool3dOp>::value,
-        "Adaptive Pooling Conversion only supports AdaptiveMaxPoolNd "
-        "and AdaptiveAvgPoolNd for N = 1,2,3.");
-
     Location loc = op->getLoc();
     const TypeConverter *typeConverter = this->getTypeConverter();
 
@@ -660,12 +689,10 @@ public:
     // get rank of input (same as rank of output)
     int64_t rank = inputType.getRank();
     // get number of non-spatial dims
-    int64_t nonSpatial;
-    if (rank == Dim + 2 || rank == Dim + 1) {
-      nonSpatial = rank - Dim;
-    } else {
-      return rewriter.notifyMatchFailure(
-          op, "only supports inputs with one or two non-spatial dims");
+    int64_t nonSpatial = rank - Dim;
+    if (nonSpatial < 0) {
+      return rewriter.notifyMatchFailure(op,
+                                         "input has insufficient spatial dims");
     }
     // get input and output spatial dimensions as index values
     Value outputShape = op.getOutputSize();
@@ -919,20 +946,20 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
           typeConverter, context);
   target.addIllegalOp<AtenAdaptiveAvgPool1dOp, AtenAdaptiveAvgPool2dOp,
                       AtenAdaptiveAvgPool3dOp, Aten_AdaptiveAvgPool3dOp>();
-  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool1dOp, 1>>(
+  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool1dOp>>(
       typeConverter, context);
-  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool2dOp, 2>>(
+  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool2dOp>>(
       typeConverter, context);
-  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool3dOp, 3>>(
+  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool3dOp>>(
       typeConverter, context);
-  patterns.add<ConvertAtenAdaptivePoolOp<Aten_AdaptiveAvgPool3dOp, 3>>(
+  patterns.add<ConvertAtenAdaptivePoolOp<Aten_AdaptiveAvgPool3dOp>>(
       typeConverter, context);
   target.addIllegalOp<AtenAdaptiveMaxPool1dOp, AtenAdaptiveMaxPool2dOp,
                       AtenAdaptiveMaxPool3dOp>();
-  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool1dOp, 1>>(
+  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool1dOp>>(
       typeConverter, context);
-  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool2dOp, 2>>(
+  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool2dOp>>(
       typeConverter, context);
-  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool3dOp, 3>>(
+  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool3dOp>>(
       typeConverter, context);
 }

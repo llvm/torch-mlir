@@ -1166,7 +1166,7 @@ class AdaptiveAvgPool3dDynamicNoBatch(torch.nn.Module):
 def AdaptiveAvgPool3dDynamicNoBatch_basic(
         module, tu: TestUtils):
     module.forward(tu.rand(512, 10, 16, 17))
-
+    
 # AdaptiveMaxPool1d
 
 class AdaptiveMaxPool1dDynamic(torch.nn.Module):
