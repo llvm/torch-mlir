@@ -559,11 +559,13 @@ public:
         stablehloPaddingVec);
     SmallVector<int64_t> stablehloLhsDilationVec(nSpatialDims);
     std::copy(stride.begin(), stride.end(), stablehloLhsDilationVec.begin());
-    auto stablehloLhsDilation = rewriter.getDenseI64ArrayAttr(stablehloLhsDilationVec);
+    auto stablehloLhsDilation =
+        rewriter.getDenseI64ArrayAttr(stablehloLhsDilationVec);
     SmallVector<int64_t> stablehloRhsDilationVec(nSpatialDims);
     std::copy(dilation.begin(), dilation.end(),
               stablehloRhsDilationVec.begin());
-    auto stablehloRhsDilation = rewriter.getDenseI64ArrayAttr(stablehloRhsDilationVec);
+    auto stablehloRhsDilation =
+        rewriter.getDenseI64ArrayAttr(stablehloRhsDilationVec);
 
     DenseBoolArrayAttr windowReversal;
     ArrayAttr precisionConfig;
