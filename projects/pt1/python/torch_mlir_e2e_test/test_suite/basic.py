@@ -4994,3 +4994,23 @@ class IscloseStaticModuleTrue(torch.nn.Module):
 @register_test_case(module_factory=lambda: IscloseStaticModuleTrue())
 def IscloseStaticModuleTrue_basic(module, tu: TestUtils):
     module.forward(torch.ones(5, 5))
+
+
+# ==============================================================================
+
+class CloneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.clone(x)
+
+@register_test_case(module_factory=lambda: CloneModule())
+def CloneModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 5))

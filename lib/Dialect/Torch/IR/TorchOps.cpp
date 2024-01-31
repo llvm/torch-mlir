@@ -1663,6 +1663,19 @@ void AtenMaskedFillTensorOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenCloneOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenCloneOp::fold(FoldAdaptor adaptor) {
+  // note: memory_format would be ignored
+  if (llvm::dyn_cast<ValueTensorType>(getSelf().getType())) {
+    // self should have value semantics
+    return getSelf();
+  }
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSortIntOp
 //===----------------------------------------------------------------------===//
 

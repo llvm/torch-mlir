@@ -1763,7 +1763,6 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
 #define INSERT_UNARY_PATTERN(AtenOp, StablehloOp)                              \
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenUnaryOp<AtenOp, StablehloOp>>(typeConverter, context)
-  INSERT_UNARY_PATTERN(AtenCloneOp, stablehlo::ConvertOp);
   INSERT_UNARY_PATTERN(AtenNegOp, stablehlo::NegOp);
   INSERT_UNARY_PATTERN(AtenLogicalNotOp, stablehlo::NotOp);
   INSERT_UNARY_PATTERN(AtenBitwiseNotOp, stablehlo::NotOp);
