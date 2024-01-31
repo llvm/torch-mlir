@@ -136,19 +136,10 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dOp>::matchAndRewrite(
   stablehloPadding[stablehloPadding.size() - 2] = padding[1];
   stablehloPadding[stablehloPadding.size() - 1] = padding[1];
 
-  DenseIntElementsAttr windowDimensions = DenseIntElementsAttr::get(
-      RankedTensorType::get({static_cast<int64_t>(stablehloKernelSize.size())},
-                            rewriter.getI64Type()),
-      stablehloKernelSize);
-  DenseIntElementsAttr windowStrides = DenseIntElementsAttr::get(
-      RankedTensorType::get({static_cast<int64_t>(stablehloStride.size())},
-                            rewriter.getI64Type()),
-      stablehloStride);
-  DenseIntElementsAttr baseDilations;
-  DenseIntElementsAttr windowDilations = DenseIntElementsAttr::get(
-      RankedTensorType::get({static_cast<int64_t>(stablehloDilation.size())},
-                            rewriter.getI64Type()),
-      stablehloDilation);
+  auto windowDimensions = rewriter.getDenseI64ArrayAttr(stablehloKernelSize);
+  auto windowStrides = rewriter.getDenseI64ArrayAttr(stablehloStride);
+  DenseI64ArrayAttr baseDilations;
+  auto windowDilations = rewriter.getDenseI64ArrayAttr(stablehloDilation);
   DenseIntElementsAttr pad = DenseIntElementsAttr::get(
       RankedTensorType::get(
           {static_cast<int64_t>(inputRank), static_cast<int64_t>(2)},
@@ -242,19 +233,10 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
   stablehloPadding[stablehloPadding.size() - 2] = padding[1];
   stablehloPadding[stablehloPadding.size() - 1] = padding[1];
 
-  DenseIntElementsAttr windowDimensions = DenseIntElementsAttr::get(
-      RankedTensorType::get({static_cast<int64_t>(stablehloKernelSize.size())},
-                            rewriter.getI64Type()),
-      stablehloKernelSize);
-  DenseIntElementsAttr windowStrides = DenseIntElementsAttr::get(
-      RankedTensorType::get({static_cast<int64_t>(stablehloStride.size())},
-                            rewriter.getI64Type()),
-      stablehloStride);
-  DenseIntElementsAttr baseDilations;
-  DenseIntElementsAttr windowDilations = DenseIntElementsAttr::get(
-      RankedTensorType::get({static_cast<int64_t>(stablehloDilation.size())},
-                            rewriter.getI64Type()),
-      stablehloDilation);
+  auto windowDimensions = rewriter.getDenseI64ArrayAttr(stablehloKernelSize);
+  auto windowStrides = rewriter.getDenseI64ArrayAttr(stablehloStride);
+  DenseI64ArrayAttr baseDilations;
+  auto windowDilations = rewriter.getDenseI64ArrayAttr(stablehloDilation);
   DenseIntElementsAttr pad = DenseIntElementsAttr::get(
       RankedTensorType::get(
           {static_cast<int64_t>(inputRank), static_cast<int64_t>(2)},
@@ -453,20 +435,10 @@ public:
     Value initVal =
         createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter);
 
-    DenseIntElementsAttr windowDimensions = DenseIntElementsAttr::get(
-        RankedTensorType::get(
-            {static_cast<int64_t>(stablehloKernelSize.size())},
-            rewriter.getI64Type()),
-        stablehloKernelSize);
-    DenseIntElementsAttr windowStrides = DenseIntElementsAttr::get(
-        RankedTensorType::get({static_cast<int64_t>(stablehloStride.size())},
-                              rewriter.getI64Type()),
-        stablehloStride);
-    DenseIntElementsAttr baseDilations;
-    DenseIntElementsAttr windowDilations = DenseIntElementsAttr::get(
-        RankedTensorType::get({static_cast<int64_t>(stablehloDilation.size())},
-                              rewriter.getI64Type()),
-        stablehloDilation);
+    auto windowDimensions = rewriter.getDenseI64ArrayAttr(stablehloKernelSize);
+    auto windowStrides = rewriter.getDenseI64ArrayAttr(stablehloStride);
+    DenseI64ArrayAttr baseDilations;
+    auto windowDilations = rewriter.getDenseI64ArrayAttr(stablehloDilation);
     DenseIntElementsAttr pad = DenseIntElementsAttr::get(
         RankedTensorType::get(
             {static_cast<int64_t>(inputRank), static_cast<int64_t>(2)},
@@ -508,7 +480,7 @@ public:
                       .value();
       }
       divisor = hlo::promoteType(rewriter, op.getLoc(), divisor, outTy);
-      DenseIntElementsAttr bcastDimensions;
+      DenseI64ArrayAttr bcastDimensions;
       rewriter.replaceOpWithNewOp<mlir::chlo::BroadcastDivOp>(
           op, outTy, reduceWindowSum.getResult(0), divisor, bcastDimensions);
       return success();
@@ -528,7 +500,7 @@ public:
     windowSizeConst = rewriter.create<stablehlo::DynamicBroadcastInDimOp>(
         op->getLoc(),
         RankedTensorType::get(inputTy.getShape(), outTy.getElementType()),
-        windowSizeConst, inputShapeTensor, rewriter.getI64TensorAttr({}));
+        windowSizeConst, inputShapeTensor, rewriter.getDenseI64ArrayAttr({}));
 
     Value zero = createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter);
     auto reduceWindowSize = rewriter.create<stablehlo::ReduceWindowOp>(
@@ -599,19 +571,10 @@ LogicalResult ConvertAtenOp<AtenCumsumOp>::matchAndRewrite(
   SmallVector<int64_t> stablehloPadding(inputRank * 2, 0);
   stablehloPadding[dim * 2] = inputShape[dim] - 1;
 
-  DenseIntElementsAttr windowDimensions = DenseIntElementsAttr::get(
-      RankedTensorType::get({static_cast<int64_t>(stablehloKernelSize.size())},
-                            rewriter.getI64Type()),
-      stablehloKernelSize);
-  DenseIntElementsAttr windowStrides = DenseIntElementsAttr::get(
-      RankedTensorType::get({static_cast<int64_t>(stablehloStride.size())},
-                            rewriter.getI64Type()),
-      stablehloStride);
-  DenseIntElementsAttr baseDilations;
-  DenseIntElementsAttr windowDilations = DenseIntElementsAttr::get(
-      RankedTensorType::get({static_cast<int64_t>(stablehloDilation.size())},
-                            rewriter.getI64Type()),
-      stablehloDilation);
+  auto windowDimensions = rewriter.getDenseI64ArrayAttr(stablehloKernelSize);
+  auto windowStrides = rewriter.getDenseI64ArrayAttr(stablehloStride);
+  DenseI64ArrayAttr baseDilations;
+  auto windowDilations = rewriter.getDenseI64ArrayAttr(stablehloDilation);
   DenseIntElementsAttr pad = DenseIntElementsAttr::get(
       RankedTensorType::get(
           {static_cast<int64_t>(inputRank), static_cast<int64_t>(2)},
