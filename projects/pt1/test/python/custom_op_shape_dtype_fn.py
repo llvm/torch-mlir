@@ -5,7 +5,7 @@ from typing import List, Tuple
 import torch
 import torch.multiprocessing as mp
 import torch.utils.cpp_extension
-import torch_mlir
+import torch_mlir.torchscript as torchscript
 from torch_mlir_e2e_test.annotations import export, annotate_args
 
 
@@ -56,7 +56,7 @@ def run():
     mod = CustomOpExampleModule()
     mod.eval()
 
-    module = torch_mlir.compile(
+    module = torchscript.compile(
         mod,
         torch.ones(3, 4),
         output_type="torch",

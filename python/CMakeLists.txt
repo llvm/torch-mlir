@@ -37,6 +37,7 @@ declare_mlir_python_sources(TorchMLIRPythonSources.Importers
   SOURCES
     extras/fx_importer.py
     extras/onnx_importer.py
+    fx.py
 )
 
 declare_mlir_python_sources(TorchMLIRPythonSources.Tools
