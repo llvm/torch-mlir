@@ -673,7 +673,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         if (operands.size() == 1) {
           if (noop_with_empty_axes == 0) {
             MLIRContext *context = binder.op->getContext();
-            auto rank =
+            int rank =
                 data.getType().cast<Torch::ValueTensorType>().getSizes().size();
             SmallVector<Value, 1> dims;
             for (int i = 0; i < rank; i++) {

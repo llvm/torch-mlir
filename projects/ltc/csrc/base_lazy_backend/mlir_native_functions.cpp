@@ -334,7 +334,7 @@ at::Tensor LazyNativeFunctions::_to_copy(
             std::move(node), lazy_self->GetDevice()));
     return result;
   }
-};
+}
 
 at::Tensor LazyNativeFunctions::_unsafe_view(const at::Tensor &self,
                                              at::IntArrayRef size) {

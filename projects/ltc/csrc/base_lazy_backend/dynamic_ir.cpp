@@ -24,7 +24,7 @@ std::string DimensionNode::ToString() const { return "DimensionNode"; }
 SizeNode::SizeNode(Value input, size_t dim)
     : DimensionNode(OpKind{c10::Symbol::fromQualString("aten::size")}, {input},
                     MHash(dim)),
-      dim_(dim){};
+      dim_(dim) {}
 
 int64_t SizeNode::getStaticValue() const {
   return dynamic_cast<const TorchMlirNode *>(operand(0).node)
@@ -46,7 +46,7 @@ int64_t SizeAdd::getStaticValue() const {
 std::string SizeAdd::ToString() const { return "SizeAdd"; }
 
 SizeMul::SizeMul(Value a, Value b)
-    : DimensionNode(OpKind{c10::Symbol::fromQualString("aten::mul")}, {a, b}){};
+    : DimensionNode(OpKind{c10::Symbol::fromQualString("aten::mul")}, {a, b}) {}
 
 int64_t SizeMul::getStaticValue() const {
   return dynamic_cast<const DimensionNode *>(operand(0).node)
@@ -57,7 +57,7 @@ int64_t SizeMul::getStaticValue() const {
 std::string SizeMul::ToString() const { return "SizeMul"; }
 
 SizeDiv::SizeDiv(Value a, Value b)
-    : DimensionNode(OpKind{c10::Symbol::fromQualString("aten::div")}, {a, b}){};
+    : DimensionNode(OpKind{c10::Symbol::fromQualString("aten::div")}, {a, b}) {}
 
 int64_t SizeDiv::getStaticValue() const {
   TORCH_CHECK(
