@@ -290,6 +290,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::logical_xor : (Tensor, Tensor) -> (Tensor)",
             "aten::logical_not : (Tensor) -> (Tensor)",
             "aten::lerp.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)",
+            "aten::lerp.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)",
             "aten::eq.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::gt.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::ge.Tensor : (Tensor, Tensor) -> (Tensor)",
@@ -592,7 +593,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::one_hot : (Tensor, int) -> (Tensor)")
     emit("aten::einsum : (str, Tensor[], int[]?) -> (Tensor)")
     emit("aten::bucketize.Tensor : (Tensor, Tensor, bool, bool) -> (Tensor)")
-    emit("aten::clone : (Tensor, int?) -> (Tensor)")
+    emit("aten::clone : (Tensor, int?) -> (Tensor)", has_folder=True)
     emit("aten::lift_fresh_copy : (Tensor) -> (Tensor)")
     emit("aten::contiguous : (Tensor, int) -> (Tensor)")
     emit_with_mutating_variants("aten::copy : (Tensor, Tensor, bool) -> (Tensor)")
@@ -820,10 +821,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::leaky_relu_backward : (Tensor, Tensor, Scalar, bool) -> (Tensor)")
 
     # quantized ops
+    emit("aten::quantize_per_channel : (Tensor, Tensor, Tensor, int, int) -> (Tensor)")
     emit("aten::quantize_per_tensor : (Tensor, float, int, int) -> (Tensor)")
     emit("aten::dequantize.self : (Tensor) -> (Tensor)")
     emit("aten::dequantize.tensor : (Tensor) -> (Tensor)")
     emit("aten::int_repr : (Tensor) -> (Tensor)")
+    emit("aten::_make_per_channel_quantized_tensor : (Tensor, Tensor, Tensor, int) -> (Tensor)")
     emit("aten::_make_per_tensor_quantized_tensor : (Tensor, float, int) -> (Tensor)")
 
     # ==========================================================================

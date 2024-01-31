@@ -1,0 +1,77 @@
+# yamllint disable rule:line-length
+name: CI
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  # A PR number if a pull request and otherwise the commit hash. This cancels
+  # queued and in-progress runs for the same PR (presubmit) or commit
+  # (postsubmit).
+  group: ci-build-test-cpp-linux-${{ github.event.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  build-test-linux:
+    strategy:
+      fail-fast: true
+      matrix:
+        torch-version: [nightly, stable]
+    name: Build and Test (Linux, torch-${{ matrix.torch-version }}, assertions)
+    runs-on: torch-mlir-cpubuilder-manylinux-x86-64
+    env:
+      CACHE_DIR: ${{ github.workspace }}/.container-cache
+    steps:
+      - name: Configure local git mirrors
+        run: |
+          # Our stock runners have access to certain local git caches. If these
+          # files are available, it will prime the cache and configure git to
+          # use them. Practically, this eliminates network/latency for cloning
+          # llvm.
+          if [[ -x /gitmirror/scripts/trigger_update_mirrors.sh ]]; then
+            /gitmirror/scripts/trigger_update_mirrors.sh
+            /gitmirror/scripts/git_config.sh
+          fi
+      - name: "Checking out repository"
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+        with:
+          submodules: true
+
+      - name: Enable cache
+        uses: actions/cache/restore@v3
+        with:
+          path: ${{ env.CACHE_DIR }}
+          key: build-test-cpp-asserts-manylinux-${{ matrix.torch-version }}-v2-${{ github.sha }}
+          restore-keys: |
+            build-test-cpp-asserts-manylinux-${{ matrix.torch-version }}-v2-
+
+      - name: Install python deps (torch-${{ matrix.torch-version }})
+        run: |
+          export cache_dir="${{ env.CACHE_DIR }}"
+          bash build_tools/ci/install_python_deps.sh ${{ matrix.torch-version }}
+
+      - name: Build project
+        run: |
+          export cache_dir="${{ env.CACHE_DIR }}"
+          bash build_tools/ci/build_posix.sh
+
+      - name: Save cache
+        uses: actions/cache/save@v3
+        if: ${{ !cancelled() }}
+        with:
+          path: ${{ env.CACHE_DIR }}
+          key: build-test-cpp-asserts-manylinux-${{ matrix.torch-version }}-v2-${{ github.sha }}
+
+      - name: Integration tests (torch-${{ matrix.torch-version }})
+        run: |
+          bash build_tools/ci/test_posix.sh ${{ matrix.torch-version }}
+
+      - name: Check generated sources (torch-nightly only)
+        if: ${{ matrix.torch-version == 'nightly' }}
+        run: |
+          bash build_tools/ci/check_generated_sources.sh

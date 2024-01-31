@@ -131,10 +131,10 @@ tosa::DivOp createBinaryOpAndCast<DivOp>(PatternRewriter &rewriter,
 }
 
 std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
-                                                   Operation *op,
-                                                   Value paramsValue,
-                                                   Value indexValue,
-                                                   int32_t axis) {
+                                                  Operation *op,
+                                                  Value paramsValue,
+                                                  Value indexValue,
+                                                  int32_t axis) {
   // For easy understanding of this algorithm, the following comments are with
   // an exact example: torch.aten.gather(!torch.vtensor<[1,4,3],f32>, axis=2,
   // !torch.vtensor<[1,4,2],si64>) -> !torch.vtensor<[1,4,2],f32>
@@ -210,9 +210,9 @@ std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
 // Lowers Gather operators to a sequence of TOSA ops.
 // taken from
 // https://github.com/tensorflow/tensorflow/blob/master/tensorflow/compiler/mlir/tosa/transforms/legalize_common.cc
-std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter,
-                                        Operation *op, Type outType,
-                                        Value paramsValue, Value indicesValue) {
+std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter, Operation *op,
+                                       Type outType, Value paramsValue,
+                                       Value indicesValue) {
   auto resultType = outType.dyn_cast<ShapedType>();
   auto paramsType = paramsValue.getType().dyn_cast<RankedTensorType>();
   auto indicesType = indicesValue.getType().dyn_cast<RankedTensorType>();
@@ -683,7 +683,6 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
       .getResult();
 }
 
-
 // Common function for lowering reduce operations to TOSA ops.
 template <typename T>
 std::optional<Value> convertReduceOpCommon(
@@ -721,9 +720,8 @@ std::optional<Value> convertReduceOpCommon(
       auto axis_attr = rewriter.getI32IntegerAttr(axis_val);
 
       shape_vec[axis_val] = 1;
-      RankedTensorType reduce_type = RankedTensorType::get(
-          shape_vec,
-          reduce_element_type);
+      RankedTensorType reduce_type =
+          RankedTensorType::get(shape_vec, reduce_element_type);
 
       auto reduce_op = CreateOpAndInfer<T>(rewriter, op->getLoc(), reduce_type,
                                            val, axis_attr);

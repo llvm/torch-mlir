@@ -82,7 +82,8 @@ public:
     // temp = multiplier * currentSeed + incrementStep
     Value mul = rewriter.create<arith::MulIOp>(loc, currentSeed, multiplier);
     Value seed = rewriter.create<arith::AddIOp>(loc, mul, incrementStep);
-    globalVar = rewriter.create<tensor::InsertOp>(loc, seed, globalVar, ValueRange());
+    globalVar =
+        rewriter.create<tensor::InsertOp>(loc, seed, globalVar, ValueRange());
     rewriter.create<ml_program::GlobalStoreOp>(
         loc, SymbolRefAttr::get(op->getContext(), getSeedGobalVarName()),
         globalVar);

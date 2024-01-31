@@ -241,10 +241,7 @@ Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
   if (!do_bcast) {
     return input;
   }
-  DenseIntElementsAttr bcast_attr = DenseIntElementsAttr::get(
-      RankedTensorType::get({static_cast<long int>(bcastDims.size())},
-                            rewriter.getI64Type()),
-      bcastDims);
+  auto bcast_attr = rewriter.getDenseI64ArrayAttr(bcastDims);
   auto bcast_op = rewriter.create<stablehlo::BroadcastInDimOp>(
       op->getLoc(), outType, input, bcast_attr);
   return bcast_op.getResult();
@@ -360,7 +357,7 @@ Value getConstantOfShape(PatternRewriter &rewriter, Location loc,
   auto constTensor = rewriter.create<stablehlo::ConstantOp>(loc, constAttr);
   return rewriter
       .create<stablehlo::DynamicBroadcastInDimOp>(
-          loc, outType, constTensor, shape, rewriter.getI64TensorAttr({}))
+          loc, outType, constTensor, shape, rewriter.getDenseI64ArrayAttr({}))
       .getResult();
 }
 } // namespace hlo

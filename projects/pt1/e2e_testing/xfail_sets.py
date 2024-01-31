@@ -313,9 +313,11 @@ TORCHDYNAMO_XFAIL_SET = {
     "GroupNormNoWeightAndBiasModule_basic",
 
     # Dynamo does not support tracing quantized tensors
+    "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
     "AtenMmQuint8_basic",
+    "Conv2dQInt8Module_basic",
 
     # Dynamo not supporting conv_tbc
     "ConvTbcModule_basic",
@@ -1019,6 +1021,7 @@ TOSA_PASS_SET = {
     "BroadcastZeroRankInputStaticModule_basic",
     "BucketizeTensorStaticFloatModule_basic",
     "BucketizeTensorStaticModule_basic",
+    "CloneModule_basic",
     "ChunkListUnpackUneven_Module_basic",
     "ChunkListUnpack_Module_basic",
     "ConstantBoolParameterModule_basic",
@@ -1113,6 +1116,8 @@ TOSA_PASS_SET = {
     "ElementwiseLeakyReluModule_basic",
     "ElementwiseLeakyReluModule_basic",
     "ElementwiseLeakyReluStaticModule_basic",
+    "ElementwiseLerpScalarIntModule_basic",
+    "ElementwiseLerpScalarFloatModule_basic",
     "ElementwiseLog2Module_basic",
     "ElementwiseLogModule_basic",
     "ElementwiseLtDiffWidthScalarModule_basic",
@@ -1493,6 +1498,8 @@ LTC_XFAIL_SET = {
     "ElementwiseLogitModule_basic",
     "ElementwiseRemainderScalarModule_Int_Float_basic",
     "ElementwiseRemainderScalarModule_Bool_basic",
+    "ElementwiseLerpScalarIntModule_basic",
+    "ElementwiseLerpScalarFloatModule_basic",
     "AtenIntTensorByteDtypeModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
     "UpSampleNearest2dBackwardVec_basic",
@@ -1540,4 +1547,5 @@ LTC_XFAIL_SET = {
     "ElementwiseBitwiseAndScalarInt64Module_basic",
     "ElementwiseBitwiseAndScalarInt32Module_basic",
     "ElementwiseBitwiseAndScalarInt8Module_basic",
+    "Conv2dQInt8Module_basic",
 }

@@ -2129,7 +2129,7 @@ func.func @torch.aten.floor$canonicalize(%arg0: !torch.vtensor<[?,?],si64>) -> !
 }
 
 // CHECK-LABEL:   func.func @torch.aten.numel$canonicalize
-// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[3,4],f32> 
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[3,4],f32>
 // CHECK-NEXT:      %int12 = torch.constant.int 12
 // CHECK-NEXT:      return %int12 : !torch.int
 func.func @torch.aten.numel$canonicalize(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.int {
@@ -2145,4 +2145,11 @@ func.func @torch.aten.masked_fill.Tensor$canonicalize(%arg0: !torch.vtensor<[?,?
   %0 = torch.vtensor.literal(dense<-1.000000e+09> : tensor<f32>) : !torch.vtensor<[],f32>
   %1 = torch.aten.masked_fill.Tensor %arg0, %arg1, %0 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],i1>, !torch.vtensor<[],f32> -> !torch.vtensor<[?,?],f32>
   return %1 : !torch.vtensor<[?,?],f32>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.detach$canonicalize
+// CHECK-NEXT:      torch.aten.detach
+func.func @torch.aten.detach$canonicalize(%arg0: !torch.tensor<[1],f32>) -> !torch.tensor {
+  %1 = torch.aten.detach %arg0 : !torch.tensor<[1],f32> -> !torch.tensor
+  return %1 : !torch.tensor
 }

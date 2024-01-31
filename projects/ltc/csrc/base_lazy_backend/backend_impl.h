@@ -41,27 +41,28 @@ public:
       name = ss.str();
       ++i;
     }
-    Info(const Info& other)
+    Info(const Info &other)
         : tensor{other.tensor}, scalar{other.scalar},
           requires_grad{other.requires_grad}, name{other.name} {}
-    Info(const at::Tensor& tensor)
+    Info(const at::Tensor &tensor)
         : tensor{tensor}, requires_grad{tensor.requires_grad()} {}
-    Info(const at::Scalar& scalar) : scalar{scalar}, requires_grad(false) {}
+    Info(const at::Scalar &scalar) : scalar{scalar}, requires_grad(false) {}
   };
 
   TorchMlirBackendData(BackendDevice device, Shape shape);
-  TorchMlirBackendData(BackendDevice device, Shape shape, std::shared_ptr<BackendData::Info> info);
-  TorchMlirBackendData(const at::Scalar& scalar, BackendDevice device);
-  TorchMlirBackendData(
-      const at::Tensor& tensor, BackendDevice device, Shape shape);
+  TorchMlirBackendData(BackendDevice device, Shape shape,
+                       std::shared_ptr<BackendData::Info> info);
+  TorchMlirBackendData(const at::Scalar &scalar, BackendDevice device);
+  TorchMlirBackendData(const at::Tensor &tensor, BackendDevice device,
+                       Shape shape);
 
   virtual BackendData::Handle GetHandle() override;
 
-  virtual void Assign(const BackendData& data) override;
+  virtual void Assign(const BackendData &data) override;
 
   virtual bool HasValue() const override;
 
-  BackendData::Info* mlir_info() const;
+  BackendData::Info *mlir_info() const;
 
 protected:
   std::shared_ptr<BackendData::Info> info_;
@@ -80,7 +81,7 @@ public:
    * IR Tracing
    * */
 
-  const IrBuilder* GetIrBuilder() const override;
+  const IrBuilder *GetIrBuilder() const override;
 
   /**
    * Configuration
@@ -91,19 +92,22 @@ public:
    * Data Transfer
    * */
 
-  virtual BackendDataPtr MakeComputationDataFromTensor(
-      const at::Tensor& tensor, const Shape& shape,
-      const BackendDevice& device) const override;
+  virtual BackendDataPtr
+  MakeComputationDataFromTensor(const at::Tensor &tensor, const Shape &shape,
+                                const BackendDevice &device) const override;
 
-  virtual BackendDataPtr MakeComputationDataFromScalar(
-      const at::Scalar& scalar, const BackendDevice& device) const override;
+  virtual BackendDataPtr
+  MakeComputationDataFromScalar(const at::Scalar &scalar,
+                                const BackendDevice &device) const override;
 
-  virtual BackendDataPtr CreateDataPlaceholder(
-      const BackendDevice& device, const Shape& shape) const override;
+  virtual BackendDataPtr
+  CreateDataPlaceholder(const BackendDevice &device,
+                        const Shape &shape) const override;
 
   // Gets backend data if the node is a device data node. Otherwise returns
   // nullptr.
-  virtual BackendDataPtr GetComputationDataFromNode(const Node*) const override;
+  virtual BackendDataPtr
+  GetComputationDataFromNode(const Node *) const override;
 
   virtual at::Tensor MakeTensorFromComputationData(
       const BackendDataPtr data,
@@ -113,13 +117,14 @@ public:
    * Lowering, Compilation, Execution
    * */
 
-  virtual std::unique_ptr<LoweringContext> CreateLoweringContext(
-      const std::string& name, BackendDevice device,
-      c10::ArrayRef<const Node*> post_order,
-      Util::EmissionMap emit_status) const override;
+  virtual std::unique_ptr<LoweringContext>
+  CreateLoweringContext(const std::string &name, BackendDevice device,
+                        c10::ArrayRef<const Node *> post_order,
+                        Util::EmissionMap emit_status) const override;
 
-  virtual std::unique_ptr<LoweringContext> CreateLoweringContext(
-      const std::string& name, BackendDevice device) const override;
+  virtual std::unique_ptr<LoweringContext>
+  CreateLoweringContext(const std::string &name,
+                        BackendDevice device) const override;
 
   // TODO(whc) need to keep this?
   // virtual std::vector<std::string> GetCompilationDevices(

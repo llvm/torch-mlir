@@ -21,8 +21,8 @@
   }
 
 #define UNIMPLEMENTED_FUNCTION_ERROR()                                         \
-  UNIMPLEMENTED_ERROR(                                                         \
-      "\n\t" << __FILE__ << ":" << __LINE__ << "    " << __PRETTY_FUNCTION__)
+  UNIMPLEMENTED_ERROR("\n\t" << __FILE__ << ":" << __LINE__ << "    "          \
+                             << __PRETTY_FUNCTION__)
 
 #define UNSUPPORTED_ERROR(msg)                                                 \
   {                                                                            \

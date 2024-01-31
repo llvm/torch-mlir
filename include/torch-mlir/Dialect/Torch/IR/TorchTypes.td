@@ -63,12 +63,13 @@ class AnyTorchTensorType<string name, string typeMnemonic>
 
     ```
     tensor-type ::= (`!torch.tensor` | `!torch.vtensor`) tensor-modifiers?
-    tensor-modifiers ::= `<` sizes-spec `,` dtype-spec `>`
+    tensor-modifiers ::= `<` sizes-spec `,` dtype-spec (',' sparsity)? `>`
     sizes-spec ::= `*` | `[` size-list `]`
     size-list ::= /*empty*/ | size-list-nonempty
     size-list-nonempty = size (`,` size)*
     size ::= `?` | decimal-literal
     dtype-spec ::= `unk` | type
+    sparsity ::= attribute-value
     ```
 
     Represents a multi-dimensional array to model Torch's `torch.Tensor` type.
@@ -133,6 +134,12 @@ class AnyTorchTensorType<string name, string typeMnemonic>
     |-------------------|--------------------|
     ```
 
+    The `sparsity` attribute directly mirrors the additional tensor `encoding`
+    defined by upstream MLIR on the RankedTensorType. Unlike the upstream
+    attribute, however, this attribute is exclusively used to denote a
+    straightforward tensor (with an empty attribute) or a sparse tensor
+    (with a SparseTensorEncodingAttr).
+
     TODO: Support the full set of Torch dtypes.
     TODO: Use si1?
 
@@ -149,8 +156,20 @@ class AnyTorchTensorType<string name, string typeMnemonic>
   }];
   let parameters = (ins
     OptionalArrayRefTorchParameter<"int64_t", "sizes of dimensions">:$optionalSizes,
-    "::mlir::Type":$optionalDtype
+    "::mlir::Type":$optionalDtype,
+    "Attribute":$optionalSparsity
   );
+  let builders = [
+    // Provide builder where optionalSparsity is empty by default.
+    TypeBuilder<(ins
+      "::std::optional<ArrayRef<int64_t>>":$optionalSizes,
+      "::mlir::Type":$optionalDtype,
+      CArg<"Attribute", "{}">:$optionalSparsity
+    ), [{
+      return $_get(context, optionalSizes, optionalDtype, optionalSparsity);
+    }]>
+  ];
+  let skipDefaultBuilders = 1;
   let genVerifyDecl = 1;
   let hasCustomAssemblyFormat = 1;
   string extraBaseClassDeclaration = [{

@@ -15,6 +15,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/StablehloOps.h"
+#include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -22,7 +23,6 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 #include <numeric>
 
 using namespace mlir;
@@ -403,7 +403,8 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
   int64_t dim;
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return op->emitError("dim must be a Scalar constant");
-  int64_t inputRank = adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
+  int64_t inputRank =
+      adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
   dim = toPositiveDim(dim, inputRank + 1);
   if (!isValidDim(dim, inputRank + 1))
     return rewriter.notifyMatchFailure(op, "dim is statically invalid");

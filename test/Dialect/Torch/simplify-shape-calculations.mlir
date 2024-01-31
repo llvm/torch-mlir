@@ -316,7 +316,7 @@ func.func @abstractly_interpret_list_ops$mutation_in_child_region(%arg0: !torch.
 // CHECK:             } else {
 // CHECK:               torch.prim.If.yield %[[ARG1]] : !torch.list<int>
 // CHECK:             }
-                      // .... and this one don't have the same object identity, but should! 
+                      // .... and this one don't have the same object identity, but should!
 // CHECK:             %[[VAL_8:.*]] = torch.prim.ListConstruct %[[INT3]], %[[INT3]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:             %[[VAL_9:.*]] = torch.prim.If %[[ARG2]] -> (!torch.list<int>) {
 // CHECK:               torch.prim.If.yield %[[VAL_8]] : !torch.list<int>

@@ -344,9 +344,9 @@ FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
 // Checks whether the `shapeA` and `shapeB` are broadcast compatible or not. If
 // yes, then computes the final broadcast shape.
 void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
-                           Value inputA, Value inputB,
-                           SmallVector<int64_t> &resultShape,
-                           SmallVector<Value> &resultShapeValue) {
+                                  Value inputA, Value inputB,
+                                  SmallVector<int64_t> &resultShape,
+                                  SmallVector<Value> &resultShapeValue) {
   SmallVector<int64_t> shapeA{
       inputA.getType().cast<BaseTensorType>().getSizes()};
   SmallVector<int64_t> shapeB{
@@ -514,7 +514,7 @@ Value Torch::createRank0Tensor(PatternRewriter &rewriter, Location loc,
 }
 
 LogicalResult Torch::getTransposedType(BaseTensorType inType, int64_t dimA,
-                                int64_t dimB, Type &transposedType) {
+                                       int64_t dimB, Type &transposedType) {
   if (!inType.hasSizes())
     return failure();
   SmallVector<int64_t> shape(inType.getSizes());

@@ -16,13 +16,13 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
+#include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -130,7 +130,7 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
           initValue,
           initIndex,
       },
-      rewriter.getI64TensorAttr(dim));
+      rewriter.getDenseI64ArrayAttr(dim));
 
   Block &block = stablehloReduceOp.getBody().emplaceBlock();
 
@@ -412,7 +412,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumOp>::matchAndRewrite(
 
   llvm::sort(dims.begin(), dims.end());
   auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
+      op.getLoc(), input, initValue, rewriter.getDenseI64ArrayAttr(dims));
 
   Block &block = stablehloReduceOp.getBody().emplaceBlock();
   auto blockArgumentTy = RankedTensorType::get({}, inputTy.getElementType());
@@ -473,7 +473,7 @@ LogicalResult ConvertAtenReductionOp<AtenMaxOp>::matchAndRewrite(
     return failure();
   llvm::sort(dims.begin(), dims.end());
   auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
+      op.getLoc(), input, initValue, rewriter.getDenseI64ArrayAttr(dims));
 
   Block &block = stablehloReduceOp.getBody().emplaceBlock();
   auto blockArgumentTy = RankedTensorType::get({}, inputTy.getElementType());
@@ -535,7 +535,7 @@ LogicalResult ConvertAtenReductionOp<AtenMinOp>::matchAndRewrite(
     return failure();
   llvm::sort(dims.begin(), dims.end());
   auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
+      op.getLoc(), input, initValue, rewriter.getDenseI64ArrayAttr(dims));
 
   Block &block = stablehloReduceOp.getBody().emplaceBlock();
   auto blockArgumentTy = RankedTensorType::get({}, inputTy.getElementType());
@@ -625,7 +625,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
 
   llvm::sort(dims.begin(), dims.end());
   auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
+      op.getLoc(), input, initValue, rewriter.getDenseI64ArrayAttr(dims));
 
   Region &region = stablehloReduceOp.getBody();
   Block &block = region.emplaceBlock();
@@ -729,7 +729,7 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
 
   auto reduceOp = rewriter.create<stablehlo::ReduceOp>(
       op->getLoc(), squareOp.getResult(), initValue,
-      rewriter.getI64TensorAttr(dims));
+      rewriter.getDenseI64ArrayAttr(dims));
 
   Region &region = reduceOp.getBody();
   Block &block = region.emplaceBlock();
@@ -848,7 +848,7 @@ LogicalResult ConvertAtenReductionOp<AtenLinalgVectorNormOp>::matchAndRewrite(
                                                          ord, nullptr);
 
   auto reduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op->getLoc(), powValue, initValue, rewriter.getI64TensorAttr(dims));
+      op->getLoc(), powValue, initValue, rewriter.getDenseI64ArrayAttr(dims));
 
   Region &region = reduceOp.getBody();
   Block &block = region.emplaceBlock();

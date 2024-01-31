@@ -1,3 +1,4 @@
+# yamllint disable rule:line-length
 name: Release oneshot snapshot package
 
 on:

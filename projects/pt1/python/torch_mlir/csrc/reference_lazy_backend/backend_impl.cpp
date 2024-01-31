@@ -30,7 +30,7 @@ namespace lazy {
 
 /// Returns true if a string begins with another.
 inline bool beginswith(const std::string& s, const std::string& t) {
-    return s.size() >= t.size() && s.compare(0, t.size(), t) == 0;
+  return s.size() >= t.size() && s.compare(0, t.size(), t) == 0;
 }
 
 struct ReferenceLazyBackendDeviceType : public BackendDeviceType {
@@ -73,10 +73,8 @@ public:
     // Vendor backend specific lowering can be exec here before returning.
     for (const auto& instance : instances) {
       TORCH_CHECK(
-          instance->in_mark_step,
-          "Compile outside of mark step:\n",
-          GetComputationBackendText(instance)
-      );
+          instance->in_mark_step, "Compile outside of mark step:\n",
+          GetComputationBackendText(instance));
       // Store computation instance for external access after compilation.
       GetLatestComputation() = instance;
     }
@@ -114,16 +112,17 @@ public:
       // Convert any lazy devices to cpu devices to ensure
       // that the values are actually computed
       if (node->outputs().size() == 1 &&
-          node->output()->type()->kind() ==
-              c10::TypeKind::DeviceObjType) {
-          auto value_sym = torch::jit::Symbol::attr("value");
-          TORCH_CHECK(node->hasAttribute(value_sym),
-                      "Expected node to have 'value' attribute.");
-          TORCH_CHECK(node->kindOf(value_sym) == torch::jit::AttributeKind::s,
-                      "Expected 'value' attribute to be a string.");
-          if (beginswith(node->s(value_sym), "lazy")) {
-              node->s_(value_sym, "cpu");
-          }
+          node->output()->type()->kind() == c10::TypeKind::DeviceObjType) {
+        auto value_sym = torch::jit::Symbol::attr("value");
+        TORCH_CHECK(
+            node->hasAttribute(value_sym),
+            "Expected node to have 'value' attribute.");
+        TORCH_CHECK(
+            node->kindOf(value_sym) == torch::jit::AttributeKind::s,
+            "Expected 'value' attribute to be a string.");
+        if (beginswith(node->s(value_sym), "lazy")) {
+          node->s_(value_sym, "cpu");
+        }
       }
     }
 
@@ -132,7 +131,8 @@ public:
     for (const auto& argument : arguments) {
       const auto mlir_data =
           std::static_pointer_cast<TorchMlirBackendData>(argument);
-      auto* info = dynamic_cast<TorchMlirBackendData::Info*>(mlir_data->mlir_info());
+      auto* info =
+          dynamic_cast<TorchMlirBackendData::Info*>(mlir_data->mlir_info());
       TORCH_CHECK(info);
       if (info->scalar.has_value()) {
         stack.emplace_back(info->scalar.value());

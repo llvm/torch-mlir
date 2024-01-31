@@ -6,15 +6,12 @@
 #include <torch/csrc/lazy/backend/backend_data.h>
 #include <torch/csrc/lazy/core/internal_ops/ltc_ops.h>
 
-
 namespace torch {
 namespace lazy {
 
 class TORCH_API DeviceData : public TorchMlirNode {
- public:
-  static OpKind ClassOpKind() {
-    return ltc_device_data;
-  }
+public:
+  static OpKind ClassOpKind() { return ltc_device_data; }
 
   explicit DeviceData(std::shared_ptr<BackendData> data);
 
@@ -27,22 +24,23 @@ class TORCH_API DeviceData : public TorchMlirNode {
 
   std::string ToString() const override;
 
-  const std::shared_ptr<BackendData>& data() const { return data_; }
+  const std::shared_ptr<BackendData> &data() const { return data_; }
 
   void SetData(std::shared_ptr<BackendData> data);
 
-  TorchMlirOpVector Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const override;
+  TorchMlirOpVector Lower(TorchMlirFunction function,
+                          TorchMlirLoweringContext *loctx) const override;
 
-  static const DeviceData* Cast(const Node* node);
+  static const DeviceData *Cast(const Node *node);
 
   // To reuse IR nodes, use this method to create DeviceData nodes
   // instead of calling the constructor directly.
   static NodePtr Create(std::shared_ptr<BackendData> data);
 
-  const std::string& GetName() const { return name_; }
-  void SetName(const std::string& name);
+  const std::string &GetName() const { return name_; }
+  void SetName(const std::string &name);
 
- private:
+private:
   void propagate_name();
 
   std::shared_ptr<BackendData> data_;
