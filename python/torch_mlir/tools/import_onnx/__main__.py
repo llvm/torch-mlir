@@ -51,10 +51,12 @@ def main(args: argparse.Namespace):
 
 
 def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
-    # Do shape inference via files instead of in memory in order to handle
-    # models > 2 GB. See
+    # Do shape inference two ways.  First, attempt in-memory to avoid redundant
+    # loading and the need for writing a temporary file somewhere.  If that
+    # fails, typically because of the 2 GB protobuf size limit, try again via
+    # files.  See
     # https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#shape-inference-a-large-onnx-model-2gb
-    # for details about this technique.
+    # for details about the file-based technique.
 
     # Make a temp dir for all the temp files we'll be generating as a side
     # effect of infering shapes.  For now, the only file is a new .onnx holding
@@ -67,22 +69,22 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
     shutil.rmtree(temp_dir, ignore_errors=True)
     temp_dir.mkdir(exist_ok=True)
 
-    # # Load the model, with possible external data coming from the default
-    # # location, or the location specified on the conmand line.
-    # if args.data_dir is None:
-    #     raw_model = onnx.load(args.input_file)
-    # else:
-    #     raw_model = onnx.load(args.input_file, load_external_data=False)
-    #     onnx.load_external_data_for_model(raw_model, args.data_dir)
+    # Load the model, with possible external data coming from the default
+    # location, or the location specified on the conmand line.
+    if args.data_dir is None:
+        raw_model = onnx.load(args.input_file)
+    else:
+        raw_model = onnx.load(args.input_file, load_external_data=False)
+        onnx.load_external_data_for_model(raw_model, args.data_dir)
 
-    # # Run the checker to test whether the file is above the threshold for
-    # # in-memory shape inference.  If not, go ahead and do the shape inference.
-    # try:
-    #     onnx.checker.check_model(raw_model)
-    #     inferred_model = onnx.shape_inference.infer_shapes(raw_model)
-    #     return inferred_model
-    # except ValueError:
-    #     pass
+    # Run the checker to test whether the file is above the threshold for
+    # in-memory shape inference.  If not, go ahead and do the shape inference.
+    try:
+        onnx.checker.check_model(raw_model)
+        inferred_model = onnx.shape_inference.infer_shapes(raw_model)
+        return inferred_model
+    except ValueError:
+        pass
 
     # The following code was an attempt to work around the bug where models
     # with external data produce invalid output shapes after infer_shapes_path.
@@ -99,6 +101,16 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
     temp_inferred_file = temp_dir / "inferred.onnx"
     onnx.shape_inference.infer_shapes_path(args.input_file, temp_inferred_file)
 
+    # Sanity check the shape-inferred model to be sure we have a good model
+    # for the importer.  This call uses the file-based method, as the
+    # in-memory method (passing the loaded model) fails due to the 2 GB limit.
+    #
+    # TODO: this call throws an exception because it can't find the external
+    # data files, and there doesn't appear to be a way to let the checker know
+    # where to find them.
+    #
+    # onnx.checker.check_model(temp_inferred_file)
+
     # Load the temp file and the external data.
     inferred_model = onnx.load(temp_inferred_file, load_external_data=False)
     data_dir = Path(input_dir if args.temp_dir is None else args.data_dir)
@@ -108,9 +120,6 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
     if not args.keep_temps:
         shutil.rmtree(temp_dir)
 
-    # Sanity check the shape-inferred model to be sure we have a good model
-    # for the importer.
-    onnx.checker.check_model(inferred_model)
     return inferred_model
 
 

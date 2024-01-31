@@ -60,15 +60,17 @@ def const_model() -> onnx.ModelProto:
 
 def linear_model() -> onnx.ModelProto:
     # initializers
-    value = numpy.array([0.5, -0.6], dtype=numpy.float32)
+    k_dim = 32
+    value = numpy.arange(k_dim).reshape([k_dim, 1])
+    value = numpy.asarray(value, dtype=numpy.float32)
     A = numpy_helper.from_array(value, name='A')
 
-    value = numpy.array([0.4], dtype=numpy.float32)
+    value = numpy.array([0.4], dtype=numpy.float32).reshape([1, 1])
     C = numpy_helper.from_array(value, name='C')
 
     # the part which does not change
-    X = make_tensor_value_info('X', TensorProto.FLOAT, [None, None])
-    Y = make_tensor_value_info('Y', TensorProto.FLOAT, [None])
+    X = make_tensor_value_info('X', TensorProto.FLOAT, [1, k_dim])
+    Y = make_tensor_value_info('Y', TensorProto.FLOAT, [None, None])
     node1 = make_node('MatMul', ['X', 'A'], ['AX'])
     node2 = make_node('Add', ['AX', 'C'], ['Y'])
     graph = make_graph([node1, node2], 'lr', [X], [Y], [A, C])
@@ -115,7 +117,8 @@ class CommandLineTest(unittest.TestCase):
         convert_model_to_external_data(
             onnx_model, all_tensors_to_one_file=True,
             location=data_dir_name + "/data.bin",
-            size_threshold=0, convert_attribute=True)
+            size_threshold=48,
+            convert_attribute=True)
         onnx.save(onnx_model, model_file)
         temp_dir = run_path / "temp"
         temp_dir.mkdir(exist_ok=True)
