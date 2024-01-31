@@ -23,7 +23,7 @@ extern "C" {
 MLIR_CAPI_EXPORTED void torchMlirRegisterAllDialects(MlirContext context);
 
 /** Registers all passes for symbolic access with the global registry. */
-MLIR_CAPI_EXPORTED void torchMlirRegisterAllPasses();
+MLIR_CAPI_EXPORTED void torchMlirRegisterAllPasses(void);
 
 #ifdef __cplusplus
 }

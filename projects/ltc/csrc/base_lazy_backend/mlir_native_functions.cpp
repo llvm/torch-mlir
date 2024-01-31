@@ -67,7 +67,7 @@ c10::optional<at::Tensor> to_meta(const c10::optional<at::Tensor> &tensor) {
   return c10::nullopt;
 }
 
-std::vector<at::Tensor> to_meta(at::ITensorListRef t_list) {
+[[maybe_unused]] std::vector<at::Tensor> to_meta(at::ITensorListRef t_list) {
   std::vector<at::Tensor> outs;
   outs.reserve(t_list.size());
   for (const auto &tensor : t_list) {
@@ -92,7 +92,7 @@ namespace lazy {
 
 namespace {
 
-at::Tensor
+[[maybe_unused]] at::Tensor
 CreateLtcTensor(const at::Tensor &tensor,
                 const c10::optional<torch::lazy::BackendDevice> &device) {
   if (tensor.defined() && device) {
@@ -102,7 +102,7 @@ CreateLtcTensor(const at::Tensor &tensor,
   return tensor;
 }
 
-c10::optional<torch::lazy::BackendDevice>
+[[maybe_unused]] c10::optional<torch::lazy::BackendDevice>
 GetLtcDevice(const c10::optional<c10::Device> &device) {
   if (!device) {
     return c10::nullopt;
@@ -334,7 +334,7 @@ at::Tensor LazyNativeFunctions::_to_copy(
             std::move(node), lazy_self->GetDevice()));
     return result;
   }
-};
+}
 
 at::Tensor LazyNativeFunctions::_unsafe_view(const at::Tensor &self,
                                              at::IntArrayRef size) {

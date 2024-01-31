@@ -2,11 +2,21 @@
 # Setup PyTorch/LTC
 #-------------------------------------------------------------------------------
 
+torch_mlir_enable_werror()
+
 set(LTC_GENERATED
   generated/LazyNativeFunctions.cpp
   generated/RegisterLazy.cpp
   generated/shape_inference.cpp
 )
+
+# The auto generated files trigger some warnings we can't do anything about.
+if(NOT MSVC)
+  set_source_files_properties(${LTC_GENERATED}
+    PROPERTIES COMPILE_FLAGS "-Wno-sign-compare -Wno-unused-function"
+  )
+endif()
+
 set(LTC_BACKEND_DEPENDS
   mlir_lowering_context.cpp
   mlir_native_functions.cpp
