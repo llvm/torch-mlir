@@ -8,7 +8,7 @@
 import functorch
 import torch
 
-import torch_mlir.torchscript as torchscript
+from torch_mlir import torchscript
 
 def simple(x):
     return x * x

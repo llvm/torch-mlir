@@ -6,7 +6,7 @@
 # RUN: %PYTHON %s | FileCheck %s
 
 import torch
-import torch_mlir.torchscript as torchscript
+from torch_mlir import torchscript
 
 class BasicModule(torch.nn.Module):
     def forward(self, x):

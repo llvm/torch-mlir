@@ -1,5 +1,5 @@
 import torch
-import torch_mlir.torchscript as torchscript
+from torch_mlir import torchscript
 
 from transformers import BertForMaskedLM
 

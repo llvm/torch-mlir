@@ -5,7 +5,7 @@ from typing import List, Tuple
 import torch
 import torch.multiprocessing as mp
 import torch.utils.cpp_extension
-import torch_mlir.torchscript as torchscript
+from torch_mlir import torchscript
 from torch_mlir_e2e_test.annotations import export, annotate_args
 
 

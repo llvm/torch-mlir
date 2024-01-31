@@ -6,7 +6,7 @@
 from typing import Any
 
 import torch
-import torch_mlir.torchscript as torchscript
+from torch_mlir import torchscript
 
 from torch_mlir_e2e_test.tosa_backends.abc import TosaBackend
 from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem

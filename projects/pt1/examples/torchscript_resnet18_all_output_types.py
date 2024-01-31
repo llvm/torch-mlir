@@ -6,7 +6,7 @@
 import torch
 import torchvision
 
-import torch_mlir.torchscript as torchscript
+from torch_mlir import torchscript
 
 resnet18 = torchvision.models.resnet18(pretrained=True)
 resnet18.eval()

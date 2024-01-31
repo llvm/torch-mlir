@@ -3,7 +3,7 @@
 import gc
 import sys
 import torch
-import torch_mlir.torchscript as torchscript
+from torch_mlir import torchscript
 
 
 def run_test(f):

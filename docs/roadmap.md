@@ -64,8 +64,8 @@ Currently, there are two main API paths for the torch-mlir project:
 - The second path (torch_mlir.fx.export_and_import) allows users to import a
   consolidated torch.export.ExportedProgram instance of an arbitrary Python
   callable (an nn.Module, a function or a method) and output to torch dialect
-  mlir module. This path is what users are using currently, but the path is
-  not quite ready yet.
+  mlir module. This path is aligned with PyTorch's roadmap, but the path is
+  not fully functional yet.
 
 ## Roadmap
 

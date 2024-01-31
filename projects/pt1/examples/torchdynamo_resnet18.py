@@ -14,7 +14,7 @@ import torch._dynamo as dynamo
 import torchvision.models as models
 from torchvision import transforms
 
-import torch_mlir.torchscript as torchscript
+from torch_mlir import torchscript
 from torch_mlir.dynamo import make_simple_dynamo_backend
 from torch_mlir_e2e_test.linalg_on_tensors_backends import refbackend
 
