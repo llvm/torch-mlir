@@ -707,8 +707,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         selectSizes.push_back(1);
         Type selectResultType = axesType.getWithSizesAndDtype(
             llvm::ArrayRef(selectSizes), axesType.getOptionalDtype());
-        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
-
         auto sizes =
             dyn_cast<Torch::ValueTensorType>(axes.getType()).getSizes();
 
