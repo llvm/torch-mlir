@@ -565,6 +565,7 @@ cc_library(
         ":TorchMLIRTorchToStablehlo",
         ":TorchMLIRTorchToTMTensor",
         ":TorchMLIRTorchToTosa",
+        ":TorchMLIRTorchToTensor",
         "@llvm-project//mlir:ConversionPasses",
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:LinalgDialect",
