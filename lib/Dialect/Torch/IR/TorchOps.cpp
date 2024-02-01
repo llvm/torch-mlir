@@ -2835,7 +2835,7 @@ OpFoldResult AtenItemOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
-// AtenOnesOp
+// AtenOnesOp, AtenZerosOp, AtenFullOp
 //===----------------------------------------------------------------------===//
 OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
   auto shapedty = getResult().getType().dyn_cast<ShapedType>();
@@ -2847,6 +2847,44 @@ OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
     return DenseElementsAttr::get(shapedty, attribute);
   } else if (elementType.isa<FloatType>()) {
     Attribute attribute = FloatAttr::get(elementType, 1.0);
+    return DenseElementsAttr::get(shapedty, attribute);
+  } else {
+    return nullptr;
+  }
+}
+
+OpFoldResult AtenZerosOp::fold(FoldAdaptor adaptor) {
+  auto shapedty = getResult().getType().dyn_cast<ShapedType>();
+  if (!shapedty)
+    return nullptr;
+  auto elementType = shapedty.getElementType();
+  if (elementType.isa<IntegerType>()) {
+    Attribute attribute = IntegerAttr::get(elementType, 0);
+    return DenseElementsAttr::get(shapedty, attribute);
+  } else if (elementType.isa<FloatType>()) {
+    Attribute attribute = FloatAttr::get(elementType, 0.0);
+    return DenseElementsAttr::get(shapedty, attribute);
+  } else {
+    return nullptr;
+  }
+}
+
+OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
+  auto shapedty = getResult().getType().dyn_cast<ShapedType>();
+  if (!shapedty)
+    return nullptr;
+  auto elementType = shapedty.getElementType();
+  if (elementType.isa<IntegerType>()) {
+    int64_t value;
+    if (!matchPattern(getFillValue(), m_TorchConstantInt(&value)))
+      return nullptr;
+    Attribute attribute = IntegerAttr::get(elementType, value);
+    return DenseElementsAttr::get(shapedty, attribute);
+  } else if (elementType.isa<FloatType>()) {
+    double value;
+    if (!matchPattern(getFillValue(), m_TorchConstantFloat(&value)))
+      return nullptr;
+    Attribute attribute = FloatAttr::get(elementType, value);
     return DenseElementsAttr::get(shapedty, attribute);
   } else {
     return nullptr;
