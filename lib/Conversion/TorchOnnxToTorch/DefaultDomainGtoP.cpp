@@ -281,7 +281,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                          "spatial axis");
         if (binder.s64IntegerArrayAttr(strides, "strides", {}))
           return rewriter.notifyMatchFailure(binder.op, "strides bind failure");
-        if (!strides.empty() && static_cast<size_t>(strides.size() != spatial))
+        if (!strides.empty() && strides.size() != static_cast<size_t>(spatial))
           return rewriter.notifyMatchFailure(
               binder.op, "strides list size does not match the number of axes");
         if (binder.s64IntegerArrayAttr(dilations, "dilations", {}))
