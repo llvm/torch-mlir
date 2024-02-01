@@ -8472,6 +8472,7 @@ def Torch_AtenZerosOp : Torch_Op<"aten.zeros", [
       printDefaultTorchOp(printer, *this, 5, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenNewZerosOp : Torch_Op<"aten.new_zeros", [
@@ -11205,6 +11206,7 @@ def Torch_AtenFullOp : Torch_Op<"aten.full", [
       printDefaultTorchOp(printer, *this, 6, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenFullLikeOp : Torch_Op<"aten.full_like", [
