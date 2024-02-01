@@ -4092,7 +4092,8 @@ class CumsumModule(torch.nn.Module):
         ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, val):
-        return torch.ops.aten.cumsum(val, 1)
+        ones = torch.ones([1], dtype=torch.int32)
+        return torch.ops.aten.cumsum(val, ones.item())
 
 @register_test_case(module_factory=lambda: CumsumModule())
 def CumsumModule_basic(module, tu: TestUtils):
