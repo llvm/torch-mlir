@@ -947,7 +947,7 @@ void AtenViewOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       return failure();
     SmallVector<int64_t> dimList;
     int64_t inputPtr = 0;
-    for (uint64_t i = 0; i < resRank; i++) {
+    for (int64_t i = 0; i < resRank; i++) {
       if (inputPtr < inputRank && inputShape[inputPtr] == resShape[i]) {
         inputPtr++;
         continue;
