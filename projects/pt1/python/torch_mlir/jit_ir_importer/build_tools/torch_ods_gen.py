@@ -618,7 +618,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::index.Tensor_hacked_twin : (Tensor, Tensor[]) -> (Tensor)")
     emit("aten::index_select : (Tensor, int, Tensor) -> (Tensor)")
     emit_with_mutating_variants("aten::_index_put_impl : (Tensor, Tensor?[], Tensor, bool, bool) -> (Tensor)")
-    emit("aten::item : (Tensor) -> (Scalar)")
+    emit("aten::item : (Tensor) -> (Scalar)", has_folder=True)
     emit("aten::masked_select : (Tensor, Tensor) -> (Tensor)")
     emit("aten::numel : (Tensor) -> (int)", has_canonicalizer=True)
     emit("aten::repeat : (Tensor, int[]) -> (Tensor)")

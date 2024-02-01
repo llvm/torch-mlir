@@ -1089,11 +1089,9 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               binder.op, "expected result type to have a dtype");
         }
         // resultTensorType.print(llvm::outs());
-        Value resultDType = Torch::getDtypeIntValueForType(
-            rewriter, loc, resultTensorType.getDtype());
-
+        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
         rewriter.replaceOpWithNewOp<Torch::AtenCumsumOp>(
-            binder.op, resultType, operand, dim, resultDType);
+            binder.op, resultType, operand, dim, none);
         return success();
       });
   patterns.onOp(
