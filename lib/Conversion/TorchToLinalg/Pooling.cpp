@@ -668,10 +668,10 @@ template <> struct AdaptivePoolingOpTraits<Aten_AdaptiveAvgPool3dOp> {
 };
 
 template <typename OpTy>
-class ConvertAtenAdaptivePoolOp : public OpConversionPattern<OpTy> {
+class ConvertAtenAdaptivePoolOpBase : public OpConversionPattern<OpTy> {
   using OpConversionPattern<OpTy>::OpConversionPattern;
 
-private:
+protected:
   static const int64_t Dim = AdaptivePoolingOpTraits<OpTy>::Dim;
   static constexpr bool isMaxPool = AdaptivePoolingOpTraits<OpTy>::isMaxPool;
 
@@ -738,6 +738,12 @@ public:
     // get outputType and initialize an auxTensor
     RankedTensorType outputType, auxTensorType;
     Value buffVal, auxTensor;
+    SmallVector<AffineExpr> auxTensorExprs;
+    // TODO: setup virtual auxTensorSetup method
+    if (failed(auxTensorSetup(rewriter,))){
+      rewriter.notifyMatchFailure(op, "failed auxTensor setup.");
+    }
+    //auxtensor setup logic
     if constexpr (isMaxPool) {
       outputType = typeConverter->convertType(op.getResult0().getType())
                        .template cast<RankedTensorType>();
@@ -753,6 +759,9 @@ public:
                                                    smallestFPValueAttr);
       auxTensor = rewriter.create<tensor::EmptyOp>(
           loc, getAsOpFoldResult(outputSizes), auxTensorElementType);
+      for (unsigned i = 0; i < rank; i++){
+        auxTensorExpr.push_back(rewriter.getAffineDimExpr(i));
+      }
     } else {
       outputType = typeConverter->convertType(op.getResult().getType())
                        .template cast<RankedTensorType>();
@@ -760,7 +769,11 @@ public:
           loc, elementType, rewriter.getFloatAttr(elementType, 0));
       auxTensor = rewriter.create<tensor::EmptyOp>(
           loc, getAsOpFoldResult(outShapeIndexVector), elementType);
+      for (unsigned i = nonSpatial; i < rank; i++){
+        auxTensorExpr.push_back(rewriter.getAffineDimExpr(i));
+      }
     }
+    // end auxTensor setup
 
     // initialize output tensor
     Value initOutput =
@@ -781,13 +794,10 @@ public:
     // output (d0,d1,d2,d3,d4,d5) -> (d0,d1,d2,d3)
     // auxTensor (maxPool) (d0,d1,d2,d3,d4,d5) -> (d0,d1,d2,d3)
     // auxTensor (avgPool) (d0,d1,d2,d3,d4,d5) -> (d2,d3)
-    SmallVector<AffineExpr> kIterExprs, outputExprs, auxTensorExprs;
+    SmallVector<AffineExpr> kIterExprs, outputExprs;
     // batch + channel + output spatial dims
     for (unsigned i = 0; i < rank; i++) {
       outputExprs.push_back(rewriter.getAffineDimExpr(i));
-      if (isMaxPool || i >= nonSpatial) {
-        auxTensorExprs.push_back(rewriter.getAffineDimExpr(i));
-      }
     }
     // kIter covers last rank-2 indices
     for (unsigned i = rank; i < 2 * rank - nonSpatial; i++) {
@@ -801,6 +811,9 @@ public:
       iteratorTypes.push_back(utils::IteratorType::reduction);
     }
     Value indexOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+
+    bool failedCustomization = false;
+    //adaptive pooling generic op
     auto adaptivePool = rewriter.create<linalg::GenericOp>(
         loc, /*resultTensorTypes=*/
         TypeRange({initOutput.getType(), auxTensor.getType()}),
@@ -856,6 +869,11 @@ public:
           }
           Value out2, auxOut;
           // customize for max vs. avg:
+          // TODO: setup payloadCustomization virtual function
+          if (failed(payloadCustomization(args))) {
+            failedCustomization = true;
+          }
+          // customization logic
           if constexpr (isMaxPool) {
             // compute max using select, since cond1 will be used for indices
             Value cond1 = b.create<arith::CmpFOp>(
@@ -887,9 +905,13 @@ public:
             Value auxOutSI = castIndexToInt64(b, loc, kernelVolume);
             auxOut = b.create<arith::SIToFPOp>(loc, elementType, auxOutSI);
           }
+          // end customization
           b.create<linalg::YieldOp>(loc, ValueRange({out2, auxOut}));
         });
 
+    if (failedCustomization){
+      return failure();
+    }
     Value adaptivePoolOutput = adaptivePool.getResultTensors()[0];
     Value auxTensorReturn = adaptivePool.getResultTensors()[1];
 
