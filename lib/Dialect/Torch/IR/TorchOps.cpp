@@ -2813,6 +2813,26 @@ OpFoldResult AtenDivIntOp::fold(FoldAdaptor adaptor) {
   return nullptr;
 }
 
+
+//===----------------------------------------------------------------------===//
+// AtenItemOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenItemOp::fold(FoldAdaptor adaptor) {
+  DenseElementsAttr attr;
+  if (matchPattern(getOperand(), m_Constant(&attr))) {
+    auto splat = attr.getSplatValue<Attribute>();
+    if (auto intAttr = dyn_cast<IntegerAttr>(splat)) {
+      return getI64IntegerAttr(getContext(), intAttr.getSInt());
+    }
+    if (auto floatAttr = dyn_cast<FloatAttr>(splat)) {
+      return getF64FloatAttr(getContext(), floatAttr.getValueAsDouble());
+    }
+    return nullptr;
+  }
+  return nullptr;
+}
+
 //===----------------------------------------------------------------------===//
 // AtenCeilFloatOp
 //===----------------------------------------------------------------------===//

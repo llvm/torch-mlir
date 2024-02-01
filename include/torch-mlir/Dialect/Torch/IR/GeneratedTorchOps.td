@@ -9858,6 +9858,7 @@ def Torch_AtenItemOp : Torch_Op<"aten.item", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenMaskedSelectOp : Torch_Op<"aten.masked_select", [
