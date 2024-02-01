@@ -1895,6 +1895,35 @@ public:
 };
 } // namespace
 
+namespace {
+class DecomposeAtenLerpScalarOp : public OpRewritePattern<AtenLerpScalarOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLerpScalarOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto resType = op.getType().cast<BaseTensorType>();
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+    Value cstOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    auto start = op.getSelf();
+    auto inputType = start.getType().cast<BaseTensorType>();
+
+    auto delta = rewriter.create<AtenSubTensorOp>(loc, inputType, op.getEnd(),
+                                                  start, cstOne);
+
+    auto weightedDelta =
+        rewriter.create<AtenMulScalarOp>(loc, inputType, delta, op.getWeight());
+    auto lerp = rewriter.create<AtenAddTensorOp>(loc, inputType, start,
+                                                 weightedDelta, cstOne);
+    rewriter.replaceOp(op, lerp);
+    return success();
+  }
+};
+} // namespace
+
 // Elu = scale * max(0,x) + alpha * scale * (exp(min(0,x) * input_scale) - 1)
 namespace {
 class DecomposeAtenEluOp : public OpRewritePattern<AtenEluOp> {
@@ -6763,6 +6792,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenSeluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluBackwardOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLerpScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyStridedOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEmptyStridedOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBucketizeTensorOp>(patterns);

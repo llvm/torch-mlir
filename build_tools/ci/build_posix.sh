@@ -42,6 +42,7 @@ cmake -S "$repo_root/externals/llvm-project/llvm" -B "$build_dir" \
   -DCMAKE_BUILD_TYPE=Release \
   -DPython3_EXECUTABLE="$(which python)" \
   -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DTORCH_MLIR_ENABLE_WERROR_FLAG=ON \
   -DCMAKE_INSTALL_PREFIX="$install_dir" \
   -DCMAKE_INSTALL_LIBDIR=lib \
   -DLLVM_ENABLE_PROJECTS=mlir \

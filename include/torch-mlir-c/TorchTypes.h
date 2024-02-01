@@ -35,7 +35,7 @@ MLIR_CAPI_EXPORTED MlirType
 torchMlirTorchNnModuleTypeGet(MlirContext context, MlirStringRef className);
 
 /// Gets the !torch.nn.Module typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchNnModuleTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchNnModuleTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // torch.optional type.
@@ -53,7 +53,7 @@ MLIR_CAPI_EXPORTED MlirType
 torchMlirTorchOptionalTypeGetContained(MlirType containedType);
 
 /// Gets the !torch.optional typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchOptionalTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchOptionalTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // torch.tuple<T1, T2, T3> type.
@@ -75,7 +75,7 @@ MLIR_CAPI_EXPORTED MlirType torchMlirTorchTupleTypeGetType(MlirType t,
                                                            intptr_t pos);
 
 /// Gets the !torch.tuple typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchTupleTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchTupleTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // torch.union<T1, T2, T3> type.
@@ -97,7 +97,7 @@ MLIR_CAPI_EXPORTED MlirType torchMlirTorchUnionTypeGetType(MlirType t,
                                                            intptr_t pos);
 
 /// Gets the !torch.union typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchUnionTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchUnionTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // torch.list<T> type.
@@ -113,7 +113,7 @@ MLIR_CAPI_EXPORTED MlirType torchMlirTorchListTypeGet(MlirType containedType);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchListTypeGetContainedType(MlirType t);
 
 /// Gets the !torch.list typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchListTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchListTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // torch.Device type.
@@ -126,7 +126,7 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchDevice(MlirType t);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchDeviceTypeGet(MlirContext context);
 
 /// Gets the !torch.device typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchDeviceTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchDeviceTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // torch.Generator type.
@@ -139,7 +139,7 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchGenerator(MlirType t);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchGeneratorTypeGet(MlirContext context);
 
 /// Gets the !torch.generator typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchGeneratorTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchGeneratorTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // torch.bool type.
@@ -152,7 +152,7 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchBool(MlirType t);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchBoolTypeGet(MlirContext context);
 
 /// Gets the !torch.bool typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchBoolTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchBoolTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // torch.int type.
@@ -165,7 +165,7 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchInt(MlirType t);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchIntTypeGet(MlirContext context);
 
 /// Gets the !torch.int typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchIntTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchIntTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // torch.float type.
@@ -178,7 +178,7 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchFloat(MlirType t);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchFloatTypeGet(MlirContext context);
 
 /// Gets the !torch.float typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchFloatTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchFloatTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // torch.LinearParams type.
@@ -192,7 +192,7 @@ MLIR_CAPI_EXPORTED MlirType
 torchMlirTorchLinearParamsTypeGet(MlirContext context);
 
 /// Gets the !torch.linearparams typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchLinearParamsTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchLinearParamsTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // torch.qint8 type.
@@ -205,7 +205,7 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchQInt8(MlirType t);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchQInt8TypeGet(MlirContext context);
 
 /// Gets the !torch.qint8 typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchQInt8TypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchQInt8TypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // torch.quint8 type.
@@ -218,7 +218,7 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchQUInt8(MlirType t);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchQUInt8TypeGet(MlirContext context);
 
 /// Gets the !torch.quint8 typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchQUInt8TypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchQUInt8TypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // torch.tensor type.
@@ -266,7 +266,7 @@ MLIR_CAPI_EXPORTED MlirType
 torchMlirTorchNonValueTensorTypeGetDtype(MlirType t);
 
 /// Gets the !torch.tensor typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchNonValueTensorTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchNonValueTensorTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // torch.vtensor type.
@@ -312,7 +312,7 @@ torchMlirTorchValueTensorTypeGetSizes(MlirType t, int64_t *sizes);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchValueTensorTypeGetDtype(MlirType t);
 
 /// Gets the !torch.vtensor typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchValueTensorTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchValueTensorTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // !torch.none type.
@@ -325,7 +325,7 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchNone(MlirType t);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchNoneTypeGet(MlirContext context);
 
 /// Gets the !torch.none typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchNoneTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchNoneTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // !torch.str type.
@@ -338,7 +338,7 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchString(MlirType t);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchStringTypeGet(MlirContext context);
 
 /// Gets the !torch.str typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchStringTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchStringTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // !torch.any type.
@@ -351,7 +351,7 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchAny(MlirType t);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchAnyTypeGet(MlirContext context);
 
 /// Gets the !torch.any typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchAnyTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchAnyTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // !torch.number type.
@@ -364,7 +364,7 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchNumber(MlirType t);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchNumberTypeGet(MlirContext context);
 
 /// Gets the !torch.number typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchNumberTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchNumberTypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
 // !torch.dict type.
@@ -387,7 +387,7 @@ MLIR_CAPI_EXPORTED MlirType torchMlirTorchDictTypeGetKeyType(MlirType t);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchDictTypeGetValueType(MlirType t);
 
 /// Gets the !torch.dict typeid.
-MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchDictTypeGetTypeID();
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchDictTypeGetTypeID(void);
 
 #ifdef __cplusplus
 }

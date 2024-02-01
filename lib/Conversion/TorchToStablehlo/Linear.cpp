@@ -39,10 +39,7 @@ Value getBroadcastTensor(PatternRewriter &rewriter, Operation *op, Value tensor,
   RankedTensorType outTy =
       RankedTensorType::get(shape, tensorTy.getElementType());
 
-  RankedTensorType attrTy =
-      RankedTensorType::get({static_cast<int64_t>(broadcastDims.size())},
-                            rewriter.getIntegerType(64));
-  auto broadcastAttr = DenseIntElementsAttr::get(attrTy, broadcastDims);
+  auto broadcastAttr = rewriter.getDenseI64ArrayAttr(broadcastDims);
 
   auto broadcast = rewriter.create<stablehlo::DynamicBroadcastInDimOp>(
       loc, outTy, tensor, stablehloShape, broadcastAttr);
@@ -549,8 +546,7 @@ public:
 
     // Prepare for transposed convolution
     SmallVector<int64_t> stablehloStrideVec(nSpatialDims, 1);
-    DenseIntElementsAttr stablehloStride =
-        rewriter.getI64TensorAttr(stablehloStrideVec);
+    auto stablehloStride = rewriter.getDenseI64ArrayAttr(stablehloStrideVec);
     SmallVector<int64_t> stablehloPaddingVec(nSpatialDims * 2, 0);
     for (int i = 0; i < nSpatialDims; ++i) {
       int64_t padInt = dilation[i] * (weightShape[i + 2] - 1) - padding[i];
@@ -563,15 +559,15 @@ public:
         stablehloPaddingVec);
     SmallVector<int64_t> stablehloLhsDilationVec(nSpatialDims);
     std::copy(stride.begin(), stride.end(), stablehloLhsDilationVec.begin());
-    DenseIntElementsAttr stablehloLhsDilation =
-        rewriter.getI64TensorAttr(stablehloLhsDilationVec);
+    auto stablehloLhsDilation =
+        rewriter.getDenseI64ArrayAttr(stablehloLhsDilationVec);
     SmallVector<int64_t> stablehloRhsDilationVec(nSpatialDims);
     std::copy(dilation.begin(), dilation.end(),
               stablehloRhsDilationVec.begin());
-    DenseIntElementsAttr stablehloRhsDilation =
-        rewriter.getI64TensorAttr(stablehloRhsDilationVec);
+    auto stablehloRhsDilation =
+        rewriter.getDenseI64ArrayAttr(stablehloRhsDilationVec);
 
-    DenseElementsAttr windowReversal;
+    DenseBoolArrayAttr windowReversal;
     ArrayAttr precisionConfig;
 
     SmallVector<int64_t> spatialDims;
@@ -614,10 +610,7 @@ public:
     int64_t nDims = outType.getRank();
 
     // Get stablehlo::ConvolutionOp attributes
-    DenseIntElementsAttr stablehloWindowStride = DenseIntElementsAttr::get(
-        RankedTensorType::get({static_cast<long int>(stride.size())},
-                              rewriter.getI64Type()),
-        stride);
+    auto stablehloWindowStride = rewriter.getDenseI64ArrayAttr(stride);
     std::vector<int64_t> stablehloPaddingVec;
     for (size_t i = 0; i < padding.size(); i++) {
       stablehloPaddingVec.emplace_back(padding[i]);
@@ -628,10 +621,7 @@ public:
             {static_cast<long int>(padding.size()), static_cast<long int>(2)},
             rewriter.getI64Type()),
         stablehloPaddingVec);
-    DenseIntElementsAttr stablehloRhsDilation = DenseIntElementsAttr::get(
-        RankedTensorType::get({static_cast<long int>(dilation.size())},
-                              rewriter.getI64Type()),
-        dilation);
+    auto stablehloRhsDilation = rewriter.getDenseI64ArrayAttr(dilation);
     SmallVector<int64_t> spatialDimensions;
     for (int64_t i = 2; i < nDims; i++) {
       spatialDimensions.emplace_back(i);
@@ -648,8 +638,8 @@ public:
             /*outputSpatialDimensions=*/spatialDimensions);
 
     // stablehlo::ConvolutionOp's optional attributes, leave them as default
-    DenseIntElementsAttr stablehloLhsDilation;
-    DenseElementsAttr windowReversal;
+    DenseI64ArrayAttr stablehloLhsDilation;
+    DenseBoolArrayAttr windowReversal;
     ArrayAttr precisionConfig;
 
     auto stablehloConvOp = rewriter.create<stablehlo::ConvolutionOp>(
@@ -781,7 +771,7 @@ public:
                                  options.dimSizeIndexBits);
     bias = hlo::promoteType(rewriter, op.getLoc(), bias, outTy);
 
-    DenseIntElementsAttr bcastDimensions;
+    DenseI64ArrayAttr bcastDimensions;
     rewriter.replaceOpWithNewOp<chlo::BroadcastAddOp>(
         op, outTy, stablehloConvResult, bias, bcastDimensions);
     return success();

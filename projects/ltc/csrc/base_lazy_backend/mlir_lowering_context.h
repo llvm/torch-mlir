@@ -150,15 +150,14 @@ public:
 
 protected:
   size_t num_parameters_;
-  std::unordered_map<int, std::string> parameters_map_;
-  std::vector<std::string> parameter_names_;
-  std::vector<Shape> parameter_shapes_;
-  Shape result_shape_;
-
   MlirModule module_op_;
   MlirContext mlir_context_;
   std::shared_ptr<torch::jit::Graph> graph_;
   InputOutputAliases input_output_aliases_;
+  std::unordered_map<int, std::string> parameters_map_;
+  std::vector<std::string> parameter_names_;
+  std::vector<Shape> parameter_shapes_;
+  Shape result_shape_;
 };
 
 } // namespace lazy
