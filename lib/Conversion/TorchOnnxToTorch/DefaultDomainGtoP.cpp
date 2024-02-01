@@ -269,12 +269,13 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (binder.s64IntegerArrayAttr(kernel, "kernel_shape", {}))
           return rewriter.notifyMatchFailure(binder.op,
                                              "kernel_shape bind failure");
-        if (kernel.size() != spatial)
+        if (kernel.size() != static_cast<size_t>(spatial))
           return rewriter.notifyMatchFailure(
               binder.op, "kernel list size does not match the number of axes");
         if (binder.s64IntegerArrayAttr(padding, "pads", {}))
           return rewriter.notifyMatchFailure(binder.op, "pads bind failure");
-        if (!padding.empty() && padding.size() != 2 * (spatial))
+        if (!padding.empty() &&
+            padding.size() != static_cast<size_t>(2 * spatial))
           return rewriter.notifyMatchFailure(
               binder.op, "padding list must contain (begin,end) pair for each "
                          "spatial axis");
@@ -296,7 +297,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         // If the padding is symmetric we can push the padding operation to the
         // torch operator.
-        if (padding.size() == 2 * spatial) {
+        if (padding.size() == static_cast<size_t>(2 * spatial)) {
           bool equal = true;
           for (int i = 0; i < spatial; ++i) {
             equal = equal && (padding[i] == padding[i + spatial]);
@@ -305,9 +306,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             padding.resize(spatial);
         }
 
-        // Torch pool operators require symmetric padding so we materialize the
-        // padding behavior explicitly and set the padding to 0.
-        if (padding.size() == 2 * spatial) {
+        // Torch pool operators require equal padding on each size of each
+        // dimension so we materialize the padding behavior explicitly and set
+        // the padding to 0.
+        if (padding.size() == static_cast<size_t>(2 * spatial)) {
           auto operandTy = cast<Torch::ValueTensorType>(operand.getType());
           llvm::SmallVector<int64_t> shuffledPadding(spatial * 2);
           llvm::SmallVector<int64_t> paddedShape(operandTy.getSizes());
