@@ -2839,7 +2839,6 @@ OpFoldResult AtenItemOp::fold(FoldAdaptor adaptor) {
     if (!tensorType)
       return nullptr;
     if(!tensorType.hasDtype()){
-      tensorType.dump();
       return nullptr;
     }
     auto scalarType = tensorType.getDtype();
