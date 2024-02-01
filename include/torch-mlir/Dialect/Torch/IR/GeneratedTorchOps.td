@@ -8416,6 +8416,7 @@ def Torch_AtenOnesOp : Torch_Op<"aten.ones", [
       printDefaultTorchOp(printer, *this, 5, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenNewOnesOp : Torch_Op<"aten.new_ones", [
