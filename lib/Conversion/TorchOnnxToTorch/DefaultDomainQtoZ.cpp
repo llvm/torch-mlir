@@ -1436,18 +1436,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             return failure();
           }
         } else {
-          // The default axes value is the range from 0 to the number of
-          // dimensions
+          // The default axes value is the range from 0 to the size of first
+          // dimension of `starts` and `ends`.
           Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
-          auto defaultAxesType = Torch::ValueTensorType::get(
-              context, ArrayRef<int64_t>{operandTy.getRank()},
-              rewriter.getIntegerType(64, /*signed*/ 1));
           Value arangeLength = rewriter.create<Torch::ConstantIntOp>(
               loc, rewriter.getType<Torch::IntType>(),
-              rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                      operandTy.getRank()));
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), startSize));
           axes = rewriter.create<Torch::AtenArangeOp>(
-              loc, defaultAxesType, arangeLength, none, none, none, none);
+              loc, startsTorchTy, arangeLength, none, none, none, none);
         }
 
         // Binding `steps` from its arguments or through a default value
@@ -1458,22 +1454,18 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           }
         } else {
           // The default `steps` value is a 1d tensor filled with ones with a
-          // size of the dimension of the operand
+          // size equal to the size of `starts` and `ends`.
           Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
-          auto defaultStepsType = Torch::ValueTensorType::get(
-              context, ArrayRef<int64_t>{operandTy.getRank()},
-              rewriter.getIntegerType(64, /*signed*/ 1));
           Value sizeStepInput = rewriter.create<Torch::ConstantIntOp>(
               loc, rewriter.getType<Torch::IntType>(),
-              rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                      operandTy.getRank()));
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), startSize));
           Value sizeStepsInput = rewriter.create<Torch::PrimListConstructOp>(
               loc,
               Torch::ListType::get(
                   Torch::IntType::get(binder.op->getContext())),
               sizeStepInput);
           steps = rewriter.create<Torch::AtenOnesOp>(
-              loc, defaultStepsType, sizeStepsInput, none, none, none, none);
+              loc, startsTorchTy, sizeStepsInput, none, none, none, none);
         }
 
         if (!(endsTy.getRank() == 1 && startsTy.getRank() == 1 &&
