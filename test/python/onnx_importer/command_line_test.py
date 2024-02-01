@@ -18,6 +18,8 @@ import unittest.mock
 
 import onnx
 
+from torch_mlir.tools.import_onnx import __main__
+
 # For ONNX models
 
 import numpy
@@ -102,10 +104,9 @@ class CommandLineTest(unittest.TestCase):
         model_file = run_path / f"{model_name}-i.onnx"
         mlir_file = run_path / f"{model_name}-i.torch.mlir"
         onnx.save(onnx_model, model_file)
-        p = subprocess.run([
-            sys.executable, "-m", "torch_mlir.tools.import_onnx", model_file,
-            "-o", mlir_file])
-        self.assertEqual(p.returncode, 0)
+        args = __main__.parse_arguments([
+            str(model_file), "-o", str(mlir_file)])
+        __main__.main(args)
 
     def run_model_extern(self, onnx_model: onnx.ModelProto, model_name: str):
         run_path = self.get_run_path(model_name)
@@ -122,12 +123,10 @@ class CommandLineTest(unittest.TestCase):
         onnx.save(onnx_model, model_file)
         temp_dir = run_path / "temp"
         temp_dir.mkdir(exist_ok=True)
-        p = subprocess.run([
-            sys.executable, "-m", "torch_mlir.tools.import_onnx",
-            model_file, "-o", mlir_file, "--keep-temps", "--temp-dir",
-            temp_dir, "--data-dir", run_path
-            ])
-        self.assertEqual(p.returncode, 0)
+        args = __main__.parse_arguments([
+            str(model_file), "-o", str(mlir_file), "--keep-temps", "--temp-dir",
+            str(temp_dir), "--data-dir", str(run_path)])
+        __main__.main(args)
 
     def test_all(self):
         for model_func in ALL_MODELS:

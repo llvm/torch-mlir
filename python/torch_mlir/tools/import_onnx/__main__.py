@@ -61,6 +61,10 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
     # Make a temp dir for all the temp files we'll be generating as a side
     # effect of infering shapes.  For now, the only file is a new .onnx holding
     # the revised model with shapes.
+    #
+    # TODO: If the program temp_dir is None, we should be using an ephemeral
+    # temp directory instead of a hard-coded path in order to avoid data races
+    # by default.
     input_dir = os.path.dirname(os.path.abspath(args.input_file))
     temp_dir = (
         Path(input_dir if args.temp_dir is None else args.temp_dir)
