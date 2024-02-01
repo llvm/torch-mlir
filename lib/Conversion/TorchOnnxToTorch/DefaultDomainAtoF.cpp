@@ -1090,8 +1090,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         }
         // resultTensorType.print(llvm::outs());
         Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
-        rewriter.replaceOpWithNewOp<Torch::AtenCumsumOp>(
-            binder.op, resultType, operand, dim, none);
+        rewriter.replaceOpWithNewOp<Torch::AtenCumsumOp>(binder.op, resultType,
+                                                         operand, dim, none);
         return success();
       });
   patterns.onOp(
