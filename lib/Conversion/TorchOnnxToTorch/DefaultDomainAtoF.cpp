@@ -1462,7 +1462,10 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
         // Otherwise, collapse the left range into a single dimension:
         // torch._prims.collapse(cr, 0, axis - 1)
-        rewriter.replaceOp(binder.op, collapsedRight);
+        Value axisLess1Const = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(axis - 1));
+        rewriter.replaceOpWithNewOp<Torch::PrimsCollapseOp>(
+            binder.op, resultType, collapsedRight, zero, axisLess1Const);
         return success();
       });
   patterns.onOp("Floor", 13,
