@@ -107,6 +107,7 @@ TORCHDYNAMO_XFAIL_SET = {
     'GtFloatIntModule_basic',
     'NeFloatIntModule_basic',
     'SubFloatModule_basic',
+    'MulFloatModule_basic',
     'TensorToFloatZeroRank_basic',
     'TensorToFloat_basic',
     # END tests failing due to: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(float) [TensorVariable()] {}
