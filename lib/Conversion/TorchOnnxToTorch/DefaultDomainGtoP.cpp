@@ -262,29 +262,86 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (!maybeRank)
           return rewriter.notifyMatchFailure(binder.op,
                                              "Unimplemented: unranked tensor");
-        unsigned rank = *maybeRank;
+        int64_t rank = *maybeRank;
+        int64_t spatial = rank - 2;
 
         SmallVector<int64_t> kernel, padding, strides, dilations;
         if (binder.s64IntegerArrayAttr(kernel, "kernel_shape", {}))
           return rewriter.notifyMatchFailure(binder.op,
                                              "kernel_shape bind failure");
-        if (kernel.size() != rank - 2)
+        if (kernel.size() != static_cast<size_t>(spatial))
           return rewriter.notifyMatchFailure(
               binder.op, "kernel list size does not match the number of axes");
-        if (binder.s64IntegerArrayAttr(padding, "pads", {0}))
+        if (binder.s64IntegerArrayAttr(padding, "pads", {}))
           return rewriter.notifyMatchFailure(binder.op, "pads bind failure");
-        if (padding.size() != 1 && padding.size() != 2 * (rank - 2))
+        if (!padding.empty() &&
+            padding.size() != static_cast<size_t>(2 * spatial))
           return rewriter.notifyMatchFailure(
               binder.op, "padding list must contain (begin,end) pair for each "
                          "spatial axis");
-        if (binder.s64IntegerArrayAttr(strides, "strides", {1}))
+        if (binder.s64IntegerArrayAttr(strides, "strides", {}))
           return rewriter.notifyMatchFailure(binder.op, "strides bind failure");
-        if (strides.size() != 1 && strides.size() != rank - 2)
+        if (!strides.empty() && strides.size() != static_cast<size_t>(spatial))
           return rewriter.notifyMatchFailure(
               binder.op, "strides list size does not match the number of axes");
         if (binder.s64IntegerArrayAttr(dilations, "dilations", {}))
           return rewriter.notifyMatchFailure(binder.op,
                                              "dilations bind failure");
+
+        if (padding.empty())
+          padding.resize(spatial, 0);
+        if (strides.empty())
+          strides.resize(spatial, 1);
+        if (dilations.empty())
+          dilations.resize(spatial, 1);
+
+        // If the padding is symmetric we can push the padding operation to the
+        // torch operator.
+        if (padding.size() == static_cast<size_t>(2 * spatial)) {
+          bool equal = true;
+          for (int i = 0; i < spatial; ++i) {
+            equal = equal && (padding[i] == padding[i + spatial]);
+          }
+          if (equal)
+            padding.resize(spatial);
+        }
+
+        // Torch pool operators require equal padding on each size of each
+        // dimension so we materialize the padding behavior explicitly and set
+        // the padding to 0.
+        if (padding.size() == static_cast<size_t>(2 * spatial)) {
+          auto operandTy = cast<Torch::ValueTensorType>(operand.getType());
+          llvm::SmallVector<int64_t> shuffledPadding(spatial * 2);
+          llvm::SmallVector<int64_t> paddedShape(operandTy.getSizes());
+          shuffledPadding.resize(2 * rank);
+          for (int i = 0; i < spatial; ++i) {
+            paddedShape[i + 2] += padding[i] + padding[i + spatial];
+            shuffledPadding[2 * i] = padding[i];
+            shuffledPadding[2 * i + 1] = padding[i + spatial];
+          }
+
+          Value shuffledPaddingList =
+              createConstantIntList(binder, rewriter, padding);
+          Value zero;
+          if (resultType.getDtype().isa<FloatType>()) {
+            zero = rewriter.create<Torch::ConstantFloatOp>(
+                binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+                rewriter.getF64FloatAttr(
+                    std::numeric_limits<double>::lowest()));
+          } else if (resultType.getDtype().isa<IntegerType>()) {
+            zero = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(
+                                     std::numeric_limits<int64_t>::lowest()));
+          }
+
+          auto paddedInputTy = rewriter.getType<Torch::ValueTensorType>(
+              paddedShape, operandTy.getDtype());
+          operand = rewriter.create<Torch::AtenConstantPadNdOp>(
+              binder.getLoc(), paddedInputTy, operand, shuffledPaddingList,
+              zero);
+          padding.clear();
+          padding.resize(spatial, 0);
+        }
 
         Value kernelSizeList = createConstantIntList(binder, rewriter, kernel);
         Value paddingList = createConstantIntList(binder, rewriter, padding);
