@@ -309,7 +309,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // padding behavior explicitly and set the padding to 0.
         if (padding.size() == 2 * spatial) {
           auto operandTy = cast<Torch::ValueTensorType>(operand.getType());
-          llvm::SmallVector<int64_t> shuffledPadding(spatial * 2, 0);
+          llvm::SmallVector<int64_t> shuffledPadding(spatial * 2);
           llvm::SmallVector<int64_t> paddedShape(operandTy.getSizes());
           shuffledPadding.resize(2 * rank);
           for (int i = 0; i < spatial; ++i) {
