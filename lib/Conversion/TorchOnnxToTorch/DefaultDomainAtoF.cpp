@@ -1421,7 +1421,10 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
         // We collapse in the dimensions to the right of the axis.
         for (int i = axis + 1; i < rank; ++i) {
-          shape[axis] *= shape[i];
+          bool dynamic = shape[axis] == Torch::kUnknownSize ||
+                         shape[axis] == Torch::kUnknownSize;
+          if (!dynamic)
+            shape[axis] = shape[axis] * shape[i];
         }
 
         shape.resize(axis + 1, 1);
