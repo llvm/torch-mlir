@@ -6,7 +6,8 @@
 // Also available under a BSD-style license. See LICENSE.
 //
 //===----------------------------------------------------------------------===//
-
+#define DEBUG_TYPE "torch-mlir-torch-dialect"
+#include "llvm/Support/Debug.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
@@ -2838,9 +2839,40 @@ OpFoldResult AtenItemOp::fold(FoldAdaptor adaptor) {
 // AtenOnesOp, AtenZerosOp, AtenFullOp
 //===----------------------------------------------------------------------===//
 OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
-  auto shapedty = getResult().getType().dyn_cast<ShapedType>();
-  if (!shapedty)
+  Type resultType = getResult().getType();
+  auto resultTensorType = resultType.dyn_cast<BaseTensorType>();
+
+  ShapedType shapedty;
+
+  if(!resultTensorType){
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: result type is not a BaseTensorType\n");
     return nullptr;
+  }
+
+  if(resultTensorType.hasSizes() && resultTensorType.hasDtype()){
+    LLVM_DEBUG(llvm::dbgs() << "During AtenOnesOp fold: result type has sizes and dtype\n");
+    shapedty = resultTensorType.dyn_cast<ShapedType>();
+  } else {
+    LLVM_DEBUG(llvm::dbgs() << "During AtenOnesOp fold: result type does not have sizes. Attempting to get sizes from argument.\n");
+    SmallVector<int64_t> size;
+    if (!matchPattern(getSize(), m_TorchListOfConstantInts(size))){
+      LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: size from argument is not a list of constant integers.\n");
+      return nullptr;
+    }
+    // fail if no dtype
+    if (!resultTensorType.hasDtype()){
+      LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: result type does not have dtype.\n");
+      return nullptr;
+    }
+    shapedty = resultTensorType.getWithSizesAndDtype(
+      size, resultTensorType.getDtype()
+    ).dyn_cast<ShapedType>();
+  }
+
+  if (!shapedty){
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: ShapedType cast failed.\n");
+    return nullptr;
+  }
   auto elementType = shapedty.getElementType();
   if (elementType.isa<IntegerType>()) {
     Attribute attribute = IntegerAttr::get(elementType, 1);
@@ -2849,6 +2881,7 @@ OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
     Attribute attribute = FloatAttr::get(elementType, 1.0);
     return DenseElementsAttr::get(shapedty, attribute);
   } else {
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: element type is not integer or float.\n");
     return nullptr;
   }
 }

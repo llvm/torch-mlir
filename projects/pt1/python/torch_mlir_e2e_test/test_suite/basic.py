@@ -4097,8 +4097,8 @@ class CumsumModule(torch.nn.Module):
         # we replicate that here to ensure that cumsum correctly
         # trigger the relevant folders and provides TMTensor
         # with a constant dimension
-        ones = torch.ones(size=(1,), dtype=torch.int32)
-        return torch.ops.aten.cumsum(self=val, dim=ones.item())
+        ones = torch.ones([1], dtype=torch.int32)
+        return torch.ops.aten.cumsum(val, ones.item())
 
 @register_test_case(module_factory=lambda: CumsumModule())
 def CumsumModule_basic(module, tu: TestUtils):
