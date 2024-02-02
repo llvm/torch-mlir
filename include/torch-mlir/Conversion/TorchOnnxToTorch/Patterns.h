@@ -251,7 +251,10 @@ public:
   OnnxCustomOpConversionPattern(MLIRContext *context, std::string domainPrefix,
                                 int64_t domainVersion)
       : OpConversionPattern(context), domainPrefix(std::move(domainPrefix)),
-        domainVersion(domainVersion) {}
+        domainVersion(domainVersion) {
+    // Onnx lowerings could produce other Onnx operations during the rewrite.
+    setHasBoundedRewriteRecursion();
+  }
 
   LogicalResult
   matchAndRewrite(Torch::OperatorOp op, OpAdaptor adaptor,

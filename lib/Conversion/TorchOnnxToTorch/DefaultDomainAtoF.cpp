@@ -501,7 +501,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           auto message = llvm::formatv("unimplemented support for the given "
                                        "dtype conversion (onnx 'type' = {0})",
                                        dtypeIntOnnx);
-          llvm::errs() << message << "\n";
           auto y = rewriter.notifyMatchFailure(binder.op, message);
 
           return y;
@@ -691,7 +690,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         return failure();
       });
   patterns.onOp(
-      "Conv", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Conv", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         std::string autoPad;
         if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
           return failure();
