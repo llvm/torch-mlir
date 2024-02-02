@@ -2840,18 +2840,20 @@ OpFoldResult AtenItemOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
   SmallVector<int64_t> sizes;
-  if (!matchPattern(getSize(), m_TorchListOfConstantInts(sizes))){
-      LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: size operand is not a list of constant integers.\n");
-      return nullptr;
-  }
-  
-  Type resultType = getResult().getType();
-  BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
-  if (!resultTensorType || !resultTensorType.hasDtype()){
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: result type is not a tensor type or does not have a dtype.\n");
+  if (!matchPattern(getSize(), m_TorchListOfConstantInts(sizes))) {
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: size operand is "
+                               "not a list of constant integers.\n");
     return nullptr;
   }
-  
+
+  Type resultType = getResult().getType();
+  BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
+  if (!resultTensorType || !resultTensorType.hasDtype()) {
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: result type is not "
+                               "a tensor type or does not have a dtype.\n");
+    return nullptr;
+  }
+
   ShapedType shapedty =
       mlir::RankedTensorType::get( // convert Torch type to builtin ShapedType
           sizes, resultTensorType.getDtype());
@@ -2876,18 +2878,20 @@ OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
 
 OpFoldResult AtenZerosOp::fold(FoldAdaptor adaptor) {
   SmallVector<int64_t> sizes;
-  if (!matchPattern(getSize(), m_TorchListOfConstantInts(sizes))){
-      LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenZerosOp: size operand is not a list of constant integers.\n");
-      return nullptr;
-  }
-  
-  Type resultType = getResult().getType();
-  BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
-  if (!resultTensorType || !resultTensorType.hasDtype()){
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenZerosOp: result type is not a tensor type or does not have a dtype.\n");
+  if (!matchPattern(getSize(), m_TorchListOfConstantInts(sizes))) {
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenZerosOp: size operand is "
+                               "not a list of constant integers.\n");
     return nullptr;
   }
-  
+
+  Type resultType = getResult().getType();
+  BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
+  if (!resultTensorType || !resultTensorType.hasDtype()) {
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenZerosOp: result type is "
+                               "not a tensor type or does not have a dtype.\n");
+    return nullptr;
+  }
+
   ShapedType shapedty =
       mlir::RankedTensorType::get( // convert Torch type to builtin ShapedType
           sizes, resultTensorType.getDtype());
@@ -2912,18 +2916,20 @@ OpFoldResult AtenZerosOp::fold(FoldAdaptor adaptor) {
 
 OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
   SmallVector<int64_t> sizes;
-  if (!matchPattern(getSize(), m_TorchListOfConstantInts(sizes))){
-      LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenFullOp: size operand is not a list of constant integers.\n");
-      return nullptr;
-  }
-  
-  Type resultType = getResult().getType();
-  BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
-  if (!resultTensorType || !resultTensorType.hasDtype()){
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenFullOp: result type is not a tensor type or does not have a dtype.\n");
+  if (!matchPattern(getSize(), m_TorchListOfConstantInts(sizes))) {
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenFullOp: size operand is "
+                               "not a list of constant integers.\n");
     return nullptr;
   }
-  
+
+  Type resultType = getResult().getType();
+  BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
+  if (!resultTensorType || !resultTensorType.hasDtype()) {
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenFullOp: result type is not "
+                               "a tensor type or does not have a dtype.\n");
+    return nullptr;
+  }
+
   ShapedType shapedty =
       mlir::RankedTensorType::get( // convert Torch type to builtin ShapedType
           sizes, resultTensorType.getDtype());
