@@ -38,7 +38,9 @@ from .xfail_sets import (
     LTC_XFAIL_SET,
     LTC_CRASHING_SET,
     TORCHDYNAMO_XFAIL_SET,
-    TORCHDYNAMO_CRASHING_SET
+    TORCHDYNAMO_CRASHING_SET,
+    ONNX_CRASHING_SET,
+    ONNX_XFAIL_SET,
 )
 
 # Import tests to register them in the global registry.
@@ -125,8 +127,8 @@ def main():
         crashing_set = TORCHDYNAMO_CRASHING_SET
     elif args.config == "onnx":
         config = OnnxBackendTestConfig(LinalgOnTensorsOnnxBackend())
-        xfail_set = set()
-        crashing_set = set()
+        xfail_set = ONNX_XFAIL_SET
+        crashing_set = ONNX_CRASHING_SET
 
     do_not_attempt = set(args.crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed or []).union(crashing_set)
     available_tests = [test for test in GLOBAL_TEST_REGISTRY if test.unique_name not in do_not_attempt]

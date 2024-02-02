@@ -51,13 +51,13 @@ def convert_onnx(model, inputs):
         shape = tuple(shape)
         examples.append(torch.zeros(size=shape, dtype=arg.dtype))
 
-        input_name = str(index)
+        input_name = "input_{}".format(index)
         input_names.append(input_name)
 
         dynamic_dims = {}
         for (dimindex, dim) in enumerate(arg.shape):
             if (dim < 0):
-                dynamic_dims[dimindex] = "{}_{}".format(index, dimindex)
+                dynamic_dims[dimindex] = "dim_{}_{}".format(index, dimindex)
 
         if (dynamic_dims):
             dynamic_tensors[input_name] = dynamic_dims
@@ -80,12 +80,9 @@ class OnnxBackendTestConfig(TestConfig):
         self.use_make_fx = use_make_fx
 
     def compile(self, program: torch.nn.Module) -> Any:
-        print(program)
         example_args = convert_annotations_to_placeholders(program.forward)
         onnx_module = convert_onnx(program, example_args)
-        print(onnx_module)
         compiled_module = self.backend.compile(onnx_module)
-        print(compiled_module)
         return compiled_module
 
 

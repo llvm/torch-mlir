@@ -50,6 +50,12 @@ class LinalgOnTensorsOnnxBackend(OnnxBackend):
             f"builtin.module(func.func({ONNX_TO_TORCH_FUNC_PIPELINE}))",
             "Lowering Onnx backend contract to Linalg-on-Tensors backend contract")
         
+        run_pipeline_with_repro_report(
+            imported_module,
+            # f"builtin.module(torch-function-to-torch-backend-pipeline{option_string})",
+            f"builtin.module(torch-lower-to-backend-contract)",
+            "Lowering TorchFX IR -> Torch Backend IR",
+        )
 
         imported_module = _lower_mlir_module(False, OutputType.LINALG_ON_TENSORS, imported_module)
         compiled_module = self.refbackend.compile(imported_module)
