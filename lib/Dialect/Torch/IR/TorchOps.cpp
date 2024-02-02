@@ -7,9 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "torch-mlir-torch-dialect"
-#include "llvm/Support/Debug.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/Support/Debug.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
@@ -2843,11 +2843,12 @@ OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
   BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
   if (!resultTensorType)
     return nullptr;
-  ShapedType shapedty = mlir::RankedTensorType::get( // convert Torch type to builtin ShapedType
-        resultTensorType.getSizes(),
-        resultTensorType.getDtype());
-  if (!shapedty){
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: ShapedType cast failed.\n");
+  ShapedType shapedty =
+      mlir::RankedTensorType::get( // convert Torch type to builtin ShapedType
+          resultTensorType.getSizes(), resultTensorType.getDtype());
+  if (!shapedty) {
+    LLVM_DEBUG(llvm::dbgs()
+               << "Failing to fold AtenOnesOp: ShapedType cast failed.\n");
     return nullptr;
   }
   auto elementType = shapedty.getElementType();
@@ -2858,7 +2859,8 @@ OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
     Attribute attribute = FloatAttr::get(elementType, 1.0);
     return DenseElementsAttr::get(shapedty, attribute);
   } else {
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: element type is not integer or float.\n");
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: element type is "
+                               "not integer or float.\n");
     return nullptr;
   }
 }
@@ -2868,11 +2870,12 @@ OpFoldResult AtenZerosOp::fold(FoldAdaptor adaptor) {
   BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
   if (!resultTensorType)
     return nullptr;
-  ShapedType shapedty = mlir::RankedTensorType::get( // convert Torch type to builtin ShapedType
-        resultTensorType.getSizes(),
-        resultTensorType.getDtype());
-  if (!shapedty){
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenZerosOp: ShapedType cast failed.\n");
+  ShapedType shapedty =
+      mlir::RankedTensorType::get( // convert Torch type to builtin ShapedType
+          resultTensorType.getSizes(), resultTensorType.getDtype());
+  if (!shapedty) {
+    LLVM_DEBUG(llvm::dbgs()
+               << "Failing to fold AtenZerosOp: ShapedType cast failed.\n");
     return nullptr;
   }
   auto elementType = shapedty.getElementType();
@@ -2883,7 +2886,8 @@ OpFoldResult AtenZerosOp::fold(FoldAdaptor adaptor) {
     Attribute attribute = FloatAttr::get(elementType, 0.0);
     return DenseElementsAttr::get(shapedty, attribute);
   } else {
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenZerosOp: element type is not integer or float.\n");
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenZerosOp: element type is "
+                               "not integer or float.\n");
     return nullptr;
   }
 }
@@ -2893,11 +2897,12 @@ OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
   BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
   if (!resultTensorType)
     return nullptr;
-  ShapedType shapedty = mlir::RankedTensorType::get( // convert Torch type to builtin ShapedType
-        resultTensorType.getSizes(),
-        resultTensorType.getDtype());
-  if (!shapedty){
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenFullOp: ShapedType cast failed.\n");
+  ShapedType shapedty =
+      mlir::RankedTensorType::get( // convert Torch type to builtin ShapedType
+          resultTensorType.getSizes(), resultTensorType.getDtype());
+  if (!shapedty) {
+    LLVM_DEBUG(llvm::dbgs()
+               << "Failing to fold AtenFullOp: ShapedType cast failed.\n");
     return nullptr;
   }
   auto elementType = shapedty.getElementType();
@@ -2914,7 +2919,8 @@ OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
     Attribute attribute = FloatAttr::get(elementType, value);
     return DenseElementsAttr::get(shapedty, attribute);
   } else {
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenFullOp: element type is not integer or float.\n");
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenFullOp: element type is "
+                               "not integer or float.\n");
     return nullptr;
   }
 }
