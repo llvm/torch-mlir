@@ -29,11 +29,7 @@ func.func @torch.runtime.assert() {
   return
 }
 
-// test that we can fold the constant when we chain
-// aten.ones and aten.item
-// this should return a single number
 // CHECK-LABEL:   func.func @torch.aten.ones_item
-// ensure a constant int is created and returned
 // CHECK:           %[[CONST:.*]] = torch.constant.int 1
 // CHECK:           return %[[CONST]] : !torch.int
 func.func @torch.aten.ones_item() -> !torch.int {
@@ -46,11 +42,7 @@ func.func @torch.aten.ones_item() -> !torch.int {
     return %2 : !torch.int
 }
 
-// test that we can fold the constant when we chain
-// aten.zeros and aten.item
-// this should return a single number
 // CHECK-LABEL:   func.func @torch.aten.zeros_item
-// ensure a constant int is created and returned
 // CHECK:           %[[CONST:.*]] = torch.constant.int 0
 // CHECK:           return %[[CONST]] : !torch.int
 func.func @torch.aten.zeros_item() -> !torch.int {
@@ -63,11 +55,7 @@ func.func @torch.aten.zeros_item() -> !torch.int {
     return %2 : !torch.int
 }
 
-// test that we can fold the constant when we chain
-// aten.full and aten.item
-// this should return a single number
 // CHECK-LABEL:   func.func @torch.aten.full_item
-// ensure a constant int is created and returned
 // CHECK:           %[[CONST:.*]] = torch.constant.int 1337
 // CHECK:           return %[[CONST]] : !torch.int
 func.func @torch.aten.full_item() -> !torch.int {
@@ -80,9 +68,6 @@ func.func @torch.aten.full_item() -> !torch.int {
     %2 = torch.aten.item %1 : !torch.vtensor<[1],si32> -> !torch.int
     return %2 : !torch.int
 }
-
-// test that we can fold the constant when we chain
-// aten
 
 // CHECK-LABEL:   func.func @torch.aten.is_floating_point$fold_true
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
