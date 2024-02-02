@@ -2866,14 +2866,14 @@ OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
   if (elementType.isa<IntegerType>()) {
     Attribute attribute = IntegerAttr::get(elementType, 1);
     return DenseElementsAttr::get(shapedty, attribute);
-  } else if (elementType.isa<FloatType>()) {
+  }
+  if (elementType.isa<FloatType>()) {
     Attribute attribute = FloatAttr::get(elementType, 1.0);
     return DenseElementsAttr::get(shapedty, attribute);
-  } else {
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: element type is "
-                               "not integer or float.\n");
-    return nullptr;
   }
+  LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: element type is "
+                             "not integer or float.\n");
+  return nullptr;
 }
 
 OpFoldResult AtenZerosOp::fold(FoldAdaptor adaptor) {
@@ -2900,18 +2900,20 @@ OpFoldResult AtenZerosOp::fold(FoldAdaptor adaptor) {
                << "Failing to fold AtenZerosOp: ShapedType cast failed.\n");
     return nullptr;
   }
+
   auto elementType = shapedty.getElementType();
   if (elementType.isa<IntegerType>()) {
     Attribute attribute = IntegerAttr::get(elementType, 0);
     return DenseElementsAttr::get(shapedty, attribute);
-  } else if (elementType.isa<FloatType>()) {
+  }
+  if (elementType.isa<FloatType>()) {
     Attribute attribute = FloatAttr::get(elementType, 0.0);
     return DenseElementsAttr::get(shapedty, attribute);
-  } else {
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenZerosOp: element type is "
-                               "not integer or float.\n");
-    return nullptr;
   }
+
+  LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenZerosOp: element type is "
+                             "not integer or float.\n");
+  return nullptr;
 }
 
 OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
@@ -2945,7 +2947,8 @@ OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
       Attribute attribute = IntegerAttr::get(elementType, value);
       return DenseElementsAttr::get(shapedty, attribute);
     }
-  } else if (elementType.isa<FloatType>()) {
+  }
+  if (elementType.isa<FloatType>()) {
     double value = 0.0;
     if (matchPattern(getFillValue(), m_TorchConstantFloat(&value))) {
       Attribute attribute = FloatAttr::get(elementType, value);
