@@ -8416,6 +8416,7 @@ def Torch_AtenOnesOp : Torch_Op<"aten.ones", [
       printDefaultTorchOp(printer, *this, 5, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenNewOnesOp : Torch_Op<"aten.new_ones", [
@@ -8471,6 +8472,7 @@ def Torch_AtenZerosOp : Torch_Op<"aten.zeros", [
       printDefaultTorchOp(printer, *this, 5, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenNewZerosOp : Torch_Op<"aten.new_zeros", [
@@ -9858,6 +9860,7 @@ def Torch_AtenItemOp : Torch_Op<"aten.item", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenMaskedSelectOp : Torch_Op<"aten.masked_select", [
@@ -11202,6 +11205,7 @@ def Torch_AtenFullOp : Torch_Op<"aten.full", [
       printDefaultTorchOp(printer, *this, 6, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenFullLikeOp : Torch_Op<"aten.full_like", [
