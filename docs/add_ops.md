@@ -1,17 +1,17 @@
 # How to Add Ops to Torch-Mlir
 
-Collected links and contacts for how to add ops to torch-mlir. 
+Collected links and contacts for how to add ops to torch-mlir.
 
 
 <details>
 <summary>Turbine Camp: Start Here</summary>
-This document was previously known as `turbine-camp.md` to Nod.ai. "Turbine Camp" is part of Nod.ai's onboarding process. Welcome to turbine camp. This document originated at Nod.ai as a part of onboardding process, where new nod-ai folks learn about the architecture of our work by adding support for 2 ops to torch-mlir. I decided to put this into torch mlir because a lot of this is about torch-mlir. 
+This document was previously known as `turbine-camp.md` to Nod.ai. "Turbine Camp" is part of Nod.ai's onboarding process. Welcome to turbine camp. This document originated at Nod.ai as a part of onboardding process, where new nod-ai folks learn about the architecture of our work by adding support for 2 ops to torch-mlir. I decided to put this into torch mlir because a lot of this is about torch-mlir.
 
 Written & maintained by @renxida
 
 Guides by other folks that were used during the creation of this document:
 - [Chi Liu](https://gist.github.com/AmosLewis/dd31ab37517977b1c499d06495b4adc2)
-- [Sunsoon](https://docs.google.com/document/d/1H79DwW_wnVzUU81EogwY5ueXgnl-QzKet1p2lnqPar4/edit?pli=1) 
+- [Sunsoon](https://docs.google.com/document/d/1H79DwW_wnVzUU81EogwY5ueXgnl-QzKet1p2lnqPar4/edit?pli=1)
 
 ## Before you begin...
 
