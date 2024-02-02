@@ -2840,35 +2840,12 @@ OpFoldResult AtenItemOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
   Type resultType = getResult().getType();
-  auto resultTensorType = resultType.dyn_cast<BaseTensorType>();
-
-  ShapedType shapedty;
-
-  if(!resultTensorType){
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: result type is not a BaseTensorType\n");
+  BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
+  if (!resultTensorType)
     return nullptr;
-  }
-
-  if(resultTensorType.hasSizes() && resultTensorType.hasDtype()){
-    LLVM_DEBUG(llvm::dbgs() << "During AtenOnesOp fold: result type has sizes and dtype\n");
-    shapedty = resultTensorType.dyn_cast<ShapedType>();
-  } else {
-    LLVM_DEBUG(llvm::dbgs() << "During AtenOnesOp fold: result type does not have sizes. Attempting to get sizes from argument.\n");
-    SmallVector<int64_t> size;
-    if (!matchPattern(getSize(), m_TorchListOfConstantInts(size))){
-      LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: size from argument is not a list of constant integers.\n");
-      return nullptr;
-    }
-    // fail if no dtype
-    if (!resultTensorType.hasDtype()){
-      LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: result type does not have dtype.\n");
-      return nullptr;
-    }
-    shapedty = resultTensorType.getWithSizesAndDtype(
-      size, resultTensorType.getDtype()
-    ).dyn_cast<ShapedType>();
-  }
-
+  ShapedType shapedty = mlir::RankedTensorType::get( // convert Torch type to builtin ShapedType
+        resultTensorType.getSizes(),
+        resultTensorType.getDtype());
   if (!shapedty){
     LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: ShapedType cast failed.\n");
     return nullptr;
@@ -2887,9 +2864,17 @@ OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
 }
 
 OpFoldResult AtenZerosOp::fold(FoldAdaptor adaptor) {
-  auto shapedty = getResult().getType().dyn_cast<ShapedType>();
-  if (!shapedty)
+  Type resultType = getResult().getType();
+  BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
+  if (!resultTensorType)
     return nullptr;
+  ShapedType shapedty = mlir::RankedTensorType::get( // convert Torch type to builtin ShapedType
+        resultTensorType.getSizes(),
+        resultTensorType.getDtype());
+  if (!shapedty){
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenZerosOp: ShapedType cast failed.\n");
+    return nullptr;
+  }
   auto elementType = shapedty.getElementType();
   if (elementType.isa<IntegerType>()) {
     Attribute attribute = IntegerAttr::get(elementType, 0);
@@ -2898,14 +2883,23 @@ OpFoldResult AtenZerosOp::fold(FoldAdaptor adaptor) {
     Attribute attribute = FloatAttr::get(elementType, 0.0);
     return DenseElementsAttr::get(shapedty, attribute);
   } else {
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenZerosOp: element type is not integer or float.\n");
     return nullptr;
   }
 }
 
 OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
-  auto shapedty = getResult().getType().dyn_cast<ShapedType>();
-  if (!shapedty)
+  Type resultType = getResult().getType();
+  BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
+  if (!resultTensorType)
     return nullptr;
+  ShapedType shapedty = mlir::RankedTensorType::get( // convert Torch type to builtin ShapedType
+        resultTensorType.getSizes(),
+        resultTensorType.getDtype());
+  if (!shapedty){
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenFullOp: ShapedType cast failed.\n");
+    return nullptr;
+  }
   auto elementType = shapedty.getElementType();
   if (elementType.isa<IntegerType>()) {
     int64_t value;
@@ -2920,10 +2914,10 @@ OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
     Attribute attribute = FloatAttr::get(elementType, value);
     return DenseElementsAttr::get(shapedty, attribute);
   } else {
+    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenFullOp: element type is not integer or float.\n");
     return nullptr;
   }
 }
-
 //===----------------------------------------------------------------------===//
 // AtenCeilFloatOp
 //===----------------------------------------------------------------------===//
