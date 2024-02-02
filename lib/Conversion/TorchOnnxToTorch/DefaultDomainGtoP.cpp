@@ -788,7 +788,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorOperandAtIndex(b, 2) ||
             binder.tensorResultTypeAtIndex(yType, 0) ||
             binder.s64IntegerAttr(axis, "axis", -1) ||
-            binder.f32FloatAttr(epsilon, "epsilon", 0.00001) ||
+            binder.f32FloatAttr(epsilon, "epsilon", 0.00001f) ||
             binder.s64IntegerAttr(stashType, "stash_type", 1))
           return failure();
         Value constEpsilon = rewriter.create<Torch::ConstantFloatOp>(
