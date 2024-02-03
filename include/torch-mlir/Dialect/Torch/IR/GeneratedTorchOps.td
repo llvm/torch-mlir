@@ -1620,6 +1620,55 @@ def Torch_AtenLerp_TensorOp : Torch_Op<"aten.lerp_.Tensor", [
   }];
 }
 
+def Torch_AtenLerpScalarOp : Torch_Op<"aten.lerp.Scalar", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::lerp.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$end,
+    AnyTorchScalarType:$weight
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenLerpScalarOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void AtenLerpScalarOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
+def Torch_AtenLerp_ScalarOp : Torch_Op<"aten.lerp_.Scalar", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::lerp_.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$end,
+    AnyTorchScalarType:$weight
+  );
+  let results = (outs
+    Torch_NonValueTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenLerp_ScalarOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void AtenLerp_ScalarOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
 def Torch_AtenEqTensorOp : Torch_Op<"aten.eq.Tensor", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -8367,6 +8416,7 @@ def Torch_AtenOnesOp : Torch_Op<"aten.ones", [
       printDefaultTorchOp(printer, *this, 5, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenNewOnesOp : Torch_Op<"aten.new_ones", [
@@ -8422,6 +8472,7 @@ def Torch_AtenZerosOp : Torch_Op<"aten.zeros", [
       printDefaultTorchOp(printer, *this, 5, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenNewZerosOp : Torch_Op<"aten.new_zeros", [
@@ -9809,6 +9860,7 @@ def Torch_AtenItemOp : Torch_Op<"aten.item", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenMaskedSelectOp : Torch_Op<"aten.masked_select", [
@@ -11153,6 +11205,7 @@ def Torch_AtenFullOp : Torch_Op<"aten.full", [
       printDefaultTorchOp(printer, *this, 6, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenFullLikeOp : Torch_Op<"aten.full_like", [

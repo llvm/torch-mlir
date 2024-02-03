@@ -26,6 +26,9 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
 
+    # torch._dynamo.exc.Unsupported: Tensor.item
+    "CumsumModule_basic",
+
     # TypeError: new_empty(): argument 'size' (position 1) must be tuple of ints, but found element of type NoneType at pos 0
     # RuntimeError: Failed running call_function aten.convolution_backward(...
     # https://github.com/pytorch/pytorch/issues/89629
@@ -129,6 +132,10 @@ TORCHDYNAMO_XFAIL_SET = {
     'UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic',
     'ViewCollapseDynamicWithAtenSizeIntModule_basic',
     # END tests failing due to: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
+
+    # ERROR: torch._dynamo.exc.Unsupported: Tensor.item
+    'AtenItemIntOpModule_basic',
+    'AtenItemFpOpModule_basic',
 
     # ERROR: torch._dynamo.exc.Unsupported: call_method ListVariable() sort [] {'reverse': ConstantVariable(bool)}
     'SortIntListReverse_basic',
@@ -1124,6 +1131,8 @@ TOSA_PASS_SET = {
     "ElementwiseLeakyReluModule_basic",
     "ElementwiseLeakyReluModule_basic",
     "ElementwiseLeakyReluStaticModule_basic",
+    "ElementwiseLerpScalarIntModule_basic",
+    "ElementwiseLerpScalarFloatModule_basic",
     "ElementwiseLog2Module_basic",
     "ElementwiseLogModule_basic",
     "ElementwiseLtDiffWidthScalarModule_basic",
@@ -1504,6 +1513,8 @@ LTC_XFAIL_SET = {
     "ElementwiseLogitModule_basic",
     "ElementwiseRemainderScalarModule_Int_Float_basic",
     "ElementwiseRemainderScalarModule_Bool_basic",
+    "ElementwiseLerpScalarIntModule_basic",
+    "ElementwiseLerpScalarFloatModule_basic",
     "AtenIntTensorByteDtypeModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
     "UpSampleNearest2dBackwardVec_basic",

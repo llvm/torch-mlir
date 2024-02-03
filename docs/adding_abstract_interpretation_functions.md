@@ -4,7 +4,7 @@
 
 As part of adding support for a Torch operator in Torch-MLIR, it is usually
 necessary to define a shape and dtype function so that the compiler can infer
-the shapes and dtypes of result tensors for the operator. We use the 
+the shapes and dtypes of result tensors for the operator. We use the
 [abstract interpretation library](abstract_interp_lib.md) for this process.
 
 ## Step-by-step guide
@@ -19,7 +19,7 @@ We will use the example of adding support for the `torch.aten.tanh` op.
    file is the "rosetta stone" that allows translating between
    e.g. `torch.aten.tanh`, `AtenTanhOp`, and the shape and dtype
    function signatures are:
-   
+
    - `def aten〇tanh〡shape(self: List[int]) -> List[int]:`
    - `def aten〇tanh〡dtype(self_rank_dtype: Tuple[int, int]) -> int:`
 
@@ -39,10 +39,10 @@ We will use the example of adding support for the `torch.aten.tanh` op.
    But in general, you will need to write the function and test it
    (see the comments about "Shape, dtype, and decomposition function
    testing infrastructure" in `testing_framework.py`). New shape
-   functions should be added upstream following the example of [this PR](https://github.com/pytorch/pytorch/pull/76889), 
-   though it can be useful to iterate locally in `abstract_interp_lib_gen.py` 
+   functions should be added upstream following the example of [this PR](https://github.com/pytorch/pytorch/pull/76889),
+   though it can be useful to iterate locally in `abstract_interp_lib_gen.py`
    first.
-   
+
    Similarly, dtype functions should ideally just be a call to the helper
    `promote_dtypes` defined in `library_generator.py`. However, some ops will
    require some extra logic to calculate the right result types. While dtypes

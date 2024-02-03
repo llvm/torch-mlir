@@ -11,8 +11,8 @@ for the reference importer which complies with the rules below.
 With the exception of certain special or complicated ONNX operators, most
 are relatively straight-forward to map, following this general procedure:
 
-* Plan the ops you wish to support by consulting the 
-  [ONNX operator database](https://onnx.ai/onnx/operators/). 
+* Plan the ops you wish to support by consulting the
+  [ONNX operator database](https://onnx.ai/onnx/operators/).
   * This database has detailed diffs wrt different support versions but
     at the level of detail we operate, most version diffs are inconsequential
     and just require a bit more pattern support.
@@ -24,7 +24,7 @@ are relatively straight-forward to map, following this general procedure:
   corresponding with the alphabetic sort of the op and add a conversion.
 * Generate successful test cases:
   * All `onnx_importer.py` tests are dumped to the test temp dir (success
-    or failure). This is typically located under 
+    or failure). This is typically located under
     `tools/torch-mlir/test/python/onnx_importer/Output`. The `.mlir` files
     under there should provide good variants to drive lit test coverage of
     conversion.
@@ -34,25 +34,25 @@ are relatively straight-forward to map, following this general procedure:
   * There are often many variants of tests for checking conformance of
     different historic ONNX encodings, but these are often not load bearing
     at the MLIR level.
-  * Pick a handful of test cases and add them to 
+  * Pick a handful of test cases and add them to
     `test/Conversion/TorchOnnxToTorch/simple_ops_x_to_y.mlir` corresponding to
     an alphabetic breakdown. At this time, ignore tests that are not exercising
     useful differences in the pattern implementations.
-    * (Optionally) Use `torch-mlir-opt` to validate the outputs of the new op. 
-      First, build the project using 
+    * (Optionally) Use `torch-mlir-opt` to validate the outputs of the new op.
+      First, build the project using
       `cmake --build build --target tools/torch-mlir/all`. This will generate
       the conversion binary, `torch-mlir-opt`. Then call `torch-mlir-opt` with
       the MLIR pass `convert-torch-onnx-to-torch`:
       ```
       build/bin/torch-mlir-opt -convert-torch-onnx-to-torch \
       -split-input-file [DESIRED_ONNX_FILE].mlir
-      ``` 
+      ```
 * Generate failure test cases:
   * Some ops have forms that do not (easily) map to torch-mlir. If you leave
     an op under-implemented, add a failing test case to
     `test/Conversion/TorchOnnxToTorch/unsupported_simple_ops.mlir`.
-* Optional but recommended: Use your test case files to fuzz against the 
-  torch-mlir backend of your choice by running a backend conversion pipeline 
+* Optional but recommended: Use your test case files to fuzz against the
+  torch-mlir backend of your choice by running a backend conversion pipeline
   and fixing any crashes/issues.
 * Send a patch with your changes.
 
@@ -115,7 +115,7 @@ not yet implemented.
 The `IsolatedFromAbove` parent of the ops can contain the following
 metadata:
 
-* `torch.onnx_meta.ir_version`: 64bit `IntegerAttr` corresponding to 
+* `torch.onnx_meta.ir_version`: 64bit `IntegerAttr` corresponding to
   `ModelProto.ir_version`.
 * `torch.onnx_meta.producer_name`: `StringAttr` corresponding to
   `ModelProto.producer_name`.
@@ -135,7 +135,7 @@ are only minor variations of an op. Major variations should use
 
 ### Special op forms
 
-Certain ONNX operators map to different structural components of 
+Certain ONNX operators map to different structural components of
 torch-mlir's representation:
 
 * `ConstantOfShape`: Mapped to `torch.vtensor.literal` with
