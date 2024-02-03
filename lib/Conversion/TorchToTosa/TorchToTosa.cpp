@@ -4102,11 +4102,12 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
   // The result will always be a 1-d tensor.
   // The size of the result is calculated as follows:
   //          ceil((end - start)/step)
-  int64_t resultShape = ceil((end - start) / step);
+  
   Value result;
   if (is_all_inp_int)
   {
-    SmallVector<int64_t> values(resultShape, start);
+    int64_t resultShape = ceil((float)(end_int - start_int) / (float)(step_int));
+    SmallVector<int64_t> values(resultShape, start_int);
     for (unsigned i = 1; i < resultShape; i++)
       values[i] += i * step;
 
@@ -4115,6 +4116,7 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
 
   else
   {
+    int64_t resultShape = ceil((end - start) / step);
     SmallVector<float> values(resultShape, start);
     for (unsigned i = 1; i < resultShape; i++)
       values[i] += (i * step);
