@@ -8582,6 +8582,7 @@ def Torch_AtenTensorOp : Torch_Op<"aten.tensor", [
       printDefaultTorchOp(printer, *this, 4, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenTensorBoolOp : Torch_Op<"aten.tensor.bool", [
@@ -9784,6 +9785,7 @@ def Torch_AtenIndexSelectOp : Torch_Op<"aten.index_select", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_Aten_IndexPutImplOp : Torch_Op<"aten._index_put_impl", [
@@ -12558,6 +12560,7 @@ def Torch_AtenSortOp : Torch_Op<"aten.sort", [
       printDefaultTorchOp(printer, *this, 3, 2);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenSplitTensorOp : Torch_Op<"aten.split.Tensor", [

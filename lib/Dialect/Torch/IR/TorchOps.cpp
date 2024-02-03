@@ -737,8 +737,7 @@ OpFoldResult AtenSqueezeDimOp::fold(FoldAdaptor adaptor) {
   if (getOperand(0).getType() != getResult().getType())
     return nullptr;
   if (auto tensorType = getOperand(0).getType().dyn_cast<BaseTensorType>()) {
-    if (tensorType.hasSizes() && tensorType.getSizes().size() == 0)
-      return getOperand(0);
+    return getOperand(0);
   }
   return nullptr;
 }
@@ -1711,6 +1710,40 @@ void AtenSortIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenSortIntOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenSortOp::fold(FoldAdaptor adaptor,
+                               SmallVectorImpl<OpFoldResult> &results) {
+  auto operand = getSelf();
+  auto operandTy = dyn_cast<ValueTensorType>(operand.getType());
+  auto iTTy = cast<ValueTensorType>(getResult(1).getType());
+  auto indicesTy = iTTy.toBuiltinTensor().clone(iTTy.getDtype());
+
+  if (!operandTy.hasSizes())
+    return failure();
+  if (!indicesTy.hasStaticShape())
+    return failure();
+
+  bool unaryDim = false;
+  IntegerAttr dimAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
+  if (dimAttr) {
+    unaryDim = operandTy.getSizes()[dimAttr.getSInt()] == 1;
+  }
+
+  OpBuilder b(getContext());
+  if (unaryDim || llvm::all_of(operandTy.getSizes(),
+                               [](int64_t dim) { return dim == 1; })) {
+    results.push_back(operand);
+    results.push_back(DenseElementsAttr::get(
+        indicesTy, b.getZeroAttr(indicesTy.getElementType())));
+    return success();
+  }
+
+  return failure();
+}
+
+//===----------------------------------------------------------------------===//
 // NonValueTensorLiteralOp
 //===----------------------------------------------------------------------===//
 
@@ -2506,22 +2539,50 @@ OpFoldResult AtenBroadcastToOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
-  int64_t start, end, step;
-  if (matchPattern(getStart(), m_TorchConstantInt(&start)) &&
-      matchPattern(getEnd(), m_TorchConstantInt(&end)) &&
-      matchPattern(getStep(), m_TorchConstantInt(&step)) && step == 1 &&
-      start == 0 && end == std::numeric_limits<int64_t>::max())
+  DenseElementsAttr input =
+      dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  IntegerAttr start = dyn_cast_or_null<IntegerAttr>(adaptor.getStart());
+  IntegerAttr end = dyn_cast_or_null<IntegerAttr>(adaptor.getEnd());
+  IntegerAttr step = dyn_cast_or_null<IntegerAttr>(adaptor.getStep());
+  IntegerAttr dim = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
+
+  if (start && end && step && step.getSInt() == 1 && start.getSInt() == 0 &&
+      end.getSInt() == std::numeric_limits<int64_t>::max())
     return getOperand(0);
 
-  auto inType = getOperand(0).getType().dyn_cast<BaseTensorType>();
-  auto outType = getResult().getType().dyn_cast<BaseTensorType>();
-  if (inType != outType)
+  auto inType = getOperand(0).getType().dyn_cast<ValueTensorType>();
+  auto outType = getResult().getType().dyn_cast<ValueTensorType>();
+  if (!inType || !outType || !inType.hasSizes() || !outType.hasSizes() ||
+      !inType.hasDtype() || !outType.hasDtype() ||
+      inType.getDtype() != outType.getDtype())
     return nullptr;
-  if (!inType || !outType || !inType.hasSizes() || !outType.hasSizes())
-    return nullptr;
+
   if (inType.getSizes().size() != outType.getSizes().size() ||
       !inType.areAllSizesKnown() || !outType.areAllSizesKnown())
     return nullptr;
+
+  if (input && input.isSplat())
+    return DenseElementsAttr::get(
+        outType.toBuiltinTensor().clone(inType.getDtype()),
+        input.getSplatValue<Attribute>());
+
+  // If the output is a single value we can index into a constant input and grab
+  // that single value:
+  if (input && start && dim &&
+      llvm::all_of(outType.getSizes(), [](int64_t dim) { return dim == 1; })) {
+    bool unaryNonDim = true;
+    int64_t dimInt = dim.getUInt();
+    for (int i = 0, s = inType.getSizes().size(); i < s; ++i) {
+      unaryNonDim &= inType.getSizes()[i] == 1 || i == dimInt;
+    }
+    if (unaryNonDim) {
+      Attribute value = input.getValues<Attribute>()[start.getSInt()];
+      return DenseElementsAttr::get(
+          outType.toBuiltinTensor().clone(inType.getDtype()), value);
+    }
+  }
+
+  // If the input and output shapes are the same we can just fold:
   for (size_t i = 0; i < inType.getSizes().size(); ++i) {
     if (inType.getSizes()[i] != outType.getSizes()[i])
       return nullptr;
@@ -2759,6 +2820,24 @@ void AtenDeviceWithIndexOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenTensorOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenTensorOp::fold(FoldAdaptor adaptor) {
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  Type eTy = resultTy.getDtype();
+  ShapedType shapedTy = resultTy.toBuiltinTensor().clone(eTy);
+
+  SmallVector<int64_t> data;
+  if (matchPattern(getData(), m_TorchListOfConstantInts(data)) && data.size() == 1) {
+    Attribute attribute = IntegerAttr::get(eTy, data[0]);
+    return DenseElementsAttr::get(shapedTy, attribute);
+  }
+
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenIntTensorOp
 //===----------------------------------------------------------------------===//
 
@@ -2811,6 +2890,66 @@ OpFoldResult AtenDivIntOp::fold(FoldAdaptor adaptor) {
   bool rConstant = matchPattern(getOperand(1), m_TorchConstantInt(&rhs));
   if (lConstant && rConstant)
     return getF64FloatAttr(getContext(), double(lhs) / rhs);
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenIndexSelectOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
+  auto self = getSelf();
+  auto index = getIndex();
+  auto selfTy = cast<ValueTensorType>(self.getType());
+  auto indexTy = cast<ValueTensorType>(index.getType());
+  auto resultTy = cast<ValueTensorType>(getType());
+
+  auto selfSizes = selfTy.getSizes();
+  auto indexSizes = indexTy.getSizes();
+  auto resultSizes = resultTy.getSizes();
+
+  if (selfTy.getDtype() != resultTy.getDtype()) return nullptr;
+  if (selfSizes.size() != resultSizes.size()) return nullptr;
+  if (indexSizes.size() != 1) return nullptr;
+
+
+  bool fullTensor = true;
+  for (int i = 0, s = selfSizes.size(); i < s; ++i) {
+    fullTensor &= selfSizes[i] == resultSizes[i];
+    fullTensor &= selfSizes[i] != Torch::kUnknownSize;
+    fullTensor &= resultSizes[i] != Torch::kUnknownSize;
+  }
+
+  if (fullTensor && indexSizes[0] == 1) return self;
+
+  auto selfAttr = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto dimAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
+  auto indexAttr = dyn_cast_or_null<DenseElementsAttr>(adaptor.getIndex());
+
+  if (!selfAttr || !dimAttr || !indexAttr) return {};
+
+  int64_t dimInt = dimAttr.getInt();
+
+  bool scalarFold = true;
+  for (int i = 0, s = selfSizes.size(); i < s; ++i) {
+    scalarFold &= selfSizes[i] == 1 || i == dimInt;
+    scalarFold &= resultSizes[i] == 1;
+  }
+
+  if (!scalarFold) return nullptr;
+
+  auto indexInt = indexAttr.getSplatValue<IntegerAttr>().getInt();
+  auto splattr = selfAttr.getValues<Attribute>()[indexInt];
+
+
+  auto dty = resultTy.getDtype();
+  auto attrTy = resultTy.toBuiltinTensor().clone(dty);
+  if (auto floatAttr = dyn_cast<FloatAttr>(splattr))
+    return DenseElementsAttr::get(attrTy, FloatAttr::get(dty, floatAttr.getValueAsDouble()));
+
+  if (auto intAttr = dyn_cast<IntegerAttr>(splattr))
+    return DenseElementsAttr::get(attrTy, IntegerAttr::get(dty, intAttr.getInt()));
+
   return nullptr;
 }
 
