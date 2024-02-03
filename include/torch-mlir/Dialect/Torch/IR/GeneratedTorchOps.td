@@ -12558,6 +12558,7 @@ def Torch_AtenSortOp : Torch_Op<"aten.sort", [
       printDefaultTorchOp(printer, *this, 3, 2);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenSplitTensorOp : Torch_Op<"aten.split.Tensor", [
