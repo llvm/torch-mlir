@@ -72,7 +72,8 @@ Helpful examples:
 
 ## List of Tools you may need to use (this will be incorporated into the above instructions later)
 
-- Generate FILECHECK tests from MLIR test cases: `llvm-project/mlir/utils/generate-test-checks.py`. Please don't just paste the generated tests - reference them to write your own
+- Generate FILECHECK tests from MLIR test cases: `torch-mlir-opt -convert-<your conversion> /tmp/your_awesome_testcase.mlir | externals/llvm-project/mlir/utils/generate-test-checks.py
+`. Please don't just paste the generated tests - reference them to write your own
 
 ## Contacts
 People who've worked on this for a while
