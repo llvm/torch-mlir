@@ -1710,7 +1710,6 @@ void AtenSortIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   });
 }
 
-
 //===----------------------------------------------------------------------===//
 // AtenSortOp
 //===----------------------------------------------------------------------===//
@@ -1721,12 +1720,13 @@ LogicalResult AtenSortOp::fold(FoldAdaptor adaptor,
   auto operandTy = dyn_cast_if_present<ValueTensorType>(operand.getType());
   if (!operandTy || !operandTy.hasSizes())
     return failure();
-  
+
   auto iTTy = dyn_cast_if_present<ValueTensorType>(getResult(1).getType());
-  auto indicesTy = iTTy ? iTTy.toBuiltinTensor().clone(iTTy.getDtype()) : nullptr;
-  if(!iTTy || !indicesTy || !indicesTy.hasStaticShape())
+  auto indicesTy =
+      iTTy ? iTTy.toBuiltinTensor().clone(iTTy.getDtype()) : nullptr;
+  if (!iTTy || !indicesTy || !indicesTy.hasStaticShape())
     return failure();
-    
+
   bool unaryDim = false;
   IntegerAttr dimAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
   if (dimAttr) {
