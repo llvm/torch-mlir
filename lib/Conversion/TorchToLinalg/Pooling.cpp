@@ -285,9 +285,14 @@ private:
   }
 
 public:
+  // ConversionPatternRewriter * const rewriterPtr;
+
   LogicalResult
   matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+
+    // rewriterPtr = &rewriter;
+
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
@@ -633,55 +638,148 @@ generic op's payload.
 
 namespace {
 
+class AdaptivePoolingHelper {
+public:
+  AdaptivePoolingHelper(ConversionPatternRewriter &cpr, int64_t rnk,
+                        int64_t nsp, Type elt)
+      : rewriter(cpr), rank(rnk), nonSpatial(nsp), elementType(elt) {}
+
+  // Variables that are used in various helper functions in the derived classes
+  // are stored as members of the base class (to reduce the number of arguments
+  // passed to helper functions).
+  ConversionPatternRewriter &rewriter;
+  const int64_t rank;
+  const int64_t nonSpatial;
+  Type elementType;
+};
+
+template <class OpTy>
+class AdaptiveMaxPoolingHelper : public AdaptivePoolingHelper {
+
+  // This member variable is templated, so I've chosen not to make it part of
+  // the base class (to keep the base class non-templated).
+  const OpConversionPattern<OpTy> &opConversionPattern;
+
+public:
+  // Constructor for AdaptiveMaxPoolingHelper. Just forwards all arguments
+  // (except the OpConversionPattern) to the base class constructor.
+  template <typename... Args>
+  AdaptiveMaxPoolingHelper(const OpConversionPattern<OpTy> &ocp, Args &&...args)
+      : AdaptivePoolingHelper(std::forward<Args>(args)...),
+        opConversionPattern(ocp) {}
+
+  LogicalResult auxTensorSetup(OpTy op, const SmallVector<Value> &outputSizes,
+                               const SmallVector<Value> &outShapeIndexVector,
+                               RankedTensorType &outputType,
+                               RankedTensorType &auxTensorType, Value &buffVal,
+                               Value &auxTensor,
+                               SmallVector<AffineExpr> &auxTensorExprs) {
+
+    Location loc = op->getLoc();
+    const TypeConverter *typeConverter = opConversionPattern.getTypeConverter();
+    outputType = typeConverter->convertType(op.getResult0().getType())
+                     .template cast<RankedTensorType>();
+    auxTensorType = typeConverter->convertType(op.getResult1().getType())
+                        .template cast<RankedTensorType>();
+    Type auxTensorElementType = auxTensorType.getElementType();
+    auto smallestFPValueAttr = rewriter.getFloatAttr(
+        elementType,
+        APFloat::getInf(elementType.cast<mlir::FloatType>().getFloatSemantics(),
+                        /*Negative=*/true));
+    buffVal = rewriter.create<arith::ConstantOp>(loc, elementType,
+                                                 smallestFPValueAttr);
+    auxTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(outputSizes), auxTensorElementType);
+    for (unsigned i = 0; i < rank; i++) {
+      auxTensorExprs.push_back(rewriter.getAffineDimExpr(i));
+    }
+    return success();
+  }
+};
+
+template <class OpTy>
+class AdaptiveAvgPoolingHelper : public AdaptivePoolingHelper {
+
+  const OpConversionPattern<OpTy> &opConversionPattern;
+
+public:
+  template <typename... Args>
+  AdaptiveAvgPoolingHelper(const OpConversionPattern<OpTy> &ocp, Args &&...args)
+      : AdaptivePoolingHelper(std::forward<Args>(args)...),
+        opConversionPattern(ocp) {}
+
+  LogicalResult auxTensorSetup(OpTy op, const SmallVector<Value> &outputSizes,
+                               const SmallVector<Value> &outShapeIndexVector,
+                               RankedTensorType &outputType,
+                               RankedTensorType &auxTensorType, Value &buffVal,
+                               Value &auxTensor,
+                               SmallVector<AffineExpr> &auxTensorExprs) {
+
+    Location loc = op->getLoc();
+    const TypeConverter *typeConverter = opConversionPattern.getTypeConverter();
+    outputType = typeConverter->convertType(op.getResult().getType())
+                     .template cast<RankedTensorType>();
+    buffVal = rewriter.create<arith::ConstantOp>(
+        loc, elementType, rewriter.getFloatAttr(elementType, 0));
+    auxTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(outShapeIndexVector), elementType);
+    for (unsigned i = nonSpatial; i < rank; i++) {
+      auxTensorExprs.push_back(rewriter.getAffineDimExpr(i));
+    }
+    return success();
+  }
+};
+
 template <typename T> struct AdaptivePoolingOpTraits {};
 
 template <> struct AdaptivePoolingOpTraits<AtenAdaptiveMaxPool1dOp> {
   static constexpr int64_t Dim = 1;
+  using AdaptivePoolingHelper =
+      AdaptiveMaxPoolingHelper<AtenAdaptiveMaxPool1dOp>;
 };
 
 template <> struct AdaptivePoolingOpTraits<AtenAdaptiveMaxPool2dOp> {
   static constexpr int64_t Dim = 2;
+  using AdaptivePoolingHelper =
+      AdaptiveMaxPoolingHelper<AtenAdaptiveMaxPool2dOp>;
 };
 
 template <> struct AdaptivePoolingOpTraits<AtenAdaptiveMaxPool3dOp> {
   static constexpr int64_t Dim = 3;
+  using AdaptivePoolingHelper =
+      AdaptiveMaxPoolingHelper<AtenAdaptiveMaxPool3dOp>;
 };
 
 template <> struct AdaptivePoolingOpTraits<AtenAdaptiveAvgPool1dOp> {
   static constexpr int64_t Dim = 1;
+  using AdaptivePoolingHelper =
+      AdaptiveAvgPoolingHelper<AtenAdaptiveAvgPool1dOp>;
 };
 
 template <> struct AdaptivePoolingOpTraits<AtenAdaptiveAvgPool2dOp> {
   static constexpr int64_t Dim = 2;
+  using AdaptivePoolingHelper =
+      AdaptiveAvgPoolingHelper<AtenAdaptiveAvgPool2dOp>;
 };
 
 template <> struct AdaptivePoolingOpTraits<AtenAdaptiveAvgPool3dOp> {
   static constexpr int64_t Dim = 3;
+  using AdaptivePoolingHelper =
+      AdaptiveAvgPoolingHelper<AtenAdaptiveAvgPool3dOp>;
 };
 
 template <> struct AdaptivePoolingOpTraits<Aten_AdaptiveAvgPool3dOp> {
   static constexpr int64_t Dim = 3;
+  using AdaptivePoolingHelper =
+      AdaptiveAvgPoolingHelper<Aten_AdaptiveAvgPool3dOp>;
 };
 
 template <typename OpTy>
 class ConvertAtenAdaptivePoolOpBase : public OpConversionPattern<OpTy> {
   using OpConversionPattern<OpTy>::OpConversionPattern;
 
-protected:
+private:
   static const int64_t Dim = AdaptivePoolingOpTraits<OpTy>::Dim;
-
-  virtual LogicalResult
-  auxTensorSetup(OpTy op, ConversionPatternRewriter &rewriter,
-                 const Type &elementType, const int64_t &rank,
-                 const int64_t &nonSpatial,
-                 const SmallVector<Value> &outputSizes,
-                 const SmallVector<Value> &outShapeIndexVector,
-                 RankedTensorType &outputType, RankedTensorType &auxTensorType,
-                 Value &buffVal, Value &auxTensor,
-                 SmallVector<AffineExpr> &auxTensorExprs) const {
-    return rewriter.notifyMatchFailure(op,
-                                       "unimplemented auxTensorSetup function");
-  }
 
   virtual LogicalResult payloadCustomization(
       OpBuilder &b, Location loc, const Value &inElt, const Value &res,
@@ -712,16 +810,20 @@ public:
 
     Value input = adaptor.getSelf();
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
-    Type elementType = inputType.getElementType();
+    const Type elementType = inputType.getElementType();
 
     // get rank of input (same as rank of output)
-    int64_t rank = inputType.getRank();
+    const int64_t rank = inputType.getRank();
     // get number of non-spatial dims
-    int64_t nonSpatial = rank - Dim;
+    const int64_t nonSpatial = rank - Dim;
     if (nonSpatial < 0) {
       return rewriter.notifyMatchFailure(op,
                                          "input has insufficient spatial dims");
     }
+
+    typename AdaptivePoolingOpTraits<OpTy>::AdaptivePoolingHelper
+        adaptivePoolingHelper(*this, rewriter, rank, nonSpatial, elementType);
+
     // get input and output spatial dimensions as index values
     Value outputShape = op.getOutputSize();
     SmallVector<Value> outShapeVector;
@@ -770,10 +872,9 @@ public:
     RankedTensorType outputType, auxTensorType;
     Value buffVal, auxTensor;
     SmallVector<AffineExpr> auxTensorExprs;
-    if (failed(auxTensorSetup(op, rewriter, elementType, rank, nonSpatial,
-                              outputSizes, outShapeIndexVector, outputType,
-                              auxTensorType, buffVal, auxTensor,
-                              auxTensorExprs))) {
+    if (failed(adaptivePoolingHelper.auxTensorSetup(
+            op, outputSizes, outShapeIndexVector, outputType, auxTensorType,
+            buffVal, auxTensor, auxTensorExprs))) {
       return rewriter.notifyMatchFailure(op, "failed auxTensor setup");
     }
 
@@ -900,29 +1001,6 @@ class ConvertAtenAdaptiveAvgPoolOp
   using ConvertAtenAdaptivePoolOpBase<OpTy>::ConvertAtenAdaptivePoolOpBase;
 
 private:
-  LogicalResult
-  auxTensorSetup(OpTy op, ConversionPatternRewriter &rewriter,
-                 const Type &elementType, const int64_t &rank,
-                 const int64_t &nonSpatial,
-                 const SmallVector<Value> &outputSizes,
-                 const SmallVector<Value> &outShapeIndexVector,
-                 RankedTensorType &outputType, RankedTensorType &auxTensorType,
-                 Value &buffVal, Value &auxTensor,
-                 SmallVector<AffineExpr> &auxTensorExprs) const override {
-    Location loc = op->getLoc();
-    const TypeConverter *typeConverter = this->getTypeConverter();
-    outputType = typeConverter->convertType(op.getResult().getType())
-                     .template cast<RankedTensorType>();
-    buffVal = rewriter.create<arith::ConstantOp>(
-        loc, elementType, rewriter.getFloatAttr(elementType, 0));
-    auxTensor = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(outShapeIndexVector), elementType);
-    for (unsigned i = nonSpatial; i < rank; i++) {
-      auxTensorExprs.push_back(rewriter.getAffineDimExpr(i));
-    }
-    return success();
-  }
-
   LogicalResult payloadCustomization(
       OpBuilder &b, Location loc, const Value &inElt, const Value &res,
       const Value &maxIndex, const SmallVector<Value> &inputElementIndices,
@@ -977,36 +1055,6 @@ class ConvertAtenAdaptiveMaxPoolOp
   using ConvertAtenAdaptivePoolOpBase<OpTy>::ConvertAtenAdaptivePoolOpBase;
 
 private:
-  LogicalResult
-  auxTensorSetup(OpTy op, ConversionPatternRewriter &rewriter,
-                 const Type &elementType, const int64_t &rank,
-                 const int64_t &nonSpatial,
-                 const SmallVector<Value> &outputSizes,
-                 const SmallVector<Value> &outShapeIndexVector,
-                 RankedTensorType &outputType, RankedTensorType &auxTensorType,
-                 Value &buffVal, Value &auxTensor,
-                 SmallVector<AffineExpr> &auxTensorExprs) const override {
-    Location loc = op->getLoc();
-    const TypeConverter *typeConverter = this->getTypeConverter();
-    outputType = typeConverter->convertType(op.getResult0().getType())
-                     .template cast<RankedTensorType>();
-    auxTensorType = typeConverter->convertType(op.getResult1().getType())
-                        .template cast<RankedTensorType>();
-    Type auxTensorElementType = auxTensorType.getElementType();
-    auto smallestFPValueAttr = rewriter.getFloatAttr(
-        elementType,
-        APFloat::getInf(elementType.cast<mlir::FloatType>().getFloatSemantics(),
-                        /*Negative=*/true));
-    buffVal = rewriter.create<arith::ConstantOp>(loc, elementType,
-                                                 smallestFPValueAttr);
-    auxTensor = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(outputSizes), auxTensorElementType);
-    for (unsigned i = 0; i < rank; i++) {
-      auxTensorExprs.push_back(rewriter.getAffineDimExpr(i));
-    }
-    return success();
-  }
-
   LogicalResult payloadCustomization(
       OpBuilder &b, Location loc, const Value &inElt, const Value &res,
       const Value &maxIndex, const SmallVector<Value> &inputElementIndices,
