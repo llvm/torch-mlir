@@ -1725,7 +1725,8 @@ LogicalResult AtenSortOp::fold(FoldAdaptor adaptor,
   if (!indicesTensorType)
     return failure();
 
-  auto indicesType = indicesTensorType.toBuiltinTensor().clone(indicesTensorType.getDtype());
+  auto indicesType =
+      indicesTensorType.toBuiltinTensor().clone(indicesTensorType.getDtype());
   if (!indicesType || !indicesType.hasStaticShape())
     return failure();
 
