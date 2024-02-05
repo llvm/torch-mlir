@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/DialectResourceBlobManager.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -15,6 +16,20 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::onnx_c;
+
+class Endian {
+private:
+  static constexpr uint32_t uint32_ = 0x01020304;
+  static constexpr uint8_t magic_ = (const uint8_t &)uint32_;
+
+public:
+  static constexpr bool little = magic_ == 0x04;
+  static constexpr bool big = magic_ == 0x01;
+  static_assert(little || big, "Cannot determine endianness!");
+
+private:
+  Endian() = delete;
+};
 
 static int64_t onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx) {
   // TODO: Add complete mapping.
@@ -632,6 +647,26 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return success();
         }
 
+        if (DenseResourceElementsAttr attr =
+                binder.op->getAttr("torch.onnx.value")
+                    .dyn_cast_or_null<DenseResourceElementsAttr>()) {
+          // Bytes are stored in little endian order. Big endian support will
+          // require swizzling.
+          if (!Endian::little) {
+            binder.op->emitError(
+                "unimplemented: importing on big endian systems");
+            return failure();
+          }
+
+          auto ty = cast<ShapedType>(attr.getType());
+          auto ptr = attr.getRawHandle().getBlob()->getData();
+          DenseElementsAttr denseAttr =
+              DenseElementsAttr::getFromRawBuffer(ty, ptr);
+          rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
+              binder.op, resultType, denseAttr);
+          return success();
+        }
+
         if (ElementsAttr attr = binder.op->getAttr("torch.onnx.value")
                                     .dyn_cast_or_null<ElementsAttr>()) {
           rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
@@ -1054,11 +1089,9 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               binder.op, "expected result type to have a dtype");
         }
         // resultTensorType.print(llvm::outs());
-        Value resultDType = Torch::getDtypeIntValueForType(
-            rewriter, loc, resultTensorType.getDtype());
-
-        rewriter.replaceOpWithNewOp<Torch::AtenCumsumOp>(
-            binder.op, resultType, operand, dim, resultDType);
+        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        rewriter.replaceOpWithNewOp<Torch::AtenCumsumOp>(binder.op, resultType,
+                                                         operand, dim, none);
         return success();
       });
   patterns.onOp(
@@ -1354,7 +1387,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Torch::BaseTensorType shapeType =
             shape.getType().cast<Torch::BaseTensorType>();
         SmallVector<int64_t> selectSizes;
-        selectSizes.push_back(1);
         Type selectResultType = shapeType.getWithSizesAndDtype(
             llvm::ArrayRef(selectSizes), shapeType.getOptionalDtype());
         // Variable to store 1-D onnx shape tensor, shapeSizes[0] has the

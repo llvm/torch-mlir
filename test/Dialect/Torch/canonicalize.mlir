@@ -29,6 +29,46 @@ func.func @torch.runtime.assert() {
   return
 }
 
+// CHECK-LABEL:   func.func @torch.aten.ones_item
+// CHECK:           %[[CONST:.*]] = torch.constant.int 1
+// CHECK:           return %[[CONST]] : !torch.int
+func.func @torch.aten.ones_item() -> !torch.int {
+    %int1 = torch.constant.int 1
+    %int3 = torch.constant.int 3
+    %none = torch.constant.none
+    %0 = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+    %1 = torch.aten.ones %0, %int3, %none, %none, %none : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[1],si32>
+    %2 = torch.aten.item %1 : !torch.vtensor<[1],si32> -> !torch.int
+    return %2 : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.aten.zeros_item
+// CHECK:           %[[CONST:.*]] = torch.constant.int 0
+// CHECK:           return %[[CONST]] : !torch.int
+func.func @torch.aten.zeros_item() -> !torch.int {
+    %int1 = torch.constant.int 1
+    %int3 = torch.constant.int 3
+    %none = torch.constant.none
+    %0 = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+    %1 = torch.aten.zeros %0, %int3, %none, %none, %none : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[1],si32>
+    %2 = torch.aten.item %1 : !torch.vtensor<[1],si32> -> !torch.int
+    return %2 : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.aten.full_item
+// CHECK:           %[[CONST:.*]] = torch.constant.int 1337
+// CHECK:           return %[[CONST]] : !torch.int
+func.func @torch.aten.full_item() -> !torch.int {
+    %int1 = torch.constant.int 1
+    %int3 = torch.constant.int 1337
+    %int5 = torch.constant.int 5
+    %none = torch.constant.none
+    %0 = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+    %1 = torch.aten.full %0, %int3, %int5, %none, %none, %none : !torch.list<int>, !torch.int, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[1],si32>
+    %2 = torch.aten.item %1 : !torch.vtensor<[1],si32> -> !torch.int
+    return %2 : !torch.int
+}
+
 // CHECK-LABEL:   func.func @torch.aten.is_floating_point$fold_true
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
 // CHECK:           return %[[TRUE]] : !torch.bool
@@ -2145,4 +2185,11 @@ func.func @torch.aten.masked_fill.Tensor$canonicalize(%arg0: !torch.vtensor<[?,?
   %0 = torch.vtensor.literal(dense<-1.000000e+09> : tensor<f32>) : !torch.vtensor<[],f32>
   %1 = torch.aten.masked_fill.Tensor %arg0, %arg1, %0 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],i1>, !torch.vtensor<[],f32> -> !torch.vtensor<[?,?],f32>
   return %1 : !torch.vtensor<[?,?],f32>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.detach$canonicalize
+// CHECK-NEXT:      torch.aten.detach
+func.func @torch.aten.detach$canonicalize(%arg0: !torch.tensor<[1],f32>) -> !torch.tensor {
+  %1 = torch.aten.detach %arg0 : !torch.tensor<[1],f32> -> !torch.tensor
+  return %1 : !torch.tensor
 }

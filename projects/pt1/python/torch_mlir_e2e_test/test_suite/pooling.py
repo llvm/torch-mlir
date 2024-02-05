@@ -847,6 +847,28 @@ class AvgPool2dCeilModeTrueModule(torch.nn.Module):
 def AvgPool2dCeilModeTrueModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 20, 20, low=0.5, high=1.0))
 
+class AvgPool2dWithoutPadModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(kernel_size=[6, 8],
+                                       stride=[2, 2],
+                                       padding=[0, 0],
+                                       ceil_mode=False,
+                                       count_include_pad=False,
+                                       divisor_override=None)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.ap2d(x)
+
+@register_test_case(module_factory=lambda: AvgPool2dWithoutPadModule())
+def AvgPool2dWithoutPadModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 20, 20, low=0.5, high=1.0))
 
 # ==============================================================================
 

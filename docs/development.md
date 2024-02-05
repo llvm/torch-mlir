@@ -45,12 +45,12 @@ cmake -GNinja -Bbuild \
   -DLLVM_TARGETS_TO_BUILD=host \
   externals/llvm-project/llvm
 ```
-The following additional quality of life flags can be used to reduce build time:
+#### Flags that can reduce build time:
 * Enabling clang on Linux
 ```shell
   -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
 ```
-* Enabling ccache:
+* Enabling ccache
 ```shell
   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 ```
@@ -70,6 +70,14 @@ By default we download the latest version of libtorch. We have an experimental p
 ```shell
   -DLIBTORCH_SRC_BUILD=ON  # Build Libtorch from source
   -DLIBTORCH_VARIANT=shared # Set the variant of libtorch to build / link against. (`shared`|`static` and optionally `cxxabi11`)
+```
+
+#### Flags to enable MLIR debugging:
+
+* Enabling `--debug` and `--debug-only` flags (see [MLIR docs](https://mlir.llvm.org/getting_started/Debugging/)) for the `torch-mlir-opt` tool
+```shell
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \ # or =Debug
+  -DIREE_ENABLE_ASSERTIONS=ON \
 ```
 
 ### Building against a pre-built LLVM

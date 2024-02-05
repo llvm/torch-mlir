@@ -428,3 +428,41 @@ class AtenIntTensorCharDtypeModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenIntTensorCharDtypeModule())
 def AtenIntTensorCharDtypeModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(low=-100, high=100).to(dtype=torch.int8))
+
+# ==============================================================================
+
+class AtenItemIntOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int8, True),
+    ])
+
+    def forward(self, val):
+        return int(val)
+
+@register_test_case(module_factory=lambda: AtenItemIntOpModule())
+def AtenItemIntOpModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(low=-100, high=100).to(dtype=torch.int8))
+
+# ==============================================================================
+
+class AtenItemFpOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.float, True),
+    ])
+
+    def forward(self, val):
+        return float(val)
+
+@register_test_case(module_factory=lambda: AtenItemFpOpModule())
+def AtenItemFpOpModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1))

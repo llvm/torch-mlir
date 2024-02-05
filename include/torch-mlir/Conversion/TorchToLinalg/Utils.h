@@ -36,7 +36,7 @@ Value getZeroPaddedTensor(Operation *op, OpBuilder &b, Value &input,
 // padding value is zero.
 Value getDynamicZeroPaddedTensor(Operation *op, OpBuilder &b, Value &input,
                                  SmallVectorImpl<Value> &padding,
-                                 int unpaddedDims = 0);
+                                 int unpaddedDims = 0, Value pad = {});
 
 // Helper function to caculate the output tensor dims for convolution-like ops.
 // Along each dim:

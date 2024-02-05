@@ -557,7 +557,10 @@ public:
                       m_TorchConstantBool(&countIncludePad)))
       return rewriter.notifyMatchFailure(
           op, "count_include_pad must be a constant");
-    if (!countIncludePad) {
+
+    // If the padding is zero then there is no padding to include.
+    if (!countIncludePad &&
+        !llvm::all_of(paddingInts, [](int64_t p) { return p == 0; })) {
       return rewriter.notifyMatchFailure(
           op, "unimplemented: count_include_pad is expected to be true");
     }
