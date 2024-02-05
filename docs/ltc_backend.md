@@ -103,7 +103,7 @@ At some point, the tensors will be synced in order to execute the computation --
 >>> torch._lazy.mark_step()
 ```
 
-This triggers a call to `LazyGraphExecutor::SyncLiveTensorsGraph` somewhere in the guts of LTC, which collects all the `TorchMlirNode`s (technically `torch::lazy::Node`s at this point) from the current trace and 
+This triggers a call to `LazyGraphExecutor::SyncLiveTensorsGraph` somewhere in the guts of LTC, which collects all the `TorchMlirNode`s (technically `torch::lazy::Node`s at this point) from the current trace and
 creates an instance of `TorchMlirLoweringContext`. Here, the `TorchMlirNode`s are lowered to JIT via `mlir_node_lowering.cpp` and inserted into a `jit::Graph`.
 
 Next, `TorchMlirLoweringContext::Build` is executed and the final `jit::Graph` is sent to `torch_mlir::importJitFunctionAsFuncOp` to generate MLIR using the existing infrastructure from Torch-MLIR.
@@ -121,7 +121,7 @@ Finally, the compiled computation is sent to `TorchMlirBackendImpl::ExecuteCompu
 
 ## Implementing a custom backend
 
-A reference implementation of a custom backend is available [here](../python/torch_mlir/csrc/reference_lazy_backend/). 
+A reference implementation of a custom backend is available [here](../python/torch_mlir/csrc/reference_lazy_backend/).
 All the work involved with generating MLIR is handled in the base LTC backend, so vendors only need to worry about implementing `Compile`, `ExecuteComputation`, and some other minor methods to interface with the device.
 
 A pybind is needed to invoke C++ code to register the autogen PyTorch kernels and the custom backend itself.
