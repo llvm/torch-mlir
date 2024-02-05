@@ -1423,7 +1423,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         for (int i = axis + 1; i < rank; ++i) {
           bool dynamic = shape[axis] == Torch::kUnknownSize ||
                          shape[i] == Torch::kUnknownSize;
-          if (!dynamic) {
+          if (dynamic) {
             shape[axis] = Torch::kUnknownSize;
           } else {
             shape[axis] = shape[axis] * shape[i];
