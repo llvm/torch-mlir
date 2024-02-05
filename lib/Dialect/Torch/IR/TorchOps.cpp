@@ -1710,6 +1710,41 @@ void AtenSortIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   });
 }
 
+
+//===----------------------------------------------------------------------===//
+// AtenSortOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenSortOp::fold(FoldAdaptor adaptor,
+                               SmallVectorImpl<OpFoldResult> &results) {
+  auto operand = getSelf();
+  auto operandTy = dyn_cast<ValueTensorType>(operand.getType());
+  auto iTTy = cast<ValueTensorType>(getResult(1).getType());
+  auto indicesTy = iTTy.toBuiltinTensor().clone(iTTy.getDtype());
+
+  if (!operandTy.hasSizes())
+    return failure();
+  if (!indicesTy.hasStaticShape())
+    return failure();
+
+  bool unaryDim = false;
+  IntegerAttr dimAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
+  if (dimAttr) {
+    unaryDim = operandTy.getSizes()[dimAttr.getInt()] == 1;
+  }
+
+  OpBuilder b(getContext());
+  if (unaryDim || llvm::all_of(operandTy.getSizes(),
+                               [](int64_t dim) { return dim == 1; })) {
+    results.push_back(operand);
+    results.push_back(DenseElementsAttr::get(
+        indicesTy, b.getZeroAttr(indicesTy.getElementType())));
+    return success();
+  }
+
+  return failure();
+}
+
 //===----------------------------------------------------------------------===//
 // NonValueTensorLiteralOp
 //===----------------------------------------------------------------------===//

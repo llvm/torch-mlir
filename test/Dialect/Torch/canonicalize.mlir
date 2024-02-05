@@ -2012,6 +2012,35 @@ func.func @torch.aten.sort.int$reverse_true() -> !torch.list<int> {
   return %0 : !torch.list<int>
 }
 
+// CHECK-LABEL: @torch.aten.sort$unary_element
+// CHECK      : %[[INDICES:.*]] = torch.vtensor.literal(dense<0> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+// CHECK-NOT  : torch.aten.sort %arg
+// CHECK      : return %arg0, %[[INDICES]] : !torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>
+func.func @torch.aten.sort$unary_element(%arg0 : !torch.vtensor<[1],si64>, %arg1 : !torch.int, %arg2 : !torch.bool) -> (!torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>) {
+  %0, %1 = torch.aten.sort %arg0, %arg1, %arg2 : !torch.vtensor<[1],si64>, !torch.int, !torch.bool -> !torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>
+  return %0, %1 : !torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>
+}
+
+
+// CHECK-LABEL: @torch.aten.sort$unary_dim
+// CHECK      : %[[INDICES:.*]] = torch.vtensor.literal(dense<1> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+// CHECK-NOT  : torch.aten.sort %arg
+// CHECK      : return %arg0, %[[INDICES]] : !torch.vtensor<[3, 1,4],si64>, !torch.vtensor<[1],si64>
+func.func @torch.aten.sort$unary_dim(%arg0 : !torch.vtensor<[3, 1, 4],si64>, %arg1 : !torch.bool) -> (!torch.vtensor<[3, 1, 4],si64>, !torch.vtensor<[1],si64>) {
+  %dim = torch.constant.int 1
+  %0, %1 = torch.aten.sort %arg0, %dim, %arg1 : !torch.vtensor<[3, 1, 4],si64>, !torch.int, !torch.bool -> !torch.vtensor<[3, 1, 4],si64>, !torch.vtensor<[1],si64>
+  return %0, %1 : !torch.vtensor<[3, 1,4],si64>, !torch.vtensor<[1],si64>
+}
+
+// CHECK-LABEL: @torch.aten.sort$nofold
+// CHECK      : torch.aten.sort %arg
+func.func @torch.aten.sort$nofold (%arg0 : !torch.vtensor<[3, 1, 4],si64>, %arg1 : !torch.bool) -> (!torch.vtensor<[3, 1, 4],si64>, !torch.vtensor<[3],si64>) {
+  %dim = torch.constant.int 0
+  %0, %1 = torch.aten.sort %arg0, %dim, %arg1 : !torch.vtensor<[3, 1, 4],si64>, !torch.int, !torch.bool -> !torch.vtensor<[3, 1, 4],si64>, !torch.vtensor<[3],si64>
+  return %0, %1 : !torch.vtensor<[3, 1, 4],si64>, !torch.vtensor<[3],si64>
+}
+
+
 //  CHECK-LABEL:    @torch.aten.cat$fold_single_operand
 //   CHECK-SAME:      %[[ARG0:.+]]: !torch.tensor
 //        CHECK:        return %[[ARG0]] : !torch.tensor
