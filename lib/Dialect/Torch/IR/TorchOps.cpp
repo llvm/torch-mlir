@@ -2763,6 +2763,7 @@ void AtenDeviceWithIndexOp::getCanonicalizationPatterns(
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenTensorOp::fold(FoldAdaptor adaptor) {
+  // If a torch.aten.tensor op is initialized by a list with a constant, single element, fold it into a torch.vtensor.literal
   auto resultTy = dyn_cast<ValueTensorType>(getType());
   Type eTy = resultTy.getDtype();
   ShapedType shapedTy = resultTy.toBuiltinTensor().clone(eTy);
