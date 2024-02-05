@@ -6,6 +6,12 @@
 // Also available under a BSD-style license. See LICENSE.
 //
 //===----------------------------------------------------------------------===//
+#include "mlir/IR/BuiltinAttributeInterfaces.h"
+#include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/Support/LogicalResult.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
+#include <cstdint>
 #define DEBUG_TYPE "torch-mlir-torch-dialect"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -1728,7 +1734,7 @@ LogicalResult AtenSortOp::fold(FoldAdaptor adaptor,
   bool unaryDim = false;
   IntegerAttr dimAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
   if (dimAttr) {
-    unaryDim = operandTy.getSizes()[dimAttr.getSInt()] == 1;
+    unaryDim = operandTy.getSizes()[dimAttr.getInt()] == 1;
   }
 
   OpBuilder b(getContext());
@@ -2591,6 +2597,74 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenIndexSelectOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
+  DenseElementsAttr attr;
+  if (matchPattern(getOperand(0), m_Constant(&attr))) {
+    // If the operand of the index_select op is a constant value tensor and the
+    // rank of the input and result operand is 1, and the shape dim is also 1,
+    // then it means that the index select op is not doing anything and is
+    // returning the same tensor. In this case, we can just fold the
+    // index_select op with its operand.
+    Value input = getOperand(0);
+    ValueTensorType inputType = input.getType().cast<ValueTensorType>();
+    std::optional<unsigned> inputRank = getTensorRank(input);
+    if (!inputRank || *inputRank != 1 || !inputType.hasSizes())
+      return nullptr;
+    SmallVector<int64_t> inputShape(inputType.getSizes());
+    // The input should be of rank 1 and the only shape dim should also be 1.
+    if (inputShape.size() != 1 && inputShape[0] != 1)
+      return nullptr;
+    return input;
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenArangeStartStepOp
+//===----------------------------------------------------------------------===//
+
+void AtenArangeStartStepOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenArangeStartStepOp op, PatternRewriter &rewriter) {
+    // If the result of aten.arange.start_step is a rank 1 tensor with the shape
+    // value of that dim equal to 1, then we can just replace that with a
+    // constant tensor whose value would be equal to `start`.
+    Value result = op.getResult();
+    ValueTensorType resultType = result.getType().cast<ValueTensorType>();
+    std::optional<unsigned> resultRank = getTensorRank(result);
+    if (!resultRank || *resultRank != 1 || !resultType.hasSizes())
+      return failure();
+    SmallVector<int64_t> resultShape(resultType.getSizes());
+    // The result should be of rank 1 and the only shape dim should also be 1.
+    if (resultShape.size() != 1 && resultShape[0] != 1)
+      return failure();
+
+    if (!resultType.hasDtype() && !isa<Torch::IntType>(resultType.getDtype()))
+      return failure();
+
+    int64_t start, step, end;
+    if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)))
+      return failure();
+    if (!matchPattern(op.getStep(), m_TorchConstantInt(&step)))
+      return failure();
+    if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end)))
+      return failure();
+
+    auto elementsAttr = DenseElementsAttr::get(
+        RankedTensorType::get(
+            {1}, IntegerType::get(op->getContext(), 64, IntegerType::Signed)),
+        {start});
+
+    rewriter.replaceOpWithNewOp<ValueTensorLiteralOp>(op, resultType,
+                                                      elementsAttr);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenMulIntOp
 //===----------------------------------------------------------------------===//
 
@@ -2893,6 +2967,38 @@ OpFoldResult AtenItemOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   }
 
+  if (auto tensorOp = dyn_cast<AtenTensorOp>(getOperand().getDefiningOp())) {
+    auto dataList = tensorOp.getData().getDefiningOp<PrimListConstructOp>();
+    if (!dataList)
+      return nullptr;
+    if (dataList.getNumOperands() != 1)
+      return nullptr;
+
+    int64_t dim;
+    if (!matchPattern(dataList->getOperands()[0], m_TorchConstantInt(&dim)))
+      return nullptr;
+    return getI64IntegerAttr(getContext(), dim);
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenTensorOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenTensorOp::fold(FoldAdaptor adaptor) {
+  if (getOperation()->use_empty())
+    getOperation()->erase();
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// PrimNumToTensorScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult PrimNumToTensorScalarOp::fold(FoldAdaptor adaptor) {
+  if (getOperation()->use_empty())
+    getOperation()->erase();
   return nullptr;
 }
 
