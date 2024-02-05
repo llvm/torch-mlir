@@ -1718,15 +1718,15 @@ void AtenSortIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 LogicalResult AtenSortOp::fold(FoldAdaptor adaptor,
                                SmallVectorImpl<OpFoldResult> &results) {
   auto operand = getSelf();
-  auto operandTy = dyn_cast<ValueTensorType>(operand.getType());
-  auto iTTy = cast<ValueTensorType>(getResult(1).getType());
-  auto indicesTy = iTTy.toBuiltinTensor().clone(iTTy.getDtype());
-
-  if (!operandTy.hasSizes())
+  auto operandTy = dyn_cast_if_present<ValueTensorType>(operand.getType());
+  if (!operandTy || !operandTy.hasSizes())
     return failure();
-  if (!indicesTy.hasStaticShape())
+  
+  auto iTTy = dyn_cast_if_present<ValueTensorType>(getResult(1).getType());
+  auto indicesTy = iTTy ? iTTy.toBuiltinTensor().clone(iTTy.getDtype()) : nullptr;
+  if(!iTTy || !indicesTy || !indicesTy.hasStaticShape())
     return failure();
-
+    
   bool unaryDim = false;
   IntegerAttr dimAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
   if (dimAttr) {
