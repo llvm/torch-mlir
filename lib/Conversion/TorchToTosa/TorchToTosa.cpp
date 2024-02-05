@@ -4106,22 +4106,21 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
   Value result;
   if (is_all_inp_int)
   {
-    int64_t resultShape = ceil((float)(end_int - start_int) / (float)(step_int));
-    SmallVector<int64_t> values(resultShape, start_int);
-    for (unsigned i = 1; i < resultShape; i++)
-      values[i] += i * step;
+    SmallVector<int64_t> values(start_int);
+    for (int64_t i = start_int; i < end_int; i += step_int)
+      values.push_back(i);
 
-    result = tosa::getConstTensor<int64_t>(rewriter, op, values, resultShape).value();
+    result = tosa::getConstTensor<int64_t>(rewriter, op, values, values.size()).value();
   }
 
   else
   {
-    int64_t resultShape = ceil((end - start) / step);
-    SmallVector<float> values(resultShape, start);
-    for (unsigned i = 1; i < resultShape; i++)
+    int64_t resultSize = ceil((end - start) / step);
+    SmallVector<float> values(resultSize, start);
+    for (unsigned i = 1; i < resultSize; i++)
       values[i] += (i * step);
     
-    result = tosa::getConstTensor<float>(rewriter, op, values, resultShape).value();
+    result = tosa::getConstTensor<float>(rewriter, op, values, resultSize).value();
   }
 
   rewriter.replaceOpWithNewOp<tosa::CastOp>(op, resultType, result);
