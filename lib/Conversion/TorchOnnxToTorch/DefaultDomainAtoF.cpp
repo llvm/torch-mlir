@@ -1387,7 +1387,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Torch::BaseTensorType shapeType =
             shape.getType().cast<Torch::BaseTensorType>();
         SmallVector<int64_t> selectSizes;
-        selectSizes.push_back(1);
         Type selectResultType = shapeType.getWithSizesAndDtype(
             llvm::ArrayRef(selectSizes), shapeType.getOptionalDtype());
         // Variable to store 1-D onnx shape tensor, shapeSizes[0] has the
