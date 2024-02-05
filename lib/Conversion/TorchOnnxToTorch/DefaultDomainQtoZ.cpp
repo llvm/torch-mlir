@@ -1561,6 +1561,25 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.tensorResultType(resultType) ||
             binder.s64IntegerAttr(allowzero, "allowzero", 0))
           return failure();
+        // If the result shape is static then we can create a result shape list
+        // directly using the result shape values (integers).
+        if (resultType.hasSizes()) {
+          if (resultType.areAllSizesKnown()) {
+            SmallVector<Value> resultShape;
+            for (int64_t size : resultType.getSizes()) {
+              resultShape.push_back(rewriter.create<Torch::ConstantIntOp>(
+                  binder.getLoc(), rewriter.getI64IntegerAttr(size)));
+            }
+            Value resultShapeList = rewriter.create<Torch::PrimListConstructOp>(
+                binder.getLoc(),
+                Torch::ListType::get(
+                    Torch::IntType::get(binder.op->getContext())),
+                resultShape);
+            rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(
+                binder.op, resultType, data, resultShapeList);
+            return success();
+          }
+        }
         Torch::BaseTensorType shapeType =
             shape.getType().cast<Torch::BaseTensorType>();
         SmallVector<Value> dimList;
