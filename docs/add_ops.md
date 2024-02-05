@@ -70,6 +70,10 @@ Helpful examples:
 - [A Dec 2023 example where an ONNX op is implemented](https://github.com/llvm/torch-mlir/pull/2641/files#diff-b584b152020af6d2e5dbf62a08b2f25ed5afc2c299228383b9651d22d44b5af4R493)
 - [Vivek's example of ONNX op lowering](https://github.com/llvm/torch-mlir/commit/dc9ea08db5ac295b4b3f91fc776fef6a702900b9)
 
+## List of Tools you may need to use (this will be incorporated into the above instructions later)
+
+- Generate FILECHECK tests from MLIR test cases: `llvm-project/mlir/utils/generate-test-checks.py`. Please don't just paste the generated tests - reference them to write your own
+
 ## Contacts
 People who've worked on this for a while
 - Vivek (@vivek97 on discord)
