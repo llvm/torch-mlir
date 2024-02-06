@@ -8980,6 +8980,7 @@ def Torch_AtenArangeStartStepOp : Torch_Op<"aten.arange.start_step", [
       printDefaultTorchOp(printer, *this, 7, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenArangeStartOutOp : Torch_Op<"aten.arange.start_out", [
@@ -9785,6 +9786,7 @@ def Torch_AtenIndexSelectOp : Torch_Op<"aten.index_select", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_Aten_IndexPutImplOp : Torch_Op<"aten._index_put_impl", [
@@ -12559,6 +12561,7 @@ def Torch_AtenSortOp : Torch_Op<"aten.sort", [
       printDefaultTorchOp(printer, *this, 3, 2);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenSplitTensorOp : Torch_Op<"aten.split.Tensor", [
@@ -14825,6 +14828,7 @@ def Torch_PrimNumToTensorScalarOp : Torch_Op<"prim.NumToTensor.Scalar", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_PrimMinSelfIntOp : Torch_Op<"prim.min.self_int", [
