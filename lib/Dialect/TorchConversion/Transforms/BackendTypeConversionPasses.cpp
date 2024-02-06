@@ -115,6 +115,15 @@ static void setupFinalization(ConversionTarget &target,
   setupFinalization<OpTy2, OpTys...>(target, patterns, typeConverter);
 }
 
+static void stripTorchAttrs(func::FuncOp func) {
+  SmallVector<NamedAttribute> newAttrs;
+  for (auto attr : func->getDialectAttrs()) {
+    if (!attr.getName().getValue().starts_with("torch."))
+      newAttrs.push_back(attr);
+  }
+  func->setDialectAttrs(newAttrs);
+}
+
 namespace {
 struct FinalizingBackendTypeConversionPass
     : public FinalizingBackendTypeConversionBase<
@@ -151,6 +160,9 @@ struct FinalizingBackendTypeConversionPass
 
     if (failed(applyFullConversion(func, target, std::move(patterns))))
       signalPassFailure();
+
+    // Drop attributes that are no longer used after conversion out of Torch.
+    stripTorchAttrs(func);
   }
 };
 } // namespace

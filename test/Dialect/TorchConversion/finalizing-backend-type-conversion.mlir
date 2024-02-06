@@ -54,6 +54,20 @@ func.func @eliminate_materializations$torch.Generator(%arg0: i64) -> i64 {
 
 // -----
 
+// CHECK-LABEL:   func.func @eliminate_attributes()
+// CHECK-NOT: attributes
+// CHECK-NOT: torch.onnx_meta
+func.func @eliminate_attributes() attributes {
+  torch.onnx_meta.ir_version = 8 : si64,
+  torch.onnx_meta.opset_version = 17 : si64,
+  torch.onnx_meta.producer_name = "pytorch",
+  torch.onnx_meta.producer_version = "2.1.0"
+} {
+  return
+}
+
+// -----
+
 func.func @unable_to_convert_lone_buffer_cast() -> tensor<f32> {
   // expected-error @+1 {{failed to legalize operation 'test.source'}}
   %0 = "test.source"() : () -> !torch.vtensor<[],f32>
