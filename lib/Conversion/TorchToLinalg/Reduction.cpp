@@ -547,7 +547,7 @@ private:
         !elemType.isa<mlir::FloatType>())
       return rewriter.notifyMatchFailure(
           op, "only float types are valid for vector norm ops");
-    if((isa<AtenAllDimOp>(op)) && elemType.isa<mlir::IntegerType>() && 
+    if (isa<AtenAllDimOp>(op) && elemType.isa<mlir::IntegerType>() &&
         elemType.getIntOrFloatBitWidth() == 8)
       return rewriter.notifyMatchFailure(op, "uint8 is not supported");
     // No checks for all other reduction operations
