@@ -1711,6 +1711,52 @@ void AtenSortIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenSortOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenSortOp::fold(FoldAdaptor adaptor,
+                               SmallVectorImpl<OpFoldResult> &results) {
+  auto operand = getSelf();
+  auto operandType = dyn_cast<BaseTensorType>(operand.getType());
+  if (!operandType || !operandType.hasSizes())
+    return failure();
+
+  // only ValueTensorType has toBuiltinTensor
+  auto indicesTensorType = dyn_cast<ValueTensorType>(getResult(1).getType());
+  if (!indicesTensorType)
+    return failure();
+
+  if (!indicesTensorType.hasDtype())
+    return failure();
+  auto indicesType =
+      indicesTensorType.toBuiltinTensor().clone(indicesTensorType.getDtype());
+  if (!indicesType || !indicesType.hasStaticShape())
+    return failure();
+
+  bool unaryDim = false;
+  IntegerAttr dimAttribute = dyn_cast_if_present<IntegerAttr>(adaptor.getDim());
+  if (!dimAttribute)
+    return failure();
+  int64_t dimInt = dimAttribute.getValue().getSExtValue();
+  if (dimInt < 0)
+    dimInt += operandType.getSizes().size();
+  if (dimAttribute) {
+    unaryDim = operandType.getSizes()[dimInt] == 1;
+  }
+
+  OpBuilder builder(getContext());
+  if (unaryDim || llvm::all_of(operandType.getSizes(),
+                               [](int64_t dim) { return dim == 1; })) {
+    results.push_back(operand);
+    results.push_back(DenseElementsAttr::get(
+        indicesType, builder.getZeroAttr(indicesType.getElementType())));
+    return success();
+  }
+
+  return failure();
+}
+
+//===----------------------------------------------------------------------===//
 // NonValueTensorLiteralOp
 //===----------------------------------------------------------------------===//
 
