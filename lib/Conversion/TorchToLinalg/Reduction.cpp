@@ -277,6 +277,10 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
   if (isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op))
     return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
 
+  if (auto all = dyn_cast<AtenAllDimOp>(op)) {
+    return b.create<arith::ConstantOp>(loc, b.getBoolAttr(true));
+  }
+
   op->emitError("unimplemented lowering in createInitElementForReduceOp");
   return nullptr;
 }
@@ -357,6 +361,11 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     auto ord = b.create<arith::ConstantOp>(loc, twoAttr);
     auto pow = b.create<math::PowFOp>(loc, abs, ord);
     return b.create<arith::AddFOp>(loc, pow, result);
+  } else if (auto allOp = dyn_cast<AtenAllDimOp>(op)) {
+    Value elem = payloadArgs[0];
+    Value result = payloadArgs[1];
+    Value self = convertScalarToDtype(b, loc, elem, resultElementType);
+    return b.create<arith::MulIOp>(loc, self, result);
   }
   op->emitError("unimplemented lowering in createLinalgPayloadForReduceOp");
   return nullptr;
@@ -447,6 +456,9 @@ private:
     if (auto normOp = dyn_cast<AtenFrobeniusNormDimOp>(op))
       return computeReductionOpInfoForDimVariantOp(normOp, operands, rewriter);
 
+    if (auto allOp = dyn_cast<AtenAllDimOp>(op))
+      return computeReductionOpInfoForDimVariantOp(allOp, operands, rewriter);
+
     return rewriter.notifyMatchFailure(op, "not a supported reduce op");
   }
 
@@ -535,6 +547,9 @@ private:
         !elemType.isa<mlir::FloatType>())
       return rewriter.notifyMatchFailure(
           op, "only float types are valid for vector norm ops");
+    if((isa<AtenAllDimOp>(op)) && elemType.isa<mlir::IntegerType>() && 
+        elemType.getIntOrFloatBitWidth() == 8)
+      return rewriter.notifyMatchFailure(op, "uint8 is not supported");
     // No checks for all other reduction operations
     return success();
   }
@@ -610,6 +625,7 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   target.addIllegalOp<AtenProdDimIntOp>();
   target.addIllegalOp<AtenMaxOp>();
   target.addIllegalOp<AtenMinOp>();
+  target.addIllegalOp<AtenAllDimOp>();
   target.addIllegalOp<AtenLinalgVectorNormOp>();
   target.addIllegalOp<AtenFrobeniusNormDimOp>();
   patterns.add<ConvertReductionOp>(typeConverter, context);
