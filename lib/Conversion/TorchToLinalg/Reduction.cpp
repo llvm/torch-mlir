@@ -277,7 +277,7 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
   if (isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op))
     return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
 
-  if (auto all = dyn_cast<AtenAllDimOp>(op)) {
+  if (isa<AtenAllDimOp>(op)) {
     return b.create<arith::ConstantOp>(loc, b.getBoolAttr(true));
   }
 
@@ -361,7 +361,7 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     auto ord = b.create<arith::ConstantOp>(loc, twoAttr);
     auto pow = b.create<math::PowFOp>(loc, abs, ord);
     return b.create<arith::AddFOp>(loc, pow, result);
-  } else if (auto allOp = dyn_cast<AtenAllDimOp>(op)) {
+  } else if (isa<AtenAllDimOp>(op)) {
     Value elem = payloadArgs[0];
     Value result = payloadArgs[1];
     Value self = convertScalarToDtype(b, loc, elem, resultElementType);
