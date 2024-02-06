@@ -2850,6 +2850,7 @@ OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
   auto indexSizes = indexTy.getSizes();
   auto resultSizes = resultTy.getSizes();
 
+
   if (selfTy.getDtype() != resultTy.getDtype())
     return nullptr;
   if (selfSizes.size() != resultSizes.size())
