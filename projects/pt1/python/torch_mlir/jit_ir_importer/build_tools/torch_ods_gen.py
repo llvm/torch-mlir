@@ -570,7 +570,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::new_zeros : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::eye : (int, int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::eye.m : (int, int, int?, int?, Device?, bool?) -> (Tensor)")
-    emit("aten::tensor : (t[], int?, Device?, bool) -> (Tensor)")
+    emit("aten::tensor : (t[], int?, Device?, bool) -> (Tensor)", has_folder=True)
     emit("aten::tensor.bool : (bool, int?, Device?, bool) -> (Tensor)")
     emit("aten::tensor.int : (int, int?, Device?, bool) -> (Tensor)")
     emit("aten::scalar_tensor : (Scalar, int?, int?, Device?, bool?) -> (Tensor)")
