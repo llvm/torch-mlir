@@ -9784,6 +9784,7 @@ def Torch_AtenIndexSelectOp : Torch_Op<"aten.index_select", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_Aten_IndexPutImplOp : Torch_Op<"aten._index_put_impl", [
