@@ -1734,8 +1734,11 @@ LogicalResult AtenSortOp::fold(FoldAdaptor adaptor,
 
   bool unaryDim = false;
   IntegerAttr dimAttribute = dyn_cast_if_present<IntegerAttr>(adaptor.getDim());
+  int64_t dimInt = dimAttribute.getInt();
+  if (dimInt < 0)
+    dimInt += operandType.getSizes().size();
   if (dimAttribute) {
-    unaryDim = operandType.getSizes()[dimAttribute.getInt()] == 1;
+    unaryDim = operandType.getSizes()[dimInt] == 1;
   }
 
   OpBuilder builder(getContext());
