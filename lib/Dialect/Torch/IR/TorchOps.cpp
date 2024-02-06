@@ -2842,9 +2842,12 @@ OpFoldResult AtenDivIntOp::fold(FoldAdaptor adaptor) {
 OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
   auto self = getSelf();
   auto index = getIndex();
-  auto selfTy = cast<ValueTensorType>(self.getType());
-  auto indexTy = cast<ValueTensorType>(index.getType());
-  auto resultTy = cast<ValueTensorType>(getType());
+  auto selfTy = dyn_cast_or_null<ValueTensorType>(self.getType());
+  assert(selfTy);
+  auto indexTy = dyn_cast_or_null<ValueTensorType>(index.getType());
+  assert(indexTy);
+  auto resultTy = dyn_cast_or_null<ValueTensorType>(getType());
+  assert(resultTy);
 
   auto selfSizes = selfTy.getSizes();
   auto indexSizes = indexTy.getSizes();
