@@ -695,6 +695,48 @@ public:
     }
     return success();
   }
+
+  LogicalResult payloadCustomization(
+      OpBuilder &b, Location loc, const Value &inElt, const Value &res,
+      const Value &maxIndex, const SmallVector<Value> &inputElementIndices,
+      const SmallVector<Value> &inputSpatialSizes, const Value &indexOne,
+      const SmallVector<Value> &starts, const SmallVector<Value> &ends,
+      Value &out2, Value &auxOut) {
+    // compute max using select, since cond1 will be used for indices
+    Value cond1 =
+        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OGT, inElt, res);
+    out2 = b.create<arith::SelectOp>(loc, cond1, inElt, res);
+    // index in different dims (n x c x d x h x w)
+    // 1d: (iw)
+    // 2d: (ih*W + iw)
+    // 3d: (id*H*W + ih*W + iw)
+    Value currIndex = inputElementIndices[nonSpatial];
+    for (unsigned i = 0; i < rank - nonSpatial - 1; i++) {
+      Value prevTimesNewSize =
+          b.create<arith::MulIOp>(loc, currIndex, inputSpatialSizes[i + 1]);
+      currIndex = b.create<arith::AddIOp>(
+          loc, prevTimesNewSize, inputElementIndices[nonSpatial + i + 1]);
+    }
+    Value indexOut1Int = castIndexToInt64(b, loc, currIndex);
+    auxOut = b.create<arith::SelectOp>(loc, cond1, indexOut1Int, maxIndex);
+    return success();
+  }
+
+  LogicalResult
+  customizedOpReplacement(OpTy op, const RankedTensorType &outputType,
+                          const RankedTensorType &auxTensorType,
+                          const Value &adaptivePoolOutput,
+                          const Value &auxTensorReturn,
+                          const SmallVector<AffineExpr> &auxTensorExprs,
+                          const SmallVector<AffineExpr> &outputExprs) {
+    Location loc = op->getLoc();
+    Value maxValues =
+        rewriter.create<tensor::CastOp>(loc, outputType, adaptivePoolOutput);
+    Value outputIndices =
+        rewriter.create<tensor::CastOp>(loc, auxTensorType, auxTensorReturn);
+    rewriter.replaceOp(op, {maxValues, outputIndices});
+    return success();
+  }
 };
 
 template <class OpTy>
@@ -728,8 +770,55 @@ public:
     }
     return success();
   }
+
+  LogicalResult payloadCustomization(
+      OpBuilder &b, Location loc, const Value &inElt, const Value &res,
+      const Value &maxIndex, const SmallVector<Value> &inputElementIndices,
+      const SmallVector<Value> &inputSpatialSizes, const Value &indexOne,
+      const SmallVector<Value> &starts, const SmallVector<Value> &ends,
+      Value &out2, Value &auxOut) {
+    out2 = b.create<arith::AddFOp>(loc, inElt, res);
+    Value kernelVolume = indexOne;
+    for (unsigned i = 0; i < rank - nonSpatial; i++) {
+      Value currSize = b.create<arith::SubIOp>(loc, ends[i], starts[i]);
+      kernelVolume = b.create<arith::MulIOp>(loc, kernelVolume, currSize);
+    }
+    Value auxOutSI = castIndexToInt64(b, loc, kernelVolume);
+    auxOut = b.create<arith::SIToFPOp>(loc, elementType, auxOutSI);
+    return success();
+  }
+
+  LogicalResult
+  customizedOpReplacement(OpTy op, const RankedTensorType &outputType,
+                          const RankedTensorType &auxTensorType,
+                          const Value &adaptivePoolOutput,
+                          const Value &auxTensorReturn,
+                          const SmallVector<AffineExpr> &auxTensorExprs,
+                          const SmallVector<AffineExpr> &outputExprs) {
+
+    Location loc = op->getLoc();
+    SmallVector<AffineMap> indexingMaps1 =
+        AffineMap::inferFromExprList({auxTensorExprs, outputExprs});
+    SmallVector<utils::IteratorType> iteratorTypes1(
+        rank, utils::IteratorType::parallel);
+    auto output = rewriter.create<linalg::GenericOp>(
+        loc, /*resultTensorTypes=*/adaptivePoolOutput.getType(),
+        /*inputs=*/auxTensorReturn,
+        /*outputs=*/adaptivePoolOutput,
+        /*indexingMaps=*/indexingMaps1,
+        /*iteratorTypes=*/iteratorTypes1,
+        [&](OpBuilder &b, Location loc, ValueRange args) {
+          Value q = b.create<arith::DivFOp>(loc, args[1], args[0]);
+          b.create<linalg::YieldOp>(loc, q);
+        });
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outputType,
+                                                output.getResultTensors());
+    return success();
+  }
 };
 
+// stores Dim = spatial dims and aliases helper class to a generic name
 template <typename T> struct AdaptivePoolingOpTraits {};
 
 template <> struct AdaptivePoolingOpTraits<AtenAdaptiveMaxPool1dOp> {
@@ -775,7 +864,7 @@ template <> struct AdaptivePoolingOpTraits<Aten_AdaptiveAvgPool3dOp> {
 };
 
 template <typename OpTy>
-class ConvertAtenAdaptivePoolOpBase : public OpConversionPattern<OpTy> {
+class ConvertAtenAdaptivePoolOp : public OpConversionPattern<OpTy> {
   using OpConversionPattern<OpTy>::OpConversionPattern;
 
 private:
@@ -970,10 +1059,9 @@ public:
           }
           Value out2, auxOut;
           // customize for max vs. avg:
-          if (failed(payloadCustomization(b, loc, inElt, res, maxIndex,
-                                          inputElementIndices, rank, nonSpatial,
-                                          inputSpatialSizes, indexOne, starts,
-                                          ends, elementType, out2, auxOut))) {
+          if (failed(adaptivePoolingHelper.payloadCustomization(
+                  b, loc, inElt, res, maxIndex, inputElementIndices,
+                  inputSpatialSizes, indexOne, starts, ends, out2, auxOut))) {
             failedCustomization = true;
           }
           b.create<linalg::YieldOp>(loc, ValueRange({out2, auxOut}));
@@ -986,115 +1074,11 @@ public:
     Value adaptivePoolOutput = adaptivePool.getResultTensors()[0];
     Value auxTensorReturn = adaptivePool.getResultTensors()[1];
 
-    if (failed(customizedOpReplacement(op, rewriter, outputType, auxTensorType,
-                                       adaptivePoolOutput, auxTensorReturn,
-                                       auxTensorExprs, outputExprs, rank))) {
+    if (failed(adaptivePoolingHelper.customizedOpReplacement(
+            op, outputType, auxTensorType, adaptivePoolOutput, auxTensorReturn,
+            auxTensorExprs, outputExprs))) {
       return rewriter.notifyMatchFailure(op, "failed customizedOpReplacement.");
     }
-    return success();
-  }
-};
-
-template <typename OpTy>
-class ConvertAtenAdaptiveAvgPoolOp
-    : public ConvertAtenAdaptivePoolOpBase<OpTy> {
-  using ConvertAtenAdaptivePoolOpBase<OpTy>::ConvertAtenAdaptivePoolOpBase;
-
-private:
-  LogicalResult payloadCustomization(
-      OpBuilder &b, Location loc, const Value &inElt, const Value &res,
-      const Value &maxIndex, const SmallVector<Value> &inputElementIndices,
-      const int64_t &rank, const int64_t &nonSpatial,
-      const SmallVector<Value> &inputSpatialSizes, const Value &indexOne,
-      const SmallVector<Value> &starts, const SmallVector<Value> &ends,
-      const Type &elementType, Value &out2, Value &auxOut) const override {
-    out2 = b.create<arith::AddFOp>(loc, inElt, res);
-    Value kernelVolume = indexOne;
-    for (unsigned i = 0; i < rank - nonSpatial; i++) {
-      Value currSize = b.create<arith::SubIOp>(loc, ends[i], starts[i]);
-      kernelVolume = b.create<arith::MulIOp>(loc, kernelVolume, currSize);
-    }
-    Value auxOutSI = castIndexToInt64(b, loc, kernelVolume);
-    auxOut = b.create<arith::SIToFPOp>(loc, elementType, auxOutSI);
-    return success();
-  }
-
-  LogicalResult customizedOpReplacement(
-      OpTy op, ConversionPatternRewriter &rewriter,
-      const RankedTensorType &outputType, const RankedTensorType &auxTensorType,
-      const Value &adaptivePoolOutput, const Value &auxTensorReturn,
-      const SmallVector<AffineExpr> &auxTensorExprs,
-      const SmallVector<AffineExpr> &outputExprs,
-      const int64_t &rank) const override {
-
-    Location loc = op->getLoc();
-    SmallVector<AffineMap> indexingMaps1 =
-        AffineMap::inferFromExprList({auxTensorExprs, outputExprs});
-    SmallVector<utils::IteratorType> iteratorTypes1(
-        rank, utils::IteratorType::parallel);
-    auto output = rewriter.create<linalg::GenericOp>(
-        loc, /*resultTensorTypes=*/adaptivePoolOutput.getType(),
-        /*inputs=*/auxTensorReturn,
-        /*outputs=*/adaptivePoolOutput,
-        /*indexingMaps=*/indexingMaps1,
-        /*iteratorTypes=*/iteratorTypes1,
-        [&](OpBuilder &b, Location loc, ValueRange args) {
-          Value q = b.create<arith::DivFOp>(loc, args[1], args[0]);
-          b.create<linalg::YieldOp>(loc, q);
-        });
-
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outputType,
-                                                output.getResultTensors());
-    return success();
-  }
-};
-
-template <typename OpTy>
-class ConvertAtenAdaptiveMaxPoolOp
-    : public ConvertAtenAdaptivePoolOpBase<OpTy> {
-  using ConvertAtenAdaptivePoolOpBase<OpTy>::ConvertAtenAdaptivePoolOpBase;
-
-private:
-  LogicalResult payloadCustomization(
-      OpBuilder &b, Location loc, const Value &inElt, const Value &res,
-      const Value &maxIndex, const SmallVector<Value> &inputElementIndices,
-      const int64_t &rank, const int64_t &nonSpatial,
-      const SmallVector<Value> &inputSpatialSizes, const Value &indexOne,
-      const SmallVector<Value> &starts, const SmallVector<Value> &ends,
-      const Type &elementType, Value &out2, Value &auxOut) const override {
-    // compute max using select, since cond1 will be used for indices
-    Value cond1 =
-        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OGT, inElt, res);
-    out2 = b.create<arith::SelectOp>(loc, cond1, inElt, res);
-    // index in different dims (n x c x d x h x w)
-    // 1d: (iw)
-    // 2d: (ih*W + iw)
-    // 3d: (id*H*W + ih*W + iw)
-    Value currIndex = inputElementIndices[nonSpatial];
-    for (unsigned i = 0; i < rank - nonSpatial - 1; i++) {
-      Value prevTimesNewSize =
-          b.create<arith::MulIOp>(loc, currIndex, inputSpatialSizes[i + 1]);
-      currIndex = b.create<arith::AddIOp>(
-          loc, prevTimesNewSize, inputElementIndices[nonSpatial + i + 1]);
-    }
-    Value indexOut1Int = castIndexToInt64(b, loc, currIndex);
-    auxOut = b.create<arith::SelectOp>(loc, cond1, indexOut1Int, maxIndex);
-    return success();
-  }
-
-  LogicalResult customizedOpReplacement(
-      OpTy op, ConversionPatternRewriter &rewriter,
-      const RankedTensorType &outputType, const RankedTensorType &auxTensorType,
-      const Value &adaptivePoolOutput, const Value &auxTensorReturn,
-      const SmallVector<AffineExpr> &auxTensorExprs,
-      const SmallVector<AffineExpr> &outputExprs,
-      const int64_t &rank) const override {
-    Location loc = op->getLoc();
-    Value maxValues =
-        rewriter.create<tensor::CastOp>(loc, outputType, adaptivePoolOutput);
-    Value outputIndices =
-        rewriter.create<tensor::CastOp>(loc, auxTensorType, auxTensorReturn);
-    rewriter.replaceOp(op, {maxValues, outputIndices});
     return success();
   }
 };
@@ -1120,20 +1104,20 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
           typeConverter, context);
   target.addIllegalOp<AtenAdaptiveAvgPool1dOp, AtenAdaptiveAvgPool2dOp,
                       AtenAdaptiveAvgPool3dOp, Aten_AdaptiveAvgPool3dOp>();
-  patterns.add<ConvertAtenAdaptiveAvgPoolOp<AtenAdaptiveAvgPool1dOp>>(
+  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool1dOp>>(
       typeConverter, context);
-  patterns.add<ConvertAtenAdaptiveAvgPoolOp<AtenAdaptiveAvgPool2dOp>>(
+  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool2dOp>>(
       typeConverter, context);
-  patterns.add<ConvertAtenAdaptiveAvgPoolOp<AtenAdaptiveAvgPool3dOp>>(
+  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool3dOp>>(
       typeConverter, context);
-  patterns.add<ConvertAtenAdaptiveAvgPoolOp<Aten_AdaptiveAvgPool3dOp>>(
+  patterns.add<ConvertAtenAdaptivePoolOp<Aten_AdaptiveAvgPool3dOp>>(
       typeConverter, context);
   target.addIllegalOp<AtenAdaptiveMaxPool1dOp, AtenAdaptiveMaxPool2dOp,
                       AtenAdaptiveMaxPool3dOp>();
-  patterns.add<ConvertAtenAdaptiveMaxPoolOp<AtenAdaptiveMaxPool1dOp>>(
+  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool1dOp>>(
       typeConverter, context);
-  patterns.add<ConvertAtenAdaptiveMaxPoolOp<AtenAdaptiveMaxPool2dOp>>(
+  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool2dOp>>(
       typeConverter, context);
-  patterns.add<ConvertAtenAdaptiveMaxPoolOp<AtenAdaptiveMaxPool3dOp>>(
+  patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool3dOp>>(
       typeConverter, context);
 }
