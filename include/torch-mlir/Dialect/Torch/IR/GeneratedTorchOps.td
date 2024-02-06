@@ -8582,6 +8582,7 @@ def Torch_AtenTensorOp : Torch_Op<"aten.tensor", [
       printDefaultTorchOp(printer, *this, 4, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenTensorBoolOp : Torch_Op<"aten.tensor.bool", [

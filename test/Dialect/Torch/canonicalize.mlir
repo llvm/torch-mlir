@@ -1461,6 +1461,17 @@ func.func @torch.aten.squeeze.dim$zero_rank(%arg0: !torch.tensor<[],f32>) -> !to
   return %0 : !torch.tensor<[],f32>
 }
 
+// CHECK-LABEL:   func.func @torch.aten.tensor$one_elem(
+// CHECK-NEXT: torch.vtensor.literal(dense<42> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+func.func @torch.aten.tensor$one_elem() -> (!torch.vtensor<[1],si64>) {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %int42 = torch.constant.int 42
+  %66 = torch.prim.ListConstruct %int42 : (!torch.int) -> !torch.list<int>
+  %67 = torch.aten.tensor %66, %none, %none, %false : !torch.list<int>, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[1],si64>
+  return %67 : !torch.vtensor<[1],si64>
+}
+
 // CHECK-LABEL:   func.func @torch.aten.to.dtype$same_dtype(
 // CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<*,f32>) -> !torch.tensor<*,f32> {
 // CHECK-NEXT:      return %[[ARG]] : !torch.tensor<*,f32>
