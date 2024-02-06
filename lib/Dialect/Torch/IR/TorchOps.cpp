@@ -2898,17 +2898,7 @@ OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
   if (!scalarFold)
     return nullptr;
 
-  auto splatValue = indexAttr.getSplatValue<IntegerAttr>();
-  uint64_t indexInt = 0;
-  if (splatValue.getType().isSignedInteger())
-    indexInt = uint64_t(splatValue.getSInt());
-  else if (splatValue.getType().isUnsignedInteger())
-    indexInt = splatValue.getUInt();
-  else if (splatValue.getType().isSignlessInteger())
-    indexInt = uint64_t(splatValue.getInt());
-  else
-    return nullptr;
-
+  auto indexInt = indexAttr.getSplatValue<IntegerAttr>().getInt();
   auto splattr = selfAttr.getValues<Attribute>()[indexInt];
 
   auto dty = resultTy.getDtype();
@@ -2917,10 +2907,10 @@ OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
     return DenseElementsAttr::get(
         attrTy, FloatAttr::get(dty, floatAttr.getValueAsDouble()));
 
-  if (auto intAttr = dyn_cast<IntegerAttr>(splattr)) {
+  if (auto intAttr = dyn_cast<IntegerAttr>(splattr))
     return DenseElementsAttr::get(attrTy,
-                                  IntegerAttr::get(dty, intAttr.getValue()));
-  }
+                                  IntegerAttr::get(dty, intAttr.getInt()));
+
   return nullptr;
 }
 

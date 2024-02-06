@@ -2208,40 +2208,19 @@ func.func @torch.aten.detach$canonicalize(%arg0: !torch.tensor<[1],f32>) -> !tor
 // CHECK-LABEL:   func.func @torch.aten.index_select$noop(
 // CHECK-SAME:      %[[ARG:.*]]: !torch.vtensor<[1,2,3],si64>
 // CHECK-NEXT:      return %[[ARG]] : !torch.vtensor<[1,2,3],si64>
-func.func @torch.aten.index_select$noop(%arg0 : !torch.vtensor<[1,2,3],si64>, %arg1 : !torch.int, %arg2 : !torch.vtensor<[1],si64>) -> !torch.vtensor<[1,2,3],si64> {
+func.func @torch.aten.index_select$noop(%arg0 : !torch.vtensor<[1,2,3],si64>, %arg1 : !torch.int, %arg2 : !torch.vtensor<[1],si64>) -> (!torch.vtensor<[1,2,3],si64>) {
   %0 = torch.aten.index_select %arg0, %arg1, %arg2 : !torch.vtensor<[1,2,3],si64>, !torch.int, !torch.vtensor<[1],si64> -> !torch.vtensor<[1,2,3],si64>
   return %0 : !torch.vtensor<[1,2,3],si64>
 }
 
-// CHECK-LABEL:   func.func @torch.aten.index_select$const_si_si(
+// CHECK-LABEL:   func.func @torch.aten.index_select$const(
+// CHECK-SAME:      %[[ARG:.*]]: !torch.vtensor<[1,2,3],si64>
 // CHECK-NEXT:      %[[RES:.*]] = torch.vtensor.literal(dense<60> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
 // CHECK-NEXT:      return %[[RES]] : !torch.vtensor<[1],si64>
-func.func @torch.aten.index_select$const_si_si() -> !torch.vtensor<[1],si64> {
+func.func @torch.aten.index_select$const(%arg0 : !torch.vtensor<[1,2,3],si64>, %arg1 : !torch.int, %arg2 : !torch.vtensor<[1],si64>) -> (!torch.vtensor<[1],si64>) {
   %tensor = torch.vtensor.literal(dense<[10,20,30,40,50,60,70,80,90,100]> : tensor<10xsi64>) : !torch.vtensor<[10],si64>
   %dim = torch.constant.int 0
   %index = torch.vtensor.literal(dense<5> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
   %0 = torch.aten.index_select %tensor, %dim, %index : !torch.vtensor<[10],si64>, !torch.int, !torch.vtensor<[1],si64> -> !torch.vtensor<[1],si64>
   return %0 : !torch.vtensor<[1],si64>
-}
-
-// CHECK-LABEL:   func.func @torch.aten.index_select$const_si_ui(
-// CHECK-NEXT:      %[[RES:.*]] = torch.vtensor.literal(dense<60> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
-// CHECK-NEXT:      return %[[RES]] : !torch.vtensor<[1],si64>
-func.func @torch.aten.index_select$const_si_ui() -> !torch.vtensor<[1],si64> {
-  %tensor = torch.vtensor.literal(dense<[10,20,30,40,50,60,70,80,90,100]> : tensor<10xsi64>) : !torch.vtensor<[10],si64>
-  %dim = torch.constant.int 0
-  %index = torch.vtensor.literal(dense<5> : tensor<1xui64>) : !torch.vtensor<[1],ui64>
-  %0 = torch.aten.index_select %tensor, %dim, %index : !torch.vtensor<[10],si64>, !torch.int, !torch.vtensor<[1],ui64> -> !torch.vtensor<[1],si64>
-  return %0 : !torch.vtensor<[1],si64>
-}
-
-// CHECK-LABEL:   func.func @torch.aten.index_select$const_f32_ui(
-// CHECK-NEXT:      %[[RES:.*]] = torch.vtensor.literal(dense<6.6{{.*}}> : tensor<1xf32>) : !torch.vtensor<[1],f32>
-// CHECK-NEXT:      return %[[RES]] : !torch.vtensor<[1],f32>
-func.func @torch.aten.index_select$const_f32_ui() -> !torch.vtensor<[1],f32> {
-  %tensor = torch.vtensor.literal(dense<[1.1,2.2,3.3,4.4,5.5,6.6,7.7,8.8,9.9,10.0]> : tensor<10xf32>) : !torch.vtensor<[10],f32>
-  %dim = torch.constant.int 0
-  %index = torch.vtensor.literal(dense<5> : tensor<1xui64>) : !torch.vtensor<[1],ui64>
-  %0 = torch.aten.index_select %tensor, %dim, %index : !torch.vtensor<[10],f32>, !torch.int, !torch.vtensor<[1],ui64> -> !torch.vtensor<[1],f32>
-  return %0 : !torch.vtensor<[1],f32>
 }
