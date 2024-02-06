@@ -443,8 +443,10 @@ public:
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenMulIntOp, arith::MulIOp>>(
         typeConverter, context);
-    target.addIllegalOp<AtenSubFloatOp>();
+    target.addIllegalOp<AtenSubFloatOp, AtenMulFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenSubFloatOp, arith::SubFOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<AtenMulFloatOp, arith::MulFOp>>(
         typeConverter, context);
     target.addIllegalOp<AtenDivIntOp>();
     patterns.add<ConvertAtenDivIntOp>(typeConverter, context);
