@@ -449,6 +449,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::layer_norm : (Tensor, int[], Tensor?, Tensor?, float, bool) -> (Tensor)"
     )
+    emit("aten::norm.Scalar : (Tensor, Scalar) -> (Tensor)")
     emit(
         "aten::norm.ScalarOpt_dim : (Tensor, Scalar?, int[], bool) -> (Tensor)"
     )

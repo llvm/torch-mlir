@@ -6325,6 +6325,30 @@ def Torch_AtenLayerNormOp : Torch_Op<"aten.layer_norm", [
   }];
 }
 
+def Torch_AtenNormScalarOp : Torch_Op<"aten.norm.Scalar", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::norm.Scalar : (Tensor, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchScalarType:$p
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenNormScalarOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenNormScalarOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_AtenNormScalarOptDimOp : Torch_Op<"aten.norm.ScalarOpt_dim", [
     AllowsTypeRefinement,
     HasValueSemantics,
