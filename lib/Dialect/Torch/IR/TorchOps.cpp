@@ -2501,7 +2501,6 @@ OpFoldResult AtenBroadcastToOp::fold(FoldAdaptor adaptor) {
   return getOperand(0);
 }
 
-
 //===----------------------------------------------------------------------===//
 // AtenSliceTensorOp
 //===----------------------------------------------------------------------===//
@@ -2557,7 +2556,6 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
   }
   return getOperand(0);
 }
-
 
 //===----------------------------------------------------------------------===//
 // AtenMulIntOp
