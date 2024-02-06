@@ -1717,10 +1717,11 @@ void AtenSortIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 LogicalResult AtenSortOp::fold(FoldAdaptor adaptor,
                                SmallVectorImpl<OpFoldResult> &results) {
   auto operand = getSelf();
-  auto operandType = dyn_cast<ValueTensorType>(operand.getType());
+  auto operandType = dyn_cast<BaseTensorType>(operand.getType());
   if (!operandType || !operandType.hasSizes())
     return failure();
 
+  // only ValueTensorType has toBuiltinTensor
   auto indicesTensorType = dyn_cast<ValueTensorType>(getResult(1).getType());
   if (!indicesTensorType)
     return failure();
