@@ -653,7 +653,7 @@ public:
           op, "lhs and rhs of convolution must either be both int or fp");
     }
 
-    if (inputZp && weightZp) {
+    if (inputZp && weightZp && !isa<Torch::NoneType>(bias.getType())) {
       auto biasDTy = bias.getType().cast<RankedTensorType>().getElementType();
       if (!biasDTy.isInteger(32)) {
         return rewriter.notifyMatchFailure(
