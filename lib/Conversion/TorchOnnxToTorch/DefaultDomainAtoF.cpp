@@ -690,7 +690,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         return failure();
       });
   patterns.onOp(
-      "Conv", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Conv", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         std::string autoPad;
         if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
           return failure();
