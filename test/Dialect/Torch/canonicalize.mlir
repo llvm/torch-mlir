@@ -2204,3 +2204,5 @@ func.func @torch.aten.detach$canonicalize(%arg0: !torch.tensor<[1],f32>) -> !tor
   %1 = torch.aten.detach %arg0 : !torch.tensor<[1],f32> -> !torch.tensor
   return %1 : !torch.tensor
 }
+
+// test ci
