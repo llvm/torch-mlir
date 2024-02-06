@@ -80,6 +80,28 @@ def SubFloatModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class MulFloatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.float64, True),
+        ([], torch.float64, True),
+    ])
+    def forward(self, lhs, rhs):
+        return float(lhs) * float(rhs)
+
+
+@register_test_case(module_factory=lambda: MulFloatModule())
+def MulFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand().double(), tu.rand().double())
+
+
+# ==============================================================================
+
 
 class MulIntModule(torch.nn.Module):
 

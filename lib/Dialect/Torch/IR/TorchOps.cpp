@@ -2759,6 +2759,27 @@ void AtenDeviceWithIndexOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenTensorOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenTensorOp::fold(FoldAdaptor adaptor) {
+  // If a torch.aten.tensor op is initialized by a list with a constant, single
+  // element, fold it into a torch.vtensor.literal
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  Type eTy = resultTy.getDtype();
+  ShapedType shapedTy = resultTy.toBuiltinTensor().clone(eTy);
+
+  SmallVector<int64_t> data;
+  if (matchPattern(getData(), m_TorchListOfConstantInts(data)) &&
+      data.size() == 1) {
+    Attribute attribute = IntegerAttr::get(eTy, data[0]);
+    return DenseElementsAttr::get(shapedTy, attribute);
+  }
+
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenIntTensorOp
 //===----------------------------------------------------------------------===//
 

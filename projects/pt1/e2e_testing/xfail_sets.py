@@ -100,6 +100,7 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # START tests failing due to: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(float) [TensorVariable()] {}
     'AtenSubFloatModule_basic',
+    'AtenMulFloatModule_basic',
     'BoolFloatFalseModule_basic',
     'BoolFloatTrueModule_basic',
     'CeilFloatModule_basic',
@@ -109,6 +110,7 @@ TORCHDYNAMO_XFAIL_SET = {
     'GtFloatIntModule_basic',
     'NeFloatIntModule_basic',
     'SubFloatModule_basic',
+    'MulFloatModule_basic',
     'TensorToFloatZeroRank_basic',
     'TensorToFloat_basic',
     # END tests failing due to: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(float) [TensorVariable()] {}
@@ -1497,6 +1499,7 @@ LTC_XFAIL_SET = {
     "SliceStartEqEndModule_basic",
     "SqrtIntModule_basic",
     "SubFloatModule_basic",
+    "MulFloatModule_basic",
     "SubIntModule_basic",
     "TensorsStackPromoteDTypeModule_basic",
     "TensorToBoolZeroRank_basic",
