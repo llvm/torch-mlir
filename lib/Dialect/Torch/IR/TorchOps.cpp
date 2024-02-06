@@ -2843,18 +2843,15 @@ OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
   auto self = getSelf();
   auto index = getIndex();
   auto selfTy = cast<ValueTensorType>(self.getType());
-  auto indexTy = cast<ValueTensorType>(index.getType());
+  assert(index.getType().isa<IntegerType>());
   auto resultTy = cast<ValueTensorType>(getType());
 
   auto selfSizes = selfTy.getSizes();
-  auto indexSizes = indexTy.getSizes();
   auto resultSizes = resultTy.getSizes();
 
   if (selfTy.getDtype() != resultTy.getDtype())
     return nullptr;
   if (selfSizes.size() != resultSizes.size())
-    return nullptr;
-  if (indexSizes.size() != 1)
     return nullptr;
 
   // If the selection results in a tensor of the same dimensions as the
@@ -2868,7 +2865,7 @@ OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
     fullTensor &= resultSizes[i] != Torch::kUnknownSize;
   }
 
-  if (fullTensor && indexSizes[0] == 1)
+  if (fullTensor)
     return self;
 
   // If the input tensor, index dimension, or indexes are non-constant,
