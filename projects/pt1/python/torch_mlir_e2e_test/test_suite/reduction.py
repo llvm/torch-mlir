@@ -316,6 +316,24 @@ def ReduceProdDimIntFloatModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ReduceAllDimEmpty(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.all(a, dim=0, keepdim=False)
+    
+@register_test_case(module_factory=lambda: ReduceAllDimEmpty())
+def ReduceAllDimEmpty_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([]))
+
+# ==============================================================================
+    
 class ReduceAllDimFloat(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -323,14 +341,14 @@ class ReduceAllDimFloat(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1,-1,-1], torch.float32, True),
+        ([-1,-1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.ops.aten.all(a, dim=1, keepdim=True)
     
 @register_test_case(module_factory=lambda: ReduceAllDimFloat())
 def ReduceAllDimFloat_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5))
+    module.forward(torch.tensor([[5.0,1e-6,-5.0],[0,5.0,0]]))
 
 # ==============================================================================
         
@@ -341,14 +359,14 @@ class ReduceAllDimInt(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1,-1,-1], torch.int32, True),
+        ([-1,-1], torch.int32, True),
     ])
     def forward(self, a):
         return torch.ops.aten.all(a, dim=1, keepdim=True)
     
 @register_test_case(module_factory=lambda: ReduceAllDimInt())
 def ReduceAllDimInt_basic(module, tu: TestUtils):
-    module.forward(tu.randint(3, 4, 5).to(torch.int32))
+    module.forward(torch.tensor([[5,-5,0],[5,1e10,5]]).to(torch.int32))
 
 # ==============================================================================
     
@@ -359,14 +377,14 @@ class ReduceAllDimBool(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1,-1,-1], torch.bool, True),
+        ([-1,-1], torch.bool, True),
     ])
     def forward(self, a):
         return torch.ops.aten.all(a, dim=1, keepdim=False)
     
 @register_test_case(module_factory=lambda: ReduceAllDimBool())
 def ReduceAllDimBool_basic(module, tu: TestUtils):
-    module.forward(tu.randint(3,4,5, low=0, high=2).bool())
+    module.forward(torch.tensor([[True, False, True], [True, True, True]]))
 
 # ==============================================================================
     
