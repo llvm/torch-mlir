@@ -199,25 +199,6 @@ static Value getScalarFloatValue(Value input, Location loc,
   return nullptr;
 }
 
-int64_t mlir::torch::Torch::getIntAttrAsSigned(IntegerAttr intAttr) {
-  if (intAttr.getType().isSignedInteger())
-    return intAttr.getSInt();
-  if (intAttr.getType().isUnsignedInteger())
-    return int64_t(intAttr.getUInt());
-  if (intAttr.getType().isSignlessInteger())
-    return intAttr.getInt(); // signless returns as int64_t
-  assert(false && "Unhandled integer attribute type");
-  return 0;
-}
-
-int64_t mlir::torch::Torch::getIntAttrAsIndex(IntegerAttr intAttr,
-                                              int dimSize) {
-  int64_t signedIndex = getIntAttrAsSigned(intAttr);
-  if (dimSize < 0 || signedIndex > 0)
-    return signedIndex;
-  return dimSize - (-signedIndex);
-}
-
 //===----------------------------------------------------------------------===//
 // MethodOp
 //===----------------------------------------------------------------------===//
@@ -2861,16 +2842,12 @@ OpFoldResult AtenDivIntOp::fold(FoldAdaptor adaptor) {
 OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
   auto self = getSelf();
   auto index = getIndex();
-  auto selfTy = dyn_cast_or_null<ValueTensorType>(self.getType());
-  auto indexTy = dyn_cast_or_null<ValueTensorType>(index.getType());
-  auto resultTy = dyn_cast_or_null<ValueTensorType>(getType());
-  if (!selfTy || !indexTy || !resultTy)
-    return nullptr;
-
-  if (!selfTy.hasSizes() || !indexTy.hasSizes() || !resultTy.hasSizes())
-    return nullptr;
-
-  if (!selfTy.hasDtype() || !indexTy.hasDtype() || !resultTy.hasDtype())
+  auto selfTy = dyn_cast<ValueTensorType>(self.getType());
+  auto indexTy = dyn_cast<ValueTensorType>(index.getType());
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!selfTy || !indexTy || !resultTy || !selfTy.hasSizes() ||
+      !indexTy.hasSizes() || !resultTy.hasSizes() || !selfTy.hasDtype() ||
+      !indexTy.hasDtype() || !resultTy.hasDtype())
     return nullptr;
 
   auto selfSizes = selfTy.getSizes();
@@ -2916,18 +2893,14 @@ OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
   int64_t dimInt = dimAttr.getInt();
   // If the selected dim is negative, count backwards from the last dim
   if (dimInt < 0)
-    dimInt = selfSizes.size() - (-dimInt);
+    dimInt = selfSizes.size() + dimInt;
   assert(uint64_t(dimInt) < selfSizes.size() &&
          "Selected dim > number of dims");
 
-  bool scalarFold = true;
   for (int i = 0, s = selfSizes.size(); i < s; ++i) {
-    scalarFold &= selfSizes[i] == 1 || i == dimInt;
-    scalarFold &= resultSizes[i] == 1;
+    if ((selfSizes[i] != 1 && i != dimInt) || resultSizes[i] != 1)
+      return nullptr;
   }
-
-  if (!scalarFold)
-    return nullptr;
 
   // Get the single index value for the selected dimension
   auto splatValue = indexAttr.getSplatValue<IntegerAttr>();

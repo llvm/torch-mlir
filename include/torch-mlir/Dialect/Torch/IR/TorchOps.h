@@ -303,7 +303,11 @@ bool potentiallyMutatesListOperands(Operation *op);
 /// the value as a signed integer, which implies that if the attribute has
 /// a 64-bit unsigned value, it will be converted to an int64_t in the manner
 /// that uint64_t is cast to int64_t in C++.
-int64_t getIntAttrAsSigned(IntegerAttr intAttr);
+inline int64_t getIntAttrAsSigned(IntegerAttr intAttr) {
+  if (intAttr.getType().isUnsignedInteger())
+    return intAttr.getValue().getZExtValue();
+  return intAttr.getValue().getSExtValue();
+}
 
 /// Returns the value from an `IntegerAttr` as an integral index.
 ///
@@ -321,7 +325,12 @@ int64_t getIntAttrAsSigned(IntegerAttr intAttr);
 ///
 /// No bounds checking is performed on the index to ensure that it is within
 /// the legal range for `dimSize`.
-int64_t getIntAttrAsIndex(IntegerAttr intAttr, int dimSize = -1);
+inline int64_t getIntAttrAsIndex(IntegerAttr intAttr, int dimSize = -1) {
+  int64_t signedIndex = getIntAttrAsSigned(intAttr);
+  if (dimSize < 0 || signedIndex > 0)
+    return signedIndex;
+  return dimSize + signedIndex; // count backwards from dimSize
+}
 
 } // namespace Torch
 } // namespace torch
