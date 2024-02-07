@@ -3657,6 +3657,7 @@ def Torch_AtenMulTensorOp : Torch_Op<"aten.mul.Tensor", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
 
@@ -3706,6 +3707,7 @@ def Torch_AtenAddTensorOp : Torch_Op<"aten.add.Tensor", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
 
@@ -3756,6 +3758,7 @@ def Torch_AtenSubTensorOp : Torch_Op<"aten.sub.Tensor", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
 
