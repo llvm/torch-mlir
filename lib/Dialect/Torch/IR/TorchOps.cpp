@@ -2843,11 +2843,16 @@ OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
   auto self = getSelf();
   auto index = getIndex();
   auto selfTy = dyn_cast_or_null<ValueTensorType>(self.getType());
-  assert(selfTy);
   auto indexTy = dyn_cast_or_null<ValueTensorType>(index.getType());
-  assert(indexTy);
   auto resultTy = dyn_cast_or_null<ValueTensorType>(getType());
-  assert(resultTy);
+  if (!selfTy || !indexTy || !resultTy)
+    return nullptr;
+
+  if (!selfTy.hasSizes() || !indexTy.hasSizes() || !resultTy.hasSizes())
+    return nullptr;
+
+  if (!selfTy.hasDtype() || !indexTy.hasDtype() || !resultTy.hasDtype())
+    return nullptr;
 
   auto selfSizes = selfTy.getSizes();
   auto indexSizes = indexTy.getSizes();
