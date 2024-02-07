@@ -148,8 +148,8 @@ func.func @torch.aten.view$expandInferredDim(%arg0: !torch.vtensor<[2,6],f32>) -
 // CHECK: return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[2,3,5,?,6],f32>
 
 // [10,3,?,2,3] -> [30,?,6] -> [2,3,5,?,6]
-// Associations are, 
-//  -- for collapse, [0,1], [2], [3,4] and 
+// Associations are,
+//  -- for collapse, [0,1], [2], [3,4] and
 //  -- for expand [0,1,2], [3], [4].
 func.func @torch.aten.view$singleUnknownMatches0(%arg0: !torch.vtensor<[10,3,?,2,3],f32>) -> !torch.vtensor<[2,3,5,?,6],f32> {
     %int3 = torch.constant.int 3

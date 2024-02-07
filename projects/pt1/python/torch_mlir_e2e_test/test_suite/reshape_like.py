@@ -708,8 +708,8 @@ def UnsafeView1DFoldModule_basic(module, tu: TestUtils):
 class ReshapeAsModule(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
-    
-    @export 
+
+    @export
     @annotate_args([
         None,
         ([4, 3], torch.float32, True),

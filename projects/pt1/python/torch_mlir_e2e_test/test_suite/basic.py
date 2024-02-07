@@ -13,10 +13,10 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 # ==============================================================================
 
 class ScalarConstantTupleModule(torch.nn.Module):
-    
+
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
@@ -552,8 +552,179 @@ def ConstantPadNdPartialStaticModule_basic(module, tu: TestUtils):
 
 
 # ==============================================================================
+class ReflectionPad1dModule3dInput(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 2, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.reflection_pad1d(x, (3,1))
+
+class ReplicationPad2dModule_basic_module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 3, 3], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.replication_pad2d(x, (1, 2, 3, 4))
 
 
+@register_test_case(module_factory=lambda: ReplicationPad2dModule_basic_module())
+def ReplicationPad2dModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 3, 3, low=-1))
+
+# ==============================================================================
+
+class ReplicationPad2dModule_left0_module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 3, 3], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.replication_pad2d(x, (0, 2, 3, 4))
+
+
+@register_test_case(module_factory=lambda: ReplicationPad2dModule_left0_module())
+def ReplicationPad2dModule_left0(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 3, 3, low=-1))
+
+# ==============================================================================
+
+class ReplicationPad2dModule_right0_module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 3, 3], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.replication_pad2d(x, (1, 0, 3, 4))
+
+
+@register_test_case(module_factory=lambda: ReplicationPad2dModule_right0_module())
+def ReplicationPad2dModule_right0(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 3, 3, low=-1))
+
+# ==============================================================================
+
+class ReplicationPad2dModule_top0_module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 3, 3], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.replication_pad2d(x, (1, 2, 0, 4))
+
+
+@register_test_case(module_factory=lambda: ReplicationPad2dModule_top0_module())
+def ReplicationPad2dModule_top0(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 3, 3, low=-1))
+
+# ==============================================================================
+
+class ReplicationPad2dModule_bottom0_module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 3, 3], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.replication_pad2d(x, (1, 2, 3, 0))
+
+
+@register_test_case(module_factory=lambda: ReplicationPad2dModule_bottom0_module())
+def ReplicationPad2dModule_bottom0(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 3, 3, low=-1))
+
+# ==============================================================================
+
+@register_test_case(module_factory=lambda: ReflectionPad1dModule3dInput())
+def ReflectionPad1dModule3dInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1,2,4))
+
+
+class ReflectionPad1dModule2dInput(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.reflection_pad1d(x, (3,2))
+
+
+@register_test_case(module_factory=lambda: ReflectionPad1dModule2dInput())
+def ReflectionPad1dModule2dInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2,4))
+
+class ReflectionPad1dModule3dInputLeft(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 4, 5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.reflection_pad1d(x, (2,0))
+
+
+@register_test_case(module_factory=lambda: ReflectionPad1dModule3dInputLeft())
+def ReflectionPad1dModule3dInput_Left(module, tu: TestUtils):
+    module.forward(tu.rand(1,4,5))
+
+class ReflectionPad1dModule2dInputRight(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 6], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.reflection_pad1d(x, (0,3))
+
+
+@register_test_case(module_factory=lambda: ReflectionPad1dModule2dInputRight())
+def ReflectionPad1dModule2dInput_Right(module, tu: TestUtils):
+    module.forward(tu.rand(3,6))
+
+# ==============================================================================
 class TransposeIntModule(torch.nn.Module):
 
     def __init__(self):
@@ -3921,7 +4092,13 @@ class CumsumModule(torch.nn.Module):
         ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, val):
-        return torch.ops.aten.cumsum(val, 1)
+        # the onnx cumsum op uses a constant 1d tensor
+        # to specify the dimension along which to do cumsum
+        # we replicate that here to ensure that cumsum correctly
+        # trigger the relevant folders and provides TMTensor
+        # with a constant dimension
+        ones = torch.ones([1], dtype=torch.int32)
+        return torch.ops.aten.cumsum(val, ones.item())
 
 @register_test_case(module_factory=lambda: CumsumModule())
 def CumsumModule_basic(module, tu: TestUtils):
@@ -4418,7 +4595,7 @@ class OneHotModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([None, ([-1], torch.long, True)])
     def forward(self, x):
@@ -4823,3 +5000,23 @@ class IscloseStaticModuleTrue(torch.nn.Module):
 @register_test_case(module_factory=lambda: IscloseStaticModuleTrue())
 def IscloseStaticModuleTrue_basic(module, tu: TestUtils):
     module.forward(torch.ones(5, 5))
+
+
+# ==============================================================================
+
+class CloneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.clone(x)
+
+@register_test_case(module_factory=lambda: CloneModule())
+def CloneModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 5))

@@ -105,9 +105,9 @@ func.func @refine_shape_calculate_result$user_allows_type_refinement(%arg0: !tor
 // CHECK-LABEL:   func.func @fully_unroll_prim_loop$unroll(
 // CHECK-SAME:                                 %[[ARG0:.*]]: !torch.vtensor,
 // CHECK-SAME:                                 %[[ARG1:.*]]: !torch.list<int>) -> !torch.vtensor {
-// CHECK:           %[[INT1:.*]] = torch.constant.int 1
-// CHECK:           %[[INT2:.*]] = torch.constant.int 2
-// CHECK:           %[[INT0:.*]] = torch.constant.int 0
+// CHECK-DAG:       %[[INT1:.*]] = torch.constant.int 1
+// CHECK-DAG:       %[[INT2:.*]] = torch.constant.int 2
+// CHECK-DAG:       %[[INT0:.*]] = torch.constant.int 0
 // CHECK:           %[[RESULT:.*]] = torch.shape.calculate {
 // CHECK:             torch.shape.calculate.yield %[[ARG0]] : !torch.vtensor
 // CHECK:           } shapes {
@@ -316,7 +316,7 @@ func.func @abstractly_interpret_list_ops$mutation_in_child_region(%arg0: !torch.
 // CHECK:             } else {
 // CHECK:               torch.prim.If.yield %[[ARG1]] : !torch.list<int>
 // CHECK:             }
-                      // .... and this one don't have the same object identity, but should! 
+                      // .... and this one don't have the same object identity, but should!
 // CHECK:             %[[VAL_8:.*]] = torch.prim.ListConstruct %[[INT3]], %[[INT3]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:             %[[VAL_9:.*]] = torch.prim.If %[[ARG2]] -> (!torch.list<int>) {
 // CHECK:               torch.prim.If.yield %[[VAL_8]] : !torch.list<int>
@@ -375,8 +375,8 @@ func.func @abstractly_interpret_list_ops$miscompile$list_identity(%arg0: !torch.
 // missing.
 // CHECK-LABEL:   func.func @basic_integration(
 // CHECK-SAME:                %[[ARG0:.*]]: !torch.vtensor<[?,?],unk>) -> !torch.vtensor {
-// CHECK:           %[[INT0:.*]] = torch.constant.int 0
-// CHECK:           %[[INT1:.*]] = torch.constant.int 1
+// CHECK-DAG:       %[[INT0:.*]] = torch.constant.int 0
+// CHECK-DAG:       %[[INT1:.*]] = torch.constant.int 1
 // CHECK:           %[[RESULT:.*]] = torch.shape.calculate {
 // CHECK:             %[[TANH:.*]] = torch.aten.tanh %[[ARG0]] : !torch.vtensor<[?,?],unk> -> !torch.vtensor<[?,?],unk>
 // CHECK:             torch.shape.calculate.yield %[[TANH]] : !torch.vtensor<[?,?],unk>
@@ -410,8 +410,8 @@ func.func @basic_integration(%arg0: !torch.vtensor<[?,?],unk>) -> !torch.vtensor
 // CHECK-LABEL:   func.func @fold_prim_unchecked_cast_op(
 // CHECK-SAME:                                           %[[VAL_0:.*]]: !torch.vtensor,
 // CHECK-SAME:                                           %[[VAL_1:.*]]: !torch.vtensor<[?,?],si64>) -> !torch.vtensor {
-// CHECK:           %[[VAL_2:.*]] = torch.constant.int 0
-// CHECK:           %[[VAL_3:.*]] = torch.constant.int 1
+// CHECK-DAG:       %[[VAL_2:.*]] = torch.constant.int 0
+// CHECK-DAG:       %[[VAL_3:.*]] = torch.constant.int 1
 // CHECK:           %[[VAL_4:.*]] = torch.shape.calculate {
 // CHECK:             %[[VAL_5:.*]] = torch.tensor_static_info_cast %[[VAL_0]] : !torch.vtensor to !torch.vtensor<[?,?],unk>
 // CHECK:             torch.shape.calculate.yield %[[VAL_5]] : !torch.vtensor<[?,?],unk>

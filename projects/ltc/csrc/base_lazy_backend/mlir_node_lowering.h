@@ -18,14 +18,14 @@
 namespace torch {
 namespace lazy {
 
-typedef std::vector<torch::jit::Value*> TorchMlirOpVector;
+typedef std::vector<torch::jit::Value *> TorchMlirOpVector;
 typedef std::shared_ptr<torch::jit::GraphFunction> TorchMlirFunction;
 
 TORCH_API TorchMlirOpVector LowerTorchMlirBuiltin(
     TorchMlirFunction function, c10::Symbol sym,
     const c10::ArrayRef<Shape> result_shapes,
-    const std::vector<torch::jit::NamedValue>& arguments,
-    const std::vector<torch::jit::NamedValue>& kwarguments = {});
+    const std::vector<torch::jit::NamedValue> &arguments,
+    const std::vector<torch::jit::NamedValue> &kwarguments = {});
 
 } // namespace lazy
 } // namespace torch

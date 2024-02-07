@@ -28,7 +28,7 @@ class MatmulDot(torch.nn.Module):
 @register_test_case(module_factory=lambda: MatmulDot())
 def Matmul_dot(module, tu: TestUtils):
     module.forward(tu.rand(3), tu.rand(3))
-    
+
 # ==============================================================================
 
 class Matmul2D(torch.nn.Module):
@@ -48,7 +48,7 @@ class Matmul2D(torch.nn.Module):
 @register_test_case(module_factory=lambda: Matmul2D())
 def Matmul_2d(module, tu: TestUtils):
     module.forward(tu.rand(3, 4), tu.rand(4, 5))
-    
+
 # ==============================================================================
 
 class MatmulVecMat(torch.nn.Module):
@@ -68,7 +68,7 @@ class MatmulVecMat(torch.nn.Module):
 @register_test_case(module_factory=lambda: MatmulVecMat())
 def Matmul_vecmat(module, tu: TestUtils):
     module.forward(tu.rand(4), tu.rand(4, 5))
-    
+
 # ==============================================================================
 
 class MatmulMatVec(torch.nn.Module):
@@ -88,7 +88,7 @@ class MatmulMatVec(torch.nn.Module):
 @register_test_case(module_factory=lambda: MatmulMatVec())
 def Matmul_matvec(module, tu: TestUtils):
     module.forward(tu.rand(4, 5), tu.rand(5))
-    
+
 # ==============================================================================
 
 class Matmul3D(torch.nn.Module):
@@ -108,7 +108,7 @@ class Matmul3D(torch.nn.Module):
 @register_test_case(module_factory=lambda: Matmul3D())
 def Matmul_3d(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5), tu.rand(3, 5, 4))
-    
+
 # ==============================================================================
 
 class Matmul4d(torch.nn.Module):
@@ -128,7 +128,7 @@ class Matmul4d(torch.nn.Module):
 @register_test_case(module_factory=lambda: Matmul4d())
 def Matmul_4d(module, tu: TestUtils):
     module.forward(tu.rand(4, 5, 6, 7), tu.rand(4, 5, 7, 6))
-    
+
 # ==============================================================================
 
 class Matmul4dStatic(torch.nn.Module):
@@ -188,7 +188,7 @@ class MatmulSingleDynamicBatchDim(torch.nn.Module):
 @register_test_case(module_factory=lambda: MatmulSingleDynamicBatchDim())
 def MatmulSingleDynamicBatchDim_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 5, 6, 7), tu.rand(4, 5, 7, 6))
-    
+
 # ==============================================================================
 
 class MatmulBroadcastBatchDim(torch.nn.Module):
@@ -208,7 +208,7 @@ class MatmulBroadcastBatchDim(torch.nn.Module):
 @register_test_case(module_factory=lambda: MatmulBroadcastBatchDim())
 def MatmulBroadcastBatchDim_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 5, 6, 7), tu.rand(5, 7, 6))
-    
+
 # ==============================================================================
 
 class Mv(torch.nn.Module):
@@ -262,3 +262,30 @@ class AtenMmIntTypes(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenMmIntTypes())
 def AtenMmIntTypes_basic(module, tu: TestUtils):
     module.forward(tu.randint(16, 4, high=100), tu.randint(4, 16, high=100))
+
+
+# ==============================================================================
+
+class AtenMmQuint8(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.int8, True),
+        ([4, 3], torch.int8, True),
+    ])
+    def forward(self, x, y):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.1, 8)
+        qx = torch.dequantize(qx)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.1, 8)
+        qy = torch.dequantize(qy)
+        qz =  torch.mm(qx, qy)
+        return qz
+
+@register_test_case(module_factory=lambda: AtenMmQuint8())
+def AtenMmQuint8_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-128, high=127).to(torch.int8),
+                   tu.randint(4, 3, low=-128, high=127).to(torch.int8))

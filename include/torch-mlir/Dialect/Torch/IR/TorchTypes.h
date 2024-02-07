@@ -32,7 +32,7 @@ class ValueTensorType;
 /// Common getter function signature that covers all tensor types.
 /// Used for sharing code between NonValueTensorType and ValueTensorType.
 using GetTensorTypeFn = llvm::function_ref<Type(
-    MLIRContext *, std::optional<ArrayRef<int64_t>>, Type)>;
+    MLIRContext *, std::optional<ArrayRef<int64_t>>, Type, Attribute)>;
 
 /// The representation of an unknown dimension size in an ArrayRef<int64_t>.
 constexpr static int64_t kUnknownSize = -1;

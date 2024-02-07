@@ -175,7 +175,7 @@ public:
 
     // Replace return type of view-like ops with value-semantics type variant.
     for (Operation *viewLikeOp : ops.viewLikeOps) {
-      rewriter.updateRootInPlace(viewLikeOp, [&] {
+      rewriter.modifyOpInPlace(viewLikeOp, [&] {
         Value result = viewLikeOp->getResult(0);
         auto resultType = result.getType().dyn_cast<NonValueTensorType>();
         if (resultType)
@@ -337,7 +337,7 @@ public:
     // correctly copy them back to their mlir::func::ReturnOp's expected types.
     DenseMap<Value, Type> originalTypes;
     for (Operation *op : viewLikeOps) {
-      rewriter.updateRootInPlace(op, [&]() {
+      rewriter.modifyOpInPlace(op, [&]() {
         if (auto nonValueTensorType =
                 op->getResult(0).getType().dyn_cast<NonValueTensorType>()) {
           originalTypes[op->getResult(0)] = nonValueTensorType;

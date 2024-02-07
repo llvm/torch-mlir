@@ -36,7 +36,7 @@ Value getZeroPaddedTensor(Operation *op, OpBuilder &b, Value &input,
 // padding value is zero.
 Value getDynamicZeroPaddedTensor(Operation *op, OpBuilder &b, Value &input,
                                  SmallVectorImpl<Value> &padding,
-                                 int unpaddedDims = 0);
+                                 int unpaddedDims = 0, Value pad = {});
 
 // Helper function to caculate the output tensor dims for convolution-like ops.
 // Along each dim:
@@ -94,6 +94,8 @@ Value convertTensorToElementType(OpBuilder &b, Location loc, Value tensor,
 FailureOr<Type>
 getBackendTypeForScalarType(MLIRContext *context,
                             torch_upstream::ScalarType dtypeInt);
+
+bool isUnsignedTorchType(Type type);
 
 } // namespace torch_to_linalg
 } // namespace torch

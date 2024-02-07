@@ -33,7 +33,10 @@ except Exception as e:
 try:
     annotator.annotateArgs(class_type, ['forward'], [None])
 except Exception as e:
-    # CHECK: Arg annotations should have one entry per function parameter (including self).
+    # CHECK: There must be one argument annotation per function parameter.
+    # CHECK-SAME: Including 'self' the number of argument annotations is: 1.
+    # CHECK-SAME: The number of function parameters is: 2.
+    # CHECK-SAME: The function signature is (__torch__.TestModule self, Tensor tensor)
     print(e)
 
 try:

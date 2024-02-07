@@ -12,7 +12,7 @@ import torch
 import torchvision.models as models
 from torchvision import transforms
 
-import torch_mlir
+from torch_mlir import torchscript
 from torch_mlir_e2e_test.linalg_on_tensors_backends import refbackend
 
 
@@ -67,7 +67,7 @@ labels = load_labels()
 
 resnet18 = models.resnet18(pretrained=True)
 resnet18.train(False)
-module = torch_mlir.compile(resnet18, torch.ones(1, 3, 224, 224), output_type="linalg-on-tensors")
+module = torchscript.compile(resnet18, torch.ones(1, 3, 224, 224), output_type="linalg-on-tensors")
 backend = refbackend.RefBackendLinalgOnTensorsBackend()
 compiled = backend.compile(module)
 jit_module = backend.load(compiled)

@@ -10,6 +10,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -63,6 +64,12 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
     return torch_upstream::ScalarType::Byte;
   if (type.isSignedInteger(8))
     return torch_upstream::ScalarType::Char;
+  if (type.isa<QUInt8Type>())
+    return torch_upstream::ScalarType::QUInt8;
+  if (type.isa<QInt8Type>())
+    return torch_upstream::ScalarType::QInt8;
+  if (type.isa<QInt32Type>())
+    return torch_upstream::ScalarType::QInt32;
   if (type.isa<ComplexType>()) {
     mlir::Type complexElemType = type.cast<ComplexType>().getElementType();
     if (complexElemType.isF16())
@@ -74,7 +81,6 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
   }
   llvm::report_fatal_error("unhandled type for getScalarTypeForType");
 }
-
 Type Torch::getTypeForTorchType(
     MLIRContext *context, Type type,
     mlir::IntegerType::SignednessSemantics signedness) {
@@ -109,6 +115,12 @@ Torch::getTypeForScalarType(MLIRContext *context,
     return mlir::IntegerType::get(context, 8, mlir::IntegerType::Unsigned);
   case torch_upstream::ScalarType::Char:
     return mlir::IntegerType::get(context, 8, mlir::IntegerType::Signed);
+  case torch_upstream::ScalarType::QUInt8:
+    return QUInt8Type::get(context);
+  case torch_upstream::ScalarType::QInt8:
+    return QInt8Type::get(context);
+  case torch_upstream::ScalarType::QInt32:
+    return QInt32Type::get(context);
   case torch_upstream::ScalarType::ComplexHalf:
     return mlir::ComplexType::get(Float16Type::get(context));
   case torch_upstream::ScalarType::ComplexFloat:
@@ -210,7 +222,7 @@ bool Torch::isViewLikeOp(Operation *op) {
              AtenNarrowOp, AtenNarrowTensorOp, AtenToDeviceOp, PrimsSqueezeOp,
              AtenMovedimIntOp, PrimsViewOfOp, AtenRealOp, AtenImagOp,
              PrimsSplitDimOp, AtenViewAsComplexOp, AtenViewAsRealOp,
-             AtenPixelShuffleOp>(op);
+             AtenPixelShuffleOp, AtenDiagonalOp>(op);
 }
 
 Value Torch::getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter,
@@ -332,9 +344,9 @@ FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
 // Checks whether the `shapeA` and `shapeB` are broadcast compatible or not. If
 // yes, then computes the final broadcast shape.
 void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
-                           Value inputA, Value inputB,
-                           SmallVector<int64_t> &resultShape,
-                           SmallVector<Value> &resultShapeValue) {
+                                  Value inputA, Value inputB,
+                                  SmallVector<int64_t> &resultShape,
+                                  SmallVector<Value> &resultShapeValue) {
   SmallVector<int64_t> shapeA{
       inputA.getType().cast<BaseTensorType>().getSizes()};
   SmallVector<int64_t> shapeB{
@@ -470,4 +482,46 @@ LogicalResult Torch::checkDefaultStrideHelper(Operation *op,
         loc, cmp, "not all strides are default");
     return success();
   }
+}
+
+// Helper to create a tensor filled with the given scalar. Scalar would be
+// converted the to the element type of the given tensor type.
+Value Torch::createInitTensor(PatternRewriter &rewriter, Location loc,
+                              BaseTensorType resultType, Value scalar,
+                              Value sizeList) {
+  assert(resultType.hasDtype() && "result must have dtype");
+  Value noneVal = rewriter.create<ConstantNoneOp>(loc);
+  Value dtype = getDtypeIntValueForType(rewriter, loc, resultType.getDtype());
+  return rewriter.create<AtenFullOp>(loc, resultType, sizeList, scalar, dtype,
+                                     /*layout=*/noneVal,
+                                     /*device=*/noneVal,
+                                     /*memory_format=*/noneVal);
+}
+
+// Helper to create a rank 0 tensor filled with the given `scalar`. `scalar`
+// would be converted to the element type of the given `inputType`.
+Value Torch::createRank0Tensor(PatternRewriter &rewriter, Location loc,
+                               BaseTensorType inputType, Value scalar) {
+  assert(inputType.hasDtype() && "input must have dtype");
+  SmallVector<int64_t> sizes;
+  BaseTensorType rank0TensorTy =
+      inputType.getWithSizesAndDtype(ArrayRef(sizes), inputType.getDtype())
+          .cast<BaseTensorType>();
+  Value dimList = rewriter.create<PrimListConstructOp>(
+      loc, Torch::ListType::get(Torch::IntType::get(inputType.getContext())),
+      ValueRange{});
+  return createInitTensor(rewriter, loc, rank0TensorTy, scalar, dimList);
+}
+
+LogicalResult Torch::getTransposedType(BaseTensorType inType, int64_t dimA,
+                                       int64_t dimB, Type &transposedType) {
+  if (!inType.hasSizes())
+    return failure();
+  SmallVector<int64_t> shape(inType.getSizes());
+  int64_t tmp = shape[dimA];
+  shape[dimA] = shape[dimB];
+  shape[dimB] = tmp;
+  transposedType = inType.getWithSizesAndDtype(llvm::ArrayRef(shape),
+                                               inType.getOptionalDtype());
+  return success();
 }

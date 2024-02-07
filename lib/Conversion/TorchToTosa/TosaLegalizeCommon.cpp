@@ -9,6 +9,7 @@
 
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 
 #include <climits>
 #include <cstddef>
@@ -130,10 +131,10 @@ tosa::DivOp createBinaryOpAndCast<DivOp>(PatternRewriter &rewriter,
 }
 
 std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
-                                                   Operation *op,
-                                                   Value paramsValue,
-                                                   Value indexValue,
-                                                   int32_t axis) {
+                                                  Operation *op,
+                                                  Value paramsValue,
+                                                  Value indexValue,
+                                                  int32_t axis) {
   // For easy understanding of this algorithm, the following comments are with
   // an exact example: torch.aten.gather(!torch.vtensor<[1,4,3],f32>, axis=2,
   // !torch.vtensor<[1,4,2],si64>) -> !torch.vtensor<[1,4,2],f32>
@@ -209,9 +210,9 @@ std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
 // Lowers Gather operators to a sequence of TOSA ops.
 // taken from
 // https://github.com/tensorflow/tensorflow/blob/master/tensorflow/compiler/mlir/tosa/transforms/legalize_common.cc
-std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter,
-                                        Operation *op, Type outType,
-                                        Value paramsValue, Value indicesValue) {
+std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter, Operation *op,
+                                       Type outType, Value paramsValue,
+                                       Value indicesValue) {
   auto resultType = outType.dyn_cast<ShapedType>();
   auto paramsType = paramsValue.getType().dyn_cast<RankedTensorType>();
   auto indicesType = indicesValue.getType().dyn_cast<RankedTensorType>();
@@ -682,7 +683,6 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
       .getResult();
 }
 
-
 // Common function for lowering reduce operations to TOSA ops.
 template <typename T>
 std::optional<Value> convertReduceOpCommon(
@@ -720,9 +720,8 @@ std::optional<Value> convertReduceOpCommon(
       auto axis_attr = rewriter.getI32IntegerAttr(axis_val);
 
       shape_vec[axis_val] = 1;
-      RankedTensorType reduce_type = RankedTensorType::get(
-          shape_vec,
-          reduce_element_type);
+      RankedTensorType reduce_type =
+          RankedTensorType::get(shape_vec, reduce_element_type);
 
       auto reduce_op = CreateOpAndInfer<T>(rewriter, op->getLoc(), reduce_type,
                                            val, axis_attr);
@@ -969,6 +968,76 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
   }
 
   return val;
+}
+
+// Lowers LinalgVectorNorm to a sequence of TOSA ops.
+std::optional<Value>
+convertLinalgVectorNormOp(PatternRewriter &rewriter, Operation *op,
+                          RankedTensorType output_type, Value input_value,
+                          ElementsAttr axes_elems, bool keep_dims) {
+  RankedTensorType input_type =
+      input_value.getType().dyn_cast<RankedTensorType>();
+  if (!input_type)
+    return std::nullopt;
+
+  Type elemType = output_type.getElementType();
+  if (!elemType.isa<mlir::FloatType>()) {
+    op->emitOpError("Only floating-point datatype legalization supported for "
+                    "AtenLinalgVectorNorm op");
+    return std::nullopt;
+  }
+
+  auto linalgVectorNormOp = cast<AtenLinalgVectorNormOp>(op);
+  // TODO: Add support for ord = {0, +inf, -inf}.
+  auto epsilon = 1e-5;
+  double ordLiteralFloat = 1.0;
+  int64_t ordLiteralInt = 1;
+  Value ordVal;
+  if (matchPattern(linalgVectorNormOp.getOrd(),
+                   torch::Torch::m_TorchConstantFloat(&ordLiteralFloat))) {
+    ordVal = tosa::getConstTensor<float>(rewriter, op,
+                                         {static_cast<float>(ordLiteralFloat)},
+                                         {}, elemType)
+                 .value();
+  } else if (matchPattern(linalgVectorNormOp.getOrd(),
+                          torch::Torch::m_TorchConstantInt(&ordLiteralInt))) {
+    ordVal = tosa::getConstTensor<float>(rewriter, op,
+                                         {static_cast<float>(ordLiteralInt)},
+                                         {}, elemType)
+                 .value();
+  } else {
+    op->emitOpError("only support FP or INT type ord parameter");
+    return std::nullopt;
+  }
+
+  if (fabs(ordLiteralFloat) < epsilon ||
+      fabs(static_cast<double>(ordLiteralInt)) < epsilon) {
+    op->emitOpError("unimplemented: L0 norm");
+    return std::nullopt;
+  }
+
+  if (std::isinf(ordLiteralFloat) ||
+      std::isinf(static_cast<double>(ordLiteralInt))) {
+    op->emitOpError("unimplemented: ord = +/- inf");
+    return std::nullopt;
+  }
+
+  auto absVal = CreateOpAndInfer<tosa::AbsOp>(rewriter, op->getLoc(),
+                                              input_type, input_value)
+                    .getResult();
+  auto powVal = CreateOpAndInfer<tosa::PowOp>(rewriter, op->getLoc(),
+                                              input_type, absVal, ordVal)
+                    .getResult();
+  std::optional<Value> result = convertReduceSumOp(
+      rewriter, op, output_type, powVal, axes_elems, keep_dims);
+  if (!result)
+    return std::nullopt;
+  auto reciprocalVal = CreateOpAndInfer<tosa::ReciprocalOp>(
+                           rewriter, op->getLoc(), ordVal.getType(), ordVal)
+                           .getResult();
+  return CreateOpAndInfer<tosa::PowOp>(rewriter, op->getLoc(), output_type,
+                                       result.value(), reciprocalVal)
+      .getResult();
 }
 
 } // namespace tosa

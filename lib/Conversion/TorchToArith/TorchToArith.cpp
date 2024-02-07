@@ -43,7 +43,8 @@ public:
   LogicalResult
   matchAndRewrite(AtenDimOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto rank = rewriter.create<tensor::RankOp>(op->getLoc(), adaptor.getSelf());
+    auto rank =
+        rewriter.create<tensor::RankOp>(op->getLoc(), adaptor.getSelf());
     rewriter.replaceOpWithNewOp<arith::IndexCastOp>(
         op, getTypeConverter()->convertType(op.getType()), rank);
     return success();
@@ -74,7 +75,8 @@ public:
   matchAndRewrite(AtenOp op,
                   typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.template replaceOpWithNewOp<BinOp>(op, adaptor.getA(), adaptor.getB());
+    rewriter.template replaceOpWithNewOp<BinOp>(op, adaptor.getA(),
+                                                adaptor.getB());
     return success();
   }
 };
@@ -112,10 +114,10 @@ public:
                   typename OpConversionPattern<AtenDivIntOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    Value a =
-        convertScalarToDtype(rewriter, loc, adaptor.getA(), rewriter.getF64Type());
-    Value b =
-        convertScalarToDtype(rewriter, loc, adaptor.getB(), rewriter.getF64Type());
+    Value a = convertScalarToDtype(rewriter, loc, adaptor.getA(),
+                                   rewriter.getF64Type());
+    Value b = convertScalarToDtype(rewriter, loc, adaptor.getB(),
+                                   rewriter.getF64Type());
     rewriter.replaceOpWithNewOp<arith::DivFOp>(op, a, b);
     return success();
   }
@@ -176,15 +178,16 @@ public:
         unsigned bitWidth = elemTy.getIntOrFloatBitWidth();
         Type builtinTensorElemTy = IntegerType::get(context, bitWidth);
         auto shapedType =
-              RankedTensorType::get(type.getShape(), builtinTensorElemTy);
+            RankedTensorType::get(type.getShape(), builtinTensorElemTy);
         auto rawData = elements.getRawData();
-        DenseElementsAttr newAttr = DenseElementsAttr::getFromRawBuffer(
-          shapedType, rawData);
+        DenseElementsAttr newAttr =
+            DenseElementsAttr::getFromRawBuffer(shapedType, rawData);
         rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, newAttr);
         return success();
       }
     }
-    if (auto elements = op.getValueAttr().dyn_cast<DenseResourceElementsAttr>()) {
+    if (auto elements =
+            op.getValueAttr().dyn_cast<DenseResourceElementsAttr>()) {
       if (auto type = elements.getType().dyn_cast<RankedTensorType>()) {
         if (auto intType = type.getElementType().dyn_cast<IntegerType>()) {
           Type builtinTensorElemTy =
@@ -360,7 +363,8 @@ public:
 // -----------------------------------------------------------------------------
 
 namespace {
-class ConvertTorchToArith : public ConvertTorchToArithBase<ConvertTorchToArith> {
+class ConvertTorchToArith
+    : public ConvertTorchToArithBase<ConvertTorchToArith> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<func::FuncDialect>();
@@ -439,8 +443,10 @@ public:
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenMulIntOp, arith::MulIOp>>(
         typeConverter, context);
-    target.addIllegalOp<AtenSubFloatOp>();
+    target.addIllegalOp<AtenSubFloatOp, AtenMulFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenSubFloatOp, arith::SubFOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<AtenMulFloatOp, arith::MulFOp>>(
         typeConverter, context);
     target.addIllegalOp<AtenDivIntOp>();
     patterns.add<ConvertAtenDivIntOp>(typeConverter, context);

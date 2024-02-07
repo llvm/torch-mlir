@@ -1,5 +1,9 @@
 include(AddMLIRPython)
 
+if(TORCH_MLIR_ENABLE_ONNX_C_IMPORTER)
+  add_subdirectory(onnx_c_importer)
+endif()
+
 ################################################################################
 # PyTorch
 # Configure PyTorch if we have any features enabled which require it.

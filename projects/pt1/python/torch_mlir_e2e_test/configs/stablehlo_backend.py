@@ -6,7 +6,7 @@
 from typing import Any
 
 import torch
-import torch_mlir
+from torch_mlir import torchscript
 
 from torch_mlir_e2e_test.stablehlo_backends.abc import StablehloBackend
 from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
@@ -18,10 +18,10 @@ from .utils import (
 
 
 class StablehloBackendTestConfig(TestConfig):
-    """Base class for TestConfig's that are implemented with linalg-on-tensors.
+    """Base class for TestConfig's that are implemented with StableHLO.
 
     This class handles all the common lowering that torch-mlir does before
-    reaching the linalg-on-tensors abstraction level.
+    reaching the StableHLO abstraction level.
     """
 
     def __init__(self, backend: StablehloBackend):
@@ -30,7 +30,7 @@ class StablehloBackendTestConfig(TestConfig):
 
     def compile(self, program: torch.nn.Module) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
-        module = torch_mlir.compile(program, example_args, output_type="stablehlo")
+        module = torchscript.compile(program, example_args, output_type="stablehlo")
 
         return self.backend.compile(module)
 
