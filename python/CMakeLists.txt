@@ -44,6 +44,7 @@ declare_mlir_python_sources(TorchMLIRPythonSources.PublicAPI
   ADD_TO_PARENT TorchMLIRPythonSources
   SOURCES
     fx.py
+    extras/decomp_util.py
 )
 
 declare_mlir_python_sources(TorchMLIRPythonSources.Tools

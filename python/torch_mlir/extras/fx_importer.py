@@ -365,6 +365,9 @@ class FxImporter:
         g = prog.graph
         for node in g.nodes:
             if node.op == "placeholder":
+                # remove placeholder node if no other node uses it
+                if (len(node.users) == 0):
+                    g.erase_node(node)
                 replacement = arg_replacements.get(node.name)
                 if replacement is None:
                     continue
