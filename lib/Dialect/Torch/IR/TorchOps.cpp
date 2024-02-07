@@ -2513,7 +2513,8 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
   IntegerAttr step = dyn_cast_or_null<IntegerAttr>(adaptor.getStep());
   IntegerAttr dim = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
 
-  if (start && end && step && step.getValue().getSExtValue() == 1 && start.getValue().getSExtValue() == 0 &&
+  if (start && end && step && step.getValue().getSExtValue() == 1 &&
+      start.getValue().getSExtValue() == 0 &&
       end.getValue().getSExtValue() == std::numeric_limits<int64_t>::max())
     return getOperand(0);
 
@@ -2543,7 +2544,8 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
       unaryNonDim &= inType.getSizes()[i] == 1 || i == dimInt;
     }
     if (unaryNonDim) {
-      Attribute value = input.getValues<Attribute>()[start.getValue().getSExtValue()];
+      Attribute value =
+          input.getValues<Attribute>()[start.getValue().getSExtValue()];
       return DenseElementsAttr::get(
           outType.toBuiltinTensor().clone(inType.getDtype()), value);
     }
