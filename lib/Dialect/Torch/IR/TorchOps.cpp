@@ -199,6 +199,25 @@ static Value getScalarFloatValue(Value input, Location loc,
   return nullptr;
 }
 
+int64_t mlir::torch::Torch::getIntAttrAsSigned(IntegerAttr intAttr) {
+  if (intAttr.getType().isSignedInteger())
+    return intAttr.getSInt();
+  if (intAttr.getType().isUnsignedInteger())
+    return int64_t(intAttr.getUInt());
+  if (intAttr.getType().isSignlessInteger())
+    return intAttr.getInt(); // signless returns as int64_t
+  assert(false && "Unhandled integer attribute type");
+  return 0;
+}
+
+int64_t mlir::torch::Torch::getIntAttrAsIndex(IntegerAttr intAttr,
+                                              int dimSize) {
+  int64_t signedIndex = getIntAttrAsSigned(intAttr);
+  if (dimSize < 0 || signedIndex > 0)
+    return signedIndex;
+  return dimSize - (-signedIndex);
+}
+
 //===----------------------------------------------------------------------===//
 // MethodOp
 //===----------------------------------------------------------------------===//
@@ -2895,6 +2914,11 @@ OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
   // a single element.  Handles float and int types.
 
   int64_t dimInt = dimAttr.getInt();
+  // If the selected dim is negative, count backwards from the last dim
+  if (dimInt < 0)
+    dimInt = selfSizes.size() - (-dimInt);
+  assert(uint64_t(dimInt) < selfSizes.size() &&
+         "Selected dim > number of dims");
 
   bool scalarFold = true;
   for (int i = 0, s = selfSizes.size(); i < s; ++i) {
@@ -2905,17 +2929,12 @@ OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
   if (!scalarFold)
     return nullptr;
 
+  // Get the single index value for the selected dimension
   auto splatValue = indexAttr.getSplatValue<IntegerAttr>();
-  uint64_t indexInt = 0;
-  if (splatValue.getType().isSignedInteger())
-    indexInt = uint64_t(splatValue.getSInt());
-  else if (splatValue.getType().isUnsignedInteger())
-    indexInt = splatValue.getUInt();
-  else if (splatValue.getType().isSignlessInteger())
-    indexInt = uint64_t(splatValue.getInt());
-  else
-    return nullptr;
+  int64_t indexInt = getIntAttrAsIndex(splatValue, selfSizes[dimInt]);
 
+  // Extract the single constant value from the input tensor and turn the
+  // extracted value into a single-element tensor of the output shape and dtype
   auto splattr = selfAttr.getValues<Attribute>()[indexInt];
 
   auto dty = resultTy.getDtype();

@@ -294,6 +294,35 @@ bool isListPotentiallyMutated(Value list);
 /// the list.
 bool potentiallyMutatesListOperands(Operation *op);
 
+/// Returns the value from an `IntegerAttr` as an `int64_t`.
+///
+/// @param intAttr the `IntegerAttr` from which to extract the value
+/// @return the value as an `int64_t`
+///
+/// Regardless of the signed-ness of the attribute, this function returns
+/// the value as a signed integer, which implies that if the attribute has
+/// a 64-bit unsigned value, it will be converted to an int64_t in the manner
+/// that uint64_t is cast to int64_t in C++.
+int64_t getIntAttrAsSigned(IntegerAttr intAttr);
+
+/// Returns the value from an `IntegerAttr` as an integral index.
+///
+/// @param intAttr the `IntegerAttr` from which to extract the index
+/// @param dimSize the size of the dimension that the attribute indexes into
+/// @return the index value
+///
+/// Use this function when the given `IntegerAttr` represents an index into
+/// a range, such as an index into a tensor dimension.  If `dimSize` is given,
+/// negative index values are converted into positive vales by counting
+/// elements from the "right" side of the dimension, as in python, numpy, etc.
+/// For example, an index of -2 and a dimSize of 10 returns 8 because 8 is the
+/// 2nd index from the high end of the range 0 to 9.  If `dimSize` is not
+/// given, any negative indices are returned as negative numbers.
+///
+/// No bounds checking is performed on the index to ensure that it is within
+/// the legal range for `dimSize`.
+int64_t getIntAttrAsIndex(IntegerAttr intAttr, int dimSize = -1);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

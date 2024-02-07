@@ -2245,3 +2245,14 @@ func.func @torch.aten.index_select$const_f32_ui() -> !torch.vtensor<[1],f32> {
   %0 = torch.aten.index_select %tensor, %dim, %index : !torch.vtensor<[10],f32>, !torch.int, !torch.vtensor<[1],ui64> -> !torch.vtensor<[1],f32>
   return %0 : !torch.vtensor<[1],f32>
 }
+
+// CHECK-LABEL:   func.func @torch.aten.index_select$const_f32_si_neg(
+// CHECK-NEXT:      %[[RES:.*]] = torch.vtensor.literal(dense<7.{{.*}}> : tensor<1xf32>) : !torch.vtensor<[1],f32>
+// CHECK-NEXT:      return %[[RES]] : !torch.vtensor<[1],f32>
+func.func @torch.aten.index_select$const_f32_si_neg() -> !torch.vtensor<[1],f32> {
+  %tensor = torch.vtensor.literal(dense<[1.1,2.2,3.3,4.4,5.5,6.6,7.7,8.8,9.9,10.0]> : tensor<10xf32>) : !torch.vtensor<[10],f32>
+  %dim = torch.constant.int -1
+  %index = torch.vtensor.literal(dense<-4> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+  %0 = torch.aten.index_select %tensor, %dim, %index : !torch.vtensor<[10],f32>, !torch.int, !torch.vtensor<[1],si64> -> !torch.vtensor<[1],f32>
+  return %0 : !torch.vtensor<[1],f32>
+}
