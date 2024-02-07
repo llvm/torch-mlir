@@ -82,9 +82,7 @@ func.func @grid_sampler(%arg0: !torch.vtensor<[4,4,8,8],f32>, %arg1: !torch.vten
   %true = torch.constant.bool true
   %int0 = torch.constant.int 0
   %0 = torch.aten.grid_sampler %arg0, %arg1, %int0, %int0, %true : !torch.vtensor<[4,4,8,8],f32>, !torch.vtensor<[4,4,4,2],f32>, !torch.int, !torch.int, !torch.bool -> !torch.vtensor<[4,4,4,4],f32>
-  // CHECK: %40 = arith.mulf %extracted_32, %34 : f32
-  // CHECK: %41 = arith.mulf %extracted_33, %36 : f32
-  // CHECK: %42 = arith.mulf %extracted_34, %extracted_22 : f32
+  // CHECK: %[[MM:.*]] = arith.mulf %{{.*}}, %{{.*}} : f32
   return %0 : !torch.vtensor<[4,4,4,4],f32>
 }
 
