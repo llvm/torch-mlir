@@ -2424,11 +2424,12 @@ public:
 
     auto sGrid = rewriter.create<linalg::GenericOp>(
         loc,
-        TypeRange{gridType_0, gridType_0, lowerType_0, lowerType_0,
-                  lowerType_0, lowerType_0, validType_0, validType_0},
+        TypeRange{gridType_0, gridType_0, lowerType_0, lowerType_0, lowerType_0,
+                  lowerType_0, validType_0, validType_0},
         ValueRange{grid_0, grid_1},
-        ValueRange{gridResultEmpty_0, gridResultEmpty_1, lowerEmpty_0, lowerEmpty_1,
-                   upperEmpty_0, upperEmpty_1, notValidEmpty_0, notValidEmpty_1},
+        ValueRange{gridResultEmpty_0, gridResultEmpty_1, lowerEmpty_0,
+                   lowerEmpty_1, upperEmpty_0, upperEmpty_1, notValidEmpty_0,
+                   notValidEmpty_1},
         gridMaps, gridIterators,
         [&](OpBuilder &b, Location loc, ValueRange args) {
           Value gr_0 = args[0];
@@ -2437,24 +2438,20 @@ public:
               loc, b.getFloatAttr(gridElementType, 1.0));
           Value gplus_0 = b.create<arith::AddFOp>(loc, gr_0, oneFloat);
           Value gplus_1 = b.create<arith::AddFOp>(loc, gr_1, oneFloat);
-          Value result_0 =
-              b.create<arith::MulFOp>(loc, gplus_0, innerDim_0e);
-          Value result_1 =
-              b.create<arith::MulFOp>(loc, gplus_1, innerDim_1e);
-          Value lower_0 =
-              b.create<arith::FPToSIOp>(loc, int64type, result_0);
-          Value lower_1 =
-              b.create<arith::FPToSIOp>(loc, int64type, result_1);
+          Value result_0 = b.create<arith::MulFOp>(loc, gplus_0, innerDim_0e);
+          Value result_1 = b.create<arith::MulFOp>(loc, gplus_1, innerDim_1e);
+          Value lower_0 = b.create<arith::FPToSIOp>(loc, int64type, result_0);
+          Value lower_1 = b.create<arith::FPToSIOp>(loc, int64type, result_1);
           Value oneInt = rewriter.create<arith::ConstantOp>(
               loc, rewriter.getIntegerAttr(int64type, 1));
           Value upper_0 =
               b.create<arith::AddIOp>(loc, int64type, lower_0, oneInt);
           Value upper_1 =
               b.create<arith::AddIOp>(loc, int64type, lower_1, oneInt);
-          Value notValid_0 = createGreaterThan(rewriter, loc, int64type,
-                                               upper_0, innerDim_0c);
-          Value notValid_1 = createGreaterThan(rewriter, loc, int64type,
-                                               upper_1, innerDim_1c);
+          Value notValid_0 =
+              createGreaterThan(rewriter, loc, int64type, upper_0, innerDim_0c);
+          Value notValid_1 =
+              createGreaterThan(rewriter, loc, int64type, upper_1, innerDim_1c);
           Value upperValid_0 = b.create<arith::SelectOp>(
               loc, notValid_0, lower_0, upper_0);
           Value upperValid_1 = b.create<arith::SelectOp>(
@@ -2499,30 +2496,24 @@ public:
         gridRank, utils::IteratorType::parallel);
 
     auto deltaGenericOp = rewriter.create<linalg::GenericOp>(
-        loc,
-        TypeRange{deltaType_0, deltaType_0, deltaType_0, deltaType_0},
+        loc, TypeRange{deltaType_0, deltaType_0, deltaType_0, deltaType_0},
         ValueRange{},
-        ValueRange{deltaEmpty_00, deltaEmpty_01, deltaEmpty_10, deltaEmpty_11}, deltaMaps,
-        deltaIterators,
+        ValueRange{deltaEmpty_00, deltaEmpty_01, deltaEmpty_10, deltaEmpty_11},
+        deltaMaps, deltaIterators,
         [&](OpBuilder &b, Location loc, ValueRange args) {
           Value N = b.create<linalg::IndexOp>(loc, 0);
           Value H = b.create<linalg::IndexOp>(loc, 2);
           Value W = b.create<linalg::IndexOp>(loc, 3);
-          Value zeroIndex =
-              rewriter.create<arith::ConstantIndexOp>(loc, 0);
+          Value zeroIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
           SmallVector<Value> gridIndex{N, H, W, zeroIndex};
-          Value lw_0 =
-              b.create<tensor::ExtractOp>(loc, lower_0, gridIndex);
-          Value lw_1 =
-              b.create<tensor::ExtractOp>(loc, lower_1, gridIndex);
+          Value lw_0 = b.create<tensor::ExtractOp>(loc, lower_0, gridIndex);
+          Value lw_1 = b.create<tensor::ExtractOp>(loc, lower_1, gridIndex);
           Value res_0 =
               b.create<tensor::ExtractOp>(loc, gridResult_0, gridIndex);
           Value res_1 =
               b.create<tensor::ExtractOp>(loc, gridResult_1, gridIndex);
-          Value lw_0a =
-              rewriter.create<arith::SIToFPOp>(loc, floatType, lw_0);
-          Value lw_1a =
-              rewriter.create<arith::SIToFPOp>(loc, floatType, lw_1);
+          Value lw_0a = rewriter.create<arith::SIToFPOp>(loc, floatType, lw_0);
+          Value lw_1a = rewriter.create<arith::SIToFPOp>(loc, floatType, lw_1);
           Value d0 = b.create<arith::SubFOp>(loc, res_0, lw_0a);
           Value d1 = b.create<arith::SubFOp>(loc, res_1, lw_1a);
           Value oneFloat = b.create<arith::ConstantOp>(
