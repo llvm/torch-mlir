@@ -2396,10 +2396,10 @@ public:
         loc, grid, extractGridOffsets_1, extractGridShape, extractGridStride);
     SmallVector<int64_t> gridShapeExtracted =
         makeShapeTorchCompatible(grid_0.getType().getShape());
-    Value gridResult_0 =
-        rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, gridElementType);
-    Value gridResult_1 =
-        rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, gridElementType);
+    Value gridResult_0 = rewriter.create<tensor::EmptyOp>(
+        loc, gridShapeExtracted, gridElementType);
+    Value gridResult_1 = rewriter.create<tensor::EmptyOp>(
+        loc, gridShapeExtracted, gridElementType);
     Value lower_0 =
         rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int64type);
     Value lower_1 =
@@ -2484,7 +2484,7 @@ public:
                                      rewriter.getMultiDimIdentityMap(gridRank));
     SmallVector<utils::IteratorType> deltaIterators(
         gridRank, utils::IteratorType::parallel);
- 
+
     Value deltaGenericOp =
         rewriter
             .create<linalg::GenericOp>(
@@ -2599,7 +2599,7 @@ public:
                   Value d_11 =
                       b.create<tensor::ExtractOp>(loc, delta_11, gridIndex_0);
                   Value resultScaled_00 =
-                      b.create<arith::MulFOp>(loc, d_00, result_11b); 
+                      b.create<arith::MulFOp>(loc, d_00, result_11b);
                   Value resultScaled_01 =
                       b.create<arith::MulFOp>(loc, d_01, result_01a);
                   Value resultScaled_10 =
@@ -2611,7 +2611,7 @@ public:
                   Value resultScaled_1 = b.create<arith::AddFOp>(
                       loc, resultScaled_10, resultScaled_11);
                   Value resultScaled = b.create<arith::AddFOp>(
-                      loc, resultScaled_0, resultScaled_1);                
+                      loc, resultScaled_0, resultScaled_1);
                   b.create<linalg::YieldOp>(loc, resultScaled);
                 })
             .getResult(0);
