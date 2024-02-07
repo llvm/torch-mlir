@@ -18,6 +18,8 @@ Value createConstantIntList(OpBinder binder,
                             ConversionPatternRewriter &rewriter,
                             SmallVector<int64_t> cstInput);
 
+Type getQTorchTypeFromTorchIntType(Type ty);
+
 } // namespace mlir::torch::onnx_c
 
 #endif // TORCHMLIR_CONVERSION_TORCHONNXTOTORCH_UTILS_H

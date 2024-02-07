@@ -501,7 +501,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           auto message = llvm::formatv("unimplemented support for the given "
                                        "dtype conversion (onnx 'type' = {0})",
                                        dtypeIntOnnx);
-          llvm::errs() << message << "\n";
           auto y = rewriter.notifyMatchFailure(binder.op, message);
 
           return y;
@@ -691,7 +690,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         return failure();
       });
   patterns.onOp(
-      "Conv", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Conv", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         std::string autoPad;
         if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
           return failure();
@@ -1387,7 +1386,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Torch::BaseTensorType shapeType =
             shape.getType().cast<Torch::BaseTensorType>();
         SmallVector<int64_t> selectSizes;
-        selectSizes.push_back(1);
         Type selectResultType = shapeType.getWithSizesAndDtype(
             llvm::ArrayRef(selectSizes), shapeType.getOptionalDtype());
         // Variable to store 1-D onnx shape tensor, shapeSizes[0] has the
@@ -1445,16 +1443,30 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType))
           return failure();
 
+        auto operandTy = cast<Torch::ValueTensorType>(operand.getType());
+        llvm::SmallVector<int64_t> shape(operandTy.getSizes());
+        int64_t rank = shape.size();
+
         // If axis is negative, count from the right instead of left
-        int64_t rank =
-            cast<Torch::ValueTensorType>(operand.getType()).getSizes().size();
         if (axis < 0)
           axis = rank + axis;
 
-        Value collapsedRight;
-        auto baseType = Torch::ValueTensorType::getWithLeastStaticInformation(
-            binder.op->getContext());
+        // We collapse in the dimensions to the right of the axis.
+        for (int i = axis + 1; i < rank; ++i) {
+          bool dynamic = shape[axis] == Torch::kUnknownSize ||
+                         shape[i] == Torch::kUnknownSize;
+          if (dynamic) {
+            shape[axis] = Torch::kUnknownSize;
+          } else {
+            shape[axis] = shape[axis] * shape[i];
+          }
+        }
 
+        shape.resize(axis + 1, 1);
+
+        auto baseType = rewriter.getType<Torch::ValueTensorType>(
+            shape, operandTy.getDtype());
+        Value collapsedRight;
         if (axis >= rank) {
           // If the right range is empty, add a dim of size 1 to the
           // right side of the shape:

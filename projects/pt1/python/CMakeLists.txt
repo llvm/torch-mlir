@@ -18,7 +18,7 @@ declare_mlir_python_sources(TorchMLIRPythonSources.TopLevel
   ROOT_DIR "${TORCH_MLIR_PYTHON_ROOT_DIR}"
   ADD_TO_PARENT TorchMLIRPythonTorchExtensionsSources
   SOURCES
-    __init__.py
+    torchscript.py
     _dynamo_fx_importer.py
     compiler_utils.py
     dynamo.py

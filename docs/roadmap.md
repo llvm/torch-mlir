@@ -51,6 +51,22 @@ the ecosystem are:
 Most of this document describes long-term ecosystem changes that will address
 these, drastically improving Torch-MLIR's ability to meet its goals.
 
+## Current API Paths
+
+Currently, there are two main API paths for the torch-mlir project:
+
+- The first path is part of the legacy project pt1 code
+  (torch_mlir.torchscript.compile). This allows users to test the compiler's
+  output to the different MLIR dialects (`TORCH`, `TOSA`, `LINALG_ON_TENSORS`,
+  `RAW` and `STABLEHLO`). This path is deprecated and doesn’t give access to
+  the current generation work that is being driven via the fx_importer. It is
+  tied to the old Torchscript path.
+- The second path (torch_mlir.fx.export_and_import) allows users to import a
+  consolidated torch.export.ExportedProgram instance of an arbitrary Python
+  callable (an nn.Module, a function or a method) and output to torch dialect
+  mlir module. This path is aligned with PyTorch's roadmap, but the path is
+  not fully functional yet.
+
 ## Roadmap
 
 ### Refactoring the frontend

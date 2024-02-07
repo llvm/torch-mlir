@@ -1,5 +1,5 @@
 import torch
-import torch_mlir
+from torch_mlir import torchscript
 
 # RUN: %PYTHON %s | torch-mlir-opt | FileCheck %s
 
@@ -39,6 +39,6 @@ class Model(torch.nn.Module):
         with torch.no_grad():
             return data
 
-output_type = torch_mlir.OutputType.RAW
-mod = torch_mlir.compile(Model(), [torch.tensor([0, 1, 2, 3])], output_type)
+output_type = torchscript.OutputType.RAW
+mod = torchscript.compile(Model(), [torch.tensor([0, 1, 2, 3])], output_type)
 print(mod)
