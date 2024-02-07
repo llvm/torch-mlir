@@ -2538,7 +2538,7 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
   if (input && start && dim &&
       llvm::all_of(outType.getSizes(), [](int64_t dim) { return dim == 1; })) {
     bool unaryNonDim = true;
-    int64_t dimInt = dim.getValue.getSExtValue();
+    int64_t dimInt = dim.getValue().getSExtValue();
     for (int i = 0, s = inType.getSizes().size(); i < s; ++i) {
       unaryNonDim &= inType.getSizes()[i] == 1 || i == dimInt;
     }
