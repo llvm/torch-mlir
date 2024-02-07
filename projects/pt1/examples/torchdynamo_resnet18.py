@@ -14,7 +14,7 @@ import torch._dynamo as dynamo
 import torchvision.models as models
 from torchvision import transforms
 
-import torch_mlir
+from torch_mlir import torchscript
 from torch_mlir.dynamo import make_simple_dynamo_backend
 from torch_mlir_e2e_test.linalg_on_tensors_backends import refbackend
 
@@ -71,7 +71,7 @@ labels = load_labels()
 @make_simple_dynamo_backend
 def refbackend_torchdynamo_backend(fx_graph: torch.fx.GraphModule,
                                    example_inputs: List[torch.Tensor]):
-    mlir_module = torch_mlir.compile(
+    mlir_module = torchscript.compile(
         fx_graph, example_inputs, output_type="linalg-on-tensors")
     backend = refbackend.RefBackendLinalgOnTensorsBackend()
     compiled = backend.compile(mlir_module)
