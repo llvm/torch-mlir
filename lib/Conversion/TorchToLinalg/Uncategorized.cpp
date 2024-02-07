@@ -2337,8 +2337,7 @@ class ConvertCastEquivalentOp : public OpConversionPattern<OpTy> {
 } // namespace
 
 namespace {
-class ConvertAtenGridSamplerOp
-    : public OpConversionPattern<AtenGridSamplerOp> {
+class ConvertAtenGridSamplerOp : public OpConversionPattern<AtenGridSamplerOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
@@ -2349,18 +2348,27 @@ public:
     Value input = adaptor.getInput();
     auto inputType = input.getType().cast<RankedTensorType>();
     auto inputShape = inputType.getShape();
-    Value innerDim_0a = rewriter.create<arith::ConstantIndexOp>(loc, inputShape[2]);
-    Value innerDim_1a = rewriter.create<arith::ConstantIndexOp>(loc, inputShape[3]);
-    Value oneIndex  = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    Value innerDim_0b = rewriter.create<arith::SubIOp>(loc, innerDim_0a, oneIndex);
-    Value innerDim_1b = rewriter.create<arith::SubIOp>(loc, innerDim_1a, oneIndex);
-    Type int64type = mlir::IntegerType::get(op->getContext(),64);
-    Value innerDim_0c = rewriter.create<arith::IndexCastOp>(loc, int64type, innerDim_0b);
-    Value innerDim_1c = rewriter.create<arith::IndexCastOp>(loc, int64type, innerDim_1b);
+    Value innerDim_0a =
+      rewriter.create<arith::ConstantIndexOp>(loc, inputShape[2]);
+    Value innerDim_1a =
+      rewriter.create<arith::ConstantIndexOp>(loc, inputShape[3]);
+    Value oneIndex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    Value innerDim_0b =
+      rewriter.create<arith::SubIOp>(loc, innerDim_0a, oneIndex);
+    Value innerDim_1b =
+      rewriter.create<arith::SubIOp>(loc, innerDim_1a, oneIndex);
+    Type int64type = mlir::IntegerType::get(op->getContext(), 64);
+    Value innerDim_0c =
+      rewriter.create<arith::IndexCastOp>(loc, int64type, innerDim_0b);
+    Value innerDim_1c =
+      rewriter.create<arith::IndexCastOp>(loc, int64type, innerDim_1b);
     Type floatType = mlir::FloatType::getF32(op->getContext());
-    Value innerDim_0d = rewriter.create<arith::SIToFPOp>(loc, floatType, innerDim_0c);
-    Value innerDim_1d = rewriter.create<arith::SIToFPOp>(loc, floatType, innerDim_1c);
-    Value two = rewriter.create<arith::ConstantOp>(loc, rewriter.getFloatAttr(floatType, 2.0));
+    Value innerDim_0d =
+      rewriter.create<arith::SIToFPOp>(loc, floatType, innerDim_0c);
+    Value innerDim_1d =
+      rewriter.create<arith::SIToFPOp>(loc, floatType, innerDim_1c);
+    Value two = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getFloatAttr(floatType, 2.0));
     Value innerDim_0e = rewriter.create<arith::DivFOp>(loc, innerDim_0d, two);
     Value innerDim_1e = rewriter.create<arith::DivFOp>(loc, innerDim_1d, two);
 
@@ -2368,34 +2376,48 @@ public:
     Value grid = adaptor.getGrid();
     auto gridType = grid.getType().cast<RankedTensorType>();
     auto gridElementType = gridType.getElementType();
-    SmallVector<int64_t> gridShape = makeShapeTorchCompatible(gridType.getShape());
+    SmallVector<int64_t> gridShape =
+      makeShapeTorchCompatible(gridType.getShape());
     auto gridRank = gridType.getRank();
-    Value zeroIndex  = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value zeroIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     SmallVector<Value> extractGridOffsets_0(gridRank, zeroIndex);
     SmallVector<Value> extractGridShape = getTensorSizes(rewriter, loc, grid);
     SmallVector<Value> extractGridStride(gridRank, oneIndex);
     int64_t lastGridDim = gridRank - 1;
-    Value twoIndex  = rewriter.create<arith::ConstantIndexOp>(loc, 2);
+    Value twoIndex = rewriter.create<arith::ConstantIndexOp>(loc, 2);
     extractGridShape[lastGridDim] = oneIndex;
     extractGridStride[lastGridDim] = twoIndex;
     SmallVector<Value> extractGridOffsets_1(gridRank, zeroIndex);
     extractGridOffsets_1[lastGridDim] = oneIndex;
 
-    auto grid_0 = rewriter.create<tensor::ExtractSliceOp>(loc, grid, extractGridOffsets_0, extractGridShape, extractGridStride);
-    auto grid_1 = rewriter.create<tensor::ExtractSliceOp>(loc, grid, extractGridOffsets_1, extractGridShape, extractGridStride);
-    SmallVector<int64_t> gridShapeExtracted = makeShapeTorchCompatible(grid_0.getType().getShape());
-    Value gridResult_0 = rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, gridElementType);
-    Value gridResult_1 = rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, gridElementType);
-    Value lower_0 = rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int64type);
-    Value lower_1 = rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int64type);
-    Value upper_0 = rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int64type);
-    Value upper_1 = rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int64type);
-    Type int1type = mlir::IntegerType::get(op->getContext(),1);
-    Value notValid_0 = rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int1type);
-    Value notValid_1 = rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int1type);
+    auto grid_0 = rewriter.create<tensor::ExtractSliceOp>(
+      loc, grid, extractGridOffsets_0, extractGridShape, extractGridStride);
+    auto grid_1 = rewriter.create<tensor::ExtractSliceOp>(
+      loc, grid, extractGridOffsets_1, extractGridShape, extractGridStride);
+    SmallVector<int64_t> gridShapeExtracted =
+      makeShapeTorchCompatible(grid_0.getType().getShape());
+    Value gridResult_0 =
+      rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, gridElementType);
+    Value gridResult_1 =
+      rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, gridElementType);
+    Value lower_0 =
+      rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int64type);
+    Value lower_1 =
+      rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int64type);
+    Value upper_0 =
+      rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int64type);
+    Value upper_1 =
+      rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int64type);
+    Type int1type = mlir::IntegerType::get(op->getContext(), 1);
+    Value notValid_0 =
+      rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int1type);
+    Value notValid_1 =
+      rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int1type);
 
-    SmallVector<AffineMap> gridMaps(10, rewriter.getMultiDimIdentityMap(gridRank));
-    SmallVector<utils::IteratorType> gridIterators(gridRank, utils::IteratorType::parallel);
+    SmallVector<AffineMap> gridMaps(10, 
+                                    rewriter.getMultiDimIdentityMap(gridRank));
+    SmallVector<utils::IteratorType> gridIterators(
+      gridRank, utils::IteratorType::parallel);
     auto gridType_0 = gridResult_0.getType().cast<RankedTensorType>();
     auto lowerType_0 = lower_0.getType().cast<RankedTensorType>();
     auto validType_0 = notValid_0.getType().cast<RankedTensorType>();
