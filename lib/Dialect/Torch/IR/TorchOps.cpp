@@ -2854,11 +2854,8 @@ OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
   auto indexSizes = indexTy.getSizes();
   auto resultSizes = resultTy.getSizes();
 
-  if (selfTy.getDtype() != resultTy.getDtype())
-    return nullptr;
-  if (selfSizes.size() != resultSizes.size())
-    return nullptr;
-  if (indexSizes.size() != 1)
+  if (selfTy.getDtype() != resultTy.getDtype() ||
+      selfSizes.size() != resultSizes.size() || indexSizes.size() != 1)
     return nullptr;
 
   // If the selection results in a tensor of the same dimensions as the
