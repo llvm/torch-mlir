@@ -166,6 +166,33 @@ castIndexVectorToInt64Vector(OpBuilder &b, Location loc,
   return intValues;
 }
 
+SmallVector<Value> getDiagEmbedResultShape(OpBuilder &b, Location loc, Value tensor, int64_t  offset, int64_t  dim1, int64_t  dim2) {
+  auto inputType = tensor.getType().cast<RankedTensorType>();
+  auto inputRank = inputType.getRank();
+  auto resultRank = inputRank + 1;
+  
+  SmallVector<Value> resultShape;
+  Value constZero = b.create<arith::ConstantIndexOp>(loc, 0);
+  Value constNegOne = b.create<arith::ConstantIndexOp>(loc, -1);
+  Value constOffset = b.create<arith::ConstantIndexOp>(loc, offset);
+  Value isNegOffset = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, constOffset, constZero);
+  Value mulOffsetNegOne = b.create<arith::MulIOp>(loc, constOffset, constNegOne);
+  Value absOffset = b.create<arith::SelectOp>(loc, isNegOffset, mulOffsetNegOne, constOffset);
+
+  auto lastInputDim = getDimOp(b, loc, tensor, inputRank-1);
+  Value diagDim = b.create<arith::AddIOp>(loc, lastInputDim, absOffset);
+
+  int input_dim_idx = 0;
+  for (unsigned int i = 0; i < resultRank; i++) {
+    if (i == dim1 || i == dim2)
+      resultShape.push_back(diagDim);
+    else
+      resultShape.push_back(getDimOp(b, loc, tensor, input_dim_idx++));
+  }
+
+  return resultShape;
+}
+
 Value getDimOp(OpBuilder &b, Location loc, Value v, int dim) {
   return b.createOrFold<tensor::DimOp>(loc, v, dim);
 }

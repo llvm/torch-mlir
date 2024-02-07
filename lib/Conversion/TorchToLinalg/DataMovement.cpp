@@ -1409,6 +1409,108 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenDiagEmbedOp
+    : public OpConversionPattern<AtenDiagEmbedOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenDiagEmbedOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    
+    Location loc = op->getLoc();
+
+    Value input = adaptor.getSelf();
+    auto inputType = input.getType().cast<RankedTensorType>();
+    auto inputRank = inputType.getRank();
+    auto resultRank = inputRank+1;
+
+    int64_t offset;
+    if (!matchPattern(op.getOffset(), m_TorchConstantInt(&offset)))
+      return rewriter.notifyMatchFailure(op, "offset is not constant");
+
+    int64_t dim1;
+    if (!matchPattern(op.getDim1(), m_TorchConstantInt(&dim1)))
+      return rewriter.notifyMatchFailure(op, "dim1 is not constant");
+    dim1 = toPositiveDim(dim1, resultRank);
+    if (!isValidDim(dim1, resultRank))
+      return rewriter.notifyMatchFailure(op, "dim1 can only be between [" + std::to_string(-resultRank) + "," + std::to_string(resultRank-1) + "]");
+
+    int64_t dim2;
+    if (!matchPattern(op.getDim2(), m_TorchConstantInt(&dim2)))
+      return rewriter.notifyMatchFailure(op, "dim2 is not constant");
+    dim2 = toPositiveDim(dim2, resultRank);
+    if (!isValidDim(dim2, resultRank))
+      return rewriter.notifyMatchFailure(op, "dim2 can only be between [" + std::to_string(-resultRank) + "," + std::to_string(resultRank-1) + "]");
+
+    if(dim1 == dim2)
+      return rewriter.notifyMatchFailure(op, "dim1 and dim2 can not be equal");
+
+    // add linalg.fill
+    Type resultElemType = inputType.getElementType();
+    auto resultShape = getDiagEmbedResultShape(rewriter, loc, input, offset, dim1, dim2);
+    Value zeroTensor =
+          createZeroInitTensor(rewriter, loc, resultShape, resultElemType);
+
+    // add linalg.generic with diagonal access pattern affine indexing maps
+    SmallVector<AffineMap> indexingMaps = {
+        rewriter.getMultiDimIdentityMap(resultRank),
+    };
+    SmallVector<utils::IteratorType> iteratorTypes(
+        resultRank, utils::IteratorType::parallel);
+    Value resultTensor =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, zeroTensor.getType(),
+                ValueRange{}, zeroTensor,
+                /*indexingMaps=*/indexingMaps,
+                /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value dim1Index = b.create<linalg::IndexOp>(loc, dim1);
+                  Value dim2Index = b.create<linalg::IndexOp>(loc, dim2);
+
+                  // to pick right element from input, first add all dimensions except last one, then last will be either dim1 or dim2 depending upon lower or upper diagonal defined by offset sign
+                  SmallVector<Value> inputIndices;
+                  for(unsigned int i=0; i < resultRank; i++) {
+                    if (i != dim1 && i != dim2) {                      
+                      inputIndices.push_back(b.create<linalg::IndexOp>(loc, i));
+                    }
+                  }
+
+                  // adjust output diagonal indices and last input Index based on offset
+                  Value dim1IdxAdjusted;
+                  Value dim2IdxAdjusted;
+                  if (offset < 0) {
+                    Value absOffset = b.create<arith::ConstantIndexOp>(loc, -offset);
+                    dim1IdxAdjusted = dim1Index;
+                    dim2IdxAdjusted = b.create<arith::AddIOp>(loc, dim2Index, absOffset);
+                    inputIndices.push_back(b.create<linalg::IndexOp>(loc, dim2));
+                  }
+                  else {
+                    Value constOffset = b.create<arith::ConstantIndexOp>(loc, offset);
+                    dim1IdxAdjusted = b.create<arith::AddIOp>(loc, dim1Index, constOffset);
+                    dim2IdxAdjusted = dim2Index;
+                    inputIndices.push_back(b.create<linalg::IndexOp>(loc, dim1));
+                  }
+
+                  Value isDiagonal = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, dim1IdxAdjusted, dim2IdxAdjusted);
+
+                  Value inputElem = b.create<tensor::ExtractOp>(loc, resultElemType, input, inputIndices);
+
+                  Value result = rewriter.create<arith::SelectOp>(loc, isDiagonal, inputElem, args[0]);
+                  b.create<linalg::YieldOp>(loc, result);
+                })
+            .getResult(0);
+
+    RankedTensorType resultType = getTypeConverter()
+                                      ->convertType(op->getResult(0).getType())
+                                      .cast<RankedTensorType>();
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, resultTensor);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -1443,4 +1545,6 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   patterns.add<ConvertAtenViewAsComplexOp>(typeConverter, context);
   target.addIllegalOp<AtenViewAsRealOp>();
   patterns.add<ConvertAtenViewAsRealOp>(typeConverter, context);
+  target.addIllegalOp<AtenDiagEmbedOp>();
+  patterns.add<ConvertAtenDiagEmbedOp>(typeConverter, context);
 }

@@ -54,8 +54,31 @@ def _embedding_bag_helper(weight: List[int], indices: List[int],
     return output_bag_shape, offset2bag_shape, bag_size_shape, max_indices_shape
 
 # TODO: upstream this
-def _diag_embed_shape_helper(self: List[int], dim1: int, dim2: int):
-    return upstream_shape_functions.unary(self)
+def _diag_embed_shape_helper(self: List[int], offset: int, dim1: int, dim2: int):
+    self_rank = len(self)
+    result_rank = self_rank + 1
+
+    assert dim1 != dim2
+    assert dim1 < result_rank
+    assert dim1 >= -(result_rank)
+    assert dim2 < result_rank
+    assert dim2 >= -(result_rank)
+    
+    if dim1 < 0:
+        dim1 = result_rank + dim1
+    if dim2 < 0:
+        dim2 = result_rank + dim2
+
+    result_shape: List[int] = []
+    input_dim_idx = 0
+    for i in range(result_rank):
+        if i in (dim1, dim2):
+            result_shape.append(self[-1] + abs(offset))
+        else:
+            result_shape.append(self[input_dim_idx])
+            input_dim_idx += 1
+
+    return result_shape
 
 def aten〇triu〡shape(self: List[int], diagonal: int = 0) -> List[int]:
     return upstream_shape_functions.unary(self)
@@ -812,7 +835,7 @@ def aten〇new_empty_strided〡shape(self: List[int], size: List[int], stride: L
     return size
 
 def aten〇diag_embed〡shape(self: List[int], offset: int = 0, dim1: int = -2, dim2: int = -1) -> List[int]:
-    return _diag_embed_shape_helper(self, dim1, dim2)
+    return _diag_embed_shape_helper(self, offset, dim1, dim2)
 
 def aten〇_to_copy〡shape(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, non_blocking: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
