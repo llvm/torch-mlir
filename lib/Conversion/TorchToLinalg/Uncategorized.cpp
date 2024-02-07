@@ -2396,41 +2396,41 @@ public:
         loc, grid, extractGridOffsets_1, extractGridShape, extractGridStride);
     SmallVector<int64_t> gridShapeExtracted =
         makeShapeTorchCompatible(grid_0.getType().getShape());
-    Value gridResult_0 = rewriter.create<tensor::EmptyOp>(
+    Value gridResultEmpty_0 = rewriter.create<tensor::EmptyOp>(
         loc, gridShapeExtracted, gridElementType);
-    Value gridResult_1 = rewriter.create<tensor::EmptyOp>(
+    Value gridResultEmpty_1 = rewriter.create<tensor::EmptyOp>(
         loc, gridShapeExtracted, gridElementType);
-    Value lower_0 =
+    Value lowerEmpty_0 =
         rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int64type);
-    Value lower_1 =
+    Value lowerEmpty_1 =
         rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int64type);
-    Value upper_0 =
+    Value upperEmpty_0 =
         rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int64type);
-    Value upper_1 =
+    Value upperEmpty_1 =
         rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int64type);
     Type int1type = mlir::IntegerType::get(op->getContext(), 1);
-    Value notValid_0 =
+    Value notValidEmpty_0 =
         rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int1type);
-    Value notValid_1 =
+    Value notValidEmpty_1 =
         rewriter.create<tensor::EmptyOp>(loc, gridShapeExtracted, int1type);
 
     SmallVector<AffineMap> gridMaps(10,
                                     rewriter.getMultiDimIdentityMap(gridRank));
     SmallVector<utils::IteratorType> gridIterators(
         gridRank, utils::IteratorType::parallel);
-    auto gridType_0 = gridResult_0.getType().cast<RankedTensorType>();
-    auto lowerType_0 = lower_0.getType().cast<RankedTensorType>();
-    auto validType_0 = notValid_0.getType().cast<RankedTensorType>();
+    auto gridType_0 = gridResultEmpty_0.getType().cast<RankedTensorType>();
+    auto lowerType_0 = lowerEmpty_0.getType().cast<RankedTensorType>();
+    auto validType_0 = notValidEmpty_0.getType().cast<RankedTensorType>();
 
-    ValueRange sGrid_0 =
+    auto sGrid =
         rewriter
             .create<linalg::GenericOp>(
                 loc,
                 TypeRange{gridType_0, gridType_0, lowerType_0, lowerType_0,
                           lowerType_0, lowerType_0, validType_0, validType_0},
                 ValueRange{grid_0, grid_1},
-                ValueRange{gridResult_0, gridResult_1, lower_0, lower_1,
-                           upper_0, upper_1, notValid_0, notValid_1},
+                ValueRange{gridResultEmpty_0, gridResultEmpty_1, lowerEmpty_0, lowerEmpty_1,
+                           upperEmpty_0, upperEmpty_1, notValidEmpty_0, notValidEmpty_1},
                 gridMaps, gridIterators,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value gr_0 = args[0];
@@ -2465,33 +2465,48 @@ public:
                       loc, ValueRange{result_0, result_1, lower_0, lower_1,
                                       upperValid_0, upperValid_1, notValid_0,
                                       notValid_1});
-                })
-            .getResult(0);
+                });
 
+    Value gridResult_0 = rewriter.create<tensor::CastOp>(
+        loc, gridType_0, sGrid.getResultTensors()[0]);
+    Value gridResult_1 = rewriter.create<tensor::CastOp>(
+        loc, gridType_0, sGrid.getResultTensors()[1]);
+    Value lower_0 = rewriter.create<tensor::CastOp>(
+        loc, lowerType_0, sGrid.getResultTensors()[2]);
+    Value lower_1 = rewriter.create<tensor::CastOp>(
+        loc, lowerType_0, sGrid.getResultTensors()[3]);
+    Value upper_0 = rewriter.create<tensor::CastOp>(
+        loc, lowerType_0, sGrid.getResultTensors()[4]);
+    Value upper_1 = rewriter.create<tensor::CastOp>(
+        loc, lowerType_0, sGrid.getResultTensors()[5]);
+    Value notValid_0 = rewriter.create<tensor::CastOp>(
+        loc, validType_0, sGrid.getResultTensors()[6]);
+    Value notValid_1 = rewriter.create<tensor::CastOp>(
+        loc, validType_0, sGrid.getResultTensors()[7]);
     SmallVector<int64_t> resultShape = makeShapeTorchCompatible(inputShape);
     resultShape[2] = gridShape[1];
     resultShape[3] = gridShape[2];
-    Value delta_00 =
+    Value deltaEmpty_00 =
         rewriter.create<tensor::EmptyOp>(loc, resultShape, floatType);
-    Value delta_01 =
+    Value deltaEmpty_01 =
         rewriter.create<tensor::EmptyOp>(loc, resultShape, floatType);
-    Value delta_10 =
+    Value deltaEmpty_10 =
         rewriter.create<tensor::EmptyOp>(loc, resultShape, floatType);
-    Value delta_11 =
+    Value deltaEmpty_11 =
         rewriter.create<tensor::EmptyOp>(loc, resultShape, floatType);
-    auto deltaType_0 = delta_00.getType().cast<RankedTensorType>();
+    auto deltaType_0 = deltaEmpty_00.getType().cast<RankedTensorType>();
     SmallVector<AffineMap> deltaMaps(4,
                                      rewriter.getMultiDimIdentityMap(gridRank));
     SmallVector<utils::IteratorType> deltaIterators(
         gridRank, utils::IteratorType::parallel);
 
-    Value deltaGenericOp =
+    auto deltaGenericOp =
         rewriter
             .create<linalg::GenericOp>(
                 loc,
                 TypeRange{deltaType_0, deltaType_0, deltaType_0, deltaType_0},
                 ValueRange{},
-                ValueRange{delta_00, delta_01, delta_10, delta_11}, deltaMaps,
+                ValueRange{deltaEmpty_00, deltaEmpty_01, deltaEmpty_10, deltaEmpty_11}, deltaMaps,
                 deltaIterators,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value N = b.create<linalg::IndexOp>(loc, 0);
@@ -2524,9 +2539,16 @@ public:
                   Value res_11 = b.create<arith::MulFOp>(loc, dm0, dm1);
                   b.create<linalg::YieldOp>(
                       loc, ValueRange{res_00, res_01, res_10, res_11});
-                })
-            .getResult(0);
+                });
 
+    Value delta_00 = rewriter.create<tensor::CastOp>(
+        loc, deltaType_0, deltaGenericOp.getResultTensors()[0]);
+    Value delta_01 = rewriter.create<tensor::CastOp>(
+        loc, deltaType_0, deltaGenericOp.getResultTensors()[1]);
+    Value delta_10 = rewriter.create<tensor::CastOp>(
+        loc, deltaType_0, deltaGenericOp.getResultTensors()[2]);
+    Value delta_11 = rewriter.create<tensor::CastOp>(
+        loc, deltaType_0, deltaGenericOp.getResultTensors()[3]);
     Value resultFinal =
         rewriter.create<tensor::EmptyOp>(loc, resultShape, floatType);
     auto resultFinalType = resultFinal.getType().cast<RankedTensorType>();
@@ -2538,8 +2560,8 @@ public:
     Value resultGenericOp =
         rewriter
             .create<linalg::GenericOp>(
-                loc, TypeRange{resultFinalType}, ValueRange{},
-                ValueRange{resultFinal}, resultMap, resultIterator,
+                loc, resultFinalType, ValueRange{},
+                resultFinal, resultMap, resultIterator,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value N = b.create<linalg::IndexOp>(loc, 0);
                   Value C = b.create<linalg::IndexOp>(loc, 1);
@@ -2619,7 +2641,7 @@ public:
     RankedTensorType resultType = getTypeConverter()
                                       ->convertType(op->getResult(0).getType())
                                       .cast<RankedTensorType>();
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, resultFinal);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, resultGenericOp);
     return success();
   }
 };
