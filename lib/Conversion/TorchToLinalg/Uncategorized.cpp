@@ -2452,10 +2452,10 @@ public:
               createGreaterThan(rewriter, loc, int64type, upper_0, innerDim_0c);
           Value notValid_1 =
               createGreaterThan(rewriter, loc, int64type, upper_1, innerDim_1c);
-          Value upperValid_0 = b.create<arith::SelectOp>(
-              loc, notValid_0, lower_0, upper_0);
-          Value upperValid_1 = b.create<arith::SelectOp>(
-              loc, notValid_1, lower_1, upper_1);
+          Value upperValid_0 =
+              b.create<arith::SelectOp>(loc, notValid_0, lower_0, upper_0);
+          Value upperValid_1 =
+              b.create<arith::SelectOp>(loc, notValid_1, lower_1, upper_1);
           b.create<linalg::YieldOp>(loc, ValueRange{result_0, result_1, lower_0,
                                                     lower_1, upperValid_0,
                                                     upperValid_1, notValid_0,
