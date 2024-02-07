@@ -2513,6 +2513,9 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
   IntegerAttr step = dyn_cast_or_null<IntegerAttr>(adaptor.getStep());
   IntegerAttr dim = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
 
+  if(!start || !end || !step)
+    return nullptr;    
+
   if (start && end && step && step.getInt() == 1 && start.getInt() == 0 &&
       end.getInt() == std::numeric_limits<int64_t>::max())
     return getOperand(0);
