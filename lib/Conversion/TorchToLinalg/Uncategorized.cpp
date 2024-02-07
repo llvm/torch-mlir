@@ -2404,29 +2404,45 @@ public:
         rewriter
             .create<linalg::GenericOp>(
                 loc,
-                TypeRange{gridType_0, gridType_0, lowerType_0, lowerType_0, lowerType_0, lowerType_0, validType_0, validType_0},
+                TypeRange{gridType_0, gridType_0, lowerType_0, lowerType_0,
+                          lowerType_0, lowerType_0, validType_0, validType_0},
                 ValueRange{grid_0, grid_1},
-                ValueRange{gridResult_0, gridResult_1, lower_0, lower_1, upper_0, upper_1, notValid_0, notValid_1},
-                gridMaps,
-                gridIterators,
+                ValueRange{gridResult_0, gridResult_1, lower_0, lower_1,
+                           upper_0, upper_1, notValid_0, notValid_1},
+                gridMaps, gridIterators,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value gr_0 = args[0];
                   Value gr_1 = args[1];
-                  Value oneFloat = b.create<arith::ConstantOp>(loc, b.getFloatAttr(gridElementType, 1.0));
+                  Value oneFloat = b.create<arith::ConstantOp>(
+                    loc, b.getFloatAttr(gridElementType, 1.0));
                   Value gplus_0 = b.create<arith::AddFOp>(loc, gr_0, oneFloat);
                   Value gplus_1 = b.create<arith::AddFOp>(loc, gr_1, oneFloat);
-                  Value result_0 = b.create<arith::MulFOp>(loc, gplus_0, innerDim_0e);
-                  Value result_1 = b.create<arith::MulFOp>(loc, gplus_1, innerDim_1e);
-                  Value lower_0 = b.create<arith::FPToSIOp>(loc, int64type, result_0);
-                  Value lower_1 = b.create<arith::FPToSIOp>(loc, int64type, result_1);
-                  Value oneInt = rewriter.create<arith::ConstantOp>(loc, rewriter.getIntegerAttr(int64type, 1));
-                  Value upper_0 = b.create<arith::AddIOp>(loc, int64type, lower_0, oneInt);
-                  Value upper_1 = b.create<arith::AddIOp>(loc, int64type, lower_1, oneInt);
-                  Value notValid_0 = createGreaterThan(rewriter, loc, int64type, upper_0, innerDim_0c);
-                  Value notValid_1 = createGreaterThan(rewriter, loc, int64type, upper_1, innerDim_1c);
-                  Value upperValid_0 = b.create<arith::SelectOp>(loc, notValid_0, lower_0, upper_0);
-                  Value upperValid_1 = b.create<arith::SelectOp>(loc, notValid_1, lower_1, upper_1);
-                  b.create<linalg::YieldOp>(loc, ValueRange{result_0, result_1, lower_0, lower_1, upperValid_0, upperValid_1, notValid_0, notValid_1});
+                  Value result_0 =
+                    b.create<arith::MulFOp>(loc, gplus_0, innerDim_0e);
+                  Value result_1 =
+                    b.create<arith::MulFOp>(loc, gplus_1, innerDim_1e);
+                  Value lower_0 =
+                    b.create<arith::FPToSIOp>(loc, int64type, result_0);
+                  Value lower_1 =
+                    b.create<arith::FPToSIOp>(loc, int64type, result_1);
+                  Value oneInt = rewriter.create<arith::ConstantOp>(
+                    loc, rewriter.getIntegerAttr(int64type, 1));
+                  Value upper_0 =
+                    b.create<arith::AddIOp>(loc, int64type, lower_0, oneInt);
+                  Value upper_1 =
+                    b.create<arith::AddIOp>(loc, int64type, lower_1, oneInt);
+                  Value notValid_0 = createGreaterThan(rewriter, loc, int64type,
+                                                       upper_0, innerDim_0c);
+                  Value notValid_1 = createGreaterThan(rewriter, loc, int64type,
+                                                       upper_1, innerDim_1c);
+                  Value upperValid_0 = b.create<arith::SelectOp>(
+                    loc, notValid_0, lower_0, upper_0);
+                  Value upperValid_1 = b.create<arith::SelectOp>(
+                    loc, notValid_1, lower_1, upper_1);
+                  b.create<linalg::YieldOp>(
+                    loc, ValueRange{result_0, result_1, lower_0, lower_1,
+                                    upperValid_0, upperValid_1, notValid_0,
+                                    notValid_1});
                 })
             .getResult(0);
 
@@ -2537,7 +2553,7 @@ public:
 
     RankedTensorType resultType = getTypeConverter()
                                       ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();                                  
+                                      .cast<RankedTensorType>();
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, resultFinal);
     return success();
   }
