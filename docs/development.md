@@ -77,7 +77,7 @@ By default we download the latest version of libtorch. We have an experimental p
 * Enabling `--debug` and `--debug-only` flags (see [MLIR docs](https://mlir.llvm.org/getting_started/Debugging/)) for the `torch-mlir-opt` tool
 ```shell
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \ # or =Debug
-  -DIREE_ENABLE_ASSERTIONS=ON \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
 ```
 
 ### Building against a pre-built LLVM
