@@ -53,7 +53,6 @@ def _embedding_bag_helper(weight: List[int], indices: List[int],
 
     return output_bag_shape, offset2bag_shape, bag_size_shape, max_indices_shape
 
-# TODO: upstream this
 def _diag_embed_shape_helper(self: List[int], offset: int, dim1: int, dim2: int):
     self_rank = len(self)
     result_rank = self_rank + 1
@@ -1033,6 +1032,17 @@ def aten〇new_empty〡shape(self: List[int], size: List[int], dtype: Optional[i
 def aten〇new_empty_strided〡shape(self: List[int], size: List[int], stride: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return size
 
+@check_shape_function([
+    Invocation(TensorOfShape(2, 3, 4)), # Basic case.
+    Invocation(TensorOfShape(2, 3, 4), dim1=1, dim2=3), # Test explicit dim1 and dim2.
+    Invocation(TensorOfShape(2, 3, 4), offset=1, dim1=1, dim2=3), # Positive offset.
+    Invocation(TensorOfShape(2, 3, 4), offset=1, dim1=3, dim2=1), # Reverse dim1 and dim2
+    Invocation(TensorOfShape(2, 3, 4), offset=-1, dim1=1, dim2=3), # Negative offset
+    Invocation(TensorOfShape(2, 3, 4), offset=3), # large `offset`.
+    ErrorInvocation(TensorOfShape(2)), # Input one-dimensional.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim1=1, dim2=1), # `dim1` and `dim2` equal.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim1=4, dim2=1), # `dim1` out of bounds.
+])
 def aten〇diag_embed〡shape(self: List[int], offset: int = 0, dim1: int = -2, dim2: int = -1) -> List[int]:
     return _diag_embed_shape_helper(self, offset, dim1, dim2)
 

@@ -19,6 +19,7 @@
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
@@ -2002,6 +2003,38 @@ public:
 
 namespace {
 class ConvertAtenDiagEmbedOp : public OpConversionPattern<AtenDiagEmbedOp> {
+
+  static SmallVector<Value>
+  getDiagEmbedResultShape(OpBuilder &b, Location loc, Value tensor,
+                          int64_t offset, int64_t dim1, int64_t dim2) {
+    auto inputType = tensor.getType().cast<RankedTensorType>();
+    auto inputRank = inputType.getRank();
+
+    // output tensor always has 1 extra dimension
+    auto resultRank = inputRank + 1;
+
+    // regardless of offset sign, output tensor is same
+    Value constOffset = b.create<arith::ConstantIndexOp>(loc, offset);
+    Value absOffset = b.create<math::AbsIOp>(loc, constOffset);
+
+    // diagonal size is determined by last input dimension
+    auto lastInputDim = getDimOp(b, loc, tensor, inputRank - 1);
+    Value diagDim = b.create<arith::AddIOp>(loc, lastInputDim, absOffset);
+
+    // output shape has same dimensions as input
+    // except for the diagonal dimensions
+    int input_dim_idx = 0;
+    SmallVector<Value> resultShape;
+    for (unsigned int i = 0; i < resultRank; i++) {
+      if (i == dim1 || i == dim2)
+        resultShape.push_back(diagDim);
+      else
+        resultShape.push_back(getDimOp(b, loc, tensor, input_dim_idx++));
+    }
+
+    return resultShape;
+  }
+
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
