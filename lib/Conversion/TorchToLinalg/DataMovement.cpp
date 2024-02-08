@@ -2077,7 +2077,7 @@ public:
     Type resultElemType = inputType.getElementType();
     auto resultShape =
         getDiagEmbedResultShape(rewriter, loc, input, offset, dim1, dim2);
-     Value zeroTensor =
+    Value zeroTensor =
         createZeroInitTensor(rewriter, loc, resultShape, resultElemType);
 
     // add linalg.generic with diagonal access pattern affine indexing maps
@@ -2087,34 +2087,34 @@ public:
     SmallVector<utils::IteratorType> iteratorTypes(
         resultRank, utils::IteratorType::parallel);
     Value resultTensor =
-         rewriter
-             .create<linalg::GenericOp>(
+        rewriter
+            .create<linalg::GenericOp>(
                 loc, zeroTensor.getType(), ValueRange{}, zeroTensor,
-                 /*indexingMaps=*/indexingMaps,
-                 /*iteratorTypes=*/iteratorTypes,
-                 [&](OpBuilder &b, Location loc, ValueRange args) {
-                   Value dim1Index = b.create<linalg::IndexOp>(loc, dim1);
-                   Value dim2Index = b.create<linalg::IndexOp>(loc, dim2);
- 
+                /*indexingMaps=*/indexingMaps,
+                /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value dim1Index = b.create<linalg::IndexOp>(loc, dim1);
+                  Value dim2Index = b.create<linalg::IndexOp>(loc, dim2);
+
                   // to pick right element from input, first add all dimensions
                   // except last one, then last will be either dim1 or dim2
                   // depending upon lower or upper diagonal defined by offset
                   // sign
-                   SmallVector<Value> inputIndices;         
+                  SmallVector<Value> inputIndices;
                   for (unsigned int i = 0; i < resultRank; i++) {
                     if (i != dim1 && i != dim2) {
-                       inputIndices.push_back(b.create<linalg::IndexOp>(loc, i));
-                     }
-                   }
- 
+                      inputIndices.push_back(b.create<linalg::IndexOp>(loc, i));
+                    }
+                  }
+
                   // adjust output diagonal indices and last input Index based
                   // on offset
-                   Value dim1IdxAdjusted;
-                   Value dim2IdxAdjusted;
-                   if (offset < 0) {
+                  Value dim1IdxAdjusted;
+                  Value dim2IdxAdjusted;
+                  if (offset < 0) {
                     Value absOffset =
                         b.create<arith::ConstantIndexOp>(loc, -offset);
-                     dim1IdxAdjusted = dim1Index;
+                    dim1IdxAdjusted = dim1Index;
                     dim2IdxAdjusted =
                         b.create<arith::AddIOp>(loc, dim2Index, absOffset);
                     inputIndices.push_back(
@@ -2124,23 +2124,23 @@ public:
                         b.create<arith::ConstantIndexOp>(loc, offset);
                     dim1IdxAdjusted =
                         b.create<arith::AddIOp>(loc, dim1Index, constOffset);
-                     dim2IdxAdjusted = dim2Index;
+                    dim2IdxAdjusted = dim2Index;
                     inputIndices.push_back(
                         b.create<linalg::IndexOp>(loc, dim1));
-                   }
- 
+                  }
+
                   Value isDiagonal =
                       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
                                               dim1IdxAdjusted, dim2IdxAdjusted);
- 
+
                   Value inputElem = b.create<tensor::ExtractOp>(
                       loc, resultElemType, input, inputIndices);
  
                   Value result = rewriter.create<arith::SelectOp>(
                       loc, isDiagonal, inputElem, args[0]);
-                   b.create<linalg::YieldOp>(loc, result);
-                 })
-             .getResult(0);
+                  b.create<linalg::YieldOp>(loc, result);
+                })
+            .getResult(0);
 
     RankedTensorType resultType = getTypeConverter()
                                       ->convertType(op->getResult(0).getType())
