@@ -10635,6 +10635,7 @@ def Torch_AtenWhereSelfOp : Torch_Op<"aten.where.self", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenWhereScalarOp : Torch_Op<"aten.where.Scalar", [
@@ -10660,6 +10661,7 @@ def Torch_AtenWhereScalarOp : Torch_Op<"aten.where.Scalar", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenWhereScalarOtherOp : Torch_Op<"aten.where.ScalarOther", [
@@ -10685,6 +10687,7 @@ def Torch_AtenWhereScalarOtherOp : Torch_Op<"aten.where.ScalarOther", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenWhereScalarSelfOp : Torch_Op<"aten.where.ScalarSelf", [
@@ -10710,6 +10713,7 @@ def Torch_AtenWhereScalarSelfOp : Torch_Op<"aten.where.ScalarSelf", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenNanToNumOp : Torch_Op<"aten.nan_to_num", [
