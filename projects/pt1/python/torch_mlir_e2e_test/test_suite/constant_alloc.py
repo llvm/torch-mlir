@@ -1982,7 +1982,7 @@ class AtenDiagEmbedNonDefault4DDiag(torch.nn.Module):
         ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, a):
-        return torch.ops.aten.diag_embed(a, offset=-2, dim1=2, dim2=-2)
+        return torch.ops.aten.diag_embed(a, offset=-2, dim1=1, dim2=-3)
     
 
     @register_test_case(module_factory=lambda: AtenDiagEmbedNonDefault4DDiag())

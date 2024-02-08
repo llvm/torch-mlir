@@ -53,7 +53,9 @@ SmallVector<Value>
 castIndexVectorToInt64Vector(OpBuilder &b, Location loc,
                              SmallVectorImpl<Value> &indexValues);
 
-SmallVector<Value> getDiagEmbedResultShape(OpBuilder &b, Location loc, Value tensor, int64_t  offset, int64_t  dim1, int64_t  dim2);
+SmallVector<Value> getDiagEmbedResultShape(OpBuilder &b, Location loc,
+                                           Value tensor, int64_t offset,
+                                           int64_t dim1, int64_t dim2);
 
 Value getDimOp(OpBuilder &b, Location loc, Value v, int dim);
 

@@ -166,20 +166,25 @@ castIndexVectorToInt64Vector(OpBuilder &b, Location loc,
   return intValues;
 }
 
-SmallVector<Value> getDiagEmbedResultShape(OpBuilder &b, Location loc, Value tensor, int64_t  offset, int64_t  dim1, int64_t  dim2) {
+SmallVector<Value> getDiagEmbedResultShape(OpBuilder &b, Location loc,
+                                           Value tensor, int64_t offset,
+                                           int64_t dim1, int64_t dim2) {
   auto inputType = tensor.getType().cast<RankedTensorType>();
   auto inputRank = inputType.getRank();
   auto resultRank = inputRank + 1;
-  
+
   SmallVector<Value> resultShape;
   Value constZero = b.create<arith::ConstantIndexOp>(loc, 0);
   Value constNegOne = b.create<arith::ConstantIndexOp>(loc, -1);
   Value constOffset = b.create<arith::ConstantIndexOp>(loc, offset);
-  Value isNegOffset = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, constOffset, constZero);
-  Value mulOffsetNegOne = b.create<arith::MulIOp>(loc, constOffset, constNegOne);
-  Value absOffset = b.create<arith::SelectOp>(loc, isNegOffset, mulOffsetNegOne, constOffset);
+  Value isNegOffset = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
+                                              constOffset, constZero);
+  Value mulOffsetNegOne =
+      b.create<arith::MulIOp>(loc, constOffset, constNegOne);
+  Value absOffset =
+      b.create<arith::SelectOp>(loc, isNegOffset, mulOffsetNegOne, constOffset);
 
-  auto lastInputDim = getDimOp(b, loc, tensor, inputRank-1);
+  auto lastInputDim = getDimOp(b, loc, tensor, inputRank - 1);
   Value diagDim = b.create<arith::AddIOp>(loc, lastInputDim, absOffset);
 
   int input_dim_idx = 0;
