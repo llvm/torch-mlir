@@ -10101,6 +10101,7 @@ def Torch_AtenSelectIntOp : Torch_Op<"aten.select.int", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenSizeIntOp : Torch_Op<"aten.size.int", [

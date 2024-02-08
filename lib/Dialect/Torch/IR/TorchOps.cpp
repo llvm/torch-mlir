@@ -1328,6 +1328,41 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenSelectIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenSelectIntOp::fold(FoldAdaptor adaptor) {
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto ty = cast<ValueTensorType>(getType());
+  if (!self || !ty.hasDtype() || !ty.hasSizes())
+    return nullptr;
+
+  auto selfTy = cast<ShapedType>(self.getType());
+  auto bty = ty.toBuiltinTensor().clone(ty.getDtype());
+  if (!bty.hasStaticShape())
+    return nullptr;
+
+  if (self.isSplat())
+    return DenseElementsAttr::get(bty, self.getSplatValue<Attribute>());
+
+  auto dimAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
+  auto indexAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getIndex());
+  if (!dimAttr || !indexAttr || bty.getNumElements() != 1)
+    return nullptr;
+
+  auto dim = dimAttr.getInt();
+  auto index = indexAttr.getInt();
+
+  for (int i = 0, s = selfTy.getRank(); i < s; ++i) {
+    if (i != dim && selfTy.getDimSize(i) != 1)
+      return nullptr;
+  }
+
+  auto splattr = self.getValues<Attribute>()[index];
+  return DenseElementsAttr::get(bty, splattr);
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSizeIntOp
 //===----------------------------------------------------------------------===//
 
