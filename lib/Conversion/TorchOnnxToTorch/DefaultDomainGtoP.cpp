@@ -861,7 +861,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
   patterns.onOp(
       "Pad", 19, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
-        Value data, pads, constantValue, axes;
+        Value data, pads, axes;
         std::string mode;
 
         // TODO: The `axes` parameter is not supported yet.
@@ -871,11 +871,40 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
         if (binder.tensorOperandAtIndex(data, 0) ||
             binder.tensorOperandAtIndex(pads, 1) ||
-            binder.tensorOperandAtIndex(constantValue, 2) ||
             binder.tensorResultType(resultType) ||
             binder.customOpNameStringAttr(mode, "mode", "constant"))
           return failure();
         Location loc = binder.getLoc();
+
+        Value constantValue;
+        if (binder.getNumOperands() >= 3) {
+          if (binder.tensorOperandAtIndex(constantValue, 2)) {
+            llvm::errs() << "failed to bind to index 2\n";
+            return failure();
+          }
+        } else {
+          auto dataTensorType = data.getType().cast<Torch::ValueTensorType>();
+
+          auto maybeZeroAttr = [&]() -> std::optional<Attribute> {
+            if (dataTensorType.getDtype().isa<IntegerType>()) {
+              return rewriter.getI64IntegerAttr(0);
+            }
+            if (dataTensorType.getDtype().isa<FloatType>()) {
+              return rewriter.getFloatAttr(dataTensorType.getDtype(), 0.0f);
+            }
+            return std::nullopt;
+          }();
+
+          if (!maybeZeroAttr) {
+            return rewriter.notifyMatchFailure(
+                binder.op, "expected integer or float data tensor");
+          }
+
+          auto shapedType = dataTensorType.toBuiltinTensor();
+          auto splat = SplatElementsAttr::get(shapedType, *maybeZeroAttr);
+          constantValue = rewriter.create<Torch::ValueTensorLiteralOp>(
+              loc, dataTensorType, splat);
+        }
 
         // Get pads shape and rank. The pads tensor is expected to be 1-D
         // tensor.
