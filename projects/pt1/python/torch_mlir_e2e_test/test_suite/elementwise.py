@@ -2128,7 +2128,7 @@ class ElementwiseAbsFloatModule(torch.nn.Module):
 
 
 @register_test_case(module_factory=lambda: ElementwiseAbsFloatModule())
-def ElementwiseAbsModule_basic(module, tu: TestUtils):
+def ElementwiseAbsFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5, low=-1.0, high=1.0))
 
 
