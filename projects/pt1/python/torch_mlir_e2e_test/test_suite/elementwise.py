@@ -2129,7 +2129,7 @@ class ElementwiseAbsFloatModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseAbsFloatModule())
 def ElementwiseAbsFloatModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5, low=-1.0, high=1.0))
+    module.forward(torch.tensor([[[-1.0, 0.0, 1.0]]]))
 
 
 # ==============================================================================
@@ -2151,7 +2151,7 @@ class ElementwiseAbsIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseAbsIntModule())
 def ElementwiseAbsIntModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(3, 4, 5, low=-1, high=1))
+    module.forward(torch.tensor([[[-1, 0, 1]]]))
 
 
 # ==============================================================================
