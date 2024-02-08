@@ -35,6 +35,11 @@ TORCHDYNAMO_XFAIL_SET = {
     "ConvolutionBackwardModule2DPadded_basic",
     "ConvolutionBackwardModule2D_basic",
 
+    # Size result mismatch (exposed by downstream canonicalizer
+    # on incompatabile casts).
+    # https://github.com/pytorch/pytorch/issues/119407
+    "ConvolutionBackwardModule2DStrided_basic",
+
     # RuntimeError: Index tensor must have the same number of dimensions as self tensor
     # RuntimeError: Failed running call_function aten.nll_loss_backward(...
     # https://github.com/pytorch/pytorch/issues/89630
