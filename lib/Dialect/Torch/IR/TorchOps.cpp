@@ -2992,6 +2992,126 @@ OpFoldResult AtenCeilFloatOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenWhereSelfOp
+//===----------------------------------------------------------------------===//
+
+static Attribute getBroadcastedAttr(Attribute attr, ValueTensorType ty) {
+  if (!attr || !ty.hasDtype() || !ty.hasSizes())
+    return nullptr;
+
+  auto dty = ty.getDtype();
+
+  if (auto valueDense = dyn_cast<DenseElementsAttr>(attr)) {
+    if (!valueDense.isSplat())
+      return nullptr;
+    auto splattr = valueDense.getSplatValue<Attribute>();
+    auto attrty = ty.toBuiltinTensor().clone(dty);
+    return DenseElementsAttr::get(attrty, splattr);
+  }
+
+  if (auto intAttr = dyn_cast_or_null<IntegerAttr>(attr)) {
+    if (!isa<mlir::IntegerType>(dty))
+      return nullptr;
+    int64_t intval = intAttr.getInt();
+    auto attrty = ty.toBuiltinTensor().clone(dty);
+    return DenseElementsAttr::get(attrty, IntegerAttr::get(dty, intval));
+  }
+
+  if (auto fpAttr = dyn_cast_or_null<FloatAttr>(attr)) {
+    if (!isa<mlir::FloatType>(dty))
+      return nullptr;
+    double dblval = fpAttr.getValueAsDouble();
+    auto attrty = ty.toBuiltinTensor().clone(dty);
+    return DenseElementsAttr::get(attrty, FloatAttr::get(dty, dblval));
+  }
+
+  return nullptr;
+}
+
+OpFoldResult AtenWhereSelfOp::fold(FoldAdaptor adaptor) {
+  auto dense = dyn_cast_or_null<DenseElementsAttr>(adaptor.getCondition());
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasDtype() || !resultTy.hasSizes() || !dense ||
+      !dense.isSplat())
+    return nullptr;
+
+  auto condattr = dense.getSplatValue<APInt>();
+  auto value = getSelf();
+  auto valueAttr = adaptor.getSelf();
+  if (condattr.isZero()) {
+    value = getOther();
+    valueAttr = adaptor.getOther();
+  }
+
+  auto valueTy = dyn_cast<ValueTensorType>(value.getType());
+  if (valueTy && valueTy.hasSizes() && valueTy.hasDtype() &&
+      valueTy == resultTy)
+    return value;
+
+  return getBroadcastedAttr(valueAttr, resultTy);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenWhereScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenWhereScalarOp::fold(FoldAdaptor adaptor) {
+  auto dense = dyn_cast_or_null<DenseElementsAttr>(adaptor.getCondition());
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasDtype() || !resultTy.hasSizes() || !dense ||
+      !dense.isSplat())
+    return nullptr;
+
+  auto condattr = dense.getSplatValue<APInt>();
+  auto valueAttr = adaptor.getSelf();
+  if (condattr.isZero()) {
+    valueAttr = adaptor.getOther();
+  }
+
+  return getBroadcastedAttr(valueAttr, resultTy);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenWhereScalarOtherOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenWhereScalarOtherOp::fold(FoldAdaptor adaptor) {
+  auto dense = dyn_cast_or_null<DenseElementsAttr>(adaptor.getCondition());
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasDtype() || !resultTy.hasSizes() || !dense ||
+      !dense.isSplat())
+    return nullptr;
+
+  auto condattr = dense.getSplatValue<APInt>();
+  auto valueAttr = adaptor.getSelf();
+  if (condattr.isZero()) {
+    valueAttr = adaptor.getOther();
+  }
+
+  return getBroadcastedAttr(valueAttr, resultTy);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenWhereScalarSelfOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenWhereScalarSelfOp::fold(FoldAdaptor adaptor) {
+  auto dense = dyn_cast_or_null<DenseElementsAttr>(adaptor.getCondition());
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasDtype() || !resultTy.hasSizes() || !dense ||
+      !dense.isSplat())
+    return nullptr;
+
+  auto condattr = dense.getSplatValue<APInt>();
+  auto valueAttr = adaptor.getSelf();
+  if (condattr.isZero()) {
+    valueAttr = adaptor.getOther();
+  }
+
+  return getBroadcastedAttr(valueAttr, resultTy);
+}
+
+//===----------------------------------------------------------------------===//
 // PrimMaxIntOp
 //===----------------------------------------------------------------------===//
 
