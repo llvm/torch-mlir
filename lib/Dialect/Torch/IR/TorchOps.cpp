@@ -2912,6 +2912,91 @@ OpFoldResult AtenDivIntOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenIndexSelectOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
+  auto self = getSelf();
+  auto index = getIndex();
+  auto selfTy = dyn_cast<ValueTensorType>(self.getType());
+  auto indexTy = dyn_cast<ValueTensorType>(index.getType());
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!selfTy || !indexTy || !resultTy || !selfTy.hasSizes() ||
+      !indexTy.hasSizes() || !resultTy.hasSizes() || !selfTy.hasDtype() ||
+      !indexTy.hasDtype() || !resultTy.hasDtype())
+    return nullptr;
+
+  auto selfSizes = selfTy.getSizes();
+  auto indexSizes = indexTy.getSizes();
+  auto resultSizes = resultTy.getSizes();
+
+  if (selfTy.getDtype() != resultTy.getDtype() ||
+      selfSizes.size() != resultSizes.size() || indexSizes.size() != 1)
+    return nullptr;
+
+  // If the selection results in a tensor of the same dimensions as the
+  // input, the selection must have specified every index of the input,
+  // so the result is exactly the same as the input.
+
+  bool fullTensor = true;
+  for (int i = 0, s = selfSizes.size(); i < s; ++i) {
+    fullTensor &= selfSizes[i] == resultSizes[i];
+    fullTensor &= selfSizes[i] != Torch::kUnknownSize;
+    fullTensor &= resultSizes[i] != Torch::kUnknownSize;
+  }
+
+  if (fullTensor && indexSizes[0] == 1)
+    return self;
+
+  // If the input tensor, index dimension, or indexes are non-constant,
+  // can't fold.
+
+  auto selfAttr = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto dimAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
+  auto indexAttr = dyn_cast_or_null<DenseElementsAttr>(adaptor.getIndex());
+
+  if (!selfAttr || !dimAttr || !indexAttr)
+    return {};
+
+  // If the input's dimensions are all 1 except for one dimension, and if
+  // there is a single index in the index list (as detected by the result
+  // dimension being 1), then fold to a <1x1x...x1> tensor literal containing
+  // a single element.  Handles float and int types.
+
+  int64_t dimInt = dimAttr.getInt();
+  // If the selected dim is negative, count backwards from the last dim
+  if (dimInt < 0)
+    dimInt = selfSizes.size() + dimInt;
+  assert(uint64_t(dimInt) < selfSizes.size() &&
+         "Selected dim > number of dims");
+
+  for (int i = 0, s = selfSizes.size(); i < s; ++i) {
+    if ((selfSizes[i] != 1 && i != dimInt) || resultSizes[i] != 1)
+      return nullptr;
+  }
+
+  // Get the single index value for the selected dimension
+  auto splatValue = indexAttr.getSplatValue<IntegerAttr>();
+  int64_t indexInt = getIntAttrAsIndex(splatValue, selfSizes[dimInt]);
+
+  // Extract the single constant value from the input tensor and turn the
+  // extracted value into a single-element tensor of the output shape and dtype
+  auto splattr = selfAttr.getValues<Attribute>()[indexInt];
+
+  auto dty = resultTy.getDtype();
+  auto attrTy = resultTy.toBuiltinTensor().clone(dty);
+  if (auto floatAttr = dyn_cast<FloatAttr>(splattr))
+    return DenseElementsAttr::get(
+        attrTy, FloatAttr::get(dty, floatAttr.getValueAsDouble()));
+
+  if (auto intAttr = dyn_cast<IntegerAttr>(splattr)) {
+    return DenseElementsAttr::get(attrTy,
+                                  IntegerAttr::get(dty, intAttr.getValue()));
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenItemOp
 //===----------------------------------------------------------------------===//
 
