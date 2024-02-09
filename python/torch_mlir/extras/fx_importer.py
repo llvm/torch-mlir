@@ -209,7 +209,7 @@ SYMBOLIC_OP_TO_TORCH_OP = {
 
 
 def sparsity_encoding(
-    shape: torch.Size, sparse_layout: torch.layout, posw: int, crdw: int
+    shape: torch.Size, sparsity: Tuple[torch.layout, int, int]
 ) -> str:
     """Returns sparse tensor encoding for the given sparse layout as string.
 
@@ -218,6 +218,7 @@ def sparsity_encoding(
     and suffix dense subtensor dimensions. Since MLIR supports a superset of what
     is currently implememented in torch.sparse, this should not a be problem.
     """
+    sparse_layout, posw, crdw = sparsity
 
     # TODO: any rank
     if len(shape) != 2:
@@ -491,8 +492,7 @@ class ContextCache:
         shape_asm = self.format_asm_shape(shape)
         mlir_dtype = str(self.dtype_to_type(dtype))
         if sparsity is not None:
-            sparse_layout, posw, crdw = sparsity
-            encoding = sparsity_encoding(shape, sparse_layout, posw, crdw)
+            encoding = sparsity_encoding(shape, sparsity)
             return IrType.parse(
                 f"!torch.vtensor<[{shape_asm}],{str(mlir_dtype)},{encoding}>",
                 context=self._c,
