@@ -360,10 +360,11 @@ class FxImporter:
                 ) from e
             arg_replacements[input_name] = state_value
 
-        # Remove tensor constant placeholders and have them as actual constants
+        # Find the arg replacements for tensor_constant placeholders
+        tensor_dict = prog.tensor_constants
         for input_name, tensor_name in sig.inputs_to_lifted_tensor_constants.items():
             try:
-                tensor_value = prog.tensor_constants[tensor_name]
+                tensor_value = tensor_dict[tensor_name]
             except KeyError as e:
                 raise AssertionError(
                     "Could not find state mapping for parameter"
@@ -378,6 +379,12 @@ class FxImporter:
                 replacement = arg_replacements.get(node.name)
                 if replacement is None:
                     continue
+                # remove the clone op (unnecessary extra copy due to torch.tensor())
+                # this is only for efficiency (no functional changes)
+                keys = list(node.users.keys())
+                if (len(node.users) == 1 and keys[0].target == torch.ops.aten.clone.default):
+                    keys[0].replace_all_uses_with(replacement)
+                    g.erase_node(keys[0])
                 node.replace_all_uses_with(replacement)
                 g.erase_node(node)
 
