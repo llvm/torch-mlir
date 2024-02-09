@@ -2332,3 +2332,216 @@ func.func @torch.aten.index_select$const_f32_si_neg() -> !torch.vtensor<[1],f32>
   %0 = torch.aten.index_select %tensor, %dim, %index : !torch.vtensor<[10],f32>, !torch.int, !torch.vtensor<[1],si64> -> !torch.vtensor<[1],f32>
   return %0 : !torch.vtensor<[1],f32>
 }
+
+// -----
+
+// CHECK-LABEL: @fold_aten_where_true_attr
+func.func @fold_aten_where_true_attr() -> !torch.vtensor<[4],si64> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<7> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  // CHECK: return %[[RET]]
+  %bool = torch.vtensor.literal(dense<1> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  %lhs = torch.vtensor.literal(dense<7> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %rhs = torch.vtensor.literal(dense<11> : tensor<si64>) : !torch.vtensor<[],si64>
+  %where = torch.aten.where.self %bool, %lhs, %rhs : !torch.vtensor<[4],i1>, !torch.vtensor<[4],si64>, !torch.vtensor<[],si64> -> !torch.vtensor<[4],si64>
+  return %where : !torch.vtensor<[4],si64>
+}
+
+// -----
+
+// CHECK-LABEL: @fold_aten_where_false_attr
+func.func @fold_aten_where_false_attr() -> !torch.vtensor<[4],si64> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<11> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  // CHECK: return %[[RET]]
+  %bool = torch.vtensor.literal(dense<0> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  %lhs = torch.vtensor.literal(dense<7> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %rhs = torch.vtensor.literal(dense<11> : tensor<si64>) : !torch.vtensor<[],si64>
+  %where = torch.aten.where.self %bool, %lhs, %rhs : !torch.vtensor<[4],i1>, !torch.vtensor<[4],si64>, !torch.vtensor<[],si64> -> !torch.vtensor<[4],si64>
+  return %where : !torch.vtensor<[4],si64>
+}
+
+// -----
+
+// CHECK-LABEL: @fold_aten_where_true_value
+func.func @fold_aten_where_true_value(%arg0 : !torch.vtensor<[4],si64>, %arg1 : !torch.vtensor<[4],si64>) -> !torch.vtensor<[4],si64> {
+  // CHECK: return %arg0
+  %bool = torch.vtensor.literal(dense<1> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  %where = torch.aten.where.self %bool, %arg0, %arg1 : !torch.vtensor<[4],i1>, !torch.vtensor<[4],si64>, !torch.vtensor<[4],si64> -> !torch.vtensor<[4],si64>
+  return %where : !torch.vtensor<[4],si64>
+}
+
+// -----
+
+// CHECK-LABEL: @fold_aten_where_false_value
+func.func @fold_aten_where_false_value(%arg0 : !torch.vtensor<[4],si64>, %arg1 : !torch.vtensor<[4],si64>) -> !torch.vtensor<[4],si64> {
+  // CHECK: return %arg1
+  %bool = torch.vtensor.literal(dense<0> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  %where = torch.aten.where.self %bool, %arg0, %arg1 : !torch.vtensor<[4],i1>, !torch.vtensor<[4],si64>, !torch.vtensor<[4],si64> -> !torch.vtensor<[4],si64>
+  return %where : !torch.vtensor<[4],si64>
+}
+
+
+// -----
+
+// CHECK-LABEL: @fold_aten_where_true_value_nofold
+func.func @fold_aten_where_true_value_nofold(%arg0 : !torch.vtensor<[],si64>, %arg1 : !torch.vtensor<[4],si64>) -> !torch.vtensor<[4],si64> {
+  // CHECK: torch.aten.where.self
+  %bool = torch.vtensor.literal(dense<1> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  %where = torch.aten.where.self %bool, %arg0, %arg1 : !torch.vtensor<[4],i1>, !torch.vtensor<[],si64>, !torch.vtensor<[4],si64> -> !torch.vtensor<[4],si64>
+  return %where : !torch.vtensor<[4],si64>
+}
+
+// -----
+
+// CHECK-LABEL: @fold_aten_where_true_scalar_int
+func.func @fold_aten_where_true_scalar_int() -> !torch.vtensor<[4],si64> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<7> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  // CHECK: return %[[RET]]
+  %bool = torch.vtensor.literal(dense<1> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  %lhs = torch.constant.int 7
+  %rhs = torch.constant.int 11
+  %where = torch.aten.where.Scalar %bool, %lhs, %rhs : !torch.vtensor<[4],i1>, !torch.int, !torch.int -> !torch.vtensor<[4],si64>
+  return %where : !torch.vtensor<[4],si64>
+}
+
+// -----
+
+// CHECK-LABEL: @fold_aten_where_false_scalar_int
+func.func @fold_aten_where_false_scalar_int() -> !torch.vtensor<[4],ui8> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<11> : tensor<4xui8>) : !torch.vtensor<[4],ui8>
+  // CHECK: return %[[RET]]
+  %bool = torch.vtensor.literal(dense<0> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  %lhs = torch.constant.int 7
+  %rhs = torch.constant.int 11
+  %where = torch.aten.where.Scalar %bool, %lhs, %rhs : !torch.vtensor<[4],i1>, !torch.int, !torch.int -> !torch.vtensor<[4],ui8>
+  return %where : !torch.vtensor<[4],ui8>
+}
+
+// -----
+
+// CHECK-LABEL: @fold_aten_where_false_scalar_fp
+func.func @fold_aten_where_false_scalar_fp() -> !torch.vtensor<[4],f32> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<1.100000e+01> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  // CHECK: return %[[RET]]
+  %bool = torch.vtensor.literal(dense<0> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  %lhs = torch.constant.float 7.0
+  %rhs = torch.constant.float 11.0
+  %where = torch.aten.where.Scalar %bool, %lhs, %rhs : !torch.vtensor<[4],i1>, !torch.float, !torch.float -> !torch.vtensor<[4],f32>
+  return %where : !torch.vtensor<[4],f32>
+}
+
+// -----
+
+// CHECK-LABEL: @fold_aten_where_true_sother_int
+func.func @fold_aten_where_true_sother_int() -> !torch.vtensor<[4],si64> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<7> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  // CHECK: %[[RET]]
+  %bool = torch.vtensor.literal(dense<1> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  %lhs = torch.vtensor.literal(dense<7> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %rhs = torch.constant.int 11
+  %where = torch.aten.where.ScalarOther %bool, %lhs, %rhs : !torch.vtensor<[4],i1>, !torch.vtensor<[4],si64>, !torch.int -> !torch.vtensor<[4],si64>
+  return %where : !torch.vtensor<[4],si64>
+}
+
+
+// -----
+
+// CHECK-LABEL: @fold_aten_where_false_sother_int
+func.func @fold_aten_where_false_sother_int() -> !torch.vtensor<[4],ui8> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<11> : tensor<4xui8>) : !torch.vtensor<[4],ui8>
+  // CHECK: return %[[RET]]
+  %bool = torch.vtensor.literal(dense<0> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  %lhs = torch.vtensor.literal(dense<7> : tensor<ui8>) : !torch.vtensor<[],ui8>
+  %rhs = torch.constant.int 11
+  %where = torch.aten.where.ScalarOther %bool, %lhs, %rhs : !torch.vtensor<[4],i1>, !torch.vtensor<[],ui8>, !torch.int -> !torch.vtensor<[4],ui8>
+  return %where : !torch.vtensor<[4],ui8>
+}
+
+// -----
+
+// CHECK-LABEL: @fold_aten_where_false_sother_fp
+func.func @fold_aten_where_false_sother_fp() -> !torch.vtensor<[4],f32> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<1.100000e+01> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  // CHECK: %[[RET]]
+  %bool = torch.vtensor.literal(dense<0> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  %lhs = torch.vtensor.literal(dense<7.0> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %rhs = torch.constant.float 11.0
+  %where = torch.aten.where.ScalarOther %bool, %lhs, %rhs : !torch.vtensor<[4],i1>, !torch.vtensor<[4],f32>, !torch.float -> !torch.vtensor<[4],f32>
+  return %where : !torch.vtensor<[4],f32>
+}
+
+
+// -----
+
+// CHECK-LABEL: @fold_aten_where_true_sself_int
+func.func @fold_aten_where_true_sself_int() -> !torch.vtensor<[4],si64> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<7> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  // CHECK: %[[RET]]
+  %bool = torch.vtensor.literal(dense<1> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  %lhs = torch.constant.int 7
+  %rhs = torch.vtensor.literal(dense<11> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %where = torch.aten.where.ScalarSelf %bool, %lhs, %rhs : !torch.vtensor<[4],i1>, !torch.int, !torch.vtensor<[4],si64> -> !torch.vtensor<[4],si64>
+  return %where : !torch.vtensor<[4],si64>
+}
+
+// -----
+
+// CHECK-LABEL: @fold_aten_where_false_sself_int
+func.func @fold_aten_where_false_sself_int() -> !torch.vtensor<[4],ui8> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<11> : tensor<4xui8>) : !torch.vtensor<[4],ui8>
+  // CHECK: return %[[RET]]
+  %bool = torch.vtensor.literal(dense<0> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  %lhs = torch.constant.int 7
+  %rhs = torch.vtensor.literal(dense<11> : tensor<ui8>) : !torch.vtensor<[],ui8>
+  %where = torch.aten.where.ScalarSelf %bool, %lhs, %rhs : !torch.vtensor<[4],i1>, !torch.int, !torch.vtensor<[],ui8> -> !torch.vtensor<[4],ui8>
+  return %where : !torch.vtensor<[4],ui8>
+}
+
+// -----
+
+// CHECK-LABEL: @fold_aten_where_false_sself_fp
+func.func @fold_aten_where_false_sself_fp() -> !torch.vtensor<[4],f32> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<1.100000e+01> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  // CHECK: %[[RET]]
+  %bool = torch.vtensor.literal(dense<0> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  %lhs = torch.constant.float 7.0
+  %rhs = torch.vtensor.literal(dense<11.0> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %where = torch.aten.where.ScalarSelf %bool, %lhs, %rhs : !torch.vtensor<[4],i1>, !torch.float, !torch.vtensor<[4],f32> -> !torch.vtensor<[4],f32>
+  return %where : !torch.vtensor<[4],f32>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_select_int_fold_splat
+func.func @aten_select_int_fold_splat(%arg0 : !torch.int, %arg1 : !torch.int) -> !torch.vtensor<[1],si64> {
+  %splat = torch.vtensor.literal(dense<4> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %select = torch.aten.select.int %splat, %arg0, %arg1 : !torch.vtensor<[4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<4> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+  // CHECK: return %[[RET]]
+  return %select : !torch.vtensor<[1],si64>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_select_int_fold_1D
+func.func @aten_select_int_fold_1D() -> !torch.vtensor<[1],si64> {
+  %index = torch.constant.int 1
+  %dim = torch.constant.int 0
+  %splat = torch.vtensor.literal(dense<[5,6,7,8]> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %select = torch.aten.select.int %splat, %dim, %index : !torch.vtensor<[4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<6> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+  // CHECK: return %[[RET]]
+  return %select : !torch.vtensor<[1],si64>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_select_int_fold_3D
+func.func @aten_select_int_fold_3D() -> !torch.vtensor<[1, 1, 1],si64> {
+  %index = torch.constant.int 2
+  %dim = torch.constant.int 2
+  %splat = torch.vtensor.literal(dense<[[[5,6,7,8]]]> : tensor<1x1x4xsi64>) : !torch.vtensor<[1,1,4],si64>
+  %select = torch.aten.select.int %splat, %dim, %index : !torch.vtensor<[1,1,4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1,1,1],si64>
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<7> : tensor<1x1x1xsi64>) : !torch.vtensor<[1,1,1],si64>
+  // CHECK: return %[[RET]]
+  return %select : !torch.vtensor<[1,1,1],si64>
+}
