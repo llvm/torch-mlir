@@ -512,8 +512,8 @@ public:
       resultShape.insert(resultShape.end(), {lhsDim0, rhsDim1});
       Value zeroTensor =
           createZeroInitTensor(rewriter, loc, resultShape, elementType);
-      auto indexingMaps =
-          AffineMap::inferFromExprList({lhsExpr, rhsExpr, outExpr});
+      auto indexingMaps = AffineMap::inferFromExprList(
+          {lhsExpr, rhsExpr, outExpr}, rewriter.getContext());
       iteratorTypes.insert(iteratorTypes.end(),
                            {utils::IteratorType::parallel,
                             utils::IteratorType::reduction,
