@@ -2545,3 +2545,111 @@ func.func @aten_select_int_fold_3D() -> !torch.vtensor<[1, 1, 1],si64> {
   // CHECK: return %[[RET]]
   return %select : !torch.vtensor<[1,1,1],si64>
 }
+
+// -----
+
+
+// CHECK-LABEL: @aten_eq_tensor_args
+func.func @aten_eq_tensor_args(%arg0 : !torch.vtensor<[4],si64>) -> !torch.vtensor<[4],i1> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<true> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[RET]]
+  %0 = torch.aten.eq.Tensor %arg0, %arg0 : !torch.vtensor<[4],si64>, !torch.vtensor<[4],si64> -> !torch.vtensor<[4],i1>
+  return %0 : !torch.vtensor<[4],i1>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_eq_tensor_splats_int_false
+func.func @aten_eq_tensor_splats_int_false() -> !torch.vtensor<[4],i1> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<false> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[RET]]
+  %lhs = torch.vtensor.literal(dense<4> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %rhs = torch.vtensor.literal(dense<5> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %0 = torch.aten.eq.Tensor %lhs, %rhs : !torch.vtensor<[4],si64>, !torch.vtensor<[4],si64> -> !torch.vtensor<[4],i1>
+  return %0 : !torch.vtensor<[4],i1>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_eq_tensor_splats_int_true
+func.func @aten_eq_tensor_splats_int_true() -> !torch.vtensor<[4],i1> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<true> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[RET]]
+  %lhs = torch.vtensor.literal(dense<5> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %rhs = torch.vtensor.literal(dense<5> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %0 = torch.aten.eq.Tensor %lhs, %rhs : !torch.vtensor<[4],si64>, !torch.vtensor<[4],si64> -> !torch.vtensor<[4],i1>
+  return %0 : !torch.vtensor<[4],i1>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_eq_tensor_splats_fp_false
+func.func @aten_eq_tensor_splats_fp_false() -> !torch.vtensor<[4],i1> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<false> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[RET]]
+  %lhs = torch.vtensor.literal(dense<4.0> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %rhs = torch.vtensor.literal(dense<5.0> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %0 = torch.aten.eq.Tensor %lhs, %rhs : !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32> -> !torch.vtensor<[4],i1>
+  return %0 : !torch.vtensor<[4],i1>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_eq_tensor_splats_fp_true
+func.func @aten_eq_tensor_splats_fp_true() -> !torch.vtensor<[4],i1> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<true> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[RET]]
+  %lhs = torch.vtensor.literal(dense<5.0> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %rhs = torch.vtensor.literal(dense<5.0> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %0 = torch.aten.eq.Tensor %lhs, %rhs : !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32> -> !torch.vtensor<[4],i1>
+  return %0 : !torch.vtensor<[4],i1>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_eq_tensor_splat_dense_fp
+func.func @aten_eq_tensor_splat_dense_fp() -> !torch.vtensor<[4],i1> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<[false, true, false, true]> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[RET]]
+  %lhs = torch.vtensor.literal(dense<5.0> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %rhs = torch.vtensor.literal(dense<[4.0, 5.0, 6.0, 5.0]> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %0 = torch.aten.eq.Tensor %lhs, %rhs : !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32> -> !torch.vtensor<[4],i1>
+  return %0 : !torch.vtensor<[4],i1>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_eq_tensor_dense_fp
+func.func @aten_eq_tensor_dense_fp() -> !torch.vtensor<[4],i1> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<[true, false, true, false]> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[RET]]
+  %lhs = torch.vtensor.literal(dense<[4.0, 5.5, 6.0, 6.4]> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %rhs = torch.vtensor.literal(dense<[4.0, 5.0, 6.0, 5.0]> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %0 = torch.aten.eq.Tensor %lhs, %rhs : !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32> -> !torch.vtensor<[4],i1>
+  return %0 : !torch.vtensor<[4],i1>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_eq_tensor_splat_dense_int
+func.func @aten_eq_tensor_splat_dense_int() -> !torch.vtensor<[4],i1> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<[false, true, false, true]> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[RET]]
+  %lhs = torch.vtensor.literal(dense<5> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %rhs = torch.vtensor.literal(dense<[4, 5, 6, 5]> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %0 = torch.aten.eq.Tensor %lhs, %rhs : !torch.vtensor<[4],si64>, !torch.vtensor<[4],si64> -> !torch.vtensor<[4],i1>
+  return %0 : !torch.vtensor<[4],i1>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_eq_tensor_dense_int
+func.func @aten_eq_tensor_dense_int() -> !torch.vtensor<[4],i1> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<[true, true, true, false]> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[RET]]
+  %lhs = torch.vtensor.literal(dense<[4, 5, 6, 6]> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %rhs = torch.vtensor.literal(dense<[4, 5, 6, 5]> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %0 = torch.aten.eq.Tensor %lhs, %rhs : !torch.vtensor<[4],si64>, !torch.vtensor<[4],si64> -> !torch.vtensor<[4],i1>
+  return %0 : !torch.vtensor<[4],i1>
+}
+

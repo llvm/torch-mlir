@@ -1167,6 +1167,108 @@ void AtenMulTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenEqTensorOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenEqTensorOp::fold(FoldAdaptor adaptor) {
+  constexpr int64_t kMaxFold = 16;
+  auto ty = dyn_cast<ValueTensorType>(getType());
+  if (!ty || !ty.hasDtype() || !ty.hasSizes())
+    return nullptr;
+
+  auto bty = ty.toBuiltinTensor().clone(ty.getDtype());
+  if (!bty.hasStaticShape())
+    return nullptr;
+
+  if (getSelf() == getOther())
+    return DenseElementsAttr::get(bty,
+                                  IntegerAttr::get(bty.getElementType(), 1));
+
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto other = dyn_cast_or_null<DenseElementsAttr>(adaptor.getOther());
+  if (!self || !other)
+    return nullptr;
+
+  auto selfTy = dyn_cast<ShapedType>(self.getType());
+  auto otherTy = dyn_cast<ShapedType>(other.getType());
+  if (!selfTy || !otherTy ||
+      selfTy.getElementType() != otherTy.getElementType())
+    return nullptr;
+
+  // If both values are splats we can just compute the output value as a splat.
+  if (self.isSplat() && other.isSplat()) {
+    if (isa<mlir::FloatType>(selfTy.getElementType())) {
+      APFloat lhsFp = self.getSplatValue<APFloat>();
+      APFloat rhsFp = other.getSplatValue<APFloat>();
+      bool eq = lhsFp.compare(rhsFp) == APFloat::cmpEqual;
+      return DenseElementsAttr::get(bty, eq);
+    }
+
+    if (isa<mlir::IntegerType>(selfTy.getElementType())) {
+      APInt lhsInt = self.getSplatValue<APInt>();
+      APInt rhsInt = other.getSplatValue<APInt>();
+      bool eq = lhsInt == rhsInt;
+      return DenseElementsAttr::get(bty, eq);
+    }
+
+    return nullptr;
+  }
+
+  if (selfTy != otherTy || bty.getNumElements() > kMaxFold)
+    return nullptr;
+
+  if (isa<mlir::FloatType>(selfTy.getElementType())) {
+    auto extract = [bty](DenseElementsAttr attr) {
+      llvm::SmallVector<APFloat> vals;
+      if (attr.isSplat()) {
+        vals.resize(bty.getNumElements(), attr.getSplatValue<APFloat>());
+        return vals;
+      }
+
+      for (auto fp : attr.getValues<APFloat>()) {
+        vals.push_back(fp);
+      }
+      return vals;
+    };
+
+    llvm::SmallVector<APFloat> lhsFp = extract(self);
+    llvm::SmallVector<APFloat> rhsFp = extract(other);
+    llvm::SmallVector<bool> vals(bty.getNumElements());
+    for (int i = 0, s = bty.getNumElements(); i < s; ++i) {
+      vals[i] = lhsFp[i].compare(rhsFp[i]) == APFloat::cmpEqual;
+    }
+
+    return DenseElementsAttr::get(bty, vals);
+  }
+
+  if (isa<mlir::IntegerType>(selfTy.getElementType())) {
+    auto extract = [bty](DenseElementsAttr attr) {
+      llvm::SmallVector<APInt> vals;
+      if (attr.isSplat()) {
+        vals.resize(bty.getNumElements(), attr.getSplatValue<APInt>());
+        return vals;
+      }
+
+      for (auto fp : attr.getValues<APInt>()) {
+        vals.push_back(fp);
+      }
+      return vals;
+    };
+
+    llvm::SmallVector<APInt> lhsInt = extract(self);
+    llvm::SmallVector<APInt> rhsInt = extract(other);
+    llvm::SmallVector<bool> vals(bty.getNumElements());
+    for (int i = 0, s = bty.getNumElements(); i < s; ++i) {
+      vals[i] = lhsInt[i] == rhsInt[i];
+    }
+
+    return DenseElementsAttr::get(bty, vals);
+  }
+
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenFloorOp
 //===----------------------------------------------------------------------===//
 void AtenFloorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
