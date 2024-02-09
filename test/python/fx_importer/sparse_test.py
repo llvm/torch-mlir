@@ -44,7 +44,7 @@ def sparse_overhead_width(d: torch.dtype) -> int:
 
 
 def sparse_metadata(a: torch.Tensor) -> Tuple[torch.layout, int, int]:
-    """Returns pair of bit-widths for admissible overhead types of sparse tensor."""
+    """Returns a meta data tuple for the given sparse tensor."""
     if a.layout is torch.sparse_coo:
         return (
             a.layout,
@@ -98,7 +98,6 @@ def sparse_export(
     for i, node in enumerate(prog.graph.nodes):
         if node.op == "placeholder" and i < alen and mask[i]:
             node.meta["sparsity"] = sparse_metadata(args[i])
-    # TODO: annotate inputs to change calling conventions!
     return prog
 
 
