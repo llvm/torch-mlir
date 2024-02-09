@@ -197,7 +197,8 @@ Value torch_to_linalg::createReductionLinalgGeneric(
     }
   }
 
-  auto indexingMaps = AffineMap::inferFromExprList({exprs, resultExprs});
+  auto indexingMaps =
+      AffineMap::inferFromExprList({exprs, resultExprs}, b.getContext());
   Value accumulator =
       createInitTensor(b, loc, resultShape, initElem.getType(), initElem);
 
