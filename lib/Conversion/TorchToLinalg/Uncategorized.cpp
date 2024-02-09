@@ -424,8 +424,11 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         b.create<arith::ConstantOp>(loc, b.getFloatAttr(floatDtype, 0));
     return createEqual(b, loc, floatDtype, self, zero);
   }
-  if (isa<AtenAbsOp>(op))
+  if (isa<AtenAbsOp>(op)) {
+    if (payloadArgs[0].getType().isa<IntegerType>())
+      return b.create<math::AbsIOp>(loc, payloadArgs[0]);
     return b.create<math::AbsFOp>(loc, payloadArgs[0]);
+  }
   if (isa<AtenIsinfOp>(op)) {
     Value abs = b.create<math::AbsFOp>(loc, payloadArgs[0]);
     Value infinity = b.create<arith::ConstantOp>(

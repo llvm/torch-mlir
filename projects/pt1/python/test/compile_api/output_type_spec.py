@@ -7,7 +7,7 @@
 
 import torch
 
-import torch_mlir
+from torch_mlir import torchscript
 
 class TanhModule(torch.nn.Module):
     def __init__(self):
@@ -17,9 +17,9 @@ class TanhModule(torch.nn.Module):
 
 tanh_example_input = torch.ones(2, 3)
 
-print(torch_mlir.compile(TanhModule(), tanh_example_input, output_type=torch_mlir.OutputType.TORCH))
+print(torchscript.compile(TanhModule(), tanh_example_input, output_type=torchscript.OutputType.TORCH))
 # CHECK-LABEL: @forward
 # CHECK: torch.aten.tanh %{{.*}} : !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>
-print(torch_mlir.compile(TanhModule(), tanh_example_input, output_type="torch"))
+print(torchscript.compile(TanhModule(), tanh_example_input, output_type="torch"))
 # CHECK-LABEL: @forward
 # CHECK: torch.aten.tanh %{{.*}} : !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>

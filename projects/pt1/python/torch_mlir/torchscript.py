@@ -22,7 +22,7 @@ from torch_mlir.jit_ir_importer.build_tools.library_generator import generate_li
 
 
 class OutputType(Enum):
-    """The kind of output that `torch_mlir.compile` can produce.
+    """The kind of output that `torchscript.compile` can produce.
 
     In MLIR terminology, this describes the mix of dialects that will be
     produced by the conversion process.
@@ -392,13 +392,13 @@ def compile(model: torch.nn.Module,
         strip_overloads(model)
 
     # Get the model as JIT IR (TorchScript) for import.
-    # TODO: Longer-term, we probably need to split `torch_mlir.compile`.
+    # TODO: Longer-term, we probably need to split `torchscript.compile`.
     # There should be an "acquisition" step that does
     # tracing/scripting/importing from FX/using torchdynamo.export/etc.
     # + any lowering to the backend contract. Then there should be a
     # "backend lowering" step that does the actual lowering to each
     # backend. This separation should be visible at the Python API level, and
-    # we can implement a deliberately simplified API like `torch_mlir.compile`
+    # we can implement a deliberately simplified API like `torchscript.compile`
     # on top of those building blocks.
     if isinstance(model, torch.jit.ScriptModule):
         # If the user already converted the model to JIT IR themselves, just

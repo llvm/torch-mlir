@@ -2113,7 +2113,7 @@ def ElementwiseRsqrtIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class ElementwiseAbsModule(torch.nn.Module):
+class ElementwiseAbsFloatModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -2127,9 +2127,31 @@ class ElementwiseAbsModule(torch.nn.Module):
         return torch.abs(a)
 
 
-@register_test_case(module_factory=lambda: ElementwiseAbsModule())
-def ElementwiseAbsModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5, low=-1.0, high=1.0))
+@register_test_case(module_factory=lambda: ElementwiseAbsFloatModule())
+def ElementwiseAbsFloatModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[[-1.0, 0.0, 1.0]]]))
+
+
+# ==============================================================================
+
+
+class ElementwiseAbsIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.abs(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAbsIntModule())
+def ElementwiseAbsIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[[-1, 0, 1]]]))
 
 
 # ==============================================================================

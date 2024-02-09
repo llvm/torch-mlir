@@ -3,7 +3,7 @@
 import gc
 import sys
 import torch
-import torch_mlir
+from torch_mlir import torchscript
 
 
 def run_test(f):
@@ -26,7 +26,7 @@ class TinyModel(torch.nn.Module):
 # CHECK-LABEL: TEST: test_enable_ir_printing
 @run_test
 def test_enable_ir_printing():
-    torch_mlir.compile(TinyModel(),
+    torchscript.compile(TinyModel(),
                        torch.ones(1, 3, 20, 20),
                        output_type="linalg-on-tensors",
                        enable_ir_printing=True)
