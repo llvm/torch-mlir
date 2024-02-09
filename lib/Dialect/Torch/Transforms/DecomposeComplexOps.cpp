@@ -1056,6 +1056,54 @@ public:
 };
 } // namespace
 
+namespace {
+// Calculate the trace of the input tensor as the sum over its diagonal
+// elements. This computation is performed as:
+//
+// Step1: Obtain the diagonal using AtenDiagonalOp
+// Step2: Compute the trace using AtenSumOp.
+//
+// It is verified that the input tensor has rank two.
+class DecomposeAtenTraceOp : public OpRewritePattern<AtenTraceOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTraceOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    std::optional<unsigned> inRank = getTensorRank(self);
+    if (inRank != 2)
+      return rewriter.notifyMatchFailure(
+          op, "Expected input tensor to have rank 2.");
+
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value zero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    BaseTensorType inputType = self.getType().cast<BaseTensorType>();
+
+    Value output = op.getResult();
+    BaseTensorType outputType = output.getType().cast<BaseTensorType>();
+
+    ArrayRef<int64_t> inputShape = inputType.getSizes();
+    int64_t diagonalSize = std::min(inputShape[0], inputShape[1]);
+    SmallVector<int64_t> diagonalShape{diagonalSize};
+    Type elementType = inputType.getOptionalDtype();
+    Type diagonalType = inputType.getWithSizesAndDtype(
+        llvm::ArrayRef(diagonalShape), elementType);
+
+    Value diagonal = rewriter.create<AtenDiagonalOp>(
+        loc, diagonalType, /*input=*/self, /*offset=*/zero, /*dim1=*/zero,
+        /*dim2=*/one);
+    Value sum = rewriter.create<AtenSumOp>(loc, outputType, /*self=*/diagonal,
+                                           /*dtype=*/none);
+    rewriter.replaceOp(op, sum);
+    return success();
+  }
+};
+} // namespace
+
 // Calculates the softmax function on the given `input` tensor. Softmax(x) =
 // exp(x)/sum(exp(x)).
 // To avoid overflow we use the following decomposition rule:
@@ -6727,6 +6775,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftplusOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSiluOp>(patterns);
