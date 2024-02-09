@@ -1172,8 +1172,8 @@ void AtenMulTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 
 OpFoldResult AtenEqTensorOp::fold(FoldAdaptor adaptor) {
   constexpr int64_t kMaxFold = 16;
-  auto ty = cast<ValueTensorType>(getType());
-  if (!ty.hasDtype() || !ty.hasSizes())
+  auto ty = dyn_cast<ValueTensorType>(getType());
+  if (!ty || !ty.hasDtype() || !ty.hasSizes())
     return nullptr;
 
   auto bty = ty.toBuiltinTensor().clone(ty.getDtype());
