@@ -2333,7 +2333,8 @@ func.func @torch.aten.index_select$const_f32_si_neg() -> !torch.vtensor<[1],f32>
   return %0 : !torch.vtensor<[1],f32>
 }
 
-s
+// -----
+
 // CHECK-LABEL: @fold_aten_where_true_attr
 func.func @fold_aten_where_true_attr() -> !torch.vtensor<[4],si64> {
   // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<7> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
