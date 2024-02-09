@@ -572,7 +572,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
-    Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), dtype);
+    Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), dtype, /*srcOriginalDtype=*/std::nullopt, /*dstOriginalDtype=*/dtype);
     if (dtype.isa<mlir::FloatType>()) {
       Value scaled = b.create<arith::MulFOp>(loc, rhs, alpha);
       return b.create<arith::AddFOp>(loc, lhs, scaled);
@@ -610,7 +610,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
     Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value other = convertScalarToDtype(b, loc, operands[1], dtype);
-    Value alpha = convertScalarToDtype(b, loc, operands[2], dtype);
+    Value alpha = convertScalarToDtype(b, loc, operands[2], dtype, /*srcOriginalDtype=*/operands[2].getType(), /*dstOriginalDtype=*/dtype);
     if (dtype.isa<mlir::FloatType>()) {
       Value mult = b.create<arith::MulFOp>(loc, other, alpha);
       return b.create<arith::SubFOp>(loc, self, mult);
@@ -1115,7 +1115,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
     Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value other = convertScalarToDtype(b, loc, operands[1], dtype);
-    Value alpha = convertScalarToDtype(b, loc, operands[2], dtype);
+    Value alpha = convertScalarToDtype(b, loc, operands[2], dtype, /*srcOriginalDtype=*/operands[2].getType(), /*dstOriginalDtype=*/dtype);
     if (dtype.isa<mlir::FloatType>()) {
       Value mult = b.create<arith::MulFOp>(loc, self, alpha);
       return b.create<arith::SubFOp>(loc, other, mult);
