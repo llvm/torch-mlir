@@ -1333,8 +1333,8 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 
 OpFoldResult AtenSelectIntOp::fold(FoldAdaptor adaptor) {
   auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
-  auto ty = cast<ValueTensorType>(getType());
-  if (!self || !ty.hasDtype() || !ty.hasSizes())
+  auto ty = dyn_cast<ValueTensorType>(getType());
+  if (!self || !ty || !ty.hasDtype() || !ty.hasSizes())
     return nullptr;
 
   auto selfTy = cast<ShapedType>(self.getType());
