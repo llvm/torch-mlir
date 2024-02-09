@@ -498,7 +498,8 @@ public:
       resultExpr.push_back(rewriter.getAffineDimExpr(i));
     }
 
-    auto indexingMaps = AffineMap::inferFromExprList({indicesExpr, resultExpr});
+    auto indexingMaps = AffineMap::inferFromExprList({indicesExpr, resultExpr},
+                                                     rewriter.getContext());
 
     Value finalRes =
         rewriter
