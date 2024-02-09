@@ -1195,6 +1195,7 @@ OpFoldResult AtenEqTensorOp::fold(FoldAdaptor adaptor) {
       selfTy.getElementType() != otherTy.getElementType())
     return nullptr;
 
+  // If both values are splats we can just compute the output value as a splat.
   if (self.isSplat() && other.isSplat()) {
     if (isa<mlir::FloatType>(selfTy.getElementType())) {
       APFloat lhsFp = self.getSplatValue<APFloat>();
