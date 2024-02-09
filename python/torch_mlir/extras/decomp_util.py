@@ -1,33 +1,5 @@
 import torch
-from torch._decomp import register_decomposition, global_decomposition_table
-from torch._prims_common.wrappers import out_wrapper
-from torch import Tensor
-from torch._ops import OpOverload, OpOverloadPacket
-from typing import Callable, Dict, Sequence, Union
-from collections import defaultdict
-
-# This updated registry and extra decomposition is used to deal with OPT-125M 
-# that generates extra args when exporting through fx due to torch.tensor().
-# Through this decomposition, we replace the need for that op. This is only
-# used when model_name is specified as "opt-125M". Otherwise, normal flow.
-registry_updated = global_decomposition_table["post_autograd"].copy()
-registry_updated.pop(torch.ops.aten.maximum.default)
-
-
-@register_decomposition(torch.ops.aten.maximum.default, registry=registry_updated)
-@out_wrapper()
-def maximum(
-    self,
-    other,
-) -> Tensor:
-    # If we are doing a maximum operation with a 0D tensor,
-    # we should be doing a torch.clamp with a scalar instead anyways.
-    if len(other.shape) == 0:
-        return torch.clamp(self, min=other.item())
-    else:
-        # will never reach this else branch as we are only using this decomp
-        # for opt-125M, but it would still work.
-        return torch.ops.aten.maximum.out(self, other, out=None)
+from torch._decomp import get_decompositions
 
 # default decompositions pulled from SHARK / torch._decomp
 DEFAULT_DECOMPOSITIONS = [
@@ -72,34 +44,8 @@ DEFAULT_DECOMPOSITIONS = [
     torch.ops.aten._log_softmax_backward_data,
     torch.ops.aten.lift_fresh_copy.default,
     torch.ops.aten._unsafe_index.Tensor,
-    #manual decomposition for opt-125M (only included when user specifies model in API)
-    torch.ops.aten.maximum,
 ]
 
-def get_decompositions(
-    aten_ops: Sequence[Union[torch._ops.OperatorBase, OpOverloadPacket]],
-    registry,
-    type: str = "post_autograd",
-) -> Dict[torch._ops.OperatorBase, Callable]:
-    assert type in {"post_autograd", "pre_autograd", "meta"}
-
-    registry = registry_updated
-    packets_to_overloads = defaultdict(list)
-    for opo in registry:
-        if isinstance(opo, (OpOverload, OpOverloadPacket)):
-            packets_to_overloads[opo.overloadpacket].append(opo)
-    decompositions: Dict[torch._ops.OperatorBase, Callable] = {}
-    for op in aten_ops:
-        if isinstance(op, OpOverloadPacket) and op in packets_to_overloads:
-            for op_overload in packets_to_overloads[op]:
-                decompositions[op_overload] = registry[op_overload]
-        elif isinstance(op, (torch._ops.OperatorBase)) and op in registry:
-            decompositions[op] = registry[op]
-    return decompositions
-
-def get_decomposition_table(model_name):
-    if (model_name == "opt-125M"):
-        return get_decompositions(DEFAULT_DECOMPOSITIONS, registry=registry_updated)
-    else:
-        return get_decompositions(DEFAULT_DECOMPOSITIONS[:-1], registry=global_decomposition_table["post_autograd"])
+def get_decomposition_table():
+    return get_decompositions(DEFAULT_DECOMPOSITIONS)
     

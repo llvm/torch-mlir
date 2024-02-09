@@ -360,14 +360,21 @@ class FxImporter:
                 ) from e
             arg_replacements[input_name] = state_value
 
+        # Remove tensor constant placeholders and have them as actual constants
+        for input_name, tensor_name in sig.inputs_to_lifted_tensor_constants.items():
+            try:
+                tensor_value = prog.tensor_constants[tensor_name]
+            except KeyError as e:
+                raise AssertionError(
+                    "Could not find state mapping for parameter"
+                ) from e
+            arg_replacements[input_name] = tensor_value
+
         # Remove any lifted placeholders, replacing their uses with the state
         # replacement value.
         g = prog.graph
         for node in g.nodes:
             if node.op == "placeholder":
-                # remove placeholder node if no other node uses it
-                if (len(node.users) == 0):
-                    g.erase_node(node)
                 replacement = arg_replacements.get(node.name)
                 if replacement is None:
                     continue
