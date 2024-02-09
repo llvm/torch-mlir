@@ -291,7 +291,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::logical_not : (Tensor) -> (Tensor)",
             "aten::lerp.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)",
             "aten::lerp.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)",
-            "aten::eq.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::gt.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::ge.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::lt.Tensor : (Tensor, Tensor) -> (Tensor)",
@@ -343,6 +342,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit_with_mutating_variants("aten::add.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)", has_canonicalizer=True)
     emit_with_mutating_variants("aten::sub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)", has_canonicalizer=True)
     emit_with_mutating_variants("aten::mul.Scalar : (Tensor, Scalar) -> (Tensor)", has_canonicalizer=True)
+    emit_with_mutating_variants("aten::eq.Tensor : (Tensor, Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants("aten::floor : (Tensor) -> (Tensor)", has_canonicalizer=True)
     emit_with_mutating_variants("aten::masked_fill.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
 
