@@ -42,6 +42,7 @@ from torch.fx import (
     Graph,
     GraphModule,
 )
+import ml_dtypes as mld
 
 from torch.fx.node import (
     Argument as NodeArgument,
@@ -136,7 +137,7 @@ TORCH_DTYPE_TO_NPY_TYPE = {
     torch.int16: np.int16,
     torch.int32: np.int32,
     torch.int64: np.int64,
-    # torch.bf16: None, there's no equivalent np datatype so this isn't supported right now
+    torch.bfloat16: mld.bfloat16,# , there's no equivalent np datatype so this isn't supported right now
     torch.float16: np.float16,
     torch.float32: np.float32,
     torch.float64: np.float64,
@@ -1061,7 +1062,7 @@ def _make_vtensor_literal_op(
                 type=element_type, array=np_tensor, shape=np_tensor.shape
             )
         else:
-            bytes_view = memoryview(np_tensor)
+            bytes_view = np_tensor.view(npy_dtype)
             tensor_type = create_mlir_tensor_type(tensor)
             shape_desc = "_".join([str(d) for d in tensor.shape])
             blob_name = f"torch_tensor_{shape_desc}_{str(tensor.dtype)}"
