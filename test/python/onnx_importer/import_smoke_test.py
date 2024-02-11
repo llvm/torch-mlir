@@ -44,10 +44,6 @@ ONNX_REL_PATHS = glob(f"**/*.onnx", root_dir=ONNX_TEST_DATA_DIR, recursive=True)
 OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 TEST_CAST_XFAILS = [
-    "light_light_bvlc_alexnet",
-    "light_light_inception_v1",
-    "light_light_squeezenet",
-    "light_light_vgg19",
     "node_test_affine_grid_2d_align_corners_expanded_model",
     "node_test_affine_grid_2d_expanded_model",
     "node_test_affine_grid_3d_align_corners_expanded_model",

@@ -295,6 +295,7 @@ class NodeImporter:
                     )
 
             output_names = list(node.output)
+
             output_types = [
                 self._cc.type_proto_to_type(self._gi.find_type_proto_for_name(n))
                 for n in output_names
@@ -420,6 +421,49 @@ class NodeImporter:
             attributes={"value": value_attr},
         )
         self._nv_map[node.output[0]] = literal_op.result
+        return True
+
+    def _handle_node_Dropout(self, node: onnx.NodeProto) -> bool:
+        #The dropout op of the onnx model has two outputs the normal output and the mask.
+        #The mask is optional and usually not connected further in the network. While
+        #lowering in torch this mask output has no type information for shape inference, and
+        #hence must be removed, when not used.
+
+        input_values = []
+        for input_name in node.input:
+            try:
+                input_values.append(self._nv_map[input_name])
+            except KeyError:
+                raise OnnxImportError(
+                    f"Non topologically produced ONNX node input '{input_name}': {node}"
+                )
+        
+        output_names = list(node.output)
+        for i, name in enumerate(output_names):
+            #checking if the output is a part of model output
+            #or intermediate output
+            if self._gi.value_info_map.get(name, None) is None and self._gi.output_map.get(name, None) is None:
+                del output_names[i]
+        
+        output_types = [
+            self._cc.type_proto_to_type(self._gi.find_type_proto_for_name(n))
+            for n in output_names
+        ]
+
+        # TODO: Attributes.
+        attrs = {
+            "name": StringAttr.get(f"onnx.Dropout"),
+        }
+        self.import_attributes(node.attribute, attrs)
+        custom_op = Operation.create(
+            name="torch.operator",
+            results=output_types,
+            operands=input_values,
+            attributes=attrs,
+        )
+        for output_name, output_value in zip(output_names, custom_op.results):
+            self._nv_map[output_name] = output_value
+        
         return True
 
 
