@@ -136,6 +136,7 @@ LOWERING_PIPELINE = "builtin.module(" + ",".join([
     "convert-shape-to-std",
     # MLIR Sparsifier mini-pipeline. Note that this is the bare minimum
     # to ensure operations on sparse tensors are lowered to loops.
+    "sparse-assembler",
     "sparsification-and-bufferization",
     "sparse-storage-specifier-to-llvm",
     # Bufferize.
