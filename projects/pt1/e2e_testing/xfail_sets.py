@@ -1564,9 +1564,7 @@ ONNX_XFAIL_SET = {
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
     "_SoftmaxModule_basic",
-    
-    
-    
+
     # Onnx import failures:
     "ScatterReduceFloatMaxModuleIncludeSelf",
     "ScatterReduceFloatMinModuleIncludeSelf",
@@ -1587,9 +1585,7 @@ ONNX_XFAIL_SET = {
     "ZerosLikeModule_falsePinMemory",
     "ZerosLikeModule_float",
     "ZerosLikeModule_int",
-    
-    
-    
+
     # Onnx lower failures:
     "SelectIntModule_basic",
     "SelectIntNegativeDimAndIndexStaticModule_basic",
@@ -1601,9 +1597,7 @@ ONNX_XFAIL_SET = {
     "ViewSizeDimLedAndFollowedByExpandedOnesModule_basic",
     "ViewSizeDimLedByCollapsedOnesModule_basic",
     "ViewSizeDimLedByExpandedOnesModule_basic",
-    
-    
-    
+
     # Torch constant.int lower failures:
     "SplitTensorGetItem_Module_basic",
     "SplitTensorLastSmallerModule_basic",
@@ -1612,9 +1606,7 @@ ONNX_XFAIL_SET = {
     "SplitWithSizesListUnpackModule_basic",
     "UnbindIntGetItem_Module_basic",
     "UnbindIntListUnpack_Module_basic",
-    
-    
-    
+
     # Torch View lower failures:
     "SelectIntModule_basic",
     "SelectIntNegativeDimAndIndexStaticModule_basic",
@@ -1626,9 +1618,7 @@ ONNX_XFAIL_SET = {
     "ViewSizeDimLedAndFollowedByExpandedOnesModule_basic",
     "ViewSizeDimLedByCollapsedOnesModule_basic",
     "ViewSizeDimLedByExpandedOnesModule_basic",
-    
-    
-    
+
     # Other failures:
     "ScaledDotProductAttentionDifferentModule_basic",
     "ScaledDotProductAttentionSameModule_basic",
