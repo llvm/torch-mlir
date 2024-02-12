@@ -1025,30 +1025,27 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (binder.tensorOperands(valList, numOperands) ||
             binder.tensorResultType(resultType))
           return failure();
-        Value const1 = rewriter.create<Torch::ConstantIntOp>(
+        Value constOne = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 1));
         // Short circuit to binary add
+        Value curr = rewriter.create<Torch::AtenAddTensorOp>(
+            binder.getLoc(), resultType, valList[0], valList[1], constOne);
         if (numOperands == 2) {
-          Value sum = rewriter.create<Torch::AtenAddTensorOp>(
-              binder.getLoc(), resultType, valList[0], valList[1], const1);
-
           rewriter.replaceOpWithNewOp<Torch::AtenDivScalarOp>(
-              binder.op, resultType, sum, numOperandsConstant);
+              binder.op, resultType, curr, numOperandsConstant);
           return success();
         }
         // When binder.op->getNumOperands() > 2
         auto baseType = Torch::ValueTensorType::getWithLeastStaticInformation(
             binder.op->getContext());
-        Value curr = rewriter.create<Torch::AtenAddTensorOp>(
-            binder.getLoc(), resultType, valList[0], valList[1], const1);
         for (int i = 2; i < numOperands; i++) {
           if (i == numOperands - 1) {
             curr = rewriter.create<Torch::AtenAddTensorOp>(
-                binder.getLoc(), resultType, curr, valList[i], const1);
+                binder.getLoc(), resultType, curr, valList[i], constOne);
           } else {
             curr = rewriter.create<Torch::AtenAddTensorOp>(
-                binder.getLoc(), baseType, curr, valList[i], const1);
+                binder.getLoc(), baseType, curr, valList[i], constOne);
           }
         }
         rewriter.replaceOpWithNewOp<Torch::AtenDivScalarOp>(
