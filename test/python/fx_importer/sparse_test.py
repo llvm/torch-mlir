@@ -12,7 +12,7 @@ import torch.export
 import torch.nn as nn
 
 from torch_mlir.extras.fx_importer import FxImporter
-from torch_mlir.extras.fx_importer import Sparsity
+from torch_mlir.extras.fx_importer import SparsityMeta
 from torch_mlir import ir
 from torch_mlir.dialects import torch as torch_d
 from torch_mlir.compiler_utils import run_pipeline_with_repro_report
@@ -44,13 +44,13 @@ def sparse_overhead_width(d: torch.dtype) -> int:
     raise RuntimeError(f"Unsupported overhead type {d}")
 
 
-def sparse_metadata(a: torch.Tensor) -> Sparsity:
+def sparse_metadata(a: torch.Tensor) -> SparsityMeta:
     """Returns a meta data tuple for the given sparse tensor."""
     sparse_dim = a.sparse_dim()
     dense_dim = a.dense_dim()
     batch_dim = a.ndim - dense_dim - sparse_dim
     if a.layout is torch.sparse_coo:
-        return Sparsity(
+        return SparsityMeta(
             a.layout,
             batch_dim,
             sparse_dim,
@@ -59,7 +59,7 @@ def sparse_metadata(a: torch.Tensor) -> Sparsity:
             sparse_overhead_width(a.indices().dtype),
         )
     elif a.layout is torch.sparse_csr or a.layout is torch.sparse_bsr:
-        return Sparsity(
+        return SparsityMeta(
             a.layout,
             batch_dim,
             sparse_dim,
@@ -68,7 +68,7 @@ def sparse_metadata(a: torch.Tensor) -> Sparsity:
             sparse_overhead_width(a.col_indices().dtype),
         )
     elif a.layout is torch.sparse_csc or a.layout is torch.sparse_bsc:
-        return Sparsity(
+        return SparsityMeta(
             a.layout,
             batch_dim,
             sparse_dim,

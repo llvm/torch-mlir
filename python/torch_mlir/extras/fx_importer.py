@@ -210,7 +210,7 @@ SYMBOLIC_OP_TO_TORCH_OP = {
 
 
 @dataclass(frozen=True)
-class Sparsity:
+class SparsityMeta:
     """Class for keeping track of sparsity meta data."""
 
     layout: torch.layout
@@ -221,7 +221,7 @@ class Sparsity:
     crd_width: int
 
 
-def sparsity_encoding(shape: torch.Size, sparsity: Sparsity) -> str:
+def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
     """Returns sparse tensor encoding for the given sparse layout as string."""
     assert sparsity is not None
 
@@ -514,7 +514,7 @@ class ContextCache:
         shape: torch.Size,
         dtype: torch.dtype,
         *,
-        sparsity: Optional[Sparsity] = None,  # keyword-only
+        sparsity: Optional[SparsityMeta] = None,  # keyword-only
     ):
         shape_asm = self.format_asm_shape(shape)
         mlir_dtype = str(self.dtype_to_type(dtype))
@@ -569,7 +569,7 @@ class ContextCache:
         self,
         tm: TensorMetadata,
         *,
-        sparsity: Optional[Sparsity] = None,  # keyword-only
+        sparsity: Optional[SparsityMeta] = None,  # keyword-only
     ) -> IrType:
         tm_shape = tuple(
             item.node if is_symbolic(item) else item for item in list(tm.shape)
