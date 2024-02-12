@@ -5,7 +5,7 @@
 
 # RUN: %PYTHON %s | FileCheck %s
 
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Optional
 
 import torch
 import torch.export
@@ -43,7 +43,7 @@ def sparse_overhead_width(d: torch.dtype) -> int:
     raise RuntimeError(f"Unsupported overhead type {d}")
 
 
-def sparse_metadata(a: torch.Tensor) -> Tuple[torch.layout, int, int]:
+def sparse_metadata(a: torch.Tensor) -> tuple[torch.layout, int, int]:
     """Returns a meta data tuple for the given sparse tensor."""
     if a.layout is torch.sparse_coo:
         return (
@@ -68,7 +68,7 @@ def sparse_metadata(a: torch.Tensor) -> Tuple[torch.layout, int, int]:
 
 
 def sparse_export(
-    f: Callable, args: Tuple[Any, ...], kwargs: Optional[Dict[str, Any]] = None
+    f: Callable, args: tuple[Any, ...], kwargs: Optional[dict[str, Any]] = None
 ) -> torch.export.ExportedProgram:
     """
     This is a ***temporary*** wrapper around `torch.export.export`

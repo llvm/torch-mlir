@@ -209,7 +209,7 @@ SYMBOLIC_OP_TO_TORCH_OP = {
 
 
 def sparsity_encoding(
-    shape: torch.Size, sparsity: Tuple[torch.layout, int, int]
+    shape: torch.Size, sparsity: tuple[torch.layout, int, int]
 ) -> str:
     """Returns sparse tensor encoding for the given sparse layout as string.
 
@@ -218,6 +218,7 @@ def sparsity_encoding(
     and suffix dense subtensor dimensions. Since MLIR supports a superset of what
     is currently implememented in torch.sparse, this should not a be problem.
     """
+    assert sparsity is not None
     sparse_layout, posw, crdw = sparsity
 
     # TODO: any rank
@@ -487,12 +488,14 @@ class ContextCache:
         self,
         shape: torch.Size,
         dtype: torch.dtype,
-        sparsity: Tuple[torch.layout, int, int],
+        *,
+        sparsity: Optional[tuple[torch.layout, int, int]] = None,  # keyword-only
     ):
         shape_asm = self.format_asm_shape(shape)
         mlir_dtype = str(self.dtype_to_type(dtype))
         if sparsity is not None:
             encoding = sparsity_encoding(shape, sparsity)
+            assert encoding is not None
             return IrType.parse(
                 f"!torch.vtensor<[{shape_asm}],{str(mlir_dtype)},{encoding}>",
                 context=self._c,
@@ -515,12 +518,14 @@ class ContextCache:
                         f"Quantized tensor meta data is not supported."
                     )
                 else:
-                    return self.tensor_metadata_to_type(tensor_meta, sparsity)
+                    return self.tensor_metadata_to_type(tensor_meta, sparsity=sparsity)
             elif val is not None:
                 # some nodes with symbolic inputs pass a 'val' attribute rather than
                 # tensor_meta
                 if isinstance(val, TorchFakeTensor):
-                    return self.get_vtensor_type(val.size(), val.dtype, sparsity)
+                    return self.get_vtensor_type(
+                        val.size(), val.dtype, sparsity=sparsity
+                    )
 
                 t = SCALAR_TYPE_TO_TORCH_MLIR_TYPE.get(type(val))
                 if t is not None:
@@ -536,7 +541,10 @@ class ContextCache:
             )
 
     def tensor_metadata_to_type(
-        self, tm: TensorMetadata, sparsity: Tuple[torch.layout, int, int] = None
+        self,
+        tm: TensorMetadata,
+        *,
+        sparsity: Optional[tuple[torch.layout, int, int]] = None,  # keyword-only
     ) -> IrType:
         tm_shape = tuple(
             item.node if is_symbolic(item) else item for item in list(tm.shape)
@@ -545,7 +553,7 @@ class ContextCache:
         key = (tm_shape, tm.dtype, sparsity)
         t = self._tensor_metadata_cache.get(key)
         if t is None:
-            t = self.get_vtensor_type(tm.shape, tm.dtype, sparsity)
+            t = self.get_vtensor_type(tm.shape, tm.dtype, sparsity=sparsity)
             self._tensor_metadata_cache[key] = t
         return t
 
