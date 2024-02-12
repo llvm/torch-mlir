@@ -30,7 +30,7 @@ public:
     llvm::SmallVector<Value> operands(op->getOperands());
 
     bool dequanted = false;
-    for (auto &operand : operands) {
+    auto f = [&dequanted](Value operand) {
       if (auto dequant = operand.getDefiningOp<AtenDequantizeTensorOp>()) {
         operand = dequant.getOperand();
         dequanted = true;
@@ -39,7 +39,11 @@ public:
         operand = dequant.getOperand();
         dequanted = true;
       }
-    }
+      return operand;
+    };
+
+    operands[0] = f(operands[0]);
+    operands[1] = f(operands[1]);
 
     if (!dequanted) {
       return rewriter.notifyMatchFailure(op, "no dequantizations found");
@@ -60,10 +64,6 @@ public:
     if (operands.size() < 3)
       return failure();
 
-    Value bias = operands[2];
-    if (bias.getDefiningOp<AtenDequantizeTensorOp>())
-      return failure();
-
     Value lhsScale;
     if (auto qLhs =
             operands[0].getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>())
@@ -77,10 +77,18 @@ public:
     if (!rhsScale || !lhsScale)
       return failure();
 
-    auto biasTy = bias.getType().cast<ValueTensorType>();
-    auto biasETy = biasTy.getOptionalDtype();
-    if (!biasETy || !isa<mlir::FloatType>(biasETy))
+    auto resultTy = cast<ValueTensorType>(op.getType());
+    if (!isa<mlir::FloatType>(resultTy.getDtype()))
       return failure();
+
+    Value bias = operands[2];
+    auto biasTy = bias.getType().dyn_cast<ValueTensorType>();
+
+    if (biasTy) {
+      auto biasETy = biasTy.getOptionalDtype();
+      if (!biasETy || !isa<mlir::FloatType>(biasETy))
+        return failure();
+    }
 
     Value biasScale = rewriter.create<AtenMulFloatOp>(
         op.getLoc(), lhsScale.getType(), lhsScale, rhsScale);
@@ -90,14 +98,34 @@ public:
         rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
 
     auto qi32Ty = rewriter.getType<QInt32Type>();
-    auto newBiasTy =
-        rewriter.getType<ValueTensorType>(biasTy.getOptionalSizes(), qi32Ty);
-    Value dtype = getDtypeIntValueForType(rewriter, op.getLoc(), qi32Ty);
-    bias = rewriter.create<AtenQuantizePerTensorOp>(
-        op.getLoc(), newBiasTy, bias, biasScale, zero, dtype);
 
-    operands[2] = bias;
-    rewriter.replaceOpWithNewOp<SrcOp>(op, op.getType(), operands);
+    if (biasTy) {
+      auto newBiasTy =
+          rewriter.getType<ValueTensorType>(biasTy.getOptionalSizes(), qi32Ty);
+      Value dtype = getDtypeIntValueForType(rewriter, op.getLoc(), qi32Ty);
+      bias = rewriter.create<AtenQuantizePerTensorOp>(
+          op.getLoc(), newBiasTy, bias, biasScale, zero, dtype);
+      bias = rewriter.create<AtenIntReprOp>(
+          op.getLoc(),
+          rewriter.getType<ValueTensorType>(
+              biasTy.getOptionalSizes(),
+              rewriter.getIntegerType(32, IntegerType::Signed)),
+          bias);
+      operands[2] = bias;
+    }
+
+    auto convTy = rewriter.getType<ValueTensorType>(
+        resultTy.getOptionalSizes(),
+        rewriter.getIntegerType(32, IntegerType::Signed));
+    auto conv = rewriter.create<SrcOp>(op.getLoc(), convTy, operands);
+
+    auto convQTy =
+        rewriter.getType<ValueTensorType>(resultTy.getOptionalSizes(), qi32Ty);
+    auto makeOut = rewriter.create<Aten_MakePerTensorQuantizedTensorOp>(
+        op.getLoc(), convQTy, conv, biasScale, zero);
+    rewriter.replaceOpWithNewOp<AtenDequantizeTensorOp>(op, op.getType(),
+                                                        makeOut);
+
     return success();
   }
 };
@@ -151,7 +179,7 @@ public:
         rewriter.getType<ValueTensorType>(resultTy.getOptionalSizes(), qi32Ty);
     auto conv = rewriter.create<SrcOp>(op.getLoc(), newResultTy, operands);
 
-    // Attach the quantize information to the resulting quint32:
+    // Attach the quantize information to the resulting qint32:
     auto intReprTy = rewriter.getType<ValueTensorType>(
         resultTy.getOptionalSizes(),
         rewriter.getIntegerType(32, IntegerType::Signed));
@@ -194,7 +222,6 @@ public:
                 RemoveUnused<AtenDequantizeTensorOp>,
                 RemoveUnused<AtenQuantizePerTensorOp>,
                 QuantizeOperands<AtenConvolutionOp>, QuantizeOperands<AtenMmOp>,
-                QuantizeAccumulator<AtenConvolutionOp>,
                 QuantizeAccumulator<AtenMmOp>, QuantizeBias<AtenConvolutionOp>>(
             context);
 

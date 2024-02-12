@@ -424,8 +424,11 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         b.create<arith::ConstantOp>(loc, b.getFloatAttr(floatDtype, 0));
     return createEqual(b, loc, floatDtype, self, zero);
   }
-  if (isa<AtenAbsOp>(op))
+  if (isa<AtenAbsOp>(op)) {
+    if (payloadArgs[0].getType().isa<IntegerType>())
+      return b.create<math::AbsIOp>(loc, payloadArgs[0]);
     return b.create<math::AbsFOp>(loc, payloadArgs[0]);
+  }
   if (isa<AtenIsinfOp>(op)) {
     Value abs = b.create<math::AbsFOp>(loc, payloadArgs[0]);
     Value infinity = b.create<arith::ConstantOp>(
@@ -572,7 +575,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
-    Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), dtype);
+    Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), dtype,
+                                       /*srcOriginalDtype=*/std::nullopt,
+                                       /*dstOriginalDtype=*/dtype);
     if (dtype.isa<mlir::FloatType>()) {
       Value scaled = b.create<arith::MulFOp>(loc, rhs, alpha);
       return b.create<arith::AddFOp>(loc, lhs, scaled);
@@ -610,7 +615,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
     Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value other = convertScalarToDtype(b, loc, operands[1], dtype);
-    Value alpha = convertScalarToDtype(b, loc, operands[2], dtype);
+    Value alpha = convertScalarToDtype(
+        b, loc, operands[2], dtype, /*srcOriginalDtype=*/operands[2].getType(),
+        /*dstOriginalDtype=*/dtype);
     if (dtype.isa<mlir::FloatType>()) {
       Value mult = b.create<arith::MulFOp>(loc, other, alpha);
       return b.create<arith::SubFOp>(loc, self, mult);
@@ -1115,7 +1122,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
     Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value other = convertScalarToDtype(b, loc, operands[1], dtype);
-    Value alpha = convertScalarToDtype(b, loc, operands[2], dtype);
+    Value alpha = convertScalarToDtype(
+        b, loc, operands[2], dtype, /*srcOriginalDtype=*/operands[2].getType(),
+        /*dstOriginalDtype=*/dtype);
     if (dtype.isa<mlir::FloatType>()) {
       Value mult = b.create<arith::MulFOp>(loc, self, alpha);
       return b.create<arith::SubFOp>(loc, other, mult);
@@ -1342,11 +1351,20 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     auto valueTy = value.getType();
     auto qtensor = op->getOperand(0);
     auto qtensorTy = qtensor.getType().cast<ValueTensorType>().getDtype();
-    auto makeQTensor =
-        qtensor.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>();
-    if (!makeQTensor) {
-      op->emitWarning(
-          "unimplemented: dequantizing tensor of unknown scale / zero-point");
+
+    Value zp, scale;
+    if (auto makeQTensor =
+            qtensor.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
+      zp = makeQTensor.getZeroPoint();
+      scale = makeQTensor.getScale();
+    }
+
+    if (auto quant = qtensor.getDefiningOp<AtenQuantizePerTensorOp>()) {
+      zp = quant.getZeroPoint();
+      scale = quant.getScale();
+    }
+
+    if (!zp || !scale) {
       return nullptr;
     }
 
@@ -1362,10 +1380,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       }
     }
 
-    Value zp = makeQTensor.getZeroPoint();
     zp = converter->materializeTargetConversion(
-        b, loc, converter->convertType(zp.getType()),
-        makeQTensor.getZeroPoint());
+        b, loc, converter->convertType(zp.getType()), zp);
     auto zpTy = zp.getType();
 
     if (zpTy != outIntTy) {
@@ -1380,10 +1396,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       value = b.create<arith::SIToFPOp>(loc, outFpTy, value);
     }
 
-    Value scale = makeQTensor.getScale();
     scale = converter->materializeTargetConversion(
-        b, loc, converter->convertType(scale.getType()),
-        makeQTensor.getScale());
+        b, loc, converter->convertType(scale.getType()), scale);
     if (scale.getType() != value.getType()) {
       scale = b.create<arith::TruncFOp>(loc, value.getType(), scale);
     }
@@ -2233,7 +2247,6 @@ public:
     auto qoperand = op.getOperand();
     auto make = qoperand.getDefiningOp<Aten_MakePerChannelQuantizedTensorOp>();
     if (!make) {
-      llvm::errs() << "Did not find make per channel\n";
       return rewriter.notifyMatchFailure(op, "did not find per channel qint");
     }
 

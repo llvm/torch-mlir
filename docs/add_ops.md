@@ -1,17 +1,17 @@
 # How to Add Ops to Torch-Mlir
 
-Collected links and contacts for how to add ops to torch-mlir. 
+Collected links and contacts for how to add ops to torch-mlir.
 
 
 <details>
 <summary>Turbine Camp: Start Here</summary>
-This document was previously known as `turbine-camp.md` to Nod.ai. "Turbine Camp" is part of Nod.ai's onboarding process. Welcome to turbine camp. This document originated at Nod.ai as a part of onboardding process, where new nod-ai folks learn about the architecture of our work by adding support for 2 ops to torch-mlir. I decided to put this into torch mlir because a lot of this is about torch-mlir. 
+This document was previously known as `turbine-camp.md` to Nod.ai. "Turbine Camp" is part of Nod.ai's onboarding process. Welcome to turbine camp. This document originated at Nod.ai as a part of onboardding process, where new nod-ai folks learn about the architecture of our work by adding support for 2 ops to torch-mlir. I decided to put this into torch mlir because a lot of this is about torch-mlir.
 
 Written & maintained by @renxida
 
 Guides by other folks that were used during the creation of this document:
 - [Chi Liu](https://gist.github.com/AmosLewis/dd31ab37517977b1c499d06495b4adc2)
-- [Sunsoon](https://docs.google.com/document/d/1H79DwW_wnVzUU81EogwY5ueXgnl-QzKet1p2lnqPar4/edit?pli=1) 
+- [Sunsoon](https://docs.google.com/document/d/1H79DwW_wnVzUU81EogwY5ueXgnl-QzKet1p2lnqPar4/edit?pli=1)
 
 ## Before you begin...
 
@@ -69,6 +69,11 @@ Resources:
 Helpful examples:
 - [A Dec 2023 example where an ONNX op is implemented](https://github.com/llvm/torch-mlir/pull/2641/files#diff-b584b152020af6d2e5dbf62a08b2f25ed5afc2c299228383b9651d22d44b5af4R493)
 - [Vivek's example of ONNX op lowering](https://github.com/llvm/torch-mlir/commit/dc9ea08db5ac295b4b3f91fc776fef6a702900b9)
+
+## List of Tools you may need to use (this will be incorporated into the above instructions later)
+
+- Generate FILECHECK tests from MLIR test cases: `torch-mlir-opt -convert-<your conversion> /tmp/your_awesome_testcase.mlir | externals/llvm-project/mlir/utils/generate-test-checks.py
+`. Please don't just paste the generated tests - reference them to write your own
 
 ## Contacts
 People who've worked on this for a while

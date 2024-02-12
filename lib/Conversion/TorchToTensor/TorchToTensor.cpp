@@ -28,6 +28,47 @@ using namespace mlir::torch::Torch;
 
 namespace {
 
+class ConvertAtenItemOp : public OpConversionPattern<AtenItemOp> {
+public:
+  using OpConversionPattern<AtenItemOp>::OpConversionPattern;
+  using OpAdaptor = typename AtenItemOp::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenItemOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto operand = adaptor.getOperands()[0];
+    auto operandTy = cast<RankedTensorType>(operand.getType());
+    auto torchDTy = cast<ValueTensorType>(op.getOperand().getType()).getDtype();
+
+    if (operandTy.getNumElements() != 1)
+      return rewriter.notifyMatchFailure(op, "expected only one item");
+
+    auto zeroIdx = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 0);
+    auto rank = operandTy.getRank();
+    llvm::SmallVector<Value> indices(rank, zeroIdx);
+
+    Value extract = rewriter.create<tensor::ExtractOp>(
+        op.getLoc(), operandTy.getElementType(), operand, indices);
+    auto extractTy = extract.getType();
+    if (isa<mlir::IntegerType>(extractTy) && !extractTy.isInteger(64)) {
+      if (torchDTy.isSignlessInteger()) {
+        extract = rewriter.create<arith::ExtUIOp>(
+            op.getLoc(), rewriter.getIntegerType(64), extract);
+      } else {
+        extract = rewriter.create<arith::ExtSIOp>(
+            op.getLoc(), rewriter.getIntegerType(64), extract);
+      }
+    }
+
+    if (isa<mlir::FloatType>(extractTy) && !extractTy.isF64()) {
+      extract = rewriter.create<arith::ExtFOp>(op.getLoc(),
+                                               rewriter.getF64Type(), extract);
+    }
+
+    rewriter.replaceOp(op, extract);
+    return success();
+  }
+};
+
 class ConvertAtenShapeToTensorPatternOp
     : public OpConversionPattern<Aten_ShapeAsTensorOp> {
 public:
@@ -70,6 +111,7 @@ public:
     ConversionTarget target(*context);
     target.addLegalDialect<arith::ArithDialect>();
     target.addLegalDialect<tensor::TensorDialect>();
+    target.addIllegalOp<Torch::AtenItemOp>();
     target.addIllegalOp<Torch::Aten_ShapeAsTensorOp>();
 
     TypeConverter typeConverter;
@@ -77,7 +119,8 @@ public:
     TorchConversion::setupBackendTypeConversion(target, typeConverter);
 
     RewritePatternSet patterns(context);
-    patterns.add<ConvertAtenShapeToTensorPatternOp>(typeConverter, context);
+    patterns.add<ConvertAtenShapeToTensorPatternOp, ConvertAtenItemOp>(
+        typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

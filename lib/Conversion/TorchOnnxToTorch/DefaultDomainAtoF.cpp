@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/DialectResourceBlobManager.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -15,6 +16,20 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::onnx_c;
+
+class Endian {
+private:
+  static constexpr uint32_t uint32_ = 0x01020304;
+  static constexpr uint8_t magic_ = (const uint8_t &)uint32_;
+
+public:
+  static constexpr bool little = magic_ == 0x04;
+  static constexpr bool big = magic_ == 0x01;
+  static_assert(little || big, "Cannot determine endianness!");
+
+private:
+  Endian() = delete;
+};
 
 static int64_t onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx) {
   // TODO: Add complete mapping.
@@ -293,12 +308,14 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return rewriter.notifyMatchFailure(
               binder.op, "kernel list size does not match the number of axes");
         }
-        if (binder.s64IntegerArrayAttr(padding, "pads", {0})) {
+        SmallVector<int64_t> defaultPadding(2 * (rank - 2), 0);
+        if (binder.s64IntegerArrayAttr(padding, "pads", defaultPadding)) {
           return failure();
         }
-        if (padding.size() != 1 && padding.size() != rank - 2) {
+        if (padding.size() != 2 * (rank - 2)) {
           return rewriter.notifyMatchFailure(
-              binder.op, "padding list size does not match the number of axes");
+              binder.op,
+              "padding list size does not match twice the number of axes");
         }
         if (binder.s64IntegerArrayAttr(strides, "strides", {1})) {
           return failure();
@@ -486,7 +503,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           auto message = llvm::formatv("unimplemented support for the given "
                                        "dtype conversion (onnx 'type' = {0})",
                                        dtypeIntOnnx);
-          llvm::errs() << message << "\n";
           auto y = rewriter.notifyMatchFailure(binder.op, message);
 
           return y;
@@ -632,6 +648,26 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return success();
         }
 
+        if (DenseResourceElementsAttr attr =
+                binder.op->getAttr("torch.onnx.value")
+                    .dyn_cast_or_null<DenseResourceElementsAttr>()) {
+          // Bytes are stored in little endian order. Big endian support will
+          // require swizzling.
+          if (!Endian::little) {
+            binder.op->emitError(
+                "unimplemented: importing on big endian systems");
+            return failure();
+          }
+
+          auto ty = cast<ShapedType>(attr.getType());
+          auto ptr = attr.getRawHandle().getBlob()->getData();
+          DenseElementsAttr denseAttr =
+              DenseElementsAttr::getFromRawBuffer(ty, ptr);
+          rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
+              binder.op, resultType, denseAttr);
+          return success();
+        }
+
         if (ElementsAttr attr = binder.op->getAttr("torch.onnx.value")
                                     .dyn_cast_or_null<ElementsAttr>()) {
           rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
@@ -656,7 +692,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         return failure();
       });
   patterns.onOp(
-      "Conv", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Conv", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         std::string autoPad;
         if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
           return failure();
@@ -1054,11 +1090,9 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               binder.op, "expected result type to have a dtype");
         }
         // resultTensorType.print(llvm::outs());
-        Value resultDType = Torch::getDtypeIntValueForType(
-            rewriter, loc, resultTensorType.getDtype());
-
-        rewriter.replaceOpWithNewOp<Torch::AtenCumsumOp>(
-            binder.op, resultType, operand, dim, resultDType);
+        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        rewriter.replaceOpWithNewOp<Torch::AtenCumsumOp>(binder.op, resultType,
+                                                         operand, dim, none);
         return success();
       });
   patterns.onOp(
@@ -1354,7 +1388,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Torch::BaseTensorType shapeType =
             shape.getType().cast<Torch::BaseTensorType>();
         SmallVector<int64_t> selectSizes;
-        selectSizes.push_back(1);
         Type selectResultType = shapeType.getWithSizesAndDtype(
             llvm::ArrayRef(selectSizes), shapeType.getOptionalDtype());
         // Variable to store 1-D onnx shape tensor, shapeSizes[0] has the
@@ -1412,16 +1445,30 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType))
           return failure();
 
+        auto operandTy = cast<Torch::ValueTensorType>(operand.getType());
+        llvm::SmallVector<int64_t> shape(operandTy.getSizes());
+        int64_t rank = shape.size();
+
         // If axis is negative, count from the right instead of left
-        int64_t rank =
-            cast<Torch::ValueTensorType>(operand.getType()).getSizes().size();
         if (axis < 0)
           axis = rank + axis;
 
-        Value collapsedRight;
-        auto baseType = Torch::ValueTensorType::getWithLeastStaticInformation(
-            binder.op->getContext());
+        // We collapse in the dimensions to the right of the axis.
+        for (int i = axis + 1; i < rank; ++i) {
+          bool dynamic = shape[axis] == Torch::kUnknownSize ||
+                         shape[i] == Torch::kUnknownSize;
+          if (dynamic) {
+            shape[axis] = Torch::kUnknownSize;
+          } else {
+            shape[axis] = shape[axis] * shape[i];
+          }
+        }
 
+        shape.resize(axis + 1, 1);
+
+        auto baseType = rewriter.getType<Torch::ValueTensorType>(
+            shape, operandTy.getDtype());
+        Value collapsedRight;
         if (axis >= rank) {
           // If the right range is empty, add a dim of size 1 to the
           // right side of the shape:

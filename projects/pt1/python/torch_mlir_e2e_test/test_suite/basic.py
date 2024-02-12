@@ -4092,7 +4092,13 @@ class CumsumModule(torch.nn.Module):
         ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, val):
-        return torch.ops.aten.cumsum(val, 1)
+        # the onnx cumsum op uses a constant 1d tensor
+        # to specify the dimension along which to do cumsum
+        # we replicate that here to ensure that cumsum correctly
+        # trigger the relevant folders and provides TMTensor
+        # with a constant dimension
+        ones = torch.ones([1], dtype=torch.int32)
+        return torch.ops.aten.cumsum(val, ones.item())
 
 @register_test_case(module_factory=lambda: CumsumModule())
 def CumsumModule_basic(module, tu: TestUtils):
@@ -4994,3 +5000,23 @@ class IscloseStaticModuleTrue(torch.nn.Module):
 @register_test_case(module_factory=lambda: IscloseStaticModuleTrue())
 def IscloseStaticModuleTrue_basic(module, tu: TestUtils):
     module.forward(torch.ones(5, 5))
+
+
+# ==============================================================================
+
+class CloneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.clone(x)
+
+@register_test_case(module_factory=lambda: CloneModule())
+def CloneModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 5))

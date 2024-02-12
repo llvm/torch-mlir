@@ -6,7 +6,7 @@
 # RUN: %PYTHON %s | FileCheck %s
 
 import torch
-import torch_mlir
+from torch_mlir import torchscript
 
 
 class TwoMethodsModule(torch.nn.Module):
@@ -17,14 +17,14 @@ class TwoMethodsModule(torch.nn.Module):
         return torch.ops.aten.cos(x)
 
 
-example_args = torch_mlir.ExampleArgs()
+example_args = torchscript.ExampleArgs()
 example_args.add_method("sin", torch.ones(2, 3))
 example_args.add_method("cos", torch.ones(2, 4))
 
 # Note: Due to https://github.com/pytorch/pytorch/issues/88735 we need to
 # check the `use_tracing` case first.
 
-print(torch_mlir.compile(TwoMethodsModule(), example_args, use_tracing=True))
+print(torchscript.compile(TwoMethodsModule(), example_args, use_tracing=True))
 # CHECK: module
 # CHECK-DAG: func.func @sin
 # CHECK-DAG: func.func @cos
@@ -34,8 +34,8 @@ print(torch_mlir.compile(TwoMethodsModule(), example_args, use_tracing=True))
 # Otherwise the user would have to do this manually, which is tedious. This
 # technically mutates the user input model which is not great but probably okay
 # for this kind of API sugar. Users can always take full control of the process
-# by scripting the model themselves before passing it to `torch_mlir.compile`.
-print(torch_mlir.compile(TwoMethodsModule(), example_args))
+# by scripting the model themselves before passing it to `torchscript.compile`.
+print(torchscript.compile(TwoMethodsModule(), example_args))
 # CHECK: module
 # CHECK-DAG: func.func @sin
 # CHECK-DAG: func.func @cos

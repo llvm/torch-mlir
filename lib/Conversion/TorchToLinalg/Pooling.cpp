@@ -442,8 +442,8 @@ public:
 
     // Here we have six dimensions, each corresponding to N, C, Hout, Wout, kH,
     // and kW, respectively, as described in the algorithm above.
-    SmallVector<AffineMap> indexingMaps =
-        AffineMap::inferFromExprList({inputExprs, kernelExprs, outputExprs});
+    SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
+        {inputExprs, kernelExprs, outputExprs}, rewriter.getContext());
     SmallVector<utils::IteratorType> iteratorTypes(
         4, utils::IteratorType::parallel);
     iteratorTypes.push_back(utils::IteratorType::reduction);
@@ -557,7 +557,10 @@ public:
                       m_TorchConstantBool(&countIncludePad)))
       return rewriter.notifyMatchFailure(
           op, "count_include_pad must be a constant");
-    if (!countIncludePad) {
+
+    // If the padding is zero then there is no padding to include.
+    if (!countIncludePad &&
+        !llvm::all_of(paddingInts, [](int64_t p) { return p == 0; })) {
       return rewriter.notifyMatchFailure(
           op, "unimplemented: count_include_pad is expected to be true");
     }
@@ -721,7 +724,7 @@ public:
     kSizeTensorExprs.push_back(rewriter.getAffineDimExpr(2));
     kIterExprs.push_back(rewriter.getAffineDimExpr(3));
     SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
-        {kIterExprs, outputExprs, kSizeTensorExprs});
+        {kIterExprs, outputExprs, kSizeTensorExprs}, rewriter.getContext());
     SmallVector<utils::IteratorType> iteratorTypes(
         3, utils::IteratorType::parallel);
     iteratorTypes.push_back(utils::IteratorType::reduction);
@@ -771,8 +774,8 @@ public:
 
     // make a linalg generic to divide each element by the corresponding
     // Kernel Width. This step is only necessary for avg pooling.
-    SmallVector<AffineMap> indexingMaps1 =
-        AffineMap::inferFromExprList({kSizeTensorExprs, outputExprs});
+    SmallVector<AffineMap> indexingMaps1 = AffineMap::inferFromExprList(
+        {kSizeTensorExprs, outputExprs}, rewriter.getContext());
     SmallVector<utils::IteratorType> iteratorTypes1(
         3, utils::IteratorType::parallel);
     auto output = rewriter.create<linalg::GenericOp>(
@@ -913,8 +916,8 @@ public:
     for (unsigned i = rank; i < 2 * rank - 2; i++) {
       kIterExprs.push_back(rewriter.getAffineDimExpr(i));
     }
-    SmallVector<AffineMap> indexingMaps =
-        AffineMap::inferFromExprList({kIterExprs, outputExprs, auxTensorExprs});
+    SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
+        {kIterExprs, outputExprs, auxTensorExprs}, rewriter.getContext());
     SmallVector<utils::IteratorType> iteratorTypes(
         rank, utils::IteratorType::parallel);
     for (unsigned i = 0; i < rank - 2; i++) {

@@ -7,7 +7,7 @@
 
 import torch
 
-import torch_mlir
+from torch_mlir import torchscript
 
 class AddmmModule(torch.nn.Module):
     def __init__(self):
@@ -15,9 +15,9 @@ class AddmmModule(torch.nn.Module):
     def forward(self, x, y, z):
         return torch.ops.aten.addmm(x, y, z)
 
-example_args = 3 * [torch_mlir.TensorPlaceholder([-1, -1], torch.float32)]
+example_args = 3 * [torchscript.TensorPlaceholder([-1, -1], torch.float32)]
 
-print(torch_mlir.compile(AddmmModule(), example_args,
+print(torchscript.compile(AddmmModule(), example_args,
       output_type="torch", backend_legal_ops=["aten.addmm"]))
 # CHECK-LABEL: @forward
 # CHECK: torch.aten.addmm

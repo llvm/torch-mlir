@@ -45,12 +45,12 @@ cmake -GNinja -Bbuild \
   -DLLVM_TARGETS_TO_BUILD=host \
   externals/llvm-project/llvm
 ```
-The following additional quality of life flags can be used to reduce build time:
+#### Flags that can reduce build time:
 * Enabling clang on Linux
 ```shell
   -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
 ```
-* Enabling ccache:
+* Enabling ccache
 ```shell
   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 ```
@@ -70,6 +70,14 @@ By default we download the latest version of libtorch. We have an experimental p
 ```shell
   -DLIBTORCH_SRC_BUILD=ON  # Build Libtorch from source
   -DLIBTORCH_VARIANT=shared # Set the variant of libtorch to build / link against. (`shared`|`static` and optionally `cxxabi11`)
+```
+
+#### Flags to enable MLIR debugging:
+
+* Enabling `--debug` and `--debug-only` flags (see [MLIR docs](https://mlir.llvm.org/getting_started/Debugging/)) for the `torch-mlir-opt` tool
+```shell
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \ # or =Debug
+  -DLLVM_ENABLE_ASSERTIONS=ON \
 ```
 
 ### Building against a pre-built LLVM
@@ -112,37 +120,50 @@ cmake --build build
 ### Linux and macOS
 
 ```shell
-export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/projects/pt1/examples
+export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/test/python/fx_importer
 ```
 
 ### Windows PowerShell
 
 ```shell
-$env:PYTHONPATH = "$PWD/build/tools/torch-mlir/python_packages/torch_mlir;$PWD/projects/pt1/examples"
+$env:PYTHONPATH = "$PWD/build/tools/torch-mlir/python_packages/torch_mlir;$PWD/test/python/fx_importer"
 ```
 
 ## Testing MLIR output in various dialects
 
-To test the compiler's output to the different MLIR dialects, you can use the example `projects/pt1/examples/torchscript_resnet18_all_output_types.py`.
+To test the MLIR output to torch dialect, you can use `test/python/fx_importer/basic_test.py`.
 
 Make sure you have activated the virtualenv and set the `PYTHONPATH` above
 (if running on Windows, modify the environment variable as shown above):
 ```shell
 source mlir_venv/bin/activate
+export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/test/python/fx_importer
+python test/python/fx_importer/basic_test.py
+```
+
+This will display the basic example in TORCH dialect.
+
+To test the compiler's output to the different MLIR dialects, you can also use the deprecated path
+using torchscript with the example `projects/pt1/examples/torchscript_resnet18_all_output_types.py`.
+This path doesn't give access to the current generation work that is being driven via the fx_importer
+and may lead to errors.
+
+Same as above, but with different python path and example:
+```shell
 export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/projects/pt1/examples
 python projects/pt1/examples/torchscript_resnet18_all_output_types.py
 ```
 
 This will display the Resnet18 network example in three dialects: TORCH, LINALG on TENSORS and TOSA.
 
-The main functionality is on `torch_mlir.compile()`'s `output_type`.
+The main functionality is on `torch_mlir.torchscript.compile()`'s `output_type`.
 
 Ex:
 ```python
-module = torch_mlir.compile(resnet18, torch.ones(1, 3, 224, 224), output_type="torch")
+module = torch_mlir.torchscript.compile(resnet18, torch.ones(1, 3, 224, 224), output_type="torch")
 ```
 
-Currently, `output_type` can be: `TORCH`, `TOSA`, `LINALG_ON_TENSORS`, `RAW` and `STABLEHLO`.
+`output_type` can be: `TORCH`, `TOSA`, `LINALG_ON_TENSORS`, `RAW` and `STABLEHLO`.
 
 ## Jupyter
 

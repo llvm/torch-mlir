@@ -389,6 +389,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<Aten_SoftmaxBackwardDataOp>();
   target.addIllegalOp<AtenTanhBackwardOp>();
   target.addIllegalOp<AtenEinsumOp>();
+  target.addIllegalOp<AtenTraceOp>();
   target.addIllegalOp<AtenAddmmOp>();
   target.addIllegalOp<AtenMeanOp>();
   target.addIllegalOp<AtenMeanDimOp>();
@@ -488,6 +489,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenNarrowTensorOp>();
   target.addIllegalOp<Aten_EmbeddingBagOp>();
   target.addIllegalOp<AtenLiftFreshCopyOp>();
+  target.addIllegalOp<AtenLerpScalarOp>();
   target.addIllegalOp<AtenIndexTensorOp>();
   target.addIllegalOp<AtenMseLossOp>();
   target.addIllegalOp<AtenRandintLowOp>();
