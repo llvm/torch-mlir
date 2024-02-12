@@ -525,7 +525,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         // Correct for negative axis:
-        if (axis < 0) axis += dataRank;
+        if (axis < 0)
+          axis += dataRank;
 
         // 4. We can not directly perform torch.gather as the onnx.gather op
         // collects the input data at different location of output compared to
