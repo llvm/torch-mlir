@@ -14,6 +14,7 @@ except ImportError:
 import logging
 import operator
 import re
+from dataclasses import dataclass
 from types import BuiltinMethodType, BuiltinFunctionType
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 import weakref
@@ -208,34 +209,58 @@ SYMBOLIC_OP_TO_TORCH_OP = {
 }
 
 
-def sparsity_encoding(
-    shape: torch.Size, sparsity: tuple[torch.layout, int, int]
-) -> str:
-    """Returns sparse tensor encoding for the given sparse layout as string.
+@dataclass(frozen=True)
+class Sparsity:
+    """Class for keeping track of sparsity meta data."""
 
-    The method currently just supports 2-dim sparse formats. This should be
-    generalized to the torch.sparse encodings for prefix dense batch dimensions
-    and suffix dense subtensor dimensions. Since MLIR supports a superset of what
-    is currently implememented in torch.sparse, this should not a be problem.
-    """
+    layout: torch.layout
+    batch_dim: int
+    sparse_dim: int
+    dense_dim: int
+    pos_width: int
+    crd_width: int
+
+
+def sparsity_encoding(shape: torch.Size, sparsity: Sparsity) -> str:
+    """Returns sparse tensor encoding for the given sparse layout as string."""
     assert sparsity is not None
-    sparse_layout, posw, crdw = sparsity
 
-    # TODO: any rank
-    if len(shape) != 2:
-        raise RuntimeError(f"Unsupported sparse rank {len(shape)}")
+    # Sparse tensors have the form
+    #   [ <batch_dimensions> , <sparse_dimensions>, <dense_dimensions> ]
+    # which map directly to MLIR types.
+    batch_dim, sparse_dim, dense_dim = (
+        sparsity.batch_dim,
+        sparsity.sparse_dim,
+        sparsity.dense_dim,
+    )
+    dim = batch_dim + sparse_dim + dense_dim
+    assert dim == len(shape)
 
-    if sparse_layout is torch.sparse_coo:
-        smap = f"(i,j)->(i:compressed(nonunique),j:singleton)"
-    elif sparse_layout is torch.sparse_csr:
-        smap = f"(i,j)->(i:dense,j:compressed)"
-    elif sparse_layout is torch.sparse_csc:
-        smap = f"(i,j)->(j:dense,i:compressed)"
+    dims = ",".join(f"d{d}" for d in range(0, dim))
+
+    if sparsity.layout is torch.sparse_coo:
+        assert sparse_dim == 2  # TODO: deeper sparse dims
+        lvls = f"d{batch_dim}:compressed(nonunique),d{batch_dim+1}:singleton"
+    elif sparsity.layout is torch.sparse_csr:
+        assert sparse_dim == 2
+        lvls = f"d{batch_dim}:dense,d{batch_dim+1}:compressed"
+    elif sparsity.layout is torch.sparse_csc:
+        assert sparse_dim == 2
+        lvls = f"d{batch_dim+1}:dense,d{batch_dim}:compressed"
     else:
         # TODO: block format (derive block size!)
         raise RuntimeError(f"Unsupported sparse layout {sparse_layout}")
 
-    return f"#sparse_tensor.encoding<{{map={smap},posWidth={posw},crdWidth={crdw}}}>"
+    if batch_dim > 0:
+        batch = ",".join(f"d{d}:dense" for d in range(0, batch_dim))
+        lvls = f"{batch},{lvls}"
+
+    if dense_dim > 0:
+        dense = ",".join(f"d{d}:dense" for d in range(batch_dim + sparse_dim, dim))
+        lvls = f"{lvls},{dense}"
+
+    posw, crdw = sparsity.pos_width, sparsity.crd_width
+    return f"#sparse_tensor.encoding<{{map=({dims})->({lvls}),posWidth={posw},crdWidth={crdw}}}>"
 
 
 def is_symbolic(obj: Any) -> bool:
@@ -489,7 +514,7 @@ class ContextCache:
         shape: torch.Size,
         dtype: torch.dtype,
         *,
-        sparsity: Optional[tuple[torch.layout, int, int]] = None,  # keyword-only
+        sparsity: Optional[Sparsity] = None,  # keyword-only
     ):
         shape_asm = self.format_asm_shape(shape)
         mlir_dtype = str(self.dtype_to_type(dtype))
@@ -544,7 +569,7 @@ class ContextCache:
         self,
         tm: TensorMetadata,
         *,
-        sparsity: Optional[tuple[torch.layout, int, int]] = None,  # keyword-only
+        sparsity: Optional[Sparsity] = None,  # keyword-only
     ) -> IrType:
         tm_shape = tuple(
             item.node if is_symbolic(item) else item for item in list(tm.shape)
