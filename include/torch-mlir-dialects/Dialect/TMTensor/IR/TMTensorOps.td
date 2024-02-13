@@ -314,7 +314,7 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
       return getOutputType().getRank();
     }
     int64_t getIterationDomainRank() {
-      return 2;
+      return getKeyRank() - 2;
     };
     // Method to implement for specifying output range for
     // DestinationStyleOpInterface

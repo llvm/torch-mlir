@@ -94,9 +94,11 @@ LogicalResult AttentionOp::verify() {
   ShapedType keyType = getKeyType();
   ArrayRef<int64_t> queryShape = queryType.getShape();
   ArrayRef<int64_t> keyShape = keyType.getShape();
-  if (keyShape[0] != queryShape[0])
-    return op->emitOpError("query and key batch mismatch");
-  if (keyShape[2] != queryShape[2])
+  for (int i = 0, s = queryShape.size() - 2; i < s; ++i) {
+    if (keyShape[i] != queryShape[i])
+      return op->emitOpError("query and key batch mismatch");
+  }
+  if (keyShape.back() != queryShape.back())
     return op->emitOpError("query and key head dimension mismatch");
   return success();
 }
@@ -189,6 +191,8 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
   Value zeroF = b.create<arith::ConstantOp>(loc, elementType,
                                             b.getFloatAttr(elementType, 0.0));
 
+  // TODO: This needs to be fixed, it assumes everything is dynamic however if
+  // any shapes are static the `memref.alloc` generated is illegal.
   SmallVector<Value> queryDynSizes, keyDynSizes, valueDynSizes, outputDynSizes;
   for (auto i = 0; i < queryRank; i++)
     queryDynSizes.push_back(b.create<memref::DimOp>(loc, query, i));
