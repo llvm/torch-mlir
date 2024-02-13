@@ -116,12 +116,18 @@ static void setupFinalization(ConversionTarget &target,
 }
 
 static void stripTorchAttrs(func::FuncOp func) {
+  bool modified = false;
   SmallVector<NamedAttribute> newAttrs;
   for (auto attr : func->getDialectAttrs()) {
-    if (!attr.getName().getValue().starts_with("torch."))
+    if (attr.getName().getValue().starts_with("torch."))
+      modified = true;
+    else
       newAttrs.push_back(attr);
   }
-  func->setDialectAttrs(newAttrs);
+  if (modified)
+    func->setDialectAttrs(newAttrs);
+
+  // Note: this could also strip "arg" and "result" attrs if they were used.
 }
 
 namespace {
