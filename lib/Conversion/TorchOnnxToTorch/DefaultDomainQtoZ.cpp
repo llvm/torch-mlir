@@ -597,7 +597,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         return success();
       });
   patterns.onOp(
-      "Unsqueeze", 13,
+      "Unsqueeze", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         // Unlike squeeze where we are able to lower to Torch::PrimsSqueezeOp,
         // pytorch does not support torch.unsqueeze to insert multiple new dims.
@@ -675,9 +675,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         auto sortOpResult = rewriter.create<Torch::AtenSortOp>(
             binder.getLoc(), axes.getType(), sortIndicesType, updatedAxes, zero,
             cstFalse);
-        Value result;
         auto baseType = Torch::ValueTensorType::getWithLeastStaticInformation(
             binder.op->getContext());
+        Value result = data;
         // Go through the updated, sorted axes. Do unsqueeze for each dim.
         for (int i = 0; i < sizes[0]; i++) {
           Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
@@ -688,13 +688,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               zero, selectIndex);
           Value dim = rewriter.create<Torch::AtenItemOp>(
               binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
-          if (sizes[0] == 1) {
-            result = rewriter.create<Torch::AtenUnsqueezeOp>(
-                binder.getLoc(), resultType, data, dim);
-          } else if (i == 0) {
-            result = rewriter.create<Torch::AtenUnsqueezeOp>(
-                binder.getLoc(), baseType, data, dim);
-          } else if (i == sizes[0] - 1) {
+          // only the final unsqueeze gives us the result type
+          if (i == sizes[0] - 1) {
             result = rewriter.create<Torch::AtenUnsqueezeOp>(
                 binder.getLoc(), resultType, result, dim);
           } else {
