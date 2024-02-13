@@ -167,7 +167,8 @@ public:
         resultExprs.push_back(rewriter.getAffineDimExpr(size.index()));
       }
     }
-    auto maps = AffineMap::inferFromExprList({exprs, resultExprs, resultExprs});
+    auto maps = AffineMap::inferFromExprList({exprs, resultExprs, resultExprs},
+                                             rewriter.getContext());
     auto linalgOp = rewriter.create<linalg::GenericOp>(
         loc,
         ArrayRef<Type>({filledTensorVal.getType(), filledTensorIdx.getType()}),
