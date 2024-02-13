@@ -48,5 +48,3 @@ DEFAULT_DECOMPOSITIONS = [
 
 def get_decomposition_table():
     return get_decompositions(DEFAULT_DECOMPOSITIONS)
-
-    
