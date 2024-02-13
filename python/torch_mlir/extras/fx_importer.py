@@ -341,6 +341,7 @@ class FxImporter:
         """
         sig = prog.graph_signature
         state_dict = prog.state_dict
+        constants = prog.constants
         arg_replacements: dict[str, Any] = {}
         # Lift buffers.
         for input_name, state_name in sig.inputs_to_buffers.items():
@@ -348,6 +349,14 @@ class FxImporter:
                 state_value = state_dict[state_name]
             except KeyError as e:
                 raise AssertionError("Could not find state mapping for buffer") from e
+            arg_replacements[input_name] = state_value
+
+        # Lift tensor constants.
+        for input_name, state_name in sig.inputs_to_lifted_tensor_constants.items():
+            try:
+                state_value = constants[state_name]
+            except KeyError as e:
+                raise AssertionError("Could not find state mapping for tensor constants") from e
             arg_replacements[input_name] = state_value
 
         # Lift parameters.
