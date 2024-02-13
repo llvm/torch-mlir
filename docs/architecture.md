@@ -184,7 +184,7 @@ semantics. And often users want to erase the shapes in the trace to allow
 dynamic shapes for the trace. Additionally, the Python-level data structures and
 APIs are very parallel between `torch.jit.script` and `torch.jit.trace`, so we
 consider both of those as the same from the perspective of the responsibilities
-of the compiler. Both are accessed via the `torch_mlir.compile` Python API.
+of the compiler. Both are accessed via the `torch_mlir.torchscript.compile` Python API.
 
 ### Modeling the `torch.nn.Module` object (`IValue`) hierarchy for TorchScript
 

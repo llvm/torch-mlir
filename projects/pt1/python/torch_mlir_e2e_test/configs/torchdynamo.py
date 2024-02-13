@@ -17,7 +17,7 @@ from torch._functorch.aot_autograd import (
 
 from torch_mlir._dynamo_fx_importer import import_fx_graph_as_func
 from torch_mlir.dynamo import _get_decomposition_table
-from torch_mlir import (
+from torch_mlir.torchscript import (
     _example_args,
     OutputType,
     BACKEND_LEGAL_OPS,

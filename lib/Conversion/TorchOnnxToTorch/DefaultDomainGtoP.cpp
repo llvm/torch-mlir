@@ -861,7 +861,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
   patterns.onOp(
       "Pad", 19, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
-        Value data, pads, constantValue, axes;
+        Value data, pads, axes;
         std::string mode;
 
         // TODO: The `axes` parameter is not supported yet.
@@ -871,11 +871,40 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
         if (binder.tensorOperandAtIndex(data, 0) ||
             binder.tensorOperandAtIndex(pads, 1) ||
-            binder.tensorOperandAtIndex(constantValue, 2) ||
             binder.tensorResultType(resultType) ||
             binder.customOpNameStringAttr(mode, "mode", "constant"))
           return failure();
         Location loc = binder.getLoc();
+
+        Value constantValue;
+        if (binder.getNumOperands() >= 3) {
+          if (binder.tensorOperandAtIndex(constantValue, 2)) {
+            llvm::errs() << "failed to bind to index 2\n";
+            return failure();
+          }
+        } else {
+          auto dataTensorType = data.getType().cast<Torch::ValueTensorType>();
+
+          auto maybeZeroAttr = [&]() -> std::optional<Attribute> {
+            if (dataTensorType.getDtype().isa<IntegerType>()) {
+              return rewriter.getI64IntegerAttr(0);
+            }
+            if (dataTensorType.getDtype().isa<FloatType>()) {
+              return rewriter.getFloatAttr(dataTensorType.getDtype(), 0.0f);
+            }
+            return std::nullopt;
+          }();
+
+          if (!maybeZeroAttr) {
+            return rewriter.notifyMatchFailure(
+                binder.op, "expected integer or float data tensor");
+          }
+
+          auto shapedType = dataTensorType.toBuiltinTensor();
+          auto splat = SplatElementsAttr::get(shapedType, *maybeZeroAttr);
+          constantValue = rewriter.create<Torch::ValueTensorLiteralOp>(
+              loc, dataTensorType, splat);
+        }
 
         // Get pads shape and rank. The pads tensor is expected to be 1-D
         // tensor.
@@ -977,4 +1006,107 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.op, resultType, tensor, /*memory_format=*/noneVal);
         return success();
       });
+  patterns.onOp(
+      "Mean", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        if (binder.op->getNumOperands() == 1) {
+          Torch::ValueTensorType resultType;
+          Value x;
+          if (binder.tensorOperand(x) || binder.tensorResultType(resultType))
+            return failure();
+          rewriter.replaceOp(binder.op, x);
+          return success();
+        }
+        Torch::ValueTensorType resultType;
+        SmallVector<Value> valList;
+        int64_t numOperands = binder.op->getNumOperands();
+        Value numOperandsConstant = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), numOperands));
+        if (binder.tensorOperands(valList, numOperands) ||
+            binder.tensorResultType(resultType))
+          return failure();
+        Value constOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 1));
+        // Short circuit to binary add
+        Value curr = rewriter.create<Torch::AtenAddTensorOp>(
+            binder.getLoc(), resultType, valList[0], valList[1], constOne);
+        if (numOperands == 2) {
+          rewriter.replaceOpWithNewOp<Torch::AtenDivScalarOp>(
+              binder.op, resultType, curr, numOperandsConstant);
+          return success();
+        }
+        // When binder.op->getNumOperands() > 2
+        auto baseType = Torch::ValueTensorType::getWithLeastStaticInformation(
+            binder.op->getContext());
+        for (int i = 2; i < numOperands; i++) {
+          if (i == numOperands - 1) {
+            curr = rewriter.create<Torch::AtenAddTensorOp>(
+                binder.getLoc(), resultType, curr, valList[i], constOne);
+          } else {
+            curr = rewriter.create<Torch::AtenAddTensorOp>(
+                binder.getLoc(), baseType, curr, valList[i], constOne);
+          }
+        }
+        rewriter.replaceOpWithNewOp<Torch::AtenDivScalarOp>(
+            binder.op, resultType, curr, numOperandsConstant);
+        return success();
+      });
+  patterns.onOp(
+      "IsInf", 10, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value tensor;
+        int64_t neg;
+        int64_t pos;
+        if (binder.tensorOperand(tensor) ||
+            binder.s64IntegerAttr(neg, "detect_negative", 1) ||
+            binder.s64IntegerAttr(pos, "detect_positive", 1) ||
+            binder.tensorResultType(resultType)) {
+          return failure();
+        }
+        if (neg == 0) {
+          // replace all negative infs with 0
+          tensor = rewriter.create<Torch::AtenReluOp>(
+              binder.getLoc(),
+              dyn_cast<Torch::ValueTensorType>(tensor.getType()), tensor);
+        }
+        if (pos == 0) {
+          // first use neg op to flip positive inf to negative inf. Then relu to
+          // replace all positive infs with 0.
+          Value flip = rewriter.create<Torch::AtenNegOp>(
+              binder.getLoc(),
+              dyn_cast<Torch::ValueTensorType>(tensor.getType()), tensor);
+          tensor = rewriter.create<Torch::AtenReluOp>(
+              binder.getLoc(), dyn_cast<Torch::ValueTensorType>(flip.getType()),
+              flip);
+        }
+        rewriter.replaceOpWithNewOp<Torch::AtenIsinfOp>(binder.op, resultType,
+                                                        tensor);
+        return success();
+      });
+  patterns.onOp("IsNaN", 9,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value tensor;
+                  if (binder.tensorOperand(tensor) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenIsnanOp>(
+                      binder.op, resultType, tensor);
+                  return success();
+                });
+  patterns.onOp("PRelu", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value tensor;
+                  Value slope;
+                  if (binder.tensorOperands(tensor, slope) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenPreluOp>(
+                      binder.op, resultType, tensor, slope);
+                  return success();
+                });
 }

@@ -519,6 +519,15 @@ def aten〇std〇correction〡shape(self: List[int], dim: Optional[List[int]] = 
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
 
 @check_shape_function([
+    Invocation(TensorOfShape(2, 3)), # Basic case.
+    ErrorInvocation(TensorOfShape(2, 3, 4)), # Too many dimensions.
+    ErrorInvocation(TensorOfShape(2)), # Too few dimensions.
+])
+def aten〇trace〡shape(self: List[int]) -> List[int]:
+    assert len(self) == 2, "input must have rank 2"
+    return []
+
+@check_shape_function([
     Invocation(TensorOfShape(2, 3, 4)), # Basic case.
     Invocation(TensorOfShape(2, 3, 4), dim=0), # Test explicit `dim`.
     Invocation(TensorOfShape(2, 3, 4), dim=0, keepdim=True), # `keepdim`.
@@ -541,6 +550,9 @@ def aten〇one_hot〡shape(self: List[int], num_classes: int = -1) -> List[int]:
     return self + [num_classes]
 
 def aten〇any〇dim〡shape(self: List[int], dim: int, keepdim: bool = False) -> List[int]:
+    return upstream_shape_functions.argmax(self, dim, keepdim)
+
+def aten〇all〇dim〡shape(self: List[int], dim: int, keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.argmax(self, dim, keepdim)
 
 def aten〇max〇dim〡shape(self: List[int], dim: int, keepdim: bool = False) -> Tuple[List[int], List[int]]:
@@ -3766,6 +3778,13 @@ def aten〇any〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: int, keepdim
         return self_dtype
     return torch.bool
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0))
+def aten〇all〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: int, keepdim: bool = False) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if self_dtype == torch.uint8:
+        return self_dtype
+    return torch.bool
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇min〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -4208,6 +4227,13 @@ def aten〇einsum〡dtype(equation: str, tensors_rank_dtype: List[Tuple[int, int
         ranks.append(tensor_rank)
         dtypes.append(tensor_dtype)
     return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3)]))
+def aten〇trace〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if is_integer_dtype(self_dtype):
+        return torch.int64
+    return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇_shape_as_tensor〡dtype(self_rank_dtype: Tuple[int, int]) -> int:

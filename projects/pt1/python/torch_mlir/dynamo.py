@@ -125,7 +125,7 @@ def make_simple_dynamo_backend(user_backend):
     Args:
         user_backend: A function with the signature used by ordinary
             TorchDynamo backends. But the torch.fx.GraphModule passed to it
-            will be normalized for consumption by `torch_mlir.compile`.
+            will be normalized for consumption by `torchscript.compile`.
     Returns:
         A function with the signature used by TorchDynamo backends.
     """

@@ -1064,7 +1064,8 @@ public:
         rewriter.getAffineDimExpr(tensorOperandRank));
 
     SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
-        {originalIndicesDimExprs, updatedIndicesDimExprs});
+        {originalIndicesDimExprs, updatedIndicesDimExprs},
+        rewriter.getContext());
     SmallVector<utils::IteratorType> iteratorTypes(
         tensorOperandRank + 1, utils::IteratorType::parallel);
 
