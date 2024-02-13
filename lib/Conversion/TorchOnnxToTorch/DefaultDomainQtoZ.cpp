@@ -1231,6 +1231,145 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.op, resultType, data, dimValueList, keepDimBool);
         return success();
       });
+  patterns.onOp(
+      "ReduceProd", 13,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // ReduceProd allows us to pass a list of dims but AtenProdDimIn only
+        // allow one dim as input. We limited the implementation to only support
+        // one dim or default all dims.
+        Torch::ValueTensorType resultType;
+        Value data;
+        Value axes;
+        int64_t keepDims;
+        int64_t noop_with_empty_axes;
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+        // Case 1: no axes is given where we product all items.
+        if (binder.op->getNumOperands() == 1) {
+          if (binder.tensorOperand(data) ||
+              binder.tensorResultType(resultType) ||
+              binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
+              binder.s64IntegerAttr(noop_with_empty_axes,
+                                    "noop_with_empty_axes", 0))
+            return failure();
+          auto dataTy = data.getType().dyn_cast<Torch::ValueTensorType>();
+          if (noop_with_empty_axes == 0) {
+            Value keepDimsConstInt = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                rewriter.getIntegerAttr(rewriter.getIntegerType(64), keepDims));
+            Value keepDimsBool = rewriter.create<Torch::AtenBoolIntOp>(
+                binder.getLoc(), keepDimsConstInt);
+            int64_t numDims = dyn_cast<Torch::ValueTensorType>(data.getType())
+                                  .getSizes()
+                                  .size();
+            ArrayRef<int64_t> dataSizes = dataTy.getSizes();
+            // Flatten data to size [numData] so we can aten.prod.dim on dim0.
+            int64_t numData{1};
+            for (int64_t i : dataSizes) {
+              numData *= i;
+            }
+            Value numDataValue = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                rewriter.getIntegerAttr(rewriter.getIntegerType(64), numData));
+            Value reshapeSizesList =
+                rewriter.create<Torch::PrimListConstructOp>(
+                    binder.getLoc(),
+                    Torch::ListType::get(
+                        Torch::IntType::get(binder.op->getContext())),
+                    numDataValue);
+            SmallVector<int64_t, 1> reshapeSizesInt{numData};
+            Value reshapeData = rewriter.create<Torch::AtenReshapeOp>(
+                binder.getLoc(),
+                dataTy.getWithSizesAndDtype(reshapeSizesInt,
+                                            dataTy.getOptionalDtype()),
+                data, reshapeSizesList);
+            // Reduceprod data will result a size [1] tensor.
+            SmallVector<int64_t> resultSizeReduceProd;
+            resultSizeReduceProd.push_back(1);
+            Type resultTyReduceProd = dataTy.getWithSizesAndDtype(
+                llvm::ArrayRef(resultSizeReduceProd),
+                dataTy.getOptionalDtype());
+            resultTyReduceProd.dump();
+            Value dataReduceProd = rewriter.create<Torch::AtenProdDimIntOp>(
+                binder.getLoc(), resultTyReduceProd, reshapeData, zero,
+                keepDimsBool, noneVal);
+            // Reshape reduceprod result from size [1] to onnx resultType
+            // like [1,1,1].
+            SmallVector<Value> resultShape;
+            for (int i = 0; i < numDims; i++) {
+              resultShape.push_back(rewriter.create<Torch::ConstantIntOp>(
+                  binder.getLoc(), rewriter.getI64IntegerAttr(1)));
+            }
+            Value resultShapeList = rewriter.create<Torch::PrimListConstructOp>(
+                binder.getLoc(),
+                Torch::ListType::get(
+                    Torch::IntType::get(binder.op->getContext())),
+                resultShape);
+            rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(
+                binder.op, resultType, dataReduceProd, resultShapeList);
+          } else {
+            // When axes is empty and noop_with_empty_axes is set to true, input
+            // tensor will not be reduced,and the output tensor would be
+            // equivalent to input tensor.
+            rewriter.replaceOp(binder.op, data);
+          }
+          return success();
+        }
+        // Case 2: Axes are explicitly specified.
+        if (binder.tensorOperands(data, axes) ||
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
+            binder.s64IntegerAttr(noop_with_empty_axes, "noop_with_empty_axes",
+                                  0))
+          return failure();
+        Torch::BaseTensorType axesType =
+            axes.getType().cast<Torch::BaseTensorType>();
+        auto sizes =
+            dyn_cast<Torch::ValueTensorType>(axes.getType()).getSizes();
+        // Case 2.1: only one dim specified.
+        if (sizes.size() == 1) {
+          Value keepDimsConstInt = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), keepDims));
+          Value keepDimsBool = rewriter.create<Torch::AtenBoolIntOp>(
+              binder.getLoc(), keepDimsConstInt);
+          // Use AtenSelectIntOp to get the 0th value of axes
+          SmallVector<int64_t> selectSizes;
+          selectSizes.push_back(1);
+          Type selectResultType = axesType.getWithSizesAndDtype(
+              llvm::ArrayRef(selectSizes), axesType.getOptionalDtype());
+          Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+          Value extract = rewriter.create<Torch::AtenSelectIntOp>(
+              binder.getLoc(), selectResultType, axes, zero, selectIndex);
+          Value dim = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
+          // Deal with neg dim: if (dim < 0) dim += rank
+          int64_t adjustmentInt =
+              cast<Torch::ValueTensorType>(data.getType()).getSizes().size();
+          Value adjustment = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                      adjustmentInt));
+          Value isNegative =
+              rewriter.create<Torch::AtenLtIntOp>(binder.getLoc(), dim, zero);
+          isNegative = rewriter.create<Torch::AtenIntBoolOp>(binder.getLoc(),
+                                                             isNegative);
+          Value finalOffset = rewriter.create<Torch::AtenMulIntOp>(
+              binder.getLoc(), isNegative, adjustment);
+          Value finalDim = rewriter.create<Torch::AtenAddIntOp>(
+              binder.getLoc(), dim, finalOffset);
+          rewriter.replaceOpWithNewOp<Torch::AtenProdDimIntOp>(
+              binder.op, resultType, data, finalDim, keepDimsBool, noneVal);
+          return success();
+        }
+        // Case 2.2: Multiple axes specified.
+        return rewriter.notifyMatchFailure(
+            binder.op, "More than one dim is not supported yet.");
+      });
 
   patterns.onOp("Shape", 9,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {

@@ -1410,6 +1410,94 @@ func.func @test_reshape_zero_and_negative_dim(%arg0: !torch.vtensor<[2,3,4],f32>
 
 // -----
 
+// CHECK-LABEL: func.func @test_reduce_prod_default_axes_keepdims_random
+func.func @test_reduce_prod_default_axes_keepdims_random(%arg0: !torch.vtensor<[3,2,2],f32>) -> !torch.vtensor<[1,1,1],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64} {
+  // CHECK: %[[NONE:.*]] = torch.constant.none
+  // CHECK: %[[INT0:.*]] = torch.constant.int 0
+  // CHECK: %[[INT1:.*]] = torch.constant.int 1
+  // CHECK: %[[KEEPDIMS:.*]] = torch.aten.Bool.int %[[INT1]] : !torch.int -> !torch.bool
+  // CHECK: %[[NUM_DATA:.*]] = torch.constant.int 12
+  // CHECK: %[[FLATTEN_SHAPE:.*]] = torch.prim.ListConstruct %[[NUM_DATA]] : (!torch.int) -> !torch.list<int>
+  // CHECK: %[[FLATTEN_DATA:.*]] = torch.aten.reshape %arg0, %[[FLATTEN_SHAPE]] : !torch.vtensor<[3,2,2],f32>, !torch.list<int> -> !torch.vtensor<[12],f32>
+  // CHECK: %[[FLATTEN_PROD_RESULT:.*]] = torch.aten.prod.dim_int %[[FLATTEN_DATA]], %[[INT0]], %[[KEEPDIMS]], %[[NONE]] : !torch.vtensor<[12],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[1],f32>
+  // CHECK: %[[INT1_1:.*]] = torch.constant.int 1
+  // CHECK: %[[INT1_2:.*]] = torch.constant.int 1
+  // CHECK: %[[INT1_3:.*]] = torch.constant.int 1
+  // CHECK: %[[RESULT_SHAPE:.*]] = torch.prim.ListConstruct %[[INT1_1]], %[[INT1_2]], %[[INT1_3]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[RESULT:.*]] = torch.aten.reshape %[[FLATTEN_PROD_RESULT]], %[[RESULT_SHAPE]] : !torch.vtensor<[1],f32>, !torch.list<int> -> !torch.vtensor<[1,1,1],f32>
+  // CHECK: return %[[RESULT]] : !torch.vtensor<[1,1,1],f32>
+  %0 = torch.operator "onnx.ReduceProd"(%arg0) {torch.onnx.keepdims = 1 : si64} : (!torch.vtensor<[3,2,2],f32>) -> !torch.vtensor<[1,1,1],f32>
+  return %0 : !torch.vtensor<[1,1,1],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_reduce_prod_keepdims_random
+// CHECK: %[[NONE:.*]] = torch.constant.none
+// CHECK: %[[INT0:.*]] = torch.constant.int 0
+// CHECK: %[[INT1:.*]] = torch.constant.int 1
+// CHECK: %[[KEEPDIMS:.*]] = torch.aten.Bool.int %[[INT1]] : !torch.int -> !torch.bool
+// CHECK: %[[INT0_1:.*]] = torch.constant.int 0
+// CHECK: %[[EXRACT:.*]] = torch.aten.select.int %arg1, %[[INT0]], %[[INT0_1]] : !torch.vtensor<[1],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+// CHECK: %[[DIM:.*]] = torch.aten.item %[[EXRACT]] : !torch.vtensor<[1],si64> -> !torch.int
+// CHECK: %[[INT3:.*]] = torch.constant.int 3
+// CHECK: %[[IS_NEGATIVE:.*]] = torch.aten.lt.int %[[DIM]], %[[INT0]] : !torch.int, !torch.int -> !torch.bool
+// CHECK: %[[IS_NEGATIVE_INT:.*]] = torch.aten.Int.bool %[[IS_NEGATIVE]] : !torch.bool -> !torch.int
+// CHECK: %[[FINAL_OFFSET:.*]] = torch.aten.mul.int %[[IS_NEGATIVE_INT]], %[[INT3]] : !torch.int, !torch.int -> !torch.int
+// CHECK: %[[FINAL_DIM:.*]] = torch.aten.add.int %[[DIM]], %[[FINAL_OFFSET]] : !torch.int, !torch.int -> !torch.int
+// CHECK: %[[RESULT:.*]] = torch.aten.prod.dim_int %arg0, %[[FINAL_DIM]], %[[KEEPDIMS]], %[[NONE]] : !torch.vtensor<[3,2,2],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[3,1,2],f32>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[3,1,2],f32>
+func.func @test_reduce_prod_keepdims_random(%arg0: !torch.vtensor<[3,2,2],f32>, %arg1: !torch.vtensor<[1],si64>) -> !torch.vtensor<[3,1,2],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64} {
+  %0 = torch.operator "onnx.ReduceProd"(%arg0, %arg1) {torch.onnx.keepdims = 1 : si64} : (!torch.vtensor<[3,2,2],f32>, !torch.vtensor<[1],si64>) -> !torch.vtensor<[3,1,2],f32>
+  return %0 : !torch.vtensor<[3,1,2],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @test_reduce_prod_negative_axes_keepdims_random
+// CHECK: %[[NONE:.*]] = torch.constant.none
+// CHECK: %[[INT0:.*]] = torch.constant.int 0
+// CHECK: %[[INT1:.*]] = torch.constant.int 1
+// CHECK: %[[KEEPDIMS:.*]] = torch.aten.Bool.int %[[INT1]] : !torch.int -> !torch.bool
+// CHECK: %[[INT0_1:.*]] = torch.constant.int 0
+// CHECK: %[[EXRACT:.*]] = torch.aten.select.int %arg1, %[[INT0]], %[[INT0_1]] : !torch.vtensor<[1],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+// CHECK: %[[DIM:.*]] = torch.aten.item %[[EXRACT]] : !torch.vtensor<[1],si64> -> !torch.int
+// CHECK: %[[INT3:.*]] = torch.constant.int 3
+// CHECK: %[[IS_NEGATIVE:.*]] = torch.aten.lt.int %[[DIM]], %[[INT0]] : !torch.int, !torch.int -> !torch.bool
+// CHECK: %[[IS_NEGATIVE_INT:.*]] = torch.aten.Int.bool %[[IS_NEGATIVE]] : !torch.bool -> !torch.int
+// CHECK: %[[FINAL_OFFSET:.*]] = torch.aten.mul.int %[[IS_NEGATIVE_INT]], %[[INT3]] : !torch.int, !torch.int -> !torch.int
+// CHECK: %[[FINAL_DIM:.*]] = torch.aten.add.int %[[DIM]], %[[FINAL_OFFSET]] : !torch.int, !torch.int -> !torch.int
+// CHECK: %[[RESULT:.*]] = torch.aten.prod.dim_int %arg0, %[[FINAL_DIM]], %[[KEEPDIMS]], %[[NONE]] : !torch.vtensor<[3,2,2],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[3,1,2],f32>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[3,1,2],f32>
+func.func @test_reduce_prod_negative_axes_keepdims_random(%arg0: !torch.vtensor<[3,2,2],f32>, %arg1: !torch.vtensor<[1],si64>) -> !torch.vtensor<[3,1,2],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64} {
+  %0 = torch.operator "onnx.ReduceProd"(%arg0, %arg1) {torch.onnx.keepdims = 1 : si64} : (!torch.vtensor<[3,2,2],f32>, !torch.vtensor<[1],si64>) -> !torch.vtensor<[3,1,2],f32>
+  return %0 : !torch.vtensor<[3,1,2],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @test_reduce_prod_negative_axes_keepdims_example
+func.func @test_reduce_prod_negative_axes_keepdims_example(%arg0: !torch.vtensor<[3,2,2],f32>, %arg1: !torch.vtensor<[1],si64>) -> !torch.vtensor<[3,1,2],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64} {
+  // CHECK: %[[NONE:.*]] = torch.constant.none
+  // CHECK: %[[INT0:.*]] = torch.constant.int 0
+  // CHECK: %[[INT1:.*]] = torch.constant.int 1
+  // CHECK: %[[KEEPDIMS:.*]] = torch.aten.Bool.int %[[INT1]] : !torch.int -> !torch.bool
+  // CHECK: %[[INT0_1:.*]] = torch.constant.int 0
+  // CHECK: %[[EXRACT:.*]] = torch.aten.select.int %arg1, %[[INT0]], %[[INT0_1]] : !torch.vtensor<[1],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: %[[DIM:.*]] = torch.aten.item %[[EXRACT]] : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK: %[[INT3:.*]] = torch.constant.int 3
+  // CHECK: %[[IS_NEGATIVE:.*]] = torch.aten.lt.int %[[DIM]], %[[INT0]] : !torch.int, !torch.int -> !torch.bool
+  // CHECK: %[[IS_NEGATIVE_INT:.*]] = torch.aten.Int.bool %[[IS_NEGATIVE]] : !torch.bool -> !torch.int
+  // CHECK: %[[FINAL_OFFSET:.*]] = torch.aten.mul.int %[[IS_NEGATIVE_INT]], %[[INT3]] : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[FINAL_DIM:.*]] = torch.aten.add.int %[[DIM]], %[[FINAL_OFFSET]] : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[RESULT:.*]] = torch.aten.prod.dim_int %arg0, %[[FINAL_DIM]], %[[KEEPDIMS]], %[[NONE]] : !torch.vtensor<[3,2,2],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[3,1,2],f32>
+  // CHECK: return %[[RESULT]] : !torch.vtensor<[3,1,2],f32>  
+  %0 = torch.operator "onnx.ReduceProd"(%arg0, %arg1) {torch.onnx.keepdims = 1 : si64} : (!torch.vtensor<[3,2,2],f32>, !torch.vtensor<[1],si64>) -> !torch.vtensor<[3,1,2],f32>
+  return %0 : !torch.vtensor<[3,1,2],f32>
+}
+
+// -----
+
 // CHECK-LABEL : func.func @test_top_k
   func.func @test_top_k(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[1],si64>) -> (!torch.vtensor<[3,3],f32>, !torch.vtensor<[3,3],si64>) attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64} {
     // CHECK: %[[RESULTS:.*]]:2 = torch.operator "onnx.TopK"(%arg0, %arg1) {torch.onnx.axis = 1 : si64} : (!torch.vtensor<[3,4],f32>, !torch.vtensor<[1],si64>) -> (!torch.vtensor<[3,3],f32>, !torch.vtensor<[3,3],si64>)
