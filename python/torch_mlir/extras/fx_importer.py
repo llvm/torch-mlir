@@ -341,23 +341,27 @@ class FxImporter:
         """
         sig = prog.graph_signature
         state_dict = prog.state_dict
-        constants = prog.constants
         arg_replacements: dict[str, Any] = {}
-        # Lift buffers.
-        for input_name, state_name in sig.inputs_to_buffers.items():
-            try:
-                state_value = state_dict[state_name]
-            except KeyError as e:
-                raise AssertionError("Could not find state mapping for buffer") from e
-            arg_replacements[input_name] = state_value
 
-        # Lift tensor constants.
-        for input_name, state_name in sig.inputs_to_lifted_tensor_constants.items():
-            try:
-                state_value = constants[state_name]
-            except KeyError as e:
-                raise AssertionError("Could not find state mapping for tensor constants") from e
-            arg_replacements[input_name] = state_value
+        # If there is no "constants" attribute, consult the "state_dict". Otherwise, only look
+        # at "constants". Relevant upstream patch: https://github.com/pytorch/pytorch/pull/118969
+        if hasattr(prog, "constants"):
+            constants = prog.constants
+            # Lift tensor constants.
+            for input_name, state_name in sig.inputs_to_lifted_tensor_constants.items():
+                try:
+                    state_value = constants[state_name]
+                except KeyError as e:
+                    raise AssertionError("Could not find state mapping for tensor constants") from e
+                arg_replacements[input_name] = state_value
+        else:
+            # Lift buffers.
+            for input_name, state_name in sig.inputs_to_buffers.items():
+                try:
+                    state_value = state_dict[state_name]
+                except KeyError as e:
+                    raise AssertionError("Could not find state mapping for buffer") from e
+                arg_replacements[input_name] = state_value
 
         # Lift parameters.
         for input_name, state_name in sig.inputs_to_parameters.items():
