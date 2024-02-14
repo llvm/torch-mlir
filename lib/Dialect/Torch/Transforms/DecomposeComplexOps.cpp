@@ -166,8 +166,6 @@ static bool parseEquation(const std::string &equation,
   enum EquationVariable { kIsInput, kIsResult };
   EquationVariable currentVariable = kIsInput;
   while (index < equation.size()) {
-    if (equation[index] == ' ')
-      index++;
     if (std::isalpha(equation[index])) {
       if (currentVariable == kIsInput) {
         inputToken.push_back(equation[index]);
@@ -183,7 +181,7 @@ static bool parseEquation(const std::string &equation,
       inputToken.clear();
       currentVariable = kIsResult;
       index++;
-    } else {
+    } else if (equation[index] != ' ') {
       return false;
     }
     index++;
