@@ -3926,6 +3926,10 @@ def aten〇linalg_vector_norm〡dtype(self_rank_dtype: Tuple[int, int], ord: Uni
 def aten〇norm〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], p: Union[int, float, complex] = 2) -> int:
     self_rank, self_dtype = self_rank_dtype
     assert not is_integer_dtype(self_dtype)
+    # The following check is added because aten〇std〡dtype
+    # does not handle complex32 transformation to float,
+    # so it is done manually (torch.half == torch.float16).
+    # Should possibly be added to aten〇std〡dtype.
     if self_dtype == torch.complex32:
         return torch.half
     return aten〇std〡dtype(self_rank_dtype)

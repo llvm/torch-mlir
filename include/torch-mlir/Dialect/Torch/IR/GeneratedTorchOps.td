@@ -6347,6 +6347,7 @@ def Torch_AtenNormScalarOp : Torch_Op<"aten.norm.Scalar", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasVerifier = 1;
 }
 
 def Torch_AtenNormScalarOptDimOp : Torch_Op<"aten.norm.ScalarOpt_dim", [

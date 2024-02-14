@@ -3763,6 +3763,39 @@ LogicalResult ShapeCalculateYieldShapesOp::verify() {
   return success();
 }
 
+//===----------------------------------------------------------------------===//
+// AtenNormScalarOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenNormScalarOp::verify() {
+
+  // Verificaion of input type for torch.aten.norm.Scalar.
+  // Per PyTorch docs, only float and complex types are valid for norm operation.
+
+  auto inTensor = getSelf().getType().cast<BaseTensorType>();
+
+  // If no dtype is specified, it will default to a float one.
+  if (!inTensor.hasDtype()) {
+    return success();
+  }
+
+  auto inTensorDtype = inTensor.getDtype();
+
+  // Check if dtype is one of those supported by norm operation.
+  // ComplexType will match any torch complex types, but each float must be checked individually.
+  if (!inTensorDtype.isa<mlir::ComplexType, mlir::Float16Type, mlir::Float32Type, mlir::Float64Type>()) {
+    return emitOpError(
+               "expected a float or complex type for input tensor, but got ")
+               << inTensorDtype;
+  }
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// AtenPermuteOp
+//===----------------------------------------------------------------------===//
+
 LogicalResult AtenPermuteOp::verify() {
 
   // Verification of the permute op for input & output dimensions with

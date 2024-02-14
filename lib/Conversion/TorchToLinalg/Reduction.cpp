@@ -499,9 +499,9 @@ private:
     return err ? Value{} : powOp;
   }
 
-  template <typename T>
+  template <typename TOp>
   FailureOr<Value>
-  createSecondReductionForNormOp(Location loc, Type elemType, T op, Value ordOp,
+  createSecondReductionForNormOp(Location loc, Type elemType, TOp op, Value ordOp,
                                  Value firstReduction,
                                  const torch_to_linalg::ReductionOpInfo &opInfo,
                                  ConversionPatternRewriter &rewriter) const {
@@ -611,10 +611,10 @@ public:
 
     // If this is aten.norm.Scalar op, then we need to generate another
     // linalg.generic op that references the first linalg.generic op.
-    if (auto normOp = dyn_cast<AtenNormScalarOp>(op)) {
+    if (isa<AtenNormScalarOp>(op)) {
       AtenNormScalarOp::Adaptor adaptor(operands);
       FailureOr<Value> secondReduceOp = createSecondReductionForNormOp(
-          loc, elemType, normOp, adaptor.getP(), reduceOp, *opInfo, rewriter);
+          loc, elemType, op, adaptor.getP(), reduceOp, *opInfo, rewriter);
       if (failed(secondReduceOp))
         return secondReduceOp;
       reduceOp = *secondReduceOp;
