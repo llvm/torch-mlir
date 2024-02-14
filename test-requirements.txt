@@ -2,4 +2,3 @@ pillow
 dill
 multiprocess
 onnx==1.15.0
-ml_dtypes

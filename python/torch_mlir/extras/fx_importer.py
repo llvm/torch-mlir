@@ -42,7 +42,14 @@ from torch.fx import (
     Graph,
     GraphModule,
 )
-import ml_dtypes as mld
+import ml_dtypes
+try:
+    import ml_dtypes
+except ModuleNotFoundError:
+    # The third-party ml_dtypes package provides some optional
+    # low precision data-types. If used in this file, it is
+    # conditional.
+    ml_dtypes = None
 
 from torch.fx.node import (
     Argument as NodeArgument,
@@ -137,7 +144,6 @@ TORCH_DTYPE_TO_NPY_TYPE = {
     torch.int16: np.int16,
     torch.int32: np.int32,
     torch.int64: np.int64,
-    torch.bfloat16: mld.bfloat16,# , there's no equivalent np datatype so this isn't supported right now
     torch.float16: np.float16,
     torch.float32: np.float32,
     torch.float64: np.float64,
@@ -146,6 +152,8 @@ TORCH_DTYPE_TO_NPY_TYPE = {
     torch.complex64: np.complex64,
     torch.complex128: np.complex128,
 }
+if ml_dtypes is not None:
+    TORCH_DTYPE_TO_NPY_TYPE[torch.bfloat16] = ml_dtypes.bfloat16
 
 TORCH_DTYPE_TO_INT = {
     torch.uint8: 0,
