@@ -2399,7 +2399,7 @@ public:
     Value innerDim_1e = rewriter.create<arith::DivFOp>(loc, innerDim_1d, two);
     Value grid = adaptor.getGrid();
     auto gridType = grid.getType().cast<RankedTensorType>();
-    auto gridElementType = gridType.getElementType();    
+    auto gridElementType = gridType.getElementType();
     auto gridShape = gridType.getShape();
     auto gridRank = gridType.getRank();
     Value zeroIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
@@ -2413,108 +2413,147 @@ public:
     SmallVector<Value> extractGridOffsets_1(gridRank, zeroIndex);
     extractGridOffsets_1[lastGridDim] = oneIndex;
     SmallVector<int64_t> gridShapeExtracted(gridShape);
-    gridShapeExtracted.back() = 1; 
-    auto gridTypeExtracted = RankedTensorType::get(gridShapeExtracted, gridElementType);
+    gridShapeExtracted.back() = 1;
+    auto gridTypeExtracted = 
+        RankedTensorType::get(gridShapeExtracted, gridElementType);
     auto grid_0 = rewriter.create<tensor::ExtractSliceOp>(
-        loc, gridTypeExtracted ,grid, extractGridOffsets_0, extractGridShape, extractGridStride);
+        loc, gridTypeExtracted ,grid, extractGridOffsets_0, extractGridShape,
+        extractGridStride);
     auto grid_1 = rewriter.create<tensor::ExtractSliceOp>(
-        loc, gridTypeExtracted, grid, extractGridOffsets_1, extractGridShape, extractGridStride);
+        loc, gridTypeExtracted, grid, extractGridOffsets_1, extractGridShape,
+        extractGridStride);
     SmallVector<ReassociationIndices> associations;
     associations.push_back(ReassociationIndices{0});
     associations.push_back(ReassociationIndices{1});
-    associations.push_back(ReassociationIndices{2,3});
-    SmallVector<int64_t> gridShapeCollapsed{gridShape[0],gridShape[1],gridShape[2]};
-    gridShapeExtracted.back() = 1; 
-    auto gridTypeCollapsed = RankedTensorType::get(gridShapeCollapsed, gridElementType);
-    auto gridCollapsed_0 = rewriter.create<tensor::CollapseShapeOp>(loc, gridTypeCollapsed, grid_0, associations);
-    auto gridCollapsed_1 = rewriter.create<tensor::CollapseShapeOp>(loc, gridTypeCollapsed, grid_1, associations);
+    associations.push_back(ReassociationIndices{2, 3});
+    SmallVector<int64_t> gridShapeCollapsed{gridShape[0], gridShape[1],
+                                            gridShape[2]};
+    gridShapeExtracted.back() = 1;
+    auto gridTypeCollapsed = 
+        RankedTensorType::get(gridShapeCollapsed, gridElementType);
+    auto gridCollapsed_0 = rewriter.create<tensor::CollapseShapeOp>(
+        loc, gridTypeCollapsed, grid_0, associations);
+    auto gridCollapsed_1 = rewriter.create<tensor::CollapseShapeOp>(
+        loc, gridTypeCollapsed, grid_1, associations);
     AffineExpr d0 = getAffineDimExpr(0, op->getContext());
     AffineExpr d2 = getAffineDimExpr(2, op->getContext());
     AffineExpr d3 = getAffineDimExpr(3, op->getContext());
-    SmallVector<AffineMap> gridMaps{rewriter.getMultiDimIdentityMap(gridRank),
-                                    AffineMap::get(4, 0, {d0, d2, d3}, op->getContext()),
-                                    AffineMap::get(4, 0, {d0, d2, d3}, op->getContext()) 
-                                    };
-    SmallVector<utils::IteratorType> gridIterators(gridRank, utils::IteratorType::parallel);
+    SmallVector<AffineMap> gridMaps{
+        rewriter.getMultiDimIdentityMap(gridRank),
+        AffineMap::get(4, 0, {d0, d2, d3}, op->getContext()),
+        AffineMap::get(4, 0, {d0, d2, d3}, op->getContext())};
+    SmallVector<utils::IteratorType> gridIterators(
+        gridRank, utils::IteratorType::parallel);
     SmallVector<int64_t> resultShape = makeShapeTorchCompatible(inputShape);
     resultShape[2] = gridShape[1];
     resultShape[3] = gridShape[2];
-    Value resultFinal = rewriter.create<tensor::EmptyOp>(loc, resultShape, floatType);
+    Value resultFinal = 
+        rewriter.create<tensor::EmptyOp>(loc, resultShape, floatType);
     auto resultFinalType = resultFinal.getType().cast<RankedTensorType>();
-    Value sGrid = rewriter.create<linalg::GenericOp>(
-        loc,
-        resultFinalType,
-        ValueRange{gridCollapsed_0, gridCollapsed_1},
-        resultFinal,
-        gridMaps, gridIterators,
-        [&](OpBuilder &b, Location loc, ValueRange args) {
-          Value gr_0 = args[0];
-          Value gr_1 = args[1];
-          Value oneFloat = b.create<arith::ConstantOp>(
-              loc, b.getFloatAttr(gridElementType, 1.0));
-          Value gplus_0 = b.create<arith::AddFOp>(loc, gr_0, oneFloat);
-          Value gplus_1 = b.create<arith::AddFOp>(loc, gr_1, oneFloat);
-          Value result_0 = b.create<arith::MulFOp>(loc, gplus_0, innerDim_0e);
-          Value result_1 = b.create<arith::MulFOp>(loc, gplus_1, innerDim_1e);
-          Value lower_0 = b.create<arith::FPToSIOp>(loc, int64type, result_0);
-          Value lower_1 = b.create<arith::FPToSIOp>(loc, int64type, result_1);
-          Value oneInt = b.create<arith::ConstantOp>(
-              loc, b.getIntegerAttr(int64type, 1));
-          Value upper_0 =
-              b.create<arith::AddIOp>(loc, int64type, lower_0, oneInt);
-          Value upper_1 =
-              b.create<arith::AddIOp>(loc, int64type, lower_1, oneInt);
-          Value notValid_0 =
-              createGreaterThan(b, loc, int64type, upper_0, innerDim_0c);
-          Value notValid_1 =
-              createGreaterThan(b, loc, int64type, upper_1, innerDim_1c);
-          Value upperValid_0 =
-              b.create<arith::SelectOp>(loc, notValid_0, lower_0, upper_0);
-          Value upperValid_1 =
-              b.create<arith::SelectOp>(loc, notValid_1, lower_1, upper_1);
-          Value lw_0 = b.create<arith::IndexCastOp>(loc, b.getIndexType(), lower_0);
-          Value lw_1 = b.create<arith::IndexCastOp>(loc, b.getIndexType(), lower_1);
-          Value up_0 = b.create<arith::IndexCastOp>(loc, b.getIndexType(), upperValid_0);
-          Value up_1 = b.create<arith::IndexCastOp>(loc, b.getIndexType(), upperValid_1);
-          Value N = b.create<linalg::IndexOp>(loc, 0);
-          Value C = b.create<linalg::IndexOp>(loc, 1);
-          SmallVector<Value> inputIndex00{N, C, lw_0, lw_1};
-          Value result_00 = b.create<tensor::ExtractOp>(loc, input, inputIndex00);
-          SmallVector<Value> inputIndex01{N, C, lw_0, up_1};
-          Value result_01 = b.create<tensor::ExtractOp>(loc, input, inputIndex01);
-          Value zeroVal = b.create<arith::ConstantOp>(loc, b.getFloatAttr(floatType, 0.0));
-          Value result_01a = b.create<arith::SelectOp>(loc, notValid_1, zeroVal, result_01);
-          SmallVector<Value> inputIndex10{N, C, up_0, lw_1};
-          Value result_10 = b.create<tensor::ExtractOp>(loc, input, inputIndex10);
-          Value result_10a = b.create<arith::SelectOp>(loc, notValid_0, zeroVal, result_10);
-          SmallVector<Value> inputIndex11{N, C, up_0, up_1};
-          Value result_11 = b.create<tensor::ExtractOp>(loc, input, inputIndex11);
-          Value result_11a = b.create<arith::SelectOp>(loc, notValid_0, zeroVal, result_11);
-          Value result_11b = b.create<arith::SelectOp>(loc, notValid_1, zeroVal, result_11a);
-          Value lw_0a = b.create<arith::SIToFPOp>(loc, floatType, lower_0);
-          Value lw_1a = b.create<arith::SIToFPOp>(loc, floatType, lower_1);
-          Value d0 = b.create<arith::SubFOp>(loc, result_0, lw_0a);
-          Value d1 = b.create<arith::SubFOp>(loc, result_1, lw_1a);
-          Value dm0 = b.create<arith::SubFOp>(loc, oneFloat, d0);
-          Value dm1 = b.create<arith::SubFOp>(loc, oneFloat, d1);
-          Value delta_00 = b.create<arith::MulFOp>(loc, d0, d1);
-          Value delta_01 = b.create<arith::MulFOp>(loc, dm0, d1);
-          Value delta_10 = b.create<arith::MulFOp>(loc, d0, dm1);
-          Value delta_11 = b.create<arith::MulFOp>(loc, dm0, dm1);
-          Value resultScaled_00 = b.create<arith::MulFOp>(loc, delta_00, result_11b);
-          Value resultScaled_01 = b.create<arith::MulFOp>(loc, delta_01, result_01a);
-          Value resultScaled_10 = b.create<arith::MulFOp>(loc, delta_10, result_10a);
-          Value resultScaled_11 = b.create<arith::MulFOp>(loc, delta_11, result_00);
-          Value resultScaled_0 = b.create<arith::AddFOp>(loc, resultScaled_00, resultScaled_01);
-          Value resultScaled_1 = b.create<arith::AddFOp>(loc, resultScaled_10, resultScaled_11);
-          Value resultScaled = b.create<arith::AddFOp>(loc, resultScaled_0, resultScaled_1);
-          b.create<linalg::YieldOp>(loc, resultScaled);
-        }).getResult(0);
-    
-        RankedTensorType resultType = getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
-    
+    Value sGrid = 
+        rewriter
+            .create<linalg::GenericOp>(
+                loc,
+                resultFinalType,
+                ValueRange{gridCollapsed_0, gridCollapsed_1},
+                resultFinal,
+                gridMaps, gridIterators,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value gr_0 = args[0];
+                  Value gr_1 = args[1];
+                  Value oneFloat = b.create<arith::ConstantOp>(
+                      loc, b.getFloatAttr(gridElementType, 1.0));
+                  Value gplus_0 = b.create<arith::AddFOp>(loc, gr_0, oneFloat);
+                  Value gplus_1 = b.create<arith::AddFOp>(loc, gr_1, oneFloat);
+                  Value result_0 = 
+                      b.create<arith::MulFOp>(loc, gplus_0, innerDim_0e);
+                  Value result_1 = 
+                      b.create<arith::MulFOp>(loc, gplus_1, innerDim_1e);
+                  Value lower_0 = 
+                      b.create<arith::FPToSIOp>(loc, int64type, result_0);
+                  Value lower_1 = 
+                      b.create<arith::FPToSIOp>(loc, int64type, result_1);
+                  Value oneInt = b.create<arith::ConstantOp>(
+                      loc, b.getIntegerAttr(int64type, 1));
+                  Value upper_0 =
+                      b.create<arith::AddIOp>(loc, int64type, lower_0, oneInt);
+                  Value upper_1 =
+                      b.create<arith::AddIOp>(loc, int64type, lower_1, oneInt);
+                  Value notValid_0 =
+                      createGreaterThan(b, loc, int64type,
+                                        upper_0, innerDim_0c);
+                  Value notValid_1 =
+                      createGreaterThan(b, loc, int64type,
+                                        upper_1, innerDim_1c);
+                  Value upperValid_0 = b.create<arith::SelectOp>(
+                      loc, notValid_0, lower_0, upper_0);
+                  Value upperValid_1 = b.create<arith::SelectOp>(
+                      loc, notValid_1, lower_1, upper_1);
+                  Value lw_0 = b.create<arith::IndexCastOp>(
+                      loc, b.getIndexType(), lower_0);
+                  Value lw_1 = b.create<arith::IndexCastOp>(
+                      loc, b.getIndexType(), lower_1);
+                  Value up_0 = b.create<arith::IndexCastOp>(
+                      loc, b.getIndexType(), upperValid_0);
+                  Value up_1 = b.create<arith::IndexCastOp>(
+                      loc, b.getIndexType(), upperValid_1);
+                  Value N = b.create<linalg::IndexOp>(loc, 0);
+                  Value C = b.create<linalg::IndexOp>(loc, 1);
+                  SmallVector<Value> inputIndex00{N, C, lw_0, lw_1};
+                  Value result_00 =
+                      b.create<tensor::ExtractOp>(loc, input, inputIndex00);
+                  SmallVector<Value> inputIndex01{N, C, lw_0, up_1};
+                  Value result_01 =
+                      b.create<tensor::ExtractOp>(loc, input, inputIndex01);
+                  Value zeroVal = b.create<arith::ConstantOp>(
+                      loc, b.getFloatAttr(floatType, 0.0));
+                  Value result_01a = b.create<arith::SelectOp>(
+                      loc, notValid_1, zeroVal, result_01);
+                  SmallVector<Value> inputIndex10{N, C, up_0, lw_1};
+                  Value result_10 =
+                      b.create<tensor::ExtractOp>(loc, input, inputIndex10);
+                  Value result_10a = b.create<arith::SelectOp>(
+                      loc, notValid_0, zeroVal, result_10);
+                  SmallVector<Value> inputIndex11{N, C, up_0, up_1};
+                  Value result_11 =
+                      b.create<tensor::ExtractOp>(loc, input, inputIndex11);
+                  Value result_11a = b.create<arith::SelectOp>(
+                      loc, notValid_0, zeroVal, result_11);
+                  Value result_11b = b.create<arith::SelectOp>(
+                      loc, notValid_1, zeroVal, result_11a);
+                  Value lw_0a =
+                      b.create<arith::SIToFPOp>(loc, floatType, lower_0);
+                  Value lw_1a =
+                      b.create<arith::SIToFPOp>(loc, floatType, lower_1);
+                  Value d0 = b.create<arith::SubFOp>(loc, result_0, lw_0a);
+                  Value d1 = b.create<arith::SubFOp>(loc, result_1, lw_1a);
+                  Value dm0 = b.create<arith::SubFOp>(loc, oneFloat, d0);
+                  Value dm1 = b.create<arith::SubFOp>(loc, oneFloat, d1);
+                  Value delta_00 = b.create<arith::MulFOp>(loc, d0, d1);
+                  Value delta_01 = b.create<arith::MulFOp>(loc, dm0, d1);
+                  Value delta_10 = b.create<arith::MulFOp>(loc, d0, dm1);
+                  Value delta_11 = b.create<arith::MulFOp>(loc, dm0, dm1);
+                  Value resultScaled_00 =
+                      b.create<arith::MulFOp>(loc, delta_00, result_11b);
+                  Value resultScaled_01 =
+                      b.create<arith::MulFOp>(loc, delta_01, result_01a);
+                  Value resultScaled_10 =
+                      b.create<arith::MulFOp>(loc, delta_10, result_10a);
+                  Value resultScaled_11 =
+                      b.create<arith::MulFOp>(loc, delta_11, result_00);
+                  Value resultScaled_0 = b.create<arith::AddFOp>(
+                      loc, resultScaled_00, resultScaled_01);
+                  Value resultScaled_1 = b.create<arith::AddFOp>(
+                      loc, resultScaled_10, resultScaled_11);
+                  Value resultScaled = b.create<arith::AddFOp>(
+                      loc, resultScaled_0, resultScaled_1);
+                  b.create<linalg::YieldOp>(loc, resultScaled);
+                })
+            .getResult(0);
+
+    RankedTensorType resultType =
+        getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
     sGrid.dump(); 
-    
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, sGrid);
     return success();
   }
