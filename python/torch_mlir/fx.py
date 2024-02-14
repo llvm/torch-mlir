@@ -7,7 +7,7 @@ import torch.nn as nn
 from torch_mlir.extras.fx_importer import FxImporter
 from torch_mlir import ir
 from torch_mlir.dialects import torch as torch_d
-from torch_mlir.extras.decomp_util import get_decomposition_table
+from torch_mlir.extras.fx_decomp_util import get_decomposition_table
 
 def export_and_import(
     f,

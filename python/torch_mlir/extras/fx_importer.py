@@ -412,12 +412,6 @@ class FxImporter:
                 replacement = arg_replacements.get(node.name)
                 if replacement is None:
                     continue
-                # remove the clone op (unnecessary extra copy due to torch.tensor())
-                # this is only for efficiency (no functional changes)
-                keys = list(node.users.keys())
-                if (len(node.users) == 1 and keys[0].target == torch.ops.aten.clone.default):
-                    keys[0].replace_all_uses_with(replacement)
-                    g.erase_node(keys[0])
                 node.replace_all_uses_with(replacement)
                 g.erase_node(node)
 
