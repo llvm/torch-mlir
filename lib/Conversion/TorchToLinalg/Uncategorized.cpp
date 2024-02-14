@@ -216,22 +216,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<math::FloorOp>(loc, payloadArgs[0]);
   if (isa<AtenCeilOp>(op))
     return b.create<math::CeilOp>(loc, payloadArgs[0]);
-  if (isa<AtenTanOp>(op)) {
-    return createCalculationForMathOpWithDtypeConversion<math::TanOp>(
-        b, converter, payloadArgs[0], op);
-  }
-  if (isa<AtenTanhOp>(op)) {
-    return createCalculationForMathOpWithDtypeConversion<math::TanhOp>(
-        b, converter, payloadArgs[0], op);
-  }
-  if (isa<AtenSinhOp>(op)) {
-    return createCalculationForMathOpWithDtypeConversion<math::SinhOp>(
-        b, converter, payloadArgs[0], op);
-  }
-  if (isa<AtenCoshOp>(op)) {
-    return createCalculationForMathOpWithDtypeConversion<math::CoshOp>(
-        b, converter, payloadArgs[0], op);
-  }
   if (isa<AtenExpOp>(op)) {
     return createCalculationForMathOpWithDtypeConversion<math::ExpOp>(
         b, converter, payloadArgs[0], op);
@@ -276,16 +260,48 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return createCalculationForMathOpWithDtypeConversion<math::SinOp>(
         b, converter, payloadArgs[0], op);
   }
+  if (isa<AtenSinhOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::SinhOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenAsinOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::AsinOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenAsinhOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::AsinhOp>(
+        b, converter, payloadArgs[0], op);
+  }
   if (isa<AtenCosOp>(op)) {
     return createCalculationForMathOpWithDtypeConversion<math::CosOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenCoshOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::CoshOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenAcosOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::AcosOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenAcoshOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::AcoshOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenTanOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::TanOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenTanhOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::TanhOp>(
         b, converter, payloadArgs[0], op);
   }
   if (isa<AtenAtanOp>(op)) {
     return createCalculationForMathOpWithDtypeConversion<math::AtanOp>(
         b, converter, payloadArgs[0], op);
   }
-  if (isa<AtenAcosOp>(op)) {
-    return createCalculationForMathOpWithDtypeConversion<math::AcosOp>(
+  if (isa<AtenAtanhOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::AtanhOp>(
         b, converter, payloadArgs[0], op);
   }
   if (auto clone = dyn_cast<AtenCloneOp>(op)) {
@@ -1505,7 +1521,8 @@ public:
              AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
              AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
              AtenTrilOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
-             AtenFillTensorOp, AtenAtanOp, AtenAcosOp, AtenRealOp, AtenImagOp,
+             AtenFillTensorOp, AtenAtanOp, AtenAcosOp, AtenAtanhOp, AtenAcoshOp,
+             AtenAsinOp, AtenAsinhOp, AtenRealOp, AtenImagOp,
              AtenDequantizeSelfOp, AtenDequantizeTensorOp,
              AtenQuantizePerTensorOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
@@ -2509,27 +2526,27 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     ConversionTarget &target) {
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<
-      AtenTanOp, AtenTanhOp, AtenSinhOp, AtenCoshOp, AtenReluOp, AtenGeluOp,
-      AtenGeluBackwardOp, AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp,
-      AtenDivTensorModeOp, AtenSubTensorOp, AtenLerpTensorOp, AtenSigmoidOp,
-      AtenMinimumOp, AtenAtan2Op, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
-      AtenClampTensorOp, AtenRsubScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp,
-      AtenFloorOp, AtenCeilOp, AtenPreluOp, AtenPowScalarOp,
-      AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op, AtenLog10Op,
-      AtenLog1pOp, AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp,
-      AtenBitwiseAndTensorOp, AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
-      AtenBitwiseXorTensorOp, AtenBitwiseLeftShiftTensorOp,
-      AtenBitwiseRightShiftTensorOp, AtenGtScalarOp, AtenGeScalarOp,
-      AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp,
-      AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp,
-      AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
-      AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
-      AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp,
-      AtenAcosOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
-      AtenTrilOp, AtenRemainderScalarOp, AtenRemainderTensorOp,
-      AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
-      AtenRealOp, AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
-      AtenQuantizePerTensorOp>();
+      AtenTanOp, AtenTanhOp, AtenSinhOp, AtenCoshOp, AtenAtanhOp, AtenAcoshOp,
+      AtenAsinOp, AtenAsinhOp, AtenReluOp, AtenGeluOp, AtenGeluBackwardOp,
+      AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp,
+      AtenSubTensorOp, AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp,
+      AtenAtan2Op, AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenClampTensorOp,
+      AtenRsubScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp, AtenFloorOp,
+      AtenCeilOp, AtenPreluOp, AtenPowScalarOp, AtenPowTensorScalarOp,
+      AtenPowTensorTensorOp, AtenLog2Op, AtenLog10Op, AtenLog1pOp, AtenRsqrtOp,
+      AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
+      AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp, AtenBitwiseXorTensorOp,
+      AtenBitwiseLeftShiftTensorOp, AtenBitwiseRightShiftTensorOp,
+      AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp,
+      AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp, AtenGeTensorOp,
+      AtenEqTensorOp, AtenNeTensorOp, AtenLtTensorOp, AtenLeTensorOp,
+      AtenThresholdOp, AtenThresholdBackwardOp, AtenHardtanhBackwardOp,
+      AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillTensorOp,
+      AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp, AtenAcosOp,
+      AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp, AtenTrilOp,
+      AtenRemainderScalarOp, AtenRemainderTensorOp, AtenBitwiseNotOp,
+      AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp, AtenRealOp, AtenImagOp,
+      AtenDequantizeSelfOp, AtenDequantizeTensorOp, AtenQuantizePerTensorOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);

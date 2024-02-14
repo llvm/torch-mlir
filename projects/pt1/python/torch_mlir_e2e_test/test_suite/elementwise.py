@@ -107,6 +107,182 @@ def ElementwiseCoshIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAcoshModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.acosh(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAcoshModule())
+def ElementwiseAcoshModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseAcoshIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.acosh(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAcoshIntModule())
+def ElementwiseAcoshIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseAsinModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.asin(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAsinModule())
+def ElementwiseAsinModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseAsinIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.asin(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAsinIntModule())
+def ElementwiseAsinIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseAsinhModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.asinh(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAsinhModule())
+def ElementwiseAsinhModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseAsinhIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.asinh(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAsinhIntModule())
+def ElementwiseAsinhIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseAtanhModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.atanh(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAtanhModule())
+def ElementwiseAtanhModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseAtanhIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.atanh(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAtanhIntModule())
+def ElementwiseAtanhIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
 class ElementwiseBinaryModule(torch.nn.Module):
 
     def __init__(self):

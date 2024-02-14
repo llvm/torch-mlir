@@ -189,6 +189,78 @@ private:
 };
 } // namespace
 
+namespace {
+
+class TorchMatchSpecializedBackendOp
+    : public OpConversionPattern<Torch::OperatorOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+
+  using HandlerFn = LogicalResult (*)(OperatorOp op,
+                                      ConversionPatternRewriter &rewriter);
+
+  LogicalResult
+  matchAndRewrite(Torch::OperatorOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (namedHandlers.contains(op.getNameAttr())) {
+      return namedHandlers.lookup(op.getNameAttr()).front()(op, rewriter);
+    }
+
+    return failure();
+  }
+
+  static void
+  populateSpecializedConversions(TorchMatchSpecializedBackendOp &matcher);
+
+  static std::unique_ptr<TorchMatchSpecializedBackendOp>
+  getPopulatedMatcher(MLIRContext *context) {
+    auto matcher = std::make_unique<TorchMatchSpecializedBackendOp>(context);
+    populateSpecializedConversions(*matcher);
+    return matcher;
+  };
+
+  void populate(StringRef name, HandlerFn fn) {
+    namedHandlers[StringAttr::get(getContext(), name)].push_back(fn);
+  }
+
+  void populateLegalizedNames(llvm::DenseSet<StringAttr> &set) {
+    for (auto handle : namedHandlers) {
+      set.insert(handle.first);
+    }
+  }
+
+private:
+  DenseMap<StringAttr, SmallVector<HandlerFn, 1>> namedHandlers;
+};
+
+void TorchMatchSpecializedBackendOp::populateSpecializedConversions(
+    TorchMatchSpecializedBackendOp &matcher) {
+  matcher.populate(
+      "torch.aten._scaled_dot_product_flash_attention_for_cpu",
+      [](Torch::OperatorOp op,
+         ConversionPatternRewriter &rewriter) -> LogicalResult {
+        auto uses = op.getResult(1).getUses();
+        if (uses.end() == uses.begin()) {
+          auto oldOperands = op->getOperands();
+          llvm::SmallVector<Value> newOperands{
+              oldOperands[0], oldOperands[1], oldOperands[2], oldOperands[5],
+              oldOperands[3], oldOperands[4], oldOperands[6]};
+
+          auto newOp = rewriter.create<Torch::AtenScaledDotProductAttentionOp>(
+              op.getLoc(), op->getResultTypes()[0], newOperands,
+              op->getAttrs());
+          rewriter.replaceAllUsesWith(op.getResult(0), newOp.getResult());
+          rewriter.eraseOp(op);
+          return success();
+        }
+        return failure();
+      });
+}
+
+bool isSpecializedOperation(Torch::OperatorOp op) { return true; }
+} // namespace
+
 // Reduce Ops without value semantics but the corresponding without trailing
 // underscore variant doesn't exist.
 namespace {
@@ -353,12 +425,24 @@ struct ReduceOpVariantsPass
     patterns.add(reduceNonValueTensorLiteralOpToValueTensorLiteralOp);
     patterns.add<ReduceNonValueSemanticOps>(context);
 
+    // Create specialized matcher:
+    auto specialized =
+        TorchMatchSpecializedBackendOp::getPopulatedMatcher(context);
+    DenseSet<StringAttr> specializedNames;
+    specialized->populateLegalizedNames(specializedNames);
+    patterns.insert(std::move(specialized));
+
     ConversionTarget target(*context);
     target.addIllegalOp<NonValueTensorLiteralOp>();
     target.addIllegalOp<AtenBernoulli_FloatOp>();
     target.addIllegalOp<AtenArangeStartOutOp>();
-    target.markUnknownOpDynamicallyLegal([&extraLibraryModuleSymTable](
-                                             Operation *op) {
+    target.markUnknownOpDynamicallyLegal([&extraLibraryModuleSymTable,
+                                          &specializedNames](Operation *op) {
+      if (isa<OperatorOp>(op)) {
+        if (specializedNames.contains(cast<OperatorOp>(op).getNameAttr())) {
+          return false;
+        }
+      }
       if (op->hasTrait<Torch::OpTrait::HasValueSemantics>() ||
           (isa<OperatorOp>(op) &&
            operatorOpHasValueSemantics(cast<OperatorOp>(op),
@@ -377,6 +461,9 @@ struct ReduceOpVariantsPass
       if (op->hasTrait<Torch::OpTrait::IsTrailingUnderscoreInplaceVariant>()) {
         return false;
       }
+
+      if (isa<OperatorOp>(op) && isSpecializedOperation(cast<OperatorOp>(op)))
+        return false;
       return true;
     });
 
