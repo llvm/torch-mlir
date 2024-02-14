@@ -255,8 +255,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     # Elementwise tensor compute ops
     for key in [
-            "aten::tanh : (Tensor) -> (Tensor)",
-            "aten::cosh : (Tensor) -> (Tensor)",
             "aten::hardtanh : (Tensor, Scalar, Scalar) -> (Tensor)",
             "aten::elu : (Tensor, Scalar, Scalar, Scalar) -> (Tensor)",
             "aten::relu : (Tensor) -> (Tensor)",
@@ -274,12 +272,18 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::erfinv : (Tensor) -> (Tensor)",
             "aten::silu : (Tensor) -> (Tensor)",
             "aten::sin : (Tensor) -> (Tensor)",
+            "aten::asin : (Tensor) -> (Tensor)",
+            "aten::asinh : (Tensor) -> (Tensor)",
             "aten::exp : (Tensor) -> (Tensor)",
             "aten::expm1 : (Tensor) -> (Tensor)",
             "aten::cos : (Tensor) -> (Tensor)",
+            "aten::cosh : (Tensor) -> (Tensor)",
             "aten::acos : (Tensor) -> (Tensor)",
+            "aten::acosh : (Tensor) -> (Tensor)",
             "aten::tan : (Tensor) -> (Tensor)",
+            "aten::tanh : (Tensor) -> (Tensor)",
             "aten::atan : (Tensor) -> (Tensor)",
+            "aten::atanh : (Tensor) -> (Tensor)",
             "aten::atan2 : (Tensor, Tensor) -> (Tensor)",
             "aten::neg : (Tensor) -> (Tensor)",
             "aten::ceil : (Tensor) -> (Tensor)",
@@ -291,7 +295,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::logical_not : (Tensor) -> (Tensor)",
             "aten::lerp.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)",
             "aten::lerp.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)",
-            "aten::eq.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::gt.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::ge.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::lt.Tensor : (Tensor, Tensor) -> (Tensor)",
@@ -343,6 +346,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit_with_mutating_variants("aten::add.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)", has_canonicalizer=True)
     emit_with_mutating_variants("aten::sub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)", has_canonicalizer=True)
     emit_with_mutating_variants("aten::mul.Scalar : (Tensor, Scalar) -> (Tensor)", has_canonicalizer=True)
+    emit_with_mutating_variants("aten::eq.Tensor : (Tensor, Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants("aten::floor : (Tensor) -> (Tensor)", has_canonicalizer=True)
     emit_with_mutating_variants("aten::masked_fill.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
 
@@ -592,6 +596,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::argmin : (Tensor, int?, bool) -> (Tensor)")
     emit("aten::one_hot : (Tensor, int) -> (Tensor)")
     emit("aten::einsum : (str, Tensor[], int[]?) -> (Tensor)")
+    emit("aten::trace : (Tensor) -> (Tensor)")
     emit("aten::bucketize.Tensor : (Tensor, Tensor, bool, bool) -> (Tensor)")
     emit("aten::clone : (Tensor, int?) -> (Tensor)", has_folder=True)
     emit("aten::lift_fresh_copy : (Tensor) -> (Tensor)")
@@ -628,7 +633,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::_reshape_alias : (Tensor, int[], int[]) -> (Tensor)")
     emit("aten::resize : (Tensor, int[], int?) -> (Tensor)")
     emit("aten::resize_ : (Tensor, int[], int?) -> (Tensor)")
-    emit("aten::select.int : (Tensor, int, int) -> (Tensor)")
+    emit("aten::select.int : (Tensor, int, int) -> (Tensor)", has_folder=1)
     emit("aten::size.int : (Tensor, int) -> (int)", has_folder=True)
     emit("aten::sum : (Tensor, int?) -> (Tensor)")
     emit("aten::sum.dim_IntList : (Tensor, int[]?, bool, int?) -> (Tensor)")

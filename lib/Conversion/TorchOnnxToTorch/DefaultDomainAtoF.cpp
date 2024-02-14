@@ -103,7 +103,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
-  // TODO: Acosh unimplemented in torch-mlir
   // Add became forward compatible with Torch in version 7.
   patterns.onOp("Add", 7,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
@@ -203,9 +202,28 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.op, resultType, operand, constAxis, constKeepDims);
         return success();
       });
-  // TODO: Asin unimplemented in torch-mlir
-  // TODO: Asinh unimplemented in torch-mlir
-  // TODO: Atanh unimplemented in torch-mlir
+  patterns.onOp("Asin", 7,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenAsinOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp("Asinh", 9,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenAsinhOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
   patterns.onOp("Atan", 7,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -217,6 +235,17 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
+  patterns.onOp("Atanh", 9,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenAtanhOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
   patterns.onOp("Acos", 7,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -225,6 +254,17 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.tensorResultType(resultType))
                     return failure();
                   rewriter.replaceOpWithNewOp<Torch::AtenAcosOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp("Acosh", 9,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenAcoshOp>(
                       binder.op, resultType, operand);
                   return success();
                 });
@@ -1038,6 +1078,17 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.tensorResultType(resultType))
                     return failure();
                   rewriter.replaceOpWithNewOp<Torch::AtenCosOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp("Cosh", 9,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenCoshOp>(
                       binder.op, resultType, operand);
                   return success();
                 });

@@ -313,9 +313,6 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
     int64_t getOutputRank() {
       return getOutputType().getRank();
     }
-    int64_t getIterationDomainRank() {
-      return 2;
-    };
     // Method to implement for specifying output range for
     // DestinationStyleOpInterface
     std::pair<int64_t, int64_t> getDpsInitsPositionRange() {

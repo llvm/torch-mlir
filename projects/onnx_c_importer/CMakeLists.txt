@@ -2,17 +2,7 @@ message(STATUS "Enabling onnx_c_importer...")
 
 include(FetchContent)
 
-find_package(Protobuf)
-if(NOT Protobuf_FOUND)
-    message(FATAL_ERROR 
-        "In order to build C ONNX support, the Protobuf package must be installed "
-        "on the system. Without this ONNX will attempt to build it in the project "
-        "and the dependent ABSEIL build system is incompatible. "
-        "On Ubuntu, install with: "
-        "apt install libprotobuf-dev protobuf-compiler\n\n"
-        "(or this entire component can be disabled with "
-        "-DTORCH_MLIR_ENABLE_ONNX_C_IMPORTER=OFF)")
-endif()
+find_package(Protobuf REQUIRED CONFIG)
 
 option(ONNX_DISABLE_EXCEPTIONS "For compatibility with LLVM build" ON)
 

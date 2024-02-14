@@ -136,6 +136,7 @@ LOWERING_PIPELINE = "builtin.module(" + ",".join([
     "convert-shape-to-std",
     # MLIR Sparsifier mini-pipeline. Note that this is the bare minimum
     # to ensure operations on sparse tensors are lowered to loops.
+    "sparse-assembler",
     "sparsification-and-bufferization",
     "sparse-storage-specifier-to-llvm",
     # Bufferize.
@@ -201,7 +202,6 @@ class RefBackendLinalgOnTensorsBackend(LinalgOnTensorsBackend):
           An opaque, backend specific compiled artifact object that can be
           passed to `load`.
         """
-
         run_pipeline_with_repro_report(
             imported_module, LOWERING_PIPELINE,
             "Lowering Linalg-on-Tensors IR to LLVM with RefBackend",

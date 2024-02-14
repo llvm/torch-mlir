@@ -1064,7 +1064,8 @@ public:
         rewriter.getAffineDimExpr(tensorOperandRank));
 
     SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
-        {originalIndicesDimExprs, updatedIndicesDimExprs});
+        {originalIndicesDimExprs, updatedIndicesDimExprs},
+        rewriter.getContext());
     SmallVector<utils::IteratorType> iteratorTypes(
         tensorOperandRank + 1, utils::IteratorType::parallel);
 
@@ -1599,27 +1600,82 @@ public:
                                            "only default scale supported");
     }
 
+    auto opTy = cast<ValueTensorType>(op.getType()).toBuiltinTensor();
+    auto query = adaptor.getQuery();
+    auto value = adaptor.getValue();
+    auto key = adaptor.getKey();
+    auto queryTy = cast<ShapedType>(query.getType());
+    auto valueTy = cast<ShapedType>(value.getType());
+    auto keyTy = cast<ShapedType>(key.getType());
+
+    if (queryTy.getRank() != valueTy.getRank() ||
+        queryTy.getRank() != keyTy.getRank())
+      return rewriter.notifyMatchFailure(op, "operand ranks do not match");
+
+    if (queryTy.getRank() < 3)
+      return rewriter.notifyMatchFailure(op, "missing batch dimension");
+
+    llvm::SmallVector<ReassociationIndices, 3> reassociation(3);
+    for (int i = 0, s = valueTy.getRank() - 2; i < s; ++i)
+      reassociation.front().push_back(i);
+    reassociation[1].push_back(valueTy.getRank() - 2);
+    reassociation[2].push_back(valueTy.getRank() - 1);
+
+    auto loc = op.getLoc();
+    auto collapseBatch = [&rewriter, &reassociation,
+                          loc](Value value) -> Value {
+      auto valueTy = cast<ShapedType>(value.getType());
+      if (valueTy.getRank() == 3)
+        return value;
+
+      llvm::SmallVector<int64_t, 3> newShape(3, 1);
+      newShape[1] = valueTy.getDimSize(valueTy.getRank() - 2);
+      newShape[2] = valueTy.getDimSize(valueTy.getRank() - 1);
+
+      for (int i = 0, s = valueTy.getRank() - 2; i < s; ++i) {
+        if (valueTy.isDynamicDim(i)) {
+          newShape[0] = ShapedType::kDynamic;
+          break;
+        }
+        newShape[0] = newShape[0] * valueTy.getDimSize(i);
+      }
+
+      auto collapseTy = valueTy.clone(newShape);
+      return rewriter.create<tensor::CollapseShapeOp>(loc, collapseTy, value,
+                                                      reassociation);
+    };
+
+    query = collapseBatch(query);
+    key = collapseBatch(key);
+    value = collapseBatch(value);
+
     SmallVector<int64_t> outSizes(
-        adaptor.getQuery().getType().cast<ShapedType>().getShape());
+        query.getType().cast<ShapedType>().getShape());
     SmallVector<int64_t> valueSizes(
-        adaptor.getValue().getType().cast<ShapedType>().getShape());
+        value.getType().cast<ShapedType>().getShape());
     outSizes[outSizes.size() - 1] = valueSizes[valueSizes.size() - 1];
     SmallVector<Value> outSizesDynamic(
-        getTensorSizes(rewriter, op.getLoc(), adaptor.getQuery()));
-    outSizesDynamic[outSizesDynamic.size() - 1] = getTensorSizes(
-        rewriter, op.getLoc(), adaptor.getValue())[valueSizes.size() - 1];
+        getTensorSizes(rewriter, op.getLoc(), query));
+    outSizesDynamic[outSizesDynamic.size() - 1] =
+        getTensorSizes(rewriter, op.getLoc(), value)[valueSizes.size() - 1];
     Type outType = RankedTensorType::get(outSizes, elementType);
     Value output = createZeroInitTensor(rewriter, op.getLoc(), outSizesDynamic,
                                         elementType);
 
     // Overwrite with tm_tensor::attention
-    auto attention = rewriter.create<AttentionOp>(
-        op.getLoc(), outType,
-        SmallVector<Value>{adaptor.getQuery(), adaptor.getKey(),
-                           adaptor.getValue()},
-        SmallVector<Value>{output});
+    Value attention =
+        rewriter
+            .create<AttentionOp>(loc, outType,
+                                 SmallVector<Value>{query, key, value},
+                                 SmallVector<Value>{output})
+            .getResult()[0];
 
-    rewriter.replaceOp(op, attention.getResult());
+    if (opTy != outType) {
+      attention = rewriter.create<tensor::ExpandShapeOp>(loc, opTy, attention,
+                                                         reassociation);
+    }
+
+    rewriter.replaceOp(op, attention);
 
     return success();
   }
