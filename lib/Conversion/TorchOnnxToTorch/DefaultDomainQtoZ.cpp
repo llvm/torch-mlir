@@ -612,7 +612,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         LLVM_DEBUG(llvm::dbgs() << "Entering onnx.Unsqueeze pattern\n");
         Value data;
         Value axes;
-        if (binder.tensorOperands(data, axes)){
+        Torch::ValueTensorType resultType;
+        if (binder.tensorOperands(data, axes) || binder.tensorResultType(resultType)){
           LLVM_DEBUG(llvm::dbgs() << "Unsqueeze operands not found\n");
           return failure();
         }
@@ -646,7 +647,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         // Convert negative onnx axes to positive Aten dims
         SmallVector<int64_t> dims;
-        int64_t adjustmentInt = cast<Torch::ValueTensorType>(data.getType()).getSizes().size();
+        int64_t adjustmentInt = resultType.getSizes().size();
         for (int64_t ax: axesList) {
           if (ax < 0) {
             ax += adjustmentInt;
