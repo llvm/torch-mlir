@@ -1047,6 +1047,8 @@ def _make_vtensor_literal_op(
     if mapping.is_empty:
         # Resolve the attribute.
         npy_dtype = TORCH_DTYPE_TO_NPY_TYPE.get(tensor.dtype)
+        if tensor.dtype == torch.bfloat16 and ml_dtypes is None:
+            print(f'torch.bfloat16 requires the mldtypes package, please run:\n\npip install ml_dtypes\n')
         assert (
             npy_dtype is not None
         ), f"Can not create literal tensor for unsupported datatype: {tensor.dtype}"
