@@ -2414,10 +2414,10 @@ public:
     extractGridOffsets_1[lastGridDim] = oneIndex;
     SmallVector<int64_t> gridShapeExtracted(gridShape);
     gridShapeExtracted.back() = 1;
-    auto gridTypeExtracted = 
+    auto gridTypeExtracted =
         RankedTensorType::get(gridShapeExtracted, gridElementType);
     auto grid_0 = rewriter.create<tensor::ExtractSliceOp>(
-        loc, gridTypeExtracted ,grid, extractGridOffsets_0, extractGridShape,
+        loc, gridTypeExtracted, grid, extractGridOffsets_0, extractGridShape,
         extractGridStride);
     auto grid_1 = rewriter.create<tensor::ExtractSliceOp>(
         loc, gridTypeExtracted, grid, extractGridOffsets_1, extractGridShape,
@@ -2429,7 +2429,7 @@ public:
     SmallVector<int64_t> gridShapeCollapsed{gridShape[0], gridShape[1],
                                             gridShape[2]};
     gridShapeExtracted.back() = 1;
-    auto gridTypeCollapsed = 
+    auto gridTypeCollapsed =
         RankedTensorType::get(gridShapeCollapsed, gridElementType);
     auto gridCollapsed_0 = rewriter.create<tensor::CollapseShapeOp>(
         loc, gridTypeCollapsed, grid_0, associations);
@@ -2447,16 +2447,14 @@ public:
     SmallVector<int64_t> resultShape = makeShapeTorchCompatible(inputShape);
     resultShape[2] = gridShape[1];
     resultShape[3] = gridShape[2];
-    Value resultFinal = 
+    Value resultFinal =
         rewriter.create<tensor::EmptyOp>(loc, resultShape, floatType);
     auto resultFinalType = resultFinal.getType().cast<RankedTensorType>();
-    Value sGrid = 
+    Value sGrid =
         rewriter
             .create<linalg::GenericOp>(
-                loc,
-                resultFinalType,
-                ValueRange{gridCollapsed_0, gridCollapsed_1},
-                resultFinal,
+                loc, resultFinalType,
+                ValueRange{gridCollapsed_0, gridCollapsed_1}, resultFinal,
                 gridMaps, gridIterators,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value gr_0 = args[0];
@@ -2465,13 +2463,13 @@ public:
                       loc, b.getFloatAttr(gridElementType, 1.0));
                   Value gplus_0 = b.create<arith::AddFOp>(loc, gr_0, oneFloat);
                   Value gplus_1 = b.create<arith::AddFOp>(loc, gr_1, oneFloat);
-                  Value result_0 = 
+                  Value result_0 =
                       b.create<arith::MulFOp>(loc, gplus_0, innerDim_0e);
-                  Value result_1 = 
+                  Value result_1 =
                       b.create<arith::MulFOp>(loc, gplus_1, innerDim_1e);
-                  Value lower_0 = 
+                  Value lower_0 =
                       b.create<arith::FPToSIOp>(loc, int64type, result_0);
-                  Value lower_1 = 
+                  Value lower_1 =
                       b.create<arith::FPToSIOp>(loc, int64type, result_1);
                   Value oneInt = b.create<arith::ConstantOp>(
                       loc, b.getIntegerAttr(int64type, 1));
@@ -2479,12 +2477,10 @@ public:
                       b.create<arith::AddIOp>(loc, int64type, lower_0, oneInt);
                   Value upper_1 =
                       b.create<arith::AddIOp>(loc, int64type, lower_1, oneInt);
-                  Value notValid_0 =
-                      createGreaterThan(b, loc, int64type,
-                                        upper_0, innerDim_0c);
-                  Value notValid_1 =
-                      createGreaterThan(b, loc, int64type,
-                                        upper_1, innerDim_1c);
+                  Value notValid_0 = createGreaterThan(b, loc, int64type,
+                                                       upper_0, innerDim_0c);
+                  Value notValid_1 = createGreaterThan(b, loc, int64type,
+                                                       upper_1, innerDim_1c);
                   Value upperValid_0 = b.create<arith::SelectOp>(
                       loc, notValid_0, lower_0, upper_0);
                   Value upperValid_1 = b.create<arith::SelectOp>(
@@ -2553,7 +2549,7 @@ public:
 
     RankedTensorType resultType =
         getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
-    sGrid.dump(); 
+    sGrid.dump();
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, sGrid);
     return success();
   }
