@@ -501,8 +501,8 @@ private:
 
   template <typename TOp>
   FailureOr<Value>
-  createSecondReductionForNormOp(Location loc, Type elemType, TOp op, Value ordOp,
-                                 Value firstReduction,
+  createSecondReductionForNormOp(Location loc, Type elemType, TOp op,
+                                 Value ordOp, Value firstReduction,
                                  const torch_to_linalg::ReductionOpInfo &opInfo,
                                  ConversionPatternRewriter &rewriter) const {
     // Cast `ord` to float so that we can readily pass it math.powf.
