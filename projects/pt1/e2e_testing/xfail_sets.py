@@ -303,6 +303,9 @@ TORCHDYNAMO_XFAIL_SET = {
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
 
+    # AssertionError: Unregistered operation: torch.aten._scaled_dot_product_flash_attention_for_cpu
+    "ScaledDotProductAttentionDifferentModule_basic",
+
     # AssertionError: Unregistered operation: torch.aten._embedding_bag_forward_only
     "AtenEmbeddingBagStaticModule_basic",
 

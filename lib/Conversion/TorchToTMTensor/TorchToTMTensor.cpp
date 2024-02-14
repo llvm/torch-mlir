@@ -1625,8 +1625,6 @@ public:
     auto collapseBatch = [&rewriter, &reassociation,
                           loc](Value value) -> Value {
       auto valueTy = cast<ShapedType>(value.getType());
-      if (valueTy.getRank() < 3)
-        return nullptr;
       if (valueTy.getRank() == 3)
         return value;
 
