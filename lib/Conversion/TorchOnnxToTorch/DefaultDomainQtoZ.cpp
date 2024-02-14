@@ -8,8 +8,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -601,8 +601,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         return success();
       });
   patterns.onOp(
-      "Unsqueeze", 1,
-      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Unsqueeze", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         // Unlike squeeze where we are able to lower to Torch::PrimsSqueezeOp,
         // pytorch does not support torch.unsqueeze to insert multiple new dims.
         // discussion can be found here:
@@ -613,34 +612,36 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value data;
         Value axes;
         Torch::ValueTensorType resultType;
-        if (binder.tensorOperands(data, axes) || binder.tensorResultType(resultType)){
+        if (binder.tensorOperands(data, axes) ||
+            binder.tensorResultType(resultType)) {
           LLVM_DEBUG(llvm::dbgs() << "Unsqueeze operands not found\n");
           return failure();
         }
 
         // convert axes to a list of integers
         SmallVector<int64_t> axesList;
-        Operation* axesDefiningOp = axes.getDefiningOp();
+        Operation *axesDefiningOp = axes.getDefiningOp();
         if (!axesDefiningOp) {
           LLVM_DEBUG(llvm::dbgs() << "Failed to get axesDefiningOp\n");
           return failure();
         }
 
         // Janky. TODO: use a proper attribute parser
-        auto axesAttr = axesDefiningOp->getAttrOfType<mlir::DenseIntElementsAttr>("torch.onnx.value");
-        if(!axesAttr) {
+        auto axesAttr =
+            axesDefiningOp->getAttrOfType<mlir::DenseIntElementsAttr>(
+                "torch.onnx.value");
+        if (!axesAttr) {
           LLVM_DEBUG(llvm::dbgs() << "Failed to get axesAttr\n");
           return failure();
         }
-        for(auto axis: axesAttr) {
+        for (auto axis : axesAttr) {
           axesList.push_back(axis.getSExtValue());
         }
-        
 
-                
         // check if axes is empty
         if (axesList.empty()) {
-          LLVM_DEBUG(llvm::dbgs() << "Unsqueeze: short circuiting empty axes\n");
+          LLVM_DEBUG(llvm::dbgs()
+                     << "Unsqueeze: short circuiting empty axes\n");
           rewriter.replaceOp(binder.op, data);
           return success();
         }
@@ -648,37 +649,39 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // Convert negative onnx axes to positive Aten dims
         SmallVector<int64_t> dims;
         int64_t adjustmentInt = resultType.getSizes().size();
-        for (int64_t ax: axesList) {
+        for (int64_t ax : axesList) {
           if (ax < 0) {
             ax += adjustmentInt;
           }
           dims.push_back(ax);
         }
-        
 
         // Sorting is necessary: for shape = {x,y,z}, and axes [4,0]
         // Unsqueezing first on 4 and then on 0 would fail
         llvm::sort(dims.begin(), dims.end());
 
         Value curResult = data;
-        
+
         // Go through the sorted axes. Do unsqueeze for each dim.
-        for (int dim: dims) {
-          Torch::BaseTensorType curResultType = curResult.getType().cast<Torch::BaseTensorType>();
+        for (int dim : dims) {
+          Torch::BaseTensorType curResultType =
+              curResult.getType().cast<Torch::BaseTensorType>();
 
           // compute shapes based on axesList
           SmallVector<int64_t> newShape(curResultType.getSizes());
           newShape.insert(newShape.begin() + dim, 1);
 
-          Torch::BaseTensorType newResultType = curResultType.getWithSizesAndDtype(
-              newShape, curResultType.getOptionalDtype()).cast<Torch::BaseTensorType>();
+          Torch::BaseTensorType newResultType =
+              curResultType
+                  .getWithSizesAndDtype(newShape,
+                                        curResultType.getOptionalDtype())
+                  .cast<Torch::BaseTensorType>();
 
           Value constDim = rewriter.create<Torch::ConstantIntOp>(
               binder.getLoc(), rewriter.getType<Torch::IntType>(),
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), dim));
           Value newResult = rewriter.create<Torch::AtenUnsqueezeOp>(
-              binder.getLoc(), newResultType, curResult,
-              constDim);
+              binder.getLoc(), newResultType, curResult, constDim);
 
           curResult = newResult;
           curResultType = newResultType;
