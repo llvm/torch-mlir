@@ -42,7 +42,6 @@ from torch.fx import (
     Graph,
     GraphModule,
 )
-import ml_dtypes
 try:
     import ml_dtypes
 except ModuleNotFoundError:
