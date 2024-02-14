@@ -1604,25 +1604,40 @@ public:
     auto query = adaptor.getQuery();
     auto value = adaptor.getValue();
     auto key = adaptor.getKey();
+    auto queryTy = cast<ShapedType>(query.getType());
+    auto valueTy = cast<ShapedType>(value.getType());
+    auto keyTy = cast<ShapedType>(key.getType());
+
+    if (queryTy.getRank() != valueTy.getRank() ||
+        queryTy.getRank() != keyTy.getRank())
+      return rewriter.notifyMatchFailure(op, "operand ranks do not match");
+
+    if (queryTy.getRank() < 3)
+      return rewriter.notifyMatchFailure(op, "missing batch dimension");
+
+    llvm::SmallVector<ReassociationIndices, 3> reassociation(3);
+    for (int i = 0, s = valueTy.getRank() - 2; i < s; ++i)
+      reassociation.front().push_back(i);
+    reassociation[1].push_back(valueTy.getRank() - 2);
+    reassociation[2].push_back(valueTy.getRank() - 1);
 
     auto loc = op.getLoc();
-    auto collapseBatch = [&rewriter, loc](Value value) -> Value {
+    auto collapseBatch = [&rewriter, &reassociation,
+                          loc](Value value) -> Value {
       auto valueTy = cast<ShapedType>(value.getType());
-      if (valueTy.getRank() <= 3)
+      if (valueTy.getRank() < 3)
+        return nullptr;
+      if (valueTy.getRank() == 3)
         return value;
 
       llvm::SmallVector<int64_t, 3> newShape(3, 1);
-      llvm::SmallVector<ReassociationIndices, 3> reassociation(3);
-      reassociation[1].push_back(valueTy.getRank() - 2);
-      reassociation[2].push_back(valueTy.getRank() - 1);
       newShape[1] = valueTy.getDimSize(valueTy.getRank() - 2);
       newShape[2] = valueTy.getDimSize(valueTy.getRank() - 1);
 
       for (int i = 0, s = valueTy.getRank() - 2; i < s; ++i) {
-        reassociation.front().push_back(i);
-        if (valueTy.isDynamicDim(i) || newShape[0] == ShapedType::kDynamic) {
+        if (valueTy.isDynamicDim(i)) {
           newShape[0] = ShapedType::kDynamic;
-          continue;
+          break;
         }
         newShape[0] = newShape[0] * valueTy.getDimSize(i);
       }
@@ -1658,14 +1673,6 @@ public:
             .getResult()[0];
 
     if (opTy != outType) {
-      llvm::SmallVector<ReassociationIndices, 3> reassociation(3);
-      reassociation[1].push_back(opTy.getRank() - 2);
-      reassociation[2].push_back(opTy.getRank() - 1);
-
-      for (int i = 0, s = opTy.getRank() - 2; i < s; ++i) {
-        reassociation.front().push_back(i);
-      }
-
       attention = rewriter.create<tensor::ExpandShapeOp>(loc, opTy, attention,
                                                          reassociation);
     }
