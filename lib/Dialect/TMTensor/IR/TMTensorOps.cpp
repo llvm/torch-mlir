@@ -94,31 +94,22 @@ LogicalResult AttentionOp::verify() {
   ShapedType keyType = getKeyType();
   ArrayRef<int64_t> queryShape = queryType.getShape();
   ArrayRef<int64_t> keyShape = keyType.getShape();
-  if (keyShape[0] != queryShape[0])
-    return op->emitOpError("query and key batch mismatch");
-  if (keyShape[2] != queryShape[2])
+  for (int i = 0, s = queryShape.size() - 2; i < s; ++i) {
+    if (keyShape[i] != queryShape[i])
+      return op->emitOpError("query and key batch mismatch");
+  }
+  if (keyShape.back() != queryShape.back())
     return op->emitOpError("query and key head dimension mismatch");
   return success();
 }
 
 SmallVector<Range> AttentionOp::getIterationDomain(OpBuilder &builder) {
-  int64_t iterationDomainRank = getIterationDomainRank();
-  SmallVector<Range> loopBounds(iterationDomainRank);
-  Location loc = getLoc();
-  Value zero = builder.create<arith::ConstantIndexOp>(loc, 0);
-  Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
-  Value source = getQuery();
-  for (auto dim : llvm::seq<int64_t>(0, iterationDomainRank)) {
-    loopBounds[dim].offset = zero;
-    loopBounds[dim].size = getDimValue(builder, loc, source, dim);
-    loopBounds[dim].stride = one;
-  }
+  SmallVector<Range> loopBounds;
   return loopBounds;
 }
 
 SmallVector<utils::IteratorType> AttentionOp::getLoopIteratorTypes() {
-  SmallVector<utils::IteratorType> iteratorTypes(getIterationDomainRank(),
-                                                 utils::IteratorType::parallel);
+  SmallVector<utils::IteratorType> iteratorTypes;
   return iteratorTypes;
 }
 
@@ -189,6 +180,8 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
   Value zeroF = b.create<arith::ConstantOp>(loc, elementType,
                                             b.getFloatAttr(elementType, 0.0));
 
+  // TODO: This needs to be fixed, it assumes everything is dynamic however if
+  // any shapes are static the `memref.alloc` generated is illegal.
   SmallVector<Value> queryDynSizes, keyDynSizes, valueDynSizes, outputDynSizes;
   for (auto i = 0; i < queryRank; i++)
     queryDynSizes.push_back(b.create<memref::DimOp>(loc, query, i));
@@ -204,9 +197,18 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
   auto weightSizes = SmallVector<int64_t>(queryType.getShape());
   weightSizes[weightRank - 1] = keySizes[keyRank - 2];
   auto weightType = MemRefType::get(weightSizes, queryType.getElementType());
+
+  // Setup the weight dynamic sizes:
   SmallVector<Value> weightDynSizes(queryDynSizes);
   weightDynSizes[weightRank - 1] = keyDynSizes[keyRank - 2];
-  Value weight = b.create<memref::AllocOp>(loc, weightType, weightDynSizes);
+
+  SmallVector<Value> weightFilteredDynSizes;
+  for (int i = 0; i < weightRank; ++i)
+    if (weightSizes[i] == ShapedType::kDynamic)
+      weightFilteredDynSizes.push_back(weightDynSizes[i]);
+
+  Value weight =
+      b.create<memref::AllocOp>(loc, weightType, weightFilteredDynSizes);
   matmul(b, loc, query, queryDynSizes, key, keyDynSizes, weight, weightDynSizes,
          /*transposed=*/true);
 
@@ -259,12 +261,17 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
         x = b.create<math::ExpOp>(loc, x);
         b.create<memref::StoreOp>(loc, x, weight, localIVs);
       });
+
+  llvm::SmallVector<Value> expWeightDynDims(weightFilteredDynSizes);
+  if (weightSizes.back() == ShapedType::kDynamic)
+    expWeightDynDims.resize(expWeightDynDims.size() - 1);
+
   Value expWeightSum = b.create<memref::AllocOp>(
       loc,
       MemRefType::get(
           SmallVector<int64_t>(weightSizes.begin(), weightSizes.end() - 1),
           elementType),
-      SmallVector<Value>{weightDynSizes.begin(), weightDynSizes.end() - 1});
+      expWeightDynDims);
   b.create<scf::ParallelOp>(
       loc, SmallVector<Value>(weightRank - 1, zero),
       SmallVector<Value>{weightDynSizes.begin(), weightDynSizes.end() - 1},

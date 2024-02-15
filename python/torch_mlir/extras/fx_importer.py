@@ -14,6 +14,7 @@ except ImportError:
 import logging
 import operator
 import re
+from dataclasses import dataclass
 from types import BuiltinMethodType, BuiltinFunctionType
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 import weakref
@@ -42,6 +43,13 @@ from torch.fx import (
     Graph,
     GraphModule,
 )
+try:
+    import ml_dtypes
+except ModuleNotFoundError:
+    # The third-party ml_dtypes package provides some optional
+    # low precision data-types. If used in this file, it is
+    # conditional.
+    ml_dtypes = None
 
 from torch.fx.node import (
     Argument as NodeArgument,
@@ -136,7 +144,6 @@ TORCH_DTYPE_TO_NPY_TYPE = {
     torch.int16: np.int16,
     torch.int32: np.int32,
     torch.int64: np.int64,
-    # torch.bf16: None, there's no equivalent np datatype so this isn't supported right now
     torch.float16: np.float16,
     torch.float32: np.float32,
     torch.float64: np.float64,
@@ -145,6 +152,8 @@ TORCH_DTYPE_TO_NPY_TYPE = {
     torch.complex64: np.complex64,
     torch.complex128: np.complex128,
 }
+if ml_dtypes is not None:
+    TORCH_DTYPE_TO_NPY_TYPE[torch.bfloat16] = ml_dtypes.bfloat16
 
 TORCH_DTYPE_TO_INT = {
     torch.uint8: 0,
@@ -208,28 +217,58 @@ SYMBOLIC_OP_TO_TORCH_OP = {
 }
 
 
-def sparsity_encoding(shape: torch.Size, sparse_layout: torch.layout) -> str:
-    """Returns sparse tensor encoding for the given sparse layout as string.
+@dataclass(frozen=True)
+class SparsityMeta:
+    """Class for keeping track of sparsity meta data."""
 
-    The method currently just supports 2-dim sparse formats. This should be
-    generalized to the torch.sparse encodings for prefix dense batch dimensions
-    and suffix dense subtensor dimensions. Since MLIR supports a superset of what
-    is currently implememented in torch.sparse, this should not a be problem.
-    """
+    layout: torch.layout
+    batch_dim: int
+    sparse_dim: int
+    dense_dim: int
+    pos_width: int
+    crd_width: int
 
-    # TODO: any rank
-    if len(shape) != 2:
-        raise RuntimeError(f"Unsupported sparse rank {len(shape)}")
 
-    if sparse_layout is torch.sparse_coo:
-        return "#sparse_tensor.encoding<{map=(i,j)->(i:compressed(nonunique),j:singleton)}>"
-    if sparse_layout is torch.sparse_csr:
-        return "#sparse_tensor.encoding<{map=(i,j)->(i:dense,j:compressed)}>"
-    if sparse_layout is torch.sparse_csc:
-        return "#sparse_tensor.encoding<{map=(i,j)->(j:dense,i:compressed)}>"
-    # TODO: block format (derive block size!)
+def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
+    """Returns sparse tensor encoding for the given sparse layout as string."""
+    assert sparsity is not None
 
-    raise RuntimeError(f"Unsupported sparse layout {sparse_layout}")
+    # Sparse tensors have the form
+    #   [ <batch_dimensions> , <sparse_dimensions>, <dense_dimensions> ]
+    # which map directly to MLIR types.
+    batch_dim, sparse_dim, dense_dim = (
+        sparsity.batch_dim,
+        sparsity.sparse_dim,
+        sparsity.dense_dim,
+    )
+    dim = batch_dim + sparse_dim + dense_dim
+    assert dim == len(shape)
+
+    dims = ",".join(f"d{d}" for d in range(0, dim))
+
+    if sparsity.layout is torch.sparse_coo:
+        assert sparse_dim == 2  # TODO: deeper sparse dims
+        lvls = f"d{batch_dim}:compressed(nonunique),d{batch_dim+1}:singleton"
+    elif sparsity.layout is torch.sparse_csr:
+        assert sparse_dim == 2
+        lvls = f"d{batch_dim}:dense,d{batch_dim+1}:compressed"
+    elif sparsity.layout is torch.sparse_csc:
+        assert sparse_dim == 2
+        lvls = f"d{batch_dim+1}:dense,d{batch_dim}:compressed"
+    else:
+        # TODO: block format (derive block size!)
+        raise RuntimeError(f"Unsupported sparse layout {sparse_layout}")
+
+    if batch_dim > 0:
+        batch = ",".join(f"d{d}:dense" for d in range(0, batch_dim))
+        lvls = f"{batch},{lvls}"
+
+    if dense_dim > 0:
+        dense = ",".join(f"d{d}:dense" for d in range(batch_dim + sparse_dim, dim))
+        lvls = f"{lvls},{dense}"
+
+    posw, crdw = sparsity.pos_width, sparsity.crd_width
+    return f"#sparse_tensor.encoding<{{map=({dims})->({lvls}),posWidth={posw},crdWidth={crdw}}}>"
 
 
 def is_symbolic(obj: Any) -> bool:
@@ -342,13 +381,26 @@ class FxImporter:
         sig = prog.graph_signature
         state_dict = prog.state_dict
         arg_replacements: dict[str, Any] = {}
-        # Lift buffers.
-        for input_name, state_name in sig.inputs_to_buffers.items():
-            try:
-                state_value = state_dict[state_name]
-            except KeyError as e:
-                raise AssertionError("Could not find state mapping for buffer") from e
-            arg_replacements[input_name] = state_value
+
+        # If there is no "constants" attribute, consult the "state_dict". Otherwise, only look
+        # at "constants". Relevant upstream patch: https://github.com/pytorch/pytorch/pull/118969
+        if hasattr(prog, "constants"):
+            constants = prog.constants
+            # Lift tensor constants.
+            for input_name, state_name in sig.inputs_to_lifted_tensor_constants.items():
+                try:
+                    state_value = constants[state_name]
+                except KeyError as e:
+                    raise AssertionError("Could not find state mapping for tensor constants") from e
+                arg_replacements[input_name] = state_value
+        else:
+            # Lift buffers.
+            for input_name, state_name in sig.inputs_to_buffers.items():
+                try:
+                    state_value = state_dict[state_name]
+                except KeyError as e:
+                    raise AssertionError("Could not find state mapping for buffer") from e
+                arg_replacements[input_name] = state_value
 
         # Lift parameters.
         for input_name, state_name in sig.inputs_to_parameters.items():
@@ -479,14 +531,19 @@ class ContextCache:
     """Return IrType for !torch.vtensor with the given shape and dtype"""
 
     def get_vtensor_type(
-        self, shape: torch.Size, dtype: torch.dtype, sparse_layout: torch.layout = None
+        self,
+        shape: torch.Size,
+        dtype: torch.dtype,
+        *,
+        sparsity: Optional[SparsityMeta] = None,  # keyword-only
     ):
         shape_asm = self.format_asm_shape(shape)
         mlir_dtype = str(self.dtype_to_type(dtype))
-        if sparse_layout is not None:
-            sparsity = sparsity_encoding(shape, sparse_layout)
+        if sparsity is not None:
+            encoding = sparsity_encoding(shape, sparsity)
+            assert encoding is not None
             return IrType.parse(
-                f"!torch.vtensor<[{shape_asm}],{str(mlir_dtype)},{sparsity}>",
+                f"!torch.vtensor<[{shape_asm}],{str(mlir_dtype)},{encoding}>",
                 context=self._c,
             )
         return IrType.parse(
@@ -497,7 +554,7 @@ class ContextCache:
         try:
             tensor_meta = node.meta.get("tensor_meta")
             val = node.meta.get("val")
-            sparse_layout = node.meta.get("sparsity", None)
+            sparsity = node.meta.get("sparsity", None)
             if tensor_meta is not None:
                 assert isinstance(tensor_meta, TensorMetadata)
                 # Quantized tensor meta data is not preserved in our lowering,
@@ -507,12 +564,14 @@ class ContextCache:
                         f"Quantized tensor meta data is not supported."
                     )
                 else:
-                    return self.tensor_metadata_to_type(tensor_meta, sparse_layout)
+                    return self.tensor_metadata_to_type(tensor_meta, sparsity=sparsity)
             elif val is not None:
                 # some nodes with symbolic inputs pass a 'val' attribute rather than
                 # tensor_meta
                 if isinstance(val, TorchFakeTensor):
-                    return self.get_vtensor_type(val.size(), val.dtype, sparse_layout)
+                    return self.get_vtensor_type(
+                        val.size(), val.dtype, sparsity=sparsity
+                    )
 
                 t = SCALAR_TYPE_TO_TORCH_MLIR_TYPE.get(type(val))
                 if t is not None:
@@ -528,16 +587,19 @@ class ContextCache:
             )
 
     def tensor_metadata_to_type(
-        self, tm: TensorMetadata, sparse_layout: torch.layout = None
+        self,
+        tm: TensorMetadata,
+        *,
+        sparsity: Optional[SparsityMeta] = None,  # keyword-only
     ) -> IrType:
         tm_shape = tuple(
             item.node if is_symbolic(item) else item for item in list(tm.shape)
         )
 
-        key = (tm_shape, tm.dtype, sparse_layout)
+        key = (tm_shape, tm.dtype, sparsity)
         t = self._tensor_metadata_cache.get(key)
         if t is None:
-            t = self.get_vtensor_type(tm.shape, tm.dtype, sparse_layout)
+            t = self.get_vtensor_type(tm.shape, tm.dtype, sparsity=sparsity)
             self._tensor_metadata_cache[key] = t
         return t
 
@@ -1036,6 +1098,10 @@ def _make_vtensor_literal_op(
 ) -> Operation:
     mapping = py_attr_tracker.track(tensor)
     if mapping.is_empty:
+        # check support for bfloat16
+        assert (
+            not (tensor.dtype == torch.bfloat16 and ml_dtypes is None)
+        ), f"torch.bfloat16 requires the ml_dtypes package, please run:\n\npip install ml_dtypes\n"
         # Resolve the attribute.
         npy_dtype = TORCH_DTYPE_TO_NPY_TYPE.get(tensor.dtype)
         assert (
@@ -1061,7 +1127,7 @@ def _make_vtensor_literal_op(
                 type=element_type, array=np_tensor, shape=np_tensor.shape
             )
         else:
-            bytes_view = memoryview(np_tensor)
+            bytes_view = np_tensor.view(npy_dtype)
             tensor_type = create_mlir_tensor_type(tensor)
             shape_desc = "_".join([str(d) for d in tensor.shape])
             blob_name = f"torch_tensor_{shape_desc}_{str(tensor.dtype)}"
@@ -1128,7 +1194,8 @@ class TypeSubclassMap:
 
 # Opaque value to indicate something is empty. Used in cases where 'None'
 # may have a different meaning.
-class EmptyType: ...
+class EmptyType:
+    ...
 
 
 Empty = EmptyType()

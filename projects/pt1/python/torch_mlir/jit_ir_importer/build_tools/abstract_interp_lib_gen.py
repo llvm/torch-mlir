@@ -89,16 +89,37 @@ def aten〇diagonal〡shape(self: List[int], offset: int = 0, dim1: int = 0, dim
 
     return diagonal
 
-def aten〇tan〡shape(self: List[int]) -> List[int]:
+def aten〇sin〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
-def aten〇atan〡shape(self: List[int]) -> List[int]:
+def aten〇asin〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇asinh〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇cos〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇cosh〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇acos〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇acosh〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇tan〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇tanh〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇atan〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇atanh〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇erf〡shape(self: List[int]) -> List[int]:
@@ -126,15 +147,6 @@ def aten〇exp〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇expm1〡shape(self: List[int]) -> List[int]:
-    return upstream_shape_functions.unary(self)
-
-def aten〇sin〡shape(self: List[int]) -> List[int]:
-    return upstream_shape_functions.unary(self)
-
-def aten〇cos〡shape(self: List[int]) -> List[int]:
-    return upstream_shape_functions.unary(self)
-
-def aten〇acos〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇cosine_similarity〡shape(x1: List[int], x2: List[int], dim: int = 1, eps: float = 1e-08) -> List[int]:
@@ -1856,6 +1868,11 @@ def aten〇cosh〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇acosh〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return _get_dtype_of_floating_point_op(self_dtype)
+
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇tanh〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
@@ -1875,6 +1892,16 @@ def aten〇expm1〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇sin〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return _get_dtype_of_floating_point_op(self_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇asin〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return _get_dtype_of_floating_point_op(self_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇asinh〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
 
@@ -4186,6 +4213,13 @@ def aten〇atan2〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tup
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇atan〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if is_integer_dtype(self_dtype):
+        return torch.float32
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇atanh〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     if is_integer_dtype(self_dtype):
         return torch.float32

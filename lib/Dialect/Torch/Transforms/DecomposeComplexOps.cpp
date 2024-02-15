@@ -181,7 +181,7 @@ static bool parseEquation(const std::string &equation,
       inputToken.clear();
       currentVariable = kIsResult;
       index++;
-    } else {
+    } else if (equation[index] != ' ') {
       return false;
     }
     index++;
