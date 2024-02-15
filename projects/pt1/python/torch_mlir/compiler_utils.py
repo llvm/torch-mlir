@@ -38,15 +38,12 @@ def run_pipeline_with_repro_report(module,
             large_elements_limit=10, enable_debug_info=True)
         # Lower module in place to make it ready for compiler backends.
         with module.context as ctx:
-            # print(module.operation.get_asm())
             pm = PassManager.parse(pipeline)
             if enable_ir_printing:
                 ctx.enable_multithreading(False)
                 pm.enable_ir_printing()
             pm.run(module.operation)
-            # print(module.operation.get_asm())
     except Exception as e:
-        # print(e)
         # TODO: More robust.
         # - don't arbitrarily clutter up /tmp. When a test suite has many
         #   tests, this can be a big disk cost (also, /tmp/ is frequently a
