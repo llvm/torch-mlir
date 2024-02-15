@@ -141,7 +141,7 @@ def main():
     # Find the selected tests, and emit a diagnostic if none are found.
     tests = [
         test for test in available_tests
-        if re.match(args.filter, test.unique_name) and test.unique_name[0] > 'R'
+        if re.match(args.filter, test.unique_name)
     ]
     if len(tests) == 0:
         print(

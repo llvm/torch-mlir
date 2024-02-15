@@ -39,8 +39,8 @@ class LinalgOnTensorsOnnxBackend(OnnxBackend):
         """Compiles an imported module that satisfied the ONNX backend contract.
 
         Args:
-          imported_module: The MLIR module consisting of funcs in the ONNX
-            dialect.
+          imported_module: The MLIR module consisting of ONNX operations wrapped by
+          torch.operator.
         Returns:
           An opaque, backend specific compiled artifact object that can be
           passed to `load`.
@@ -52,7 +52,6 @@ class LinalgOnTensorsOnnxBackend(OnnxBackend):
         
         run_pipeline_with_repro_report(
             imported_module,
-            # f"builtin.module(torch-function-to-torch-backend-pipeline{option_string})",
             f"builtin.module(torch-lower-to-backend-contract)",
             "Lowering TorchFX IR -> Torch Backend IR",
         )
