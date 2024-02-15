@@ -305,6 +305,9 @@ function test_in_tree() {
       echo ":::: Run Linalg e2e integration tests"
       python -m e2e_testing.main --config=linalg -v
 
+      echo ":::: Run Onnx e2e integration tests"
+      python -m e2e_testing.main --config=onnx -v
+
       # Dynamo is changing a lot in nightly versions, and thus the implementation
       # tends to become incompatible to the stable version.
       echo ":::: Run TorchDynamo e2e integration tests"

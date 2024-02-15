@@ -18,12 +18,14 @@ from torch_mlir_e2e_test.configs import (
     LinalgOnTensorsBackendTestConfig,
     StablehloBackendTestConfig,
     NativeTorchTestConfig,
+    OnnxBackendTestConfig,
     TorchScriptTestConfig,
     TosaBackendTestConfig,
     TorchDynamoTestConfig,
 )
 
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
+from torch_mlir_e2e_test.onnx_backends.linalg_on_tensors import LinalgOnTensorsOnnxBackend
 from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import LinalgOnTensorsTosaBackend
 from torch_mlir_e2e_test.stablehlo_backends.linalg_on_tensors import LinalgOnTensorsStablehloBackend
 
@@ -36,7 +38,9 @@ from .xfail_sets import (
     LTC_XFAIL_SET,
     LTC_CRASHING_SET,
     TORCHDYNAMO_XFAIL_SET,
-    TORCHDYNAMO_CRASHING_SET
+    TORCHDYNAMO_CRASHING_SET,
+    ONNX_CRASHING_SET,
+    ONNX_XFAIL_SET,
 )
 
 # Import tests to register them in the global registry.
@@ -44,7 +48,7 @@ from torch_mlir_e2e_test.test_suite import register_all_tests
 register_all_tests()
 
 def _get_argparse():
-    config_choices = ["native_torch", "torchscript", "linalg", "stablehlo", "make_fx_tosa", "tosa", "lazy_tensor_core", "torchdynamo"]
+    config_choices = ["native_torch", "torchscript", "linalg", "stablehlo", "make_fx_tosa", "tosa", "lazy_tensor_core", "torchdynamo", "onnx"]
     parser = argparse.ArgumentParser(description="Run torchscript e2e tests.")
     parser.add_argument("-c", "--config",
         choices=config_choices,
@@ -58,6 +62,7 @@ Meaning of options:
 "torchscript": compile the model to a torch.jit.ScriptModule, and then run that as-is (useful for verifying TorchScript is modeling the program correctly).
 "lazy_tensor_core": run the model through the Lazy Tensor Core frontend and execute the traced graph.
 "torchdynamo": run the model through the TorchDynamo frontend and execute the graph using Linalg-on-Tensors.
+"onnx": export to the model via onnx and reimport using the torch-onnx-to-torch path.
 """)
     parser.add_argument("-f", "--filter", default=".*", help="""
 Regular expression specifying which tests to include in this run.
@@ -120,6 +125,10 @@ def main():
         config = TorchDynamoTestConfig(RefBackendLinalgOnTensorsBackend())
         xfail_set = TORCHDYNAMO_XFAIL_SET
         crashing_set = TORCHDYNAMO_CRASHING_SET
+    elif args.config == "onnx":
+        config = OnnxBackendTestConfig(LinalgOnTensorsOnnxBackend())
+        xfail_set = ONNX_XFAIL_SET
+        crashing_set = ONNX_CRASHING_SET
 
     do_not_attempt = set(args.crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed or []).union(crashing_set)
     available_tests = [test for test in GLOBAL_TEST_REGISTRY if test.unique_name not in do_not_attempt]

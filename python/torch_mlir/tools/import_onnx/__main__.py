@@ -34,7 +34,7 @@ def main(args: argparse.Namespace):
     context = Context()
     torch_d.register_dialect(context)
     model_info = onnx_importer.ModelInfo(model_proto)
-    m = model_info.create_module(context=context)
+    m = model_info.create_module(context=context).operation
     imp = onnx_importer.NodeImporter.define_function(model_info.main_graph, m)
     imp.import_all()
     if not args.no_verify:

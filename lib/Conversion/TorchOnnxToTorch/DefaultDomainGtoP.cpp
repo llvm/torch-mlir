@@ -524,6 +524,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   loc, rewriter.getI64IntegerAttr(i))));
         }
 
+        // Correct for negative axis:
+        if (axis < 0)
+          axis += dataRank;
+
         // 4. We can not directly perform torch.gather as the onnx.gather op
         // collects the input data at different location of output compared to
         // torch.gather op. The output of torch.gather and onnx.gather ops are
