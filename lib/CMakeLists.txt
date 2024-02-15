@@ -29,10 +29,11 @@ set(LinkedLibs
   # Conversion passes.
   TorchMLIRConversionPasses
   TorchMLIRTorchOnnxToTorch
-
-  StablehloPasses
-  StablehloLinalgTransforms
 )
+
+if(TORCH_MLIR_ENABLE_STABLEHLO)
+list(APPEND LinkedLibs StablehloPasses StablehloLinalgTransforms)
+endif()
 
 if(TORCH_MLIR_ENABLE_REFBACKEND)
   add_subdirectory(RefBackend)
