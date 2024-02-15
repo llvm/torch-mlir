@@ -213,13 +213,16 @@ void mlir::torch::torch_to_linalg::
   patterns.add<ConvertAtenSizeIntOp>(typeConverter, context);
   target.addIllegalOp<AtenNumelOp>();
   patterns.add<ConvertAtenNumelOp>(typeConverter, context);
-  target.addIllegalOp<AtenIntTensorOp, AtenFloatTensorOp, AtenBoolTensorOp>();
+  target.addIllegalOp<AtenIntTensorOp, AtenFloatTensorOp, AtenBoolTensorOp,
+                      Aten_LocalScalarDenseOp>();
   patterns.add<ConvertAtenTensorToScalarLikeOp<AtenIntTensorOp>>(typeConverter,
                                                                  context);
   patterns.add<ConvertAtenTensorToScalarLikeOp<AtenFloatTensorOp>>(
       typeConverter, context);
   patterns.add<ConvertAtenTensorToScalarLikeOp<AtenBoolTensorOp>>(typeConverter,
                                                                   context);
+  patterns.add<ConvertAtenTensorToScalarLikeOp<Aten_LocalScalarDenseOp>>(
+      typeConverter, context);
   target.addIllegalOp<AtenTensorIntOp, AtenTensorFloatOp>();
   patterns.add<ConvertAtenScalarToTensorLike>(typeConverter, context);
   target.addIllegalOp<PrimNumToTensorScalarOp>();

@@ -10324,7 +10324,7 @@ def Torch_Aten_LocalScalarDenseOp : Torch_Op<"aten._local_scalar_dense", [
   ]> {
   let summary = "Generated op for `aten::_local_scalar_dense : (Tensor) -> (Scalar)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    AnyTorchTensorType:$a
   );
   let results = (outs
     AnyTorchScalarType:$result
