@@ -2397,9 +2397,11 @@ public:
     Value innerDim0d =
         rewriter.create<arith::SIToFPOp>(loc, floatType, innerDim0c);
     Value innerDim1d =
-        rewriter.create<arith::SIToFPOp>(loc, floatType, innerDim1c);    
-    Value innerDim0e = rewriter.create<arith::DivFOp>(loc, innerDim0d, twoFloat);
-    Value innerDim1e = rewriter.create<arith::DivFOp>(loc, innerDim1d, twoFloat);
+        rewriter.create<arith::SIToFPOp>(loc, floatType, innerDim1c);
+    Value innerDim0e =
+        rewriter.create<arith::DivFOp>(loc, innerDim0d, twoFloat);
+    Value innerDim1e =
+        rewriter.create<arith::DivFOp>(loc, innerDim1d, twoFloat);
     Value grid = adaptor.getGrid();
     auto gridType = grid.getType().cast<RankedTensorType>();
     auto gridElementType = gridType.getElementType();
@@ -2453,18 +2455,18 @@ public:
 
     auto lambdaExtract = [](OpBuilder &b, Location loc, Value input, Value idxA,
                             Value idxB, Value idxC, Value idxD) -> Value {
-        SmallVector<Value> index{idxA, idxB, idxC, idxD};
-        Value result = b.create<tensor::ExtractOp>(loc, input, index);
-        return result;
+      SmallVector<Value> index{idxA, idxB, idxC, idxD};
+      Value result = b.create<tensor::ExtractOp>(loc, input, index);
+      return result;
     };
 
     auto lambdaInter = [&](OpBuilder &b, Location loc, Value x, Value y,
                            Value d) -> Value {
-        Value dm = b.create<arith::SubFOp>(loc, oneFloat, d); 
-        Value ra = b.create<arith::MulFOp>(loc, x, dm);
-        Value rb = b.create<arith::MulFOp>(loc, y, d);
-        Value res = b.create<arith::AddFOp>(loc, ra, rb);
-        return res;  
+      Value dm = b.create<arith::SubFOp>(loc, oneFloat, d);
+      Value ra = b.create<arith::MulFOp>(loc, x, dm);
+      Value rb = b.create<arith::MulFOp>(loc, y, d);
+      Value res = b.create<arith::AddFOp>(loc, ra, rb);
+      return res;  
     };  
 
     Value sGrid =
@@ -2533,10 +2535,10 @@ public:
                   Value resultScaled1 =
                       lambdaInter(b, loc, result10a, result11b, d0);
                   Value resultScaled =
-                      lambdaInter(b, loc, resultScaled0, resultScaled1, d1); 
+                      lambdaInter(b, loc, resultScaled0, resultScaled1, d1);
                   b.create<linalg::YieldOp>(loc, resultScaled);
                 })
-                .getResultTensors()[0]; 
+            .getResultTensors()[0];
     RankedTensorType resultType =
         getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
     sGrid.dump();
