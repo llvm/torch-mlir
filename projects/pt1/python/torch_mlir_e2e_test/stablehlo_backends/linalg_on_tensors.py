@@ -25,7 +25,7 @@ STABLEHLO_TO_LINALG_FUNC_PIPELINE = ",".join([
 
 
 class LinalgOnTensorsStablehloBackend(StablehloBackend):
-    """Main entry-point for the linalg-on-tensors based TOSA backend.
+    """Main entry-point for the linalg-on-tensors based Stablehlo backend.
 
     This currently uses the linalg-on-tensors RefBackend for actual execution.
     """
@@ -35,11 +35,10 @@ class LinalgOnTensorsStablehloBackend(StablehloBackend):
         self.refbackend = RefBackendLinalgOnTensorsBackend()
 
     def compile(self, imported_module: Module):
-        """Compiles an imported module that satisfied the TOSA backend contract.
+        """Compiles an imported module that satisfied the Stablehlo backend contract.
 
         Args:
-          imported_module: The MLIR module consisting of funcs in the TOSA
-            dialect.
+          imported_module: The MLIR module consisting of funcs in the Stablehlo dialect.
         Returns:
           An opaque, backend specific compiled artifact object that can be
           passed to `load`.
