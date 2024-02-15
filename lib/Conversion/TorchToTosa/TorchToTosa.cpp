@@ -4069,12 +4069,13 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
 
   double start, step, end;
   int64_t start_int, step_int, end_int;
-  bool is_all_inp_int; //Flag to check whether all inputs are integer
-  is_all_inp_int = op.getStart().getType().isa<Torch::IntType>() && op.getEnd().getType().isa<Torch::IntType>() &&  op.getStep().getType().isa<Torch::IntType>();
+  auto isInteger = [=](Value v) { return v.getType().isa<Torch::IntType>(); };
+  //Flag to check whether all inputs are integer
+  bool integer_range = isInteger(op.getStart()) && isInteger(op.getEnd()) && isInteger(op.getStep());
   
   if (matchPattern(op.getStart(), m_TorchConstantInt(&start_int)))
   {
-    start = (double)(start_int);
+    start = static_cast<double>(start_int);
   }
 
   else if(!matchPattern(op.getStart(), m_TorchConstantFloat(&start)))
@@ -4083,7 +4084,7 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
 
   if (matchPattern(op.getEnd(), m_TorchConstantInt(&end_int)))
   {
-    end = (double)(end_int);
+    end = static_cast<double>(end_int);
   }
   else if (!matchPattern(op.getEnd(), m_TorchConstantFloat(&end)))
     return rewriter.notifyMatchFailure(
@@ -4092,7 +4093,7 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
   if (matchPattern(op.getStep(), m_TorchConstantInt(&step_int)))
   {    
     
-    step = (double)(step_int);
+    step = static_cast<double>(step_int);
   }
 
   else if (!matchPattern(op.getStep(), m_TorchConstantFloat(&step)))
@@ -4104,7 +4105,7 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
   //          ceil((end - start)/step)
   
   Value result;
-  if (is_all_inp_int)
+  if (integer_range)
   {
     SmallVector<int64_t> values;
     if (step_int >= 0)
