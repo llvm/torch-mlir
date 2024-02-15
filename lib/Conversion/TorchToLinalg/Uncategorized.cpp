@@ -2380,7 +2380,7 @@ public:
     Value oneFloat = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getFloatAttr(floatType, 1.0));
     Value twoFloat = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getFloatAttr(floatType, 2.0));    
+        loc, rewriter.getFloatAttr(floatType, 2.0));
     Value input = adaptor.getInput();
     auto inputType = input.getType().cast<RankedTensorType>();
     auto inputShape = inputType.getShape();
@@ -2442,23 +2442,24 @@ public:
     SmallVector<AffineMap> gridMaps{
         AffineMap::get(4, 0, {d0, d2, d3}, op->getContext()),
         AffineMap::get(4, 0, {d0, d2, d3}, op->getContext()),
-        rewriter.getMultiDimIdentityMap(gridRank)
-        };
+        rewriter.getMultiDimIdentityMap(gridRank)};
     SmallVector<utils::IteratorType> gridIterators(
         gridRank, utils::IteratorType::parallel);
-    SmallVector<int64_t> resultShape{inputShape[0], inputShape[1],
-                                     gridShape[1], gridShape[2]};
+    SmallVector<int64_t> resultShape{inputShape[0], inputShape[1], gridShape[1],
+                                     gridShape[2]};
     Value resultFinal =
         rewriter.create<tensor::EmptyOp>(loc, resultShape, floatType);
     auto resultFinalType = resultFinal.getType().cast<RankedTensorType>();
 
-    auto lambdaExtract = [](OpBuilder &b, Location loc, Value input, Value idxA, Value idxB, Value idxC, Value idxD) -> Value {
+    auto lambdaExtract = [](OpBuilder &b, Location loc, Value input, Value idxA,
+                            Value idxB, Value idxC, Value idxD) -> Value {
         SmallVector<Value> index{idxA, idxB, idxC, idxD};
         Value result = b.create<tensor::ExtractOp>(loc, input, index);
-        return result; 
+        return result;
     };
 
-    auto lambdaInter = [&](OpBuilder &b, Location loc, Value x, Value y, Value d) -> Value {
+    auto lambdaInter = [&](OpBuilder &b, Location loc, Value x, Value y,
+                           Value d) -> Value {
         Value dm = b.create<arith::SubFOp>(loc, oneFloat, d); 
         Value ra = b.create<arith::MulFOp>(loc, x, dm);
         Value rb = b.create<arith::MulFOp>(loc, y, d);
@@ -2491,14 +2492,14 @@ public:
                       b.create<arith::AddIOp>(loc, int64type, lower0, oneInt);
                   Value upper1 =
                       b.create<arith::AddIOp>(loc, int64type, lower1, oneInt);
-                  Value notValid0 = createGreaterThan(b, loc, int64type,
-                                                       upper0, innerDim0c);
-                  Value notValid1 = createGreaterThan(b, loc, int64type,
-                                                       upper1, innerDim1c);
-                  Value upperValid0 = b.create<arith::SelectOp>(
-                      loc, notValid0, lower0, upper0);
-                  Value upperValid1 = b.create<arith::SelectOp>(
-                      loc, notValid1, lower1, upper1);
+                  Value notValid0 =
+                      createGreaterThan(b, loc, int64type, upper0, innerDim0c);
+                  Value notValid1 =
+                      createGreaterThan(b, loc, int64type, upper1, innerDim1c);
+                  Value upperValid0 =
+                      b.create<arith::SelectOp>(loc, notValid0, lower0, upper0);
+                  Value upperValid1 =
+                      b.create<arith::SelectOp>(loc, notValid1, lower1, upper1);
                   Value lw0 = b.create<arith::IndexCastOp>(
                       loc, b.getIndexType(), lower0);
                   Value lw1 = b.create<arith::IndexCastOp>(
@@ -2509,8 +2510,8 @@ public:
                       loc, b.getIndexType(), upperValid1);
                   Value N = b.create<linalg::IndexOp>(loc, 0);
                   Value C = b.create<linalg::IndexOp>(loc, 1);
-                  Value result00 = lambdaExtract(b, loc, input, N, C, lw0, lw1);  
-                  Value result01 = lambdaExtract(b, loc, input, N, C, lw0, up1); 
+                  Value result00 = lambdaExtract(b, loc, input, N, C, lw0, lw1);
+                  Value result01 = lambdaExtract(b, loc, input, N, C, lw0, up1);
                   Value result01a = b.create<arith::SelectOp>(
                       loc, notValid1, zeroFloat, result01);
                   Value result10 = lambdaExtract(b, loc, input, N, C, up0, lw1);
@@ -2527,9 +2528,12 @@ public:
                       b.create<arith::SIToFPOp>(loc, floatType, lower1);
                   Value d0 = b.create<arith::SubFOp>(loc, result0, lw0a);
                   Value d1 = b.create<arith::SubFOp>(loc, result1, lw1a);
-                  Value resultScaled0 = lambdaInter(b, loc, result00, result01a, d0);
-                  Value resultScaled1 = lambdaInter(b, loc, result10a, result11b, d0);
-                  Value resultScaled = lambdaInter(b, loc, resultScaled0, resultScaled1, d1); 
+                  Value resultScaled0 =
+                      lambdaInter(b, loc, result00, result01a, d0);
+                  Value resultScaled1 =
+                      lambdaInter(b, loc, result10a, result11b, d0);
+                  Value resultScaled =
+                      lambdaInter(b, loc, resultScaled0, resultScaled1, d1); 
                   b.create<linalg::YieldOp>(loc, resultScaled);
                 })
                 .getResultTensors()[0]; 
