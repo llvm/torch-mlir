@@ -14935,6 +14935,30 @@ def Torch_Aten_MakePerTensorQuantizedTensorOp : Torch_Op<"aten._make_per_tensor_
   }];
 }
 
+def Torch_AtenSymConstrainRangeOp : Torch_Op<"aten.sym_constrain_range", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::sym_constrain_range : (Scalar, int?, int?) -> ()`";
+  let arguments = (ins
+    AnyTorchScalarType:$size,
+    AnyTorchOptionalIntType:$min,
+    AnyTorchOptionalIntType:$max
+  );
+  let results = (outs
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenSymConstrainRangeOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 0);
+    }
+    void AtenSymConstrainRangeOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 0);
+    }
+  }];
+}
+
 def Torch_PrimLayoutOp : Torch_Op<"prim.layout", [
     AllowsTypeRefinement,
     HasValueSemantics,
