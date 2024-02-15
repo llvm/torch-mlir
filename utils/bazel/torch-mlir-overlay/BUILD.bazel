@@ -885,8 +885,8 @@ cc_library(
         "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:DialectUtils",
         "@llvm-project//mlir:IR",
-        "@stablehlo//:stablehlo_passes",
         "@stablehlo//:linalg_passes",
+        "@stablehlo//:stablehlo_passes",
     ],
 )
 
