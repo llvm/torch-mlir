@@ -69,10 +69,10 @@ def convert_onnx(model, inputs):
     return import_onnx(buffer)
 
 class OnnxBackendTestConfig(TestConfig):
-    """Base class for TestConfig's that are implemented with TOSA.
+    """Base class for TestConfig's that are implemented with ONNX.
 
     This class handles all the common lowering that torch-mlir does before
-    reaching the TOSA abstraction level.
+    reaching the ONNX abstraction level.
     """
     def __init__(self, backend: OnnxBackend, use_make_fx: bool = False):
         super().__init__()
