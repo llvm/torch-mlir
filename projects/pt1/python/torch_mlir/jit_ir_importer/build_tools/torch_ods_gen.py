@@ -636,6 +636,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::_reshape_alias : (Tensor, int[], int[]) -> (Tensor)")
     emit("aten::resize : (Tensor, int[], int?) -> (Tensor)")
     emit("aten::resize_ : (Tensor, int[], int?) -> (Tensor)")
+    emit("aten::_local_scalar_dense : (Tensor) -> (Scalar)")
     emit("aten::select.int : (Tensor, int, int) -> (Tensor)", has_folder=1)
     emit("aten::size.int : (Tensor, int) -> (int)", has_folder=True)
     emit("aten::sum : (Tensor, int?) -> (Tensor)")

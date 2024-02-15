@@ -10317,6 +10317,29 @@ def Torch_AtenResize_Op : Torch_Op<"aten.resize_", [
   }];
 }
 
+def Torch_Aten_LocalScalarDenseOp : Torch_Op<"aten._local_scalar_dense", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_local_scalar_dense : (Tensor) -> (Scalar)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchScalarType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_LocalScalarDenseOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void Aten_LocalScalarDenseOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenSelectIntOp : Torch_Op<"aten.select.int", [
     AllowsTypeRefinement,
     ReadOnly
