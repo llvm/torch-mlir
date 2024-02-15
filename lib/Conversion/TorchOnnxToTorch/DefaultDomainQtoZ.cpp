@@ -620,7 +620,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         // get axes
         Torch::OperatorOp constOp = axes.getDefiningOp<Torch::OperatorOp>();
-        if (!constOp || !constOp.getName().equals("onnx.Constant")) return failure();
+        if (!constOp || !constOp.getName().equals("onnx.Constant"))
+          return failure();
         Operation *axesDefiningOp = axes.getDefiningOp();
         if (!axesDefiningOp)
           return failure();
