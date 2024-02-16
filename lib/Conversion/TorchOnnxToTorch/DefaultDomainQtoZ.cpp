@@ -1605,9 +1605,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         llvm::SmallVector<int64_t> intermediateShape(operandTy.getShape());
         for (int i = 0, s = operandTy.getRank(); i < s; ++i) {
-          if (operandTy.getDimSize(i) != resultTy.getDimSize(i)) {
+          if (operandTy.getDimSize(i) != resultTy.getDimSize(i))
             intermediateShape[i] = -1;
-          }
+          if (intermediateShape[i] == ShapedType::kDynamic)
+            intermediateShape[i] = Torch::kUnknownSize;
         }
         auto intermediateType = Torch::ValueTensorType::get(
             context, intermediateShape, resultTorchType.getOptionalDtype());

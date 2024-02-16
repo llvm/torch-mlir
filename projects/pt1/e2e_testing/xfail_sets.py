@@ -2168,6 +2168,9 @@ ONNX_XFAIL_SET = {
     "ReduceMaxKeepDimReturnBoth_basic",
     "ReduceMaxNegativeDim_basic",
     "ViewSizeFromOtherTensor_basic",
+
+    # Failure - onnx traces differently
+    "ElementwiseSigmoidIntModule_basic",
     
     # Failure - unknown
     "ChunkListUnpackUneven_Module_basic",
@@ -2195,7 +2198,6 @@ ONNX_XFAIL_SET = {
 }
 
 ONNX_CRASHING_SET = {
-    "ElementwiseSigmoidIntModule_basic",
     "FlipModule_basic",
     "IndexTensorNegativeIndexModule_basic",
     "MoveDimIntNegativeIndexModule_basic",
