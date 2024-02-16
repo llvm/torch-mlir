@@ -130,7 +130,7 @@ def export_and_import(f, *args, **kwargs):
     torch_d.register_dialect(context)
     fx_importer = FxImporter(context=context)
     prog = sparse_export(f, args, kwargs)
-    fx_importer.import_frozen_exported_program(prog)
+    fx_importer.import_frozen_program(prog)
     return fx_importer.module
 
 
