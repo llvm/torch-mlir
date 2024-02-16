@@ -50,15 +50,9 @@ def test_import_frozen_exported_program():
             super().__init__()
             self.b = torch.randn(3, 1)
             self.p = nn.Parameter(torch.randn(1, 1))
-            self.register_buffer("a_buffer", torch.rand(3, 1))
 
-        def forward(self, x, y):
-            value = torch.tanh(x) * get_a() * self.b * self.p * self.a_buffer
-            y[0, 0] = value[0, 0]
-            y[1, 0] = value[1, 0]
-            #self.a_buffer[0, 0] = value[0, 0]
-            return value
+        def forward(self, x):
+            return torch.tanh(x) * get_a() * self.b * self.p
 
-    with torch.no_grad():
-        m = fx.export_and_import(Basic(), torch.randn(3, 4), torch.randn(3, 4))
+    m = fx.export_and_import(Basic(), torch.randn(3, 4))
     print(m)

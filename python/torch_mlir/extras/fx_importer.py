@@ -91,11 +91,6 @@ __all__ = [
     "FxImporter",
 ]
 
-# An external callback that, given a Python value and a GraphNodeImporter, may choose
-# to materialize IR to load the value as a vtensor. If it returns None, then default
-# literal resolution proceeds.
-LiteralResolverCallback = Callable[[Any, "GraphNodeImporter"], Optional[Value]]
-
 REQUIRED_DIALCTS = [
     "builtin",
     "func",
@@ -282,6 +277,44 @@ def is_builtin_function_or_method(obj: Any) -> bool:
     return isinstance(obj, (BuiltinMethodType, BuiltinFunctionType))
 
 
+@dataclass(frozen=True, slots=True)
+class InputInfo:
+    """Provides additional metadata when resolving inputs."""
+
+    program: torch.export.ExportedProgram
+    input_spec: torch.export.graph_signature.InputSpec
+    node: Node
+    ir_type: IrType
+    mutable_producer_node_name: Optional[str] = None
+
+
+class FxImporterHooks:
+    """Hooks to control the behavior of the FxImporter."""
+
+    def prepare_module(self, module_op: Operation):
+        """Performs any needed preparation work on the module."""
+        ...
+
+    def resolve_literal(
+        self, gni: "GraphNodeImporter", literal: Any
+    ) -> Optional[Value]:
+        """User overridable hook to resolve a literal value."""
+        return None
+
+    def resolve_input(
+        self, gni: "GraphNodeImporter", value: Any, info: InputInfo
+    ) -> Optional[Value]:
+        """Resolves a Parameter or Buffer input to an IR value.
+
+        If the 'mutable_producer_node_name' option is set, then the result must
+        be a `!torch.tensor`.
+        Otherwise, it must be an immutable `!torch.vtensor`. If this constraint cannot
+        be met, the implementation must either error or return None to delegate to
+        the default.
+        """
+        return None
+
+
 class FxImporter:
     """Main entry-point for importing an fx.GraphModule.
 
@@ -304,10 +337,10 @@ class FxImporter:
     __slots__ = [
         "_c",
         "_cc",
-        "_literal_resolver_callback",
         "_m",
         "_m_ip",
         "_py_attr_tracker",
+        "_hooks",
         "symbol_table",
     ]
 
@@ -317,8 +350,8 @@ class FxImporter:
         module: Optional[Module] = None,
         context: Optional[Context] = None,
         config_check: bool = True,
-        literal_resolver_callback: Optional[LiteralResolverCallback] = None,
         py_attr_tracker: Optional["RefTracker"] = None,
+        hooks: Optional[FxImporterHooks] = None,
     ):
         if module is not None:
             assert context is None, "If configuring with a Module, context must be None"
@@ -333,8 +366,9 @@ class FxImporter:
         self._py_attr_tracker = py_attr_tracker or RefTracker()
         self._cc = ContextCache(self._c, py_attr_tracker=self._py_attr_tracker)
         self._m_ip = InsertionPoint(self._m.body)
-        self._literal_resolver_callback = literal_resolver_callback
+        self._hooks = hooks or FxImporterHooks()
         self.symbol_table = SymbolTable(self._m.operation)
+        self._hooks.prepare_module(self._m.operation)
 
     def _config_check(self):
         for dname in REQUIRED_DIALCTS:
@@ -345,27 +379,6 @@ class FxImporter:
                 raise RuntimeError(
                     f"The MLIR context {self._c} is missing required dialect '{dname}'"
                 )
-
-    def resolve_literal(self, literal: Any, gni: "GraphNodeImporter", mutable: bool):
-        """User overridable hook to resolve a literal value.
-
-        This will typically be a Parameter or Buffer from some containing nn.Module.
-        In that case, the hook can perform any desired IR manipulation to result in
-        a value. If `mutable` is True, then it is expected that the result supports
-        mutation and it must be a `!torch.tensor` value. Otherwise, it must be a
-        `!torch.vtensor`. The implementation must verify this constraint and error
-        if not met.
-
-        By default, this base implementation delegates to the
-        `literal_resolver_callback` passed to the constructor, which is the legacy
-        mechanism. It does not support mutable literals.
-        """
-        if self._literal_resolver_callback:
-            if mutable:
-                # Mutable not supported for legacy callback mechanism.
-                return None
-            return self._literal_resolver_callback(literal, gni)
-        return None
 
     @property
     def module(self) -> Module:
@@ -384,7 +397,7 @@ class FxImporter:
         and should eventually supercede all others. However, it depends on the
         PyTorch 2.3 release to function properly (specifically, this patch
         made ExportedProgram minimally correct for mutation:
-        https://github.com/pytorch/pytorch/pull/118969).        
+        https://github.com/pytorch/pytorch/pull/118969).
 
         For stateless programs, the result of this import is a normal function
         defined for immutable `!torch.vtensors`.
@@ -409,6 +422,7 @@ class FxImporter:
                 loc = self._cc.get_node_location(node)
             if node.op == "placeholder":
                 placeholder_nodes[node.name] = node
+                all_producer_nodes[node.name] = node
             elif node.op == "call_function":
                 all_producer_nodes[node.name] = node
         if loc is None:
@@ -435,10 +449,8 @@ class FxImporter:
         # Additional bindings that we need to set up after the function is created.
         mutable_buffer_target_producers: dict[str, str] = {}
         constant_tensors: dict[Node, torch.Tensor] = {}
-        parameter_bindings: dict[Node, Any] = {}
-        buffer_bindings: dict[
-            Node, tuple[Any, Optional[str]]
-        ] = {}  # Node to (buffer, mutable_producer)
+        parameter_bindings: dict[Node, tuple[Any, InputInfo]] = {}
+        buffer_bindings: dict[Node, tuple[Any, InputInfo]] = {}
 
         # Derive user outputs that we preserve. These will be nodes of the
         # producer for the output.
@@ -488,16 +500,40 @@ class FxImporter:
                 arg, TensorArgument
             ):
                 # Remember parameter binding.
-                parameter_bindings[placeholder_nodes[arg.name]] = prog.state_dict[
-                    input_spec.target
-                ]
+                value = prog.state_dict.get(input_spec.target)
+                assert (
+                    not input_spec.persistent or value is not None
+                ), "Expected state_dict value for persistent value"
+                node = placeholder_nodes[arg.name]
+                node_ir_type = self._cc.node_val_to_type(node, mutable=False)
+                parameter_bindings[node] = (
+                    value,
+                    InputInfo(prog, input_spec, node=node, ir_type=node_ir_type),
+                )
             elif input_spec.kind == InputKind.BUFFER and isinstance(
                 arg, TensorArgument
             ):
                 # Remember buffer binding.
-                buffer_bindings[placeholder_nodes[arg.name]] = (
-                    prog.state_dict[input_spec.target],
-                    mutable_buffer_target_producers.get(input_spec.target),
+                value = prog.state_dict.get(input_spec.target)
+                assert (
+                    not input_spec.persistent or value is not None
+                ), "Expected state_dict value for persistent value"
+                node = placeholder_nodes[arg.name]
+                mutable_producer_node_name = mutable_buffer_target_producers.get(
+                    input_spec.target
+                )
+                node_ir_type = self._cc.node_val_to_type(
+                    node, mutable=bool(mutable_producer_node_name)
+                )
+                buffer_bindings[node] = (
+                    value,
+                    InputInfo(
+                        prog,
+                        input_spec,
+                        node=node,
+                        ir_type=node_ir_type,
+                        mutable_producer_node_name=mutable_producer_node_name,
+                    ),
                 )
             else:
                 raise NotImplementedError(
@@ -537,13 +573,11 @@ class FxImporter:
                 node_importer.bind_node_value(user_input_node, block_arg_value)
 
         # Lazy bind buffer and parameter inputs.
-        for node, parameter_value in parameter_bindings.items():
-            node_importer.lazy_import_parameter(loc, node, parameter_value)
-        for node, (buffer_value, buffer_mutation_producer) in buffer_bindings.items():
-            node_importer.lazy_import_buffer(
-                loc, node, buffer_value, buffer_mutation_producer
-            )
-        
+        for node, (parameter_value, info) in parameter_bindings.items():
+            node_importer.lazy_import_parameter(loc, node, parameter_value, info)
+        for node, (buffer_value, info) in buffer_bindings.items():
+            node_importer.lazy_import_buffer(loc, node, buffer_value, info)
+
         # Import all nodes and return.
         node_importer.import_nodes(
             all_producer_nodes.values(), skip_placeholders_outputs=True
@@ -551,7 +585,7 @@ class FxImporter:
         node_importer.return_node_values(loc, user_outputs)
         self.symbol_table.insert(func_op)
 
-    def import_frozen_exported_program(self, prog: torch.export.ExportedProgram):
+    def import_frozen_program(self, prog: torch.export.ExportedProgram):
         """Imports a consolidated torch.export.ExportedProgram instance.
 
         If using the new torch.export path (vs a lower level precursor), then this is
@@ -634,7 +668,7 @@ class FxImporter:
 
     def import_graph_module(self, gm: GraphModule):
         """Low-level import of a GraphModule assuming that it has been functionalized.
-        
+
         TODO: This mechanism is deprecated by the `import_program` entry-point and
         it should be removed when no longer required for backwards compatibility.
         """
@@ -642,7 +676,7 @@ class FxImporter:
 
     def import_stateless_graph(self, g: Graph, func_name: str = "main"):
         """Low-level import of a functionalized, assumed stateless Graph as a func.
-        
+
         TODO: This mechanism is deprecated by the `import_program` entry-point and
         it should be removed when no longer required for backwards compatibility.
         """
@@ -964,11 +998,13 @@ class GraphNodeImporter:
             self.bind_node_value(node, value)
         return value
 
-    def lazy_import_parameter(self, loc, node: Node, parameter_value: Any):
+    def lazy_import_parameter(
+        self, loc, node: Node, parameter_value: Any, info: InputInfo
+    ):
         def _on_access() -> Value:
             with loc, InsertionPoint(self._b):
                 # TODO: Should go to a parameter binding hook.
-                return self._import_literal(parameter_value)
+                return self._import_input(parameter_value, info)
 
         self.bind_node_value(node, _on_access)
 
@@ -977,18 +1013,16 @@ class GraphNodeImporter:
         loc,
         node: Node,
         buffer_value: Any,
-        mutating_producer_node_name: Optional[str],
+        info: InputInfo,
     ):
         def _on_access() -> Value:
             with loc, InsertionPoint(self._b):
                 # TODO: Should go to a buffer binding hook.
-                return self._import_literal(
-                    buffer_value, mutable=mutating_producer_node_name is not None
-                )
+                return self._import_input(buffer_value, info)
 
         self.bind_node_value(node, _on_access)
 
-        if mutating_producer_node_name is not None:
+        if info.mutable_producer_node_name is not None:
 
             def on_produced(value: Value):
                 mutable_buffer_value = self.resolve_node_value(node)
@@ -999,7 +1033,7 @@ class GraphNodeImporter:
                         operands=[value, mutable_buffer_value],
                     )
 
-            self._on_node_produced[mutating_producer_node_name] = on_produced
+            self._on_node_produced[info.mutable_producer_node_name] = on_produced
 
     def return_node_values(self, loc, nodes: list[Node]):
         with loc, InsertionPoint(self._b):
@@ -1292,22 +1326,34 @@ class GraphNodeImporter:
             with loc:
                 return self._import_literal(arg)
 
-    def _import_literal(self, py_value: Any, *, mutable: bool = False) -> Value:
+    def _import_literal(self, py_value: Any) -> Value:
         # Apply the conversion callback.
-        user_value = self.fx_importer.resolve_literal(py_value, self, mutable=True)
+        user_value = self.fx_importer._hooks.resolve_literal(self, py_value)
         if user_value is not None:
             assert isinstance(user_value, Value)
             return user_value
 
         # Default conversion path.
-        if mutable:
-            raise ValueError(f"Default literal resolution cannot support mutation.")
         converter = LITERAL_CONVERTER_MAP.lookup(type(py_value))
         if converter is None:
             raise TypeError(
                 f"Unsupported argument -> literal conversion for {py_value.__class__}"
             )
         return converter(py_value, self, self._cc)
+
+    def _import_input(self, py_value: Any, info: InputInfo) -> Value:
+        # Try the hook.
+        user_value = self.fx_importer._hooks.resolve_input(self, py_value, info)
+        if user_value is not None:
+            assert isinstance(user_value, Value)
+            return user_value
+
+        # Fall-back to treating as a literal if not mutating.
+        if info.mutable_producer_node_name is not None:
+            raise ValueError(
+                f"Cannot import {info.input_spec} as a literal because it is mutable"
+            )
+        return self._import_literal(py_value)
 
     def _import_scalar_as_tensor(self, loc: Location, arg: NodeArgument) -> Value:
         tensor_arg = torch.tensor(arg)
