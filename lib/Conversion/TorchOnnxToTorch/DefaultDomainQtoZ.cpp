@@ -1447,7 +1447,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           current[i] = i;
         }
 
-        for (auto& dim : permutations)
+        for (auto &dim : permutations)
           dim = dim < 0 ? dim + rank : dim;
 
         // We need to override to the destination if known:
