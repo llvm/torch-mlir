@@ -22,7 +22,8 @@ def export_and_import(
     if fx_importer is None:
         fx_importer = FxImporter(context=context)
     prog = torch.export.export(f, args, kwargs, constraints=constraints)
+    #import IPython; IPython.embed()
     decomp_table = get_decomposition_table()
     prog = prog.run_decompositions(decomp_table)
-    fx_importer.import_frozen_exported_program(prog)
+    fx_importer.import_program(prog)
     return fx_importer.module_op
