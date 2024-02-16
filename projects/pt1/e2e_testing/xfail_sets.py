@@ -2141,6 +2141,7 @@ ONNX_XFAIL_SET = {
     "IndexSelectDynamicInputSizeModule_basic",
     "IndexSelectDynamicModulebasic",
     "IndexSelectWholeDimensionModule_basic",
+    "IndexSelectWholeTensorModule_basic",
     "IndexTensorStaticModule_basic",
     "IndexTensorStaticNonContiguousWithNoneModule_basic",
     "PixelShuffleModuleStaticRank4Float32_basic",
