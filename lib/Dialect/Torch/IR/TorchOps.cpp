@@ -3647,7 +3647,7 @@ OpFoldResult PrimMaxIntOp::fold(FoldAdaptor adaptor) {
 
 OpFoldResult PrimNumToTensorScalarOp::fold(FoldAdaptor adaptor) {
   Attribute a = adaptor.getA();
-  auto resultTy = cast<ValueTensorType>(getType());
+  auto resultTy = cast<BaseTensorType>(getType());
   if (!a)
     return {};
   if (!resultTy.hasDtype() || !resultTy.hasSizes())
@@ -3660,7 +3660,8 @@ OpFoldResult PrimNumToTensorScalarOp::fold(FoldAdaptor adaptor) {
     a = FloatAttr::get(dty, fattr.getValueAsDouble());
   }
 
-  auto builtin = resultTy.toBuiltinTensor().clone(resultTy.getDtype());
+  auto builtin =
+      RankedTensorType::get(resultTy.getSizes(), resultTy.getDtype());
   return SplatElementsAttr::get(builtin, a);
 }
 
