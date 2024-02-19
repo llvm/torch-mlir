@@ -2101,10 +2101,6 @@ ONNX_XFAIL_SET = {
     "ReduceMaxSignedIntModule_basic",
     "ReduceMaxUnsignedIntModule_basic",
     
-    # Failure - slice_lowering
-    "ScaledDotProductAttentionDifferentModule_basic",
-    "ScaledDotProductAttentionSameModule_basic",
-    
     # Failure - view_lowering
     "AddSizeIntModule_basic",
     "ElementwiseFlattenBroadcastModule_basic",
