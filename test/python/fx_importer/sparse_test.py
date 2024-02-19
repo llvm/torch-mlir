@@ -98,7 +98,7 @@ def sparse_export(
     annotation sparse parameters with their actual sparse layout
     attributes. This temporary solution accelerates testing
     torch-mlir with PyTorch sparse tensors until the issue is
-    resovled.
+    resolved.
     """
     # Convert all arguments to dense.
     dargs = tuple(a.to_dense() if a.layout in SPARSE_LAYOUTS else a for a in args)
@@ -130,7 +130,7 @@ def export_and_import(f, *args, **kwargs):
     torch_d.register_dialect(context)
     fx_importer = FxImporter(context=context)
     prog = sparse_export(f, args, kwargs)
-    fx_importer.import_frozen_exported_program(prog)
+    fx_importer.import_frozen_program(prog)
     return fx_importer.module
 
 
