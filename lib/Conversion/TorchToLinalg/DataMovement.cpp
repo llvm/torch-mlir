@@ -85,12 +85,15 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
     end = dimSize;
   } else {
     end = castIntToIndex(rewriter, loc, end);
-    Value endcmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, end, zero);
+    Value endcmp = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::slt, end, zero);
     Value endadd = rewriter.create<arith::AddIOp>(loc, end, dimSize);
     end = rewriter.create<arith::SelectOp>(loc, endcmp, endadd, end);
-    endcmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, end, zero);
+    endcmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, end,
+                                            zero);
     end = rewriter.create<arith::SelectOp>(loc, endcmp, negone, end);
-    endcmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, end, dimSize);
+    endcmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, end,
+                                            dimSize);
     end = rewriter.create<arith::SelectOp>(loc, endcmp, dimSize, end);
   }
 
@@ -99,15 +102,16 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
   Value len = rewriter.create<arith::SubIOp>(loc, end, start);
 
   // We check the difference between start and end to determine the total size:
-  Value stepcmp = rewriter.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::sge, stepIndex, zero);
+  Value stepcmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge,
+                                                 stepIndex, zero);
   Value stepsign = rewriter.create<arith::SelectOp>(loc, stepcmp, one, negone);
   Value resultSize = rewriter.create<arith::AddIOp>(loc, len, stepIndex);
   resultSize = rewriter.create<arith::SubIOp>(loc, resultSize, stepsign);
   resultSize = rewriter.create<arith::FloorDivSIOp>(loc, resultSize, stepIndex);
 
   // Clamp the size to [0, ...]:
-  Value szcmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, resultSize, zero);
+  Value szcmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
+                                               resultSize, zero);
   resultSize = rewriter.create<arith::SelectOp>(loc, szcmp, zero, resultSize);
   resultShape[dim] = resultSize;
 
