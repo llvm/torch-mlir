@@ -73,13 +73,7 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
       torchTypeEnd.getType().isa<OptionalType>())
     return rewriter.notifyMatchFailure(op, "unimplemented optional type arg");
 
-  int64_t step;
-  if (!matchPattern(op.getStep(), m_TorchConstantInt(&step))) {
-    if (!op.getStep().getType().template isa<Torch::NoneType>())
-      return op->emitError("unimplemented: step is not constant");
-    step = 1;
-  }
-
+  Value stepIndex = castIntToIndex(rewriter, loc, adaptor.getStep());
   Value start = toPositiveValidDim(rewriter, loc, torchTypeStart,
                                    builtinTypeStart, zero, dimSize);
   Value end = toPositiveValidDim(rewriter, loc, torchTypeEnd, builtinTypeEnd,
@@ -89,7 +83,6 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
   Value endSgeStart = rewriter.create<arith::CmpIOp>(
       loc, arith::CmpIPredicate::sge, end, start);
   end = rewriter.create<arith::SelectOp>(loc, endSgeStart, end, start);
-  Value stepIndex = rewriter.create<arith::ConstantIndexOp>(loc, step);
 
   // Slice logic: resultSize = floordiv(end - start + step - 1,  step)
   resultShape = getTensorSizes(rewriter, loc, input);
