@@ -2427,6 +2427,6 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       typeConverter, context);
   target.addIllegalOp<Aten_MakePerTensorQuantizedTensorOp>();
   patterns.add<ConvertDequantizePerChannel>(typeConverter, context);
-  target.addIllegalOp<Aten_LocalScalarDenseOp>();
+  target.addIllegalOp<AtenSymConstrainRangeOp>();
   patterns.add<DropAtenSymConstrainRangeOp>(typeConverter, context);
 }
