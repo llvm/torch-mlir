@@ -2341,6 +2341,20 @@ public:
 } // namespace
 
 namespace {
+class DropAtenSymConstrainRangeOp
+    : public OpConversionPattern<AtenSymConstrainRangeOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenSymConstrainRangeOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 
 template <typename OpTy>
 class ConvertCastEquivalentOp : public OpConversionPattern<OpTy> {
@@ -2412,4 +2426,6 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       typeConverter, context);
   target.addIllegalOp<Aten_MakePerTensorQuantizedTensorOp>();
   patterns.add<ConvertDequantizePerChannel>(typeConverter, context);
+  target.addIllegalOp<AtenSymConstrainRangeOp>();
+  patterns.add<DropAtenSymConstrainRangeOp>(typeConverter, context);
 }
