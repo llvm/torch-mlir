@@ -4070,6 +4070,16 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
   double start, step, end;
   int64_t start_int, step_int, end_int;
   auto isInteger = [=](Value v) { return v.getType().isa<Torch::IntType>(); };
+  bool isOutputInt64=false; 
+  auto intType = resultType.getElementType().dyn_cast_or_null<mlir::IntegerType>();
+
+  if(intType)
+  {
+    if(intType.getWidth() == 64)
+    {
+      isOutputInt64 = true;
+    }
+  }
   //Flag to check whether all inputs are integer
   bool integer_range = isInteger(op.getStart()) && isInteger(op.getEnd()) && isInteger(op.getStep());
   
@@ -4121,6 +4131,18 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
     }
 
     result = tosa::getConstTensor<int64_t>(rewriter, op, values, values.size()).value();
+  }
+
+  //Since typecasting from float32 or float64 to int64 results in, seemingly
+  //garbage values. Therefore typecasting here itself. 
+  else if(isOutputInt64)
+  {
+    int64_t resultSize = ceil((end - start) / step);
+    SmallVector<int64_t> values(resultSize, start);
+    for (unsigned i = 1; i < resultSize; i++)
+      values[i] += static_cast<int64_t>(i * step);
+    
+    result = tosa::getConstTensor<int64_t>(rewriter, op, values, resultSize).value();
   }
 
   else
