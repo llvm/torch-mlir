@@ -349,6 +349,12 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     Value result = payloadArgs[1];
 
     // TODO: Fix this part to support complex elements.
+    if (elem.getType().isa<mlir::ComplexType>()) {
+      op->emitError("lowering of complex input type for torch.aten.norm.Scalar "
+                    "is currently unimplemented");
+      return nullptr;
+    }
+
     Value self = convertScalarToDtype(b, loc, elem, resultElementType);
 
     auto abs = b.create<math::AbsFOp>(loc, self);
@@ -561,7 +567,8 @@ private:
   LogicalResult
   validateReductionElementType(Operation *op, Type elemType,
                                ConversionPatternRewriter &rewriter) const {
-    if ((isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op)) &&
+    if ((isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op) ||
+         isa<AtenNormScalarOp>(op)) &&
         !elemType.isa<mlir::FloatType>())
       return rewriter.notifyMatchFailure(
           op, "only float types are valid for vector norm ops");
@@ -569,10 +576,6 @@ private:
         elemType.getIntOrFloatBitWidth() == 8)
       return rewriter.notifyMatchFailure(op, "uint8 is not supported");
 
-    if (isa<AtenNormScalarOp>(op) &&
-        !(elemType.isa<mlir::FloatType>() || elemType.isa<mlir::ComplexType>()))
-      return rewriter.notifyMatchFailure(
-          op, "only float and complex types are valid for norm op");
     // No checks for all other reduction operations
     return success();
   }
