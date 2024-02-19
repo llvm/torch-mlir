@@ -452,7 +452,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     auto exp = b.create<math::ExpOp>(loc, negate);
     auto added = b.create<arith::AddFOp>(loc, exp, one);
     auto div = b.create<arith::DivFOp>(loc, one, added);
-    outTy.dump();
     return convertScalarToDtype(b, loc, div, outTy, std::nullopt, outTTy);
   }
   if (auto relu = dyn_cast<AtenReluOp>(op)) {
