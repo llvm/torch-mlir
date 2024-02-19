@@ -3660,9 +3660,9 @@ OpFoldResult PrimNumToTensorScalarOp::fold(FoldAdaptor adaptor) {
     a = FloatAttr::get(dty, fattr.getValueAsDouble());
   }
 
-  auto builtin =
+  auto mlirTensorType =
       RankedTensorType::get(resultTy.getSizes(), resultTy.getDtype());
-  return SplatElementsAttr::get(builtin, a);
+  return SplatElementsAttr::get(mlirTensorType, a);
 }
 
 //===----------------------------------------------------------------------===//
