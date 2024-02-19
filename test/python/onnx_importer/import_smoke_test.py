@@ -326,7 +326,7 @@ class ImportSmokeTest(unittest.TestCase):
         model_info = onnx_importer.ModelInfo(
             self.load_onnx_model(ONNX_TEST_DATA_DIR / rel_path),
         )
-        m = model_info.create_module(context=context)
+        m = model_info.create_module(context=context).operation
         try:
             imp = onnx_importer.NodeImporter.define_function(model_info.main_graph, m)
             imp.import_all()

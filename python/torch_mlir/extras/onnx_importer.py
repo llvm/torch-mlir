@@ -102,7 +102,7 @@ class ModelInfo:
     def create_module(self, context: Optional[Context] = None) -> Operation:
         if not context:
             context = Context()
-        module_op = Module.create(Location.unknown(context)).operation
+        module_op = Module.create(Location.unknown(context))
         # TODO: Populate module level metadata from the ModelProto
         return module_op
 
@@ -334,7 +334,8 @@ class NodeImporter:
                     f"This likely means that this is a special node which requires specific "
                     f"handling in the importer: {onnx_attr}"
                 )
-            attrs[f"torch.onnx.{onnx_attr.name}"] = handler(onnx_attr, self._cc)
+            result = handler(onnx_attr, self._cc)
+            attrs[f"torch.onnx.{onnx_attr.name}"] = result
 
     def import_initializer(self, initializer: onnx.TensorProto, extern_name: str = None) -> Value:
         # If an explicitly specified name is given, use that; otherwise, pick
@@ -502,9 +503,10 @@ class ContextCache:
         if tp.HasField("raw_data"):
             # Conveniently, DenseResourceElementsAttr shares the raw data
             # format. We just give it maximum numeric alignment.
-            return DenseResourceElementsAttr.get_from_buffer(
+            resource = DenseResourceElementsAttr.get_from_buffer(
                 tp.raw_data, self._sanitize_name(tp.name), tensor_type, alignment=8
             )
+            return resource
         else:
             # We have to do a data type specific instantiation from proto fields.
             # Since this is typically used for small tensor constants, we instantiate

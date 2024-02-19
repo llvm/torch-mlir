@@ -1447,7 +1447,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           current[i] = i;
         }
 
-        // Convert dynamic shape dimension.
+        for (auto &dim : permutations)
+          dim = dim < 0 ? dim + rank : dim;
+
+        // We need to override to the destination if known:
+        if (resultType.hasSizes()) {
+          for (int i = 0; i < rank; ++i) {
+            shape[permutations[i]] = resultType.getSizes()[i];
+          }
+        }
+
+        // Convert dynamic shape dimension:
         for (unsigned i = 0; i < shape.size(); i++) {
           if (shape[i] == ShapedType::kDynamic)
             shape[i] = Torch::kUnknownSize;
@@ -1605,9 +1615,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         llvm::SmallVector<int64_t> intermediateShape(operandTy.getShape());
         for (int i = 0, s = operandTy.getRank(); i < s; ++i) {
-          if (operandTy.getDimSize(i) != resultTy.getDimSize(i)) {
+          if (operandTy.getDimSize(i) != resultTy.getDimSize(i))
             intermediateShape[i] = -1;
-          }
+          if (intermediateShape[i] == ShapedType::kDynamic)
+            intermediateShape[i] = Torch::kUnknownSize;
         }
         auto intermediateType = Torch::ValueTensorType::get(
             context, intermediateShape, resultTorchType.getOptionalDtype());

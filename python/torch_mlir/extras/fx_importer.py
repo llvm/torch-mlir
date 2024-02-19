@@ -42,7 +42,9 @@ from torch._subclasses import (
 from torch.fx import (
     Graph,
     GraphModule,
+    Node,
 )
+
 try:
     import ml_dtypes
 except ModuleNotFoundError:
@@ -88,11 +90,6 @@ from ..dialects import (
 __all__ = [
     "FxImporter",
 ]
-
-# An external callback that, given a Python value and a GraphNodeImporter, may choose
-# to materialize IR to load the value as a vtensor. If it returns None, then default
-# literal resolution proceeds.
-LiteralResolverCallback = Callable[[Any, "GraphNodeImporter"], Optional[Value]]
 
 REQUIRED_DIALCTS = [
     "builtin",
@@ -280,6 +277,44 @@ def is_builtin_function_or_method(obj: Any) -> bool:
     return isinstance(obj, (BuiltinMethodType, BuiltinFunctionType))
 
 
+@dataclass(frozen=True, slots=True)
+class InputInfo:
+    """Provides additional metadata when resolving inputs."""
+
+    program: torch.export.ExportedProgram
+    input_spec: torch.export.graph_signature.InputSpec
+    node: Node
+    ir_type: IrType
+    mutable_producer_node_name: Optional[str] = None
+
+
+class FxImporterHooks:
+    """Hooks to control the behavior of the FxImporter."""
+
+    def prepare_module(self, module_op: Operation):
+        """Performs any needed preparation work on the module."""
+        ...
+
+    def resolve_literal(
+        self, gni: "GraphNodeImporter", literal: Any
+    ) -> Optional[Value]:
+        """User overridable hook to resolve a literal value."""
+        return None
+
+    def resolve_input(
+        self, gni: "GraphNodeImporter", value: Any, info: InputInfo
+    ) -> Optional[Value]:
+        """Resolves a Parameter or Buffer input to an IR value.
+
+        If the 'mutable_producer_node_name' option is set, then the result must
+        be a `!torch.tensor`.
+        Otherwise, it must be an immutable `!torch.vtensor`. If this constraint cannot
+        be met, the implementation must either error or return None to delegate to
+        the default.
+        """
+        return None
+
+
 class FxImporter:
     """Main entry-point for importing an fx.GraphModule.
 
@@ -302,10 +337,10 @@ class FxImporter:
     __slots__ = [
         "_c",
         "_cc",
-        "_literal_resolver_callback",
         "_m",
         "_m_ip",
         "_py_attr_tracker",
+        "_hooks",
         "symbol_table",
     ]
 
@@ -315,8 +350,8 @@ class FxImporter:
         module: Optional[Module] = None,
         context: Optional[Context] = None,
         config_check: bool = True,
-        literal_resolver_callback: Optional[LiteralResolverCallback] = None,
         py_attr_tracker: Optional["RefTracker"] = None,
+        hooks: Optional[FxImporterHooks] = None,
     ):
         if module is not None:
             assert context is None, "If configuring with a Module, context must be None"
@@ -331,8 +366,9 @@ class FxImporter:
         self._py_attr_tracker = py_attr_tracker or RefTracker()
         self._cc = ContextCache(self._c, py_attr_tracker=self._py_attr_tracker)
         self._m_ip = InsertionPoint(self._m.body)
-        self._literal_resolver_callback = literal_resolver_callback
+        self._hooks = hooks or FxImporterHooks()
         self.symbol_table = SymbolTable(self._m.operation)
+        self._hooks.prepare_module(self._m.operation)
 
     def _config_check(self):
         for dname in REQUIRED_DIALCTS:
@@ -352,7 +388,204 @@ class FxImporter:
     def module_op(self) -> Operation:
         return self._m.operation
 
-    def import_frozen_exported_program(self, prog: torch.export.ExportedProgram):
+    def import_program(
+        self, prog: torch.export.ExportedProgram, *, func_name: str = "main"
+    ):
+        """Imports an ExportedProgram according to our chosen canonical representation.
+
+        This mechanism is the fully general solution for handling an ExportedProgram
+        and should eventually supercede all others. However, it depends on the
+        PyTorch 2.3 release to function properly (specifically, this patch
+        made ExportedProgram minimally correct for mutation:
+        https://github.com/pytorch/pytorch/pull/118969).
+
+        For stateless programs, the result of this import is a normal function
+        defined for immutable `!torch.vtensors`.
+
+        However, if the program mutates its inputs or buffers, then it will be imported
+        with those parameters as `!torch.tensor` and appropriate copies and overwrites
+        will be done on the inside. Note that the function is still mostly stateless,
+        but with `torch.copy.to_vtensor` and `torch.overwrite.tensor.contents`
+        ops at the earliest consumer or latest producer to update an argument or
+        buffer.
+
+        It is recommended that integrators subclass and override the `resolve_literal`
+        method to control access to mutable buffers and parameters. Without that, the
+        default policy is to capture them as frozen values.
+        """
+        # Create lookaside table of placeholders/outputs.
+        placeholder_nodes: dict[str, Node] = {}
+        all_producer_nodes: dict[str, Node] = {}
+        loc: Optional[Location] = None
+        for node in prog.graph.nodes:
+            if loc is None:
+                loc = self._cc.get_node_location(node)
+            if node.op == "placeholder":
+                placeholder_nodes[node.name] = node
+                all_producer_nodes[node.name] = node
+            elif node.op == "call_function":
+                all_producer_nodes[node.name] = node
+        if loc is None:
+            loc = Location.unknown(self._c)
+
+        # This API is fast evolving. We keep these imports local for now so that we
+        # can disable this entire function if needed.
+        from torch.export.graph_signature import (
+            InputKind,
+            OutputKind,
+            TensorArgument,
+            SymIntArgument,
+        )
+
+        sig = prog.graph_signature
+
+        # Invert the (producer, node_name) maps for mutated user inputs and mutated
+        # buffers. This is because we hit-detect based on the input node name.
+        mutated_user_inputs = {
+            node_name: producer
+            for producer, node_name in sig.user_inputs_to_mutate.items()
+        }
+
+        # Additional bindings that we need to set up after the function is created.
+        mutable_buffer_target_producers: dict[str, str] = {}
+        constant_tensors: dict[Node, torch.Tensor] = {}
+        parameter_bindings: dict[Node, tuple[Any, InputInfo]] = {}
+        buffer_bindings: dict[Node, tuple[Any, InputInfo]] = {}
+
+        # Derive user outputs that we preserve. These will be nodes of the
+        # producer for the output.
+        user_outputs: list[Node] = []
+        user_output_types: list[IrType] = []
+        for output_spec in sig.output_specs:
+            kind = output_spec.kind
+            arg = output_spec.arg
+            if kind == OutputKind.USER_OUTPUT:
+                if not isinstance(arg, (TensorArgument, SymIntArgument)):
+                    raise NotImplementedError(
+                        f"OutputKind.USER_OUTPUT for {type(arg)}: {arg}"
+                    )
+                output_producer_node = all_producer_nodes[arg.name]
+                user_outputs.append(output_producer_node)
+                user_output_types.append(
+                    self._cc.node_val_to_type(output_producer_node)
+                )
+            elif kind == OutputKind.BUFFER_MUTATION and isinstance(arg, TensorArgument):
+                mutable_buffer_target_producers[output_spec.target] = arg.name
+
+        # Derive user inputs. These will be op=='placeholder' nodes.
+        user_inputs: list[Node] = []
+        user_input_types: list[IrType] = []
+        for input_spec in sig.input_specs:
+            arg = input_spec.arg
+            if input_spec.kind == InputKind.USER_INPUT:
+                # Set up user input.
+                if not isinstance(arg, (TensorArgument, SymIntArgument)):
+                    raise NotImplementedError(
+                        f"InputKind.USER_INPUT for {type(arg)}: {arg}"
+                    )
+                placeholder_node = placeholder_nodes[arg.name]
+                mutable = placeholder_node.name in mutated_user_inputs
+                user_inputs.append(placeholder_node)
+                user_input_types.append(
+                    self._cc.node_val_to_type(placeholder_node, mutable=mutable)
+                )
+            elif input_spec.kind == InputKind.CONSTANT_TENSOR and isinstance(
+                arg, TensorArgument
+            ):
+                # Remember constant tensor binding.
+                constant_tensors[placeholder_nodes[arg.name]] = prog.constants[
+                    input_spec.target
+                ]
+            elif input_spec.kind == InputKind.PARAMETER and isinstance(
+                arg, TensorArgument
+            ):
+                # Remember parameter binding.
+                value = prog.state_dict.get(input_spec.target)
+                assert (
+                    not input_spec.persistent or value is not None
+                ), "Expected state_dict value for persistent value"
+                node = placeholder_nodes[arg.name]
+                node_ir_type = self._cc.node_val_to_type(node, mutable=False)
+                parameter_bindings[node] = (
+                    value,
+                    InputInfo(prog, input_spec, node=node, ir_type=node_ir_type),
+                )
+            elif input_spec.kind == InputKind.BUFFER and isinstance(
+                arg, TensorArgument
+            ):
+                # Remember buffer binding.
+                value = prog.state_dict.get(input_spec.target)
+                assert (
+                    not input_spec.persistent or value is not None
+                ), "Expected state_dict value for persistent value"
+                node = placeholder_nodes[arg.name]
+                mutable_producer_node_name = mutable_buffer_target_producers.get(
+                    input_spec.target
+                )
+                node_ir_type = self._cc.node_val_to_type(
+                    node, mutable=bool(mutable_producer_node_name)
+                )
+                buffer_bindings[node] = (
+                    value,
+                    InputInfo(
+                        prog,
+                        input_spec,
+                        node=node,
+                        ir_type=node_ir_type,
+                        mutable_producer_node_name=mutable_producer_node_name,
+                    ),
+                )
+            else:
+                raise NotImplementedError(
+                    f"InputSpec not of a known kind: {input_spec}"
+                )
+
+        ftype = FunctionType.get(user_input_types, user_output_types, context=self._c)
+
+        # Create the function.
+        with loc:
+            func_op = func_dialect.FuncOp(func_name, ftype, ip=self._m_ip)
+            entry_block = Block.create_at_start(func_op.body, ftype.inputs)
+
+        node_importer = GraphNodeImporter(
+            self,
+            self._c,
+            self._cc,
+            entry_block,
+        )
+
+        # Bind constants to IR values.
+        for constant_node, constant_tensor in constant_tensors.items():
+            node_importer.import_constant(loc, constant_node, constant_tensor)
+
+        # Bind user inputs to IR values.
+        for user_input_node, block_arg_value in zip(user_inputs, entry_block.arguments):
+            if user_input_node.name in mutated_user_inputs:
+                # Materialize
+                node_importer.import_mutable_to_vtensor(
+                    loc,
+                    user_input_node,
+                    block_arg_value,
+                    mutated_user_inputs[user_input_node.name],
+                )
+            else:
+                # Normal value tensor binding.
+                node_importer.bind_node_value(user_input_node, block_arg_value)
+
+        # Lazy bind buffer and parameter inputs.
+        for node, (parameter_value, info) in parameter_bindings.items():
+            node_importer.lazy_import_parameter(loc, node, parameter_value, info)
+        for node, (buffer_value, info) in buffer_bindings.items():
+            node_importer.lazy_import_buffer(loc, node, buffer_value, info)
+
+        # Import all nodes and return.
+        node_importer.import_nodes(
+            all_producer_nodes.values(), skip_placeholders_outputs=True
+        )
+        node_importer.return_node_values(loc, user_outputs)
+        self.symbol_table.insert(func_op)
+
+    def import_frozen_program(self, prog: torch.export.ExportedProgram):
         """Imports a consolidated torch.export.ExportedProgram instance.
 
         If using the new torch.export path (vs a lower level precursor), then this is
@@ -377,6 +610,10 @@ class FxImporter:
         As we anticipate more nuanced treatment options in the future, we name this
         method to indicate that it is producing "frozen" modules. Additional top-level
         approaches to handling state can be introduced later as an addition.
+
+        TODO: This mechanism should be eventually replaced by `import_program` with
+        hooks set on the subclass to freeze parameters and buffers. However, that is
+        waiting for the Torch 2.3 release cut.
         """
         sig = prog.graph_signature
         state_dict = prog.state_dict
@@ -391,7 +628,9 @@ class FxImporter:
                 try:
                     state_value = constants[state_name]
                 except KeyError as e:
-                    raise AssertionError("Could not find state mapping for tensor constants") from e
+                    raise AssertionError(
+                        "Could not find state mapping for tensor constants"
+                    ) from e
                 arg_replacements[input_name] = state_value
         else:
             # Lift buffers.
@@ -399,7 +638,9 @@ class FxImporter:
                 try:
                     state_value = state_dict[state_name]
                 except KeyError as e:
-                    raise AssertionError("Could not find state mapping for buffer") from e
+                    raise AssertionError(
+                        "Could not find state mapping for buffer"
+                    ) from e
                 arg_replacements[input_name] = state_value
 
         # Lift parameters.
@@ -426,11 +667,19 @@ class FxImporter:
         self.import_stateless_graph(g)
 
     def import_graph_module(self, gm: GraphModule):
-        """Low-level import of a GraphModule assuming that it has been functionalized."""
+        """Low-level import of a GraphModule assuming that it has been functionalized.
+
+        TODO: This mechanism is deprecated by the `import_program` entry-point and
+        it should be removed when no longer required for backwards compatibility.
+        """
         self.import_stateless_graph(gm.graph)
 
     def import_stateless_graph(self, g: Graph, func_name: str = "main"):
-        """Low-level import of a functionalized, assumed stateless Graph as a func."""
+        """Low-level import of a functionalized, assumed stateless Graph as a func.
+
+        TODO: This mechanism is deprecated by the `import_program` entry-point and
+        it should be removed when no longer required for backwards compatibility.
+        """
         ftype, loc = self._graph_to_function_meta(g)
         # TODO: The FuncOp constructor requires a context-manager context.
         # Fix upstream and then unnest.
@@ -447,7 +696,6 @@ class FxImporter:
             self._c,
             self._cc,
             entry_block,
-            literal_resolver_callback=self._literal_resolver_callback,
         )
         node_importer.import_nodes(g.nodes)
         self.symbol_table.insert(func)
@@ -507,7 +755,9 @@ class ContextCache:
     ):
         self._c = context
         self._dtype_to_type: Dict[TorchDtype, IrType] = {}
-        self._tensor_metadata_cache: Dict[Tuple[torch.Size, torch.dtype], IrType] = {}
+        self._tensor_metadata_cache: Dict[
+            Tuple[torch.Size, torch.dtype, Optional[SparsityMeta], bool], IrType
+        ] = {}
         self._py_attr_tracker = py_attr_tracker or RefTracker()
 
         # Common types.
@@ -523,34 +773,34 @@ class ContextCache:
         c = self._c
         return IntegerAttr.get(IntegerType.get_signless(bits, c), value)
 
-    """Strips symbolic elements from a torch.Size object and returns shape asm"""
-
     def format_asm_shape(self, shape: torch.Size) -> str:
+        """Strips symbolic elements from a torch.Size object and returns shape asm"""
         return ",".join("?" if is_symbolic(d) else str(d) for d in list(shape))
-
-    """Return IrType for !torch.vtensor with the given shape and dtype"""
 
     def get_vtensor_type(
         self,
         shape: torch.Size,
         dtype: torch.dtype,
         *,
-        sparsity: Optional[SparsityMeta] = None,  # keyword-only
+        sparsity: Optional[SparsityMeta] = None,
+        mutable: bool = False,
     ):
+        """Return IrType for !torch.vtensor with the given shape and dtype"""
+        stem = "torch.tensor" if mutable else "torch.vtensor"
         shape_asm = self.format_asm_shape(shape)
         mlir_dtype = str(self.dtype_to_type(dtype))
         if sparsity is not None:
             encoding = sparsity_encoding(shape, sparsity)
             assert encoding is not None
             return IrType.parse(
-                f"!torch.vtensor<[{shape_asm}],{str(mlir_dtype)},{encoding}>",
+                f"!{stem}<[{shape_asm}],{str(mlir_dtype)},{encoding}>",
                 context=self._c,
             )
         return IrType.parse(
-            f"!torch.vtensor<[{shape_asm}],{str(mlir_dtype)}>", context=self._c
+            f"!{stem}<[{shape_asm}],{str(mlir_dtype)}>", context=self._c
         )
 
-    def node_val_to_type(self, node: torch_fx.Node) -> IrType:
+    def node_val_to_type(self, node: torch_fx.Node, *, mutable: bool = False) -> IrType:
         try:
             tensor_meta = node.meta.get("tensor_meta")
             val = node.meta.get("val")
@@ -564,13 +814,15 @@ class ContextCache:
                         f"Quantized tensor meta data is not supported."
                     )
                 else:
-                    return self.tensor_metadata_to_type(tensor_meta, sparsity=sparsity)
+                    return self.tensor_metadata_to_type(
+                        tensor_meta, sparsity=sparsity, mutable=mutable
+                    )
             elif val is not None:
                 # some nodes with symbolic inputs pass a 'val' attribute rather than
                 # tensor_meta
                 if isinstance(val, TorchFakeTensor):
                     return self.get_vtensor_type(
-                        val.size(), val.dtype, sparsity=sparsity
+                        val.size(), val.dtype, sparsity=sparsity, mutable=mutable
                     )
 
                 t = SCALAR_TYPE_TO_TORCH_MLIR_TYPE.get(type(val))
@@ -590,16 +842,19 @@ class ContextCache:
         self,
         tm: TensorMetadata,
         *,
-        sparsity: Optional[SparsityMeta] = None,  # keyword-only
+        sparsity: Optional[SparsityMeta] = None,
+        mutable: bool = False,
     ) -> IrType:
         tm_shape = tuple(
             item.node if is_symbolic(item) else item for item in list(tm.shape)
         )
 
-        key = (tm_shape, tm.dtype, sparsity)
+        key = (tm_shape, tm.dtype, sparsity, mutable)
         t = self._tensor_metadata_cache.get(key)
         if t is None:
-            t = self.get_vtensor_type(tm.shape, tm.dtype, sparsity=sparsity)
+            t = self.get_vtensor_type(
+                tm.shape, tm.dtype, sparsity=sparsity, mutable=mutable
+            )
             self._tensor_metadata_cache[key] = t
         return t
 
@@ -644,7 +899,7 @@ class GraphNodeImporter:
         "_b",
         "_c",
         "_cc",
-        "_literal_resolver_callback",
+        "_on_node_produced",
         "_v",
         "_multi_result_nodes",
         "fx_importer",
@@ -656,21 +911,138 @@ class GraphNodeImporter:
         context: Context,
         context_cache: ContextCache,
         block: Block,
-        *,
-        literal_resolver_callback: Optional[LiteralResolverCallback] = None,
     ):
         self.fx_importer = fx_importer
         self._c = context
         self._cc = context_cache
         self._b = block
-        # Map of (Node, result_index) to MLIR Value.
-        self._v: Dict[Tuple[torch_fx.Node, int], Value] = {}
+        # Map of (Node, result_index) to MLIR Value or a callback that lazily
+        # constructs and returns a value.
+        self._v: Dict[Union[Callable[[], Value], Tuple[torch_fx.Node, int]], Value] = {}
+        # Map of node name to hook that should be called when it is produced.
+        self._on_node_produced: dict[str, Callable[[Value], None]] = {}
         # Statically multi-result nodes which we have de-tupled are noted here.
         # They will have their getitem calls short-circuited.
         self._multi_result_nodes: Set[torch_fx.Node] = set()
-        self._literal_resolver_callback = literal_resolver_callback
 
-    def import_nodes(self, nodes: Sequence[torch_fx.Node]):
+    def bind_node_value(
+        self,
+        node: Node,
+        value: Union[Value, Callable[[], Value]],
+        result_index: int = 0,
+    ):
+        """Binds a node to a value (and asserts if already bound).
+
+        This is used by outside callers. Many internal callers poke directly
+        into the dict.
+        """
+        key = (node, result_index)
+        assert key not in self._v, f"Node already has a value: {node}"
+        self._v[key] = value
+
+        producer_callback = self._on_node_produced.get(node.name)
+        if producer_callback is not None:
+            producer_callback(value)
+
+    def resolve_node_value(self, node: Node, result_index: int = 0) -> Value:
+        """Resolves a node to a value."""
+        key = (node, result_index)
+        try:
+            binding = self._v[key]
+        except KeyError:
+            raise KeyError(f"FX Node {node} has not been bound to an MLIR value")
+        if isinstance(binding, Value):
+            return binding
+
+        # It is a lazy callback.
+        value = binding()
+        self._v[key] = value
+        return value
+
+    def import_mutable_to_vtensor(
+        self, loc: Location, node: Node, mutable_value: Value, producer_node_name: str
+    ) -> Value:
+        """Imports a node that is represented by a mutable IR value.
+
+        This will generate and associate the following with the node:
+          %0 = torch.copy.to_vtensor {mutable_value}
+
+        Then it will also add a trigger such that when `producer_node_name` is
+        produced, the following will be generated:
+          torch.overwrite.tensor.contents {producer}, {mutable_value}
+        """
+        with loc, InsertionPoint(self._b):
+            immutable_type = self._cc.node_val_to_type(node)
+            copy_result = Operation.create(
+                "torch.copy.to_vtensor",
+                results=[immutable_type],
+                operands=[mutable_value],
+            ).result
+            self.bind_node_value(node, copy_result)
+
+        # Add the producer trigger.
+        def on_produced(value: Value):
+            with loc, InsertionPoint(self._b):
+                Operation.create(
+                    "torch.overwrite.tensor.contents",
+                    results=[],
+                    operands=[value, mutable_value],
+                )
+
+        self._on_node_produced[producer_node_name] = on_produced
+        return copy_result
+
+    def import_constant(self, loc: Location, node: Node, constant: Any) -> Value:
+        with loc, InsertionPoint(self._b):
+            value = self._import_literal(constant)
+            self.bind_node_value(node, value)
+        return value
+
+    def lazy_import_parameter(
+        self, loc, node: Node, parameter_value: Any, info: InputInfo
+    ):
+        def _on_access() -> Value:
+            with loc, InsertionPoint(self._b):
+                # TODO: Should go to a parameter binding hook.
+                return self._import_input(parameter_value, info)
+
+        self.bind_node_value(node, _on_access)
+
+    def lazy_import_buffer(
+        self,
+        loc,
+        node: Node,
+        buffer_value: Any,
+        info: InputInfo,
+    ):
+        def _on_access() -> Value:
+            with loc, InsertionPoint(self._b):
+                # TODO: Should go to a buffer binding hook.
+                return self._import_input(buffer_value, info)
+
+        self.bind_node_value(node, _on_access)
+
+        if info.mutable_producer_node_name is not None:
+
+            def on_produced(value: Value):
+                mutable_buffer_value = self.resolve_node_value(node)
+                with loc, InsertionPoint(self._b):
+                    Operation.create(
+                        "torch.overwrite.tensor.contents",
+                        results=[],
+                        operands=[value, mutable_buffer_value],
+                    )
+
+            self._on_node_produced[info.mutable_producer_node_name] = on_produced
+
+    def return_node_values(self, loc, nodes: list[Node]):
+        with loc, InsertionPoint(self._b):
+            operands = [self.resolve_node_value(n) for n in nodes]
+            func_dialect.ReturnOp(operands, loc=loc)
+
+    def import_nodes(
+        self, nodes: Sequence[Node], *, skip_placeholders_outputs: bool = False
+    ):
         with InsertionPoint(self._b):
             loc = Location.unknown()
             num_placeholders = 0
@@ -681,10 +1053,10 @@ class GraphNodeImporter:
                 new_loc = self._cc.get_node_location(node)
                 if new_loc is not None:
                     loc = new_loc
-                if op == "placeholder":
+                if op == "placeholder" and not skip_placeholders_outputs:
                     # Associate the placeholder node with corresponding block
                     # argument.
-                    self._v[(node, 0)] = self._b.arguments[num_placeholders]
+                    self.bind_node_value(node, self._b.arguments[num_placeholders])
                     num_placeholders += 1
                 elif op == "call_function":
                     target = node.target
@@ -696,9 +1068,10 @@ class GraphNodeImporter:
                         getitem_ref, getitem_index = node.args
                         if getitem_ref in self._multi_result_nodes:
                             try:
-                                self._v[(node, 0)] = self._v[
-                                    (getitem_ref, getitem_index)
-                                ]
+                                self.bind_node_value(
+                                    node,
+                                    self.resolve_node_value(getitem_ref, getitem_index),
+                                )
                             except IndexError:
                                 raise RuntimeError(
                                     f"getitem de-aliasing failed. This likely "
@@ -723,7 +1096,7 @@ class GraphNodeImporter:
                         raise NotImplementedError(
                             f"FIX ME: Unimplemented call_function: target={node.target}, {node.meta}"
                         )
-                elif op == "output":
+                elif op == "output" and not skip_placeholders_outputs:
                     # args[0] is a singleton tuple that we flatten into multiple
                     # results.
                     operands = [self._import_argument(loc, arg) for arg in node.args[0]]
@@ -731,7 +1104,7 @@ class GraphNodeImporter:
 
     def _promote_symbolic_scalar_int_float(self, loc, graph, param):
         temp_target = torch.ops.aten.Float.Scalar
-        temp_node = torch.fx.Node(
+        temp_node = Node(
             graph=graph,
             name=f"{str(param)}_as_float",
             op="call_function",
@@ -756,11 +1129,7 @@ class GraphNodeImporter:
         # operations on symbolic arguments as regular python expressions rather than as torch ops
         if is_builtin_function_or_method(target):
             arg_types = [
-                (
-                    arg.meta["val"].node.pytype
-                    if isinstance(arg, torch.fx.Node)
-                    else type(arg)
-                )
+                (arg.meta["val"].node.pytype if isinstance(arg, Node) else type(arg))
                 for arg in node.args
             ]
             is_int = [item == int for item in arg_types]
@@ -776,7 +1145,7 @@ class GraphNodeImporter:
                     # promote int argument to float - following torch-mlir convention
                     arg0, arg1 = node.args
                     if is_int[0]:
-                        if isinstance(arg0, torch.fx.Node):
+                        if isinstance(arg0, Node):
                             prom_arg = self._promote_symbolic_scalar_int_float(
                                 loc, node.graph, arg0
                             )
@@ -785,7 +1154,7 @@ class GraphNodeImporter:
                             arg0 = float(arg0)
                             new_args = (arg0, arg1)
                     else:
-                        if isinstance(arg1, torch.fx.Node):
+                        if isinstance(arg1, Node):
                             prom_arg = self._promote_symbolic_scalar_int_float(
                                 loc, node.graph, arg1
                             )
@@ -923,7 +1292,7 @@ class GraphNodeImporter:
 
         # Record value mapping.
         for i, value in enumerate(operation.results):
-            self._v[(node, i)] = value
+            self.bind_node_value(node, value, i)
 
     def _import_argument(
         self, loc: Location, arg: NodeArgument, expected_jit_type=None
@@ -943,9 +1312,9 @@ class GraphNodeImporter:
                 ), f"Attempting to retrieve attribute '{arg.target}' from module, but no such attribute exists"
                 obj = getattr(gm, arg.target)
                 with loc:
-                    self._v[(arg, 0)] = self._import_literal(obj)
+                    self.bind_node_value(arg, self._import_literal(obj))
 
-            return self._v[(arg, 0)]
+            return self.resolve_node_value(arg)
         elif isinstance(arg, torch_fx.immutable_collections.immutable_list):
             return self._import_list_argument(loc, arg, expected_jit_type)
         elif isinstance(expected_jit_type, torch.TensorType) and not isinstance(
@@ -959,12 +1328,10 @@ class GraphNodeImporter:
 
     def _import_literal(self, py_value: Any) -> Value:
         # Apply the conversion callback.
-        user_callback = self._literal_resolver_callback
-        if user_callback:
-            user_value = user_callback(py_value, self)
-            if user_value is not None:
-                assert isinstance(user_value, Value)
-                return user_value
+        user_value = self.fx_importer._hooks.resolve_literal(self, py_value)
+        if user_value is not None:
+            assert isinstance(user_value, Value)
+            return user_value
 
         # Default conversion path.
         converter = LITERAL_CONVERTER_MAP.lookup(type(py_value))
@@ -973,6 +1340,20 @@ class GraphNodeImporter:
                 f"Unsupported argument -> literal conversion for {py_value.__class__}"
             )
         return converter(py_value, self, self._cc)
+
+    def _import_input(self, py_value: Any, info: InputInfo) -> Value:
+        # Try the hook.
+        user_value = self.fx_importer._hooks.resolve_input(self, py_value, info)
+        if user_value is not None:
+            assert isinstance(user_value, Value)
+            return user_value
+
+        # Fall-back to treating as a literal if not mutating.
+        if info.mutable_producer_node_name is not None:
+            raise ValueError(
+                f"Cannot import {info.input_spec} as a literal because it is mutable"
+            )
+        return self._import_literal(py_value)
 
     def _import_scalar_as_tensor(self, loc: Location, arg: NodeArgument) -> Value:
         tensor_arg = torch.tensor(arg)
@@ -1020,10 +1401,10 @@ class GraphNodeImporter:
 
         for operand in arg:
             operand_type = type(operand)
-            if isinstance(operand, torch.fx.Node):
+            if isinstance(operand, Node):
                 if operand in self._multi_result_nodes:
                     raise RuntimeError(f"Attempt to de-reference a multi-result node")
-                val = self._v[(operand, 0)]
+                val = self.resolve_node_value(operand)
                 val_type = str(val.type)
                 assert (
                     isinstance(element_type, str) and element_type in val_type
@@ -1099,8 +1480,8 @@ def _make_vtensor_literal_op(
     mapping = py_attr_tracker.track(tensor)
     if mapping.is_empty:
         # check support for bfloat16
-        assert (
-            not (tensor.dtype == torch.bfloat16 and ml_dtypes is None)
+        assert not (
+            tensor.dtype == torch.bfloat16 and ml_dtypes is None
         ), f"torch.bfloat16 requires the ml_dtypes package, please run:\n\npip install ml_dtypes\n"
         # Resolve the attribute.
         npy_dtype = TORCH_DTYPE_TO_NPY_TYPE.get(tensor.dtype)
