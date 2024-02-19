@@ -3642,6 +3642,30 @@ OpFoldResult PrimMaxIntOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// PrimNumToTensorScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult PrimNumToTensorScalarOp::fold(FoldAdaptor adaptor) {
+  Attribute a = adaptor.getA();
+  auto resultTy = cast<BaseTensorType>(getType());
+  if (!a)
+    return {};
+  if (!resultTy.hasDtype() || !resultTy.hasSizes())
+    return {};
+
+  auto dty = resultTy.getDtype();
+  if (auto iattr = dyn_cast<IntegerAttr>(a)) {
+    a = IntegerAttr::get(dty, iattr.getInt());
+  } else if (auto fattr = dyn_cast<FloatAttr>(a)) {
+    a = FloatAttr::get(dty, fattr.getValueAsDouble());
+  }
+
+  auto mlirTensorType =
+      RankedTensorType::get(resultTy.getSizes(), resultTy.getDtype());
+  return SplatElementsAttr::get(mlirTensorType, a);
+}
+
+//===----------------------------------------------------------------------===//
 // PrimMinSelfIntOp
 //===----------------------------------------------------------------------===//
 

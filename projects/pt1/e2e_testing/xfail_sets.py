@@ -419,6 +419,7 @@ STABLEHLO_PASS_SET = {
     "AtenEyeModuleFloat2D_basic",
     "AtenEyeModuleInt2D_basic",
     "AtenFloatScalarModule_basic",
+    "AtenInstanceNormModule_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
