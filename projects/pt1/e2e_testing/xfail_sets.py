@@ -1303,6 +1303,7 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "AtenEyeModuleInt2D_basic",
     "AtenEyeMModuleInt2D_basic",
 
+    "AtenInstanceNormModule_basic",
     "Conv2dBiasNoPaddingModule_basic",
     "Conv2dNoPaddingModule_basic",
     "Conv2dWithPaddingDilationStrideModule_basic",
