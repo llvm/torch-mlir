@@ -2184,6 +2184,7 @@ ONNX_XFAIL_SET = {
     "ElementwiseUnsqueezeNegDimsModule_basic",
     "ElementwiseWhereScalarModule_basic",
     "FlattenDynamicModule_basic",
+    "FlipModule_basic",
     "FlipModuleStaticShape_basic",
     "GluStaticModule_basic",
     "MaskedFillTensorFloatValueModule_basic",
@@ -2193,17 +2194,9 @@ ONNX_XFAIL_SET = {
     "ReduceMinAlongDimUnsignedInt_basic",
     "TensorsStackNegativeDimModule_basic",
     "TensorsStackPromoteDTypeModule_basic",
-}
 
-ONNX_CRASHING_SET = {
-    "FlipModule_basic",
-    "IndexTensorNegativeIndexModule_basic",
     "MoveDimIntNegativeIndexModule_basic",
     "PermuteNegativeIndexModule_basic",
-    "RollModule_basic",
-    "SliceModule_basic",
-    "SliceNegIdxModule_basic",
-    "SliceOutOfLowerBoundEndIndexModule_basic",
-    "SliceOutOfLowerBoundStartIndexModule_basic",
-    "SliceSizeTwoStepModule_basic",
 }
+
+ONNX_CRASHING_SET = { }
