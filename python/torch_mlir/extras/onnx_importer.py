@@ -258,6 +258,8 @@ class NodeImporter:
         # much unused crap.
         for init in self._gi.initializer_map.values():
             self.import_initializer(init)
+
+        self.get_none()
         for node in self._gi.graph_proto.node:
             self.import_node(node)
 
@@ -272,6 +274,20 @@ class NodeImporter:
         with InsertionPoint(self._b), Location.unknown():
             func_dialect.ReturnOp(outputs)
 
+    def get_none(self):
+        if '' in self._nv_map:
+            return self._nv_map['']
+
+        with InsertionPoint(self._b), Location.name("onnx_importer.none"):
+            nne = Operation.create(
+                name="torch.constant.none",
+                results=[self._cc.get_none_type()],
+                operands=[],
+                attributes={},
+            ).results[0]
+            self._nv_map[''] = nne
+            return nne
+
     def import_node(self, node: onnx.NodeProto):
         with InsertionPoint(self._b), Location.name(node.name):
             op_type = node.op_type
@@ -283,7 +299,6 @@ class NodeImporter:
                 was_handled = getattr(self, special_key)(node)
                 if was_handled:
                     return
-
             # General node import.
             input_values = []
             for input_name in node.input:
@@ -448,6 +463,9 @@ class ContextCache:
                 raise OnnxImportError(f"Unknown ONNX tensor element type: {elem_type}")
             self._elem_type_map[elem_type] = t
         return t
+
+    def get_none_type(self):
+        return IrType.parse("!torch.none", context=self._c)
 
     def get_vtensor_type(
         self, dims: tuple[Optional[int]], element_type: IrType
