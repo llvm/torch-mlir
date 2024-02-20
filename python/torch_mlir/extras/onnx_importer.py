@@ -279,14 +279,11 @@ class NodeImporter:
             return self._nv_map['']
 
         with InsertionPoint(self._b), Location.name("onnx_importer.none"):
-            attrs = {
-                "name": StringAttr.get(f"onnx.None"),
-            }
             nne = Operation.create(
-                name="torch.operator",
+                name="torch.constant.none",
                 results=[self._cc.get_none_type()],
                 operands=[],
-                attributes=attrs,
+                attributes={},
             ).results[0]
             self._nv_map[''] = nne
             return nne

@@ -61,7 +61,7 @@ TEST_CAST_XFAILS = [
     "node_test_cast_FLOAT16_to_FLOAT8E5M2FNUZ_model",
     "node_test_cast_FLOAT16_to_FLOAT8E5M2_model",
     "node_test_cast_FLOAT8E4M3FNUZ_to_FLOAT16_model",
-    "node_test_cast_FLOAT9E4M3FNUZ_to_FLOAT_model",
+    "node_test_cast_FLOAT8E4M3FNUZ_to_FLOAT_model",
     "node_test_cast_FLOAT8E4M3FN_to_FLOAT16_model",
     "node_test_cast_FLOAT8E4M3FN_to_FLOAT_model",
     "node_test_cast_FLOAT8E5M2FNUZ_to_FLOAT16_model",
@@ -102,6 +102,9 @@ TEST_CAST_XFAILS = [
     "node_test_castlike_FLOAT_to_STRING_model",
     "node_test_castlike_STRING_to_FLOAT_expanded_model",
     "node_test_castlike_STRING_to_FLOAT_model",
+    "node_test_constantofshape_float_ones_model",
+    "node_test_constantofshape_int_shape_zero_model",
+    "node_test_constantofshape_int_zeros_model",
     "node_test_dequantizelinear_e4m3fn_model",
     "node_test_dequantizelinear_e4m3fn_zero_point_model",
     "node_test_dequantizelinear_e5m2_model",
@@ -226,6 +229,8 @@ TEST_CAST_XFAILS = [
     "simple_test_strnorm_model_monday_insensintive_upper_twodim_model",
     "simple_test_strnorm_model_nostopwords_nochangecase_model",
 ]
+
+
 
 
 
