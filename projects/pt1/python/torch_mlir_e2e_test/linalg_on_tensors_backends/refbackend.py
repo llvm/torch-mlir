@@ -139,6 +139,7 @@ LOWERING_PIPELINE = "builtin.module(" + ",".join([
     "sparse-assembler",
     "sparsification-and-bufferization",
     "sparse-storage-specifier-to-llvm",
+    "inline",  # inline sparse helper methods where useful
     # Bufferize.
     "func.func(scf-bufferize)",
     "func.func(tm-tensor-bufferize)",

@@ -1687,13 +1687,8 @@ func.func @torch.aten.Bool.int$fold_cst() -> !torch.bool {
 }
 
 // CHECK-LABEL:   func.func @torch.aten.add.Tensor$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
-// CHECK:      %[[INT6:.*]] = torch.constant.int 6
-// CHECK:      %[[INT0:.*]] = torch.constant.int 0
-// CHECK:      %[[INT2:.*]] = torch.constant.int 2
-// CHECK:      %[[PR1:.*]] = torch.prim.NumToTensor.Scalar %[[INT0]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:      %[[PR2:.*]] = torch.prim.NumToTensor.Scalar %[[INT2]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:      %[[PR3:.*]] = torch.prim.NumToTensor.Scalar %[[INT6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:      return %[[PR3]] : !torch.vtensor<[],si64>
+// CHECK:      %[[CST:.*]] = torch.vtensor.literal(dense<6> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:      return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.add.Tensor$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
     %int0 = torch.constant.int 0
     %int2 = torch.constant.int 2
@@ -1705,11 +1700,8 @@ func.func @torch.aten.add.Tensor$canonicalize_numtotensor_0d() -> !torch.vtensor
 }
 
 // CHECK-LABEL:   @torch.aten.add.Tensor$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
-// CHECK:      %[[INT6:.*]] = torch.constant.int 6
-// CHECK:      %[[INT2:.*]] = torch.constant.int 2
-// CHECK:      %[[PR1:.*]] = torch.prim.NumToTensor.Scalar %[[INT2]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:      %[[PR2:.*]] = torch.prim.NumToTensor.Scalar %[[INT6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:      return %[[PR2]] : !torch.vtensor<[],si64>
+// CHECK:      %[[CST:.*]] = torch.vtensor.literal(dense<6> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:      return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.add.Tensor$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
     %int0 = torch.constant.int 0
     %int2 = torch.constant.int 2
@@ -1760,11 +1752,8 @@ func.func @prim.ListUnpack$fold_list(%arg0: !torch.vtensor<[2,3],f32>, %arg1: !t
 }
 
 // CHECK-LABEL:   func.func @torch.aten.div.Tensor_mode$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
-// CHECK:             %[[INT3:.*]] = torch.constant.int 3
-// CHECK:             %[[INT6:.*]] = torch.constant.int 6
-// CHECK:             %[[PR1:.*]] = torch.prim.NumToTensor.Scalar %[[INT6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             %[[PR2:.*]] = torch.prim.NumToTensor.Scalar %[[INT3]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             return %[[PR2]] : !torch.vtensor<[],si64>
+// CHECK:             %[[CST:.*]] = torch.vtensor.literal(dense<3> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.div.Tensor_mode$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
     %int6 = torch.constant.int 6
     %str = torch.constant.str "floor"
@@ -1775,13 +1764,8 @@ func.func @torch.aten.div.Tensor_mode$canonicalize_literal_0d() -> !torch.vtenso
 }
 
 // CHECK-LABEL:   func.func @torch.aten.div.Tensor_mode$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
-// CHECK:             %[[INT3:.*]] = torch.constant.int 3
-// CHECK:             %[[INT6:.*]] = torch.constant.int 6
-// CHECK:             %[[INT2:.*]] = torch.constant.int 2
-// CHECK:             %[[PR1:.*]] = torch.prim.NumToTensor.Scalar %[[INT2]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             %[[PR2:.*]] = torch.prim.NumToTensor.Scalar %[[INT6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             %[[PR3:.*]] = torch.prim.NumToTensor.Scalar %[[INT3]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             return %[[PR3]] : !torch.vtensor<[],si64>
+// CHECK:             %[[CST:.+]] = torch.vtensor.literal(dense<3> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.div.Tensor_mode$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
     %int6 = torch.constant.int 6
     %int2 = torch.constant.int 2
@@ -1793,11 +1777,8 @@ func.func @torch.aten.div.Tensor_mode$canonicalize_numtotensor_0d() -> !torch.vt
 }
 
 // CHECK-LABEL:   func.func @torch.aten.add.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
-// CHECK:             %[[INT6:.*]] = torch.constant.int 6
-// CHECK:             %[[INT0:.*]] = torch.constant.int 0
-// CHECK:             %[[PR0:.*]] = torch.prim.NumToTensor.Scalar %[[INT0]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             %[[PR1:.*]] = torch.prim.NumToTensor.Scalar %[[INT6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             return %[[PR1]] : !torch.vtensor<[],si64>
+// CHECK:             %[[CST:.+]] = torch.vtensor.literal(dense<6> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.add.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
     %int0 = torch.constant.int 0
     %int2 = torch.constant.int 2
@@ -1808,9 +1789,8 @@ func.func @torch.aten.add.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor
 }
 
 // CHECK-LABEL:   func.func @torch.aten.add.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
-// CHECK:             %[[INT6:.*]] = torch.constant.int 6
-// CHECK:             %[[PR0:.*]] = torch.prim.NumToTensor.Scalar %[[INT6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             return %[[PR0]] : !torch.vtensor<[],si64>
+// CHECK:             %[[CST]] = torch.vtensor.literal(dense<6> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.add.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
     %int2 = torch.constant.int 2
     %int3 = torch.constant.int 3
@@ -1820,13 +1800,8 @@ func.func @torch.aten.add.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],
 }
 
 // CHECK-LABEL:   func.func @torch.aten.sub.Tensor$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
-// CHECK:      %[[INT_6:.*]] = torch.constant.int -6
-// CHECK:      %[[INT0:.*]] = torch.constant.int 0
-// CHECK:      %[[INT2:.*]] = torch.constant.int 2
-// CHECK:      %[[PR1:.*]] = torch.prim.NumToTensor.Scalar %[[INT0]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:      %[[PR2:.*]] = torch.prim.NumToTensor.Scalar %[[INT2]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:      %[[PR3:.*]] = torch.prim.NumToTensor.Scalar %[[INT_6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:      return %[[PR3]] : !torch.vtensor<[],si64>
+// CHECK:      %[[CST:.+]] = torch.vtensor.literal(dense<-6> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:      return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.sub.Tensor$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
     %int0 = torch.constant.int 0
     %int2 = torch.constant.int 2
@@ -1838,11 +1813,8 @@ func.func @torch.aten.sub.Tensor$canonicalize_numtotensor_0d() -> !torch.vtensor
 }
 
 // CHECK-LABEL:   @torch.aten.sub.Tensor$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
-// CHECK:      %[[INT_6:.*]] = torch.constant.int -6
-// CHECK:      %[[INT2:.*]] = torch.constant.int 2
-// CHECK:      %[[PR1:.*]] = torch.prim.NumToTensor.Scalar %[[INT2]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:      %[[PR2:.*]] = torch.prim.NumToTensor.Scalar %[[INT_6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:      return %[[PR2]] : !torch.vtensor<[],si64>
+// CHECK:       %[[CST:.+]] = torch.vtensor.literal(dense<-6> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:       return %[[CST]]
 func.func @torch.aten.sub.Tensor$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
     %int0 = torch.constant.int 0
     %int2 = torch.constant.int 2
@@ -1854,11 +1826,8 @@ func.func @torch.aten.sub.Tensor$canonicalize_literal_0d() -> !torch.vtensor<[],
 }
 
 // CHECK-LABEL:   func.func @torch.aten.sub.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
-// CHECK:             %[[INT_6:.*]] = torch.constant.int -6
-// CHECK:             %[[INT0:.*]] = torch.constant.int 0
-// CHECK:             %[[PR0:.*]] = torch.prim.NumToTensor.Scalar %[[INT0]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             %[[PR1:.*]] = torch.prim.NumToTensor.Scalar %[[INT_6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             return %[[PR1]] : !torch.vtensor<[],si64>
+// CHECK:             %[[CST:.+]] = torch.vtensor.literal(dense<-6> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.sub.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
     %int0 = torch.constant.int 0
     %int2 = torch.constant.int 2
@@ -1869,9 +1838,8 @@ func.func @torch.aten.sub.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor
 }
 
 // CHECK-LABEL:   func.func @torch.aten.sub.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
-// CHECK:             %[[INT_6:.*]] = torch.constant.int -6
-// CHECK:             %[[PR0:.*]] = torch.prim.NumToTensor.Scalar %[[INT_6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             return %[[PR0]] : !torch.vtensor<[],si64>
+// CHECK:             %[[CST:.+]] = torch.vtensor.literal(dense<-6> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.sub.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
     %int2 = torch.constant.int 2
     %int3 = torch.constant.int 3
@@ -1891,9 +1859,8 @@ func.func @torch.aten.sub.float$fold() -> !torch.float {
 }
 
 // CHECK-LABEL:   func.func @torch.aten.mul.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
-// CHECK:             %[[INT6]] = torch.constant.int 6
-// CHECK:             %[[PR0:.*]] = torch.prim.NumToTensor.Scalar %[[INT6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             return %[[PR0]] : !torch.vtensor<[],si64>
+// CHECK:             %[[CST:.+]] = torch.vtensor.literal(dense<6> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.mul.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
     %int3 = torch.constant.int 3
     %0 = torch.vtensor.literal(dense<2> : tensor<si64>) : !torch.vtensor<[],si64>
@@ -1902,11 +1869,8 @@ func.func @torch.aten.mul.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],
 }
 
 // CHECK-LABEL:   func.func @torch.aten.mul.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
-// CHECK:             %[[INT6:.*]] = torch.constant.int 6
-// CHECK:             %[[INT2:.*]] = torch.constant.int 2
-// CHECK:             %[[PR0:.*]] = torch.prim.NumToTensor.Scalar %[[INT2]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             %[[PR1:.*]] = torch.prim.NumToTensor.Scalar %[[INT6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             return %[[PR1]] : !torch.vtensor<[],si64>
+// CHECK:             %[[CST:.+]] = torch.vtensor.literal(dense<6> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.mul.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
     %int2 = torch.constant.int 2
     %int3 = torch.constant.int 3
@@ -1916,9 +1880,8 @@ func.func @torch.aten.mul.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor
 }
 
 // CHECK-LABEL:   func.func @torch.aten.mul.Tensor$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
-// CHECK:             %[[INT6]] = torch.constant.int 6
-// CHECK:             %[[PR0:.*]] = torch.prim.NumToTensor.Scalar %[[INT6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             return %[[PR0]] : !torch.vtensor<[],si64>
+// CHECK:             %[[CST:.+]] = torch.vtensor.literal(dense<6> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.mul.Tensor$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
     %0 = torch.vtensor.literal(dense<2> : tensor<si64>) : !torch.vtensor<[],si64>
     %1 = torch.vtensor.literal(dense<3> : tensor<si64>) : !torch.vtensor<[],si64>
@@ -1927,13 +1890,8 @@ func.func @torch.aten.mul.Tensor$canonicalize_literal_0d() -> !torch.vtensor<[],
 }
 
 // CHECK-LABEL:   func.func @torch.aten.mul.Tensor$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
-// CHECK:             %[[INT6:.*]] = torch.constant.int 6
-// CHECK:             %[[INT2:.*]] = torch.constant.int 2
-// CHECK:             %[[INT3:.*]] = torch.constant.int 3
-// CHECK:             %[[PR0:.*]] = torch.prim.NumToTensor.Scalar %[[INT2]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             %[[PR1:.*]] = torch.prim.NumToTensor.Scalar %[[INT3]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             %[[PR2:.*]] = torch.prim.NumToTensor.Scalar %[[INT6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             return %[[PR2]] : !torch.vtensor<[],si64>
+// CHECK:             %[[CST:.+]] = torch.vtensor.literal(dense<6> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.mul.Tensor$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
     %int2 = torch.constant.int 2
     %int3 = torch.constant.int 3
@@ -1944,13 +1902,8 @@ func.func @torch.aten.mul.Tensor$canonicalize_numtotensor_0d() -> !torch.vtensor
 }
 
 // CHECK-LABEL:   func.func @torch.aten.div.Tensor_mode$canonicalize_numtotensor_0d_trunc() -> !torch.vtensor<[],si64> {
-// CHECK:             %[[INT3:.*]] = torch.constant.int 3
-// CHECK:             %[[INT6:.*]] = torch.constant.int 6
-// CHECK:             %[[INT2:.*]] = torch.constant.int 2
-// CHECK:             %[[PR1:.*]] = torch.prim.NumToTensor.Scalar %[[INT2]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             %[[PR2:.*]] = torch.prim.NumToTensor.Scalar %[[INT6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             %[[PR3:.*]] = torch.prim.NumToTensor.Scalar %[[INT3]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             return %[[PR3]] : !torch.vtensor<[],si64>
+// CHECK:             %[[CST:.+]] = torch.vtensor.literal(dense<3> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.div.Tensor_mode$canonicalize_numtotensor_0d_trunc() -> !torch.vtensor<[],si64> {
     %int6 = torch.constant.int 6
     %int2 = torch.constant.int 2
@@ -1962,11 +1915,8 @@ func.func @torch.aten.div.Tensor_mode$canonicalize_numtotensor_0d_trunc() -> !to
 }
 
 // CHECK-LABEL:   func.func @torch.aten.div.Tensor_mode$canonicalize_literal_0d_trunc() -> !torch.vtensor<[],si64> {
-// CHECK:             %[[INT3:.*]] = torch.constant.int 3
-// CHECK:             %[[INT6:.*]] = torch.constant.int 6
-// CHECK:             %[[PR1:.*]] = torch.prim.NumToTensor.Scalar %[[INT6]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             %[[PR2:.*]] = torch.prim.NumToTensor.Scalar %[[INT3]] : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             return %[[PR2]] : !torch.vtensor<[],si64>
+// CHECK:             %[[CST:.+]] = torch.vtensor.literal(dense<3> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.div.Tensor_mode$canonicalize_literal_0d_trunc() -> !torch.vtensor<[],si64> {
     %int6 = torch.constant.int 6
     %str = torch.constant.str "trunc"
@@ -2152,9 +2102,8 @@ func.func @torch.aten.slice.tensor$fold_dim_0() -> (!torch.vtensor<[1, 1],f32>, 
 
 
 // CHECK-LABEL:   func.func @torch.aten.rsub.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
-// CHECK:             %int-1 = torch.constant.int -1
-// CHECK:             %[[VAL_0:.*]] = torch.prim.NumToTensor.Scalar %int-1 : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             return %[[VAL_0]] : !torch.vtensor<[],si64>
+// CHECK:             %[[CST:.+]] = torch.vtensor.literal(dense<-1> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.rsub.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
     %int2 = torch.constant.int 2
     %int3 = torch.constant.int 3
@@ -2164,11 +2113,8 @@ func.func @torch.aten.rsub.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[]
 }
 
 // CHECK-LABEL:   func.func @torch.aten.rsub.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
-// CHECK:             %int-1 = torch.constant.int -1
-// CHECK:             %int1 = torch.constant.int 1
-// CHECK:             %[[VAL_0:.*]] = torch.prim.NumToTensor.Scalar %int1 : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             %[[VAL_1:.*]] = torch.prim.NumToTensor.Scalar %int-1 : !torch.int -> !torch.vtensor<[],si64>
-// CHECK:             return %[[VAL_1]] : !torch.vtensor<[],si64>
+// CHECK:             %[[CST:.+]] = torch.vtensor.literal(dense<-1> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
 func.func @torch.aten.rsub.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
     %int1 = torch.constant.int 1
     %int2 = torch.constant.int 2
@@ -2180,7 +2126,6 @@ func.func @torch.aten.rsub.Scalar$canonicalize_numtotensor_0d() -> !torch.vtenso
 
 // CHECK-LABEL:   func.func @torch.aten.ScalarImplicit$canonicalize_numtotensor_0d() -> !torch.number {
 // CHECK:             %int1 = torch.constant.int 1
-// CHECK:             %[[VAL_0:.*]] = torch.prim.NumToTensor.Scalar %int1 : !torch.int -> !torch.vtensor<[],si64>
 // CHECK:             %[[VAL_1:.*]] = torch.derefine %int1 : !torch.int to !torch.number
 // CHECK:             return %[[VAL_1]] : !torch.number
 func.func @torch.aten.ScalarImplicit$canonicalize_numtotensor_0d() -> !torch.number {
@@ -2344,6 +2289,17 @@ func.func @fold_aten_where_true_attr() -> !torch.vtensor<[4],si64> {
   %rhs = torch.vtensor.literal(dense<11> : tensor<si64>) : !torch.vtensor<[],si64>
   %where = torch.aten.where.self %bool, %lhs, %rhs : !torch.vtensor<[4],i1>, !torch.vtensor<[4],si64>, !torch.vtensor<[],si64> -> !torch.vtensor<[4],si64>
   return %where : !torch.vtensor<[4],si64>
+}
+
+// -----
+
+// CHECK-LABEL: @fold_prim_numtotensor_scalar
+func.func @fold_prim_numtotensor_scalar() -> !torch.vtensor<[1],si64> {
+  %int42 = torch.constant.int 42
+  // CHECK: %[[TENSOR:.+]] = torch.vtensor.literal(dense<42> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+  // CHECK: return %[[TENSOR]]
+  %0 = torch.prim.NumToTensor.Scalar %int42 : !torch.int -> !torch.vtensor<[1],si64>
+  return %0 : !torch.vtensor<[1],si64>
 }
 
 // -----

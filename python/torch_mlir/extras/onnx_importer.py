@@ -102,7 +102,7 @@ class ModelInfo:
     def create_module(self, context: Optional[Context] = None) -> Operation:
         if not context:
             context = Context()
-        module_op = Module.create(Location.unknown(context)).operation
+        module_op = Module.create(Location.unknown(context))
         # TODO: Populate module level metadata from the ModelProto
         return module_op
 
@@ -258,6 +258,8 @@ class NodeImporter:
         # much unused crap.
         for init in self._gi.initializer_map.values():
             self.import_initializer(init)
+
+        self.get_none()
         for node in self._gi.graph_proto.node:
             self.import_node(node)
 
@@ -272,6 +274,20 @@ class NodeImporter:
         with InsertionPoint(self._b), Location.unknown():
             func_dialect.ReturnOp(outputs)
 
+    def get_none(self):
+        if '' in self._nv_map:
+            return self._nv_map['']
+
+        with InsertionPoint(self._b), Location.name("onnx_importer.none"):
+            nne = Operation.create(
+                name="torch.constant.none",
+                results=[self._cc.get_none_type()],
+                operands=[],
+                attributes={},
+            ).results[0]
+            self._nv_map[''] = nne
+            return nne
+
     def import_node(self, node: onnx.NodeProto):
         with InsertionPoint(self._b), Location.name(node.name):
             op_type = node.op_type
@@ -283,7 +299,6 @@ class NodeImporter:
                 was_handled = getattr(self, special_key)(node)
                 if was_handled:
                     return
-
             # General node import.
             input_values = []
             for input_name in node.input:
@@ -334,7 +349,8 @@ class NodeImporter:
                     f"This likely means that this is a special node which requires specific "
                     f"handling in the importer: {onnx_attr}"
                 )
-            attrs[f"torch.onnx.{onnx_attr.name}"] = handler(onnx_attr, self._cc)
+            result = handler(onnx_attr, self._cc)
+            attrs[f"torch.onnx.{onnx_attr.name}"] = result
 
     def import_initializer(self, initializer: onnx.TensorProto, extern_name: str = None) -> Value:
         # If an explicitly specified name is given, use that; otherwise, pick
@@ -448,6 +464,9 @@ class ContextCache:
             self._elem_type_map[elem_type] = t
         return t
 
+    def get_none_type(self):
+        return IrType.parse("!torch.none", context=self._c)
+
     def get_vtensor_type(
         self, dims: tuple[Optional[int]], element_type: IrType
     ) -> IrType:
@@ -502,9 +521,10 @@ class ContextCache:
         if tp.HasField("raw_data"):
             # Conveniently, DenseResourceElementsAttr shares the raw data
             # format. We just give it maximum numeric alignment.
-            return DenseResourceElementsAttr.get_from_buffer(
+            resource = DenseResourceElementsAttr.get_from_buffer(
                 tp.raw_data, self._sanitize_name(tp.name), tensor_type, alignment=8
             )
+            return resource
         else:
             # We have to do a data type specific instantiation from proto fields.
             # Since this is typically used for small tensor constants, we instantiate

@@ -1447,7 +1447,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           current[i] = i;
         }
 
-        // Convert dynamic shape dimension.
+        for (auto &dim : permutations)
+          dim = dim < 0 ? dim + rank : dim;
+
+        // We need to override to the destination if known:
+        if (resultType.hasSizes()) {
+          for (int i = 0; i < rank; ++i) {
+            shape[permutations[i]] = resultType.getSizes()[i];
+          }
+        }
+
+        // Convert dynamic shape dimension:
         for (unsigned i = 0; i < shape.size(); i++) {
           if (shape[i] == ShapedType::kDynamic)
             shape[i] = Torch::kUnknownSize;
@@ -1530,15 +1540,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           if (binder.tensorOperandAtIndex(axes, 3)) {
             return failure();
           }
-        } else {
-          // The default axes value is the range from 0 to the size of first
-          // dimension of `starts` and `ends`.
-          Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
-          Value arangeLength = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getType<Torch::IntType>(),
-              rewriter.getIntegerAttr(rewriter.getIntegerType(64), startSize));
-          axes = rewriter.create<Torch::AtenArangeOp>(
-              loc, startsTorchTy, arangeLength, none, none, none, none);
         }
 
         // Binding `steps` from its arguments or through a default value
@@ -1569,14 +1570,16 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "Expected the rank of starts and ends tensors to be 1 "
                          "and their dimensions to match");
 
-        auto axesTorchTy = axes.getType().cast<Torch::ValueTensorType>();
-        auto axesTy =
-            axesTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
-        int64_t numAxes = axesTy.getDimSize(0);
+        if (axes) {
+          auto axesTorchTy = axes.getType().cast<Torch::ValueTensorType>();
+          auto axesTy =
+              axesTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+          int64_t numAxes = axesTy.getDimSize(0);
 
-        if (!(axesTy && numAxes == endSize))
-          return rewriter.notifyMatchFailure(
-              binder.op, "Axes should be the same size of starts and ends");
+          if (!(axesTy && numAxes == endSize))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Axes should be the same size of starts and ends");
+        }
 
         auto stepsTy = steps.getType()
                            .cast<Torch::ValueTensorType>()
@@ -1605,13 +1608,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         llvm::SmallVector<int64_t> intermediateShape(operandTy.getShape());
         for (int i = 0, s = operandTy.getRank(); i < s; ++i) {
-          if (operandTy.getDimSize(i) != resultTy.getDimSize(i)) {
+          if (operandTy.getDimSize(i) != resultTy.getDimSize(i))
             intermediateShape[i] = -1;
-          }
+          if (intermediateShape[i] == ShapedType::kDynamic)
+            intermediateShape[i] = Torch::kUnknownSize;
         }
         auto intermediateType = Torch::ValueTensorType::get(
             context, intermediateShape, resultTorchType.getOptionalDtype());
-        for (int i = 0; i < numAxes; ++i) {
+        for (int i = 0; i < endSize; ++i) {
 
           Value k = rewriter.create<Torch::ConstantIntOp>(
               loc, rewriter.getType<Torch::IntType>(),
@@ -1625,12 +1629,11 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
           Value start = select(starts, kTensor);
           Value end = select(ends, kTensor);
-          Value axis = select(axes, kTensor);
+          Value axis = axes ? select(axes, kTensor) : k;
           Value step = select(steps, kTensor);
 
           auto sliceType = intermediateType;
-          if (i == numAxes - 1)
-            sliceType = resultTorchType;
+          sliceType = i == (endSize - 1) ? resultTorchType : sliceType;
           operand = rewriter.create<Torch::AtenSliceTensorOp>(
               loc, sliceType, operand, axis, start, end, step);
         }
