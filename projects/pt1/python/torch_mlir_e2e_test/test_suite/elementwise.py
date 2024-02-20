@@ -3833,7 +3833,7 @@ class ElementwiseAtenIsposinfOpModule(torch.nn.Module):
         ([2, 5], torch.float32, True),
     ])
     def forward(self, x):
-        return torch.ops.aten.isposinf(x) 
+        return torch.ops.aten.isposinf(x)
 
 @register_test_case(module_factory=lambda: ElementwiseAtenIsposinfOpModule())
 def ElementwiseAtenIsposinfOpModule_basic(module, tu:TestUtils):

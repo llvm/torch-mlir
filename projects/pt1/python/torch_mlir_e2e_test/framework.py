@@ -324,7 +324,7 @@ def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
 
 
 def run_tests(tests: List[Test], config: TestConfig, sequential=False, verbose=False) -> List[TestResult]:
-    """Invoke the given `Test`'s with the provided `TestConfig`.""" 
+    """Invoke the given `Test`'s with the provided `TestConfig`."""
     num_processes = min(int(mp.cpu_count() * 0.8) + 1, len(tests))
     try:
         env_concurrency = int(os.getenv("TORCH_MLIR_TEST_CONCURRENCY", "0"))
