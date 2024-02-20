@@ -2595,6 +2595,52 @@ def ElementwiseDivTensorFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseDivTensorIntegerModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, a, b):
+        return torch.div(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseDivTensorIntegerModule())
+def ElementwiseDivTensorIntegerModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-10, high=10), tu.randint(3, 4, low=-10, high=10).type(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseDivTensorUnsignedIntegerModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.uint8, True),
+        ([-1, -1], torch.uint8, True),
+    ])
+    def forward(self, a, b):
+        return torch.div(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseDivTensorUnsignedIntegerModule())
+def ElementwiseDivTensorUnsignedIntegerModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=0, high=10).to(torch.uint8), tu.randint(3, 4, low=0, high=10).type(torch.uint8))
+
+
+# ==============================================================================
+
+
 class ElementwiseDivRoundingModeTruncModule(torch.nn.Module):
 
     def __init__(self):

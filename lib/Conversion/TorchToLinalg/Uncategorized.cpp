@@ -725,13 +725,17 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(div.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    if (!dtype.isa<mlir::FloatType>()) {
-      div.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
-    return b.create<arith::DivFOp>(loc, lhs, rhs);
+    if (dtype.isa<mlir::FloatType>())
+      return b.create<arith::DivFOp>(loc, lhs, rhs);
+    else if (dtype.isa<mlir::IntegerType>()) {
+      if (dtype.isUnsignedInteger())
+        return b.create<arith::DivUIOp>(loc, lhs, rhs);
+      return b.create<arith::DivSIOp>(loc, lhs, rhs);
+    }
+    div.emitError("unimplemented: non-floating point and non-integer dtype");
+    return nullptr;
   }
   if (auto divTensorMode = dyn_cast<AtenDivTensorModeOp>(op)) {
     AtenDivTensorModeOp::Adaptor adaptor(operands);

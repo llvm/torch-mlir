@@ -989,6 +989,8 @@ TOSA_PASS_SET = {
     "ElementwiseCloneContiguousModule_basic",
     "ElementwiseCloneModule_basic",
     "ElementwiseDivScalarModule_basic",
+    "ElementwiseDivTensorIntegerModule_basic",
+    "ElementwiseDivTensorUnsignedIntegerModule_basic",
     "ElementwiseEluModule_basic",
     "ElementwiseEluNonDefaultModule_basic",
     "ElementwiseEqBoolScalarModule_basic",
