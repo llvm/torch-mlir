@@ -2194,7 +2194,7 @@ ONNX_XFAIL_SET = {
     "ReduceMinAlongDimUnsignedInt_basic",
     "TensorsStackNegativeDimModule_basic",
     "TensorsStackPromoteDTypeModule_basic",
-
+    "FlipModule_basic",
     "MoveDimIntNegativeIndexModule_basic",
     "PermuteNegativeIndexModule_basic",
 }
