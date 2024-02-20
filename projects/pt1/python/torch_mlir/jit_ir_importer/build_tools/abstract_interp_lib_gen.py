@@ -332,6 +332,26 @@ def aten〇grid_sampler〡shape(input: List[int], grid: List[int], interpolation
     output = [input[0],input[1],grid[1],grid[2]]
     return output
 
+def aten〇__interpolate〇size_list_scale_list〡shape(input: List[int], size: Optional[List[int]] = None, scale_factor: Optional[List[float]] = None, mode: str = "nearest", align_corners: Optional[bool] = None, recompute_scale_factor: Optional[bool] = None, antialias: bool = False) -> List[int]:
+    output = [input[0], input[1]]
+    if size is not None:
+        assert (
+          scale_factor is None
+        ), "Must specify exactly one of size and scale_factor"
+        output.append(size[0])
+        output.append(size[1])
+        return output
+    elif scale_factor is not None:
+        assert (
+          size is None
+        ), "Must specify exactly one of size and scale_factor"
+        output.append(int(scale_factor[0] * input[2]))
+        output.append(int(scale_factor[1] * input[3]))
+        return output
+    assert 0, "Either size or scale_factor must be presented"
+    return output
+
+
 def prims〇collapse〡shape(a: List[int], start: int, end: int) -> List[int]:
     # Obtained through trial and error on a few examples in PyTorch:
     assert start < len(a), "start out of bounds"
@@ -2310,6 +2330,10 @@ def aten〇constant_pad_nd〡dtype(self_rank_dtype: Tuple[int, int], pad: List[i
 def aten〇grid_sampler〡dtype(input_rank_dtype: Tuple[int, int], grid_rank_dtype: Tuple[int, int], interpolation_mode: int, padding_mode: int, align_corners: bool) -> int:
     input_rank, input_dtype = input_rank_dtype
     grid_rank, grid_dtype = input_rank_dtype
+    return input_dtype
+
+def aten〇__interpolate〇size_list_scale_list〡dtype(input_rank_dtype: Tuple[int, int], size: Optional[List[int]] = None, scale_factor: Optional[List[float]] = None, mode: str = "nearest", align_corners: Optional[bool] = None, recompute_scale_factor: Optional[bool] = None, antialias: bool = False) -> int:
+    input_rank, input_dtype = input_rank_dtype
     return input_dtype
 
 @check_dtype_function([ErrorInvocation(TensorOfShape(2, 3, 4), padding=1),
