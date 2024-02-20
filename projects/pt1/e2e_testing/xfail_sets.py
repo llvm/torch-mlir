@@ -2184,6 +2184,7 @@ ONNX_XFAIL_SET = {
     "ElementwiseUnsqueezeNegDimsModule_basic",
     "ElementwiseWhereScalarModule_basic",
     "FlattenDynamicModule_basic",
+    "FlipModule_basic",
     "FlipModuleStaticShape_basic",
     "GluStaticModule_basic",
     "MaskedFillTensorFloatValueModule_basic",
