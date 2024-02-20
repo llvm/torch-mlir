@@ -466,234 +466,6 @@ public:
 };
 } // namespace
 
-//     """Create a map from each dimension of the input tensor to the
-//     subspace that dimension corresponds to in the result shape one gets
-//     from indexing the tensor with the optional index tensors.
-//
-//     Note: Index tensors are first broadcasted to a common shape before
-//     creating the mapping. So the index of every index tensor will map to
-//     the same dimensions in the result shape.
-//
-//     For example:
-//     indices = [None, None, torch.randint(4, (6, 1)), torch.randint(5, (7,))]
-//     indexBroadcastShapeValue = [6, 7]
-//     map = {0: [0], 1: [1], 2: [2, 3], 3: [2, 3]}
-static SmallVector<SmallVector<int64_t>>
-getInputShapeToOutputShapeMap(SmallVector<Value> optionalIndices,
-                              SmallVector<Value> indexBroadcastShapeValue) {
-  SmallVector<Value> indices;
-  for (Value index : optionalIndices) {
-    if (!index.getType().isa<Torch::NoneType>())
-      indices.push_back(index);
-  }
-
-  unsigned broadcastRank = indexBroadcastShapeValue.size();
-  unsigned numIndexTensors = indices.size();
-  int64_t indexOfFirstIndexTensor = -1;
-  SmallVector<SmallVector<int64_t>> result;
-
-  for (unsigned i = 0; i < optionalIndices.size(); i++) {
-    if (optionalIndices[i].getType().isa<Torch::NoneType>()) {
-      unsigned val = i;
-      if (indexOfFirstIndexTensor >= 0)
-        val += broadcastRank - numIndexTensors;
-      result.push_back({val});
-    } else {
-      if (indexOfFirstIndexTensor < 0)
-        indexOfFirstIndexTensor = i;
-      SmallVector<int64_t> outputIndices;
-      for (unsigned j = indexOfFirstIndexTensor;
-           j < (indexOfFirstIndexTensor + broadcastRank); j++)
-        outputIndices.push_back(j);
-      result.push_back(outputIndices);
-    }
-  }
-  return result;
-}
-
-static std::tuple<SmallVector<Value>, SmallVector<int64_t>>
-getIndicesFinalShape(ConversionPatternRewriter &rewriter, Location loc,
-                     Value input, SmallVector<Value> optionalIndices,
-                     SmallVector<int64_t> inputShapeInt,
-                     SmallVector<Value> inputShapeValue,
-                     SmallVector<int64_t> indexBroadcastShapeInt,
-                     SmallVector<Value> indexBroadcastShapeValue) {
-  SmallVector<Value> result;
-  SmallVector<int64_t> resultInt;
-  bool handledIndexTensorSpace = false;
-
-  for (unsigned i = 0; i < inputShapeValue.size(); i++) {
-    if (optionalIndices[i].getType().isa<Torch::NoneType>()) {
-      result.push_back(inputShapeValue[i]);
-      resultInt.push_back(inputShapeInt[i]);
-    } else {
-      if (!handledIndexTensorSpace) {
-        handledIndexTensorSpace = true;
-        for (unsigned j = 0; j < indexBroadcastShapeValue.size(); j++) {
-          result.push_back(indexBroadcastShapeValue[j]);
-          resultInt.push_back(indexBroadcastShapeInt[j]);
-        }
-      }
-    }
-  }
-  return std::make_tuple(result, resultInt);
-}
-
-static FailureOr<Value>
-getScatterIndices(Aten_IndexPutImplOp op, ConversionPatternRewriter &rewriter,
-                  Type indicesDtype, SmallVector<Value> optionalIndices,
-                  SmallVector<int64_t> indexBroadcastShapeInt,
-                  SmallVector<Value> indexBroadcastShapeValue) {
-  Location loc = op.getLoc();
-  MLIRContext *context = op->getContext();
-  Value input = op.getSelf();
-
-  SmallVector<SmallVector<int64_t>> shapeMap =
-      getInputShapeToOutputShapeMap(optionalIndices, indexBroadcastShapeValue);
-
-  SmallVector<int64_t> inputShapeInt{
-      input.getType().cast<BaseTensorType>().getSizes()};
-  int64_t inputRank = inputShapeInt.size();
-  SmallVector<Value> inputShapeValue;
-  for (unsigned i = 0; i < inputShapeInt.size(); i++) {
-    Value dim = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(i));
-    inputShapeValue.push_back(
-        rewriter.createOrFold<AtenSizeIntOp>(loc, input, dim));
-  }
-
-  auto finalShapeResult = getIndicesFinalShape(
-      rewriter, loc, input, optionalIndices, inputShapeInt, inputShapeValue,
-      indexBroadcastShapeInt, indexBroadcastShapeValue);
-  SmallVector<Value> finalShapeValue = std::get<0>(finalShapeResult);
-  SmallVector<int64_t> finalShapeInt = std::get<1>(finalShapeResult);
-
-  Value torchCstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
-  Value torchCstZero =
-      rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
-  Value torchCstOne =
-      rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-
-  Value indexBroadcastShapeTorchList = rewriter.create<PrimListConstructOp>(
-      loc, Torch::ListType::get(Torch::IntType::get(context)),
-      indexBroadcastShapeValue);
-
-  // Calculating index count.
-  int64_t indexCount = 1;
-  if (llvm::all_of(finalShapeInt,
-                   [](int64_t shape) { return shape != kUnknownSize; })) {
-    for (int64_t i : finalShapeInt)
-      indexCount *= i;
-  } else {
-    indexCount = kUnknownSize;
-  }
-
-  Value indexCountValue = finalShapeValue[0];
-  for (unsigned i = 1; i < finalShapeValue.size(); i++)
-    indexCountValue =
-        rewriter.create<AtenMulIntOp>(loc, indexCountValue, finalShapeValue[i]);
-
-  ValueTensorType flattenIndicesType =
-      ValueTensorType::get(context, llvm::ArrayRef(indexCount), indicesDtype);
-  Value flattenEndDim = rewriter.create<Torch::ConstantIntOp>(
-      loc, rewriter.getI64IntegerAttr(finalShapeInt.size() - 1));
-
-  SmallVector<Value> broadcastedIndices;
-  for (unsigned i = 0; i < optionalIndices.size(); i++) {
-    Value broadcastedIndexTensor;
-    if (optionalIndices[i].getType().isa<Torch::NoneType>()) {
-      Value torchCstDim = rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(i));
-      Value inputDim = rewriter.create<AtenSizeIntOp>(loc, input, torchCstDim);
-      ValueTensorType tensorType = ValueTensorType::get(
-          context, llvm::ArrayRef(inputShapeInt[i]), indicesDtype);
-      broadcastedIndexTensor = rewriter.create<AtenArangeStartStepOp>(
-          loc, tensorType, /*start=*/torchCstZero, /*end=*/inputDim,
-          /*step=*/torchCstOne,
-          /*dtype=*/torchCstNone,
-          /*layout=*/torchCstNone,
-          /*device=*/torchCstNone,
-          /*pin_memory=*/torchCstNone);
-    } else {
-      ValueTensorType tensorType = ValueTensorType::get(
-          context, llvm::ArrayRef(indexBroadcastShapeInt), indicesDtype);
-      broadcastedIndexTensor = rewriter.create<AtenBroadcastToOp>(
-          loc, tensorType, optionalIndices[i], indexBroadcastShapeTorchList);
-    }
-
-    // spotlight_indices(final_shape, shape_map[i]):
-    // Turn all values in `final_shape` to `1` except for those with index in
-    // `indices`.
-    //    for j in range(len(final_shape)):
-    //         if j not in indices:
-    //             final_shape[j] = 1
-    // This is equivalent to unsqueezing the index tensor at the dimension `j`
-    // not in indices.
-    for (unsigned j = 0; j < finalShapeInt.size(); j++) {
-      if (llvm::find(shapeMap[i], j) == shapeMap[i].end()) {
-        Value unsqueezeDim = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(j));
-        auto unsqueezedInfo =
-            unsqueezeTensor(rewriter, op, broadcastedIndexTensor,
-                            /*dim=*/unsqueezeDim);
-        if (failed(unsqueezedInfo)) {
-          return rewriter.notifyMatchFailure(
-              op, "cannot generate unsqueeze tensor op");
-        }
-        broadcastedIndexTensor = *unsqueezedInfo;
-      }
-    }
-
-    // Performing broadcast to final shape.
-    Value broadcastShapeTorchList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)),
-        finalShapeValue);
-    ValueTensorType broadcastTensorType = ValueTensorType::get(
-        context, llvm::ArrayRef(finalShapeInt), indicesDtype);
-    broadcastedIndexTensor = rewriter.create<AtenBroadcastToOp>(
-        loc, broadcastTensorType, broadcastedIndexTensor,
-        broadcastShapeTorchList);
-
-    // Flattening the tensor.
-    broadcastedIndexTensor = rewriter.create<AtenFlattenUsingIntsOp>(
-        loc, flattenIndicesType, broadcastedIndexTensor, torchCstZero,
-        flattenEndDim);
-
-    broadcastedIndices.push_back(broadcastedIndexTensor);
-  }
-
-  // Stacking broadcasted indices.
-  Value scatterIndices;
-  // The operation torch.stack([a, b], dim=0) is decomposed into:
-  // torch.cat([a.unsqueeze(dim=0), b.unsqueeze(dim=0)], dim=0)
-  // Unsqueeze all tensors before concatenating.
-  SmallVector<Value> unsqueezedIndexTensors;
-  for (Value tensor : broadcastedIndices) {
-    auto unsqueezedInfo =
-        unsqueezeTensor(rewriter, op, tensor, /*dim=*/torchCstZero);
-    if (failed(unsqueezedInfo)) {
-      return rewriter.notifyMatchFailure(op,
-                                         "cannot generate unsqueeze tensor op");
-    }
-    unsqueezedIndexTensors.push_back(*unsqueezedInfo);
-  }
-
-  BaseTensorType unsqueezedTensorType =
-      unsqueezedIndexTensors[0].getType().cast<BaseTensorType>();
-  Value concatIndicesTorchList = rewriter.create<PrimListConstructOp>(
-      loc, Torch::ListType::get(unsqueezedTensorType), unsqueezedIndexTensors);
-  ValueTensorType concatIndicesType = ValueTensorType::get(
-      context, llvm::ArrayRef({inputRank, indexCount}), indicesDtype);
-  scatterIndices = rewriter.create<AtenCatOp>(
-      loc, concatIndicesType, concatIndicesTorchList, torchCstZero);
-
-  ValueTensorType transposedIndicesType = ValueTensorType::get(
-      context, llvm::ArrayRef({indexCount, inputRank}), indicesDtype);
-  scatterIndices = rewriter.create<AtenTransposeIntOp>(
-      loc, transposedIndicesType, scatterIndices, torchCstZero, torchCstOne);
-  return scatterIndices;
-}
-
 namespace {
 class ConvertAten_IndexPutImplOp
     : public OpConversionPattern<Aten_IndexPutImplOp> {
@@ -749,177 +521,49 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Indices list size should not be greater than the input rank.");
 
-    Value torchCstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
-    unsigned sizeOptionalIndicesList = optionalIndicesList.size();
-    SmallVector<int64_t> nonNoneIndexTensorDim;
-    unsigned numNonNoneIndices;
-
-    if (sizeOptionalIndicesList == 0)
+    if (optionalIndicesList.size() == 0)
       return rewriter.notifyMatchFailure(op, "Indices list must not be empty.");
 
-    for (unsigned i = 0; i < optionalIndicesList.size(); i++) {
-      if (!optionalIndicesList[i].getType().isa<Torch::NoneType>()) {
-        nonNoneIndexTensorDim.push_back(i);
-      }
+    // For now require that all indices be specified:
+    for (int i = 0, s = optionalIndicesList.size(); i < s; ++i) {
+      if (isa<Torch::NoneType>(optionalIndicesList[i].getType()))
+        return rewriter.notifyMatchFailure(op,
+                                           "WIP - add support for none-type.");
     }
 
-    numNonNoneIndices = nonNoneIndexTensorDim.size();
-    if (numNonNoneIndices > 2) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: non none index tensors less than or equal to 2 "
-              "supported only");
-    } else if (numNonNoneIndices == 2 &&
-               nonNoneIndexTensorDim[0] != nonNoneIndexTensorDim[1] - 1) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: case of 2 non none index tensors is supported "
-              "only when both the tensors are along consecutive dimensions");
+    // Unsqueeze so we have a 1 dim to concat along:
+    Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    for (Value &tensor : optionalIndicesList) {
+      auto btt = cast<Torch::BaseTensorType>(tensor.getType());
+      if (!btt.hasSizes())
+        return rewriter.notifyMatchFailure(op, "indices tensor is unranked");
+
+      llvm::SmallVector<int64_t> shape(btt.getSizes());
+      shape.push_back(1);
+
+      auto unsqueezeTy =
+          rewriter.getType<Torch::ValueTensorType>(shape, btt.getDtype());
+      Value unsqueezed = rewriter.create<AtenUnsqueezeOp>(loc, unsqueezeTy,
+                                                          tensor, torchCstOne);
+      tensor = unsqueezed;
     }
 
-    // Padding the indices list with none values.
-    if (sizeOptionalIndicesList < inputRank) {
-      for (unsigned i = 0; i < (inputRank - sizeOptionalIndicesList); i++)
-        optionalIndicesList.push_back(torchCstNone);
-    }
-
-    SmallVector<int64_t> indexBroadcastShapeInt{
-        optionalIndicesList[nonNoneIndexTensorDim[0]]
-            .getType()
-            .cast<BaseTensorType>()
-            .getSizes()};
-    SmallVector<Value> indexBroadcastShapeValue;
-    if (numNonNoneIndices == 2) {
-      computeBroadcastShape(rewriter, loc,
-                            optionalIndicesList[nonNoneIndexTensorDim[0]],
-                            optionalIndicesList[nonNoneIndexTensorDim[1]],
-                            indexBroadcastShapeInt, indexBroadcastShapeValue);
-    } else {
-      // It means there's only one index tensor and broadcast shape is same as
-      // that index tensor' shape.
-      for (unsigned i = 0; i < indexBroadcastShapeInt.size(); i++) {
-        Value dim = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(i));
-        indexBroadcastShapeValue.push_back(rewriter.createOrFold<AtenSizeIntOp>(
-            loc, optionalIndicesList[nonNoneIndexTensorDim[0]], dim));
-      }
-    }
-
-    Type indicesDtype = optionalIndicesList[nonNoneIndexTensorDim[0]]
-                            .getType()
-                            .cast<BaseTensorType>()
-                            .getDtype();
-
-    // This implementation is done to get the scatter indices:
-
-    // def get_broadcast_shape(tensors):
-    //     return list(torch.broadcast_tensors(*tensors)[0].shape)
-
-    // def get_input_shape_to_output_shape_map(optional_index_tensors:
-    // list[Optional[torch.Tensor]]):
-    //     index_tensors = list(filter(lambda x: x is not None,
-    //     optional_index_tensors)) broadcast_rank =
-    //     len(get_broadcast_shape(index_tensors)) num_of_index_tensors =
-    //     len(index_tensors) index_of_first_index_tensor: Optional[int] = None
-    //     result = {}
-    //     for i, index in enumerate(optional_index_tensors):
-    //         if index is None:
-    //             val = i
-    //             if index_of_first_index_tensor is not None:
-    //                 val += broadcast_rank - num_of_index_tensors
-    //             result[i] = [val]
-    //         else:
-    //             if index_of_first_index_tensor is None:
-    //                 index_of_first_index_tensor = i
-    //             output_indices = list(range(index_of_first_index_tensor,
-    //                                         index_of_first_index_tensor +
-    //                                         broadcast_rank))
-    //             result[i] = output_indices
-    //     return result
-
-    // def spotlight_indices(shape, indices: list[int]):
-    //     """Turn all values in `shape` to `1` except for those with index in
-    //     `indices`.""" shape = shape.copy() for i in range(len(shape)):
-    //         if i not in indices:
-    //             shape[i] = 1
-    //     return shape
-
-    // def get_final_shape(input, optional_index_tensors:
-    // list[Optional[torch.Tensor]]):
-    //     index_tensors = list(filter(lambda x: x is not None,
-    //     optional_index_tensors)) index_tensors_broadcast_shape =
-    //     get_broadcast_shape(index_tensors) result = []
-    //     handled_index_tensor_space = False
-    //     for e, i in enumerate(input.shape):
-    //         if optional_index_tensors[e] is None:
-    //             result.append(i)
-    //         else:
-    //             if not handled_index_tensor_space:
-    //                 handled_index_tensor_space = True
-    //                 result += index_tensors_broadcast_shape
-    //     return result
-
-    // def get_scatter_indices(input, optional_index_tensors:
-    // list[Optional[torch.Tensor]]):
-    //     assert len(input.size()) == len(optional_index_tensors), "Pad indices
-    //     with None" shape_map =
-    //     get_input_shape_to_output_shape_map(optional_index_tensors)
-    //     index_tensors = list(filter(lambda x: x is not None,
-    //     optional_index_tensors)) index_tensors_broadcast_shape =
-    //     get_broadcast_shape(index_tensors) final_shape =
-    //     get_final_shape(input, optional_index_tensors)
-
-    //     broadcasted_index_tensors = []
-    //     for e, optional_index_tensor in enumerate(optional_index_tensors):
-    //         if optional_index_tensor is None:
-    //             tensor_to_broadcast = torch.arange(0, input.size(e))
-    //         else:
-    //             tensor_to_broadcast =
-    //             optional_index_tensor.broadcast_to(index_tensors_broadcast_shape)
-
-    //         broadcasted_index_tensor = \
-    //             tensor_to_broadcast.reshape(spotlight_indices(final_shape, shape_map[e]))\
-    //                                .broadcast_to(final_shape)\
-    //                                .flatten()
-    //         broadcasted_index_tensors.append(broadcasted_index_tensor)
-
-    //     return torch.stack(broadcasted_index_tensors, dim=0).t()
-
-    auto scatterIndicesInfo =
-        getScatterIndices(op, rewriter, indicesDtype, optionalIndicesList,
-                          indexBroadcastShapeInt, indexBroadcastShapeValue);
-    if (failed(scatterIndicesInfo)) {
-      return rewriter.notifyMatchFailure(
-          op, "cannot generate scatter indices for index put op");
-    }
-    Value indexTensor = *scatterIndicesInfo;
-
-    // Flattening the values tensor.
-    Value torchCstZero = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(0));
-    Value flattenedValuesTensorLastDim = rewriter.create<Torch::ConstantIntOp>(
-        loc,
-        rewriter.getI64IntegerAttr(valuesTensorType.getSizes().size() - 1));
-    SmallVector<int64_t> valuesShapeInt{valuesTensorType.getSizes()};
-    int64_t valuesCount = 1;
-    if (llvm::all_of(valuesShapeInt,
-                     [](int64_t shape) { return shape != kUnknownSize; })) {
-      for (int64_t i : valuesShapeInt)
-        valuesCount *= i;
-    } else {
-      valuesCount = kUnknownSize;
-    }
-    auto flattenedValuesTensorType = ValueTensorType::get(
-        context, llvm::ArrayRef(valuesCount), valuesTensorType.getDtype());
-    Value flattenedValuesTensor = rewriter.create<AtenFlattenUsingIntsOp>(
-        loc, flattenedValuesTensorType, op.getValues(), torchCstZero,
-        flattenedValuesTensorLastDim);
-    values = typeConverter->materializeTargetConversion(
-        rewriter, loc,
-        typeConverter->convertType(flattenedValuesTensor.getType()),
-        flattenedValuesTensor);
+    BaseTensorType unsqueezedTensorType =
+        optionalIndicesList[0].getType().cast<BaseTensorType>();
+    Value indicesList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(unsqueezedTensorType), optionalIndicesList);
+    llvm::SmallVector<int64_t, 2> concatShape{
+        unsqueezedTensorType.getSizes()[0],
+        static_cast<int64_t>(optionalIndicesList.size())};
+    ValueTensorType concatIndicesType = ValueTensorType::get(
+        context, llvm::ArrayRef(concatShape), unsqueezedTensorType.getDtype());
+    Value indices = rewriter.create<AtenCatOp>(loc, concatIndicesType,
+                                               indicesList, torchCstOne);
 
     // `TMTensor::ScatterOp` expects indices of element type i32.
-    Value indices = convertTensorToDtype(
-        rewriter, loc, indexTensor,
+    indices = convertTensorToDtype(
+        rewriter, loc, indices,
         mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
     indices = typeConverter->materializeTargetConversion(
         rewriter, loc, typeConverter->convertType(indices.getType()), indices);
