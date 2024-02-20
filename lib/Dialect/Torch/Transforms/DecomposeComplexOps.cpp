@@ -627,6 +627,7 @@ public:
     Value unsqueezeRowArangePlusDiagonal = rewriter.create<AtenAddScalarOp>(
         loc, unsqueezeRowType, unsqueezeRowArange, op.getDiagonal(), cstOne);
 
+    arangeColShape[0] = arangeRowShape[0];
     auto geTensorType =
         inputType.getWithSizesAndDtype(arangeColShape, rewriter.getI1Type());
     Value condTensor = rewriter.create<AtenGeTensorOp>(
