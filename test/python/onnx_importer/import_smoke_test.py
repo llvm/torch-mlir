@@ -230,6 +230,8 @@ TEST_CAST_XFAILS = [
     "simple_test_strnorm_model_nostopwords_nochangecase_model",
 ]
 
+TEST_CAST_XFAILS = []
+
 
 
 
