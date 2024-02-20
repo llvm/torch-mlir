@@ -408,37 +408,6 @@ class NodeImporter:
         self._gi.initializer_map[const_name] = value_proto.t
         return True
 
-    def _handle_node_ConstantOfShape(self, node: onnx.NodeProto) -> bool:
-        # This op is special: It has an input of the shape, and in full generality
-        # could involve eager production of constants of variable size. In
-        # practice, the DNN profile for ONNX makes this very difficult to do
-        # and we hard-assert that the input can be resolved to an immediate
-        # value.
-        assert len(node.input) == 1
-        assert len(node.output) == 1
-        shape = self._get_immediate_tensor(node.input[0]).astype(np.int64)
-        value_proto = _get_attr(node, "value")
-        assert value_proto.type == onnx.AttributeProto.AttributeType.TENSOR
-        tensor_proto = value_proto.t
-        element_type = self._cc.tensor_element_type(tensor_proto.data_type)
-        vtensor_type = self._cc.get_vtensor_type(tuple(shape), element_type)
-        assert len(tensor_proto.dims) == 1 and tensor_proto.dims[0] == 1
-        try:
-            cb = ELEM_TYPE_SPLAT_TENSOR_PROTO_CB[tensor_proto.data_type]
-        except KeyError:
-            raise OnnxImportError(
-                f"Unhandled splat type for ConstantOfShape: {node} (possible missing mapping in ELEM_TYPE_SPLAT_TENSOR_PROTO_CB)"
-            )
-        value_attr = cb(tensor_proto, tuple(shape))
-        literal_op = Operation.create(
-            name="torch.vtensor.literal",
-            results=[vtensor_type],
-            attributes={"value": value_attr},
-        )
-        self._nv_map[node.output[0]] = literal_op.result
-        return True
-
-
 class ContextCache:
     """Caches per-context lookups of various things."""
 

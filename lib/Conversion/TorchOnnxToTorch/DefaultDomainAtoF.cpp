@@ -1571,7 +1571,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                   return success();
                 });
   patterns.onOp(
-      "ConstantOfShape", 20,
+      "ConstantOfShape", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value shape;
@@ -1582,15 +1582,14 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         auto shapeSizes =
             dyn_cast<Torch::ValueTensorType>(shape.getType()).getSizes();
         SmallVector<Value> dimList;
-        SmallVector<int64_t> selectSizes;
-        selectSizes.push_back(1);
         Torch::BaseTensorType shapeType =
             shape.getType().cast<Torch::BaseTensorType>();
-        Type selectResultType = shapeType.getWithSizesAndDtype(
-            llvm::ArrayRef(selectSizes), shapeType.getOptionalDtype());
+        Type selectResultType = rewriter.getType<Torch::ValueTensorType>(
+            ArrayRef<int64_t>({}), shapeType.getOptionalDtype());
         Value zero = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+
         for (int i = 0; i < shapeSizes[0]; i++) {
           Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
               binder.getLoc(), rewriter.getType<Torch::IntType>(),
@@ -1601,6 +1600,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
           dimList.push_back(dim);
         }
+
         Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
             binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
@@ -1609,7 +1609,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
         // Get fill_value if it is present.
         // Assumption : resultDType and value attr type match.
-        Value value_const;
         auto attr = binder.op->getAttr("torch.onnx.value");
         auto resultDType = resultType.getDtype();
 
@@ -1620,34 +1619,58 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               resultType.toBuiltinTensor().clone(resultDType),
               rewriter.getFloatAttr(resultDType, 0.0));
         }
-        if (!isa<DenseElementsAttr>(attr)) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "`value` attr needs to be a tensor.");
+
+        // If its a dense resource attr we need to convert to a dense type:
+        if (DenseResourceElementsAttr rattr =
+                attr.dyn_cast_or_null<DenseResourceElementsAttr>()) {
+          // Bytes are stored in little endian order. Big endian support will
+          // require swizzling.
+          if (!Endian::little) {
+            binder.op->emitError(
+                "unimplemented: importing on big endian systems");
+            return failure();
+          }
+
+          auto ty = cast<ShapedType>(rattr.getType());
+          auto ptr = rattr.getRawHandle().getBlob()->getData();
+          auto denseAttr = DenseElementsAttr::getFromRawBuffer(ty, ptr);
+          attr = dyn_cast_or_null<SplatElementsAttr>(denseAttr);
         }
 
-        auto denseAttr = attr.cast<DenseElementsAttr>();
-        auto denseAttrEleType = denseAttr.getElementType();
-        if (!isa<FloatType, IntegerType>(denseAttrEleType)) {
+        Attribute splattr;
+        if (isa<SplatElementsAttr>(attr)) {
+          auto denseAttr = attr.cast<DenseElementsAttr>();
+          splattr = denseAttr.getSplatValue<Attribute>();
+        }
+
+        if (!isa<FloatAttr, IntegerAttr>(splattr)) {
           return rewriter.notifyMatchFailure(
               binder.op,
               "`value` attr tensor only supports types int and float for now.");
         }
 
-        // Create constant op for value
-        if (denseAttrEleType.isa<IntegerType>()) {
-          int64_t intVal = denseAttr.getSplatValue<IntegerAttr>().getSInt();
-          value_const = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(intVal));
-        }
-        if (denseAttrEleType.isa<FloatType>()) {
-          float floatVal =
-              denseAttr.getSplatValue<FloatAttr>().getValue().convertToFloat();
-          value_const = rewriter.create<Torch::ConstantFloatOp>(
-              binder.getLoc(), rewriter.getF64FloatAttr(floatVal));
+        Value splatvalue;
+        if (auto intattr = dyn_cast<IntegerAttr>(splattr)) {
+          IntegerType intty = cast<IntegerType>(intattr.getType());
+          int64_t value;
+          if (intty.isUnsignedInteger()) {
+            value = intattr.getUInt();
+          } else if (intty.isSignedInteger()) {
+            value = intattr.getSInt();
+          } else {
+            value = intattr.getInt();
+          }
+          splatvalue =
+              rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), value);
         }
 
+        if (auto fpattr = dyn_cast<FloatAttr>(splattr))
+          splatvalue = rewriter.create<Torch::ConstantFloatOp>(
+              binder.getLoc(),
+              rewriter.getF64FloatAttr(fpattr.getValueAsDouble()));
+
         rewriter.replaceOpWithNewOp<Torch::AtenFullOp>(
-            binder.op, resultType, dimValueList, value_const, /*dtype=*/noneVal,
+            binder.op, resultType, dimValueList, splatvalue, /*dtype=*/noneVal,
             /*layout=*/noneVal, /*device=*/noneVal, /*pin_memory=*/noneVal);
         return success();
       });
