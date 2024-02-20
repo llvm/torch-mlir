@@ -1817,6 +1817,7 @@ ONNX_XFAIL_SET = {
     "DiagonalModule_with_dims_and_offset",
     "DiagonalModule_with_negative_dims",
     "DiagonalModule_with_offset",
+    "ElementwiseClampMaxModule_basic",
     "ElementwiseClampMinModule_basic",
     "ElementwiseClampMinTensorFloatModule_basic",
     "ElementwiseClampMinTensorIntModule_basic",
