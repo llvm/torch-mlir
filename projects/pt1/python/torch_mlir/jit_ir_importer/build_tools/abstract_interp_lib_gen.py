@@ -81,7 +81,7 @@ def aten〇diagonal〡shape(self: List[int], offset: int = 0, dim1: int = 0, dim
             pass
         else:
             diagonal.append(self_dim)
-    
+
     diag_size = max(min(self[dim1], self[dim2] - offset), 0)
     if offset<0:
       diag_size = max(min(self[dim1] + offset, self[dim2]), 0)
@@ -295,10 +295,10 @@ def prims〇collapse〡shape(a: List[int], start: int, end: int) -> List[int]:
     assert end >= 0, "end out of bounds"
     assert start <= end, "start must be less than or equal to end"
 
-    # Examples: 
+    # Examples:
     #
     #  torch._prims.collapse(torch.empty(2,3,4), 1,2).shape
-    #  is 
+    #  is
     #  torch.Size([2, 12])
     #
     #  torch._prims.collapse(torch.empty(2,3,4), 1,3).shape
@@ -592,7 +592,7 @@ def aten〇pixel_shuffle〡shape(self: List[int], upscale_factor: int) -> List[i
     assert len(self) >= 3, "input must be at least rank-3 in pixel_shuffle"
     upscale_factor_squared = upscale_factor * upscale_factor
     assert self[-3] % (upscale_factor_squared) == 0, "number of input channels  must be divisible by upscale_factor^2 in pixel_shuffle"
-    
+
     out = self[0:-3]
     out.append(self[-3] // upscale_factor_squared)
     out.append(self[-2] * upscale_factor)
@@ -756,7 +756,7 @@ def _max_pool3d(
     assert (
         len(stride) == 0 or len(stride) == 1 or len(stride) == 3
     ), "max_pool3d: stride must either be omitted, a single int, or a tuple of three ints"
-    
+
     if len(stride) == 0:
         (dD, dH, dW) = (kD, kD, kD)
     elif len(stride) == 1:
@@ -808,14 +808,14 @@ def _max_pool3d(
         return [nInputPlane, outputDepth, outputHeight, outputWidth]
     else:
         return [nbatch, nInputPlane, outputDepth, outputHeight, outputWidth]
-    
+
 def aten〇max_pool2d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0,), dilation: List[int] = (1, 1,), ceil_mode: bool = False) -> List[int]:
     return upstream_shape_functions.max_pool2d(self, kernel_size, stride, padding, dilation, ceil_mode)
 
 @check_shape_function([
     Invocation(TensorOfShape(3, 6, 10, 10, 10), [2]), # Basic using defaults
     Invocation(TensorOfShape(3, 6, 10, 10, 10), [4], [2], [2], [2]), # Using single values for each parameter
-    Invocation(TensorOfShape(3, 6, 64, 64, 64), [4, 6, 8], [2, 4, 2], [1, 2, 4], [1, 2, 4]), # Using dimensions should be 
+    Invocation(TensorOfShape(3, 6, 64, 64, 64), [4, 6, 8], [2, 4, 2], [1, 2, 4], [1, 2, 4]), # Using dimensions should be
     ErrorInvocation(TensorOfShape(3, 6, 2, 2, 2), [4]), # Input is too small
     ErrorInvocation(TensorOfShape(3, 6, 10, 10, 10), [4], [2], [4], [2]), # The following relationship between kernel and padding needs to apply: Kernel size >= 2 * padding size
 ])
@@ -1374,15 +1374,15 @@ def aten〇conv_tbc〡shape(self: List[int], weight: List[int], bias: List[int],
 
     assert channels == channels_w
     # the out_channels in weights and biases should also match, but this assert doesn't work because typing problems
-    # assert out_channels == out_channels_b 
-   
+    # assert out_channels == out_channels_b
+
     self_bct = [batch, channels, time]
     weight_bct = [out_channels, channels, kernel_width]
     bias_bct = bias
 
-    # use existing shape inf 
+    # use existing shape inf
     output_size_bct = upstream_shape_functions.conv_forwards(self, weight, bias, stride=[1], padding=[pad], dilation=[], transposed=False, output_padding=[], groups=1)
-    
+
     batch_out, channels_out, time_out = output_size_bct
 
     # bct -> tbc
@@ -1544,7 +1544,7 @@ def aten〇replication_pad2d〡shape(self: List[int], padding: List[int]) -> Lis
     return pad_shape_fn(self, padding)
 
 def aten〇replication_pad2d〡dtype(self_rank_dtype: Tuple[int, int], padding: List[int]) -> int:
-    self_rank, self_dtype = self_rank_dtype    
+    self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
 def aten〇pad〡shape(self: List[int], pad: List[int], mode: str = "constant", value: Optional[float] = None) -> List[int]:
@@ -3618,7 +3618,7 @@ def aten〇where〇ScalarSelf〡dtype(condition_rank_dtype: Tuple[int, int], sel
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇nan_to_num〡dtype(self_rank_dtype: Tuple[int, int], nan: Optional[float] = None, posinf: Optional[float] = None, neginf: Optional[float] = None) -> int:
-    self_rank, self_dtype = self_rank_dtype 
+    self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
 @check_dtype_function(
@@ -4258,7 +4258,7 @@ def aten〇cat〡dtype(tensors_rank_dtype: List[Tuple[int, int]], dim: int = 0) 
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
-    [Invocation("i,j->ij", [TensorOfShape(1, dtype=torch.float32), 
+    [Invocation("i,j->ij", [TensorOfShape(1, dtype=torch.float32),
                             TensorOfShape(1, dtype=torch.int32)]),])
 def aten〇einsum〡dtype(equation: str, tensors_rank_dtype: List[Tuple[int, int]], path: Optional[List[int]] = None) -> int:
     ranks: List[Optional[int]] = []
