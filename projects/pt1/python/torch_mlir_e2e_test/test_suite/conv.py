@@ -853,7 +853,7 @@ class ConvTbcModule(torch.nn.Module):
     ])
     def forward(self, x, weight, bias):
         return torch.conv_tbc(x, weight, bias)
-    
+
 @register_test_case(module_factory=lambda: ConvTbcModule())
 def ConvTbcModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(9, 4, 5), tu.rand(3, 5, 6), tu.rand(6))
