@@ -1107,6 +1107,177 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
 }
 
 //===----------------------------------------------------------------------===//
+// NAry folder helpers
+//===----------------------------------------------------------------------===//
+
+static bool checkSameDTypes(llvm::ArrayRef<Attribute> attrs) {
+  bool allFp = true;
+  bool allInt = true;
+
+  for (auto attr : attrs) {
+    if (!attr)
+      return false;
+
+    Type attrty;
+    if (auto dense = dyn_cast_or_null<ElementsAttr>(attr))
+      attrty = dense.getType();
+    if (auto fp = dyn_cast_or_null<mlir::FloatAttr>(attr))
+      attrty = fp.getType();
+    if (auto integer = dyn_cast_or_null<mlir::IntegerAttr>(attr))
+      attrty = integer.getType();
+    if (auto shaped = dyn_cast_or_null<ShapedType>(attrty))
+      attrty = shaped.getElementType();
+    allFp &= isa<mlir::FloatType>(attrty);
+    allInt &= isa<mlir::IntegerType>(attrty);
+  }
+
+  return allFp || allInt;
+}
+
+static bool checkAllSplats(llvm::ArrayRef<Attribute> attrs) {
+  for (auto attr : attrs) {
+    if (auto dense = dyn_cast_or_null<ElementsAttr>(attr)) {
+      if (!dense.isSplat())
+        return false;
+    }
+  }
+
+  return true;
+}
+
+llvm::SmallVector<double> getFoldValueAtIndexFp(llvm::ArrayRef<Attribute> attrs,
+                                                int64_t idx = 0) {
+  llvm::SmallVector<double> splattrs;
+
+  for (auto attr : attrs) {
+    if (auto dense = dyn_cast<ElementsAttr>(attr)) {
+      if (dense.isSplat()) {
+        splattrs.push_back(dense.getSplatValue<APFloat>().convertToDouble());
+      } else {
+        splattrs.push_back(dense.getValues<APFloat>()[idx].convertToDouble());
+      }
+    } else if (auto intattr = dyn_cast<FloatAttr>(attr)) {
+      splattrs.push_back(intattr.getValueAsDouble());
+    } else {
+      return {};
+    }
+  }
+
+  return splattrs;
+}
+
+llvm::SmallVector<APInt> getFoldValueAtIndexInt(llvm::ArrayRef<Attribute> attrs,
+                                                int64_t bitwidth,
+                                                int64_t idx = 0) {
+  llvm::SmallVector<APInt> splattrs;
+
+  for (auto attr : attrs) {
+    bool isunsigned = false;
+    if (auto dense = dyn_cast<ElementsAttr>(attr)) {
+      isunsigned = dyn_cast<IntegerType>(dense.getElementType()).isUnsigned();
+      if (dense.isSplat()) {
+        splattrs.push_back(dense.getSplatValue<APInt>());
+      } else {
+        splattrs.push_back(dense.getValues<APInt>()[idx]);
+      }
+    } else if (auto intattr = dyn_cast<IntegerAttr>(attr)) {
+      isunsigned = cast<IntegerType>(intattr.getType()).isUnsigned();
+      splattrs.push_back(intattr.getValue());
+    } else {
+      return {};
+    }
+
+    auto &apint = splattrs.back();
+    if (apint.getBitWidth() < bitwidth) {
+      if (isunsigned) {
+        apint = apint.zextOrTrunc(bitwidth);
+      } else {
+        apint = apint.sextOrTrunc(bitwidth);
+      }
+    }
+  }
+
+  return splattrs;
+}
+
+using NAryFoldFpOperator = std::function<double(ArrayRef<double>)>;
+using NAryFoldIntOperator = std::function<APInt(ArrayRef<APInt>)>;
+
+static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
+                                     NAryFoldFpOperator fpFolder,
+                                     NAryFoldIntOperator intFolder) {
+  constexpr int64_t maxFold = 16;
+  if (!checkSameDTypes(operands))
+    return nullptr;
+
+  auto resultTy = dyn_cast<ValueTensorType>(ty);
+  if (!resultTy || !resultTy.hasDtype() || !resultTy.hasSizes())
+    return nullptr;
+
+  auto dty = resultTy.getDtype();
+  auto resultBTy = resultTy.toBuiltinTensor().clone(dty);
+
+  auto fpTy = dyn_cast<mlir::FloatType>(dty);
+  auto intTy = dyn_cast<mlir::IntegerType>(dty);
+  if (!fpTy && !intTy)
+    return nullptr;
+
+  bool allSplats = checkAllSplats(operands);
+  bool withinMaxFold =
+      resultBTy.hasStaticShape() && resultBTy.getNumElements() <= maxFold;
+
+  if (!allSplats && !withinMaxFold)
+    return nullptr;
+
+  // We do not support broadcasting in the non-splat case so validate same
+  // shaped inputs / outputs:
+  if (!allSplats) {
+    auto resultShape = resultBTy.getShape();
+    for (int i = 0, s = operands.size(); i < s; ++i) {
+      if (auto dense = dyn_cast<DenseElementsAttr>(operands[i])) {
+        if (dense.isSplat())
+          continue;
+        auto operandShape = cast<ShapedType>(dense.getType()).getShape();
+        if (operandShape.size() != resultShape.size())
+          return nullptr;
+        for (int i = 0, s = operandShape.size(); i < s; ++i)
+          if (operandShape[i] != resultShape[i])
+            return nullptr;
+      }
+    }
+  }
+
+  const int64_t numValues = allSplats ? 1 : resultBTy.getNumElements();
+
+  if (fpTy) {
+    llvm::SmallVector<APFloat> folded;
+    for (int i = 0, s = numValues; i < s; ++i) {
+      auto inputs = getFoldValueAtIndexFp(operands, i);
+      double fold = fpFolder(inputs);
+
+      APFloat val(fold);
+      bool unused;
+      val.convert(fpTy.getFloatSemantics(), APFloat::rmNearestTiesToEven,
+                  &unused);
+      folded.push_back(val);
+    }
+    return DenseElementsAttr::get(resultBTy, folded);
+  }
+
+  if (intTy) {
+    llvm::SmallVector<APInt> folded;
+    for (int i = 0, s = numValues; i < s; ++i) {
+      auto inputs =
+          getFoldValueAtIndexInt(operands, dty.getIntOrFloatBitWidth(), i);
+      folded.push_back(intFolder(inputs));
+    }
+    return DenseElementsAttr::get(resultBTy, folded);
+  }
+
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenAddTensorOp
 //===----------------------------------------------------------------------===//
 void AtenAddTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
@@ -1114,6 +1285,20 @@ void AtenAddTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   patterns.add(+[](AtenAddTensorOp op, PatternRewriter &rewriter) {
     return rewrite0DBinaryTensorOp(op, rewriter);
   });
+}
+
+OpFoldResult AtenAddTensorOp::fold(FoldAdaptor adaptor) {
+  auto fpFold = [](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 3);
+    return inputs[0] + (inputs[1] * inputs[2]);
+  };
+
+  auto intFold = [](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 3);
+    return inputs[0] + (inputs[1] * inputs[2]);
+  };
+
+  return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1134,6 +1319,20 @@ void AtenSubTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   patterns.add(+[](AtenSubTensorOp op, PatternRewriter &rewriter) {
     return rewrite0DBinaryTensorOp(op, rewriter);
   });
+}
+
+OpFoldResult AtenSubTensorOp::fold(FoldAdaptor adaptor) {
+  auto fpFold = [](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 3);
+    return inputs[0] - (inputs[1] * inputs[2]);
+  };
+
+  auto intFold = [](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 3);
+    return inputs[0] - (inputs[1] * inputs[2]);
+  };
+
+  return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1164,6 +1363,20 @@ void AtenMulTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   patterns.add(+[](AtenMulTensorOp op, PatternRewriter &rewriter) {
     return rewrite0DBinaryTensorOp(op, rewriter);
   });
+}
+
+OpFoldResult AtenMulTensorOp::fold(FoldAdaptor adaptor) {
+  auto fpFold = [](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 2);
+    return inputs[0] * inputs[1];
+  };
+
+  auto intFold = [](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 2);
+    return inputs[0] * inputs[1];
+  };
+
+  return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3426,6 +3639,30 @@ OpFoldResult PrimMaxIntOp::fold(FoldAdaptor adaptor) {
   return IntegerAttr::get(
       lhs.getType(),
       std::max(lhs.getValue().getSExtValue(), rhs.getValue().getSExtValue()));
+}
+
+//===----------------------------------------------------------------------===//
+// PrimNumToTensorScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult PrimNumToTensorScalarOp::fold(FoldAdaptor adaptor) {
+  Attribute a = adaptor.getA();
+  auto resultTy = cast<BaseTensorType>(getType());
+  if (!a)
+    return {};
+  if (!resultTy.hasDtype() || !resultTy.hasSizes())
+    return {};
+
+  auto dty = resultTy.getDtype();
+  if (auto iattr = dyn_cast<IntegerAttr>(a)) {
+    a = IntegerAttr::get(dty, iattr.getInt());
+  } else if (auto fattr = dyn_cast<FloatAttr>(a)) {
+    a = FloatAttr::get(dty, fattr.getValueAsDouble());
+  }
+
+  auto mlirTensorType =
+      RankedTensorType::get(resultTy.getSizes(), resultTy.getDtype());
+  return SplatElementsAttr::get(mlirTensorType, a);
 }
 
 //===----------------------------------------------------------------------===//

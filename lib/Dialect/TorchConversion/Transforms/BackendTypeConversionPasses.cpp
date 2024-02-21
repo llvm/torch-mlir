@@ -115,7 +115,7 @@ static void setupFinalization(ConversionTarget &target,
   setupFinalization<OpTy2, OpTys...>(target, patterns, typeConverter);
 }
 
-static void stripTorchAttrs(func::FuncOp func) {
+static void stripTorchAttrs(FunctionOpInterface func) {
   bool modified = false;
   SmallVector<NamedAttribute> newAttrs;
   for (auto attr : func->getDialectAttrs()) {
@@ -173,7 +173,7 @@ struct FinalizingBackendTypeConversionPass
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
+std::unique_ptr<InterfacePass<FunctionOpInterface>>
 mlir::torch::TorchConversion::createFinalizingBackendTypeConversionPass() {
   return std::make_unique<FinalizingBackendTypeConversionPass>();
 }
