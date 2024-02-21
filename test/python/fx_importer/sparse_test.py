@@ -292,7 +292,6 @@ def test_sparse_SpMM():
     print(m)
 
     # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
-    sparse_input = dense_input.to_sparse_coo()
     net = MatMulNet()
     res1 = net(sparse_input, dense_input)
     res2 = sparse_jit(net, sparse_input, dense_input)
