@@ -163,8 +163,7 @@ def sparse_jit(f, *args, **kwargs):
             xargs.append(a.values().numpy())
             # Construct the additional position array required by MLIR with data
             # array([0, nnz]).
-            nnz = a.indices().shape[1]
-            xargs.append(torch.tensor([0, nnz], dtype=a.indices().dtype).numpy())
+            xargs.append(torch.tensor([0, a._nnz()], dtype=a.indices().dtype).numpy())
             # Transform a tensor<ndim x nnz> into [tensor<nnz> x ndim] to conform
             # MLIR SoA COO representation.
             for idx in a.indices():
