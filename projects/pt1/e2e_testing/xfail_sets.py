@@ -1667,6 +1667,7 @@ ONNX_XFAIL_SET = {
     "NllLossModule_ignore_index_out_of_bounds_basic",
     "NllLossModule_mean_basic",
     "NllLossModule_sum_basic",
+    "NormScalarModule_basic",
     "NormScalarOptDimKeepDimModule_basic",
     "NormScalarOptDimModule_basic",
     "NormalFunctionalModule_basic",
