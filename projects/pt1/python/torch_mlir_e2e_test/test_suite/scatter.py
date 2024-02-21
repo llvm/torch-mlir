@@ -1142,6 +1142,32 @@ def IndexPutImpl2DIndexModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class IndexPutImpl2DIndexAndNoneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.int64, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, input, index, value):
+        return torch.ops.aten._index_put_impl_(input, (index, None),
+                                               value,
+                                               accumulate=True,
+                                               unsafe=False)
+
+
+@register_test_case(
+    module_factory=lambda: IndexPutImpl2DIndexAndNoneModule())
+def IndexPutImpl2DIndexAndNonwModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 7), tu.randint(2, 3, high=3), tu.rand(2, 3, 7))
+
+# ==============================================================================
+
 class IndexPutImplIndexWithNoneModule(torch.nn.Module):
 
     def __init__(self):
@@ -1166,3 +1192,31 @@ class IndexPutImplIndexWithNoneModule(torch.nn.Module):
     module_factory=lambda: IndexPutImplIndexWithNoneModule())
 def IndexPutImplIndexWithNoneModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4, 5), tu.randint(6, 1, high=4), tu.randint(7, high=5), tu.rand(2, 3, 6, 7))
+
+
+# ==============================================================================
+
+class IndexPutImplIndexWithSplitNoneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 4, 3, 5], torch.float32, True),
+        ([6, 1], torch.int64, True),
+        ([7], torch.int64, True),
+        ([2, 6, 2, 3], torch.float32, True),
+    ])
+    def forward(self, input, index1, index2, value):
+        return torch.ops.aten._index_put_impl_(input, (None, index1, None, index2),
+                                               value,
+                                               accumulate=True,
+                                               unsafe=False)
+
+
+@register_test_case(
+    module_factory=lambda: IndexPutImplIndexWithSplitNoneModule())
+def IndexPutImplIndexWithSplitNoneModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 3, 5), tu.randint(6, 1, high=4), tu.randint(7, high=5), tu.rand(6, 7, 2, 3))

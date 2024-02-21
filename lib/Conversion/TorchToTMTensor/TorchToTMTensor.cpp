@@ -200,15 +200,26 @@ convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(PatternRewriter &rewriter,
                         scatterInputsVector[indexType.getRank()]);
 }
 
+static llvm::SmallVector<int64_t> createDefaultDimMap(Value indices) {
+  llvm::SmallVector<int64_t> dmap;
+  for (int i = 0, s = cast<BaseTensorType>(indices.getType()).getSizes()[1];
+       i < s; ++i) {
+    dmap.push_back(i);
+  }
+
+  return dmap;
+}
+
 static Value createTMTensorScatterOp(
     OpBuilder &b, Location loc, Value updates, Value indices, Value original,
-    bool uniqueIndices,
+    llvm::ArrayRef<int64_t> dimensionsMap, bool uniqueIndices,
     function_ref<void(OpBuilder &, Location, Value, Value)> bodyBuild) {
+  auto dimensionsMapAttr = b.getDenseI64ArrayAttr(dimensionsMap);
   auto originalTensorType = original.getType().cast<RankedTensorType>();
   Type originalElementType = originalTensorType.getElementType();
   auto scatterOp = b.create<TMTensor::ScatterOp>(
       loc, originalTensorType, ValueRange{updates, indices},
-      ValueRange{original}, uniqueIndices);
+      ValueRange{original}, dimensionsMapAttr, uniqueIndices);
 
   Region &scatterOpRegion = scatterOp.getRegion();
   auto &scatterOpBlock = scatterOpRegion.emplaceBlock();
@@ -334,7 +345,7 @@ public:
                                                              src, dim);
     Value scatterOp = createTMTensorScatterOp(
         rewriter, loc, updates, indices, self,
-        /*uniqueIndices=*/false,
+        /*dimensionsMap=*/createDefaultDimMap(indices), /*uniqueIndices=*/false,
         [&](OpBuilder &b, Location loc, Value updatesElement,
             Value inputElement) {
           b.create<TMTensor::YieldOp>(loc, updatesElement);
@@ -455,7 +466,7 @@ public:
 
     Value scatterOp = createTMTensorScatterOp(
         rewriter, loc, updatesTensor, indices, bincountTensor,
-        /*uniqueIndices=*/false,
+        /*dimensionsMap=*/createDefaultDimMap(indices), /*uniqueIndices=*/false,
         [&](OpBuilder &b, Location loc, Value _, Value bincountElem) {
           Value add = b.create<arith::AddIOp>(loc, bincountElem, constantOne);
           b.create<TMTensor::YieldOp>(loc, add);
@@ -467,6 +478,199 @@ public:
 } // namespace
 
 namespace {
+
+Value combinePutIndices(Location loc, llvm::ArrayRef<Value> indicesRef,
+                        OpBuilder b) {
+  llvm::SmallVector<Value> indices(indicesRef);
+  // Declare commonly used constants up front:
+  Value torchCstZero =
+      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(0));
+  Value torchCstOne =
+      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(1));
+  Value torchCstNegOne =
+      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(-1));
+
+  // Determine the broadcast sizes and materialize missing implicit end
+  // dimensions:
+  int64_t indicesRank = 0;
+  for (auto index : indices) {
+    auto indexTy = cast<Torch::ValueTensorType>(index.getType());
+    int64_t rank = indexTy.getSizes().size();
+    indicesRank = std::max(rank, indicesRank);
+  }
+
+  auto maxDim = [](int64_t dim0, int64_t dim1) {
+    if (dim0 == Torch::kUnknownSize || dim1 == Torch::kUnknownSize)
+      return Torch::kUnknownSize;
+    return std::max(dim0, dim1);
+  };
+
+  llvm::SmallVector<Value> broadcastSizes(indicesRank, torchCstOne);
+  llvm::SmallVector<int64_t> broadcastShape(indicesRank, 0);
+  for (auto index : indices) {
+    auto indexTy = cast<Torch::ValueTensorType>(index.getType());
+    auto shape = indexTy.getSizes();
+    int32_t rank = shape.size();
+
+    for (int32_t j = 0; j < rank; ++j) {
+      Value dim = b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(j));
+      auto sizeOp = b.create<Torch::AtenSizeIntOp>(loc, index, dim);
+      auto size = shape[j];
+
+      int32_t idx = broadcastShape.size() - rank + j;
+      broadcastSizes[idx] =
+          b.create<Torch::PrimMaxIntOp>(loc, sizeOp, broadcastSizes[idx]);
+      broadcastShape[idx] = maxDim(size, broadcastShape[idx]);
+    }
+  }
+
+  auto mulDim = [](int64_t dim0, int64_t dim1) {
+    if (dim0 == Torch::kUnknownSize || dim1 == Torch::kUnknownSize)
+      return Torch::kUnknownSize;
+    return dim0 * dim1;
+  };
+
+  int64_t scatterBatchCount = 1;
+  for (auto dim : broadcastShape) {
+    scatterBatchCount = mulDim(scatterBatchCount, dim);
+  }
+
+  // Broadcast together and flatten to batch values:
+  Value broadcastSizeList = b.create<PrimListConstructOp>(
+      loc, Torch::ListType::get(b.getType<Torch::IntType>()), broadcastSizes);
+  for (Value &index : indices) {
+    auto indexTy = cast<Torch::ValueTensorType>(index.getType());
+    auto expandTy = b.getType<Torch::ValueTensorType>(
+        broadcastShape, indexTy.getOptionalDtype());
+    index = b.create<Torch::AtenBroadcastToOp>(loc, expandTy, index,
+                                               broadcastSizeList);
+
+    auto flattenTy = b.getType<Torch::ValueTensorType>(
+        scatterBatchCount, indexTy.getOptionalDtype());
+    index = b.create<Torch::AtenFlattenUsingIntsOp>(
+        loc, flattenTy, index, torchCstZero, torchCstNegOne);
+  }
+
+  // Unsqueeze so we have a 1 dim to concat along:
+  for (Value &tensor : indices) {
+    auto btt = cast<Torch::BaseTensorType>(tensor.getType());
+    if (!btt.hasSizes())
+      return nullptr;
+
+    llvm::SmallVector<int64_t> shape(btt.getSizes());
+    shape.push_back(1);
+
+    auto unsqueezeTy = b.getType<Torch::ValueTensorType>(shape, btt.getDtype());
+    Value unsqueezed =
+        b.create<AtenUnsqueezeOp>(loc, unsqueezeTy, tensor, torchCstOne);
+    tensor = unsqueezed;
+  }
+
+  BaseTensorType unsqueezedTensorType =
+      indices[0].getType().cast<BaseTensorType>();
+  Value indicesTorchList = b.create<PrimListConstructOp>(
+      loc, Torch::ListType::get(unsqueezedTensorType), indices);
+  llvm::SmallVector<int64_t, 2> concatShape{
+      unsqueezedTensorType.getSizes()[0], static_cast<int64_t>(indices.size())};
+  ValueTensorType concatIndicesType = b.getType<ValueTensorType>(
+      llvm::ArrayRef(concatShape), unsqueezedTensorType.getDtype());
+  return b.create<AtenCatOp>(loc, concatIndicesType, indicesTorchList,
+                             torchCstOne);
+}
+
+// Helper that collapses the batch dimensions together and moves it to the front
+// of the array.
+static Value collapseAndMoveBatchDims(Location loc, Value values, int64_t batch,
+                                      int64_t count, OpBuilder b) {
+  if (batch == 0 && count == 1)
+    return values;
+
+  auto valuesTy = cast<Torch::ValueTensorType>(values.getType());
+  auto inShape = valuesTy.getSizes();
+
+  llvm::SmallVector<int64_t> outShape;
+  llvm::SmallVector<Value> outDims;
+
+  // We need a length-1 dim at the start to transpose the batch to:
+  if (batch != 0) {
+    outDims.push_back(b.create<Torch::ConstantIntOp>(loc, 1));
+    outShape.push_back(1);
+  }
+
+  // Dimensions before the batch stay the same:
+  for (int i = 0; i <= batch; i++) {
+    auto k = b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(i));
+    auto dim = b.create<Torch::AtenSizeIntOp>(loc, values, k);
+    outDims.push_back(dim);
+    outShape.push_back(inShape[i]);
+  }
+
+  auto mulI = [](int64_t dim0, int64_t dim1) {
+    if (dim0 == Torch::kUnknownSize || dim1 == Torch::kUnknownSize)
+      return Torch::kUnknownSize;
+    return dim0 * dim1;
+  };
+
+  // Determine the collapse size of the batch dimension:
+  for (int i = 1; i < count; i++) {
+    outShape.back() = mulI(outShape.back(), inShape[batch + i]);
+
+    auto k =
+        b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(batch + i));
+    auto dim = b.create<Torch::AtenSizeIntOp>(loc, values, k);
+    outDims.back() = b.create<Torch::AtenMulIntOp>(loc, dim, outDims.back());
+  }
+
+  // Add the dimensions after the batch dims:
+  for (int i = batch + count, s = inShape.size(); i < s; ++i) {
+    auto k = b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(i));
+    auto dim = b.create<Torch::AtenSizeIntOp>(loc, values, k);
+    outDims.push_back(dim);
+    outShape.push_back(inShape[i]);
+  }
+
+  Value outDimsList = b.create<PrimListConstructOp>(
+      loc, Torch::ListType::get(b.getType<Torch::IntType>()), outDims);
+
+  valuesTy =
+      b.getType<Torch::ValueTensorType>(outShape, valuesTy.getOptionalDtype());
+  values = b.create<AtenViewOp>(loc, valuesTy, values, outDimsList);
+
+  if (batch == 0)
+    return values;
+
+  // Batch is already at the front, no need to transpose:
+  std::swap(outDims[0], outDims[batch + 1]);
+  std::swap(outShape[0], outShape[batch + 1]);
+
+  Value dim0 = b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(0));
+  Value dimB =
+      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(batch + 1));
+
+  valuesTy =
+      b.getType<Torch::ValueTensorType>(outShape, valuesTy.getOptionalDtype());
+  values =
+      b.create<Torch::AtenTransposeIntOp>(loc, valuesTy, values, dim0, dimB);
+
+  outDims.clear();
+  outShape.clear();
+  auto transposeShape = valuesTy.getSizes();
+  int64_t transposeRank = transposeShape.size();
+  for (int i = 0; i < transposeRank; ++i) {
+    if (i == batch + 1)
+      continue;
+    Value k = b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(i));
+    outDims.push_back(b.create<AtenSizeIntOp>(loc, values, k));
+    outShape.push_back(transposeShape[i]);
+  }
+
+  valuesTy =
+      b.getType<Torch::ValueTensorType>(outShape, valuesTy.getOptionalDtype());
+  outDimsList = b.create<PrimListConstructOp>(
+      loc, Torch::ListType::get(b.getType<Torch::IntType>()), outDims);
+  return b.create<AtenViewOp>(loc, valuesTy, values, outDimsList);
+}
+
 class ConvertAten_IndexPutImplOp
     : public OpConversionPattern<Aten_IndexPutImplOp> {
 public:
@@ -478,11 +682,11 @@ public:
       return failure();
     Location loc = op.getLoc();
     MLIRContext *context = op->getContext();
-    Value input = adaptor.getSelf();
-    Value values = adaptor.getValues();
-    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
-    RankedTensorType valuesType = values.getType().cast<RankedTensorType>();
-    int64_t inputRank = inputType.getRank();
+    Value input = op.getSelf();
+    Value values = op.getValues();
+    auto inputType = cast<ValueTensorType>(input.getType());
+    auto valuesType = cast<ValueTensorType>(values.getType());
+    int64_t inputRank = inputType.getSizes().size();
     auto valuesTensorType = op.getValues().getType().cast<BaseTensorType>();
     auto resultType = typeConverter->convertType(op->getResult(0).getType())
                           .cast<RankedTensorType>();
@@ -509,7 +713,7 @@ public:
           op, "Expected accumulate to be constant bool.");
 
     // The element type of the `input` and `values` should be same.
-    if (inputType.getElementType() != valuesType.getElementType())
+    if (inputType.getDtype() != valuesType.getDtype())
       return rewriter.notifyMatchFailure(
           op, "Input element type should be same as the values element type.");
 
@@ -524,47 +728,91 @@ public:
     if (optionalIndicesList.size() == 0)
       return rewriter.notifyMatchFailure(op, "Indices list must not be empty.");
 
-    // For now require that all indices be specified:
+    // Filter to available indices and get the indicesMap:
+    SmallVector<Value> indicesList;
+    SmallVector<int64_t> indicesMap;
+    int64_t numBatchDims = 0;
     for (int i = 0, s = optionalIndicesList.size(); i < s; ++i) {
       if (isa<Torch::NoneType>(optionalIndicesList[i].getType()))
-        return rewriter.notifyMatchFailure(op,
-                                           "WIP - add support for none-type.");
+        continue;
+      indicesList.push_back(optionalIndicesList[i]);
+      indicesMap.push_back(i);
+
+      auto indexTy = cast<ValueTensorType>(indicesList.back().getType());
+      numBatchDims = std::max(static_cast<int64_t>(indexTy.getSizes().size()),
+                              numBatchDims);
     }
 
-    // Unsqueeze so we have a 1 dim to concat along:
-    Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
+    // Value broadcasting semantics require batch dimensions to be up front if
+    // the indices are not sequential, otherwise they are sequentially at their
+    // location:
+    int64_t batchDim = 0;
+    for (int s = optionalIndicesList.size(); batchDim < s; ++batchDim)
+      if (!isa<Torch::NoneType>(optionalIndicesList[batchDim].getType()))
+        break;
+
+    int64_t nextNone = batchDim;
+    for (int s = optionalIndicesList.size(); nextNone < s; ++nextNone)
+      if (isa<Torch::NoneType>(optionalIndicesList[nextNone].getType()))
+        break;
+
+    for (int s = optionalIndicesList.size(); nextNone < s; ++nextNone)
+      if (!isa<Torch::NoneType>(optionalIndicesList[nextNone].getType()))
+        batchDim = 0;
+
+    // Indices are extended, catted, and collapsed into a [batch, depth] tensor:
+    Value indices = combinePutIndices(loc, indicesList, rewriter);
+
+    // Bove batch dimensions to the front and collapse into a single dim:
+    values =
+        collapseAndMoveBatchDims(loc, values, batchDim, numBatchDims, rewriter);
+    valuesType = cast<Torch::ValueTensorType>(values.getType());
+
+    // Materialize out the length-1 dimensions:
+    Value zero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value one = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(1));
-    for (Value &tensor : optionalIndicesList) {
-      auto btt = cast<Torch::BaseTensorType>(tensor.getType());
-      if (!btt.hasSizes())
-        return rewriter.notifyMatchFailure(op, "indices tensor is unranked");
+    llvm::SmallVector<int64_t> valuesShape{valuesType.getSizes().front()};
+    llvm::SmallVector<Value> valuesDims;
+    valuesDims.push_back(
+        rewriter.create<Torch::AtenSizeIntOp>(loc, values, zero));
 
-      llvm::SmallVector<int64_t> shape(btt.getSizes());
-      shape.push_back(1);
+    int vDim = 1;
+    for (int i = 0, s = inputType.getSizes().size(); i < s; ++i) {
+      if (i < optionalIndicesList.size() &&
+          !isa<Torch::NoneType>(optionalIndicesList[i].getType())) {
+        valuesDims.push_back(one);
+        valuesShape.push_back(1);
+        continue;
+      }
 
-      auto unsqueezeTy =
-          rewriter.getType<Torch::ValueTensorType>(shape, btt.getDtype());
-      Value unsqueezed = rewriter.create<AtenUnsqueezeOp>(loc, unsqueezeTy,
-                                                          tensor, torchCstOne);
-      tensor = unsqueezed;
+      Value k = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(vDim));
+      valuesDims.push_back(
+          rewriter.create<Torch::AtenSizeIntOp>(loc, values, k));
+      valuesShape.push_back(inputType.getSizes()[i]);
+      vDim++;
     }
 
-    BaseTensorType unsqueezedTensorType =
-        optionalIndicesList[0].getType().cast<BaseTensorType>();
-    Value indicesList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(unsqueezedTensorType), optionalIndicesList);
-    llvm::SmallVector<int64_t, 2> concatShape{
-        unsqueezedTensorType.getSizes()[0],
-        static_cast<int64_t>(optionalIndicesList.size())};
-    ValueTensorType concatIndicesType = ValueTensorType::get(
-        context, llvm::ArrayRef(concatShape), unsqueezedTensorType.getDtype());
-    Value indices = rewriter.create<AtenCatOp>(loc, concatIndicesType,
-                                               indicesList, torchCstOne);
+    Value valuesDimsList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+        valuesDims);
+
+    valuesType = rewriter.getType<Torch::ValueTensorType>(
+        valuesShape, valuesType.getOptionalDtype());
+    values =
+        rewriter.create<AtenViewOp>(loc, valuesType, values, valuesDimsList);
 
     // `TMTensor::ScatterOp` expects indices of element type i32.
     indices = convertTensorToDtype(
         rewriter, loc, indices,
         mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
+
+    input = typeConverter->materializeTargetConversion(
+        rewriter, loc, typeConverter->convertType(input.getType()), input);
+    values = typeConverter->materializeTargetConversion(
+        rewriter, loc, typeConverter->convertType(values.getType()), values);
     indices = typeConverter->materializeTargetConversion(
         rewriter, loc, typeConverter->convertType(indices.getType()), indices);
 
@@ -575,7 +823,8 @@ public:
     // 3.) `input` is mapped to `original` in scatter op.
     bool invalidInputTypeFound = false;
     Value scatterOp = createTMTensorScatterOp(
-        rewriter, loc, values, indices, input, /*uniqueIndices=*/false,
+        rewriter, loc, values, indices, input, indicesMap,
+        /*uniqueIndices=*/false,
         [&](OpBuilder &b, Location loc, Value valuesElement,
             Value inputElement) {
           Value yieldValue = valuesElement;
@@ -794,6 +1043,7 @@ public:
     Value scatterOp = createTMTensorScatterOp(
         rewriter, loc, /*updates=*/gradOutputFlattened,
         /*indices=*/indicesCollapsed, /*original=*/outputTensor,
+        /*dimensionsMap=*/createDefaultDimMap(indicesCollapsed),
         /*uniqueIndices=*/false,
         [&](OpBuilder &b, Location loc, Value valuesElement,
             Value inputElement) {
@@ -936,6 +1186,7 @@ public:
           srcType.getElementType(), /*init_element=*/normalizationValue);
       self = createTMTensorScatterOp(
           rewriter, loc, normalizations, indices, self,
+          /*dimensionsMap=*/createDefaultDimMap(indices),
           /*uniqueIndices=*/false,
           [&](OpBuilder &b, Location loc, Value update, Value current) {
             b.create<TMTensor::YieldOp>(loc, update);
@@ -943,6 +1194,7 @@ public:
       if (reduceEnum == torch_upstream::ReductionType::MEAN) {
         counts = createTMTensorScatterOp(
             rewriter, loc, normalizations, indices, counts,
+            /*dimensionsMap=*/createDefaultDimMap(indices),
             /*uniqueIndices=*/false,
             [&](OpBuilder &b, Location loc, Value update, Value current) {
               b.create<TMTensor::YieldOp>(loc, update);
@@ -953,7 +1205,7 @@ public:
     // Create final operation
     Value scatterOp = createTMTensorScatterOp(
         rewriter, loc, updates, indices, self,
-        /*uniqueIndices=*/false,
+        /*dimensionsMap=*/createDefaultDimMap(indices), /*uniqueIndices=*/false,
         [&](OpBuilder &b, Location loc, Value update, Value current) {
           Value result;
           if (reduceEnum == torch_upstream::ReductionType::SUM ||
@@ -997,6 +1249,7 @@ public:
     if (reduceEnum == torch_upstream::ReductionType::MEAN) {
       counts = createTMTensorScatterOp(
           rewriter, loc, updates, indices, counts,
+          /*dimensionsMap=*/createDefaultDimMap(indices),
           /*uniqueIndices=*/false,
           [&](OpBuilder &b, Location loc, Value update, Value current) {
             Value result;
