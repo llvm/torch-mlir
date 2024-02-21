@@ -273,11 +273,7 @@ def test_sparse_SpMV():
 # CHECK:        tensor({{\[}}[8., 8., 8., 8., 8., 8., 8., 8.],
 # CHECK-COUNT-6:             [8., 8., 8., 8., 8., 8., 8., 8.],
 # CHECK:                     [8., 8., 8., 8., 8., 8., 8., 8.]{{\]}})
-# CHECK:        torch.mlir.csr
-# CHECK:        {{\[}}[8. 8. 8. 8. 8. 8. 8. 8.]
-# CHECK-COUNT-6:      [8. 8. 8. 8. 8. 8. 8. 8.]
-# CHECK:              [8. 8. 8. 8. 8. 8. 8. 8.]{{\]}}
-# CHECK:        torch.mlir.coo
+# CHECK:        torch.mlir
 # CHECK:        {{\[}}[8. 8. 8. 8. 8. 8. 8. 8.]
 # CHECK-COUNT-6:      [8. 8. 8. 8. 8. 8. 8. 8.]
 # CHECK:              [8. 8. 8. 8. 8. 8. 8. 8.]{{\]}}
@@ -297,16 +293,13 @@ def test_sparse_SpMM():
     print(m)
 
     # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
-    sparse_input = dense_input.to_sparse_csr()
+    sparse_input = dense_input.to_sparse_coo()
+    net = MatMulNet()
     res1 = net(sparse_input, dense_input)
     res2 = sparse_jit(net, sparse_input, dense_input)
-    sparse_input = dense_input.to_sparse_coo()
-    res3 = sparse_jit(net, sparse_input, dense_input)
     print("torch.sparse")
     print(res1)
-    print("torch.mlir.csr")
-    print(res2)
-    print("torch.mlir.coo")
+    print("torch.mlir")
     print(res2)
 
 
