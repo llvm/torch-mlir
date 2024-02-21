@@ -273,7 +273,7 @@ def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
 
     if sparsity.layout is torch.sparse_coo:
         assert sparse_dim == 2 and blocksize is None  # TODO: deeper sparse dims
-        lvls = f"d{batch_dim}:compressed(nonunique),d{batch_dim+1}:singleton"
+        lvls = f"d{batch_dim}:compressed(nonunique),d{batch_dim+1}:singleton(soa)"
     elif sparsity.layout is torch.sparse_csr:
         assert sparse_dim == 2 and blocksize is None
         lvls = f"d{batch_dim}:dense,d{batch_dim+1}:compressed"
