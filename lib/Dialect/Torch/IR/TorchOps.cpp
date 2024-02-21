@@ -1569,6 +1569,38 @@ void AtenScalarImplicitOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenFloatImplicitOp
+//===----------------------------------------------------------------------===//
+void AtenFloatImplicitOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenFloatImplicitOp op, PatternRewriter &rewriter) {
+    Location loc = op.getLoc();
+    Value a = op.getA();
+    Value scalarValue = getScalarFloatValue(a, loc, rewriter);
+    if (!scalarValue)
+      return failure();
+    rewriter.replaceOp(op, scalarValue);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenIntImplicitOp
+//===----------------------------------------------------------------------===//
+void AtenIntImplicitOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                    MLIRContext *context) {
+  patterns.add(+[](AtenIntImplicitOp op, PatternRewriter &rewriter) {
+    Location loc = op.getLoc();
+    Value a = op.getA();
+    Value scalarValue = getScalarIntValue(a, loc, rewriter);
+    if (!scalarValue)
+      return failure();
+    rewriter.replaceOp(op, scalarValue);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSizeOp
 //===----------------------------------------------------------------------===//
 

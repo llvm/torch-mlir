@@ -335,6 +335,9 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # Dynamo not supporting conv_tbc
     "ConvTbcModule_basic",
+
+    "FloatImplicitModule_basic",
+    "IntImplicitModule_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -2173,8 +2176,6 @@ ONNX_XFAIL_SET = {
     "ElementwiseSigmoidIntModule_basic",
     
     # Failure - unknown
-    "ChunkListUnpackUneven_Module_basic",
-    "ChunkListUnpack_Module_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "CopyWithDifferentDTypesAndSizesModule_basic",
     "CopyWithDifferentDTypesModule_basic",
@@ -2195,6 +2196,8 @@ ONNX_XFAIL_SET = {
     "ReduceMinAlongDimUnsignedInt_basic",
     "TensorsStackNegativeDimModule_basic",
     "TensorsStackPromoteDTypeModule_basic",
+    "FloatImplicitModule_basic",
+    "IntImplicitModule_basic",
 }
 
 ONNX_CRASHING_SET = {

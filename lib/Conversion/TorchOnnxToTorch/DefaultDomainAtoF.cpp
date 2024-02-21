@@ -1339,12 +1339,38 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value ratio, trainingMode;
         if (numOperands == 3) {
           ratio = rewriter.create<Torch::AtenFloatImplicitOp>(loc, operands[1]);
-          Value trainingModeScalar =
-              rewriter.create<Torch::AtenIntImplicitOp>(loc, operands[2]);
-          Value cstOne = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(1));
-          trainingMode = rewriter.create<Torch::AtenEqIntOp>(
-              loc, trainingModeScalar, cstOne);
+          Value trainVal = operands[2];
+          auto trainTensorType =
+              trainVal.getType().dyn_cast<Torch::BaseTensorType>();
+          if (!trainTensorType)
+            return rewriter.notifyMatchFailure(binder.op,
+                                               "train tensor must have a type");
+
+          Type inputDtype = trainTensorType.getOptionalDtype();
+          if (!inputDtype || !inputDtype.isInteger(1))
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "train tensor must have an integer dtype of width 1");
+
+          std::optional<unsigned> inputRank = Torch::getTensorRank(trainVal);
+          if (!inputRank || *inputRank != 0)
+            return rewriter.notifyMatchFailure(binder.op,
+                                               "train tensor must have rank 0");
+
+          if (auto valueTensorLiteralOp =
+                  trainVal.getDefiningOp<Torch::ValueTensorLiteralOp>()) {
+            auto val = valueTensorLiteralOp.getValue()
+                           .cast<DenseElementsAttr>()
+                           .getSplatValue<bool>();
+            trainingMode = rewriter.create<Torch::ConstantBoolOp>(loc, val);
+          } else {
+            Value trainingModeScalar =
+                rewriter.create<Torch::AtenIntImplicitOp>(loc, operands[2]);
+            Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(1));
+            trainingMode = rewriter.create<Torch::AtenEqIntOp>(
+                loc, trainingModeScalar, cstOne);
+          }
         } else if (numOperands == 2) {
           ratio = rewriter.create<Torch::AtenFloatImplicitOp>(loc, operands[1]);
           trainingMode = rewriter.create<Torch::ConstantBoolOp>(loc, false);
