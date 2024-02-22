@@ -719,13 +719,14 @@ public:
 
     SmallVector<Value> optionalIndicesList;
     getListConstructElements(op.getIndices(), optionalIndicesList);
+    int64_t optionalIndicesCount = optionalIndicesList.size();
     // The size of the list of the index tensors should not be greater than the
     // input rank.
-    if ((int64_t)optionalIndicesList.size() > inputRank)
+    if (optionalIndicesCount > inputRank)
       return rewriter.notifyMatchFailure(
           op, "Indices list size should not be greater than the input rank.");
 
-    if (optionalIndicesList.size() == 0)
+    if (optionalIndicesCount == 0)
       return rewriter.notifyMatchFailure(op, "Indices list must not be empty.");
 
     // Filter to available indices and get the indicesMap:
@@ -780,7 +781,7 @@ public:
 
     int vDim = 1;
     for (int i = 0, s = inputType.getSizes().size(); i < s; ++i) {
-      if (i < optionalIndicesList.size() &&
+      if (i < optionalIndicesCount &&
           !isa<Torch::NoneType>(optionalIndicesList[i].getType())) {
         valuesDims.push_back(one);
         valuesShape.push_back(1);
