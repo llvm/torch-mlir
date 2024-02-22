@@ -3327,11 +3327,15 @@ OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
 
   // Get the single index value for the selected dimension
   auto splatValue = indexAttr.getSplatValue<IntegerAttr>();
-  int64_t indexInt = getIntAttrAsIndex(splatValue, selfSizes[dimInt]);
+  int64_t indexInt = getIntAttrAsSigned(splatValue);
+  indexInt = indexInt < 0 && selfSizes[dimInt] ? indexInt + selfSizes[dimInt]
+                                               : indexInt;
 
   // Extract the single constant value from the input tensor and turn the
   // extracted value into a single-element tensor of the output shape and dtype
-  auto splattr = selfAttr.getValues<Attribute>()[indexInt];
+  Attribute splattr = selfAttr.isSplat()
+                          ? selfAttr.getSplatValue<Attribute>()
+                          : selfAttr.getValues<Attribute>()[indexInt];
 
   auto dty = resultTy.getDtype();
   auto attrTy = resultTy.toBuiltinTensor().clone(dty);
