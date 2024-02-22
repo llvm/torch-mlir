@@ -12,9 +12,9 @@
 namespace torch {
 namespace lazy {
 
-IndexTensor::IndexTensor(const torch::lazy::Value& self,
-                         const torch::lazy::Value& indices,
-                         std::vector<torch::lazy::Shape>&& shapes)
+IndexTensor::IndexTensor(const torch::lazy::Value &self,
+                         const torch::lazy::Value &indices,
+                         std::vector<torch::lazy::Shape> &&shapes)
     : torch::lazy::TorchMlirNode(IndexTensor::ClassOpKind(),
                                  OpList{self, indices}, std::move(shapes),
                                  /* num_outputs */ 1, torch::lazy::MHash()) {}
@@ -25,13 +25,13 @@ std::string IndexTensor::ToString() const {
   return ss.str();
 }
 
-bool IndexTensor::CanBeReused(const torch::lazy::Value& self,
-                              const torch::lazy::Value& indices) const {
+bool IndexTensor::CanBeReused(const torch::lazy::Value &self,
+                              const torch::lazy::Value &indices) const {
   return false;
 }
 
 TorchMlirOpVector IndexTensor::Lower(TorchMlirFunction function,
-                                     TorchMlirLoweringContext* loctx) const {
+                                     TorchMlirLoweringContext *loctx) const {
   PRINT_FUNCTION();
   std::vector<torch::jit::NamedValue> arguments;
   std::vector<torch::jit::NamedValue> kwarguments;
@@ -49,10 +49,10 @@ TorchMlirOpVector IndexTensor::Lower(TorchMlirFunction function,
   return index_out;
 }
 
-IndexPut::IndexPut(const torch::lazy::Value& self,
-                   const torch::lazy::Value& indices,
-                   const torch::lazy::Value& values, bool accumulate,
-                   std::vector<torch::lazy::Shape>&& shapes)
+IndexPut::IndexPut(const torch::lazy::Value &self,
+                   const torch::lazy::Value &indices,
+                   const torch::lazy::Value &values, bool accumulate,
+                   std::vector<torch::lazy::Shape> &&shapes)
     : torch::lazy::TorchMlirNode(
           IndexPut::ClassOpKind(), OpList{self, indices, values},
           std::move(shapes),
@@ -66,15 +66,15 @@ std::string IndexPut::ToString() const {
   return ss.str();
 }
 
-bool IndexPut::CanBeReused(const torch::lazy::Value& self,
-                           const torch::lazy::Value& indices,
-                           const torch::lazy::Value& values,
+bool IndexPut::CanBeReused(const torch::lazy::Value &self,
+                           const torch::lazy::Value &indices,
+                           const torch::lazy::Value &values,
                            bool accumulate) const {
   return false;
 }
 
 TorchMlirOpVector IndexPut::Lower(TorchMlirFunction function,
-                                  TorchMlirLoweringContext* loctx) const {
+                                  TorchMlirLoweringContext *loctx) const {
   PRINT_FUNCTION();
   std::vector<torch::jit::NamedValue> arguments;
   std::vector<torch::jit::NamedValue> kwarguments;
@@ -95,5 +95,5 @@ TorchMlirOpVector IndexPut::Lower(TorchMlirFunction function,
   return index_out;
 }
 
-}  // namespace lazy
-}  // namespace torch
+} // namespace lazy
+} // namespace torch

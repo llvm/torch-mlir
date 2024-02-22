@@ -202,15 +202,16 @@ static bool satisfiesBackendContract(ModuleOp module,
   // Check for unimplemented operators first to give more direct diagnostics.
   walkResult0 = module.walk([&](Torch::OperatorOp op) {
     if (llvm::all_of(op.getResults(), [&op](auto res) {
-          return succeeded(
-              checkType(op.getOperation(), res.getType(), /*actuallyEmitDiagnostics=*/false));
+          return succeeded(checkType(op.getOperation(), res.getType(),
+                                     /*actuallyEmitDiagnostics=*/false));
         })) {
       return WalkResult::advance();
     }
 
     if (actuallyEmitDiagnostics) {
-      op->emitError("unsupported by backend contract: Unimplemented operator '"
-        + op.getName() + "'");
+      op->emitError(
+          "unsupported by backend contract: Unimplemented operator '" +
+          op.getName() + "'");
     }
     return WalkResult::interrupt();
   });
@@ -309,20 +310,22 @@ public:
                    << " iterations of the simplification pipeline\n";
     });
   }
+
 private:
   llvm::StringSet<> backendLegalOpsSet;
 };
 
 class VerifyBackendContractNoDecompositionsPass
-    : public VerifyBackendContractNoDecompositionsBase<VerifyBackendContractNoDecompositionsPass> {
+    : public VerifyBackendContractNoDecompositionsBase<
+          VerifyBackendContractNoDecompositionsPass> {
 public:
   VerifyBackendContractNoDecompositionsPass() = default;
 
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target =
-        getBackendContractTarget(context, /*decompose*/false,
-                                 /*backendLegalOpsSet*/{});
+        getBackendContractTarget(context, /*decompose*/ false,
+                                 /*backendLegalOpsSet*/ {});
 
     if (!satisfiesBackendContract(getOperation(), target,
                                   /*actuallyEmitDiagnostics=*/true)) {
@@ -386,6 +389,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<Aten_SoftmaxBackwardDataOp>();
   target.addIllegalOp<AtenTanhBackwardOp>();
   target.addIllegalOp<AtenEinsumOp>();
+  target.addIllegalOp<AtenTraceOp>();
   target.addIllegalOp<AtenAddmmOp>();
   target.addIllegalOp<AtenMeanOp>();
   target.addIllegalOp<AtenMeanDimOp>();
@@ -405,6 +409,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   });
   target.addIllegalOp<AtenAddcmulOp>();
   target.addIllegalOp<AtenAddcdivOp>();
+  target.addIllegalOp<AtenInstanceNormOp>();
   target.addIllegalOp<AtenLayerNormOp>();
   target.addIllegalOp<AtenNativeLayerNormOp>();
   target.addIllegalOp<AtenGroupNormOp>();
@@ -412,7 +417,10 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenNativeBatchNormOp>();
   target.addIllegalOp<Aten_ConvolutionOp, Aten_ConvolutionDeprecatedOp>();
   target.addIllegalOp<AtenConvolutionBackwardOp>();
+  target.addIllegalOp<AtenConvTbcOp>();
+  target.addIllegalOp<AtenConv1dOp>();
   target.addIllegalOp<AtenConv2dOp>();
+  target.addIllegalOp<AtenConv3dOp>();
   target.addIllegalOp<AtenConvTranspose2dInputOp>();
   target.addIllegalOp<AtenArangeOp>();
   target.addIllegalOp<AtenArangeStartOp>();
@@ -482,6 +490,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenNarrowTensorOp>();
   target.addIllegalOp<Aten_EmbeddingBagOp>();
   target.addIllegalOp<AtenLiftFreshCopyOp>();
+  target.addIllegalOp<AtenLerpScalarOp>();
   target.addIllegalOp<AtenIndexTensorOp>();
   target.addIllegalOp<AtenMseLossOp>();
   target.addIllegalOp<AtenRandintLowOp>();

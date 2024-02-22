@@ -33,18 +33,18 @@ Received 1 arguments, and returned 2 results during ExecuteCompile!
 
 Results: tensor([[0.7616, 0.9640, 0.9951, 0.9993, 0.9999]], device='lazy:0')
 
-JIT Graph: 
+JIT Graph:
 graph(%p0 : Float(1, 5)):
   %1 : Float(1, 5) = aten::tanh(%p0)
   return (%p0, %1)
 
-MLIR: 
+MLIR:
 func.func @graph(%arg0: !torch.vtensor<[1,5],f32>) -> (!torch.vtensor<[1,5],f32>, !torch.vtensor<[1,5],f32>) {
   %0 = torch.aten.tanh %arg0 : !torch.vtensor<[1,5],f32> -> !torch.vtensor<[1,5],f32>
   return %arg0, %0 : !torch.vtensor<[1,5],f32>, !torch.vtensor<[1,5],f32>
 }
 
-Input/Output Alias Mapping: 
+Input/Output Alias Mapping:
 Output: 0 -> Input param: 0
 
 In Mark Step: true

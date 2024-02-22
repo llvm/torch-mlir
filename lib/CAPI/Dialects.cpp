@@ -9,7 +9,8 @@
 
 #include "torch-mlir-c/Dialects.h"
 
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "mlir/CAPI/Registration.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 
-MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Torch, torch, mlir::torch::Torch::TorchDialect)
+MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Torch, torch,
+                                      mlir::torch::Torch::TorchDialect)

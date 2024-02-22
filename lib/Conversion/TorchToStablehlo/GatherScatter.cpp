@@ -30,8 +30,8 @@ using namespace mlir::torch::torch_to_stablehlo;
 
 namespace {
 static Value createInitialValueForGatherScatterOp(Operation *op,
-                                           RankedTensorType constType,
-                                           PatternRewriter &rewriter) {
+                                                  RankedTensorType constType,
+                                                  PatternRewriter &rewriter) {
   auto elementTy = constType.getElementType();
   if (isa<AtenEmbeddingBagPaddingIdxOp>(op)) {
     if (elementTy.isa<mlir::FloatType>()) {
@@ -334,7 +334,8 @@ LogicalResult ConvertAtenOp<AtenEmbeddingBagPaddingIdxOp>::matchAndRewrite(
     return failure();
 
   auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op.getLoc(), gatherOutput, initValue, rewriter.getI64TensorAttr({0}));
+      op.getLoc(), gatherOutput, initValue, rewriter.getDenseI64ArrayAttr({0}),
+      elementTy);
 
   Region &region = stablehloReduceOp.getBody();
   Block &block = region.emplaceBlock();
@@ -510,7 +511,7 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
 
   rewriter.replaceOpWithNewOp<stablehlo::GatherOp>(
       op, input, gatherIndicies, dimsAttr,
-      rewriter.getI64TensorAttr(sliceSizes));
+      rewriter.getDenseI64ArrayAttr(sliceSizes));
   return success();
 }
 
@@ -666,7 +667,8 @@ LogicalResult ConvertAtenOp<AtenScatterSrcOp>::matchAndRewrite(
       /*indexVectorDim=*/indexVecDim);
 
   auto stablehloScatterOp = rewriter.create<stablehlo::ScatterOp>(
-      loc, input, scatterIndicies, src, scatterDimensionNumbers, false, false);
+      loc, inputType, input, scatterIndicies, src, scatterDimensionNumbers,
+      false, false);
 
   // config update computation function: just return the element from src.
   Block &block = stablehloScatterOp.getUpdateComputation().emplaceBlock();
@@ -833,7 +835,7 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
 
   rewriter.replaceOpWithNewOp<stablehlo::GatherOp>(
       op, resultType, input, finalIndexTensor, dimsAttr,
-      rewriter.getI64TensorAttr(sliceSizes));
+      rewriter.getDenseI64ArrayAttr(sliceSizes));
   return success();
 }
 

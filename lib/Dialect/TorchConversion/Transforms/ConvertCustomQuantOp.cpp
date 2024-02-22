@@ -18,8 +18,8 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
+#include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -65,7 +65,8 @@ public:
 
     auto getConstantIntegerFromDefiningOp = [](Value operand,
                                                int &extractedInt) {
-      auto castOp = dyn_cast<mlir::UnrealizedConversionCastOp>(operand.getDefiningOp());
+      auto castOp =
+          dyn_cast<mlir::UnrealizedConversionCastOp>(operand.getDefiningOp());
       if (!castOp) {
         return failure();
       }
@@ -83,7 +84,8 @@ public:
       return failure();
     }
     int unpackedBitWidth;
-    if (failed(getConstantIntegerFromDefiningOp(unpackedTypeWidth, unpackedBitWidth))) {
+    if (failed(getConstantIntegerFromDefiningOp(unpackedTypeWidth,
+                                                unpackedBitWidth))) {
       return failure();
     }
     if (unpackedBitWidth !=
@@ -103,32 +105,35 @@ public:
     // expand lhs
     std::vector<int64_t> lhsExpandedShape = {lhsShape[0], lhsShape[1],
                                              lhsReductDimSize / gs, gs};
-    RankedTensorType lhsExpandedType = RankedTensorType::get(lhsExpandedShape, elementType);
+    RankedTensorType lhsExpandedType =
+        RankedTensorType::get(lhsExpandedShape, elementType);
     SmallVector<ReassociationIndices, 4> lhsReassociation = {{0}, {1}, {2, 3}};
     Value lhsExpanded = rewriter.create<tensor::ExpandShapeOp>(
-      loc, lhsExpandedType, lhs, lhsReassociation);
+        loc, lhsExpandedType, lhs, lhsReassociation);
 
     // expand rhs
-    std::vector<int64_t> rhsExpandedShape = {rhsShape[0], rhsReductDimSize/gs, gs};
-    RankedTensorType rhsExpandedType = RankedTensorType::get(rhsExpandedShape, rhsElementType);
+    std::vector<int64_t> rhsExpandedShape = {rhsShape[0], rhsReductDimSize / gs,
+                                             gs};
+    RankedTensorType rhsExpandedType =
+        RankedTensorType::get(rhsExpandedShape, rhsElementType);
     SmallVector<ReassociationIndices, 4> rhsReassociation = {{0}, {1, 2}};
     Value rhsExpanded = rewriter.create<tensor::ExpandShapeOp>(
-      loc, rhsExpandedType, rhsQuant, rhsReassociation);
+        loc, rhsExpandedType, rhsQuant, rhsReassociation);
     Value cst0 = rewriter.create<arith::ConstantOp>(
-      loc, FloatAttr::get(elementType, 0.0));
+        loc, FloatAttr::get(elementType, 0.0));
 
-    Value emptyDequant = rewriter.create<tensor::EmptyOp>(
-      loc, rhsExpandedShape, elementType);
+    Value emptyDequant =
+        rewriter.create<tensor::EmptyOp>(loc, rhsExpandedShape, elementType);
     SmallVector<Value> dynDims;
     for (int i = 0; i < lhsType.getRank(); i++) {
       if (lhsType.isDynamicDim(i)) {
         dynDims.push_back(rewriter.create<tensor::DimOp>(loc, lhs, i));
       }
     }
-    Value empty = rewriter.create<tensor::EmptyOp>(
-      loc, resultShape, elementType, dynDims);
-    Value output = rewriter.create<linalg::FillOp>(
-      loc, cst0, empty).getResult(0);
+    Value empty = rewriter.create<tensor::EmptyOp>(loc, resultShape,
+                                                   elementType, dynDims);
+    Value output =
+        rewriter.create<linalg::FillOp>(loc, cst0, empty).getResult(0);
 
     AffineExpr d0, d1, d2, d3, d4;
     bindDims(getContext(), d0, d1, d2, d3, d4);
@@ -141,12 +146,12 @@ public:
     SmallVector<AffineMap, 4> dqIndexingMaps = {map, map1, map1, map};
     SmallVector<AffineMap, 4> matIndexingMaps = {map2, map3, map4};
 
-    SmallVector<utils::IteratorType> dequantIteratorTypes(3, utils::IteratorType::parallel);
+    SmallVector<utils::IteratorType> dequantIteratorTypes(
+        3, utils::IteratorType::parallel);
     SmallVector<utils::IteratorType> matmulIteratorTypes = {
-      utils::IteratorType::parallel, utils::IteratorType::parallel,
-      utils::IteratorType::parallel, utils::IteratorType::reduction,
-      utils::IteratorType::reduction
-    };
+        utils::IteratorType::parallel, utils::IteratorType::parallel,
+        utils::IteratorType::parallel, utils::IteratorType::reduction,
+        utils::IteratorType::reduction};
 
     Value rhsDequant =
         rewriter
@@ -157,9 +162,12 @@ public:
                 /*iteratorTypes=*/dequantIteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value w = args[0], scale = args[1], zeroPoint = args[2];
-                  Value extw = b.create<arith::ExtUIOp>(loc, rewriter.getI32Type(), w);
-                  Value fp_extw = b.create<arith::UIToFPOp>(loc, rewriter.getF16Type(), extw);
-                  Value shifted = b.create<arith::SubFOp>(loc, fp_extw, zeroPoint);
+                  Value extw =
+                      b.create<arith::ExtUIOp>(loc, rewriter.getI32Type(), w);
+                  Value fp_extw = b.create<arith::UIToFPOp>(
+                      loc, rewriter.getF16Type(), extw);
+                  Value shifted =
+                      b.create<arith::SubFOp>(loc, fp_extw, zeroPoint);
                   Value dqw = b.create<arith::MulFOp>(loc, shifted, scale);
                   b.create<linalg::YieldOp>(loc, dqw);
                 })
@@ -168,8 +176,8 @@ public:
     Value matmulDequant =
         rewriter
             .create<linalg::GenericOp>(
-                loc, output.getType(),
-                ValueRange{lhsExpanded, rhsDequant}, output,
+                loc, output.getType(), ValueRange{lhsExpanded, rhsDequant},
+                output,
                 /*indexingMaps=*/matIndexingMaps,
                 /*iteratorTypes=*/matmulIteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
@@ -188,7 +196,8 @@ public:
 
 namespace {
 class ConvertCustomQuantOpPass
-    : public TorchConversion::ConvertCustomQuantOpBase<ConvertCustomQuantOpPass> {
+    : public TorchConversion::ConvertCustomQuantOpBase<
+          ConvertCustomQuantOpPass> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<arith::ArithDialect>();
     registry.insert<func::FuncDialect>();
@@ -213,14 +222,14 @@ class ConvertCustomQuantOpPass
     target.addIllegalOp<OperatorOp>();
     patterns.add<ConvertCustomQuantizedMatmulOp>(typeConverter, context);
 
-    if (failed(
-            applyPartialConversion(getOperation(), target, std::move(patterns))))
+    if (failed(applyPartialConversion(getOperation(), target,
+                                      std::move(patterns))))
       signalPassFailure();
   }
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
+std::unique_ptr<InterfacePass<FunctionOpInterface>>
 mlir::torch::TorchConversion::createConvertCustomQuantOpPass() {
   return std::make_unique<ConvertCustomQuantOpPass>();
 }

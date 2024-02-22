@@ -140,12 +140,7 @@ enum Reduction { None, Mean, Sum, END };
 // Source:
 // https://github.com/pytorch/pytorch/blob/master/c10/core/MemoryFormat.h
 //===----------------------------------------------------------------------===//
-enum MemoryFormat {
-  Contiguous,
-  Preserve,
-  ChannelsLast,
-  ChannelsLast3d
-};
+enum MemoryFormat { Contiguous, Preserve, ChannelsLast, ChannelsLast3d };
 
 //===----------------------------------------------------------------------===//
 // Possible values for `layout` argument in PyTorch ops that support it.

@@ -1,0 +1,11 @@
+# This file contains the list of commits to exclude from 'git blame'.
+# Such commits do not meaningfully contribute to git history, and include
+# large-scale mechanical changes like code formatting style changes.
+#
+# To set this file as the default ignore file for 'git blame', run:
+# ```shell
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# ```
+
+# Refresh clang-format
+494089d53db4c183b3ba12e36f61ce1c7553984c

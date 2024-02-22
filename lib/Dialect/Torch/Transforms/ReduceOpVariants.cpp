@@ -9,10 +9,10 @@
 
 #include "PassDetail.h"
 
+#include "ReifyAbstractInterpCalculationsUtils.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
-#include "ReifyAbstractInterpCalculationsUtils.h"
 #include "llvm/ADT/StringExtras.h"
 
 using namespace mlir;
@@ -72,8 +72,8 @@ namespace {
 // immutable tensors.
 class ConvertHasValueSemanticsOpsToValueTensors : public RewritePattern {
 public:
-  ConvertHasValueSemanticsOpsToValueTensors(MLIRContext *context,
-                                            const std::optional<SymbolTable>& extraLibrary)
+  ConvertHasValueSemanticsOpsToValueTensors(
+      MLIRContext *context, const std::optional<SymbolTable> &extraLibrary)
       : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, context) {
     this->extraLibrary = extraLibrary;
   }
@@ -87,7 +87,7 @@ public:
       return rewriter.notifyMatchFailure(op, "does not have value semantics");
     }
 
-    rewriter.startRootUpdate(op);
+    rewriter.startOpModification(op);
     // Convert all operands.
     SmallVector<Value> newOperands;
     for (OpOperand &opOperand : op->getOpOperands()) {
@@ -105,7 +105,7 @@ public:
         auto listConstruct =
             opOperand.get().getDefiningOp<PrimListConstructOp>();
         if (!listConstruct) {
-          rewriter.cancelRootUpdate(op);
+          rewriter.cancelOpModification(op);
           return rewriter.notifyMatchFailure(
               op, "unimplemented: list of non vtensor type not constructed "
                   "from list construct");
@@ -120,7 +120,7 @@ public:
           if (!llvm::all_of(listConstruct.getElements(), [](Value val) {
                 return val.getType().isa<NonValueTensorType, Torch::NoneType>();
               })) {
-            rewriter.cancelRootUpdate(op);
+            rewriter.cancelOpModification(op);
             return rewriter.notifyMatchFailure(
                 op, "unimplemented: list containing optional type is not "
                     "handled.");
@@ -138,7 +138,7 @@ public:
 
         Type newListType = getContainerOrTensorTypeWithValueSemantics(listType);
         if (!newListType) {
-          rewriter.cancelRootUpdate(op);
+          rewriter.cancelOpModification(op);
           return rewriter.notifyMatchFailure(
               op, "Unable to convert list type to value semantics.");
         }
@@ -154,7 +154,7 @@ public:
         // from the non value tensor of the original optional value.
         auto derefine = opOperand.get().getDefiningOp<DerefineOp>();
         if (!derefine) {
-          rewriter.cancelRootUpdate(op);
+          rewriter.cancelOpModification(op);
           return rewriter.notifyMatchFailure(
               op, "unimplemented: optional of non vtensor type not from "
                   "derefine");
@@ -180,12 +180,85 @@ public:
           rewriter.create<CopyToNonValueTensorOp>(op->getLoc(), result);
       result.replaceAllUsesExcept(nonValueTensor, nonValueTensor);
     }
-    rewriter.finalizeRootUpdate(op);
+    rewriter.finalizeOpModification(op);
     return success();
   }
+
 private:
   std::optional<SymbolTable> extraLibrary;
 };
+} // namespace
+
+namespace {
+
+class TorchMatchSpecializedBackendOp
+    : public OpConversionPattern<Torch::OperatorOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+
+  using HandlerFn = LogicalResult (*)(OperatorOp op,
+                                      ConversionPatternRewriter &rewriter);
+
+  LogicalResult
+  matchAndRewrite(Torch::OperatorOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (namedHandlers.contains(op.getNameAttr())) {
+      return namedHandlers.lookup(op.getNameAttr()).front()(op, rewriter);
+    }
+
+    return failure();
+  }
+
+  static void
+  populateSpecializedConversions(TorchMatchSpecializedBackendOp &matcher);
+
+  static std::unique_ptr<TorchMatchSpecializedBackendOp>
+  getPopulatedMatcher(MLIRContext *context) {
+    auto matcher = std::make_unique<TorchMatchSpecializedBackendOp>(context);
+    populateSpecializedConversions(*matcher);
+    return matcher;
+  };
+
+  void populate(StringRef name, HandlerFn fn) {
+    namedHandlers[StringAttr::get(getContext(), name)].push_back(fn);
+  }
+
+  void populateLegalizedNames(llvm::DenseSet<StringAttr> &set) {
+    for (auto handle : namedHandlers) {
+      set.insert(handle.first);
+    }
+  }
+
+private:
+  DenseMap<StringAttr, SmallVector<HandlerFn, 1>> namedHandlers;
+};
+
+void TorchMatchSpecializedBackendOp::populateSpecializedConversions(
+    TorchMatchSpecializedBackendOp &matcher) {
+  matcher.populate(
+      "torch.aten._scaled_dot_product_flash_attention_for_cpu",
+      [](Torch::OperatorOp op,
+         ConversionPatternRewriter &rewriter) -> LogicalResult {
+        auto uses = op.getResult(1).getUses();
+        if (uses.end() == uses.begin()) {
+          auto oldOperands = op->getOperands();
+          llvm::SmallVector<Value> newOperands{
+              oldOperands[0], oldOperands[1], oldOperands[2], oldOperands[5],
+              oldOperands[3], oldOperands[4], oldOperands[6]};
+
+          auto newOp = rewriter.create<Torch::AtenScaledDotProductAttentionOp>(
+              op.getLoc(), op->getResultTypes()[0], newOperands,
+              op->getAttrs());
+          rewriter.replaceAllUsesWith(op.getResult(0), newOp.getResult());
+          rewriter.eraseOp(op);
+          return success();
+        }
+        return failure();
+      });
+}
+
+bool isSpecializedOperation(Torch::OperatorOp op) { return true; }
 } // namespace
 
 // Reduce Ops without value semantics but the corresponding without trailing
@@ -290,9 +363,9 @@ public:
     Operation *newOp = rewriter.create(state);
     // Note: need to convert result to first input's dtype because mix precision
     // compute would result in different behaviors.
-    // For example: 
-    // a = torch.randn(3, 3).half() # float16 
-    // b = torch.randn(3, 3) # float32 
+    // For example:
+    // a = torch.randn(3, 3).half() # float16
+    // b = torch.randn(3, 3) # float32
     // a += b # i.e. torch.ops.aten.add_(a, b), result is float16
     // c = a + b # i.e. torch.ops.aten.add(a, b), result is float32
     Value none = rewriter.create<ConstantNoneOp>(op->getLoc());
@@ -300,7 +373,8 @@ public:
     auto aDtype = rewriter.create<PrimDtypeOp>(op->getLoc(), op->getOperand(0));
     auto toDtype = rewriter.create<AtenToDtypeOp>(
         op->getLoc(), newOp->getResult(0).getType(), newOp->getResult(0),
-        aDtype, /*non_blocking=*/cstFalse, /*copy=*/cstFalse, /*memory_format=*/none);
+        aDtype, /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+        /*memory_format=*/none);
     auto tensor = rewriter.create<CopyToValueTensorOp>(op->getLoc(), toDtype);
     createOverwriteTensorContents(rewriter, op->getLoc(), tensor,
                                   op->getOperand(0));
@@ -351,12 +425,24 @@ struct ReduceOpVariantsPass
     patterns.add(reduceNonValueTensorLiteralOpToValueTensorLiteralOp);
     patterns.add<ReduceNonValueSemanticOps>(context);
 
+    // Create specialized matcher:
+    auto specialized =
+        TorchMatchSpecializedBackendOp::getPopulatedMatcher(context);
+    DenseSet<StringAttr> specializedNames;
+    specialized->populateLegalizedNames(specializedNames);
+    patterns.insert(std::move(specialized));
+
     ConversionTarget target(*context);
     target.addIllegalOp<NonValueTensorLiteralOp>();
     target.addIllegalOp<AtenBernoulli_FloatOp>();
     target.addIllegalOp<AtenArangeStartOutOp>();
-    target.markUnknownOpDynamicallyLegal([&extraLibraryModuleSymTable](
-                                             Operation *op) {
+    target.markUnknownOpDynamicallyLegal([&extraLibraryModuleSymTable,
+                                          &specializedNames](Operation *op) {
+      if (isa<OperatorOp>(op)) {
+        if (specializedNames.contains(cast<OperatorOp>(op).getNameAttr())) {
+          return false;
+        }
+      }
       if (op->hasTrait<Torch::OpTrait::HasValueSemantics>() ||
           (isa<OperatorOp>(op) &&
            operatorOpHasValueSemantics(cast<OperatorOp>(op),
@@ -375,6 +461,9 @@ struct ReduceOpVariantsPass
       if (op->hasTrait<Torch::OpTrait::IsTrailingUnderscoreInplaceVariant>()) {
         return false;
       }
+
+      if (isa<OperatorOp>(op) && isSpecializedOperation(cast<OperatorOp>(op)))
+        return false;
       return true;
     });
 

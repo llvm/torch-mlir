@@ -133,6 +133,7 @@ cc_library(
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:InferTypeOpInterface",
+        "@llvm-project//mlir:SparseTensorDialect",
         "@llvm-project//mlir:TransformUtils",
     ],
 )
@@ -563,6 +564,7 @@ cc_library(
         ":TorchMLIRTorchToSCF",
         ":TorchMLIRTorchToStablehlo",
         ":TorchMLIRTorchToTMTensor",
+        ":TorchMLIRTorchToTensor",
         ":TorchMLIRTorchToTosa",
         "@llvm-project//mlir:ConversionPasses",
         "@llvm-project//mlir:FuncDialect",
@@ -865,7 +867,10 @@ cc_library(
     hdrs = [
         "include/torch-mlir/InitAll.h",
     ],
-    copts = ["-DTORCH_MLIR_ENABLE_REFBACKEND"],
+    copts = [
+        "-DTORCH_MLIR_ENABLE_REFBACKEND",
+        "-DTORCH_MLIR_ENABLE_STABLEHLO",
+    ],
     strip_include_prefix = "include",
     deps = [
         ":TorchMLIRConversionPasses",
@@ -880,6 +885,8 @@ cc_library(
         "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:DialectUtils",
         "@llvm-project//mlir:IR",
+        "@stablehlo//:linalg_passes",
+        "@stablehlo//:stablehlo_passes",
     ],
 )
 

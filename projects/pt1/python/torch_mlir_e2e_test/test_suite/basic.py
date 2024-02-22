@@ -4092,7 +4092,13 @@ class CumsumModule(torch.nn.Module):
         ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, val):
-        return torch.ops.aten.cumsum(val, 1)
+        # the onnx cumsum op uses a constant 1d tensor
+        # to specify the dimension along which to do cumsum
+        # we replicate that here to ensure that cumsum correctly
+        # trigger the relevant folders and provides TMTensor
+        # with a constant dimension
+        ones = torch.ones([1], dtype=torch.int32)
+        return torch.ops.aten.cumsum(val, ones.item())
 
 @register_test_case(module_factory=lambda: CumsumModule())
 def CumsumModule_basic(module, tu: TestUtils):
@@ -4511,18 +4517,18 @@ class ScaledDotProductAttentionSameModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1, -1], torch.float32, True),
-        ([-1, -1, -1, -1], torch.float32, True),
-        ([-1, -1, -1, -1], torch.float32, True)
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True)
     ])
     def forward(self, query, key, value):
         return torch.ops.aten.scaled_dot_product_attention(query, key, value)
 
 @register_test_case(module_factory=lambda: ScaledDotProductAttentionSameModule())
 def ScaledDotProductAttentionSameModule_basic(module, tu: TestUtils):
-    query = torch.randn(1, 1, 5, 5, dtype=torch.float32)
-    key = torch.randn(1, 1, 5, 5, dtype=torch.float32)
-    value = torch.randn(1, 1, 5, 5, dtype=torch.float32)
+    query = torch.randn(1, 5, 5, dtype=torch.float32)
+    key = torch.randn(1, 5, 5, dtype=torch.float32)
+    value = torch.randn(1, 5, 5, dtype=torch.float32)
     module.forward(query, key, value)
 
 class ScaledDotProductAttentionDifferentModule(torch.nn.Module):
@@ -4533,18 +4539,18 @@ class ScaledDotProductAttentionDifferentModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1, -1, -1], torch.float32, True),
-        ([-1, -1, -1, -1], torch.float32, True),
-        ([-1, -1, -1, -1], torch.float32, True)
+        ([2, 3, 8, 4], torch.float32, True),
+        ([2, 3, 16, 4], torch.float32, True),
+        ([2, 3, 16, 4], torch.float32, True)
     ])
     def forward(self, query, key, value):
         return torch.ops.aten.scaled_dot_product_attention(query, key, value)
 
 @register_test_case(module_factory=lambda: ScaledDotProductAttentionDifferentModule())
 def ScaledDotProductAttentionDifferentModule_basic(module, tu: TestUtils):
-    query = torch.randn(3, 2, 8, 4, dtype=torch.float32)
-    key = torch.randn(3, 2, 16, 4, dtype=torch.float32)
-    value = torch.randn(3, 2, 16, 4, dtype=torch.float32)
+    query = torch.randn(2, 3, 8, 4, dtype=torch.float32)
+    key = torch.randn(2, 3, 16, 4, dtype=torch.float32)
+    value = torch.randn(2, 3, 16, 4, dtype=torch.float32)
     module.forward(query, key, value)
 
 # ==============================================================================
@@ -4994,3 +5000,23 @@ class IscloseStaticModuleTrue(torch.nn.Module):
 @register_test_case(module_factory=lambda: IscloseStaticModuleTrue())
 def IscloseStaticModuleTrue_basic(module, tu: TestUtils):
     module.forward(torch.ones(5, 5))
+
+
+# ==============================================================================
+
+class CloneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.clone(x)
+
+@register_test_case(module_factory=lambda: CloneModule())
+def CloneModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 5))

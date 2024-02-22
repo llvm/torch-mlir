@@ -3,21 +3,6 @@
 
 // -----
 
-// CHECK-LABEL:  func.func @torch.aten.clone$basic(
-// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
-// CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
-// CHECK:         %[[NONE:.*]] = torch.constant.none
-// CHECK:         %[[T1:.*]] = stablehlo.convert %[[T0]] : tensor<?x?xf32>
-// CHECK:         %[[T2:.*]] = torch_c.from_builtin_tensor %[[T1]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
-// CHECK:         return %[[T2]] : !torch.vtensor<[?,?],f32>
-func.func @torch.aten.clone$basic(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
-  %none = torch.constant.none
-  %0 = torch.aten.clone %arg0, %none : !torch.vtensor<[?,?],f32>, !torch.none -> !torch.vtensor<[?,?],f32>
-  return %0 : !torch.vtensor<[?,?],f32>
-}
-
-// -----
-
 // CHECK-LABEL:   func.func @torch.vtensor.literal$basic() -> !torch.vtensor<[],f32> {
 // CHECK:           %[[VAL_0:.*]] = stablehlo.constant dense<0.000000e+00> : tensor<f32>
 // CHECK:           %[[VAL_1:.*]] = torch_c.from_builtin_tensor %[[VAL_0]] : tensor<f32> -> !torch.vtensor<[],f32>
@@ -42,13 +27,9 @@ func.func @torch.vtensor.literal$signed() -> !torch.vtensor<[2],si64> {
 
 // CHECK-LABEL:  func.func @torch.prim.NumToTensor.Scalar$basic(
 // CHECK-SAME:         ) -> !torch.vtensor<[],si64> {
-// CHECK:         %[[INT1:.*]] = torch.constant.int 1
-// CHECK:         %[[T0:.*]] = torch_c.to_i64 %[[INT1]]
-// CHECK:         %[[T1:.*]] = tensor.from_elements %[[T0]] : tensor<1xi64>
-// CHECK:         %[[T2:.*]] = stablehlo.convert %[[T1]] : tensor<1xi64>
-// CHECK:         %[[T3:.*]] = stablehlo.reshape %[[T2]] : (tensor<1xi64>) -> tensor<i64>
-// CHECK:         %[[T4:.*]] = torch_c.from_builtin_tensor %[[T3]] : tensor<i64> -> !torch.vtensor<[],si64>
-// CHECK:         return %[[T4]] : !torch.vtensor<[],si64>
+// CHECK:         %[[CST:.*]] = stablehlo.constant dense<1> : tensor<i64>
+// CHECK:         %[[FROM:.*]] = torch_c.from_builtin_tensor %[[CST]] : tensor<i64> -> !torch.vtensor<[],si64>
+// CHECK:         return %[[FROM]] : !torch.vtensor<[],si64>
 func.func @torch.prim.NumToTensor.Scalar$basic() -> !torch.vtensor<[], si64> {
   %int1 = torch.constant.int 1
   %0 = torch.prim.NumToTensor.Scalar %int1 : !torch.int -> !torch.vtensor<[], si64>
@@ -281,7 +262,7 @@ func.func @torch.aten.cat$convert(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torc
 // -----
 
 // CHECK-LABEL:   func.func @torch.aten.cat(
-// CHECK-SAME:                              %[[ARG_0:.*]]: !torch.vtensor<[?,?],f32>, 
+// CHECK-SAME:                              %[[ARG_0:.*]]: !torch.vtensor<[?,?],f32>,
 // CHECK-SAME:                              %[[ARG_1:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
 // CHECK:           %int0 = torch.constant.int 0
 // CHECK:           %[[VAL_0:.*]] = torch.prim.ListConstruct %[[ARG_0]], %[[ARG_1]] : (!torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32>) -> !torch.list<vtensor>

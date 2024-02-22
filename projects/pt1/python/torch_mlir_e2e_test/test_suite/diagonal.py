@@ -94,7 +94,7 @@ class DiagonalWithOffsetModule(torch.nn.Module):
 
     @export
     @annotate_args([
-        None, 
+        None,
         ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):

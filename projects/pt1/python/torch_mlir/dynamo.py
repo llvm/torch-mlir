@@ -19,12 +19,12 @@ warnings.filterwarnings("ignore", module="torch.jit._check")
 
 def _get_decomposition_table():
     """Get a decomposition table suitable for Torch-MLIR.
-    
+
     Sometimes TorchDynamo traces slightly different ops than what TorchScript
     captures. Historically we have been driven by the ops captured by
     TorchScript, so we try to decompose the ops captured by TorchDynamo into
     other ops that we already support.
-    
+
     There isn't a highly principled solution here. Torch-MLIR currently supports
     a somewhat random set of ops, added in a demand-driven way over time,
     including direct backend support and decompositions internal to Torch-MLIR.
@@ -125,7 +125,7 @@ def make_simple_dynamo_backend(user_backend):
     Args:
         user_backend: A function with the signature used by ordinary
             TorchDynamo backends. But the torch.fx.GraphModule passed to it
-            will be normalized for consumption by `torch_mlir.compile`.
+            will be normalized for consumption by `torchscript.compile`.
     Returns:
         A function with the signature used by TorchDynamo backends.
     """

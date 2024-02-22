@@ -7,13 +7,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -70,7 +70,7 @@ Value torch_to_linalg::getZeroPaddedTensor(
 // padding value is zero.
 Value torch_to_linalg::getDynamicZeroPaddedTensor(
     Operation *op, OpBuilder &b, Value &input, SmallVectorImpl<Value> &padding,
-    int unpaddedDims) {
+    int unpaddedDims, Value pad) {
   assert(input.getType().isa<RankedTensorType>() &&
          "input must be RankedTensorType");
   unsigned int inRank = input.getType().cast<RankedTensorType>().getRank();
@@ -87,17 +87,16 @@ Value torch_to_linalg::getDynamicZeroPaddedTensor(
     *pad = castIntToIndex(b, loc, *pad);
 
   Type elementType = input.getType().cast<RankedTensorType>().getElementType();
+  // TODO: audit possibility of sparsity on this tensor
   Type inputType =
       RankedTensorType::get(makeShapeLLVMCompatible(llvm::ArrayRef<int64_t>(
                                 SmallVector<int64_t>(inRank, kUnknownSize))),
                             elementType);
 
-  Value cf0 =
-      b.create<arith::ConstantOp>(loc, b.getFloatAttr(elementType, 0.0));
   SmallVector<OpFoldResult> paddingValues =
       getAsOpFoldResult(paddingIncludingUnchanged);
   return b.create<tensor::PadOp>(loc, inputType, input, /*low=*/paddingValues,
-                                 /*high=*/paddingValues, cf0);
+                                 /*high=*/paddingValues, pad);
 }
 
 Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
@@ -198,7 +197,8 @@ Value torch_to_linalg::createReductionLinalgGeneric(
     }
   }
 
-  auto indexingMaps = AffineMap::inferFromExprList({exprs, resultExprs});
+  auto indexingMaps =
+      AffineMap::inferFromExprList({exprs, resultExprs}, b.getContext());
   Value accumulator =
       createInitTensor(b, loc, resultShape, initElem.getType(), initElem);
 

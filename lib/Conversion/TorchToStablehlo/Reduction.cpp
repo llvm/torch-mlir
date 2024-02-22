@@ -16,13 +16,16 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
+#include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
+
+#include <unordered_set>
+#include <vector>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -116,6 +119,12 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
     initIndex = hlo::getConstTensor<int64_t>(rewriter, op, {0}, {}).value();
   }
 
+  std::vector<int64_t> outputShape(inputShape.begin(), inputShape.end());
+  outputShape.erase(outputShape.begin() + dim);
+  auto outputTy = RankedTensorType::get(outputShape, inputElemTy);
+  auto outputIndexTy =
+      RankedTensorType::get(outputShape, rewriter.getIntegerType(64));
+
   auto inputShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
       op->getLoc(), inputShapeVec);
   auto indexTensor = rewriter.create<stablehlo::DynamicIotaOp>(
@@ -125,12 +134,13 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
       inputShapeTensor, static_cast<uint64_t>(dim));
 
   auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op->getLoc(), ValueRange{input, indexTensor},
+      op->getLoc(), TypeRange{outputTy, outputIndexTy},
+      ValueRange{input, indexTensor},
       ValueRange{
           initValue,
           initIndex,
       },
-      rewriter.getI64TensorAttr(dim));
+      rewriter.getDenseI64ArrayAttr(dim));
 
   Block &block = stablehloReduceOp.getBody().emplaceBlock();
 
@@ -412,7 +422,8 @@ LogicalResult ConvertAtenReductionOp<AtenSumOp>::matchAndRewrite(
 
   llvm::sort(dims.begin(), dims.end());
   auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
+      op.getLoc(), RankedTensorType::get({}, outTy.getElementType()), input,
+      initValue, rewriter.getDenseI64ArrayAttr(dims));
 
   Block &block = stablehloReduceOp.getBody().emplaceBlock();
   auto blockArgumentTy = RankedTensorType::get({}, inputTy.getElementType());
@@ -473,7 +484,8 @@ LogicalResult ConvertAtenReductionOp<AtenMaxOp>::matchAndRewrite(
     return failure();
   llvm::sort(dims.begin(), dims.end());
   auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
+      op.getLoc(), RankedTensorType::get({}, inputElemTy), input, initValue,
+      rewriter.getDenseI64ArrayAttr(dims));
 
   Block &block = stablehloReduceOp.getBody().emplaceBlock();
   auto blockArgumentTy = RankedTensorType::get({}, inputTy.getElementType());
@@ -535,7 +547,8 @@ LogicalResult ConvertAtenReductionOp<AtenMinOp>::matchAndRewrite(
     return failure();
   llvm::sort(dims.begin(), dims.end());
   auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
+      op.getLoc(), RankedTensorType::get({}, inputElemTy), input, initValue,
+      rewriter.getDenseI64ArrayAttr(dims));
 
   Block &block = stablehloReduceOp.getBody().emplaceBlock();
   auto blockArgumentTy = RankedTensorType::get({}, inputTy.getElementType());
@@ -614,6 +627,14 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
     }
   }
 
+  std::unordered_set<int64_t> dimsSet(dims.begin(), dims.end());
+  SmallVector<int64_t> reduceResultShape;
+  for (int64_t i = 0; i < inputTy.getRank(); i++) {
+    if (dimsSet.find(i) == dimsSet.end()) {
+      reduceResultShape.push_back(inputTy.getDimSize(i));
+    }
+  }
+
   bool keepDim = false;
   if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim))) {
     return rewriter.notifyMatchFailure(op, "non-bool keepdim unsupported");
@@ -625,7 +646,9 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
 
   llvm::sort(dims.begin(), dims.end());
   auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
+      op.getLoc(),
+      RankedTensorType::get(reduceResultShape, outTy.getElementType()), input,
+      initValue, rewriter.getDenseI64ArrayAttr(dims));
 
   Region &region = stablehloReduceOp.getBody();
   Block &block = region.emplaceBlock();
@@ -714,6 +737,14 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
   // stable with unordered dims.
   std::sort(dims.begin(), dims.end());
 
+  std::unordered_set<int64_t> dimsSet(dims.begin(), dims.end());
+  SmallVector<int64_t> reduceResultShape;
+  for (int64_t i = 0; i < inputRank; i++) {
+    if (dimsSet.find(i) == dimsSet.end()) {
+      reduceResultShape.push_back(inputType.getDimSize(i));
+    }
+  }
+
   bool keepDim = false;
   if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim))) {
     return rewriter.notifyMatchFailure(
@@ -728,8 +759,8 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
   }
 
   auto reduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op->getLoc(), squareOp.getResult(), initValue,
-      rewriter.getI64TensorAttr(dims));
+      op->getLoc(), RankedTensorType::get(reduceResultShape, inputElemType),
+      squareOp.getResult(), initValue, rewriter.getDenseI64ArrayAttr(dims));
 
   Region &region = reduceOp.getBody();
   Block &block = region.emplaceBlock();
@@ -832,6 +863,14 @@ LogicalResult ConvertAtenReductionOp<AtenLinalgVectorNormOp>::matchAndRewrite(
     std::sort(dims.begin(), dims.end());
   }
 
+  std::unordered_set<int64_t> dimsSet(dims.begin(), dims.end());
+  SmallVector<int64_t> reduceResultShape;
+  for (int64_t i = 0; i < inputType.getRank(); i++) {
+    if (dimsSet.find(i) == dimsSet.end()) {
+      reduceResultShape.push_back(inputType.getDimSize(i));
+    }
+  }
+
   bool keepDim = false;
   if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim))) {
     return rewriter.notifyMatchFailure(
@@ -848,7 +887,8 @@ LogicalResult ConvertAtenReductionOp<AtenLinalgVectorNormOp>::matchAndRewrite(
                                                          ord, nullptr);
 
   auto reduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op->getLoc(), powValue, initValue, rewriter.getI64TensorAttr(dims));
+      op->getLoc(), RankedTensorType::get(reduceResultShape, outElemType),
+      powValue, initValue, rewriter.getDenseI64ArrayAttr(dims));
 
   Region &region = reduceOp.getBody();
   Block &block = region.emplaceBlock();

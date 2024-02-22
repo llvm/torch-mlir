@@ -79,7 +79,8 @@ public:
     int64_t dim;
     if (!matchPattern(dimValue, m_TorchConstantInt(&dim)))
       return op.emitError("unimplemented: dim is not constant");
-    int64_t inputRank = adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
+    int64_t inputRank =
+        adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
     dim = toPositiveDim(dim, inputRank);
     if (!isValidDim(dim, inputRank))
       return rewriter.notifyMatchFailure(op, "dim is statically invalid");
@@ -206,8 +207,8 @@ namespace {
 //
 // TODO: Find an optimal lowering.
 //       current lowering is not optimal for bags of large embeddings.
-//       Since it traverses the output tensor multiple times. 
-//      
+//       Since it traverses the output tensor multiple times.
+//
 //
 
 class ConvertAtenEmbeddingBagPaddingIdxOp
@@ -248,9 +249,9 @@ public:
     }
 
     if (modeInt != torch_upstream::EmbeddingBagMode::MODE_SUM) {
-      return rewriter.notifyMatchFailure(
-          op,
-          "Unimplemented: Mean and Max mode are not supported yet for EmbeddingBag.");
+      return rewriter.notifyMatchFailure(op,
+                                         "Unimplemented: Mean and Max mode are "
+                                         "not supported yet for EmbeddingBag.");
     }
 
     bool isSparse;
@@ -291,28 +292,28 @@ public:
     SmallVector<AffineExpr> indicesExpr;
     indicesExpr.push_back(mlir::getAffineDimExpr(1, context));
     auto indicesIndexingMap =
-          AffineMap::get(/*dimCount=*/iterationMapDimension, /*symbolCount=*/0,
-                         indicesExpr, context);
+        AffineMap::get(/*dimCount=*/iterationMapDimension, /*symbolCount=*/0,
+                       indicesExpr, context);
 
     SmallVector<AffineExpr> offsetsExpr;
     offsetsExpr.push_back(mlir::getAffineDimExpr(0, context));
 
     auto offsetIndexingMap =
-          AffineMap::get(/*dimCount=*/iterationMapDimension, /*symbolCount=*/0,
-                         offsetsExpr, context);
+        AffineMap::get(/*dimCount=*/iterationMapDimension, /*symbolCount=*/0,
+                       offsetsExpr, context);
 
     SmallVector<AffineExpr> outputExpr;
     outputExpr.push_back(mlir::getAffineDimExpr(0, context));
     outputExpr.push_back(mlir::getAffineDimExpr(2, context));
 
     auto outputIndexingMap =
-          AffineMap::get(/*dimCount=*/iterationMapDimension, /*symbolCount=*/0,
-                         outputExpr, context);
+        AffineMap::get(/*dimCount=*/iterationMapDimension, /*symbolCount=*/0,
+                       outputExpr, context);
 
     SmallVector<AffineMap, 3> indexingMaps = {
-          indicesIndexingMap,
-          offsetIndexingMap,
-          outputIndexingMap,
+        indicesIndexingMap,
+        offsetIndexingMap,
+        outputIndexingMap,
     };
 
     // Reduce along the indices dim
@@ -326,15 +327,15 @@ public:
     Value indicesLength;
     if (!discardLastOffset) {
       SmallVector<Value> sizes{getDimOp(rewriter, loc, offsets, 0),
-                                 embeddingDim};
+                               embeddingDim};
 
       initTensor = createZeroInitTensor(rewriter, loc, sizes, weightElemTy);
       offsetsLength = getDimOp(rewriter, loc, offsets, 0);
       indicesLength = getDimOp(rewriter, loc, indices, 0);
     } else {
       return rewriter.notifyMatchFailure(
-            op, "Unimplemented: include last offset is not yet "
-                "supported for EmbeddingBag.");
+          op, "Unimplemented: include last offset is not yet "
+              "supported for EmbeddingBag.");
     }
 
     Value embeddingBagResult =
@@ -351,10 +352,10 @@ public:
 
                   Value indexI = b.create<linalg::IndexOp>(loc, /*value=*/0);
                   Value indexIToInt = castIndexToInt64(b, loc, indexI);
-                  Value one = getConstant(
-                      b, loc, 1,
-                      mlir::IntegerType::get(getContext(), 64,
-                                             IntegerType::Signless));
+                  Value one =
+                      getConstant(b, loc, 1,
+                                  mlir::IntegerType::get(
+                                      getContext(), 64, IntegerType::Signless));
                   Value offsetIndexPlusOneInt =
                       b.create<arith::AddIOp>(loc, indexIToInt, one);
 
@@ -378,7 +379,7 @@ public:
                       loc, arith::CmpIPredicate::eq, offsetsI, indicesIndex);
                   Value offsetLessThanOrEqualToIndicesIndex =
                       b.create<arith::OrIOp>(loc, offsetLessThanIndicesIndex,
-                                               offsetEqualToIndicesIndex);
+                                             offsetEqualToIndicesIndex);
 
                   Value indicesIndexLessThanNextOffset =
                       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
@@ -393,19 +394,18 @@ public:
                       castIntToIndex(b, loc, indexInIndices));
                   indexIntoWeight.push_back(
                       b.create<linalg::IndexOp>(loc, /*value=*/2));
-                  Value weightElem = b.create<tensor::ExtractOp>(
-                      loc, weight, indexIntoWeight);
+                  Value weightElem =
+                      b.create<tensor::ExtractOp>(loc, weight, indexIntoWeight);
 
-                  Value addResult = b.create<arith::AddFOp>(loc, weightElem,
-                                                            initTensorElem);
-                  Value select =
-                      b.create<arith::SelectOp>(loc, indicesIndexWithinBounds,
-                                                  addResult, initTensorElem);
+                  Value addResult =
+                      b.create<arith::AddFOp>(loc, weightElem, initTensorElem);
+                  Value select = b.create<arith::SelectOp>(
+                      loc, indicesIndexWithinBounds, addResult, initTensorElem);
                   b.create<linalg::YieldOp>(loc, select);
-              })
-          .getResult(0);
+                })
+            .getResult(0);
 
-      // cast outputType.
+    // cast outputType.
     auto restulType0 = typeConverter->convertType(op->getResult(0).getType());
     Value castedEmbeddingBagResult =
         rewriter.create<tensor::CastOp>(loc, restulType0, embeddingBagResult);
@@ -439,7 +439,7 @@ public:
         rewriter.create<tensor::CastOp>(loc, resultType3, indicesOut);
 
     rewriter.replaceOp(op, {castedEmbeddingBagResult, castedOffsetResult,
-                              castedBagSizeResult, castedMaxIndices});
+                            castedBagSizeResult, castedMaxIndices});
 
     return success();
   }
@@ -498,7 +498,8 @@ public:
       resultExpr.push_back(rewriter.getAffineDimExpr(i));
     }
 
-    auto indexingMaps = AffineMap::inferFromExprList({indicesExpr, resultExpr});
+    auto indexingMaps = AffineMap::inferFromExprList({indicesExpr, resultExpr},
+                                                     rewriter.getContext());
 
     Value finalRes =
         rewriter
@@ -552,7 +553,8 @@ static Value makeIndexValuePositive(OpBuilder &b, Location loc, Value index,
 // e.g. x: [2, 3]
 //      x[[4], [6, 1]] -> x[6, 4]
 namespace {
-class ConvertAtenIndexTensorHackedTwinOp : public OpConversionPattern<AtenIndexTensorHackedTwinOp> {
+class ConvertAtenIndexTensorHackedTwinOp
+    : public OpConversionPattern<AtenIndexTensorHackedTwinOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult

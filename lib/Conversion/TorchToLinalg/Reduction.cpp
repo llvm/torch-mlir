@@ -100,11 +100,11 @@ public:
         if (integerTy.isUnsigned())
           return rewriter.notifyMatchFailure(
               op, opName + " to linalg.* requires input element type "
-                        "to be signed in case of integer");
+                           "to be signed in case of integer");
       } else {
         return rewriter.notifyMatchFailure(
             op, opName + " to linalg.* requires Float or Integer "
-                      "input element type");
+                         "input element type");
       }
     }
 
@@ -144,8 +144,7 @@ public:
     }
 
     Value filledTensorVal =
-        rewriter.create<linalg::FillOp>(loc, fillValue, initTensorVal)
-            .result();
+        rewriter.create<linalg::FillOp>(loc, fillValue, initTensorVal).result();
 
     // Create the affine expressions that will be used to
     // iterate over the input and output tensors.
@@ -168,7 +167,8 @@ public:
         resultExprs.push_back(rewriter.getAffineDimExpr(size.index()));
       }
     }
-    auto maps = AffineMap::inferFromExprList({exprs, resultExprs, resultExprs});
+    auto maps = AffineMap::inferFromExprList({exprs, resultExprs, resultExprs},
+                                             rewriter.getContext());
     auto linalgOp = rewriter.create<linalg::GenericOp>(
         loc,
         ArrayRef<Type>({filledTensorVal.getType(), filledTensorIdx.getType()}),
@@ -186,7 +186,7 @@ public:
 
           Value resultVal, predicate;
           if (inElementType.isa<mlir::FloatType>()) {
-	    arith::CmpFPredicate predType;
+            arith::CmpFPredicate predType;
             if (isMax) {
               predType = arith::CmpFPredicate::OGT;
               resultVal = rewriter.create<arith::MaximumFOp>(
@@ -198,7 +198,7 @@ public:
             }
 
             predicate = rewriter.create<arith::CmpFOp>(nestedLoc, predType,
-						       newValue, oldValue);
+                                                       newValue, oldValue);
           } else {
             arith::CmpIPredicate predType;
             if (isMax) {
@@ -220,8 +220,8 @@ public:
         });
 
     // This cast is required to fix the shape in the case of keepDim=True
-    Value valuesCast = rewriter.create<tensor::CastOp>(
-        loc, valResultType, linalgOp.getResult(0));
+    Value valuesCast = rewriter.create<tensor::CastOp>(loc, valResultType,
+                                                       linalgOp.getResult(0));
     Value idxCast = rewriter.create<tensor::CastOp>(loc, idxResultType,
                                                     linalgOp.getResult(1));
     rewriter.replaceOp(op, {valuesCast, idxCast});
@@ -277,6 +277,10 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
 
   if (isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op))
     return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
+
+  if (isa<AtenAllDimOp>(op)) {
+    return b.create<arith::ConstantOp>(loc, b.getBoolAttr(true));
+  }
 
   op->emitError("unimplemented lowering in createInitElementForReduceOp");
   return nullptr;
@@ -345,7 +349,8 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     Value self = convertScalarToDtype(b, loc, elem, resultElementType);
     auto abs = b.create<math::AbsFOp>(loc, self);
     AtenLinalgVectorNormOp::Adaptor adaptor(operands);
-    Value ord = convertScalarToDtype(b, loc, adaptor.getOrd(), resultElementType);
+    Value ord =
+        convertScalarToDtype(b, loc, adaptor.getOrd(), resultElementType);
     auto pow = b.create<math::PowFOp>(loc, abs, ord);
     return b.create<arith::AddFOp>(loc, pow, result);
   } else if (isa<AtenFrobeniusNormDimOp>(op)) {
@@ -357,6 +362,11 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     auto ord = b.create<arith::ConstantOp>(loc, twoAttr);
     auto pow = b.create<math::PowFOp>(loc, abs, ord);
     return b.create<arith::AddFOp>(loc, pow, result);
+  } else if (isa<AtenAllDimOp>(op)) {
+    Value elem = payloadArgs[0];
+    Value result = payloadArgs[1];
+    Value self = convertScalarToDtype(b, loc, elem, resultElementType);
+    return b.create<arith::MulIOp>(loc, self, result);
   }
   op->emitError("unimplemented lowering in createLinalgPayloadForReduceOp");
   return nullptr;
@@ -427,8 +437,8 @@ private:
       opInfo.tensorOperand = operands[0];
       auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
 
-      // `AtenSumOp`, `AtenMaxOp`, and `AtenMinOp` each reduce along all the dimensions of the
-      // input tensor.
+      // `AtenSumOp`, `AtenMaxOp`, and `AtenMinOp` each reduce along all the
+      // dimensions of the input tensor.
       for (int64_t i = 0; i < inputType.getRank(); i++)
         opInfo.dimSet.insert(i);
 
@@ -446,6 +456,9 @@ private:
 
     if (auto normOp = dyn_cast<AtenFrobeniusNormDimOp>(op))
       return computeReductionOpInfoForDimVariantOp(normOp, operands, rewriter);
+
+    if (auto allOp = dyn_cast<AtenAllDimOp>(op))
+      return computeReductionOpInfoForDimVariantOp(allOp, operands, rewriter);
 
     return rewriter.notifyMatchFailure(op, "not a supported reduce op");
   }
@@ -535,6 +548,9 @@ private:
         !elemType.isa<mlir::FloatType>())
       return rewriter.notifyMatchFailure(
           op, "only float types are valid for vector norm ops");
+    if (isa<AtenAllDimOp>(op) && elemType.isa<mlir::IntegerType>() &&
+        elemType.getIntOrFloatBitWidth() == 8)
+      return rewriter.notifyMatchFailure(op, "uint8 is not supported");
     // No checks for all other reduction operations
     return success();
   }
@@ -610,6 +626,7 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   target.addIllegalOp<AtenProdDimIntOp>();
   target.addIllegalOp<AtenMaxOp>();
   target.addIllegalOp<AtenMinOp>();
+  target.addIllegalOp<AtenAllDimOp>();
   target.addIllegalOp<AtenLinalgVectorNormOp>();
   target.addIllegalOp<AtenFrobeniusNormDimOp>();
   patterns.add<ConvertReductionOp>(typeConverter, context);

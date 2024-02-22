@@ -15,44 +15,44 @@ namespace torch {
 namespace lazy {
 
 class IndexTensor : public torch::lazy::TorchMlirNode {
- public:
+public:
   static torch::lazy::OpKind ClassOpKind() {
     return torch::lazy::OpKind(at::aten::index);
   }
 
-  IndexTensor(const torch::lazy::Value& self, const torch::lazy::Value& indices,
-              std::vector<torch::lazy::Shape>&& shapes);
+  IndexTensor(const torch::lazy::Value &self, const torch::lazy::Value &indices,
+              std::vector<torch::lazy::Shape> &&shapes);
 
   std::string ToString() const override;
 
-  bool CanBeReused(const torch::lazy::Value& self,
-                   const torch::lazy::Value& indices) const;
+  bool CanBeReused(const torch::lazy::Value &self,
+                   const torch::lazy::Value &indices) const;
 
   TorchMlirOpVector Lower(TorchMlirFunction function,
-                          TorchMlirLoweringContext* loctx) const override;
+                          TorchMlirLoweringContext *loctx) const override;
 };
 
 class IndexPut : public torch::lazy::TorchMlirNode {
- public:
+public:
   static torch::lazy::OpKind ClassOpKind() {
     return torch::lazy::OpKind(at::aten::index_put);
   }
 
-  IndexPut(const torch::lazy::Value& self, const torch::lazy::Value& indices,
-           const torch::lazy::Value& values, bool accumulate,
-           std::vector<torch::lazy::Shape>&& shapes);
+  IndexPut(const torch::lazy::Value &self, const torch::lazy::Value &indices,
+           const torch::lazy::Value &values, bool accumulate,
+           std::vector<torch::lazy::Shape> &&shapes);
 
   std::string ToString() const override;
 
-  bool CanBeReused(const torch::lazy::Value& self,
-                   const torch::lazy::Value& indices,
-                   const torch::lazy::Value& values, bool accumulate) const;
+  bool CanBeReused(const torch::lazy::Value &self,
+                   const torch::lazy::Value &indices,
+                   const torch::lazy::Value &values, bool accumulate) const;
 
   TorchMlirOpVector Lower(TorchMlirFunction function,
-                          TorchMlirLoweringContext* loctx) const override;
+                          TorchMlirLoweringContext *loctx) const override;
 
   bool accumulate;
 };
 
-}  // namespace lazy
-}  // namespace torch
+} // namespace lazy
+} // namespace torch

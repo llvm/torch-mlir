@@ -8,7 +8,7 @@
 import functorch
 import torch
 
-import torch_mlir
+from torch_mlir import torchscript
 
 def simple(x):
     return x * x
@@ -17,6 +17,6 @@ example_input = torch.randn(1,)
 graph = functorch.make_fx(simple)(torch.randn(1,))
 
 # Simplest case: One example argument.
-print(torch_mlir.compile(graph, example_input))
+print(torchscript.compile(graph, example_input))
 # CHECK-LABEL: @forward
 # CHECK: torch.aten.mul.Tensor %{{.*}} : !torch.vtensor<[1],f32>, !torch.vtensor<[1],f32> -> !torch.vtensor<[1],f32>

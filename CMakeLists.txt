@@ -31,6 +31,7 @@ include(CMakeDependentOption)
 # Project options
 #-------------------------------------------------------------------------------
 
+option(TORCH_MLIR_ENABLE_WERROR_FLAG "Enable `-Werror` flag on supported directories, treat error as warning" OFF)
 option(TORCH_MLIR_USE_INSTALLED_PYTORCH "If depending on PyTorch use it as installed in the current Python environment" ON)
 
 option(TORCH_MLIR_ENABLE_REFBACKEND "Enable reference backend" ON)
@@ -52,6 +53,14 @@ cmake_dependent_option(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER "Enables JIT IR Importe
 cmake_dependent_option(TORCH_MLIR_ENABLE_LTC "Enables LTC backend" OFF TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS OFF)
 
 option(TORCH_MLIR_ENABLE_ONNX_C_IMPORTER "Enables the ONNX C importer" OFF)
+
+macro(torch_mlir_enable_werror)
+  if(TORCH_MLIR_ENABLE_WERROR_FLAG)
+    if(NOT MSVC)
+      add_compile_options(-Werror)
+    endif()
+  endif()
+endmacro()
 
 #-------------------------------------------------------------------------------
 # Configure out-of-tree vs in-tree build

@@ -316,6 +316,78 @@ def ReduceProdDimIntFloatModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ReduceAllDimEmpty(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.all(a, dim=0, keepdim=False)
+
+@register_test_case(module_factory=lambda: ReduceAllDimEmpty())
+def ReduceAllDimEmpty_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([]))
+
+# ==============================================================================
+
+class ReduceAllDimFloat(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1,-1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.all(a, dim=1, keepdim=True)
+
+@register_test_case(module_factory=lambda: ReduceAllDimFloat())
+def ReduceAllDimFloat_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[5.0,1e-6,-5.0],[0,5.0,0]]))
+
+# ==============================================================================
+
+class ReduceAllDimInt(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1,-1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.all(a, dim=1, keepdim=True)
+
+@register_test_case(module_factory=lambda: ReduceAllDimInt())
+def ReduceAllDimInt_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[5,-5,0],[5,1e10,5]]).to(torch.int32))
+
+# ==============================================================================
+
+class ReduceAllDimBool(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1,-1], torch.bool, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.all(a, dim=1, keepdim=False)
+
+@register_test_case(module_factory=lambda: ReduceAllDimBool())
+def ReduceAllDimBool_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[True, False, True], [True, True, True]]))
+
+# ==============================================================================
+
 class ReduceMaxAlongDim(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1230,3 +1302,56 @@ class CrossEntropyLossNoReductionModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: CrossEntropyLossNoReductionModule())
 def CrossEntropyLossNoReductionModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(8, 2), tu.randint(8, high=2))
+
+# ==============================================================================
+
+class TraceModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.trace(a)
+
+@register_test_case(module_factory=lambda: TraceModule())
+def TraceModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 3))
+
+@register_test_case(module_factory=lambda: TraceModule())
+def TraceModule_nonsquare(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+@register_test_case(module_factory=lambda: TraceModule())
+def TraceModule_empty(module, tu: TestUtils):
+    module.forward(torch.empty(0,0))
+
+# ==============================================================================
+
+class TraceIntModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.trace(a)
+
+@register_test_case(module_factory=lambda: TraceIntModule())
+def TraceSignedIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 2, low=-10, high=10))
+
+@register_test_case(module_factory=lambda: TraceIntModule())
+def TraceUnsignedIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 2, low=0, high=10))
+
+@register_test_case(module_factory=lambda: TraceIntModule())
+def TraceUnsignedIntModule_empty(module, tu: TestUtils):
+    module.forward(tu.randint(0, 0, low=0, high=10))
+

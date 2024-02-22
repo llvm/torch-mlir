@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -25,4 +26,24 @@ Value mlir::torch::onnx_c::createConstantIntList(
       binder.getLoc(),
       Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
       cstValue);
+}
+
+Type mlir::torch::onnx_c::getQTorchTypeFromTorchIntType(Type ty) {
+  Torch::ValueTensorType tty = dyn_cast<Torch::ValueTensorType>(ty);
+  if (!tty)
+    return nullptr;
+
+  auto ctx = ty.getContext();
+  Type dty = tty.getDtype();
+
+  if (dty.isUnsignedInteger(8))
+    dty = Torch::QUInt8Type::get(ctx);
+  if (dty.isSignedInteger(8))
+    dty = Torch::QInt8Type::get(ctx);
+  if (dty.isSignedInteger(32))
+    dty = Torch::QInt32Type::get(ctx);
+
+  if (!dty)
+    return nullptr;
+  return Torch::ValueTensorType::get(ctx, tty.getOptionalSizes(), dty);
 }

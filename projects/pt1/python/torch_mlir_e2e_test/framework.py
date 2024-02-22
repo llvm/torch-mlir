@@ -24,11 +24,19 @@ import abc
 from typing import Any, Callable, List, NamedTuple, Optional, TypeVar, Union, Dict
 from itertools import repeat
 
+import os
 import sys
 import traceback
 
-import torch
 import multiprocess as mp
+from multiprocess import set_start_method
+try:
+    set_start_method("spawn")
+except RuntimeError:
+    # Children can error here so we suppress.
+    pass
+
+import torch
 
 TorchScriptValue = Union[int, float, List['TorchScriptValue'],
                          Dict['TorchScriptValue',
@@ -317,7 +325,15 @@ def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
 
 def run_tests(tests: List[Test], config: TestConfig, sequential=False, verbose=False) -> List[TestResult]:
     """Invoke the given `Test`'s with the provided `TestConfig`."""
-    num_processes = min(int(mp.cpu_count() * 1.1), len(tests))
+    num_processes = min(int(mp.cpu_count() * 0.8) + 1, len(tests))
+    try:
+        env_concurrency = int(os.getenv("TORCH_MLIR_TEST_CONCURRENCY", "0"))
+    except ValueError as e:
+        raise ValueError("Bad value for TORCH_MLIR_TEST_CONCURRENCY env var: "
+                         "Expected integer.") from e
+    if env_concurrency > 0:
+        num_processes = min(num_processes, env_concurrency)
+
     # TODO: We've noticed that on certain 2 core machine parallelizing the tests
     # makes the llvm backend legacy pass manager 20x slower than using a
     # single process. Need to investigate the root cause eventually. This is a
@@ -344,7 +360,7 @@ def run_tests(tests: List[Test], config: TestConfig, sequential=False, verbose=F
     pool = mp.Pool(num_processes)
     arg_list = zip(tests, repeat(config))
     handles = pool.starmap_async(compile_and_run_test, arg_list)
-    results = handles.get()
+    results = handles.get(timeout=360)
 
     tests_with_results = {result.unique_name for result in results}
     all_tests = {test.unique_name for test in tests}

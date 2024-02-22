@@ -39,11 +39,26 @@ declare_mlir_python_sources(TorchMLIRPythonSources.Importers
     extras/onnx_importer.py
 )
 
+declare_mlir_python_sources(TorchMLIRPythonSources.PublicAPI
+  ROOT_DIR "${TORCH_MLIR_PYTHON_ROOT_DIR}"
+  ADD_TO_PARENT TorchMLIRPythonSources
+  SOURCES
+    fx.py
+    extras/fx_decomp_util.py
+)
+
 declare_mlir_python_sources(TorchMLIRPythonSources.Tools
   ROOT_DIR "${TORCH_MLIR_PYTHON_ROOT_DIR}"
   ADD_TO_PARENT TorchMLIRPythonSources
   SOURCES
     tools/import_onnx/__main__.py
+)
+
+declare_mlir_python_sources(TorchMLIRSiteInitialize
+  ROOT_DIR "${TORCH_MLIR_PYTHON_ROOT_DIR}"
+  ADD_TO_PARENT TorchMLIRPythonSources
+  SOURCES
+    _mlir_libs/_site_initialize_0.py
 )
 
 ################################################################################
@@ -79,6 +94,7 @@ set(_source_components
   MLIRPythonExtension.RegisterEverything
   TorchMLIRPythonSources
   TorchMLIRPythonExtensions
+  TorchMLIRSiteInitialize
 
   # Sources related to optional Torch extension dependent features. Typically
   # empty unless if project features are enabled.

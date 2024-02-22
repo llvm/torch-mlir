@@ -78,8 +78,8 @@ struct OpBinder {
       return failure();
     return success();
   }
-  
-  ParseResult tensorOperandsList( llvm::SmallVectorImpl<Value> &values) {
+
+  ParseResult tensorOperandsList(llvm::SmallVectorImpl<Value> &values) {
     for (uint32_t i = 0; i < op->getNumOperands(); i++) {
       values.push_back(op->getOperand(i));
     }
@@ -97,7 +97,8 @@ struct OpBinder {
     return success();
   }
 
-  ParseResult tensorResultTypeAtIndex(Torch::ValueTensorType &typeIdx, int64_t idx) {
+  ParseResult tensorResultTypeAtIndex(Torch::ValueTensorType &typeIdx,
+                                      int64_t idx) {
     if (idx >= op->getNumResults())
       return failure();
     auto t = toValidTensorType(op->getResult(idx).getType());
@@ -250,7 +251,10 @@ public:
   OnnxCustomOpConversionPattern(MLIRContext *context, std::string domainPrefix,
                                 int64_t domainVersion)
       : OpConversionPattern(context), domainPrefix(std::move(domainPrefix)),
-        domainVersion(domainVersion) {}
+        domainVersion(domainVersion) {
+    // Onnx lowerings could produce other Onnx operations during the rewrite.
+    setHasBoundedRewriteRecursion();
+  }
 
   LogicalResult
   matchAndRewrite(Torch::OperatorOp op, OpAdaptor adaptor,
