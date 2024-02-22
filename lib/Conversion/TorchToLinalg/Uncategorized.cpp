@@ -2420,19 +2420,18 @@ public:
         loc, grid, extractGridOffsets0, extractGridShape, extractGridStride);
     auto grid1 = rewriter.create<tensor::ExtractSliceOp>(
         loc, grid, extractGridOffsets1, extractGridShape, extractGridStride);
-    SmallVector<ReassociationIndices> associations {ReassociationIndices{0},
-                                                    ReassociationIndices{1},
-                                                    ReassociationIndices{2, 3}};
+    SmallVector<ReassociationIndices> associations{ReassociationIndices{0},
+                                                   ReassociationIndices{1},
+                                                   ReassociationIndices{2, 3}};
     auto gridCollapsed0 =
         rewriter.create<tensor::CollapseShapeOp>(loc, grid0, associations);
     auto gridCollapsed1 =
         rewriter.create<tensor::CollapseShapeOp>(loc, grid1, associations);
-    AffineMap gridMap =
-      AffineMap::get(4, 0,
-                     {rewriter.getAffineDimExpr(0),
-                      rewriter.getAffineDimExpr(2),
-                      rewriter.getAffineDimExpr(3)},
-                     op->getContext());
+    AffineMap gridMap = AffineMap::get(4, 0,
+                                       {rewriter.getAffineDimExpr(0),
+                                        rewriter.getAffineDimExpr(2),
+                                        rewriter.getAffineDimExpr(3)},
+                                       op->getContext());
     SmallVector<AffineMap> gridMaps{gridMap, gridMap,
                                     rewriter.getMultiDimIdentityMap(gridRank)};
     SmallVector<utils::IteratorType> gridIterators(
@@ -2471,16 +2470,12 @@ public:
           Value gr1 = args[1];
           Value gplus0 = b.create<arith::AddFOp>(loc, gr0, oneFloat);
           Value gplus1 = b.create<arith::AddFOp>(loc, gr1, oneFloat);
-          Value result0 =
-              b.create<arith::MulFOp>(loc, gplus0, innerDim0e);
-          Value result1 =
-              b.create<arith::MulFOp>(loc, gplus1, innerDim1e);
-          Value lower0 =
-              b.create<arith::FPToSIOp>(loc, int64type, result0);
-          Value lower1 =
-              b.create<arith::FPToSIOp>(loc, int64type, result1);
-          Value oneInt = b.create<arith::ConstantOp>(
-              loc, b.getIntegerAttr(int64type, 1));
+          Value result0 = b.create<arith::MulFOp>(loc, gplus0, innerDim0e);
+          Value result1 = b.create<arith::MulFOp>(loc, gplus1, innerDim1e);
+          Value lower0 = b.create<arith::FPToSIOp>(loc, int64type, result0);
+          Value lower1 = b.create<arith::FPToSIOp>(loc, int64type, result1);
+          Value oneInt = 
+              b.create<arith::ConstantOp>(loc, b.getIntegerAttr(int64type, 1));
           Value upper0 =
               b.create<arith::AddIOp>(loc, int64type, lower0, oneInt);
           Value upper1 =
@@ -2493,38 +2488,36 @@ public:
               b.create<arith::SelectOp>(loc, notValid0, lower0, upper0);
           Value upperValid1 =
               b.create<arith::SelectOp>(loc, notValid1, lower1, upper1);
-          Value lw0 = b.create<arith::IndexCastOp>(
-              loc, b.getIndexType(), lower0);
-          Value lw1 = b.create<arith::IndexCastOp>(
-              loc, b.getIndexType(), lower1);
-          Value up0 = b.create<arith::IndexCastOp>(
-              loc, b.getIndexType(), upperValid0);
-          Value up1 = b.create<arith::IndexCastOp>(
-              loc, b.getIndexType(), upperValid1);
+          Value lw0 =
+              b.create<arith::IndexCastOp>(loc, b.getIndexType(), lower0);
+          Value lw1 =
+              b.create<arith::IndexCastOp>(loc, b.getIndexType(), lower1);
+          Value up0 =
+              b.create<arith::IndexCastOp>(loc, b.getIndexType(), upperValid0);
+          Value up1 =
+              b.create<arith::IndexCastOp>(loc, b.getIndexType(), upperValid1);
           Value N = b.create<linalg::IndexOp>(loc, 0);
           Value C = b.create<linalg::IndexOp>(loc, 1);
           Value result00 = lambdaExtract(b, loc, input, N, C, lw0, lw1);
           Value result01 = lambdaExtract(b, loc, input, N, C, lw0, up1);
-          Value result01a = b.create<arith::SelectOp>(
-              loc, notValid1, zeroFloat, result01);
+          Value result01a =
+              b.create<arith::SelectOp>(loc, notValid1, zeroFloat, result01);
           Value result10 = lambdaExtract(b, loc, input, N, C, up0, lw1);
-          Value result10a = b.create<arith::SelectOp>(
-              loc, notValid0, zeroFloat, result10);
+          Value result10a =
+              b.create<arith::SelectOp>(loc, notValid0, zeroFloat, result10);
           Value result11 = lambdaExtract(b, loc, input, N, C, up0, up1);
-          Value result11a = b.create<arith::SelectOp>(
-              loc, notValid0, zeroFloat, result11);
-          Value result11b = b.create<arith::SelectOp>(
-              loc, notValid1, zeroFloat, result11a);
+          Value result11a =
+              b.create<arith::SelectOp>(loc, notValid0, zeroFloat, result11);
+          Value result11b =
+              b.create<arith::SelectOp>(loc, notValid1, zeroFloat, result11a);
           Value lw0a =
               b.create<arith::SIToFPOp>(loc, floatType, lower0);
           Value lw1a =
               b.create<arith::SIToFPOp>(loc, floatType, lower1);
           Value d0 = b.create<arith::SubFOp>(loc, result0, lw0a);
           Value d1 = b.create<arith::SubFOp>(loc, result1, lw1a);
-          Value resultScaled0 =
-              lambdaInter(b, loc, result00, result01a, d0);
-          Value resultScaled1 =
-              lambdaInter(b, loc, result10a, result11b, d0);
+          Value resultScaled0 = lambdaInter(b, loc, result00, result01a, d0);
+          Value resultScaled1 = lambdaInter(b, loc, result10a, result11b, d0);
           Value resultScaled =
               lambdaInter(b, loc, resultScaled0, resultScaled1, d1);
           b.create<linalg::YieldOp>(loc, resultScaled);
