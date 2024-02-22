@@ -2522,6 +2522,7 @@ class ElementwiseFmodTensor_Float(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseFmodTensor_Float())
 def ElementwiseFmodTensor_Float_basic(module, tu: TestUtils):
     module.forward(tu.rand(100, low=-10, high=10), tu.rand(100, low=-10, high=10))
+    
 # ==============================================================================
     
 class ElementwiseFmodTensor_Int_Float(torch.nn.Module):
@@ -2562,7 +2563,7 @@ class ElementwiseFmodTensor_Int(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseFmodTensor_Int())
 def ElementwiseFmodTensor_Int_basic(module, tu: TestUtils):
-    module.forward(tu.randint(100, low=0, high=1000).to(torch.int32), tu.randint(100, low=0, high=1000).to(torch.int32))
+    module.forward(tu.randint(100, low=0, high=1000).to(torch.int32), tu.randint(100, low=1, high=1000).to(torch.int32))
     # ==============================================================================
 
 
