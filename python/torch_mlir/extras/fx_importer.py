@@ -216,14 +216,20 @@ SYMBOLIC_OP_TO_TORCH_OP = {
 
 @dataclass(frozen=True)
 class SparsityMeta:
-    """Class for keeping track of sparsity meta data."""
+    """
+    Class for keeping track of sparsity meta data.
+
+    NOTE: this will be fully replaced by
+          torch.fx.passes.shape_prop.SparseTensorMetadata
+    """
 
     layout: torch.layout
     batch_dim: int
     sparse_dim: int
     dense_dim: int
-    pos_width: int
-    crd_width: int
+    blocksize: Optional[tuple[int, int]]
+    pos_dtype: torch.dtype
+    crd_dtype: torch.dtype
 
 
 def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
@@ -241,30 +247,48 @@ def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
     dim = batch_dim + sparse_dim + dense_dim
     assert dim == len(shape)
 
+    # Account for blocking
+    blocksize = sparsity.blocksize
+    block_dim = 0 if blocksize is None else 2
+
     dims = ",".join(f"d{d}" for d in range(0, dim))
 
     if sparsity.layout is torch.sparse_coo:
-        assert sparse_dim == 2  # TODO: deeper sparse dims
+        assert sparse_dim == 2 and block_dim == 0  # TODO: deeper sparse dims
         lvls = f"d{batch_dim}:compressed(nonunique),d{batch_dim+1}:singleton"
     elif sparsity.layout is torch.sparse_csr:
-        assert sparse_dim == 2
+        assert sparse_dim == 2 and block_dim == 0
         lvls = f"d{batch_dim}:dense,d{batch_dim+1}:compressed"
     elif sparsity.layout is torch.sparse_csc:
-        assert sparse_dim == 2
+        assert sparse_dim == 2 and block_dim == 0
         lvls = f"d{batch_dim+1}:dense,d{batch_dim}:compressed"
-    else:
-        # TODO: block format (derive block size!)
-        raise RuntimeError(f"Unsupported sparse layout {sparse_layout}")
+    elif sparsity.layout is torch.sparse_bsr:
+        assert sparse_dim == 2 and block_dim == 2
+        m, n = blocksize
+        lvls = (
+            f"d{batch_dim} floordiv {m}:dense,d{batch_dim+1} floordiv {n}:compressed,"
+            f"d{batch_dim} mod {m}:dense,d{batch_dim+1} mod {n}:dense"
+        )
+    elif sparsity.layout is torch.sparse_bsc:
+        m, n = blocksize
+        lvls = (
+            f"d{batch_dim+1} floordiv {m}:dense,d{batch_dim} floordiv {n}:compressed,"
+            f"d{batch_dim+1} mod {m}:dense,d{batch_dim} mod {n}:dense"
+        )
 
     if batch_dim > 0:
         batch = ",".join(f"d{d}:dense" for d in range(0, batch_dim))
         lvls = f"{batch},{lvls}"
 
     if dense_dim > 0:
-        dense = ",".join(f"d{d}:dense" for d in range(batch_dim + sparse_dim, dim))
+        dense = ",".join(
+            f"d{d}:dense"
+            for d in range(batch_dim + sparse_dim + block_dim, dim + block_dim)
+        )
         lvls = f"{lvls},{dense}"
 
-    posw, crdw = sparsity.pos_width, sparsity.crd_width
+    posw = torch.iinfo(sparsity.pos_dtype).bits
+    crdw = torch.iinfo(sparsity.crd_dtype).bits
     return f"#sparse_tensor.encoding<{{map=({dims})->({lvls}),posWidth={posw},crdWidth={crdw}}}>"
 
 
@@ -805,6 +829,7 @@ class ContextCache:
             tensor_meta = node.meta.get("tensor_meta")
             val = node.meta.get("val")
             sparsity = node.meta.get("sparsity", None)
+
             if tensor_meta is not None:
                 assert isinstance(tensor_meta, TensorMetadata)
                 # Quantized tensor meta data is not preserved in our lowering,
