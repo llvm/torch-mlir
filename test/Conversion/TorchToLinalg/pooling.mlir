@@ -73,14 +73,3 @@ func.func @forward_max_pool3d(%arg0: !torch.vtensor<[?,?,?,?,?],f32>) -> !torch.
   // CHECK:  } -> tensor<?x?x?x?x?xf32>
   return %4 : !torch.vtensor<[?,?,?,?,?],f32>
 }
-
-// -----
-
-// CHECK-LABEL: func @grid_sampler
-func.func @grid_sampler(%arg0: !torch.vtensor<[4,4,10,8],f32>, %arg1: !torch.vtensor<[4,6,4,2],f32>) -> !torch.vtensor<[4,4,6,4],f32> {
-  %true = torch.constant.bool true
-  %int0 = torch.constant.int 0
-  %0 = torch.aten.grid_sampler %arg0, %arg1, %int0, %int0, %true : !torch.vtensor<[4,4,10,8],f32>, !torch.vtensor<[4,6,4,2],f32>, !torch.int, !torch.int, !torch.bool -> !torch.vtensor<[4,4,6,4],f32>
-  // CHECK: %80
-  return %0 : !torch.vtensor<[4,4,6,4],f32>
-}

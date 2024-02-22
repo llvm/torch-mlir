@@ -59,7 +59,6 @@ func.func @grid_sampler(%arg0: !torch.vtensor<[4,10,10,4],f32>, %arg1: !torch.vt
 // CHECK: } -> tensor<?x?x?x?xf32>
 // CHECK: %12 = torch_c.from_builtin_tensor %11 : tensor<?x?x?x?xf32> -> !torch.vtensor<[?,?,?,?],f32>
 // CHECK: return %12 : !torch.vtensor<[?,?,?,?],f32>
-
 func.func @grid_sampler2(%arg0: !torch.vtensor<[?,?,?,?],f32>, %arg1: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,?,?],f32> {
   %true = torch.constant.bool 0
   %int0 = torch.constant.int 0
