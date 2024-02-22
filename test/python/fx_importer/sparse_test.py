@@ -62,7 +62,7 @@ def sparse_metadata(a: torch.Tensor) -> SparsityMeta:
             a.col_indices().dtype,
         )
     elif a.layout is torch.sparse_csc or a.layout is torch.sparse_bsc:
-        blocksize = values().shape[1:3] if a.layout is torch.sparse_bsc else None
+        blocksize = a.values().shape[1:3] if a.layout is torch.sparse_bsc else None
         return SparsityMeta(
             a.layout,
             batch_dim,
