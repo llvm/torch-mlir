@@ -2474,7 +2474,7 @@ public:
           Value result1 = b.create<arith::MulFOp>(loc, gplus1, innerDim1e);
           Value lower0 = b.create<arith::FPToSIOp>(loc, int64type, result0);
           Value lower1 = b.create<arith::FPToSIOp>(loc, int64type, result1);
-          Value oneInt = 
+          Value oneInt =
               b.create<arith::ConstantOp>(loc, b.getIntegerAttr(int64type, 1));
           Value upper0 =
               b.create<arith::AddIOp>(loc, int64type, lower0, oneInt);
@@ -2510,10 +2510,8 @@ public:
               b.create<arith::SelectOp>(loc, notValid0, zeroFloat, result11);
           Value result11b =
               b.create<arith::SelectOp>(loc, notValid1, zeroFloat, result11a);
-          Value lw0a =
-              b.create<arith::SIToFPOp>(loc, floatType, lower0);
-          Value lw1a =
-              b.create<arith::SIToFPOp>(loc, floatType, lower1);
+          Value lw0a = b.create<arith::SIToFPOp>(loc, floatType, lower0);
+          Value lw1a = b.create<arith::SIToFPOp>(loc, floatType, lower1);
           Value d0 = b.create<arith::SubFOp>(loc, result0, lw0a);
           Value d1 = b.create<arith::SubFOp>(loc, result1, lw1a);
           Value resultScaled0 = lambdaInter(b, loc, result00, result01a, d0);
