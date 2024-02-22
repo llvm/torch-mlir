@@ -40,18 +40,20 @@ def sparse_metadata(a: torch.Tensor) -> SparsityMeta:
     sparse_dim = a.sparse_dim()
     dense_dim = a.dense_dim()
     batch_dim = a.ndim - dense_dim - sparse_dim
+    blocksize = None
     if a.layout is torch.sparse_coo:
         return SparsityMeta(
             a.layout,
             batch_dim,
             sparse_dim,
             dense_dim,
-            None,
+            blocksize,
             a.indices().dtype,
             a.indices().dtype,
         )
     elif a.layout is torch.sparse_csr or a.layout is torch.sparse_bsr:
-        blocksize = a.values().shape[1:3] if a.layout is torch.sparse_bsr else None
+        if a.layout is torch.sparse_bsr:
+            blocksize = a.values().shape[batch_dim + 1 : batch_dim + 3]
         return SparsityMeta(
             a.layout,
             batch_dim,
@@ -62,7 +64,8 @@ def sparse_metadata(a: torch.Tensor) -> SparsityMeta:
             a.col_indices().dtype,
         )
     elif a.layout is torch.sparse_csc or a.layout is torch.sparse_bsc:
-        blocksize = a.values().shape[1:3] if a.layout is torch.sparse_bsc else None
+        if a.layout is torch.sparse_bsc:
+            blocksize = a.values().shape[batch_dim + 1 : batch_dim + 3]
         return SparsityMeta(
             a.layout,
             batch_dim,
