@@ -246,24 +246,21 @@ def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
     )
     dim = batch_dim + sparse_dim + dense_dim
     assert dim == len(shape)
-
-    # Account for blocking
     blocksize = sparsity.blocksize
-    block_dim = 0 if blocksize is None else 2
 
     dims = ",".join(f"d{d}" for d in range(0, dim))
 
     if sparsity.layout is torch.sparse_coo:
-        assert sparse_dim == 2 and block_dim == 0  # TODO: deeper sparse dims
+        assert sparse_dim == 2 and blocksize is None  # TODO: deeper sparse dims
         lvls = f"d{batch_dim}:compressed(nonunique),d{batch_dim+1}:singleton"
     elif sparsity.layout is torch.sparse_csr:
-        assert sparse_dim == 2 and block_dim == 0
+        assert sparse_dim == 2 and blocksize is None
         lvls = f"d{batch_dim}:dense,d{batch_dim+1}:compressed"
     elif sparsity.layout is torch.sparse_csc:
-        assert sparse_dim == 2 and block_dim == 0
+        assert sparse_dim == 2 and blocksize is None
         lvls = f"d{batch_dim+1}:dense,d{batch_dim}:compressed"
     elif sparsity.layout is torch.sparse_bsr:
-        assert sparse_dim == 2 and block_dim == 2
+        assert sparse_dim == 2 and blocksize is not None
         m, n = blocksize
         lvls = (
             f"d{batch_dim} floordiv {m}:dense,d{batch_dim+1} floordiv {n}:compressed,"
@@ -281,10 +278,7 @@ def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
         lvls = f"{batch},{lvls}"
 
     if dense_dim > 0:
-        dense = ",".join(
-            f"d{d}:dense"
-            for d in range(batch_dim + sparse_dim + block_dim, dim + block_dim)
-        )
+        dense = ",".join(f"d{d}:dense" for d in range(batch_dim + sparse_dim, dim))
         lvls = f"{lvls},{dense}"
 
     posw = torch.iinfo(sparsity.pos_dtype).bits
@@ -829,7 +823,6 @@ class ContextCache:
             tensor_meta = node.meta.get("tensor_meta")
             val = node.meta.get("val")
             sparsity = node.meta.get("sparsity", None)
-
             if tensor_meta is not None:
                 assert isinstance(tensor_meta, TensorMetadata)
                 # Quantized tensor meta data is not preserved in our lowering,
