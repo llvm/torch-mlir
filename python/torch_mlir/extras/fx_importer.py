@@ -259,18 +259,20 @@ def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
     elif sparsity.layout is torch.sparse_csc:
         assert sparse_dim == 2 and blocksize is None
         lvls = f"d{batch_dim+1}:dense,d{batch_dim}:compressed"
-    elif sparsity.layout is torch.sparse_bsr:
+    else:
+        assert (
+            sparsity.layout is torch.sparse_bsr or sparsity.layout is torch.sparse_bsc
+        )
         assert sparse_dim == 2 and blocksize is not None
         m, n = blocksize
-        lvls = (
-            f"d{batch_dim} floordiv {m}:dense,d{batch_dim+1} floordiv {n}:compressed,"
-            f"d{batch_dim} mod {m}:dense,d{batch_dim+1} mod {n}:dense"
+        i, j = (
+            (batch_dim, batch_dim + 1)
+            if sparsity.layout is torch.sparse_bsr
+            else (batch_dim + 1, batch_dim)
         )
-    elif sparsity.layout is torch.sparse_bsc:
-        m, n = blocksize
         lvls = (
-            f"d{batch_dim+1} floordiv {m}:dense,d{batch_dim} floordiv {n}:compressed,"
-            f"d{batch_dim+1} mod {m}:dense,d{batch_dim} mod {n}:dense"
+            f"d{i} floordiv {m}:dense,d{j} floordiv {n}:compressed,"
+            f"d{i} mod {m}:dense,d{j} mod {n}:dense"
         )
 
     if batch_dim > 0:
