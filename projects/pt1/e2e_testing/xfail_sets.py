@@ -518,6 +518,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseFloorIntModule_basic",
     "ElementwiseFloorModule_basic",
     "ElementwiseGeluModule_basic",
+    "ElementwiseGeluApproximateTanhModule_basic",
     "ElementwiseLeakyReluStaticModule_basic",
     "ElementwiseLogModule_basic",
     "ElementwiseNanToNumModule_Basic",
