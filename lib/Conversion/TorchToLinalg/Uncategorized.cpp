@@ -2362,7 +2362,7 @@ class ConvertCastEquivalentOp : public OpConversionPattern<OpTy> {
 
 namespace {
 class ConvertAtenGridSamplerOp : public OpConversionPattern<AtenGridSamplerOp> {
-public:
+  public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
   matchAndRewrite(AtenGridSamplerOp op, OpAdaptor adaptor,
@@ -2402,7 +2402,6 @@ public:
         rewriter.create<arith::DivFOp>(loc, innerDim1d, twoFloat);
     Value grid = adaptor.getGrid();
     auto gridType = grid.getType().cast<RankedTensorType>();
-    auto gridElementType = gridType.getElementType();
     auto gridShape = gridType.getShape();
     auto gridRank = gridType.getRank();
     SmallVector<Value> extractGridOffsets0(gridRank, zeroIndex);
@@ -2415,49 +2414,40 @@ public:
     extractGridOffsets1[lastGridDim] = oneIndex;
     SmallVector<int64_t> gridShapeExtracted(gridShape);
     gridShapeExtracted.back() = 1;
-    auto gridTypeExtracted =
-        RankedTensorType::get(gridShapeExtracted, gridElementType);
-    auto grid0 = rewriter.create<tensor::ExtractSliceOp>(
-        loc, gridTypeExtracted, grid, extractGridOffsets0, extractGridShape,
-        extractGridStride);
-    auto grid1 = rewriter.create<tensor::ExtractSliceOp>(
-        loc, gridTypeExtracted, grid, extractGridOffsets1, extractGridShape,
-        extractGridStride);
-    SmallVector<ReassociationIndices> associations;
-    associations.push_back(ReassociationIndices{0});
-    associations.push_back(ReassociationIndices{1});
-    associations.push_back(ReassociationIndices{2, 3});
     SmallVector<int64_t> gridShapeCollapsed{gridShape[0], gridShape[1],
                                             gridShape[2]};
-    gridShapeExtracted.back() = 1;
-    auto gridTypeCollapsed =
-        RankedTensorType::get(gridShapeCollapsed, gridElementType);
+    auto grid0 = rewriter.create<tensor::ExtractSliceOp>(
+        loc, grid, extractGridOffsets0, extractGridShape,
+        extractGridStride);
+    auto grid1 = rewriter.create<tensor::ExtractSliceOp>(
+        loc, grid, extractGridOffsets1, extractGridShape,
+        extractGridStride);
+    SmallVector<ReassociationIndices> associations {
+        ReassociationIndices{0}, 
+        ReassociationIndices{1},
+        ReassociationIndices{2, 3}};
     auto gridCollapsed0 = rewriter.create<tensor::CollapseShapeOp>(
-        loc, gridTypeCollapsed, grid0, associations);
+        loc, grid0, associations);
     auto gridCollapsed1 = rewriter.create<tensor::CollapseShapeOp>(
-        loc, gridTypeCollapsed, grid1, associations);
-    AffineExpr d0 = getAffineDimExpr(0, op->getContext());
-    AffineExpr d2 = getAffineDimExpr(2, op->getContext());
-    AffineExpr d3 = getAffineDimExpr(3, op->getContext());
+        loc, grid1, associations);
+    AffineMap gridMap =
+      AffineMap::get(4, 0, {
+        rewriter.getAffineDimExpr(0),
+        rewriter.getAffineDimExpr(2),
+        rewriter.getAffineDimExpr(3)
+        }, op->getContext());
     SmallVector<AffineMap> gridMaps{
-        AffineMap::get(4, 0, {d0, d2, d3}, op->getContext()),
-        AffineMap::get(4, 0, {d0, d2, d3}, op->getContext()),
-        rewriter.getMultiDimIdentityMap(gridRank)};
+        gridMap, gridMap, rewriter.getMultiDimIdentityMap(gridRank)};
     SmallVector<utils::IteratorType> gridIterators(
         gridRank, utils::IteratorType::parallel);
     SmallVector<int64_t> resultShape{inputShape[0], inputShape[1], gridShape[1],
                                      gridShape[2]};
-    Value resultFinal =
-        rewriter.create<tensor::EmptyOp>(loc, resultShape, floatType);
-    auto resultFinalType = resultFinal.getType().cast<RankedTensorType>();
-
     auto lambdaExtract = [](OpBuilder &b, Location loc, Value input, Value idxA,
                             Value idxB, Value idxC, Value idxD) -> Value {
       SmallVector<Value> index{idxA, idxB, idxC, idxD};
       Value result = b.create<tensor::ExtractOp>(loc, input, index);
       return result;
     };
-
     auto lambdaInter = [&](OpBuilder &b, Location loc, Value x, Value y,
                            Value d) -> Value {
       Value dm = b.create<arith::SubFOp>(loc, oneFloat, d);
@@ -2466,12 +2456,20 @@ public:
       Value res = b.create<arith::AddFOp>(loc, ra, rb);
       return res;
     };
-
-    Value sGrid =
+    auto resultType =
+        getTypeConverter()->convertType(op.getResult().getType()).cast<RankedTensorType>();
+    llvm::SmallVector<Value> resultSize{
+        rewriter.create<tensor::DimOp>(loc, input, 0),
+        rewriter.create<tensor::DimOp>(loc, input, 1),
+        rewriter.create<tensor::DimOp>(loc, grid, 1),
+        rewriter.create<tensor::DimOp>(loc, grid, 2)};
+    Value resultFinal =
+        rewriter.create<tensor::EmptyOp>(loc, resultType, resultSize);
+    auto sGrid =
         rewriter
             .create<linalg::GenericOp>(
-                loc, resultFinalType,
-                ValueRange{gridCollapsed0, gridCollapsed1}, resultFinal,
+                loc, TypeRange{resultType},
+                ValueRange{gridCollapsed0, gridCollapsed1}, ValueRange(resultFinal),
                 gridMaps, gridIterators,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value gr0 = args[0];
@@ -2535,12 +2533,8 @@ public:
                   Value resultScaled =
                       lambdaInter(b, loc, resultScaled0, resultScaled1, d1);
                   b.create<linalg::YieldOp>(loc, resultScaled);
-                })
-            .getResultTensors()[0];
-    RankedTensorType resultType =
-        getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
-    sGrid.dump();
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, sGrid);
+                });
+    rewriter.replaceOp(op, sGrid.getResults());
     return success();
   }
 };
@@ -2598,6 +2592,6 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       typeConverter, context);
   target.addIllegalOp<Aten_MakePerTensorQuantizedTensorOp>();
   patterns.add<ConvertDequantizePerChannel>(typeConverter, context);
-  patterns.add<ConvertAtenGridSamplerOp>(typeConverter, context);
   target.addIllegalOp<AtenGridSamplerOp>();
+  patterns.add<ConvertAtenGridSamplerOp>(typeConverter, context);
 }
