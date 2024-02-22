@@ -2480,10 +2480,10 @@ public:
               b.create<arith::AddIOp>(loc, int64type, lower0, oneInt);
           Value upper1 =
               b.create<arith::AddIOp>(loc, int64type, lower1, oneInt);
-          Value notValid0 =
-              createGreaterThan(b, loc, int64type, upper0, innerDim0c);
-          Value notValid1 =
-              createGreaterThan(b, loc, int64type, upper1, innerDim1c);
+          Value notValid0 = rewriter.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sgt, upper0, innerDim0c);
+          Value notValid1 = rewriter.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sgt, upper1, innerDim1c);
           Value upperValid0 =
               b.create<arith::SelectOp>(loc, notValid0, lower0, upper0);
           Value upperValid1 =
