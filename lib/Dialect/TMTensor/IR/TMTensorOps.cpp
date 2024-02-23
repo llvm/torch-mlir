@@ -529,7 +529,6 @@ static bool isInvalid(ArrayRef<int64_t> dimsPos, int64_t rank) {
 }
 
 LogicalResult ScatterOp::verify() {
-  return success();
   Operation *op = getOperation();
   if (getInputs().size() != 2) {
     return op->emitOpError("expected two input operands");
@@ -578,7 +577,7 @@ LogicalResult ScatterOp::verify() {
   // indexDepth + update dims should cover the original dims. The first dim of
   // update is the number of updates.
   if (originalType.getRank() > indexDepth + updateType.getRank() - 1) {
-    return op->emitOpError(
+    return emitOpError(
         "index depth and update value does not cover rank of original value");
   }
 
