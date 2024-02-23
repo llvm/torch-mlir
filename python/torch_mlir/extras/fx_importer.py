@@ -16,7 +16,18 @@ import operator
 import re
 from dataclasses import dataclass
 from types import BuiltinMethodType, BuiltinFunctionType
-from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, TYPE_CHECKING, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    TYPE_CHECKING,
+    Union,
+)
 import weakref
 
 import numpy as np
