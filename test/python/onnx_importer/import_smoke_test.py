@@ -44,16 +44,9 @@ ONNX_REL_PATHS = glob(f"**/*.onnx", root_dir=ONNX_TEST_DATA_DIR, recursive=True)
 OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 TEST_CAST_XFAILS = [
-    "node_test_affine_grid_2d_align_corners_expanded_model",
-    "node_test_affine_grid_2d_expanded_model",
-    "node_test_affine_grid_3d_align_corners_expanded_model",
-    "node_test_affine_grid_3d_expanded_model",
     "node_test_ai_onnx_ml_label_encoder_tensor_mapping_model",
     "node_test_ai_onnx_ml_label_encoder_tensor_value_only_mapping_model",
     "node_test_if_opt_model",
-    "node_test_loop16_seq_none_model",
-    "node_test_range_float_type_positive_delta_expanded_model",
-    "node_test_range_int32_type_negative_delta_expanded_model",
     "node_test_sequence_map_add_1_sequence_1_tensor_expanded_model",
     "node_test_sequence_map_add_2_sequences_expanded_model",
     "node_test_sequence_map_extract_shapes_expanded_model",

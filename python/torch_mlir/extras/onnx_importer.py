@@ -384,6 +384,9 @@ class NodeImporter:
 
             for node_name, input_value in zip(block_names, block.arguments):
                 imp._nv_map[node_name] = input_value
+            for k in self._nv_map:
+                imp._nv_map[k] = self._nv_map[k]
+
             imp.import_all(False)
 
     def import_initializer(self, initializer: onnx.TensorProto, extern_name: str = None) -> Value:
