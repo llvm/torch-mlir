@@ -151,9 +151,8 @@ class GraphInfo:
         value_info = self.value_info_map.get(name) or self.output_map.get(name)
         if value_info is not None:
             return value_info.type
-        raise OnnxImportError(
-            f"No type information associated with '{name}'. Run shape inference?"
-        )
+        # No type information is associated, this can occur when the value is unused:
+        return ""
 
 
 class OnnxImportError(Exception):
@@ -316,7 +315,7 @@ class NodeImporter:
 
             output_names = list(node.output)
             output_types = [
-                self._cc.type_proto_to_type(self._gi.find_type_proto_for_name(n) if n else "")
+                self._cc.type_proto_to_type(self._gi.find_type_proto_for_name(n))
                 for n in output_names
             ]
 
