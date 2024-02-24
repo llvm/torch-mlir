@@ -128,7 +128,7 @@ class GraphInfo:
 
         # Generate the effective input map, which for old models can be a
         # subset of the input map.
-        if model_info.config.elide_initialized_inputs:
+        if model_info and model_info.config.elide_initialized_inputs:
             self.input_map = {
                 k: v
                 for k, v in self.declared_input_map.items()
@@ -252,7 +252,7 @@ class NodeImporter:
                 "torch.onnx_meta.producer_version"
             ] = StringAttr.get(m.producer_version)
 
-    def import_all(self):
+    def import_all(self, func=True):
         """Imports all nodes topologically."""
         # TODO: Consider pulling in initializers on demand since there can be so
         # much unused crap.
@@ -272,7 +272,12 @@ class NodeImporter:
                     f"Non topologically produced ONNX graph output '{output_name}'"
                 )
         with InsertionPoint(self._b), Location.unknown():
-            func_dialect.ReturnOp(outputs)
+            if func:
+                func_dialect.ReturnOp(outputs)
+            else:
+                Operation.create(
+                    name="torch.operator_terminator",
+                    operands=outputs)
 
     def get_none(self):
         if '' in self._nv_map:
@@ -315,23 +320,24 @@ class NodeImporter:
                 for n in output_names
             ]
 
-            # TODO: Attributes.
-            attrs = {
-                "name": StringAttr.get(f"onnx.{op_type}"),
-            }
-            self.import_attributes(node.attribute, attrs)
+            attrs = self.import_attributes(node.attribute)
+            attrs["name"] = StringAttr.get(f"onnx.{op_type}")
+            regions = self.count_regions(node.attribute)
+
             custom_op = Operation.create(
                 name="torch.operator",
                 results=output_types,
                 operands=input_values,
                 attributes=attrs,
+                regions=regions
             )
+
+            self.import_regions(node.attribute, custom_op)
             for output_name, output_value in zip(output_names, custom_op.results):
                 self._nv_map[output_name] = output_value
 
-    def import_attributes(
-        self, onnx_attrs: list[onnx.AttributeProto], attrs: dict[str, Attribute]
-    ):
+    def import_attributes(self, onnx_attrs: list[onnx.AttributeProto]):
+        attrs = {}
         for onnx_attr in onnx_attrs:
             attr_type = onnx_attr.type
             if attr_type not in ATTRIBUTE_TYPE_HANDLERS:
@@ -351,6 +357,30 @@ class NodeImporter:
                 )
             result = handler(onnx_attr, self._cc)
             attrs[f"torch.onnx.{onnx_attr.name}"] = result
+        return attrs
+
+    def count_regions(self, onnx_attrs: list[onnx.AttributeProto]):
+        count = 0
+        for onnx_attr in onnx_attrs:
+            if onnx_attr.type == onnx.AttributeProto.AttributeType.GRAPH:
+                count += 1
+        return count
+
+    def import_regions(self, onnx_attrs: list[onnx.AttributeProto], op):
+        attr_map = {}
+        for onnx_attr in onnx_attrs:
+            attr_type = onnx_attr.type
+            if attr_type != onnx.AttributeProto.AttributeType.GRAPH:
+                continue
+            attr_map[onnx_attr.name] = onnx_attr
+
+        for name, region in zip(sorted(attr_map.keys()), op.regions):
+            region.blocks.append(arg_locs=[])
+            attr = attr_map[name]
+            block = region.blocks
+            graph_info = GraphInfo(None, attr.g)
+            imp = NodeImporter(graph_info, parent_op=op, block=block[0], context_cache=self._cc)
+            imp.import_all(False)
 
     def import_initializer(self, initializer: onnx.TensorProto, extern_name: str = None) -> Value:
         # If an explicitly specified name is given, use that; otherwise, pick
@@ -605,7 +635,7 @@ ATTRIBUTE_TYPE_HANDLERS = {
     onnx.AttributeProto.AttributeType.TENSOR: lambda a, cc: cc.tensor_proto_to_attr(
         a.t
     ),
-    onnx.AttributeProto.AttributeType.GRAPH: False,
+    onnx.AttributeProto.AttributeType.GRAPH: None,
     onnx.AttributeProto.AttributeType.SPARSE_TENSOR: False,
     onnx.AttributeProto.AttributeType.TYPE_PROTO: False,
     onnx.AttributeProto.AttributeType.FLOATS: lambda a, cc: ArrayAttr.get(

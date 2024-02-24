@@ -843,10 +843,21 @@ def Torch_OperatorOp : Torch_Op<"operator", [
 
   let arguments = (ins StrAttr:$name, Variadic<AnyTorchType>:$operands);
   let results = (outs Variadic<AnyTorchType>:$results);
+  let regions = (region VariadicRegion<AnyRegion>:$regions);
 
   let assemblyFormat = [{
-    $name `(` $operands `)` attr-dict `:` functional-type($operands, $results)
+    $name `(` $operands `)` attr-dict `:` functional-type($operands, $results) $regions 
   }];
+}
+
+def Torch_OperatorTerminatorOp : Torch_Op<"operator_terminator", [Terminator,
+    HasParent<"::mlir::torch::Torch::OperatorOp">]> {
+  let summary = "Implicit terminator for torch.operator";
+
+  let arguments = (ins Variadic<AnyTorchType>:$operands);
+  let results = (outs);
+
+  let assemblyFormat = "$operands attr-dict `:` type($operands)";
 }
 
 def Torch_LinearParamsCreateOp : Torch_Op<"linear_params.create", [
