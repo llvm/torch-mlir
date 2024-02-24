@@ -563,7 +563,13 @@ class ContextCache:
         element_type = self.tensor_element_type(tp.data_type)
         # TODO: Fixme upstream: RankedTensorType.get should not require a location.
         with Location.unknown():
-            return RankedTensorType.get(tuple(tp.dims), element_type)
+            try:
+                return RankedTensorType.get(tuple(tp.dims), element_type)
+            except TypeError as e:
+                raise OnnxImportError(
+                    f"Unsupported builtin tensor type"
+                ) from e
+
 
     def type_proto_to_type(self, tp: onnx.TypeProto) -> IrType:
         if tp == "":
@@ -661,6 +667,15 @@ ELEM_TYPE_SPLAT_TENSOR_PROTO_CB = {
 ELEM_TYPE_INLINE_TENSOR_PROTO_CB = {
     onnx.TensorProto.DataType.FLOAT: lambda tp: DenseElementsAttr.get(
         np.asarray(tp.float_data, dtype=np.float32).reshape(tp.dims), signless=False
+    ),
+    onnx.TensorProto.DataType.BOOL: lambda tp: DenseElementsAttr.get(
+        np.asarray(tp.int32_data, dtype=np.bool_).reshape(tp.dims), signless=False
+    ),
+    onnx.TensorProto.DataType.INT8: lambda tp: DenseElementsAttr.get(
+        np.asarray(tp.int32_data, dtype=np.int8).reshape(tp.dims), signless=False
+    ),
+    onnx.TensorProto.DataType.INT16: lambda tp: DenseElementsAttr.get(
+        np.asarray(tp.int32_data, dtype=np.int16).reshape(tp.dims), signless=False
     ),
     onnx.TensorProto.DataType.INT32: lambda tp: DenseElementsAttr.get(
         np.asarray(tp.int32_data, dtype=np.int32).reshape(tp.dims), signless=False

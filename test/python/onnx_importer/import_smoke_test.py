@@ -45,7 +45,6 @@ OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 TEST_CAST_XFAILS = [
     "node_test_ai_onnx_ml_label_encoder_tensor_mapping_model",
-    "node_test_ai_onnx_ml_label_encoder_tensor_value_only_mapping_model",
     "node_test_if_opt_model",
     "node_test_sequence_map_add_1_sequence_1_tensor_expanded_model",
     "node_test_sequence_map_add_2_sequences_expanded_model",
