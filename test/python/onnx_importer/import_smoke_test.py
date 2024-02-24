@@ -110,23 +110,13 @@ TEST_CAST_XFAILS = [
     "node_test_gru_defaults_model",
     "node_test_gru_seq_length_model",
     "node_test_gru_with_initial_bias_model",
-    "node_test_identity_opt_model",
-    "node_test_identity_sequence_model",
-    "node_test_if_model",
     "node_test_if_opt_model",
-    "node_test_if_seq_model",
     "node_test_loop11_model",
     "node_test_loop13_seq_model",
     "node_test_loop16_seq_none_model",
     "node_test_lstm_defaults_model",
     "node_test_lstm_with_initial_bias_model",
     "node_test_lstm_with_peepholes_model",
-    "node_test_optional_get_element_optional_sequence_model",
-    "node_test_optional_get_element_optional_tensor_model",
-    "node_test_optional_get_element_sequence_model",
-    "node_test_optional_has_element_empty_optional_input_model",
-    "node_test_optional_has_element_optional_input_model",
-    "node_test_optional_has_element_tensor_input_model",
     "node_test_quantizelinear_e4m3fn_model",
     "node_test_quantizelinear_e5m2_model",
     "node_test_range_float_type_positive_delta_expanded_model",
@@ -137,8 +127,6 @@ TEST_CAST_XFAILS = [
     "node_test_rnn_seq_length_model",
     "node_test_scan9_sum_model",
     "node_test_scan_sum_model",
-    "node_test_sequence_insert_at_back_model",
-    "node_test_sequence_insert_at_front_model",
     "node_test_sequence_map_add_1_sequence_1_tensor_expanded_model",
     "node_test_sequence_map_add_1_sequence_1_tensor_model",
     "node_test_sequence_map_add_2_sequences_expanded_model",
@@ -153,9 +141,6 @@ TEST_CAST_XFAILS = [
     "node_test_sequence_map_identity_2_sequences_model",
     "node_test_simple_rnn_defaults_model",
     "node_test_simple_rnn_with_initial_bias_model",
-    "node_test_split_to_sequence_1_model",
-    "node_test_split_to_sequence_2_model",
-    "node_test_split_to_sequence_nokeepdims_model",
     "node_test_string_concat_broadcasting_model",
     "node_test_string_concat_empty_string_model",
     "node_test_string_concat_model",
@@ -173,14 +158,6 @@ TEST_CAST_XFAILS = [
     "node_test_strnormalizer_export_monday_empty_output_model",
     "node_test_strnormalizer_export_monday_insensintive_upper_twodim_model",
     "node_test_strnormalizer_nostopwords_nochangecase_model",
-    "simple_test_sequence_model1_model",
-    "simple_test_sequence_model2_model",
-    "simple_test_sequence_model3_model",
-    "simple_test_sequence_model4_model",
-    "simple_test_sequence_model5_model",
-    "simple_test_sequence_model6_model",
-    "simple_test_sequence_model7_model",
-    "simple_test_sequence_model8_model",
     "simple_test_strnorm_model_monday_casesensintive_lower_model",
     "simple_test_strnorm_model_monday_casesensintive_nochangecase_model",
     "simple_test_strnorm_model_monday_casesensintive_upper_model",
@@ -188,10 +165,6 @@ TEST_CAST_XFAILS = [
     "simple_test_strnorm_model_monday_insensintive_upper_twodim_model",
     "simple_test_strnorm_model_nostopwords_nochangecase_model",
 ]
-
-
-
-
 
 class ImportSmokeTest(unittest.TestCase):
     @classmethod
