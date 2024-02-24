@@ -444,12 +444,16 @@ class ContextCache:
     __slots__ = [
         "_c",
         "_elem_type_map",
+        "_list_type_map",
+        "_optional_type_map",
         "_vtensor_type_map",
     ]
 
     def __init__(self, context: Context):
         self._c = context
         self._elem_type_map: dict[int, IrType] = {}
+        self._list_type_map:dict[str, IrType] = {}
+        self._optional_type_map:dict[str, IrType] = {}
         self._vtensor_type_map: dict[tuple[tuple[Optional[int]], IrType], IrType] = {}
 
     def tensor_element_type(self, elem_type: int) -> IrType:
@@ -465,6 +469,67 @@ class ContextCache:
 
     def get_none_type(self):
         return IrType.parse("!torch.none", context=self._c)
+
+    def get_list_type(self, element_type: IrType) -> IrType:
+        key = str(element_type)
+        t = self._list_type_map.get(key)
+        if t is None:
+            asm = f"!torch.list<{str(element_type)}>"
+            try:
+                t = IrType.parse(asm, context=self._c)
+            except MLIRError as e:
+                raise OnnxImportError(
+                    f"Unparseable torch type (MLIR asm format bug?): {asm}"
+                ) from e
+            self._list_type_map[key] = t
+        return t
+
+
+    def get_optional_type(self, element_type: IrType) -> IrType:
+        key = str(element_type)
+        t = self._optional_type_map.get(key)
+        if t is None:
+            asm = f"!torch.optional<{str(element_type)}>"
+            try:
+                t = IrType.parse(asm, context=self._c)
+            except MLIRError as e:
+                raise OnnxImportError(
+                    f"Unparseable torch type (MLIR asm format bug?): {asm}"
+                ) from e
+            self._optional_type_map[key] = t
+        return t
+
+
+    def get_list_element_type(self, tp: onnx.TypeProto) -> IrType:
+        tt = tp.tensor_type
+        if tt.elem_type:
+            element_type = self.tensor_element_type(tt.elem_type)
+            dims = tuple(
+                (d.dim_value if not d.dim_param else None) for d in tt.shape.dim
+            )
+            shape_asm = ",".join("?" if d is None else str(d) for d in dims)
+            return f"vtensor<[{shape_asm}],{element_type}>"
+
+        raise OnnxImportError(
+            f"Unsupport list element type")
+
+    def get_optional_element_type(self, tp: onnx.TypeProto) -> IrType:
+        st = tp.sequence_type
+        tt = tp.tensor_type
+        if tt.elem_type:
+            element_type = self.tensor_element_type(tt.elem_type)
+            dims = tuple(
+                (d.dim_value if not d.dim_param else None) for d in tt.shape.dim
+            )
+            shape_asm = ",".join("?" if d is None else str(d) for d in dims)
+            return f"vtensor<[{shape_asm}],{element_type}>"
+
+        if st.elem_type:
+            element_type = self.get_list_element_type(st.elem_type)
+            return f"list<{element_type}>"
+
+        raise OnnxImportError(
+            f"Unsupport optional element type")
 
     def get_vtensor_type(
         self, dims: tuple[Optional[int]], element_type: IrType
@@ -494,8 +559,8 @@ class ContextCache:
             return RankedTensorType.get(tuple(tp.dims), element_type)
 
     def type_proto_to_type(self, tp: onnx.TypeProto) -> IrType:
-        if tp.tensor_type:
-            tt = tp.tensor_type
+        tt = tp.tensor_type
+        if tt.elem_type:
             if not tt.shape:
                 raise OnnxImportError(
                     f"Unsupported Tensor type without shape (run shape inference?): {tp}"
@@ -505,10 +570,20 @@ class ContextCache:
                 (d.dim_value if not d.dim_param else None) for d in tt.shape.dim
             )
             return self.get_vtensor_type(dims, element_type)
-        else:
-            # TODO: Others if ever needed. Or we consider ourselves DNN-only.
-            # See TypeProto: sequence_type, map_type, optional_type, sparse_tensor_type.
-            raise OnnxImportError(f"Unsupported ONNX TypeProto: {tp}")
+
+        st = tp.sequence_type
+        if len(str(st.elem_type)) > 0:
+            element_type = self.get_list_element_type(st.elem_type)
+            return self.get_list_type(element_type)
+
+        ot = tp.optional_type
+        if len(str(ot.elem_type)) > 0:
+            element_type = self.get_optional_element_type(ot.elem_type)
+            return self.get_optional_type(element_type)
+
+        # TODO: Others if ever needed. Or we consider ourselves DNN-only.
+        # See TypeProto: sequence_type, map_type, optional_type, sparse_tensor_type.
+        raise OnnxImportError(f"Unsupported ONNX TypeProto: {tp}")
 
     def _sanitize_name(self, name):
         if not name.isidentifier():  
