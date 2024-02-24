@@ -634,6 +634,7 @@ ELEM_TYPE_TO_IR_TYPE_CB = {
     onnx.TensorProto.DataType.FLOAT8E4M3FNUZ: lambda: Float8E5M2FNUZType.get(),
     onnx.TensorProto.DataType.FLOAT8E5M2: lambda: Float8E5M2Type.get(),
     onnx.TensorProto.DataType.FLOAT8E5M2FNUZ: lambda: Float8E5M2FNUZType.get(),
+    onnx.TensorProto.DataType.STRING: lambda: "!torch.str",
     # Ommitted: STRING,
 }
 
