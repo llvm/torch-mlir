@@ -316,7 +316,7 @@ class NodeImporter:
 
             output_names = list(node.output)
             output_types = [
-                self._cc.type_proto_to_type(self._gi.find_type_proto_for_name(n))
+                self._cc.type_proto_to_type(self._gi.find_type_proto_for_name(n) if n else "")
                 for n in output_names
             ]
 
@@ -564,6 +564,9 @@ class ContextCache:
             return RankedTensorType.get(tuple(tp.dims), element_type)
 
     def type_proto_to_type(self, tp: onnx.TypeProto) -> IrType:
+        if tp == "":
+            return self.get_none_type()
+
         tt = tp.tensor_type
         if tt.elem_type:
             if not tt.shape:
