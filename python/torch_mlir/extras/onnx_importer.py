@@ -375,11 +375,16 @@ class NodeImporter:
             attr_map[onnx_attr.name] = onnx_attr
 
         for name, region in zip(sorted(attr_map.keys()), op.regions):
-            region.blocks.append(arg_locs=[])
             attr = attr_map[name]
-            block = region.blocks
+            block_types = [self._cc.type_proto_to_type(input.type) for input in attr.g.input]
+            block_names = [input.name for input in attr.g.input]
+            region.blocks.append(*block_types, arg_locs=[op.location] * len(block_types))
+            block = region.blocks[0]
             graph_info = GraphInfo(None, attr.g)
-            imp = NodeImporter(graph_info, parent_op=op, block=block[0], context_cache=self._cc)
+            imp = NodeImporter(graph_info, parent_op=op, block=block, context_cache=self._cc)
+
+            for node_name, input_value in zip(block_names, block.arguments):
+                imp._nv_map[node_name] = input_value
             imp.import_all(False)
 
     def import_initializer(self, initializer: onnx.TensorProto, extern_name: str = None) -> Value:
