@@ -51,6 +51,7 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
 
   Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
   Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+  Value negone = rewriter.create<arith::ConstantIndexOp>(loc, -1);
 
   int64_t dim;
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
@@ -73,37 +74,52 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
       torchTypeEnd.getType().isa<OptionalType>())
     return rewriter.notifyMatchFailure(op, "unimplemented optional type arg");
 
-  int64_t step;
-  if (!matchPattern(op.getStep(), m_TorchConstantInt(&step))) {
-    if (!op.getStep().getType().template isa<Torch::NoneType>())
-      return op->emitError("unimplemented: step is not constant");
-    step = 1;
-  }
-
+  Value stepIndex = castIntToIndex(rewriter, loc, adaptor.getStep());
   Value start = toPositiveValidDim(rewriter, loc, torchTypeStart,
                                    builtinTypeStart, zero, dimSize);
-  Value end = toPositiveValidDim(rewriter, loc, torchTypeEnd, builtinTypeEnd,
-                                 dimSize, dimSize);
 
-  // end >= start ? end : start
-  Value endSgeStart = rewriter.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::sge, end, start);
-  end = rewriter.create<arith::SelectOp>(loc, endSgeStart, end, start);
-  Value stepIndex = rewriter.create<arith::ConstantIndexOp>(loc, step);
+  // We cannot use to positive valid dim as for negative strides we need to
+  // clamp to `-1` so that the full tensor bounds are available:
+  Value end = builtinTypeEnd;
+  if (torchTypeEnd.getType().isa<Torch::NoneType>()) {
+    end = dimSize;
+  } else {
+    end = castIntToIndex(rewriter, loc, end);
+    Value endcmp = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::slt, end, zero);
+    Value endadd = rewriter.create<arith::AddIOp>(loc, end, dimSize);
+    end = rewriter.create<arith::SelectOp>(loc, endcmp, endadd, end);
+    endcmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, end,
+                                            zero);
+    end = rewriter.create<arith::SelectOp>(loc, endcmp, negone, end);
+    endcmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, end,
+                                            dimSize);
+    end = rewriter.create<arith::SelectOp>(loc, endcmp, dimSize, end);
+  }
 
   // Slice logic: resultSize = floordiv(end - start + step - 1,  step)
   resultShape = getTensorSizes(rewriter, loc, input);
   Value len = rewriter.create<arith::SubIOp>(loc, end, start);
+
+  // We check the difference between start and end to determine the total size:
+  Value stepcmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge,
+                                                 stepIndex, zero);
+  Value stepsign = rewriter.create<arith::SelectOp>(loc, stepcmp, one, negone);
   Value resultSize = rewriter.create<arith::AddIOp>(loc, len, stepIndex);
-  resultSize = rewriter.create<arith::SubIOp>(loc, resultSize, one);
+  resultSize = rewriter.create<arith::SubIOp>(loc, resultSize, stepsign);
   resultSize = rewriter.create<arith::FloorDivSIOp>(loc, resultSize, stepIndex);
+
+  // Clamp the size to [0, ...]:
+  Value szcmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
+                                               resultSize, zero);
+  resultSize = rewriter.create<arith::SelectOp>(loc, szcmp, zero, resultSize);
   resultShape[dim] = resultSize;
 
   strides.resize(inputType.getRank(), one);
   offsets.resize(inputType.getRank(), zero);
 
   offsets[dim] = start;
-  strides[dim] = rewriter.create<arith::MulIOp>(loc, strides[dim], stepIndex);
+  strides[dim] = stepIndex;
   return success();
 }
 

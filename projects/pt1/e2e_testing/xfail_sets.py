@@ -233,6 +233,7 @@ TORCHDYNAMO_XFAIL_SET = {
     # END tests failing due to: 'torch.aten.mul.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
 
     # START tests failing due to: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
+    "AtenInstanceNormModule_basic",
     "BatchNorm1DModule_basic",
     "BatchNorm1DWith2DInputModule_basic",
     "BatchNorm2DModule_basic",
@@ -418,6 +419,7 @@ STABLEHLO_PASS_SET = {
     "AtenEyeModuleFloat2D_basic",
     "AtenEyeModuleInt2D_basic",
     "AtenFloatScalarModule_basic",
+    "AtenInstanceNormModule_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
@@ -898,6 +900,7 @@ TOSA_PASS_SET = {
     "AtenEyeModuleFalsePinMemory_basic",
     "AtenEyeModuleFloat2D_basic",
     "AtenRoundIntModule_basic",
+    "AtenInstanceNormModule_basic",
     "AtenToDeviceModule_basic",
     "BaddbmmBroadcast1DInputModule_basic",
     "BaddbmmBroadcast2DInputModule_basic",
@@ -1306,6 +1309,8 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "Conv2dNoPaddingModule_basic",
     "Conv2dWithPaddingDilationStrideModule_basic",
     "Conv2dWithPaddingModule_basic",
+
+    "AtenInstanceNormModule_basic",
 }
 
 LTC_CRASHING_SET = {
@@ -1820,23 +1825,6 @@ ONNX_XFAIL_SET = {
     "ElementwiseClampTensorFloatModule_basic",
     "ElementwiseClampTensorInt8Module_basic",
     "ElementwiseClampTensorIntModule_basic",
-    "EmptyLikeMemoryFormatModule_basic",
-    "EmptyLikeModule_defaultDtype",
-    "EmptyLikeModule_falsePinMemory",
-    "EmptyLikeModule_float",
-    "EmptyLikeModule_int",
-    "Fill_TensorFloat32WithFloat32_basic",
-    "Fill_TensorFloat32WithFloat64_basic",
-    "Fill_TensorFloat32WithInt64_basic",
-    "Fill_TensorFloat64WithFloat32_basic",
-    "Fill_TensorFloat64WithFloat64_basic",
-    "Fill_TensorFloat64WithInt64_basic",
-    "FullLikeModuleDefaultDtype_basic",
-    "FullLikeModuleFalsePinMemory_basic",
-    "FullLikeModuleFloat2D_basic",
-    "FullLikeModuleFloat3D_basic",
-    "FullLikeModuleInt2D_basic",
-    "FullLikeModuleInt3D_basic",
     "HBC_basic",
     "IndexPut1DFloatAccumulateModule_basic",
     "IndexPut1DIntAccumulateModule_basic",
@@ -1851,10 +1839,6 @@ ONNX_XFAIL_SET = {
     "IndexPutHackedTwin3DFloatAccumulateModule_basic",
     "IndexPutHackedTwin3DIntAccumulateModule_basic",
     "NormalizeModule_basic",
-    "OnesLikeModule_defaultDtype",
-    "OnesLikeModule_falsePinMemory",
-    "OnesLikeModule_float",
-    "OnesLikeModule_int",
     "PadWithNoneValModule_basic",
     "QuantizedMLP_basic",
     "RandModule_basic",
@@ -1870,13 +1854,6 @@ ONNX_XFAIL_SET = {
     "TileSmallDimsSizeModule_basic",
     "UpSampleNearest2dDynamicSize_basic",
     "UpSampleNearest2dStaticSize_basic",
-    "ZeroFloat32Module_basic",
-    "ZeroInt32Module_basic",
-    "ZeroInt64Module_basic",
-    "ZerosLikeModule_defaultDtype",
-    "ZerosLikeModule_falsePinMemory",
-    "ZerosLikeModule_float",
-    "ZerosLikeModule_int",
     
     # Failure - onnx_lowering
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
@@ -2097,10 +2074,6 @@ ONNX_XFAIL_SET = {
     "ReduceMaxSignedIntModule_basic",
     "ReduceMaxUnsignedIntModule_basic",
     
-    # Failure - slice_lowering
-    "ScaledDotProductAttentionDifferentModule_basic",
-    "ScaledDotProductAttentionSameModule_basic",
-    
     # Failure - view_lowering
     "AddSizeIntModule_basic",
     "ElementwiseFlattenBroadcastModule_basic",
@@ -2161,6 +2134,8 @@ ONNX_XFAIL_SET = {
     "EmbeddingModuleI32_basic",
     "EmbeddingModuleI64_basic",
     "ExpandModule_basic",
+    "MoveDimIntNegativeIndexModule_basic",
+    "PermuteNegativeIndexModule_basic",
     "ReduceAmaxKeepDim_basic",
     "ReduceMaxKeepDimReturnBoth_basic",
     "ReduceMaxNegativeDim_basic",
@@ -2194,15 +2169,5 @@ ONNX_XFAIL_SET = {
     "TensorsStackPromoteDTypeModule_basic",
 }
 
-ONNX_CRASHING_SET = {
-    "FlipModule_basic",
-    "IndexTensorNegativeIndexModule_basic",
-    "MoveDimIntNegativeIndexModule_basic",
-    "PermuteNegativeIndexModule_basic",
-    "RollModule_basic",
-    "SliceModule_basic",
-    "SliceNegIdxModule_basic",
-    "SliceOutOfLowerBoundEndIndexModule_basic",
-    "SliceOutOfLowerBoundStartIndexModule_basic",
-    "SliceSizeTwoStepModule_basic",
-}
+ONNX_CRASHING_SET = { }
+

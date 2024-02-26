@@ -49,7 +49,7 @@ class LinalgOnTensorsOnnxBackend(OnnxBackend):
             imported_module,
             f"builtin.module(func.func({ONNX_TO_TORCH_FUNC_PIPELINE}))",
             "Lowering Onnx backend contract to Linalg-on-Tensors backend contract")
-        
+
         run_pipeline_with_repro_report(
             imported_module,
             f"builtin.module(torch-lower-to-backend-contract)",

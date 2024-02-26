@@ -452,7 +452,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     auto exp = b.create<math::ExpOp>(loc, negate);
     auto added = b.create<arith::AddFOp>(loc, exp, one);
     auto div = b.create<arith::DivFOp>(loc, one, added);
-    outTy.dump();
     return convertScalarToDtype(b, loc, div, outTy, std::nullopt, outTTy);
   }
   if (auto relu = dyn_cast<AtenReluOp>(op)) {
@@ -2361,6 +2360,172 @@ class ConvertCastEquivalentOp : public OpConversionPattern<OpTy> {
 };
 } // namespace
 
+namespace {
+class ConvertAtenGridSamplerOp : public OpConversionPattern<AtenGridSamplerOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenGridSamplerOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    Type int64type = rewriter.getI64Type();
+    Type floatType = rewriter.getF32Type();
+    Value zeroIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value oneIndex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    Value twoIndex = rewriter.create<arith::ConstantIndexOp>(loc, 2);
+    Value zeroFloat = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getFloatAttr(floatType, 0.0));
+    Value oneFloat = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getFloatAttr(floatType, 1.0));
+    Value twoFloat = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getFloatAttr(floatType, 2.0));
+    Value input = adaptor.getInput();
+    auto inputType = input.getType().cast<RankedTensorType>();
+    auto inputShape = inputType.getShape();
+    Value innerDim0a = rewriter.create<tensor::DimOp>(loc, input, 2);
+    Value innerDim1a = rewriter.create<tensor::DimOp>(loc, input, 3);
+    Value innerDim0b =
+        rewriter.create<arith::SubIOp>(loc, innerDim0a, oneIndex);
+    Value innerDim1b =
+        rewriter.create<arith::SubIOp>(loc, innerDim1a, oneIndex);
+    Value innerDim0c =
+        rewriter.create<arith::IndexCastOp>(loc, int64type, innerDim0b);
+    Value innerDim1c =
+        rewriter.create<arith::IndexCastOp>(loc, int64type, innerDim1b);
+    Value innerDim0d =
+        rewriter.create<arith::SIToFPOp>(loc, floatType, innerDim0c);
+    Value innerDim1d =
+        rewriter.create<arith::SIToFPOp>(loc, floatType, innerDim1c);
+    Value innerDim0e =
+        rewriter.create<arith::DivFOp>(loc, innerDim0d, twoFloat);
+    Value innerDim1e =
+        rewriter.create<arith::DivFOp>(loc, innerDim1d, twoFloat);
+    Value grid = adaptor.getGrid();
+    auto gridType = grid.getType().cast<RankedTensorType>();
+    auto gridShape = gridType.getShape();
+    auto gridRank = gridType.getRank();
+    SmallVector<Value> extractGridOffsets0(gridRank, zeroIndex);
+    SmallVector<Value> extractGridShape = getTensorSizes(rewriter, loc, grid);
+    SmallVector<Value> extractGridStride(gridRank, oneIndex);
+    int64_t lastGridDim = gridRank - 1;
+    extractGridShape[lastGridDim] = oneIndex;
+    extractGridStride[lastGridDim] = twoIndex;
+    SmallVector<Value> extractGridOffsets1(gridRank, zeroIndex);
+    extractGridOffsets1[lastGridDim] = oneIndex;
+    SmallVector<int64_t> gridShapeExtracted(gridShape);
+    gridShapeExtracted.back() = 1;
+    SmallVector<int64_t> gridShapeCollapsed{gridShape[0], gridShape[1],
+                                            gridShape[2]};
+    auto grid0 = rewriter.create<tensor::ExtractSliceOp>(
+        loc, grid, extractGridOffsets0, extractGridShape, extractGridStride);
+    auto grid1 = rewriter.create<tensor::ExtractSliceOp>(
+        loc, grid, extractGridOffsets1, extractGridShape, extractGridStride);
+    SmallVector<ReassociationIndices> associations{ReassociationIndices{0},
+                                                   ReassociationIndices{1},
+                                                   ReassociationIndices{2, 3}};
+    auto gridCollapsed0 =
+        rewriter.create<tensor::CollapseShapeOp>(loc, grid0, associations);
+    auto gridCollapsed1 =
+        rewriter.create<tensor::CollapseShapeOp>(loc, grid1, associations);
+    AffineMap gridMap = AffineMap::get(4, 0,
+                                       {rewriter.getAffineDimExpr(0),
+                                        rewriter.getAffineDimExpr(2),
+                                        rewriter.getAffineDimExpr(3)},
+                                       op->getContext());
+    SmallVector<AffineMap> gridMaps{gridMap, gridMap,
+                                    rewriter.getMultiDimIdentityMap(gridRank)};
+    SmallVector<utils::IteratorType> gridIterators(
+        gridRank, utils::IteratorType::parallel);
+    SmallVector<int64_t> resultShape{inputShape[0], inputShape[1], gridShape[1],
+                                     gridShape[2]};
+    auto lambdaExtract = [](OpBuilder &b, Location loc, Value input, Value idxA,
+                            Value idxB, Value idxC, Value idxD) -> Value {
+      SmallVector<Value> index{idxA, idxB, idxC, idxD};
+      Value result = b.create<tensor::ExtractOp>(loc, input, index);
+      return result;
+    };
+    auto lambdaInter = [&](OpBuilder &b, Location loc, Value x, Value y,
+                           Value d) -> Value {
+      Value dm = b.create<arith::SubFOp>(loc, oneFloat, d);
+      Value ra = b.create<arith::MulFOp>(loc, x, dm);
+      Value rb = b.create<arith::MulFOp>(loc, y, d);
+      Value res = b.create<arith::AddFOp>(loc, ra, rb);
+      return res;
+    };
+    auto resultType = getTypeConverter()
+                          ->convertType(op.getResult().getType())
+                          .cast<RankedTensorType>();
+    llvm::SmallVector<Value> resultSize{
+        rewriter.create<tensor::DimOp>(loc, input, 0),
+        rewriter.create<tensor::DimOp>(loc, input, 1),
+        rewriter.create<tensor::DimOp>(loc, grid, 1),
+        rewriter.create<tensor::DimOp>(loc, grid, 2)};
+    Value resultFinal =
+        rewriter.create<tensor::EmptyOp>(loc, resultType, resultSize);
+    auto sGrid = rewriter.create<linalg::GenericOp>(
+        loc, TypeRange{resultType}, ValueRange{gridCollapsed0, gridCollapsed1},
+        ValueRange(resultFinal), gridMaps, gridIterators,
+        [&](OpBuilder &b, Location loc, ValueRange args) {
+          Value gr0 = args[0];
+          Value gr1 = args[1];
+          Value gplus0 = b.create<arith::AddFOp>(loc, gr0, oneFloat);
+          Value gplus1 = b.create<arith::AddFOp>(loc, gr1, oneFloat);
+          Value result0 = b.create<arith::MulFOp>(loc, gplus0, innerDim0e);
+          Value result1 = b.create<arith::MulFOp>(loc, gplus1, innerDim1e);
+          Value lower0 = b.create<arith::FPToSIOp>(loc, int64type, result0);
+          Value lower1 = b.create<arith::FPToSIOp>(loc, int64type, result1);
+          Value oneInt =
+              b.create<arith::ConstantOp>(loc, b.getIntegerAttr(int64type, 1));
+          Value upper0 =
+              b.create<arith::AddIOp>(loc, int64type, lower0, oneInt);
+          Value upper1 =
+              b.create<arith::AddIOp>(loc, int64type, lower1, oneInt);
+          Value notValid0 = rewriter.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sgt, upper0, innerDim0c);
+          Value notValid1 = rewriter.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::sgt, upper1, innerDim1c);
+          Value upperValid0 =
+              b.create<arith::SelectOp>(loc, notValid0, lower0, upper0);
+          Value upperValid1 =
+              b.create<arith::SelectOp>(loc, notValid1, lower1, upper1);
+          Value lw0 =
+              b.create<arith::IndexCastOp>(loc, b.getIndexType(), lower0);
+          Value lw1 =
+              b.create<arith::IndexCastOp>(loc, b.getIndexType(), lower1);
+          Value up0 =
+              b.create<arith::IndexCastOp>(loc, b.getIndexType(), upperValid0);
+          Value up1 =
+              b.create<arith::IndexCastOp>(loc, b.getIndexType(), upperValid1);
+          Value N = b.create<linalg::IndexOp>(loc, 0);
+          Value C = b.create<linalg::IndexOp>(loc, 1);
+          Value result00 = lambdaExtract(b, loc, input, N, C, lw0, lw1);
+          Value result01 = lambdaExtract(b, loc, input, N, C, lw0, up1);
+          Value result01a =
+              b.create<arith::SelectOp>(loc, notValid1, zeroFloat, result01);
+          Value result10 = lambdaExtract(b, loc, input, N, C, up0, lw1);
+          Value result10a =
+              b.create<arith::SelectOp>(loc, notValid0, zeroFloat, result10);
+          Value result11 = lambdaExtract(b, loc, input, N, C, up0, up1);
+          Value result11a =
+              b.create<arith::SelectOp>(loc, notValid0, zeroFloat, result11);
+          Value result11b =
+              b.create<arith::SelectOp>(loc, notValid1, zeroFloat, result11a);
+          Value lw0a = b.create<arith::SIToFPOp>(loc, floatType, lower0);
+          Value lw1a = b.create<arith::SIToFPOp>(loc, floatType, lower1);
+          Value d0 = b.create<arith::SubFOp>(loc, result0, lw0a);
+          Value d1 = b.create<arith::SubFOp>(loc, result1, lw1a);
+          Value resultScaled0 = lambdaInter(b, loc, result00, result01a, d0);
+          Value resultScaled1 = lambdaInter(b, loc, result10a, result11b, d0);
+          Value resultScaled =
+              lambdaInter(b, loc, resultScaled0, resultScaled1, d1);
+          b.create<linalg::YieldOp>(loc, resultScaled);
+        });
+    rewriter.replaceOp(op, sGrid.getResults());
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -2413,4 +2578,6 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       typeConverter, context);
   target.addIllegalOp<Aten_MakePerTensorQuantizedTensorOp>();
   patterns.add<ConvertDequantizePerChannel>(typeConverter, context);
+  target.addIllegalOp<AtenGridSamplerOp>();
+  patterns.add<ConvertAtenGridSamplerOp>(typeConverter, context);
 }

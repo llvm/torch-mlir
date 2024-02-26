@@ -16,7 +16,18 @@ import operator
 import re
 from dataclasses import dataclass
 from types import BuiltinMethodType, BuiltinFunctionType
-from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    TYPE_CHECKING,
+    Union,
+)
 import weakref
 
 import numpy as np
@@ -44,6 +55,16 @@ from torch.fx import (
     GraphModule,
     Node,
 )
+
+try:
+    from torch.export.graph_signature import InputSpec as TypingInputSpec
+except ModuleNotFoundError:
+    # PyTorch prior to 2.3 is missing certain things we use in typing
+    # signatures. Just make them be Any.
+    if not TYPE_CHECKING:
+        TypingInputSpec = Any
+    else:
+        raise
 
 try:
     import ml_dtypes
@@ -216,14 +237,20 @@ SYMBOLIC_OP_TO_TORCH_OP = {
 
 @dataclass(frozen=True)
 class SparsityMeta:
-    """Class for keeping track of sparsity meta data."""
+    """
+    Class for keeping track of sparsity meta data.
+
+    NOTE: this will be fully replaced by
+          torch.fx.passes.shape_prop.SparseTensorMetadata
+    """
 
     layout: torch.layout
     batch_dim: int
     sparse_dim: int
     dense_dim: int
-    pos_width: int
-    crd_width: int
+    blocksize: Optional[tuple[int, int]]
+    pos_dtype: torch.dtype
+    crd_dtype: torch.dtype
 
 
 def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
@@ -240,21 +267,31 @@ def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
     )
     dim = batch_dim + sparse_dim + dense_dim
     assert dim == len(shape)
+    blocksize = sparsity.blocksize
 
     dims = ",".join(f"d{d}" for d in range(0, dim))
 
     if sparsity.layout is torch.sparse_coo:
-        assert sparse_dim == 2  # TODO: deeper sparse dims
+        assert sparse_dim == 2 and blocksize is None  # TODO: deeper sparse dims
         lvls = f"d{batch_dim}:compressed(nonunique),d{batch_dim+1}:singleton"
     elif sparsity.layout is torch.sparse_csr:
-        assert sparse_dim == 2
+        assert sparse_dim == 2 and blocksize is None
         lvls = f"d{batch_dim}:dense,d{batch_dim+1}:compressed"
     elif sparsity.layout is torch.sparse_csc:
-        assert sparse_dim == 2
+        assert sparse_dim == 2 and blocksize is None
         lvls = f"d{batch_dim+1}:dense,d{batch_dim}:compressed"
     else:
-        # TODO: block format (derive block size!)
-        raise RuntimeError(f"Unsupported sparse layout {sparse_layout}")
+        assert sparse_dim == 2 and blocksize is not None
+        if sparsity.layout is torch.sparse_bsr:
+            i, j = batch_dim, batch_dim + 1
+        else:
+            assert sparsity.layout is torch.sparse_bsc
+            j, i = batch_dim, batch_dim + 1
+        m, n = blocksize
+        lvls = (
+            f"d{i} floordiv {m}:dense,d{j} floordiv {n}:compressed,"
+            f"d{i} mod {m}:dense,d{j} mod {n}:dense"
+        )
 
     if batch_dim > 0:
         batch = ",".join(f"d{d}:dense" for d in range(0, batch_dim))
@@ -264,7 +301,8 @@ def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
         dense = ",".join(f"d{d}:dense" for d in range(batch_dim + sparse_dim, dim))
         lvls = f"{lvls},{dense}"
 
-    posw, crdw = sparsity.pos_width, sparsity.crd_width
+    posw = torch.iinfo(sparsity.pos_dtype).bits
+    crdw = torch.iinfo(sparsity.crd_dtype).bits
     return f"#sparse_tensor.encoding<{{map=({dims})->({lvls}),posWidth={posw},crdWidth={crdw}}}>"
 
 
@@ -282,7 +320,7 @@ class InputInfo:
     """Provides additional metadata when resolving inputs."""
 
     program: torch.export.ExportedProgram
-    input_spec: torch.export.graph_signature.InputSpec
+    input_spec: TypingInputSpec
     node: Node
     ir_type: IrType
     mutable_producer_node_name: Optional[str] = None

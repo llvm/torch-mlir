@@ -1,4 +1,4 @@
-// RUN: torch-mlir-opt %s -torch-convert-custom-quant-op -split-input-file -verify-diagnostics | FileCheck %s
+// RUN: torch-mlir-opt %s '-pass-pipeline=builtin.module(func.func(torch-convert-custom-quant-op))' -split-input-file -verify-diagnostics | FileCheck %s
 
 // CHECK: #map = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
 // CHECK: #map1 = affine_map<(d0, d1, d2) -> (d0, d1, 0)>
