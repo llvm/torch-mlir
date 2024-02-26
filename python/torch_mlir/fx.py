@@ -23,6 +23,7 @@ def export_and_import(
     constraints: Optional[torch.export.Constraint] = None,
     experimental_support_mutation: bool = False,
     hooks: Optional[FxImporterHooks] = None,
+    func_name: str = "main",
     **kwargs,
 ):
     context = ir.Context()
@@ -36,8 +37,8 @@ def export_and_import(
     if experimental_support_mutation:
         if torch.__version__ < "2.3.0.dev20240207":
             warnings.warn("Mutable program import only supported on PyTorch 2.3+")
-        fx_importer.import_program(prog)
+        fx_importer.import_program(prog, func_name=func_name)
     else:
-        fx_importer.import_frozen_program(prog)
+        fx_importer.import_frozen_program(prog, func_name=func_name)
 
     return fx_importer.module_op
