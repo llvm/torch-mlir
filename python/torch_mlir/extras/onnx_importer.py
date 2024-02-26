@@ -669,7 +669,8 @@ ELEM_TYPE_INLINE_TENSOR_PROTO_CB = {
         np.asarray(tp.float_data, dtype=np.float32).reshape(tp.dims), signless=False
     ),
     onnx.TensorProto.DataType.BOOL: lambda tp: DenseElementsAttr.get(
-        np.asarray(tp.int32_data, dtype=np.bool_).reshape(tp.dims), signless=False
+        np.packbits(np.asarray(tp.int32_data, dtype=np.bool_).reshape(tp.dims),
+                    axis=None, bitorder="little"), signless=False
     ),
     onnx.TensorProto.DataType.INT8: lambda tp: DenseElementsAttr.get(
         np.asarray(tp.int32_data, dtype=np.int8).reshape(tp.dims), signless=False
