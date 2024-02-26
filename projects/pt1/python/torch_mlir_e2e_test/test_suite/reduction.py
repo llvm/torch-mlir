@@ -1100,6 +1100,25 @@ def ReduceL3NormKeepDimModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class NormScalarModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.p = 3.0
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.norm(a, self.p)
+
+@register_test_case(module_factory=lambda: NormScalarModule())
+def NormScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
 class NormScalarOptDimModule(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()

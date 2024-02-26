@@ -275,7 +275,8 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
                                     elementType.getIntOrFloatBitWidth())));
   }
 
-  if (isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op))
+  if (isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op) ||
+      isa<AtenNormScalarOp>(op))
     return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
 
   if (isa<AtenAllDimOp>(op)) {
@@ -341,6 +342,26 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
       if (intType.isSigned())
         return b.create<arith::MinSIOp>(loc, self, result);
     }
+  } else if (isa<AtenNormScalarOp>(op)) {
+    // This creates payload for only the first of the two linalg.generic ops.
+    // TODO: Short-circuit operations if `p` is zero or one.
+    Value elem = payloadArgs[0];
+    Value result = payloadArgs[1];
+
+    // TODO: Fix this part to support complex elements.
+    if (elem.getType().isa<mlir::ComplexType>()) {
+      op->emitError("lowering of complex input type for torch.aten.norm.Scalar "
+                    "is currently unimplemented");
+      return nullptr;
+    }
+
+    Value self = convertScalarToDtype(b, loc, elem, resultElementType);
+
+    auto abs = b.create<math::AbsFOp>(loc, self);
+    AtenNormScalarOp::Adaptor adaptor(operands);
+    Value p = convertScalarToDtype(b, loc, adaptor.getP(), resultElementType);
+    auto pow = b.create<math::PowFOp>(loc, abs, p);
+    return b.create<arith::AddFOp>(loc, pow, result);
   } else if (isa<AtenLinalgVectorNormOp>(op)) {
     // This creates payload for only the first of the two linalg.generic ops.
     // TODO: Short-circuit operations if `ord` is zero or one.
@@ -433,7 +454,7 @@ private:
                          ConversionPatternRewriter &rewriter) const {
     auto opInfo = torch_to_linalg::ReductionOpInfo{false, Value{}, {}};
 
-    if (isa<AtenMaxOp, AtenMinOp, AtenSumOp>(op)) {
+    if (isa<AtenMaxOp, AtenMinOp, AtenSumOp, AtenNormScalarOp>(op)) {
       opInfo.tensorOperand = operands[0];
       auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
 
@@ -484,10 +505,12 @@ private:
     return err ? Value{} : powOp;
   }
 
-  FailureOr<Value> createSecondReductionForVectorNormOp(
-      Location loc, Type elemType, AtenLinalgVectorNormOp op, Value ordOp,
-      Value firstReduction, const torch_to_linalg::ReductionOpInfo &opInfo,
-      ConversionPatternRewriter &rewriter) const {
+  template <typename TOp>
+  FailureOr<Value>
+  createSecondReductionForNormOp(Location loc, Type elemType, TOp op,
+                                 Value ordOp, Value firstReduction,
+                                 const torch_to_linalg::ReductionOpInfo &opInfo,
+                                 ConversionPatternRewriter &rewriter) const {
     // Cast `ord` to float so that we can readily pass it math.powf.
     Value ordValue = convertScalarToDtype(rewriter, loc, ordOp, elemType);
 
@@ -544,13 +567,15 @@ private:
   LogicalResult
   validateReductionElementType(Operation *op, Type elemType,
                                ConversionPatternRewriter &rewriter) const {
-    if ((isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op)) &&
+    if ((isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op) ||
+         isa<AtenNormScalarOp>(op)) &&
         !elemType.isa<mlir::FloatType>())
       return rewriter.notifyMatchFailure(
           op, "only float types are valid for vector norm ops");
     if (isa<AtenAllDimOp>(op) && elemType.isa<mlir::IntegerType>() &&
         elemType.getIntOrFloatBitWidth() == 8)
       return rewriter.notifyMatchFailure(op, "uint8 is not supported");
+
     // No checks for all other reduction operations
     return success();
   }
@@ -587,11 +612,22 @@ public:
       return rewriter.notifyMatchFailure(
           op, "failed to create linalg.generic operation for reduction");
 
+    // If this is aten.norm.Scalar op, then we need to generate another
+    // linalg.generic op that references the first linalg.generic op.
+    if (isa<AtenNormScalarOp>(op)) {
+      AtenNormScalarOp::Adaptor adaptor(operands);
+      FailureOr<Value> secondReduceOp = createSecondReductionForNormOp(
+          loc, elemType, op, adaptor.getP(), reduceOp, *opInfo, rewriter);
+      if (failed(secondReduceOp))
+        return secondReduceOp;
+      reduceOp = *secondReduceOp;
+    }
+
     // If this is aten.linalg_vector_norm op, then we need to generate another
     // linalg.generic op that references the first linalg.generic op.
     if (auto normOp = dyn_cast<AtenLinalgVectorNormOp>(op)) {
       AtenLinalgVectorNormOp::Adaptor adaptor(operands);
-      FailureOr<Value> secondReduceOp = createSecondReductionForVectorNormOp(
+      FailureOr<Value> secondReduceOp = createSecondReductionForNormOp(
           loc, elemType, normOp, adaptor.getOrd(), reduceOp, *opInfo, rewriter);
       if (failed(secondReduceOp))
         return secondReduceOp;
@@ -627,6 +663,7 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   target.addIllegalOp<AtenMaxOp>();
   target.addIllegalOp<AtenMinOp>();
   target.addIllegalOp<AtenAllDimOp>();
+  target.addIllegalOp<AtenNormScalarOp>();
   target.addIllegalOp<AtenLinalgVectorNormOp>();
   target.addIllegalOp<AtenFrobeniusNormDimOp>();
   patterns.add<ConvertReductionOp>(typeConverter, context);
