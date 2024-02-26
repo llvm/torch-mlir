@@ -22,6 +22,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include <optional>
 
@@ -4065,8 +4066,8 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
         op, "unimplemented: pin_memory must be either None or false");
   }
 
-  // Stores a range value (start / end / step) and whether it was initiated with
-  // a constant integer, an constant float or neither.
+  // Stores a range value (a start, end, or step value) and whether or not it
+  // was initiated with a constant integer, an constant float or neither.
   class ConstRangeValue {
   public:
     explicit ConstRangeValue(double v)
@@ -4077,8 +4078,20 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
         : vDouble(static_cast<double>(v)), fromDouble(false), vInt(v),
           fromInt(true) {}
 
+    // Constructor for the case where there is no constant value to use.
     ConstRangeValue()
         : vDouble(0), fromDouble(false), vInt(0), fromInt(false) {}
+
+    static ConstRangeValue fromValue(Value v) {
+      int64_t intVal{0};
+      double floatVal{0.0};
+      if (matchPattern(v, m_TorchConstantFloat(&floatVal))) {
+        return ConstRangeValue(floatVal);
+      } else if (matchPattern(v, m_TorchConstantInt(&intVal))) {
+        return ConstRangeValue(intVal);
+      }
+      return ConstRangeValue();
+    }
 
     bool hasConstInt() const { return fromInt; }
     bool hasConstDouble() const { return fromDouble; }
@@ -4093,31 +4106,20 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
     bool fromInt;
   };
 
-  auto setConstantIntOrFloat = [](Value v) -> ConstRangeValue {
-    int64_t intVal{0};
-    double floatVal{0.0};
-    if (matchPattern(v, m_TorchConstantFloat(&floatVal))) {
-      return ConstRangeValue(floatVal);
-    } else if (matchPattern(v, m_TorchConstantInt(&intVal))) {
-      return ConstRangeValue(intVal);
-    }
-    return ConstRangeValue();
-  };
-
-  auto start = setConstantIntOrFloat(op.getStart());
+  auto start = ConstRangeValue::fromValue(op.getStart());
   if (!start.hasConst()) {
     return rewriter.notifyMatchFailure(
         op, "unimplemented: case where `start` is not a constant int or float");
   }
 
-  auto end = setConstantIntOrFloat(op.getEnd());
+  auto end = ConstRangeValue::fromValue(op.getEnd());
   if (!end.hasConst()) {
     return rewriter.notifyMatchFailure(
         op,
         "unimplemented: case where value `end` is not a constant int or float");
   }
 
-  auto step = setConstantIntOrFloat(op.getStep());
+  auto step = ConstRangeValue::fromValue(op.getStep());
   if (!step.hasConst()) {
     return rewriter.notifyMatchFailure(op,
                                        "unimplemented: case where value `step` "
@@ -4150,19 +4152,24 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
     return values;
   };
 
-  const auto intType =
+  const auto isIntType =
       resultType.getElementType().dyn_cast_or_null<mlir::IntegerType>();
 
+  const auto isDoubleType =
+      resultType.getElementType().dyn_cast_or_null<mlir::FloatType>();
+
   auto maybeResult = [&]() -> std::optional<Value> {
-    if (intType && start.hasConstInt() && end.hasConstInt() &&
+    // Integer output type, and start / end / range are all integers.
+    if (isIntType && start.hasConstInt() && end.hasConstInt() &&
         step.hasConstInt()) {
       auto values = getRange(start.getInt(), end.getInt(), step.getInt());
       return tosa::getConstTensor<int64_t>(rewriter, op, values, values.size());
     }
 
+    // Get a double range.
     auto values =
         getRange(start.getDouble(), end.getDouble(), step.getDouble());
-    if (intType) {
+    if (isIntType) {
       SmallVector<int64_t> values_i64;
       values_i64.reserve(values.size());
       for (auto v : values) {
@@ -4171,7 +4178,19 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
       return tosa::getConstTensor<int64_t>(rewriter, op, values_i64,
                                            values.size());
     }
-    return tosa::getConstTensor<double>(rewriter, op, values, values.size());
+
+    if (!isDoubleType) {
+      return {};
+    }
+
+    SmallVector<float> values_f32;
+    values_f32.reserve(values.size());
+    for (auto v : values) {
+      values_f32.push_back(static_cast<float>(v));
+    }
+    auto vs = tosa::getConstTensor<float>(rewriter, op, values_f32,
+                                          values_f32.size());
+    return vs;
   }();
 
   if (!maybeResult.has_value()) {
