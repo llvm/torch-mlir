@@ -2145,6 +2145,52 @@ func.func @torch.aten.ScalarImplicit$canonicalize_literal_0d() -> !torch.number 
     return %1 : !torch.number
 }
 
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.FloatImplicit$canonicalize_numtotensor_0d() -> !torch.float {
+// CHECK:             %[[FLOAT1:.*]] = torch.constant.float 1.000000e+00
+// CHECK:             return %[[FLOAT1]] : !torch.float
+func.func @torch.aten.FloatImplicit$canonicalize_numtotensor_0d() -> !torch.float {
+    %float1 = torch.constant.float 1.0
+    %0 = torch.prim.NumToTensor.Scalar %float1 : !torch.float -> !torch.vtensor<[],f64>
+    %1 = torch.aten.FloatImplicit %0 : !torch.vtensor<[],f64> -> !torch.float
+    return %1 : !torch.float
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.FloatImplicit$canonicalize_literal_0d() -> !torch.float {
+// CHECK:             %[[FLOAT1:.*]] = torch.constant.float 1.000000e+00
+// CHECK:             return %[[FLOAT1]] : !torch.float
+func.func @torch.aten.FloatImplicit$canonicalize_literal_0d() -> !torch.float {
+    %0 = torch.vtensor.literal(dense<1.0> : tensor<f64>) : !torch.vtensor<[],f64>
+    %1 = torch.aten.FloatImplicit %0 : !torch.vtensor<[],f64> -> !torch.float
+    return %1 : !torch.float
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.IntImplicit$canonicalize_numtotensor_0d() -> !torch.int {
+// CHECK:             %[[INT1:.*]] = torch.constant.int 1
+// CHECK:             return %[[INT1]] : !torch.int
+func.func @torch.aten.IntImplicit$canonicalize_numtotensor_0d() -> !torch.int {
+    %int1 = torch.constant.int 1
+    %0 = torch.prim.NumToTensor.Scalar %int1 : !torch.int -> !torch.vtensor<[],si64>
+    %1 = torch.aten.IntImplicit %0 : !torch.vtensor<[],si64> -> !torch.int
+    return %1 : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.aten.IntImplicit$canonicalize_literal_0d() -> !torch.int {
+// CHECK:             %[[INT1:.*]] = torch.constant.int 1
+// CHECK:             return %[[INT1]] : !torch.int
+func.func @torch.aten.IntImplicit$canonicalize_literal_0d() -> !torch.int {
+    %0 = torch.vtensor.literal(dense<1> : tensor<si64>) : !torch.vtensor<[],si64>
+    %1 = torch.aten.IntImplicit %0 : !torch.vtensor<[],si64> -> !torch.int
+    return %1 : !torch.int
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.prims.view_of$fold(
 // CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[3,4,2],f32>) -> !torch.vtensor<[3,4,2],f32> {
 // CHECK-NEXT:      return %[[ARG]] : !torch.vtensor<[3,4,2],f32>

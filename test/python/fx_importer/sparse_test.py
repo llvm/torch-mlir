@@ -31,50 +31,49 @@ SPARSE_LAYOUTS = [
 ]
 
 
-def sparse_overhead_width(d: torch.dtype) -> int:
-    """Returns bit-width for admissible overhead type."""
-    if d is torch.int64:
-        return 64
-    if d is torch.int32:
-        return 32
-    if d is torch.int16:
-        return 16
-    if d is torch.int8:
-        return 8
-    raise RuntimeError(f"Unsupported overhead type {d}")
-
-
 def sparse_metadata(a: torch.Tensor) -> SparsityMeta:
-    """Returns a meta data tuple for the given sparse tensor."""
+    """
+    Returns a meta data tuple for the given sparse tensor.
+
+    NOTE: this will be fully replaced by fx graph SparseTensorMetadata
+    """
     sparse_dim = a.sparse_dim()
     dense_dim = a.dense_dim()
     batch_dim = a.ndim - dense_dim - sparse_dim
+    blocksize = None
     if a.layout is torch.sparse_coo:
         return SparsityMeta(
             a.layout,
             batch_dim,
             sparse_dim,
             dense_dim,
-            sparse_overhead_width(a.indices().dtype),
-            sparse_overhead_width(a.indices().dtype),
+            blocksize,
+            a.indices().dtype,
+            a.indices().dtype,
         )
     elif a.layout is torch.sparse_csr or a.layout is torch.sparse_bsr:
+        if a.layout is torch.sparse_bsr:
+            blocksize = a.values().shape[batch_dim + 1 : batch_dim + 3]
         return SparsityMeta(
             a.layout,
             batch_dim,
             sparse_dim,
             dense_dim,
-            sparse_overhead_width(a.crow_indices().dtype),
-            sparse_overhead_width(a.col_indices().dtype),
+            blocksize,
+            a.crow_indices().dtype,
+            a.col_indices().dtype,
         )
     elif a.layout is torch.sparse_csc or a.layout is torch.sparse_bsc:
+        if a.layout is torch.sparse_bsc:
+            blocksize = a.values().shape[batch_dim + 1 : batch_dim + 3]
         return SparsityMeta(
             a.layout,
             batch_dim,
             sparse_dim,
             dense_dim,
-            sparse_overhead_width(a.ccol_indices().dtype),
-            sparse_overhead_width(a.row_indices().dtype),
+            blocksize,
+            a.ccol_indices().dtype,
+            a.row_indices().dtype,
         )
     else:
         raise RuntimeError(f"Unsupported sparse layout for {a}")
@@ -212,6 +211,30 @@ def test_sparse_sum():
     res2 = sparse_jit(net, sparse_input)
     print("torch.sparse =", res1)
     print("torch.mlir   =", res2)
+
+
+@run
+# CHECK-LABEL: test_sparse_SpMV
+# CHECK:       #[[$BSR:.*]] = #sparse_tensor.encoding<{ map = (d0, d1) -> (d0 floordiv 2 : dense, d1 floordiv 2 : compressed, d0 mod 2 : dense, d1 mod 2 : dense), posWidth = 64, crdWidth = 64 }>
+# CHECK:       func.func @main(
+# CHECK-SAME:    %[[A:.*0]]: !torch.vtensor<[10,10],f32,#[[$BSR]]>,
+# CHECK-SAME:    %[[B:.*1]]: !torch.vtensor<[10],f32>) -> !torch.vtensor<[10],f32> {
+# CHECK:         %[[R:.*]] = torch.aten.mv %[[A]], %[[B]] : !torch.vtensor<[10,10],f32,#[[$BSR]]>, !torch.vtensor<[10],f32> -> !torch.vtensor<[10],f32>
+# CHECK:         return %[[R]] : !torch.vtensor<[10],f32>
+# CHECK:       }
+def test_sparse_SpMV():
+    class SpMVNet(torch.nn.Module):
+        def __init__(self):
+            super(SpMVNet, self).__init__()
+
+        def forward(self, x, v):
+            return torch.mv(x, v)
+
+    dense_vector = torch.ones(10)
+    dense_input = torch.ones(10, 10)
+    sparse_input = dense_input.to_sparse_bsr(blocksize=(2, 2))
+    m = export_and_import(SpMVNet(), sparse_input, dense_vector)
+    print(m)
 
 
 @run

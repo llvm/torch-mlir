@@ -8,24 +8,23 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
-#include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
-#include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
-#include "torch-mlir/Conversion/Utils/Utils.h"
-
 #include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
-#include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
+#include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -4067,93 +4066,138 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
         op, "unimplemented: pin_memory must be either None or false");
   }
 
-  double start, step, end;
-  int64_t start_int, step_int, end_int;
-  auto isInteger = [=](Value v) { return v.getType().isa<Torch::IntType>(); };
-  bool isOutputInt64=false; 
-  auto intType = resultType.getElementType().dyn_cast_or_null<mlir::IntegerType>();
+  // Stores a range value (a start, end, or step value) and whether or not it
+  // was initiated with a constant integer, an constant float or neither.
+  class ConstRangeValue {
+  public:
+    explicit ConstRangeValue(double v)
+        : vDouble(v), fromDouble(true), vInt(static_cast<int64_t>(v)),
+          fromInt(false) {}
 
-  if(intType)
-  {
-    if(intType.getWidth() == 64)
-    {
-      isOutputInt64 = true;
-    }
-  }
-  //Flag to check whether all inputs are integer
-  bool integer_range = isInteger(op.getStart()) && isInteger(op.getEnd()) && isInteger(op.getStep());
-  
-  if (matchPattern(op.getStart(), m_TorchConstantInt(&start_int)))
-  {
-    start = static_cast<double>(start_int);
-  }
+    explicit ConstRangeValue(int64_t v)
+        : vDouble(static_cast<double>(v)), fromDouble(false), vInt(v),
+          fromInt(true) {}
 
-  else if(!matchPattern(op.getStart(), m_TorchConstantFloat(&start)))
-    return rewriter.notifyMatchFailure(
-        op, "unimplemented: value `start` should be a torch constant int or float");
+    // Constructor for the case where there is no constant value to use.
+    ConstRangeValue()
+        : vDouble(0), fromDouble(false), vInt(0), fromInt(false) {}
 
-  if (matchPattern(op.getEnd(), m_TorchConstantInt(&end_int)))
-  {
-    end = static_cast<double>(end_int);
-  }
-  else if (!matchPattern(op.getEnd(), m_TorchConstantFloat(&end)))
-    return rewriter.notifyMatchFailure(
-        op, "unimplemented: value `end` should be a torch constant int or float");
-
-  if (matchPattern(op.getStep(), m_TorchConstantInt(&step_int)))
-  {    
-    
-    step = static_cast<double>(step_int);
-  }
-
-  else if (!matchPattern(op.getStep(), m_TorchConstantFloat(&step)))
-    return rewriter.notifyMatchFailure(
-        op, "unimplemented: value `step` should be a torch constant int or float");
-
-  // The result will always be a 1-d tensor.
-  // The size of the result is calculated as follows:
-  //          ceil((end - start)/step)
-  
-  Value result;
-  if (integer_range)
-  {
-    SmallVector<int64_t> values;
-    if (step_int >= 0)
-    {  
-      for (int64_t i = start_int; i < end_int; i += step_int)
-        values.push_back(i);
-    }
-    
-    else
-    {  
-      for (int64_t i = start_int; i > end_int; i += step_int)
-        values.push_back(i);
+    static ConstRangeValue fromValue(Value v) {
+      int64_t intVal{0};
+      double floatVal{0.0};
+      if (matchPattern(v, m_TorchConstantFloat(&floatVal))) {
+        return ConstRangeValue(floatVal);
+      } else if (matchPattern(v, m_TorchConstantInt(&intVal))) {
+        return ConstRangeValue(intVal);
+      }
+      return ConstRangeValue();
     }
 
-    result = tosa::getConstTensor<int64_t>(rewriter, op, values, values.size()).value();
+    bool hasConstInt() const { return fromInt; }
+    bool hasConstDouble() const { return fromDouble; }
+    bool hasConst() const { return fromInt || fromDouble; }
+    double getDouble() const { return vDouble; }
+    int64_t getInt() const { return vInt; }
+
+  private:
+    double vDouble;
+    bool fromDouble;
+    int64_t vInt;
+    bool fromInt;
+  };
+
+  auto start = ConstRangeValue::fromValue(op.getStart());
+  if (!start.hasConst()) {
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: case where `start` is not a constant int or float");
   }
 
-  //Since typecasting from float32 or float64 to int64 results in, seemingly
-  //garbage values. Therefore typecasting here itself. 
-  else if(isOutputInt64)
-  {
-    int64_t resultSize = ceil((end - start) / step);
-    SmallVector<int64_t> values(resultSize, start);
-    for (unsigned i = 1; i < resultSize; i++)
-      values[i] += static_cast<int64_t>(i * step);
-    
-    result = tosa::getConstTensor<int64_t>(rewriter, op, values, resultSize).value();
+  auto end = ConstRangeValue::fromValue(op.getEnd());
+  if (!end.hasConst()) {
+    return rewriter.notifyMatchFailure(
+        op,
+        "unimplemented: case where value `end` is not a constant int or float");
   }
 
-  else
-  {
-    int64_t resultSize = ceil((end - start) / step);
-    SmallVector<float> values(resultSize, start);
-    for (unsigned i = 1; i < resultSize; i++)
-      values[i] += (i * step);
-    
-    result = tosa::getConstTensor<float>(rewriter, op, values, resultSize).value();
+  auto step = ConstRangeValue::fromValue(op.getStep());
+  if (!step.hasConst()) {
+    return rewriter.notifyMatchFailure(op,
+                                       "unimplemented: case where value `step` "
+                                       "is not a constant int or float");
   }
+
+  auto getRange = [](auto start, auto end, auto step) {
+    // Initialize a small vector of the same type as start:
+    using T = decltype(start);
+    SmallVector<T> values;
+
+    uint64_t counter{0};
+    if (start == end) {
+      return values;
+    }
+    assert(step != T(0));
+    values.reserve(
+        1 + static_cast<size_t>(std::abs((end - start) / std::abs(step))));
+    if (step > 0) {
+      while (start + T(counter) * step < end) {
+        values.push_back(start + counter * step);
+        counter++;
+      }
+    } else {
+      while (start + T(counter) * step > end) {
+        values.push_back(start + counter * step);
+        counter++;
+      }
+    }
+    return values;
+  };
+
+  const auto isIntType =
+      resultType.getElementType().dyn_cast_or_null<mlir::IntegerType>();
+
+  const auto isDoubleType =
+      resultType.getElementType().dyn_cast_or_null<mlir::FloatType>();
+
+  auto maybeResult = [&]() -> std::optional<Value> {
+    // Integer output type, and start / end / range are all integers.
+    if (isIntType && start.hasConstInt() && end.hasConstInt() &&
+        step.hasConstInt()) {
+      auto values = getRange(start.getInt(), end.getInt(), step.getInt());
+      return tosa::getConstTensor<int64_t>(rewriter, op, values, values.size());
+    }
+
+    // Get a double range.
+    auto values =
+        getRange(start.getDouble(), end.getDouble(), step.getDouble());
+    if (isIntType) {
+      SmallVector<int64_t> values_i64;
+      values_i64.reserve(values.size());
+      for (auto v : values) {
+        values_i64.push_back(static_cast<int64_t>(v));
+      }
+      return tosa::getConstTensor<int64_t>(rewriter, op, values_i64,
+                                           values.size());
+    }
+
+    if (!isDoubleType) {
+      return {};
+    }
+
+    SmallVector<float> values_f32;
+    values_f32.reserve(values.size());
+    for (auto v : values) {
+      values_f32.push_back(static_cast<float>(v));
+    }
+    auto vs = tosa::getConstTensor<float>(rewriter, op, values_f32,
+                                          values_f32.size());
+    return vs;
+  }();
+
+  if (!maybeResult.has_value()) {
+    return rewriter.notifyMatchFailure(
+        op, "failed to generate constant tensor for arange");
+  }
+  auto result = maybeResult.value();
 
   rewriter.replaceOpWithNewOp<tosa::CastOp>(op, resultType, result);
   return success();

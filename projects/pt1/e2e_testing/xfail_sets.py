@@ -335,6 +335,9 @@ TORCHDYNAMO_XFAIL_SET = {
 
     # Dynamo not supporting conv_tbc
     "ConvTbcModule_basic",
+
+    "FloatImplicitModule_basic",
+    "IntImplicitModule_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -515,6 +518,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseFloorIntModule_basic",
     "ElementwiseFloorModule_basic",
     "ElementwiseGeluModule_basic",
+    "ElementwiseGeluApproximateTanhModule_basic",
     "ElementwiseLeakyReluStaticModule_basic",
     "ElementwiseLogModule_basic",
     "ElementwiseNanToNumModule_Basic",
@@ -997,6 +1001,8 @@ TOSA_PASS_SET = {
     "ElementwiseCloneContiguousModule_basic",
     "ElementwiseCloneModule_basic",
     "ElementwiseDivScalarModule_basic",
+    "ElementwiseDivTensorIntegerModule_basic",
+    "ElementwiseDivTensorUnsignedIntegerModule_basic",
     "ElementwiseEluModule_basic",
     "ElementwiseEluNonDefaultModule_basic",
     "ElementwiseEqBoolScalarModule_basic",
@@ -1675,6 +1681,7 @@ ONNX_XFAIL_SET = {
     "NllLossModule_ignore_index_out_of_bounds_basic",
     "NllLossModule_mean_basic",
     "NllLossModule_sum_basic",
+    "NormScalarModule_basic",
     "NormScalarOptDimKeepDimModule_basic",
     "NormScalarOptDimModule_basic",
     "NormalFunctionalModule_basic",
@@ -1833,23 +1840,6 @@ ONNX_XFAIL_SET = {
     "ElementwiseClampTensorFloatModule_basic",
     "ElementwiseClampTensorInt8Module_basic",
     "ElementwiseClampTensorIntModule_basic",
-    "EmptyLikeMemoryFormatModule_basic",
-    "EmptyLikeModule_defaultDtype",
-    "EmptyLikeModule_falsePinMemory",
-    "EmptyLikeModule_float",
-    "EmptyLikeModule_int",
-    "Fill_TensorFloat32WithFloat32_basic",
-    "Fill_TensorFloat32WithFloat64_basic",
-    "Fill_TensorFloat32WithInt64_basic",
-    "Fill_TensorFloat64WithFloat32_basic",
-    "Fill_TensorFloat64WithFloat64_basic",
-    "Fill_TensorFloat64WithInt64_basic",
-    "FullLikeModuleDefaultDtype_basic",
-    "FullLikeModuleFalsePinMemory_basic",
-    "FullLikeModuleFloat2D_basic",
-    "FullLikeModuleFloat3D_basic",
-    "FullLikeModuleInt2D_basic",
-    "FullLikeModuleInt3D_basic",
     "HBC_basic",
     "IndexPut1DFloatAccumulateModule_basic",
     "IndexPut1DIntAccumulateModule_basic",
@@ -1864,10 +1854,6 @@ ONNX_XFAIL_SET = {
     "IndexPutHackedTwin3DFloatAccumulateModule_basic",
     "IndexPutHackedTwin3DIntAccumulateModule_basic",
     "NormalizeModule_basic",
-    "OnesLikeModule_defaultDtype",
-    "OnesLikeModule_falsePinMemory",
-    "OnesLikeModule_float",
-    "OnesLikeModule_int",
     "PadWithNoneValModule_basic",
     "QuantizedMLP_basic",
     "RandModule_basic",
@@ -1883,13 +1869,6 @@ ONNX_XFAIL_SET = {
     "TileSmallDimsSizeModule_basic",
     "UpSampleNearest2dDynamicSize_basic",
     "UpSampleNearest2dStaticSize_basic",
-    "ZeroFloat32Module_basic",
-    "ZeroInt32Module_basic",
-    "ZeroInt64Module_basic",
-    "ZerosLikeModule_defaultDtype",
-    "ZerosLikeModule_falsePinMemory",
-    "ZerosLikeModule_float",
-    "ZerosLikeModule_int",
     
     # Failure - onnx_lowering
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
@@ -2170,6 +2149,8 @@ ONNX_XFAIL_SET = {
     "EmbeddingModuleI32_basic",
     "EmbeddingModuleI64_basic",
     "ExpandModule_basic",
+    "MoveDimIntNegativeIndexModule_basic",
+    "PermuteNegativeIndexModule_basic",
     "ReduceAmaxKeepDim_basic",
     "ReduceMaxKeepDimReturnBoth_basic",
     "ReduceMaxNegativeDim_basic",
@@ -2179,8 +2160,6 @@ ONNX_XFAIL_SET = {
     "ElementwiseSigmoidIntModule_basic",
     
     # Failure - unknown
-    "ChunkListUnpackUneven_Module_basic",
-    "ChunkListUnpack_Module_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "CopyWithDifferentDTypesAndSizesModule_basic",
     "CopyWithDifferentDTypesModule_basic",
@@ -2192,7 +2171,6 @@ ONNX_XFAIL_SET = {
     "ElementwiseUnsqueezeNegDimsModule_basic",
     "ElementwiseWhereScalarModule_basic",
     "FlattenDynamicModule_basic",
-    "FlipModule_basic",
     "FlipModuleStaticShape_basic",
     "GluStaticModule_basic",
     "MaskedFillTensorFloatValueModule_basic",
@@ -2202,9 +2180,9 @@ ONNX_XFAIL_SET = {
     "ReduceMinAlongDimUnsignedInt_basic",
     "TensorsStackNegativeDimModule_basic",
     "TensorsStackPromoteDTypeModule_basic",
-    "FlipModule_basic",
-    "MoveDimIntNegativeIndexModule_basic",
-    "PermuteNegativeIndexModule_basic",
+    "FloatImplicitModule_basic",
+    "IntImplicitModule_basic",
 }
 
 ONNX_CRASHING_SET = { }
+

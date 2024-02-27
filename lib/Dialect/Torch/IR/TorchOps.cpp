@@ -1569,6 +1569,38 @@ void AtenScalarImplicitOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenFloatImplicitOp
+//===----------------------------------------------------------------------===//
+void AtenFloatImplicitOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenFloatImplicitOp op, PatternRewriter &rewriter) {
+    Location loc = op.getLoc();
+    Value a = op.getA();
+    Value scalarValue = getScalarFloatValue(a, loc, rewriter);
+    if (!scalarValue)
+      return failure();
+    rewriter.replaceOp(op, scalarValue);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenIntImplicitOp
+//===----------------------------------------------------------------------===//
+void AtenIntImplicitOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                    MLIRContext *context) {
+  patterns.add(+[](AtenIntImplicitOp op, PatternRewriter &rewriter) {
+    Location loc = op.getLoc();
+    Value a = op.getA();
+    Value scalarValue = getScalarIntValue(a, loc, rewriter);
+    if (!scalarValue)
+      return failure();
+    rewriter.replaceOp(op, scalarValue);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSizeOp
 //===----------------------------------------------------------------------===//
 
@@ -3327,11 +3359,15 @@ OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
 
   // Get the single index value for the selected dimension
   auto splatValue = indexAttr.getSplatValue<IntegerAttr>();
-  int64_t indexInt = getIntAttrAsIndex(splatValue, selfSizes[dimInt]);
+  int64_t indexInt = getIntAttrAsSigned(splatValue);
+  indexInt = indexInt < 0 && selfSizes[dimInt] ? indexInt + selfSizes[dimInt]
+                                               : indexInt;
 
   // Extract the single constant value from the input tensor and turn the
   // extracted value into a single-element tensor of the output shape and dtype
-  auto splattr = selfAttr.getValues<Attribute>()[indexInt];
+  Attribute splattr = selfAttr.isSplat()
+                          ? selfAttr.getSplatValue<Attribute>()
+                          : selfAttr.getValues<Attribute>()[indexInt];
 
   auto dty = resultTy.getDtype();
   auto attrTy = resultTy.toBuiltinTensor().clone(dty);
@@ -3762,6 +3798,42 @@ LogicalResult ShapeCalculateYieldShapesOp::verify() {
     return emitOpError("expected number of shapes to match number of results");
   return success();
 }
+
+//===----------------------------------------------------------------------===//
+// AtenNormScalarOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenNormScalarOp::verify() {
+
+  // Verificaion of input type for torch.aten.norm.Scalar.
+  // Per PyTorch docs, only float and complex types are valid for norm
+  // operation.
+
+  auto inTensor = getSelf().getType().cast<BaseTensorType>();
+
+  // If no dtype is specified, it will default to a float one.
+  if (!inTensor.hasDtype()) {
+    return success();
+  }
+
+  auto inTensorDtype = inTensor.getDtype();
+
+  // Check if dtype is one of those supported by norm operation.
+  // ComplexType will match any torch complex types, but each float must be
+  // checked individually.
+  if (!inTensorDtype.isa<mlir::ComplexType, mlir::Float16Type,
+                         mlir::Float32Type, mlir::Float64Type>()) {
+    return emitOpError(
+               "expected a float or complex type for input tensor, but got ")
+           << inTensorDtype;
+  }
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// AtenPermuteOp
+//===----------------------------------------------------------------------===//
 
 LogicalResult AtenPermuteOp::verify() {
 

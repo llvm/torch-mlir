@@ -56,3 +56,24 @@ def test_import_frozen_exported_program():
 
     m = fx.export_and_import(Basic(), torch.randn(3, 4))
     print(m)
+
+
+@run
+# CHECK-LABEL: test_import_frozen_exported_program_with_func_name
+# CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
+def test_import_frozen_exported_program_with_func_name():
+    @torch._dynamo.assume_constant_result
+    def get_a():
+        return torch.randn(1, 4)
+
+    class Basic(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.b = torch.randn(3, 1)
+            self.p = nn.Parameter(torch.randn(1, 1))
+
+        def forward(self, x):
+            return torch.tanh(x) * get_a() * self.b * self.p
+
+    m = fx.export_and_import(Basic(), torch.randn(3, 4), func_name="test_net")
+    print(m)
