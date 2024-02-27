@@ -6847,6 +6847,7 @@ public:
 } // namespace
 
 namespace {
+  // Decompose AtenLinalgNormOp to AtenLinalgVectorNormOp only
 class DecomposeAtenLinalgNormOp : public OpRewritePattern<AtenLinalgNormOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
