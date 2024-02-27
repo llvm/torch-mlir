@@ -645,7 +645,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                                      /*dstOriginalDtype=*/resultElementType);
     Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), dtype,
                                        /*srcOriginalDtype=*/std::nullopt,
-                                       /*dstOriginalDtype=*/resultElementType);
+                                       /*dstOriginalDtype=*/resultElementType,
+                                       /*originalScalar=*/sub.getAlpha());
     if (dtype.isa<mlir::FloatType>()) {
       Value scaled = b.create<arith::MulFOp>(loc, rhs, alpha);
       return b.create<arith::SubFOp>(loc, lhs, scaled);

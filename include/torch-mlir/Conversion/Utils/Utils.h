@@ -88,7 +88,8 @@ mlir::RankedTensorType GetTypeFromTensorShape(llvm::ArrayRef<int64_t> shape,
 // should be converted builtin types.
 Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
                            std::optional<Type> srcOriginalDtype = std::nullopt,
-                           std::optional<Type> dstOriginalDtype = std::nullopt);
+                           std::optional<Type> dstOriginalDtype = std::nullopt,
+                           std::optional<Value> originalScalar = std::nullopt);
 
 Value toPositiveValidDim(ConversionPatternRewriter &rewriter, Location loc,
                          Value torchOptionalInt, Value builtinInt,
