@@ -4279,6 +4279,101 @@ LogicalResult AtenPermuteOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenLinalgCrossOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenLinalgCrossOp::verify() {
+
+  auto selfType = getSelf().getType().cast<BaseTensorType>();
+  auto otherType = getOther().getType().cast<BaseTensorType>();
+
+  if (!selfType.hasDtype() || !otherType.hasDtype()) {
+    return success();
+  }
+
+  Type selfDtype = selfType.getDtype();
+  Type otherDtype = otherType.getDtype();
+
+  auto selfRankedType = getSelf().getType().cast<RankedTensorType>();
+  auto otherRankedType = getOther().getType().cast<RankedTensorType>();
+
+  auto selfShape = selfRankedType.getShape();
+  auto otherShape = otherRankedType.getShape();
+
+  int64_t selfRank = selfRankedType.getRank();
+  int64_t otherRank = otherRankedType.getRank();
+
+  // check if both input tensors have the same number of dims
+  if (selfRank != otherRank) {
+    return emitOpError("input tensors must have the same number of dimensions, "
+                       "but got ")
+           << selfRank << " and " << otherRank;
+  }
+
+  int64_t dim;
+  if (!matchPattern(getDim(), m_TorchConstantInt(&dim))) {
+    return emitOpError("dim must be a constant int");
+  }
+
+  // check if is dim is in the correct range
+  if (dim >= selfRank || dim < -selfRank) {
+    return emitOpError("dim expected to be in rank of [")
+           << -selfRank << ", " << selfRank - 1 << "], but got " << dim;
+  }
+
+  // compensate for possible negative dim value
+  if (dim < 0) {
+    dim += selfRank;
+  }
+
+  // check if the size of the dimensions specified by 'dim' is equal to 3
+  // (required by the operation)
+  if (selfShape[dim] != 3 || otherShape[dim] != 3) {
+    return emitOpError("inputs dimension ")
+           << dim << " must have length 3, but got " << selfShape[dim]
+           << " and " << otherShape[dim];
+  }
+
+  // Check if any of the input tensors has torch.bool dtype.
+  // The operation does not support this type.
+  // The docs state that only float, double, cfloat and cdouble dtypes are
+  // supported, but, when testing, it fails only for boolean dtype. Update to
+  // fit the docs if necessary.
+  if (selfDtype.isSignlessInteger(1) || otherDtype.isSignlessInteger(1)) {
+    return emitOpError("input tensors must not have bool dtype");
+  }
+
+  auto selfCurrent = selfShape.begin();
+  auto selfEnd = selfShape.end();
+  auto otherCurrent = otherShape.begin();
+  int32_t i = 0;
+
+  // Check if there is a disparity between dimension sizes.
+  // Dimensions at the same index must either have the same size,
+  // or one of them must be equal to 1.
+  while (selfCurrent != selfEnd) {
+    if (*selfCurrent != *otherCurrent && *selfCurrent != 1 &&
+        *otherCurrent != 1) {
+      return emitOpError("the size of first tensor (")
+             << *selfCurrent << ") must match the size of second tensor ("
+             << *otherCurrent << ") at dimension " << i
+             << " or one of them must be 1";
+    }
+    ++i;
+    ++selfCurrent;
+    ++otherCurrent;
+  }
+
+  // the operation succeeds only if both inputs have the same dtype
+  if (selfDtype != otherDtype) {
+    return emitOpError("input tensors must have the same dtype, but got ")
+           << selfDtype << " and " << otherDtype;
+  }
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // DtypeCalculateYieldDtypesOp
 //===----------------------------------------------------------------------===//
 

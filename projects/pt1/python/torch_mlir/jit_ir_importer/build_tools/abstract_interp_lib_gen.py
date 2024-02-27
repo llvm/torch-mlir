@@ -384,6 +384,17 @@ def aten〇clone〡shape(self: List[int], memory_format: Optional[int] = None) -
 def aten〇lift_fresh_copy〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+@check_shape_function([
+    Invocation(TensorOfShape(1, 2, 3), TensorOfShape(4, 1, 3)), # two dimensions to broadcast, self[0] and other[1]
+    ErrorInvocation(TensorOfShape(3), TensorOfShape(2, 3)), # different number of dimensions
+    ErrorInvocation(TensorOfShape(2, 3), TensorOfShape(4, 3)) # non-broadcastable dimensions
+])
+def aten〇linalg_cross〡shape(self: List[int], other: List[int], dim: int = -1) -> List[int]:
+    assert len(self) == len(other), "inputs must have the same number of dimensions"
+    for i in range(len(self)):
+        assert (self[i] == other[i]) or self[i] == 1 or other[i] == 1, f"the size of first tensor ({self[i]}) must match the size of second tensor ({other[i]}) at dimension {i}"
+    return upstream_shape_functions.broadcast(self, other)
+
 def aten〇_log_softmax_backward_data〡shape(grad_output: List[int], output: List[int], dim: int, input_dtype: int) -> List[int]:
     return upstream_shape_functions.unary(grad_output)
 
@@ -2380,6 +2391,19 @@ def aten〇leaky_relu_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], 
 def aten〇lift_fresh_copy〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(tensor_device="cpu", tensor_shapes=[(2,3), (2,3)], error_types={torch.bool}) + # same dtype
+    [ErrorInvocation(TensorOfShape(2, 3, dtype=torch.int32, device="cpu"), TensorOfShape(2, 3, dtype=torch.float16, device="cpu"))] #different dtypes
+)
+def aten〇linalg_cross〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int], dim: int = -1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    other_rank, other_dtype = other_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, other_rank]
+    assert self_dtype == other_dtype
+    assert self_dtype != torch.bool
+    dtypes = [self_dtype, other_dtype]
+    return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
     _check_two_tensor_op(dim=0, input_dtype=torch.float32) +

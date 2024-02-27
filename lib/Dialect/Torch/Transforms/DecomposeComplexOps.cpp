@@ -1806,6 +1806,118 @@ public:
 };
 } // namespace
 
+// Decompose aten.linalg_cross into: aten.broadcast_to, aten.index_select,
+// aten.add.Tensor and aten.mull.Tensor. See
+// https://github.com/pytorch/pytorch/blob/ed3c256b61f05720843454a9282aa7c903da2c81/torch/_refs/linalg/__init__.py#L70.
+// def linalg_cross(self: Tensor, other: Tensor, dim: int = -1):
+//     broadcast_shape = compute_broadcast_shape(self, other)
+//     a = torch.broadcast_to(self, broadcast_shape)
+//     b = torch.broadcast_to(other, broadcast_shape)
+//     idx = torch.arange(3)
+//     return a.index_select(dim, (idx + 1) % 3) *
+//            b.index_select(dim, (idx + 2) % 3) -
+//            a.index_select(dim, (idx + 2) % 3) *
+//            b.index_select(dim, (idx + 1) % 3)
+namespace {
+class DecomposeAtenLinalgCrossOp : public OpRewritePattern<AtenLinalgCrossOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLinalgCrossOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value other = op.getOther();
+    Type opType = op.getType();
+    Value dim = op.getDim();
+
+    auto resType = self.getType().cast<BaseTensorType>();
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+
+    Type dtype = resType.getDtype();
+    if (dtype.isa<mlir::ComplexType>()) {
+      printf("Is a complex type\n");
+      return rewriter.notifyMatchFailure(
+          op, "lowering of aten.linalg_cross for complex inputs dtype is "
+              "currently unimplemented");
+    }
+
+    // calculate common shape for broadcast
+    SmallVector<int64_t> broadcastShape;
+    SmallVector<Value> broadcastShapeValue;
+    computeBroadcastShape(rewriter, loc, self, other, broadcastShape,
+                          broadcastShapeValue);
+
+    Type broadcastType = ValueTensorType::get(
+        op.getContext(), llvm::ArrayRef(broadcastShape), dtype);
+
+    Value indexBroadcastShapeTorchList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        broadcastShapeValue);
+
+    // broadcast tensors to common shape
+    auto a = rewriter.create<AtenBroadcastToOp>(loc, broadcastType, self,
+                                                indexBroadcastShapeTorchList);
+    auto b = rewriter.create<AtenBroadcastToOp>(loc, broadcastType, other,
+                                                indexBroadcastShapeTorchList);
+
+    // create constants
+    Value constOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value constTwo = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(2));
+    Value constThree = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(3));
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+
+    // idx = torch.arange(3)
+    auto outType = opType.dyn_cast<BaseTensorType>();
+    auto arangeType = outType.getWithSizesAndDtype(
+        llvm::ArrayRef<int64_t>(3),
+        IntegerType::get(op.getContext(), 64, IntegerType::Signed));
+    auto idx = rewriter.create<AtenArangeOp>(
+        loc, arangeType, constThree, /*dtype=*/none, /*layout=*/none,
+        /*device=*/none, /*pin_memory=*/none);
+
+    // (idx + 1) and (idx + 2)
+    auto idxPlusOne = rewriter.create<AtenAddScalarOp>(loc, arangeType, idx,
+                                                       constOne, constOne);
+    auto idxPlusTwo = rewriter.create<AtenAddScalarOp>(loc, arangeType, idx,
+                                                       constTwo, constOne);
+
+    // (idx + 1) % 3 and (idx + 2) % 3
+    auto idxPlusOneRemainderThree = rewriter.create<AtenRemainderScalarOp>(
+        loc, arangeType, idxPlusOne, constThree);
+    auto idxPlusTwoRemainderThree = rewriter.create<AtenRemainderScalarOp>(
+        loc, arangeType, idxPlusTwo, constThree);
+
+    // a.index_select(dim, (idx + 1) % 3) * b.index_select(dim, (idx + 2) % 3)
+    auto idxSelectAPlusOne = rewriter.create<AtenIndexSelectOp>(
+        loc, opType, a, dim, idxPlusOneRemainderThree);
+    auto idxSelectBPlusTwo = rewriter.create<AtenIndexSelectOp>(
+        loc, opType, b, dim, idxPlusTwoRemainderThree);
+    auto firstMul = rewriter.create<AtenMulTensorOp>(
+        loc, opType, idxSelectAPlusOne, idxSelectBPlusTwo);
+
+    // a.index_select(dim, (idx + 2) % 3) * b.index_select(dim, (idx + 1) % 3)
+    auto idxSelectAPlusTwo = rewriter.create<AtenIndexSelectOp>(
+        loc, opType, a, dim, idxPlusTwoRemainderThree);
+    auto idxSelectBPlusOne = rewriter.create<AtenIndexSelectOp>(
+        loc, opType, b, dim, idxPlusOneRemainderThree);
+    auto secondMul = rewriter.create<AtenMulTensorOp>(
+        loc, opType, idxSelectAPlusTwo, idxSelectBPlusOne);
+
+    // subtract the results of the two multiplications from above
+    rewriter.replaceOpWithNewOp<AtenSubTensorOp>(op, opType, firstMul,
+                                                 secondMul, constOne);
+
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.pixel_shuffle into: prims.split_dim, aten.permute, and
 // prims.collapse operations.
 //
@@ -7064,6 +7176,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgCrossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenPixelShuffleOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_LogSoftmaxBackwardDataOp>(

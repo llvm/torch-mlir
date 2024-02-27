@@ -687,6 +687,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::fmod.Tensor : (Tensor, Tensor) -> (Tensor)")
     emit("aten::unique_consecutive : (Tensor, bool, bool, int?) -> (Tensor, Tensor, Tensor)")
     emit("aten::linspace : (Scalar, Scalar, int, int?, int?, Device?, bool?) -> (Tensor)")
+    emit("aten::linalg_cross : (Tensor, Tensor, int) -> (Tensor)", has_verifier=True)
 
     # Functionalization ops
     emit("aten::alias_copy : (Tensor) -> (Tensor)")
