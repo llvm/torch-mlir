@@ -117,19 +117,19 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         ArrayRef<int64_t> gridShape = gridTensorType.getSizes();
         unsigned gridRank = gridShape.size();
 
-        if(inputRank != 4) {
+        if (inputRank != 4) {
           return rewriter.notifyMatchFailure(binder.op,
                                              "only input rank 4 supported");
         }
-        if(gridRank != 4) {
+        if (gridRank != 4) {
           return rewriter.notifyMatchFailure(binder.op,
                                              "only grid rank 4 supported");
         }
-        if(inputShape[0] != gridShape[0]) {
+        if (inputShape[0] != gridShape[0]) {
           return rewriter.notifyMatchFailure(
               binder.op, "N must be same for input and grid");
         }
-        if(gridShape[3] != 2) {
+        if (gridShape[3] != 2) {
           return rewriter.notifyMatchFailure(binder.op,
                                              "gridShape[3] ,must be 2");
         }
