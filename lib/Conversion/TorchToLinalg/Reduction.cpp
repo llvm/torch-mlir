@@ -60,18 +60,12 @@ public:
 
     Location loc = op.getLoc();
     Value input = adaptor.getSelf();
-    RankedTensorType valResultType =
-        getTypeConverter()
-            ->convertType(op.getResult(0).getType())
-            .template cast<RankedTensorType>();
-
-    RankedTensorType idxResultType =
-        this->getTypeConverter()
-            ->convertType(op.getResult(1).getType())
-            .template cast<RankedTensorType>();
+    Type valResultType = op.getResult(0).getType();
+    Type idxResultType = op.getResult(1).getType();
     RankedTensorType inputType =
         input.getType().template cast<RankedTensorType>();
-    Type idxElementType = idxResultType.getElementType();
+    Type idxElementType = getElementTypeOrSelf(
+        this->getTypeConverter()->convertType(idxResultType));
     if (!idxElementType.isa<IntegerType>())
       return rewriter.notifyMatchFailure(
           op, opName + " to linalg.* requires integer-like result type");
@@ -109,14 +103,12 @@ public:
     }
 
     // Constant op to account for the reduction along dim.
-    auto c1 = rewriter.create<arith::ConstantIndexOp>(loc, /*value=*/1);
     SmallVector<Value> resultShape;
     for (int64_t i = 0; i < inputType.getRank(); i++) {
       if (dim != i) {
         auto currentDimSize = rewriter.create<tensor::DimOp>(loc, input, i);
         resultShape.push_back(currentDimSize);
-      } else if (keepDim)
-        resultShape.push_back(c1);
+      }
     }
     // First fill the output buffer for the index.
     Value filledTensorIdx =
@@ -146,27 +138,23 @@ public:
     Value filledTensorVal =
         rewriter.create<linalg::FillOp>(loc, fillValue, initTensorVal).result();
 
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputType.getRank(), utils::IteratorType::parallel);
+    iteratorTypes[dim] = utils::IteratorType::reduction;
+
     // Create the affine expressions that will be used to
     // iterate over the input and output tensors.
     // Here we also set the type of iterator: parallel or reduction.
+
     SmallVector<AffineExpr> exprs;
-    SmallVector<utils::IteratorType> iteratorTypes;
     SmallVector<AffineExpr> resultExprs;
     for (auto size :
          llvm::enumerate(makeShapeTorchCompatible(inputType.getShape()))) {
       exprs.push_back(rewriter.getAffineDimExpr(size.index()));
-
-      if (unsigned(dim) == size.index()) {
-        iteratorTypes.push_back(utils::IteratorType::reduction);
-        // If `keepDim`, create affine map to the first element
-        // in the current dimension.
-        if (keepDim)
-          resultExprs.push_back(rewriter.getAffineConstantExpr(0));
-      } else {
-        iteratorTypes.push_back(utils::IteratorType::parallel);
+      if (unsigned(dim) != size.index())
         resultExprs.push_back(rewriter.getAffineDimExpr(size.index()));
-      }
     }
+
     auto maps = AffineMap::inferFromExprList({exprs, resultExprs, resultExprs},
                                              rewriter.getContext());
     auto linalgOp = rewriter.create<linalg::GenericOp>(
@@ -219,12 +207,17 @@ public:
               nestedLoc, ValueRange({resultVal, resultIndex}));
         });
 
-    // This cast is required to fix the shape in the case of keepDim=True
-    Value valuesCast = rewriter.create<tensor::CastOp>(loc, valResultType,
-                                                       linalgOp.getResult(0));
-    Value idxCast = rewriter.create<tensor::CastOp>(loc, idxResultType,
-                                                    linalgOp.getResult(1));
-    rewriter.replaceOp(op, {valuesCast, idxCast});
+    if (!keepDim) {
+      rewriter.replaceOp(op, linalgOp.getResults());
+      return success();
+    }
+
+    auto unsqueezeVal = rewriter.create<Torch::AtenUnsqueezeOp>(
+        loc, valResultType, linalgOp.getResult(0), op.getDim());
+    auto unsqueezeIdx = rewriter.create<Torch::AtenUnsqueezeOp>(
+        loc, idxResultType, linalgOp.getResult(1), op.getDim());
+    llvm::SmallVector<Value> unsqueezes = {unsqueezeVal, unsqueezeIdx};
+    rewriter.replaceOp(op, unsqueezes);
     return success();
   }
 };
