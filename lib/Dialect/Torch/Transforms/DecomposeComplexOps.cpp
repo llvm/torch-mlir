@@ -1333,7 +1333,7 @@ public:
     }
 
     auto loc = op.getLoc();
-    std::sort(dimList.begin(), dimList.end(), std::greater());
+    std::sort(dimList.begin(), dimList.end(), std::greater<int64_t>());
 
     Value reduction = op.getSelf();
     auto resultTy = cast<Torch::ValueTensorType>(op.getType());
