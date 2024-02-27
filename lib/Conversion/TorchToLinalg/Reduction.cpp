@@ -211,7 +211,12 @@ public:
         });
 
     if (!keepDim) {
-      rewriter.replaceOp(op, linalgOp.getResults());
+      Value rVal = rewriter.create<tensor::CastOp>(loc, valResultType,
+                                                   linalgOp.getResult(0));
+      Value rIdx = rewriter.create<tensor::CastOp>(loc, idxResultType,
+                                                   linalgOp.getResult(1));
+      llvm::SmallVector<Value> res{rVal, rIdx};
+      rewriter.replaceOp(op, res);
       return success();
     }
 
