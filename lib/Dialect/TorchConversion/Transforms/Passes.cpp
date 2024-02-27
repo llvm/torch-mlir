@@ -76,6 +76,7 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   // and those constants get somewhat obscured by TorchToArith.
   pm.addNestedPass<func::FuncOp>(createConvertTorchToTMTensorPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToLinalgPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToSCFPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToArithPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToTensorPass());

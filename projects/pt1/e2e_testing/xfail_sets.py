@@ -1476,13 +1476,6 @@ ONNX_XFAIL_SET = {
     "VarMeanBiasedModule_basic",
     
     # Failure - constant int lowering
-    "ReduceMinAlongDimNegative_basic",
-    "ReduceMinAlongDimSignedInt_basic",
-    "ReduceMinAlongDim_basic",
-    "ReduceMinFloatModule_basic",
-    "ReduceMinKeepDimReturnBoth_basic",
-    "ReduceMinSignedIntModule_basic",
-    "ReduceMinUnsignedIntModule_basic",
     "SplitTensorGetItem_Module_basic",
     "SplitTensorLastSmallerModule_basic",
     "SplitTensorListUnpackModule_basic",

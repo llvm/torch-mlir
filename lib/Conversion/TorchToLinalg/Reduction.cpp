@@ -60,12 +60,15 @@ public:
 
     Location loc = op.getLoc();
     Value input = adaptor.getSelf();
-    Type valResultType = op.getResult(0).getType();
-    Type idxResultType = op.getResult(1).getType();
+    auto typec = this->getTypeConverter();
+    auto valResultType =
+        cast<RankedTensorType>(typec->convertType(op.getResult(0).getType()));
+    auto idxResultType =
+        cast<RankedTensorType>(typec->convertType(op.getResult(1).getType()));
     RankedTensorType inputType =
         input.getType().template cast<RankedTensorType>();
-    Type idxElementType = getElementTypeOrSelf(
-        this->getTypeConverter()->convertType(idxResultType));
+    Type idxElementType =
+        getElementTypeOrSelf(typec->convertType(idxResultType));
     if (!idxElementType.isa<IntegerType>())
       return rewriter.notifyMatchFailure(
           op, opName + " to linalg.* requires integer-like result type");
@@ -212,10 +215,48 @@ public:
       return success();
     }
 
-    auto unsqueezeVal = rewriter.create<Torch::AtenUnsqueezeOp>(
-        loc, valResultType, linalgOp.getResult(0), op.getDim());
-    auto unsqueezeIdx = rewriter.create<Torch::AtenUnsqueezeOp>(
-        loc, idxResultType, linalgOp.getResult(1), op.getDim());
+    llvm::SmallVector<int64_t> valShape(valResultType.getShape());
+    llvm::SmallVector<int64_t> idxShape(idxResultType.getShape());
+    for (int i = dim, s = valShape.size() - 1; i < s; ++i) {
+      valShape[i] = valShape[i + 1];
+      idxShape[i] = idxShape[i + 1];
+    }
+
+    valShape.resize(valShape.size() - 1);
+    idxShape.resize(idxShape.size() - 1);
+
+    Value rVal = rewriter.create<tensor::CastOp>(
+        loc, valResultType.clone(valShape), linalgOp.getResult(0));
+    Value rIdx = rewriter.create<tensor::CastOp>(
+        loc, idxResultType.clone(idxShape), linalgOp.getResult(1));
+
+    SmallVector<ReassociationIndices> reassociation(valShape.size());
+    if (reassociation.size() > 0) {
+      for (int i = 0; i < dim; ++i)
+        reassociation[i].push_back(i);
+      reassociation[std::max<int64_t>(0, dim - 1)].push_back(dim);
+      for (int i = dim, s = reassociation.size(); i < s; ++i)
+        reassociation[i].push_back(i + 1);
+    }
+
+    valShape.push_back(0);
+    idxShape.push_back(0);
+    for (int i = dim, s = valShape.size() - 1; i < s; ++i) {
+      llvm::errs() << "i: " << i << "\n";
+      valShape[i + 1] = valShape[i];
+      idxShape[i + 1] = idxShape[i];
+      reassociation[i].push_back(i + 1);
+    }
+
+    valShape[dim] = 1;
+    idxShape[dim] = 1;
+
+    Value unsqueezeVal = rewriter.create<tensor::ExpandShapeOp>(
+        loc, valResultType, rVal, reassociation);
+
+    Value unsqueezeIdx = rewriter.create<tensor::ExpandShapeOp>(
+        loc, idxResultType, rIdx, reassociation);
+
     llvm::SmallVector<Value> unsqueezes = {unsqueezeVal, unsqueezeIdx};
     rewriter.replaceOp(op, unsqueezes);
     return success();
