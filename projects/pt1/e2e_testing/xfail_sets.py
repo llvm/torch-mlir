@@ -1474,7 +1474,7 @@ ONNX_XFAIL_SET = {
     "StdBiasedModule_basic",
     "VarBiasedModule_basic",
     "VarMeanBiasedModule_basic",
-    
+
     # Failure - constant int lowering
     "SplitTensorGetItem_Module_basic",
     "SplitTensorLastSmallerModule_basic",
@@ -1483,10 +1483,11 @@ ONNX_XFAIL_SET = {
     "SplitWithSizesListUnpackModule_basic",
     "UnbindIntGetItem_Module_basic",
     "UnbindIntListUnpack_Module_basic",
-    
+
     # Failure - incorrect numerics
     "AdaptiveAvgPool1dUnitOutputSizeDynamicModule_basic",
     "AdaptiveAvgPool2dUnitOutputSizeDynamicModule_basic",
+    "ElementwiseAtan2TensorIntModule_basic",
     "ElementwiseLog10IntModule_basic",
     "ElementwiseLog2IntModule_basic",
     "ElementwiseSeluModule_basic",
@@ -1506,7 +1507,7 @@ ONNX_XFAIL_SET = {
     "SliceCopyNonZeroDim_Module_basic",
     "SliceCopy_Module_basic",
     "TupleModule_basic",
-    
+
     # Failure - incorrect shape
     "ArangeStartOutDtypeModule_basic",
     "ArangeStartOutViewModule_basic",
@@ -1518,7 +1519,7 @@ ONNX_XFAIL_SET = {
     "ReduceMaxKeepDimReturnBoth_basic",
     "ReduceMaxNegativeDim_basic",
     "ViewSizeFromOtherTensor_basic",
-    
+
     # Failure - onnx_export
     "AdaptiveAvgPool1dGeneralDynamic_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule_basic",
@@ -1641,6 +1642,7 @@ ONNX_XFAIL_SET = {
     "EmptyStridedSizeIntStrideModule_basic",
     "EqIntModule_basic",
     "ExponentialModule_basic",
+    "FloatImplicitModule_basic",
     "GeFloatIntModule_basic",
     "GeFloatModule_basic",
     "GeIntModule_basic",
@@ -1660,6 +1662,7 @@ ONNX_XFAIL_SET = {
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
     "IndexPutImplIndexWithNoneModule_basic",
     "IntFloatModule_basic",
+    "IntImplicitModule_basic",
     "IouOfModule_basic",
     "IsFloatingPointFloat_True",
     "IsFloatingPointInt_False",
@@ -1865,7 +1868,7 @@ ONNX_XFAIL_SET = {
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
     "_SoftmaxModule_basic",
-    
+
     # Failure - onnx_import
     "DiagonalModule_basic",
     "DiagonalModule_nonsquare",
@@ -1884,7 +1887,7 @@ ONNX_XFAIL_SET = {
     "ScatterReduceIntSumModuleIncludeSelf",
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.AveragePool
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dStaticEvenMultiple_basic",
@@ -1897,7 +1900,7 @@ ONNX_XFAIL_SET = {
     "AvgPool2dFloatModule_basic",
     "AvgPool2dIntModule_basic",
     "AvgPool2dStaticModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.Cast
     "BucketizeTensorOutInt32RightModule_basic",
     "ElementwiseToDtypeI64ToI8Module_basic",
@@ -1906,7 +1909,7 @@ ONNX_XFAIL_SET = {
     "QuantizedMLP_basic",
     "TypeConversionI1ToI32Module_basic",
     "TypeConversionI64ToI32Module_basic",
-    
+
     # Failure - onnx_lowering: onnx.Clip
     "ElementwiseClampMaxModule_basic",
     "ElementwiseClampMinModule_basic",
@@ -1917,12 +1920,12 @@ ONNX_XFAIL_SET = {
     "ElementwiseClampTensorInt8Module_basic",
     "ElementwiseClampTensorIntModule_basic",
     "NormalizeModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.Einsum
     "EinsumStaticContractRhsModule_basic",
     "EinsumStaticFourDimensionModule_basic",
     "EinsumStaticModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.Gemm
     "AtenMmFloatTypes_basic",
     "AtenMmIntTypes_basic",
@@ -1930,22 +1933,22 @@ ONNX_XFAIL_SET = {
     "MmModule_basic",
     "MmModule_chained",
     "MmTanhModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.HardSwish
     "HardswishModule_basic",
     "HardswishRandomModule_basic",
     "MobilenetV3Module_basic",
-    
+
     # Failure - onnx_lowering: onnx.LogSoftmax
     "LogSoftmaxIntModule_basic",
     "_LogSoftmaxModuleStable_basic",
     "_LogSoftmaxModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.MaxPool
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
     "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
     "MaxPool2dWithIndicesStaticModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.Mod
     "ElementwiseRemainderScalarModule_Bool_basic",
     "ElementwiseRemainderScalarModule_Int_basic",
@@ -1953,10 +1956,10 @@ ONNX_XFAIL_SET = {
     "UnflattenIntNegativeOneSizeStaticModule_basic",
     "UnflattenIntStaticModule_basic",
     "UnflattenStaticModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.OneHot
     "OneHotModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.Pad
     "ConstantPad2dStaticModule_basic",
     "ConstantPadNdModule_basic",
@@ -1978,21 +1981,21 @@ ONNX_XFAIL_SET = {
     "ReplicationPad2dModule_left0",
     "ReplicationPad2dModule_right0",
     "ReplicationPad2dModule_top0",
-    
+
     # Failure - onnx_lowering: onnx.RandomNormal
     "RandnDtypeDeviceModule_basic",
     "RandnGeneratorF64Module_basic",
     "RandnGeneratorModule_basic",
     "RandnModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.RandomNormalLike
     "RandnLikeDtypeModule_basic",
     "RandnLikeModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.RandomUniform
     "RandIntLowDtypeModule_basic",
     "RandIntLowModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.RandomUniformLike
     "BernoulliFloatModule_basic",
     "BernoulliPModule_basic",
@@ -2000,14 +2003,14 @@ ONNX_XFAIL_SET = {
     "RandLikeDtypeModule_basic",
     "RandLikeModule_basic",
     "RandModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.ReduceL1
     "ReduceL1NormModule_basic",
     "ReduceL1NormWithDTypeModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.ReduceL2
     "ReduceL2NormModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.ReduceProd
     "BernoulliModule_basic",
     "DropoutTrainModule_basic",
@@ -2043,7 +2046,7 @@ ONNX_XFAIL_SET = {
     "VarMeanDimModule_basic",
     "VarMeanUnbiasedModule_basic",
     "VarUnbiasedModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.ReduceSum
     "MseLossSumReductionWithDifferentElemTypeModule_basic",
     "ReduceL3NormAllDimsModule_basic",
@@ -2054,17 +2057,17 @@ ONNX_XFAIL_SET = {
     "ReduceSumFloatModule_basic",
     "ReduceSumSignedIntModule_basic",
     "ReduceSumUnsignedIntModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.Resize
     "UpSampleNearest2dDynamicSize_basic",
     "UpSampleNearest2dStaticSize_basic",
-    
+
     # Failure - onnx_lowering: onnx.ScatterElements
     "ScatterSrcModule_basic",
     "ScatterSrcStaticModule_basic",
     "ScatterValueFloatModule_basic",
     "ScatterValueIntModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.ScatterND
     "IndexPut1DFloatAccumulateModule_basic",
     "IndexPut1DFloatNonAccumulateModule_basic",
@@ -2090,27 +2093,27 @@ ONNX_XFAIL_SET = {
     "IndexPutHackedTwin3DFloatNonAccumulateModule_basic",
     "IndexPutHackedTwin3DIntAccumulateModule_basic",
     "IndexPutHackedTwin3DIntNonAccumulateModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.SoftmaxCrossEntropyLoss
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.Softplus
     "ElementwiseMishModule_basic",
     "SoftplusModule_basic",
-    
+
     # Failure - onnx_lowering: onnx.Squeeze
     "SqueezeModule_allUnitDim",
     "SqueezeModule_broadcast",
     "SqueezeModule_static",
-    
+
     # Failure - onnx_lowering: onnx.TopK
     "SortTensorDescending_basic",
     "SortTensorInteger_basic",
     "SortTensorNegativeDimension_basic",
     "SortTensorSpecificDimension_basic",
     "SortTensor_basic",
-    
+
     # Failure - onnx_lowering: onnx.Trilu
     "AtenTrilModule_basic",
     "AtenTrilWithNegDiagonalModule_basic",
@@ -2120,7 +2123,7 @@ ONNX_XFAIL_SET = {
     "AtenTriuWithPosDiagonalModule_basic",
     "TriuBroadcastModule_basic",
     "TriuModule_basic",
-    
+
     # Failure - rankless return
     "ReduceAmaxMultiDim_basic",
     "ReduceAmaxOutOfOrderDim_basic",
@@ -2133,7 +2136,7 @@ ONNX_XFAIL_SET = {
     "ReduceMaxFloatModule_basic",
     "ReduceMaxSignedIntModule_basic",
     "ReduceMaxUnsignedIntModule_basic",
-    
+
     # Failure - torch.aten.view lower
     "AddSizeIntModule_basic",
     "ElementwiseFlattenBroadcastModule_basic",
@@ -2159,8 +2162,12 @@ ONNX_XFAIL_SET = {
     "ViewSizeDimLedAndFollowedByExpandedOnesModule_basic",
     "ViewSizeDimLedByCollapsedOnesModule_basic",
     "ViewSizeDimLedByExpandedOnesModule_basic",
-    
+
     # Failure - unknown
+    "BucketizeTensorFloatModule_basic",
+    "BucketizeTensorModule_basic",
+    "BucketizeTensorStaticFloatModule_basic",
+    "BucketizeTensorStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "CopyWithDifferentDTypesAndSizesModule_basic",
     "CopyWithDifferentDTypesModule_basic",
@@ -2168,7 +2175,6 @@ ONNX_XFAIL_SET = {
     "CumsumInputDtypeInt32Module_basic",
     "ElementwiseAcosIntModule_basic",
     "ElementwiseAsinIntModule_basic",
-    "ElementwiseAtan2TensorIntModule_basic",
     "ElementwiseAtanTensorIntModule_basic",
     "ElementwiseCosIntModule_basic",
     "ElementwiseDivRoundingModeTruncModule_basic",
@@ -2207,8 +2213,6 @@ ONNX_XFAIL_SET = {
     "ReduceMinAlongDimUnsignedInt_basic",
     "TensorsStackNegativeDimModule_basic",
     "TensorsStackPromoteDTypeModule_basic",
-    "FloatImplicitModule_basic",
-    "IntImplicitModule_basic",
 }
 
 ONNX_CRASHING_SET = { }

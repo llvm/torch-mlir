@@ -242,10 +242,8 @@ public:
     valShape.push_back(0);
     idxShape.push_back(0);
     for (int i = dim, s = valShape.size() - 1; i < s; ++i) {
-      llvm::errs() << "i: " << i << "\n";
       valShape[i + 1] = valShape[i];
       idxShape[i + 1] = idxShape[i];
-      reassociation[i].push_back(i + 1);
     }
 
     valShape[dim] = 1;
