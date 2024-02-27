@@ -853,6 +853,29 @@ def ElementwiseGeluModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseGeluApproximateTanhModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.gelu = torch.nn.GELU(approximate="tanh")
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.gelu(x)
+
+
+@register_test_case(module_factory=lambda: ElementwiseGeluApproximateTanhModule())
+def ElementwiseGeluApproximateTanhModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, low=-0.5, high=0.5))
+
+
+# ==============================================================================
+
+
 class ElementwiseSeluModule(torch.nn.Module):
 
     def __init__(self):
