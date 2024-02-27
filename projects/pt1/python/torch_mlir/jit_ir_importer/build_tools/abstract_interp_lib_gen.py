@@ -1719,6 +1719,9 @@ def aten〇nonzero_static〡shape(self: List[int], size: int, fill_value: int = 
 def aten〇linalg_vector_norm〡shape(self: List[int], ord: float = 2, dim: Optional[List[int]] = None, keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, dtype)
 
+def aten〇linalg_norm〡shape(self: List[int], ord: Optional[float] = None, dim: Optional[List[int]] = None, keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
+    return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, dtype)
+
 def aten〇frobenius_norm〇dim〡shape(self: List[int], dim: List[int], keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, 0)
 
@@ -3916,6 +3919,29 @@ def prims〇var〡dtype(inp_rank_dtype: Tuple[int, int], dims: Optional[List[int
         error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.bfloat16, torch.float16, torch.float32, torch.float64}, dtype=torch.complex128) +
     [ErrorInvocation(NonZeroDTensorWithDtype(torch.float32), dtype=torch.int32)])
 def aten〇linalg_vector_norm〡dtype(self_rank_dtype: Tuple[int, int], ord: Union[int, float, complex] = 2, dim: Optional[List[int]] = None, keepdim: bool = False, dtype: Optional[int] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert not is_integer_dtype(self_dtype)
+    if dtype is not None:
+        assert not is_integer_dtype(dtype)
+        if is_complex_dtype(self_dtype):
+            assert is_complex_dtype(dtype)
+            return aten〇std〡dtype((self_rank, dtype))
+        assert not is_complex_dtype(dtype)
+        return dtype
+    return aten〇std〡dtype(self_rank_dtype)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(
+        num_of_tensors=1,
+        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64}) +
+    _check_tensors_with_the_same_dtype(
+        num_of_tensors=1,
+        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.complex64, torch.complex128}, dtype=torch.float64) +
+    _check_tensors_with_the_same_dtype(
+        num_of_tensors=1,
+        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64, torch.bfloat16, torch.float16, torch.float32, torch.float64}, dtype=torch.complex128) +
+    [ErrorInvocation(NonZeroDTensorWithDtype(torch.float32), dtype=torch.int32)])
+def aten〇linalg_norm〡dtype(self_rank_dtype: Tuple[int, int], ord: Optional[Union[int, float, complex]] = None, dim: Optional[List[int]] = None, keepdim: bool = False, dtype: Optional[int] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     assert not is_integer_dtype(self_dtype)
     if dtype is not None:

@@ -103,3 +103,19 @@ func.func @torch.aten.type_as$fold(%arg0: !torch.tensor<[?], f16>, %arg1: !torch
   %0 = torch.aten.type_as %arg0, %arg1 : !torch.tensor<[?], f16>, !torch.tensor<[?,?],f16> -> !torch.tensor<[?], f16>
   return %0 : !torch.tensor<[?], f16>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.linalg_norm
+// CHECK-SAME:                                 %[[ARG_0:.*]]: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+// CHECK-DAG:       %[[CST2:.*]] = torch.constant.int 2
+// CHECK:           %[[VAL1:.*]] = torch.aten.linalg_vector_norm %[[ARG_0]], %[[CST2]]
+// CHECK:           return %[[VAL1]] : !torch.vtensor<[?,?],f32>
+func.func @torch.aten.linalg_norm(%arg0: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %int0 = torch.constant.int 0
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %0 = torch.prim.ListConstruct %int0 : (!torch.int) -> !torch.list<int>
+  %1 = torch.aten.linalg_norm %arg0, %none, %0, %false, %none : !torch.vtensor<[?,?,?],f32>, !torch.none, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[?,?],f32>
+  return %1 : !torch.vtensor<[?,?],f32>
+}
