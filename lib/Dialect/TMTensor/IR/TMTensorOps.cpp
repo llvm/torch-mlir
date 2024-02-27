@@ -509,12 +509,32 @@ LogicalResult ScanOp::fold(FoldAdaptor adaptor,
 //===----------------------------------------------------------------------===//
 // ScatterOp
 //===----------------------------------------------------------------------===//
+static Type getComplexElementTypeOrSelf(Type ty) {
+  if (auto complex = dyn_cast_or_null<ComplexType>(ty))
+    return complex.getElementType();
+  return ty;
+}
+
+static bool isInvalid(ArrayRef<int64_t> dimsPos, int64_t rank) {
+  // early exit.
+  if (static_cast<int64_t>(dimsPos.size()) > rank)
+    return true;
+  DenseSet<int64_t> uniqued;
+  for (int64_t dim : dimsPos)
+    uniqued.insert(dim);
+  if (static_cast<int64_t>(dimsPos.size()) != uniqued.size())
+    return true;
+  return llvm::any_of(
+      dimsPos, [rank](int64_t dimPos) { return dimPos < 0 || dimPos >= rank; });
+}
+
 LogicalResult ScatterOp::verify() {
+  Operation *op = getOperation();
   if (getInputs().size() != 2) {
-    return emitOpError("expected two input operands");
+    return op->emitOpError("expected two input operands");
   }
   if (getOutputs().size() != 1) {
-    return emitOpError("expected one output operand");
+    return op->emitOpError("expected one output operand");
   }
   auto checkDimensionsMatch = [&](ShapedType t1, ShapedType t2, unsigned dim) {
     return t1.getShape()[dim] == t2.getShape()[dim];
@@ -526,9 +546,18 @@ LogicalResult ScatterOp::verify() {
     return emitOpError("expected indices to be of rank 2 of i32 element type");
   }
   auto indexDepth = getIndexDepth();
-  if (indexDepth == ShapedType::kDynamic) {
+  if (ShapedType::isDynamic(indexDepth)) {
     return emitOpError("expected index depth is static");
   }
+
+  ArrayRef<int64_t> dimMap = getDimensionMap();
+  if (static_cast<int64_t>(dimMap.size()) != indexDepth) {
+    return op->emitOpError("invalid number of dimension map entries ");
+  }
+
+  auto originalType = getOriginalType();
+  if (isInvalid(dimMap, originalType.getRank()))
+    return op->emitOpError("dimension map is invalid");
 
   // The first dimension of the indices should match the first dimension of the
   // output. They indicate to the number of updates.
@@ -540,7 +569,6 @@ LogicalResult ScatterOp::verify() {
     return emitOpError(
         "mismatch in shape of indices and update value at dim#0");
   }
-  auto originalType = getOriginalType();
   if (updateType.getRank() - 1 > originalType.getRank()) {
     return emitOpError(
         "update value rank exceeds the rank of the original value");
@@ -553,7 +581,7 @@ LogicalResult ScatterOp::verify() {
         "index depth and update value does not cover rank of original value");
   }
 
-  // Validate the non-indexed update dims covier the full slice size of the
+  // Validate the non-indexed update dims cover the full slice size of the
   // original tensor.
   int64_t fullSliceDims = originalType.getRank() - indexDepth;
   for (auto it :
@@ -562,10 +590,11 @@ LogicalResult ScatterOp::verify() {
                                      updateType.getRank()))) {
     int64_t originalDim = std::get<0>(it);
     int64_t updateDim = std::get<1>(it);
-    if (updateType.getDimSize(updateDim) !=
-        originalType.getDimSize(originalDim)) {
-      return emitOpError("mismatch in shape of update value dim#")
-             << updateDim << " and original value at dim#" << originalDim;
+    if (!originalType.isDynamicDim(originalDim) &&
+        updateType.getDimSize(updateDim) >
+            originalType.getDimSize(originalDim)) {
+      return op->emitOpError("shape of update value dim#")
+             << updateDim << " exceeds original value at dim#" << originalDim;
     }
   }
 
@@ -576,23 +605,25 @@ LogicalResult ScatterOp::verify() {
            llvm::seq<unsigned>(1, updateType.getRank() - fullSliceDims))) {
     int64_t originalDim = std::get<0>(it);
     int64_t updateDim = std::get<1>(it);
-    if (updateType.getDimSize(updateDim) >
-        originalType.getDimSize(originalDim)) {
-      return emitOpError("indexed shape of update value dim#")
+    if (!originalType.isDynamicDim(originalDim) &&
+        updateType.getDimSize(updateDim) >
+            originalType.getDimSize(originalDim)) {
+      return op->emitOpError("indexed shape of update value dim#")
              << updateDim << " exceeds original value at dim#" << originalDim
              << " " << updateType.getDimSize(updateDim) << " "
              << originalType.getDimSize(originalDim);
     }
   }
 
-  Region &thisRegion = getRegion();
-  Block *body = &thisRegion.front();
+  Region &region = this->getRegion();
+  Block *body = &region.front();
   if (body->getNumArguments() != 2) {
-    return emitOpError("expected region to have two arguments");
+    return op->emitOpError("expected region to have two arguments");
   }
   Type arg0Type = body->getArgument(0).getType();
   Type arg1Type = body->getArgument(1).getType();
-  if (!arg0Type.isIntOrFloat() || !arg1Type.isIntOrFloat()) {
+  if (!getComplexElementTypeOrSelf(arg0Type).isIntOrFloat() ||
+      !getComplexElementTypeOrSelf(arg1Type).isIntOrFloat()) {
     return emitOpError(
         "expected region to have scalar argument of integer or float types");
   }
@@ -684,14 +715,16 @@ LogicalResult ScatterOp::generateScalarImplementation(OpBuilder &b,
     starts[it.index() + offset] = it.value();
   }
 
+  ArrayRef<int64_t> dimMap = getDimensionMap();
   for (auto i : llvm::seq<unsigned>(0, indexDepth)) {
     loadIndices.back() = b.create<arith::ConstantIndexOp>(loc, i);
     Value idx = b.create<memref::LoadOp>(loc, indices(), loadIndices);
-    Value cast = b.create<arith::IndexCastOp>(loc, b.getIndexType(), idx);
+    Value ret = b.create<arith::IndexCastOp>(loc, b.getIndexType(), idx);
 
-    if (starts[i])
-      cast = b.create<arith::AddIOp>(loc, cast, starts[i]);
-    starts[i] = cast;
+    auto dim = dimMap[i];
+    if (starts[dim])
+      ret = b.create<arith::AddIOp>(loc, ret, starts[dim]);
+    starts[dim] = ret;
   }
 
   Value init = b.create<memref::LoadOp>(loc, original(), starts);
