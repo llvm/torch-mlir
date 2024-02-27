@@ -202,10 +202,14 @@ convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(PatternRewriter &rewriter,
 
 static llvm::SmallVector<int64_t> createDefaultDimMap(Value indices) {
   llvm::SmallVector<int64_t> dmap;
-  for (int i = 0, s = cast<BaseTensorType>(indices.getType()).getSizes()[1];
-       i < s; ++i) {
-    dmap.push_back(i);
-  }
+  if (auto iTy = dyn_cast<BaseTensorType>(indices.getType()))
+    dmap.resize(iTy.getSizes()[1]);
+
+  if (auto iTy = dyn_cast<RankedTensorType>(indices.getType()))
+    dmap.resize(iTy.getDimSize(1));
+
+  for (int i = 0, s = dmap.size(); i < s; ++i)
+    dmap[i] = i;
 
   return dmap;
 }
