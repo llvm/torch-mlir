@@ -511,11 +511,42 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     // TODO: Take approximation into account.
     std::string approximate;
-    if (!matchPattern(gelu.getApproximate(), m_TorchConstantStr(approximate)) ||
-        approximate != "none")
+    if (!matchPattern(gelu.getApproximate(), m_TorchConstantStr(approximate))) {
+      gelu.emitError(
+          "unimplemented: expected approximate to be a constant str");
       return nullptr;
-    Value cdf = buildUnitNormalCdf(b, loc, payloadArgs[0]);
-    return b.create<arith::MulFOp>(loc, payloadArgs[0], cdf);
+    }
+    if (approximate == "none") {
+      Value multiplier = buildUnitNormalCdf(b, loc, payloadArgs[0]);
+      return b.create<arith::MulFOp>(loc, payloadArgs[0], multiplier);
+    }
+    if (approximate == "tanh") {
+      // GELU(x)=0.5∗x∗(1+Tanh((2/π)^1/2 * (x+0.044715∗x^3)))
+      // Ref: https://pytorch.org/docs/stable/generated/torch.nn.GELU.html
+      Value cstThree = b.create<arith::ConstantOp>(
+          loc, IntegerAttr::get(IntegerType::get(op->getContext(), 64), 3));
+      Value xCube = b.create<math::FPowIOp>(loc, payloadArgs[0], cstThree);
+      Type elementType = payloadArgs[0].getType();
+      Value cstAlpha = b.create<arith::ConstantOp>(
+          loc, FloatAttr::get(elementType, 0.044715));
+      Value xCubeMulAlpha = b.create<arith::MulFOp>(loc, xCube, cstAlpha);
+      Value xPlusXCubeMulAlpha =
+          b.create<arith::AddFOp>(loc, payloadArgs[0], xCubeMulAlpha);
+      Value cstBeta = b.create<arith::ConstantOp>(
+          loc, FloatAttr::get(elementType, 0.7977240352174656));
+      Value betaMulX =
+          b.create<arith::MulFOp>(loc, cstBeta, xPlusXCubeMulAlpha);
+      Value tanh = b.create<math::TanhOp>(loc, betaMulX);
+      Value cstOne =
+          b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 1.0));
+      Value onePlusTanh = b.create<arith::AddFOp>(loc, cstOne, tanh);
+      Value cstHalf =
+          b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 0.5));
+      Value multiplier = b.create<arith::MulFOp>(loc, cstHalf, onePlusTanh);
+      return b.create<arith::MulFOp>(loc, payloadArgs[0], multiplier);
+    }
+    gelu.emitError("unimplemented: approximate value should be none or tanh");
+    return nullptr;
   }
   if (auto geluBackward = dyn_cast<AtenGeluBackwardOp>(op)) {
     if (!geluBackward.getType()
@@ -725,13 +756,17 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(div.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    if (!dtype.isa<mlir::FloatType>()) {
-      div.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
-    return b.create<arith::DivFOp>(loc, lhs, rhs);
+    if (dtype.isa<mlir::FloatType>())
+      return b.create<arith::DivFOp>(loc, lhs, rhs);
+    else if (dtype.isa<mlir::IntegerType>()) {
+      if (dtype.isUnsignedInteger())
+        return b.create<arith::DivUIOp>(loc, lhs, rhs);
+      return b.create<arith::DivSIOp>(loc, lhs, rhs);
+    }
+    div.emitError("unimplemented: non-floating point and non-integer dtype");
+    return nullptr;
   }
   if (auto divTensorMode = dyn_cast<AtenDivTensorModeOp>(op)) {
     AtenDivTensorModeOp::Adaptor adaptor(operands);

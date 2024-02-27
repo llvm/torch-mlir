@@ -853,6 +853,29 @@ def ElementwiseGeluModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseGeluApproximateTanhModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.gelu = torch.nn.GELU(approximate="tanh")
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.gelu(x)
+
+
+@register_test_case(module_factory=lambda: ElementwiseGeluApproximateTanhModule())
+def ElementwiseGeluApproximateTanhModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, low=-0.5, high=0.5))
+
+
+# ==============================================================================
+
+
 class ElementwiseSeluModule(torch.nn.Module):
 
     def __init__(self):
@@ -2590,6 +2613,52 @@ class ElementwiseDivTensorFloatModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseDivTensorFloatModule())
 def ElementwiseDivTensorFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4), tu.rand(4).type(torch.float64))
+
+
+# ==============================================================================
+
+
+class ElementwiseDivTensorIntegerModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, a, b):
+        return torch.div(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseDivTensorIntegerModule())
+def ElementwiseDivTensorIntegerModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-10, high=10), tu.randint(3, 4, low=-10, high=10).type(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseDivTensorUnsignedIntegerModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.uint8, True),
+        ([-1, -1], torch.uint8, True),
+    ])
+    def forward(self, a, b):
+        return torch.div(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseDivTensorUnsignedIntegerModule())
+def ElementwiseDivTensorUnsignedIntegerModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=0, high=10).to(torch.uint8), tu.randint(3, 4, low=0, high=10).type(torch.uint8))
 
 
 # ==============================================================================
