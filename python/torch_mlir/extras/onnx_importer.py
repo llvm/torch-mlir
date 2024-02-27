@@ -344,8 +344,14 @@ class NodeImporter:
                 continue
             elif handler is False:
                 # Active error.
+                # try matching attribute type ID to name for a more descriptive error message
+                try:
+                    attr_type_name = onnx.AttributeProto.AttributeType.Name(attr_type)
+                except ValueError:
+                    attr_type_name = "UNKNOWN"
                 raise OnnxImportError(
-                    f"ONNX importer does not support generic node attribute type {attr_type}. "
+                    f"ONNX importer does not support generic node attribute type {attr_type_name} "
+                    f"with ID {attr_type}. "
                     f"This likely means that this is a special node which requires specific "
                     f"handling in the importer: {onnx_attr}"
                 )
@@ -589,6 +595,12 @@ ELEM_TYPE_TO_NUMPY_DTYPE = {
     # Ommitted: STRING,
 }
 
+def graph_attribute_handler(attr: onnx.AttributeProto, cc: ContextCache) -> Attribute:
+    """Handles a Graph attribute."""
+    print(dir(attr))
+    print(cc)
+    raise OnnxImportError("Graph attributes not supported yet")
+
 # Mapping of AttributeType code to one of:
 #   None: Ignore attribute and do not output to MLIR
 #   False: Error if an attribute of this type is present
@@ -605,7 +617,7 @@ ATTRIBUTE_TYPE_HANDLERS = {
     onnx.AttributeProto.AttributeType.TENSOR: lambda a, cc: cc.tensor_proto_to_attr(
         a.t
     ),
-    onnx.AttributeProto.AttributeType.GRAPH: False,
+    onnx.AttributeProto.AttributeType.GRAPH: graph_attribute_handler,
     onnx.AttributeProto.AttributeType.SPARSE_TENSOR: False,
     onnx.AttributeProto.AttributeType.TYPE_PROTO: False,
     onnx.AttributeProto.AttributeType.FLOATS: lambda a, cc: ArrayAttr.get(
