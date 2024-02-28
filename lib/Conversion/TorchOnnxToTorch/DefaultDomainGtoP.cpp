@@ -92,6 +92,73 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                                                        operand, vApproximate);
         return success();
       });
+  patterns.onOp(
+      "GridSample", 20,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value input;
+        Value grid;
+        if (binder.tensorOperandAtIndex(input, 0) ||
+            binder.tensorOperandAtIndex(grid, 1) ||
+            binder.tensorResultType(resultType))
+          return rewriter.notifyMatchFailure(
+              binder.op, "operand grid_sampler bind failure");
+
+        auto inputTensorType = input.getType().cast<Torch::ValueTensorType>();
+        ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
+        uint32_t inputRank = inputShape.size();
+        auto gridTensorType = grid.getType().cast<Torch::ValueTensorType>();
+        ArrayRef<int64_t> gridShape = gridTensorType.getSizes();
+        uint32_t gridRank = gridShape.size();
+
+        if (inputRank != 4)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "only input rank 4 supported");
+        if (gridRank != 4)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "only grid rank 4 supported");
+        if (inputShape[0] != gridShape[0])
+          return rewriter.notifyMatchFailure(
+              binder.op, "N must be same for input and grid");
+        if (gridShape[3] != 2)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "gridShape[3] expected to be 2");
+        std::string mode;
+        if (binder.customOpNameStringAttr(mode, "mode", "bilinear"))
+          return rewriter.notifyMatchFailure(binder.op, "mode bind failure");
+        if (mode != "bilinear")
+          return rewriter.notifyMatchFailure(
+              binder.op, "currently only mode : bilinear supported");
+        std::string padding;
+        if (binder.customOpNameStringAttr(padding, "padding_mode", "zeros"))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "padding_mode bind failure");
+        if (padding != "zeros")
+          return rewriter.notifyMatchFailure(
+              binder.op, "currently only padding_mode : zeros supported");
+        int64_t align;
+        if (binder.s64IntegerAttr(align, "align_corners", 0))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "align_corners bind failure");
+        if (align != 0)
+          return rewriter.notifyMatchFailure(
+              binder.op, "currently only align_corners : 0 supported");
+
+        Value interpolationMode = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+        Value paddingMode = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+        Value alignCorners = rewriter.create<Torch::ConstantBoolOp>(
+            binder.getLoc(), rewriter.getType<Torch::BoolType>(),
+            rewriter.getBoolAttr(false));
+
+        rewriter.replaceOpWithNewOp<Torch::AtenGridSamplerOp>(
+            binder.op, resultType, input, grid, interpolationMode, paddingMode,
+            alignCorners);
+        return success();
+      });
   patterns.onOp("Less", 13,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
