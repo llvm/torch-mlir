@@ -796,18 +796,18 @@ public:
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
     int64_t resultRank = resultType.getRank();
     if (resultRank == 0) {
-          rewriter
-              .replaceOpWithNewOp<tensor::CollapseShapeOp>(op, resultType, input,
-                                             ArrayRef<ReassociationIndices>())
-              .getResult();
+      rewriter
+          .replaceOpWithNewOp<tensor::CollapseShapeOp>(
+              op, resultType, input, ArrayRef<ReassociationIndices>())
+          .getResult();
       return success();
     }
 
     if (inputRank == 0) {
-          rewriter
-              .replaceOpWithNewOp<tensor::ExpandShapeOp>(op, resultType, input,
-                                             ArrayRef<ReassociationIndices>())
-              .getResult();
+      rewriter
+          .replaceOpWithNewOp<tensor::ExpandShapeOp>(
+              op, resultType, input, ArrayRef<ReassociationIndices>())
+          .getResult();
       return success();
     }
 
