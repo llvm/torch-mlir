@@ -2150,7 +2150,6 @@ ONNX_XFAIL_SET = {
     # Failure - torch.aten.view lower
     "AddSizeIntModule_basic",
     "ElementwiseFlattenBroadcastModule_basic",
-    "FlattenRank0Module_basic",
     "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
     "IndexTensorDyanmicInputNonContiguousWithNoneModule_basic",
     "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
@@ -2163,7 +2162,6 @@ ONNX_XFAIL_SET = {
     "IndexTensorStaticContiguousWithNoneModule_basic",
     "RepeatModule_basic",
     "SelectIntModule_basic",
-    "SelectIntNegativeDimAndIndexStaticModule_basic",
     "SliceSingleIdxModule_basic",
     "ViewFlattenAndExpandModule_basic",
     "ViewSizeDimFollowedByCollapsedOnesModule_basic",
@@ -2205,7 +2203,6 @@ ONNX_XFAIL_SET = {
     "FlattenDynamicModule_basic",
     "GluStaticModule_basic",
     "GroupNormModule_basic",
-    "GroupNormNoWeightAndBiasModule_basic",
     "IndexSelectDynamicIndexSizeModule_basic",
     "IndexSelectDynamicModulebasic",
     "IndexTensorHackedTwinModule3dInput_basic",
