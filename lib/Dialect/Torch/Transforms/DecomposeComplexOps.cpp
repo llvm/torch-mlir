@@ -1316,6 +1316,57 @@ public:
 };
 } // namespace
 
+namespace {
+class DecomposeAtenAMinMaxOp : public OpRewritePattern<Torch::AtenAminOp> {
+public:
+  using OpRewritePattern<Torch::AtenAminOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(Torch::AtenAminOp op,
+                                PatternRewriter &rewriter) const override {
+    llvm::SmallVector<int64_t> dimList;
+    if (!matchPattern(op.getDim(), m_TorchListOfConstantInts(dimList))) {
+      return rewriter.notifyMatchFailure(op, "dims not foldable constants");
+    }
+
+    bool keepdim;
+    if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepdim))) {
+      return rewriter.notifyMatchFailure(op, "keepdims not foldable constants");
+    }
+
+    auto loc = op.getLoc();
+    std::sort(dimList.begin(), dimList.end(), std::greater<int64_t>());
+
+    Value reduction = op.getSelf();
+    auto resultTy = cast<Torch::ValueTensorType>(op.getType());
+    auto reductionTy = cast<Torch::ValueTensorType>(reduction.getType());
+    llvm::SmallVector<int64_t> reductionShape(reductionTy.getSizes());
+
+    for (auto dim : dimList) {
+      auto dimValue = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(dim));
+      reductionShape[dim] = 1;
+      if (!keepdim) {
+        for (int i = dim, s = reductionShape.size() - 1; i < s; ++i)
+          reductionShape[i] = reductionShape[i + 1];
+        reductionShape.resize(reductionShape.size() - 1);
+      }
+
+      reductionTy = rewriter.getType<Torch::ValueTensorType>(
+          reductionShape, resultTy.getOptionalDtype());
+      auto idxTy = rewriter.getType<Torch::ValueTensorType>(
+          reductionShape, rewriter.getIntegerType(32, /*is_signed*/ true));
+      llvm::SmallVector<Type, 2> types{reductionTy, idxTy};
+      reduction = rewriter
+                      .create<Torch::AtenMinDimOp>(loc, types, reduction,
+                                                   dimValue, op.getKeepdim())
+                      .getResult(0);
+    }
+
+    rewriter.replaceOp(op, reduction);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose `AtenArgMaxOp` into `AtenMaxDimOp` as well as `AtenArgMinOp` into
 // `AtenMinDimOp`
 namespace {
@@ -6867,6 +6918,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenAddmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanDimOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAMinMaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);

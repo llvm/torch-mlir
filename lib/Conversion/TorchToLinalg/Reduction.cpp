@@ -60,18 +60,15 @@ public:
 
     Location loc = op.getLoc();
     Value input = adaptor.getSelf();
-    RankedTensorType valResultType =
-        getTypeConverter()
-            ->convertType(op.getResult(0).getType())
-            .template cast<RankedTensorType>();
-
-    RankedTensorType idxResultType =
-        this->getTypeConverter()
-            ->convertType(op.getResult(1).getType())
-            .template cast<RankedTensorType>();
+    auto typec = this->getTypeConverter();
+    auto valResultType =
+        cast<RankedTensorType>(typec->convertType(op.getResult(0).getType()));
+    auto idxResultType =
+        cast<RankedTensorType>(typec->convertType(op.getResult(1).getType()));
     RankedTensorType inputType =
         input.getType().template cast<RankedTensorType>();
-    Type idxElementType = idxResultType.getElementType();
+    Type idxElementType =
+        getElementTypeOrSelf(typec->convertType(idxResultType));
     if (!idxElementType.isa<IntegerType>())
       return rewriter.notifyMatchFailure(
           op, opName + " to linalg.* requires integer-like result type");
@@ -109,14 +106,12 @@ public:
     }
 
     // Constant op to account for the reduction along dim.
-    auto c1 = rewriter.create<arith::ConstantIndexOp>(loc, /*value=*/1);
     SmallVector<Value> resultShape;
     for (int64_t i = 0; i < inputType.getRank(); i++) {
       if (dim != i) {
         auto currentDimSize = rewriter.create<tensor::DimOp>(loc, input, i);
         resultShape.push_back(currentDimSize);
-      } else if (keepDim)
-        resultShape.push_back(c1);
+      }
     }
     // First fill the output buffer for the index.
     Value filledTensorIdx =
@@ -146,27 +141,23 @@ public:
     Value filledTensorVal =
         rewriter.create<linalg::FillOp>(loc, fillValue, initTensorVal).result();
 
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputType.getRank(), utils::IteratorType::parallel);
+    iteratorTypes[dim] = utils::IteratorType::reduction;
+
     // Create the affine expressions that will be used to
     // iterate over the input and output tensors.
     // Here we also set the type of iterator: parallel or reduction.
+
     SmallVector<AffineExpr> exprs;
-    SmallVector<utils::IteratorType> iteratorTypes;
     SmallVector<AffineExpr> resultExprs;
     for (auto size :
          llvm::enumerate(makeShapeTorchCompatible(inputType.getShape()))) {
       exprs.push_back(rewriter.getAffineDimExpr(size.index()));
-
-      if (unsigned(dim) == size.index()) {
-        iteratorTypes.push_back(utils::IteratorType::reduction);
-        // If `keepDim`, create affine map to the first element
-        // in the current dimension.
-        if (keepDim)
-          resultExprs.push_back(rewriter.getAffineConstantExpr(0));
-      } else {
-        iteratorTypes.push_back(utils::IteratorType::parallel);
+      if (unsigned(dim) != size.index())
         resultExprs.push_back(rewriter.getAffineDimExpr(size.index()));
-      }
     }
+
     auto maps = AffineMap::inferFromExprList({exprs, resultExprs, resultExprs},
                                              rewriter.getContext());
     auto linalgOp = rewriter.create<linalg::GenericOp>(
@@ -219,12 +210,58 @@ public:
               nestedLoc, ValueRange({resultVal, resultIndex}));
         });
 
-    // This cast is required to fix the shape in the case of keepDim=True
-    Value valuesCast = rewriter.create<tensor::CastOp>(loc, valResultType,
-                                                       linalgOp.getResult(0));
-    Value idxCast = rewriter.create<tensor::CastOp>(loc, idxResultType,
-                                                    linalgOp.getResult(1));
-    rewriter.replaceOp(op, {valuesCast, idxCast});
+    if (!keepDim) {
+      Value rVal = rewriter.create<tensor::CastOp>(loc, valResultType,
+                                                   linalgOp.getResult(0));
+      Value rIdx = rewriter.create<tensor::CastOp>(loc, idxResultType,
+                                                   linalgOp.getResult(1));
+      llvm::SmallVector<Value> res{rVal, rIdx};
+      rewriter.replaceOp(op, res);
+      return success();
+    }
+
+    llvm::SmallVector<int64_t> valShape(valResultType.getShape());
+    llvm::SmallVector<int64_t> idxShape(idxResultType.getShape());
+    for (int i = dim, s = valShape.size() - 1; i < s; ++i) {
+      valShape[i] = valShape[i + 1];
+      idxShape[i] = idxShape[i + 1];
+    }
+
+    valShape.resize(valShape.size() - 1);
+    idxShape.resize(idxShape.size() - 1);
+
+    Value rVal = rewriter.create<tensor::CastOp>(
+        loc, valResultType.clone(valShape), linalgOp.getResult(0));
+    Value rIdx = rewriter.create<tensor::CastOp>(
+        loc, idxResultType.clone(idxShape), linalgOp.getResult(1));
+
+    SmallVector<ReassociationIndices> reassociation(valShape.size());
+    if (reassociation.size() > 0) {
+      for (int i = 0; i < dim; ++i)
+        reassociation[i].push_back(i);
+      reassociation[std::max<int64_t>(0, dim - 1)].push_back(dim);
+      for (int i = dim, s = reassociation.size(); i < s; ++i)
+        reassociation[i].push_back(i + 1);
+    }
+
+    valShape.push_back(0);
+    idxShape.push_back(0);
+    for (int i = dim, s = valShape.size() - 1; i < s; ++i) {
+      valShape[i + 1] = valShape[i];
+      idxShape[i + 1] = idxShape[i];
+    }
+
+    valShape[dim] = 1;
+    idxShape[dim] = 1;
+
+    Value unsqueezeVal = rewriter.create<tensor::ExpandShapeOp>(
+        loc, valResultType, rVal, reassociation);
+
+    Value unsqueezeIdx = rewriter.create<tensor::ExpandShapeOp>(
+        loc, idxResultType, rIdx, reassociation);
+
+    llvm::SmallVector<Value> unsqueezes = {unsqueezeVal, unsqueezeIdx};
+    rewriter.replaceOp(op, unsqueezes);
     return success();
   }
 };
