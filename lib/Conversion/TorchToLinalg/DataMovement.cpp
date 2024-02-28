@@ -795,17 +795,19 @@ public:
     auto resultType =
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
     int64_t resultRank = resultType.getRank();
-    if (resultRank == 0)
-      return rewriter.notifyMatchFailure(op,
-                                         "result shape of rank 0 is invalid");
-
-    if (inputRank == 0) {
-      Value expanded =
+    if (resultRank == 0) {
           rewriter
-              .create<tensor::ExpandShapeOp>(loc, resultType, input,
+              .replaceOpWithNewOp<tensor::CollapseShapeOp>(op, resultType, input,
                                              ArrayRef<ReassociationIndices>())
               .getResult();
-      rewriter.replaceOp(op, expanded);
+      return success();
+    }
+
+    if (inputRank == 0) {
+          rewriter
+              .replaceOpWithNewOp<tensor::ExpandShapeOp>(op, resultType, input,
+                                             ArrayRef<ReassociationIndices>())
+              .getResult();
       return success();
     }
 
