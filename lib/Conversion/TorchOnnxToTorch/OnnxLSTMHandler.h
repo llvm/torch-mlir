@@ -215,7 +215,7 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
   // Y = history of hidden states
   Torch::ListType YType = rewriter.getType<Torch::ListType>(HType);
 
-  Value Y =
+  Value Y_list =
       rewriter.create<Torch::PrimListConstructOp>(loc, YType, ValueRange({}));
   // Create a for-like PrimLoopOp.
   Value maxTripCount = rewriter.create<Torch::ConstantIntOp>(
@@ -223,37 +223,41 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
       rewriter.getIntegerAttr(rewriter.getIntegerType(64), seq_len));
   Value cTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
 
+  Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+      loc, rewriter.getType<Torch::IntType>(),
+      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
   Value cstOne = rewriter.create<Torch::ConstantIntOp>(
       loc, rewriter.getType<Torch::IntType>(),
       rewriter.getIntegerAttr(rewriter.getIntegerType(64), 1));
 
+  Type loopIndexType = rewriter.getType<Torch::IntType>();
   // iter args:
   //  i: loop index
   //  Y: history of hidden states
   //  H: hidden state
   //  C: cell state
   auto loop = rewriter.create<Torch::PrimLoopOp>(
-      loc, /*results=*/TypeRange({cstOne.getType(), Y.getType(), HType, CType}),
-      maxTripCount,
+      loc, /*results=*/TypeRange({HType, CType}), maxTripCount,
       /*initialCondition=*/cTrue,
-      /*iterArgsInit=*/ValueRange({cstOne, Y, initial_h, initial_c}));
-
+      /*iterArgsInit=*/ValueRange({initial_h, initial_c}));
   // Create the loop body.
   {
     OpBuilder::InsertionGuard guard(rewriter);
 
-    Block *body =
-        rewriter.createBlock(/*parentRegion=*/&loop.getRegion(),
-                             /*insertionPoint=*/loop.getRegion().begin(),
-                             /*argumentTypes=*/
-                             TypeRange({rewriter.getType<Torch::IntType>(),
-                                        Y.getType(), HType, CType}),
-                             /*locations=*/{loc, loc, loc, loc});
+    Block *body = rewriter.createBlock(
+        /*parentRegion=*/&loop.getRegion(),
+        /*insertionPoint=*/loop.getRegion().begin(),
+        /*argumentTypes=*/
+        TypeRange({
+            loopIndexType, // loop condition
+            HType,
+            CType,
+        }),
+        /*locations=*/{loc, loc, loc});
 
-    Value iterationNumber = body->getArgument(0);
-    Value history = body->getArgument(1);
-    Value H_prev = body->getArgument(2);
-    Value C_prev = body->getArgument(3);
+    Value loopIndex = body->getArgument(0);
+    Value H_prev = body->getArgument(1);
+    Value C_prev = body->getArgument(2);
 
     Torch::ValueTensorType XType = X.getType().cast<Torch::ValueTensorType>();
     Torch::ValueTensorType XtType = rewriter.getType<Torch::ValueTensorType>(
@@ -268,28 +272,27 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
         cstOne);
 
     Value Xt = rewriter.create<Torch::AtenIndexSelectOp>(
-        loc, XtType, X, iterationNumber, cstTensorOne);
+        loc, XtType, X, loopIndex, cstTensorOne);
 
     auto [H_new, C_new] =
         lstm_cell(binder, rewriter, Xt, H_prev, C_prev, W, Wb, R, Rb);
 
     // append H_new to Y
-    rewriter.create<Torch::AtenAppendTOp>(loc, Y.getType(), history, H_new);
+    rewriter.create<Torch::AtenAppendTOp>(loc, Y_list.getType(), Y_list, H_new);
 
-    Value nextIterationNumber = rewriter.create<Torch::AtenAddIntOp>(
-        loc, rewriter.getType<Torch::IntType>(), iterationNumber, cstOne);
+    Value nextLoopIndex = rewriter.create<Torch::AtenAddIntOp>(
+        loc, loopIndexType, loopIndex, cstOne);
 
     Value loopCondition = rewriter.create<Torch::AtenLtIntOp>(
-        loc, rewriter.getType<Torch::BoolType>(), nextIterationNumber,
-        maxTripCount);
+        loc, rewriter.getType<Torch::BoolType>(), nextLoopIndex, maxTripCount);
 
     rewriter.create<Torch::PrimLoopConditionOp>(
-        loc, /*shouldContinue=*/loopCondition,
-        /*iterArgs=*/ValueRange({nextIterationNumber, Y, H_new, C_new}));
+        loc, /*shouldContinue=*/cTrue,
+        /*iterArgs=*/ValueRange({H_new, C_new}));
   }
 
   // Return the result of the loop.
-  return std::make_tuple(Y, loop.getResult(2), loop.getResult(3));
+  return std::make_tuple(Y_list, loop.getResult(0), loop.getResult(1));
 }
 
 LogicalResult OnnxLSTMHandler(OpBinder binder,
@@ -319,8 +322,9 @@ LogicalResult OnnxLSTMHandler(OpBinder binder,
   // result types
   Torch::ValueTensorType YType, Y_hType, Y_cType;
 
-  if (!binder.tensorResultType(YType) && !binder.tensorResultType(Y_hType) &&
-      !binder.tensorResultType(Y_cType)) {
+  if (binder.tensorResultTypeAtIndex(YType, 0) ||
+      binder.tensorResultTypeAtIndex(Y_hType, 1) ||
+      binder.tensorResultTypeAtIndex(Y_cType, 2)) {
     LLVM_DEBUG(llvm::dbgs()
                << "LSTM: At least one of the outputs must be present\n");
     return failure();
@@ -484,6 +488,9 @@ LogicalResult OnnxLSTMHandler(OpBinder binder,
       binder.getLoc(), rewriter.getType<Torch::IntType>(),
       rewriter.getIntegerAttr(rewriter.getIntegerType(64), hidden_size));
   Value cst_None = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+  Value cst_Zero = rewriter.create<Torch::ConstantIntOp>(
+      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
 
   Value initial_hc_shape = rewriter.create<Torch::PrimListConstructOp>(
       binder.getLoc(),
@@ -516,8 +523,14 @@ LogicalResult OnnxLSTMHandler(OpBinder binder,
   }
 
   // run lstm layer
-  auto [Y, Y_h, Y_c] = lstm_layer(binder, rewriter, X, initial_h, initial_c,
-                                  W_forward, B_forward, R_forward, B_forward);
+  auto [Y_list, Y_h, Y_c] =
+      lstm_layer(binder, rewriter, X, initial_h, initial_c, W_forward,
+                 B_forward, R_forward, B_forward);
+
+  // stack
+
+  Value Y = rewriter.create<Torch::AtenStackOp>(binder.getLoc(), YType, Y_list,
+                                                /*dim*/ cst_Zero);
 
   rewriter.replaceOp(binder.op, mlir::ValueRange{Y, Y_h, Y_c});
   return success();
