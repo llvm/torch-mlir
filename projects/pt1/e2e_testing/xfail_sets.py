@@ -989,6 +989,7 @@ TOSA_PASS_SET = {
     "ElementwiseClampMaxModule_basic",
     "ElementwiseClampMinModule_basic",
     "ElementwiseClampModule_basic",
+    "ElementwiseClampTensorInt8Module_basic",
     "ElementwiseCloneChannelsLastMemoryFormatModule_basic",
     "ElementwiseCloneContiguousModule_basic",
     "ElementwiseCloneModule_basic",
