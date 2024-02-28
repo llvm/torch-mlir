@@ -109,8 +109,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorOperandAtIndex(grid, 1) ||
             binder.tensorResultType(resultType))
           return rewriter.notifyMatchFailure(
-            binder.op,
-            "operand grid_sampler bind failure");
+            binder.op, "operand grid_sampler bind failure");
 
         auto inputTensorType = input.getType().cast<Torch::ValueTensorType>();
         ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
@@ -142,7 +141,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (padding != "zeros")
           return rewriter.notifyMatchFailure(
               binder.op, "currently only padding_mode : zeros supported");
-        
         if (binder.s64IntegerAttr(align, "align_corners", 0))
           return rewriter.notifyMatchFailure(binder.op,
                                              "align_corners bind failure");
@@ -155,7 +153,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
         paddingMode = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));        
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
         alignCorners = rewriter.create<Torch::ConstantBoolOp>(
             binder.getLoc(), rewriter.getType<Torch::BoolType>(),
             rewriter.getBoolAttr(false));
