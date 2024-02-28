@@ -98,13 +98,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Torch::ValueTensorType resultType;
         Value input;
         Value grid;
-        std::string mode;
-        Value interpolationMode;
-        std::string padding;
-        Value paddingMode;
-        int64_t align;
-        Value alignCorners;
-
         if (binder.tensorOperandAtIndex(input, 0) ||
             binder.tensorOperandAtIndex(grid, 1) ||
             binder.tensorResultType(resultType))
@@ -130,17 +123,20 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (gridShape[3] != 2)
           return rewriter.notifyMatchFailure(binder.op,
                                              "gridShape[3] expected to be 2");
+        std::string mode;
         if (binder.customOpNameStringAttr(mode, "mode", "bilinear"))
           return rewriter.notifyMatchFailure(binder.op, "mode bind failure");
         if (mode != "bilinear")
           return rewriter.notifyMatchFailure(
               binder.op, "currently only mode : bilinear supported");
+        std::string padding;
         if (binder.customOpNameStringAttr(padding, "padding_mode", "zeros"))
           return rewriter.notifyMatchFailure(binder.op,
                                              "padding_mode bind failure");
         if (padding != "zeros")
           return rewriter.notifyMatchFailure(
               binder.op, "currently only padding_mode : zeros supported");
+        int64_t align;
         if (binder.s64IntegerAttr(align, "align_corners", 0))
           return rewriter.notifyMatchFailure(binder.op,
                                              "align_corners bind failure");
@@ -148,13 +144,13 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(
               binder.op, "currently only align_corners : 0 supported");
 
-        interpolationMode = rewriter.create<Torch::ConstantIntOp>(
+        Value interpolationMode = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
-        paddingMode = rewriter.create<Torch::ConstantIntOp>(
+        Value paddingMode = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
-        alignCorners = rewriter.create<Torch::ConstantBoolOp>(
+        Value alignCorners = rewriter.create<Torch::ConstantBoolOp>(
             binder.getLoc(), rewriter.getType<Torch::BoolType>(),
             rewriter.getBoolAttr(false));
 
