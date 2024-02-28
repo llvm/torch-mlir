@@ -109,7 +109,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorOperandAtIndex(grid, 1) ||
             binder.tensorResultType(resultType))
           return rewriter.notifyMatchFailure(
-            binder.op, "operand grid_sampler bind failure");
+              binder.op, "operand grid_sampler bind failure");
 
         auto inputTensorType = input.getType().cast<Torch::ValueTensorType>();
         ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
