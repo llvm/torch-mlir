@@ -108,57 +108,54 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (binder.tensorOperandAtIndex(input, 0) ||
             binder.tensorOperandAtIndex(grid, 1) ||
             binder.tensorResultType(resultType))
-          return failure();
+          return rewriter.notifyMatchFailure(
+            binder.op,
+            "operand grid_sampler bind failure");
 
         auto inputTensorType = input.getType().cast<Torch::ValueTensorType>();
         ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
-        unsigned inputRank = inputShape.size();
+        uint32_t inputRank = inputShape.size();
         auto gridTensorType = grid.getType().cast<Torch::ValueTensorType>();
         ArrayRef<int64_t> gridShape = gridTensorType.getSizes();
-        unsigned gridRank = gridShape.size();
+        uint32_t gridRank = gridShape.size();
 
-        if (inputRank != 4) {
+        if (inputRank != 4)
           return rewriter.notifyMatchFailure(binder.op,
                                              "only input rank 4 supported");
-        }
-        if (gridRank != 4) {
+        if (gridRank != 4)
           return rewriter.notifyMatchFailure(binder.op,
                                              "only grid rank 4 supported");
-        }
-        if (inputShape[0] != gridShape[0]) {
+        if (inputShape[0] != gridShape[0])
           return rewriter.notifyMatchFailure(
               binder.op, "N must be same for input and grid");
-        }
-        if (gridShape[3] != 2) {
+        if (gridShape[3] != 2)
           return rewriter.notifyMatchFailure(binder.op,
-                                             "gridShape[3] ,must be 2");
-        }
-
+                                             "gridShape[3] expected to be 2");
         if (binder.customOpNameStringAttr(mode, "mode", "bilinear"))
           return rewriter.notifyMatchFailure(binder.op, "mode bind failure");
         if (mode != "bilinear")
           return rewriter.notifyMatchFailure(
               binder.op, "currently only mode : bilinear supported");
-        interpolationMode = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
-
         if (binder.customOpNameStringAttr(padding, "padding_mode", "zeros"))
           return rewriter.notifyMatchFailure(binder.op,
                                              "padding_mode bind failure");
         if (padding != "zeros")
           return rewriter.notifyMatchFailure(
               binder.op, "currently only padding_mode : zeros supported");
-        paddingMode = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
-
+        
         if (binder.s64IntegerAttr(align, "align_corners", 0))
           return rewriter.notifyMatchFailure(binder.op,
                                              "align_corners bind failure");
         if (align != 0)
           return rewriter.notifyMatchFailure(
               binder.op, "currently only align_corners : 0 supported");
+
+        interpolationMode = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+        paddingMode = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));        
         alignCorners = rewriter.create<Torch::ConstantBoolOp>(
             binder.getLoc(), rewriter.getType<Torch::BoolType>(),
             rewriter.getBoolAttr(false));
