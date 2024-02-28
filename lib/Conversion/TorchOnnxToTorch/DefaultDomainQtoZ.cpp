@@ -181,7 +181,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         c = rewriter
                 .create<Torch::OperatorOp>(binder.getLoc(), cTy, newOperands,
-                                           newAttributes)
+                                           newAttributes,
+                                           binder.op->getRegions().size())
                 .getResult(0);
 
         Value outScale = rewriter.create<Torch::AtenMulFloatOp>(

@@ -190,6 +190,12 @@ static bool isValidTorchDtype(Type dtype) {
   // Builtin floating point types.
   if (dtype.isa<Float16Type, BFloat16Type, Float32Type, Float64Type>())
     return true;
+  if (dtype.isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
+                Float8E4M3FNUZType, Float8E4M3B11FNUZType>())
+    return true;
+
+  if (dtype.isa<Torch::StringType>())
+    return true;
   // Builtin integer types.
   if (IntegerType type = dtype.dyn_cast<IntegerType>()) {
     if (type.isSignless() && type.getWidth() == 1)

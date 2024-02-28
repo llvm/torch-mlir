@@ -128,7 +128,7 @@ class GraphInfo:
 
         # Generate the effective input map, which for old models can be a
         # subset of the input map.
-        if model_info.config.elide_initialized_inputs:
+        if model_info and model_info.config.elide_initialized_inputs:
             self.input_map = {
                 k: v
                 for k, v in self.declared_input_map.items()
@@ -151,9 +151,8 @@ class GraphInfo:
         value_info = self.value_info_map.get(name) or self.output_map.get(name)
         if value_info is not None:
             return value_info.type
-        raise OnnxImportError(
-            f"No type information associated with '{name}'. Run shape inference?"
-        )
+        # No type information is associated, this can occur when the value is unused:
+        return ""
 
 
 class OnnxImportError(Exception):
@@ -252,7 +251,7 @@ class NodeImporter:
                 "torch.onnx_meta.producer_version"
             ] = StringAttr.get(m.producer_version)
 
-    def import_all(self):
+    def import_all(self, func=True):
         """Imports all nodes topologically."""
         # TODO: Consider pulling in initializers on demand since there can be so
         # much unused crap.
@@ -272,7 +271,12 @@ class NodeImporter:
                     f"Non topologically produced ONNX graph output '{output_name}'"
                 )
         with InsertionPoint(self._b), Location.unknown():
-            func_dialect.ReturnOp(outputs)
+            if func:
+                func_dialect.ReturnOp(outputs)
+            else:
+                Operation.create(
+                    name="torch.operator_terminator",
+                    operands=outputs)
 
     def get_none(self):
         if '' in self._nv_map:
@@ -315,23 +319,24 @@ class NodeImporter:
                 for n in output_names
             ]
 
-            # TODO: Attributes.
-            attrs = {
-                "name": StringAttr.get(f"onnx.{op_type}"),
-            }
-            self.import_attributes(node.attribute, attrs)
+            attrs = self.import_attributes(node.attribute)
+            attrs["name"] = StringAttr.get(f"onnx.{op_type}")
+            regions = self.count_regions(node.attribute)
+
             custom_op = Operation.create(
                 name="torch.operator",
                 results=output_types,
                 operands=input_values,
                 attributes=attrs,
+                regions=regions
             )
+
+            self.import_regions(node.attribute, custom_op)
             for output_name, output_value in zip(output_names, custom_op.results):
                 self._nv_map[output_name] = output_value
 
-    def import_attributes(
-        self, onnx_attrs: list[onnx.AttributeProto], attrs: dict[str, Attribute]
-    ):
+    def import_attributes(self, onnx_attrs: list[onnx.AttributeProto]):
+        attrs = {}
         for onnx_attr in onnx_attrs:
             attr_type = onnx_attr.type
             if attr_type not in ATTRIBUTE_TYPE_HANDLERS:
@@ -351,6 +356,38 @@ class NodeImporter:
                 )
             result = handler(onnx_attr, self._cc)
             attrs[f"torch.onnx.{onnx_attr.name}"] = result
+        return attrs
+
+    def count_regions(self, onnx_attrs: list[onnx.AttributeProto]):
+        count = 0
+        for onnx_attr in onnx_attrs:
+            if onnx_attr.type == onnx.AttributeProto.AttributeType.GRAPH:
+                count += 1
+        return count
+
+    def import_regions(self, onnx_attrs: list[onnx.AttributeProto], op):
+        attr_map = {}
+        for onnx_attr in onnx_attrs:
+            attr_type = onnx_attr.type
+            if attr_type != onnx.AttributeProto.AttributeType.GRAPH:
+                continue
+            attr_map[onnx_attr.name] = onnx_attr
+
+        for name, region in zip(sorted(attr_map.keys()), op.regions):
+            attr = attr_map[name]
+            block_types = [self._cc.type_proto_to_type(input.type) for input in attr.g.input]
+            block_names = [input.name for input in attr.g.input]
+            region.blocks.append(*block_types, arg_locs=[op.location] * len(block_types))
+            block = region.blocks[0]
+            graph_info = GraphInfo(None, attr.g)
+            imp = NodeImporter(graph_info, parent_op=op, block=block, context_cache=self._cc)
+
+            for node_name, input_value in zip(block_names, block.arguments):
+                imp._nv_map[node_name] = input_value
+            for k in self._nv_map:
+                imp._nv_map[k] = self._nv_map[k]
+
+            imp.import_all(False)
 
     def import_initializer(self, initializer: onnx.TensorProto, extern_name: str = None) -> Value:
         # If an explicitly specified name is given, use that; otherwise, pick
@@ -414,12 +451,16 @@ class ContextCache:
     __slots__ = [
         "_c",
         "_elem_type_map",
+        "_list_type_map",
+        "_optional_type_map",
         "_vtensor_type_map",
     ]
 
     def __init__(self, context: Context):
         self._c = context
         self._elem_type_map: dict[int, IrType] = {}
+        self._list_type_map:dict[str, IrType] = {}
+        self._optional_type_map:dict[str, IrType] = {}
         self._vtensor_type_map: dict[tuple[tuple[Optional[int]], IrType], IrType] = {}
 
     def tensor_element_type(self, elem_type: int) -> IrType:
@@ -435,6 +476,67 @@ class ContextCache:
 
     def get_none_type(self):
         return IrType.parse("!torch.none", context=self._c)
+
+    def get_list_type(self, element_type: IrType) -> IrType:
+        key = str(element_type)
+        t = self._list_type_map.get(key)
+        if t is None:
+            asm = f"!torch.list<{str(element_type)}>"
+            try:
+                t = IrType.parse(asm, context=self._c)
+            except MLIRError as e:
+                raise OnnxImportError(
+                    f"Unparseable torch type (MLIR asm format bug?): {asm}"
+                ) from e
+            self._list_type_map[key] = t
+        return t
+
+
+    def get_optional_type(self, element_type: IrType) -> IrType:
+        key = str(element_type)
+        t = self._optional_type_map.get(key)
+        if t is None:
+            asm = f"!torch.optional<{str(element_type)}>"
+            try:
+                t = IrType.parse(asm, context=self._c)
+            except MLIRError as e:
+                raise OnnxImportError(
+                    f"Unparseable torch type (MLIR asm format bug?): {asm}"
+                ) from e
+            self._optional_type_map[key] = t
+        return t
+
+
+    def get_list_element_type(self, tp: onnx.TypeProto) -> IrType:
+        tt = tp.tensor_type
+        if tt.elem_type:
+            element_type = self.tensor_element_type(tt.elem_type)
+            dims = tuple(
+                (d.dim_value if not d.dim_param else None) for d in tt.shape.dim
+            )
+            shape_asm = ",".join("?" if d is None else str(d) for d in dims)
+            return f"vtensor<[{shape_asm}],{element_type}>"
+
+        raise OnnxImportError(
+            f"Unsupport list element type")
+
+    def get_optional_element_type(self, tp: onnx.TypeProto) -> IrType:
+        st = tp.sequence_type
+        tt = tp.tensor_type
+        if tt.elem_type:
+            element_type = self.tensor_element_type(tt.elem_type)
+            dims = tuple(
+                (d.dim_value if not d.dim_param else None) for d in tt.shape.dim
+            )
+            shape_asm = ",".join("?" if d is None else str(d) for d in dims)
+            return f"vtensor<[{shape_asm}],{element_type}>"
+
+        if st.elem_type:
+            element_type = self.get_list_element_type(st.elem_type)
+            return f"list<{element_type}>"
+
+        raise OnnxImportError(
+            f"Unsupport optional element type")
 
     def get_vtensor_type(
         self, dims: tuple[Optional[int]], element_type: IrType
@@ -461,11 +563,20 @@ class ContextCache:
         element_type = self.tensor_element_type(tp.data_type)
         # TODO: Fixme upstream: RankedTensorType.get should not require a location.
         with Location.unknown():
-            return RankedTensorType.get(tuple(tp.dims), element_type)
+            try:
+                return RankedTensorType.get(tuple(tp.dims), element_type)
+            except TypeError as e:
+                raise OnnxImportError(
+                    f"Unsupported builtin tensor type"
+                ) from e
+
 
     def type_proto_to_type(self, tp: onnx.TypeProto) -> IrType:
-        if tp.tensor_type:
-            tt = tp.tensor_type
+        if tp == "":
+            return self.get_none_type()
+
+        tt = tp.tensor_type
+        if tt.elem_type:
             if not tt.shape:
                 raise OnnxImportError(
                     f"Unsupported Tensor type without shape (run shape inference?): {tp}"
@@ -475,10 +586,20 @@ class ContextCache:
                 (d.dim_value if not d.dim_param else None) for d in tt.shape.dim
             )
             return self.get_vtensor_type(dims, element_type)
-        else:
-            # TODO: Others if ever needed. Or we consider ourselves DNN-only.
-            # See TypeProto: sequence_type, map_type, optional_type, sparse_tensor_type.
-            raise OnnxImportError(f"Unsupported ONNX TypeProto: {tp}")
+
+        st = tp.sequence_type
+        if len(str(st.elem_type)) > 0:
+            element_type = self.get_list_element_type(st.elem_type)
+            return self.get_list_type(element_type)
+
+        ot = tp.optional_type
+        if len(str(ot.elem_type)) > 0:
+            element_type = self.get_optional_element_type(ot.elem_type)
+            return self.get_optional_type(element_type)
+
+        # TODO: Others if ever needed. Or we consider ourselves DNN-only.
+        # See TypeProto: sequence_type, map_type, optional_type, sparse_tensor_type.
+        raise OnnxImportError(f"Unsupported ONNX TypeProto: {tp}")
 
     def _sanitize_name(self, name):
         if not name.isidentifier():  
@@ -524,6 +645,7 @@ ELEM_TYPE_TO_IR_TYPE_CB = {
     onnx.TensorProto.DataType.FLOAT8E4M3FNUZ: lambda: Float8E5M2FNUZType.get(),
     onnx.TensorProto.DataType.FLOAT8E5M2: lambda: Float8E5M2Type.get(),
     onnx.TensorProto.DataType.FLOAT8E5M2FNUZ: lambda: Float8E5M2FNUZType.get(),
+    onnx.TensorProto.DataType.STRING: lambda: "!torch.str",
     # Ommitted: STRING,
 }
 
@@ -545,6 +667,16 @@ ELEM_TYPE_SPLAT_TENSOR_PROTO_CB = {
 ELEM_TYPE_INLINE_TENSOR_PROTO_CB = {
     onnx.TensorProto.DataType.FLOAT: lambda tp: DenseElementsAttr.get(
         np.asarray(tp.float_data, dtype=np.float32).reshape(tp.dims), signless=False
+    ),
+    onnx.TensorProto.DataType.BOOL: lambda tp: DenseElementsAttr.get(
+        np.packbits(np.asarray(tp.int32_data, dtype=np.bool_).reshape(tp.dims),
+                    axis=None, bitorder="little"), signless=False
+    ),
+    onnx.TensorProto.DataType.INT8: lambda tp: DenseElementsAttr.get(
+        np.asarray(tp.int32_data, dtype=np.int8).reshape(tp.dims), signless=False
+    ),
+    onnx.TensorProto.DataType.INT16: lambda tp: DenseElementsAttr.get(
+        np.asarray(tp.int32_data, dtype=np.int16).reshape(tp.dims), signless=False
     ),
     onnx.TensorProto.DataType.INT32: lambda tp: DenseElementsAttr.get(
         np.asarray(tp.int32_data, dtype=np.int32).reshape(tp.dims), signless=False
@@ -605,7 +737,7 @@ ATTRIBUTE_TYPE_HANDLERS = {
     onnx.AttributeProto.AttributeType.TENSOR: lambda a, cc: cc.tensor_proto_to_attr(
         a.t
     ),
-    onnx.AttributeProto.AttributeType.GRAPH: False,
+    onnx.AttributeProto.AttributeType.GRAPH: None,
     onnx.AttributeProto.AttributeType.SPARSE_TENSOR: False,
     onnx.AttributeProto.AttributeType.TYPE_PROTO: False,
     onnx.AttributeProto.AttributeType.FLOATS: lambda a, cc: ArrayAttr.get(
