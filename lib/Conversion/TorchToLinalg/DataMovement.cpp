@@ -799,10 +799,15 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "result shape of rank 0 is invalid");
 
-    // TODO: add support for case inputRank 0 expanded to size 1
-    if (inputRank == 0)
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: input rank 0 is not supported");
+    if (inputRank == 0) {
+      Value expanded =
+          rewriter
+              .create<tensor::ExpandShapeOp>(loc, resultType, input,
+                                             ArrayRef<ReassociationIndices>())
+              .getResult();
+      rewriter.replaceOp(op, expanded);
+      return success();
+    }
 
     // Extract the desired output size as a list of integers. This list should
     // have been created using the operation `torch.prim.ListConstruct`.
@@ -1500,6 +1505,14 @@ public:
 
     RankedTensorType newResultType =
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+    int rank = newResultType.getRank();
+    Value dimValue = op.getDim();
+    int64_t dim;
+    if (!matchPattern(dimValue, m_TorchConstantInt(&dim)))
+      return op.emitError("unimplemented: dim is not constant");
+    dim = toPositiveDim(dim, rank);
+    if (!isValidDim(dim, rank))
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
     auto outElemType = newResultType.getElementType();
     for (size_t i = 0; i < tensors.size(); ++i) {
@@ -1510,17 +1523,16 @@ public:
       }
     }
 
-    int rank = newResultType.getRank();
-    Value dimValue = op.getDim();
-    int64_t dim;
-    if (!matchPattern(dimValue, m_TorchConstantInt(&dim)))
-      return op.emitError("unimplemented: dim is not constant");
-    dim = toPositiveDim(dim, rank);
-    if (!isValidDim(dim, rank))
-      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+    llvm::SmallVector<Value> filteredTensors;
+    for (auto tensor : tensors) {
+      auto inputType = cast<RankedTensorType>(tensor.getType());
+      if (inputType.getDimSize(dim) != 0) {
+        filteredTensors.push_back(tensor);
+      }
+    }
 
     rewriter.replaceOpWithNewOp<tensor::ConcatOp>(op, newResultType, dim,
-                                                  tensors);
+                                                  filteredTensors);
     return success();
   }
 };
