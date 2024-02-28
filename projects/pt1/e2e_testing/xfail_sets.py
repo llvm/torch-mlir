@@ -64,14 +64,6 @@ TORCHDYNAMO_XFAIL_SET = {
     # See also: https://github.com/pytorch/torchdynamo/issues/327
     "AtenEmbeddingBagSumExample_basic",
 
-    # error: failed to legalize operation 'torch.valsem.aten.bernoulli.float' that was explicitly marked illegal
-    "BernoulliFloatModule_basic",
-    "BernoulliPModule_basic",
-    # error: failed to legalize operation 'torch.aten.view' that was explicitly marked illegal
-    "ElementwiseFlattenBroadcastModule_basic",
-    "FlattenRank0Module_basic",
-    "UniformModule_basic",
-    "UniformStaticShapeModule_basic",
     # error: unsupported by backend contract: tensor with unknown rank
     # note: see current operation: %1 = "torch.tensor_static_info_cast"(%arg0) : (!torch.vtensor<[5,4,3,2,1],f32>) -> !torch.vtensor<*,f32>
     "ElementwisePreluModule_basic",
@@ -2150,7 +2142,6 @@ ONNX_XFAIL_SET = {
     # Failure - torch.aten.view lower
     "AddSizeIntModule_basic",
     "ElementwiseFlattenBroadcastModule_basic",
-    "FlattenRank0Module_basic",
     "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
     "IndexTensorDyanmicInputNonContiguousWithNoneModule_basic",
     "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
@@ -2163,7 +2154,6 @@ ONNX_XFAIL_SET = {
     "IndexTensorStaticContiguousWithNoneModule_basic",
     "RepeatModule_basic",
     "SelectIntModule_basic",
-    "SelectIntNegativeDimAndIndexStaticModule_basic",
     "SliceSingleIdxModule_basic",
     "ViewFlattenAndExpandModule_basic",
     "ViewSizeDimFollowedByCollapsedOnesModule_basic",
@@ -2205,7 +2195,6 @@ ONNX_XFAIL_SET = {
     "FlattenDynamicModule_basic",
     "GluStaticModule_basic",
     "GroupNormModule_basic",
-    "GroupNormNoWeightAndBiasModule_basic",
     "IndexSelectDynamicIndexSizeModule_basic",
     "IndexSelectDynamicModulebasic",
     "IndexTensorHackedTwinModule3dInput_basic",
