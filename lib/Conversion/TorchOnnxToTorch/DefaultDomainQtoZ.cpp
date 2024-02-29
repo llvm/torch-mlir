@@ -489,8 +489,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return success();
         }
         // When binder.op->getNumOperands() > 2
-        auto baseType = Torch::ValueTensorType::getWithLeastStaticInformation(
-            binder.op->getContext());
         Value curr = rewriter.create<Torch::AtenAddTensorOp>(
             binder.getLoc(), resultType, valList[0], valList[1], const1);
         for (int i = 2; i < numOperands; i++) {
@@ -498,6 +496,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             curr = rewriter.create<Torch::AtenAddTensorOp>(
                 binder.getLoc(), resultType, curr, valList[i], const1);
           } else {
+            SmallVector<int64_t> resultBroadcastShapeInt;
+            SmallVector<Value> resultBroadcastShapeValue;
+            Torch::computeBroadcastShape(rewriter, binder.getLoc(), curr,
+                                         valList[i], resultBroadcastShapeInt,
+                                         resultBroadcastShapeValue);
+            auto baseType = Torch::ValueTensorType::get(
+                binder.op->getContext(), resultBroadcastShapeInt,
+                resultType.getOptionalDtype());
             curr = rewriter.create<Torch::AtenAddTensorOp>(
                 binder.getLoc(), baseType, curr, valList[i], const1);
           }
