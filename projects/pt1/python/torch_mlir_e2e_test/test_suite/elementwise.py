@@ -2526,6 +2526,68 @@ def ElementwiseRemainderScalarModule_Bool_basic(module, tu: TestUtils):
 
 
 # ==============================================================================
+    
+class ElementwiseFmodTensor_Float(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True)
+    ])
+    def forward(self, x, y):
+        return torch.fmod(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFmodTensor_Float())
+def ElementwiseFmodTensor_Float_basic(module, tu: TestUtils):
+    module.forward(tu.rand(100, low=-10, high=10), tu.rand(100, low=-10, high=10))
+    
+# ==============================================================================
+    
+class ElementwiseFmodTensor_Int_Float(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int32, True),
+        ([-1], torch.float32, True)
+    ])
+    def forward(self, x, y):
+        return torch.fmod(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFmodTensor_Int_Float())
+def ElementwiseFmodTensor_Int_Float_basic(module, tu: TestUtils):
+    module.forward(tu.randint(100, low=-10, high=10).to(torch.int32), tu.rand(100, low=-10, high=10))
+
+# ==============================================================================
+    
+class ElementwiseFmodTensor_Int(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int32, True),
+        ([-1], torch.int32, True),
+    ])
+    def forward(self, x, y):
+        return torch.fmod(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFmodTensor_Int())
+def ElementwiseFmodTensor_Int_basic(module, tu: TestUtils):
+    module.forward(tu.randint(100, low=0, high=1000).to(torch.int32), tu.randint(100, low=1, high=1000).to(torch.int32))
+    # ==============================================================================
 
 
 class ElementwiseRemainderTensorModule_Int_Float(torch.nn.Module):
