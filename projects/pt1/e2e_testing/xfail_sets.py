@@ -2144,7 +2144,6 @@ ONNX_XFAIL_SET = {
     "ReduceMaxUnsignedIntModule_basic",
 
     # Failure - torch.aten.view lower
-    "ElementwiseFlattenBroadcastModule_basic",
     "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
     "IndexTensorDyanmicInputNonContiguousWithNoneModule_basic",
     "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
