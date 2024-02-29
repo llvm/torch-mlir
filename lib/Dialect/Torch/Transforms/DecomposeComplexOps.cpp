@@ -6854,19 +6854,19 @@ public:
   LogicalResult matchAndRewrite(AtenLinalgNormOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-
-    if (op.getDim().getDefiningOp()) {
-      auto dimOp =
-          dyn_cast<Torch::PrimListConstructOp>(op.getDim().getDefiningOp());
-      if (!dimOp || llvm::to_vector(dimOp.getElements()).size() != 1)
-        return rewriter.notifyMatchFailure(
-            op, "Unimplemented: only dim size of 1 is supported");
-    } else
-      return rewriter.notifyMatchFailure(op, "expect dim param to be a list");
+    SmallVector<Value> dimList;
+    if (!getListConstructElements(op.getDim(), dimList)) {
+      return rewriter.notifyMatchFailure(
+          op, "dim should comes from a PrimListConstructOp");
+    }
+    if (dimList.size() != 1) {
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: only dim size of 1 is supported");
+    }
 
     // default ord value is 2 for vector_norm
     auto ord = op.getOrd();
-    if (dyn_cast_or_null<ConstantNoneOp>(ord.getDefiningOp())) {
+    if (ord.getType().isa<Torch::NoneType>()) {
       ord = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2));
     }
     rewriter.replaceOpWithNewOp<Torch::AtenLinalgVectorNormOp>(
