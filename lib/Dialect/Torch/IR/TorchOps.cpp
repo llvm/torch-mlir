@@ -2912,23 +2912,30 @@ void AtenCatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   patterns.add(+[](AtenCatOp op, PatternRewriter &rewriter) {
     auto list = op.getTensors().getDefiningOp<PrimListConstructOp>();
     auto resultTy = dyn_cast<BaseTensorType>(op.getType());
-    if (!list || !resultTy) return failure();
+    if (!list || !resultTy)
+      return failure();
 
     int64_t dim;
-    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim))) return failure();
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return failure();
 
     llvm::SmallVector<Value> filtered;
     for (auto operand : list.getOperands()) {
       auto operandTy = dyn_cast<BaseTensorType>(operand.getType());
-      if (!operandTy || !operandTy.hasSizes()) return failure();
+      if (!operandTy || !operandTy.hasSizes())
+        return failure();
       int64_t adim = dim < 0 ? dim + operandTy.getSizes().size() : dim;
-      if (operandTy.getSizes()[adim] != 0) filtered.push_back(operand);
+      if (operandTy.getSizes()[adim] != 0)
+        filtered.push_back(operand);
     }
 
-    if (filtered.size() == list.getNumOperands()) return failure();
+    if (filtered.size() == list.getNumOperands())
+      return failure();
 
-    auto newlist = rewriter.create<PrimListConstructOp>(op.getLoc(), list.getType(), filtered);
-    rewriter.replaceOpWithNewOp<AtenCatOp>(op, op.getType(), newlist, op.getDim());
+    auto newlist = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), list.getType(), filtered);
+    rewriter.replaceOpWithNewOp<AtenCatOp>(op, op.getType(), newlist,
+                                           op.getDim());
     return success();
   });
 }
