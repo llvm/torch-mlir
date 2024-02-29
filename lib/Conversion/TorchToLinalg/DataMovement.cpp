@@ -805,9 +805,10 @@ public:
 
     if (inputRank == 0) {
       llvm::SmallVector<int64_t> outshape(resultRank, 1);
-      auto expandTy = RankedTensorType::get(outshape, resultType.getElementType());
+      auto expandTy =
+          RankedTensorType::get(outshape, resultType.getElementType());
       Value expand = rewriter.create<tensor::ExpandShapeOp>(
-              op.getLoc(), expandTy, input, ArrayRef<ReassociationIndices>());
+          op.getLoc(), expandTy, input, ArrayRef<ReassociationIndices>());
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, expand);
       return success();
     }
