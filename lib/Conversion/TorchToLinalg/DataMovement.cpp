@@ -804,10 +804,11 @@ public:
     }
 
     if (inputRank == 0) {
-      rewriter
-          .replaceOpWithNewOp<tensor::ExpandShapeOp>(
-              op, resultType, input, ArrayRef<ReassociationIndices>())
-          .getResult();
+      llvm::SmallVector<int64_t> outshape(resultRank, 1);
+      auto expandTy = RankedTensorType::get(outshape, resultType.getElementType());
+      Value expand = rewriter.create<tensor::ExpandShapeOp>(
+              op.getLoc(), expandTy, input, ArrayRef<ReassociationIndices>());
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, expand);
       return success();
     }
 
