@@ -12593,6 +12593,7 @@ def Torch_AtenCatOp : Torch_Op<"aten.cat", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
 

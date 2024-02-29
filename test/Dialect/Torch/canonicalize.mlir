@@ -2663,3 +2663,13 @@ func.func @aten_shape_to_tensor(%arg0 : !torch.vtensor<[4,5,6],f32>) -> !torch.v
   return %0 : !torch.vtensor<[3],si32>
 }
 
+// -----
+
+// CHECK-LABEL: @aten_cat_zero
+func.func @aten_cat_zero(%arg0 : !torch.vtensor<[4,5,6],f32>, %arg1 : !torch.vtensor<[4,0,6],f32>) -> !torch.vtensor<[4,5,6],f32> {
+  // CHECK: return %arg0 : !torch.vtensor<[4,5,6],f32>
+  %list = torch.prim.ListConstruct %arg0, %arg1 : (!torch.vtensor<[4,5,6],f32>, !torch.vtensor<[4,0,6],f32>) -> !torch.list<vtensor>
+  %dim = torch.constant.int -2
+  %0 = torch.aten.cat %list, %dim : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[4,5,6],f32>
+  return %0 : !torch.vtensor<[4,5,6],f32>
+}

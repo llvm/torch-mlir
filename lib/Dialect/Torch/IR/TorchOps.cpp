@@ -2900,11 +2900,37 @@ OpFoldResult AtenSubIntOp::fold(FoldAdaptor adaptor) {
 
 OpFoldResult AtenCatOp::fold(FoldAdaptor adaptor) {
   auto list = getOperand(0).getDefiningOp<PrimListConstructOp>();
-  if (!list || !list->hasOneUse() || list.getElements().size() != 1)
+  if (!list || list.getElements().size() != 1)
     return nullptr;
   if (list.getElements()[0].getType() != getResult().getType())
     return nullptr;
   return list.getElements()[0];
+}
+
+void AtenCatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                            MLIRContext *context) {
+  patterns.add(+[](AtenCatOp op, PatternRewriter &rewriter) {
+    auto list = op.getTensors().getDefiningOp<PrimListConstructOp>();
+    auto resultTy = dyn_cast<BaseTensorType>(op.getType());
+    if (!list || !resultTy) return failure();
+
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim))) return failure();
+
+    llvm::SmallVector<Value> filtered;
+    for (auto operand : list.getOperands()) {
+      auto operandTy = dyn_cast<BaseTensorType>(operand.getType());
+      if (!operandTy || !operandTy.hasSizes()) return failure();
+      int64_t adim = dim < 0 ? dim + operandTy.getSizes().size() : dim;
+      if (operandTy.getSizes()[adim] != 0) filtered.push_back(operand);
+    }
+
+    if (filtered.size() == list.getNumOperands()) return failure();
+
+    auto newlist = rewriter.create<PrimListConstructOp>(op.getLoc(), list.getType(), filtered);
+    rewriter.replaceOpWithNewOp<AtenCatOp>(op, op.getType(), newlist, op.getDim());
+    return success();
+  });
 }
 
 //===----------------------------------------------------------------------===//
