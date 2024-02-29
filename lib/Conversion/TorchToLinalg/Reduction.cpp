@@ -60,18 +60,15 @@ public:
 
     Location loc = op.getLoc();
     Value input = adaptor.getSelf();
-    RankedTensorType valResultType =
-        getTypeConverter()
-            ->convertType(op.getResult(0).getType())
-            .template cast<RankedTensorType>();
-
-    RankedTensorType idxResultType =
-        this->getTypeConverter()
-            ->convertType(op.getResult(1).getType())
-            .template cast<RankedTensorType>();
+    auto typec = this->getTypeConverter();
+    auto valResultType =
+        cast<RankedTensorType>(typec->convertType(op.getResult(0).getType()));
+    auto idxResultType =
+        cast<RankedTensorType>(typec->convertType(op.getResult(1).getType()));
     RankedTensorType inputType =
         input.getType().template cast<RankedTensorType>();
-    Type idxElementType = idxResultType.getElementType();
+    Type idxElementType =
+        getElementTypeOrSelf(typec->convertType(idxResultType));
     if (!idxElementType.isa<IntegerType>())
       return rewriter.notifyMatchFailure(
           op, opName + " to linalg.* requires integer-like result type");
@@ -109,14 +106,12 @@ public:
     }
 
     // Constant op to account for the reduction along dim.
-    auto c1 = rewriter.create<arith::ConstantIndexOp>(loc, /*value=*/1);
     SmallVector<Value> resultShape;
     for (int64_t i = 0; i < inputType.getRank(); i++) {
       if (dim != i) {
         auto currentDimSize = rewriter.create<tensor::DimOp>(loc, input, i);
         resultShape.push_back(currentDimSize);
-      } else if (keepDim)
-        resultShape.push_back(c1);
+      }
     }
     // First fill the output buffer for the index.
     Value filledTensorIdx =
@@ -146,27 +141,23 @@ public:
     Value filledTensorVal =
         rewriter.create<linalg::FillOp>(loc, fillValue, initTensorVal).result();
 
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputType.getRank(), utils::IteratorType::parallel);
+    iteratorTypes[dim] = utils::IteratorType::reduction;
+
     // Create the affine expressions that will be used to
     // iterate over the input and output tensors.
     // Here we also set the type of iterator: parallel or reduction.
+
     SmallVector<AffineExpr> exprs;
-    SmallVector<utils::IteratorType> iteratorTypes;
     SmallVector<AffineExpr> resultExprs;
     for (auto size :
          llvm::enumerate(makeShapeTorchCompatible(inputType.getShape()))) {
       exprs.push_back(rewriter.getAffineDimExpr(size.index()));
-
-      if (unsigned(dim) == size.index()) {
-        iteratorTypes.push_back(utils::IteratorType::reduction);
-        // If `keepDim`, create affine map to the first element
-        // in the current dimension.
-        if (keepDim)
-          resultExprs.push_back(rewriter.getAffineConstantExpr(0));
-      } else {
-        iteratorTypes.push_back(utils::IteratorType::parallel);
+      if (unsigned(dim) != size.index())
         resultExprs.push_back(rewriter.getAffineDimExpr(size.index()));
-      }
     }
+
     auto maps = AffineMap::inferFromExprList({exprs, resultExprs, resultExprs},
                                              rewriter.getContext());
     auto linalgOp = rewriter.create<linalg::GenericOp>(
@@ -219,12 +210,58 @@ public:
               nestedLoc, ValueRange({resultVal, resultIndex}));
         });
 
-    // This cast is required to fix the shape in the case of keepDim=True
-    Value valuesCast = rewriter.create<tensor::CastOp>(loc, valResultType,
-                                                       linalgOp.getResult(0));
-    Value idxCast = rewriter.create<tensor::CastOp>(loc, idxResultType,
-                                                    linalgOp.getResult(1));
-    rewriter.replaceOp(op, {valuesCast, idxCast});
+    if (!keepDim) {
+      Value rVal = rewriter.create<tensor::CastOp>(loc, valResultType,
+                                                   linalgOp.getResult(0));
+      Value rIdx = rewriter.create<tensor::CastOp>(loc, idxResultType,
+                                                   linalgOp.getResult(1));
+      llvm::SmallVector<Value> res{rVal, rIdx};
+      rewriter.replaceOp(op, res);
+      return success();
+    }
+
+    llvm::SmallVector<int64_t> valShape(valResultType.getShape());
+    llvm::SmallVector<int64_t> idxShape(idxResultType.getShape());
+    for (int i = dim, s = valShape.size() - 1; i < s; ++i) {
+      valShape[i] = valShape[i + 1];
+      idxShape[i] = idxShape[i + 1];
+    }
+
+    valShape.resize(valShape.size() - 1);
+    idxShape.resize(idxShape.size() - 1);
+
+    Value rVal = rewriter.create<tensor::CastOp>(
+        loc, valResultType.clone(valShape), linalgOp.getResult(0));
+    Value rIdx = rewriter.create<tensor::CastOp>(
+        loc, idxResultType.clone(idxShape), linalgOp.getResult(1));
+
+    SmallVector<ReassociationIndices> reassociation(valShape.size());
+    if (reassociation.size() > 0) {
+      for (int i = 0; i < dim; ++i)
+        reassociation[i].push_back(i);
+      reassociation[std::max<int64_t>(0, dim - 1)].push_back(dim);
+      for (int i = dim, s = reassociation.size(); i < s; ++i)
+        reassociation[i].push_back(i + 1);
+    }
+
+    valShape.push_back(0);
+    idxShape.push_back(0);
+    for (int i = dim, s = valShape.size() - 1; i < s; ++i) {
+      valShape[i + 1] = valShape[i];
+      idxShape[i + 1] = idxShape[i];
+    }
+
+    valShape[dim] = 1;
+    idxShape[dim] = 1;
+
+    Value unsqueezeVal = rewriter.create<tensor::ExpandShapeOp>(
+        loc, valResultType, rVal, reassociation);
+
+    Value unsqueezeIdx = rewriter.create<tensor::ExpandShapeOp>(
+        loc, idxResultType, rIdx, reassociation);
+
+    llvm::SmallVector<Value> unsqueezes = {unsqueezeVal, unsqueezeIdx};
+    rewriter.replaceOp(op, unsqueezes);
     return success();
   }
 };
@@ -275,7 +312,8 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
                                     elementType.getIntOrFloatBitWidth())));
   }
 
-  if (isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op))
+  if (isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op) ||
+      isa<AtenNormScalarOp>(op))
     return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
 
   if (isa<AtenAllDimOp>(op)) {
@@ -341,6 +379,26 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
       if (intType.isSigned())
         return b.create<arith::MinSIOp>(loc, self, result);
     }
+  } else if (isa<AtenNormScalarOp>(op)) {
+    // This creates payload for only the first of the two linalg.generic ops.
+    // TODO: Short-circuit operations if `p` is zero or one.
+    Value elem = payloadArgs[0];
+    Value result = payloadArgs[1];
+
+    // TODO: Fix this part to support complex elements.
+    if (elem.getType().isa<mlir::ComplexType>()) {
+      op->emitError("lowering of complex input type for torch.aten.norm.Scalar "
+                    "is currently unimplemented");
+      return nullptr;
+    }
+
+    Value self = convertScalarToDtype(b, loc, elem, resultElementType);
+
+    auto abs = b.create<math::AbsFOp>(loc, self);
+    AtenNormScalarOp::Adaptor adaptor(operands);
+    Value p = convertScalarToDtype(b, loc, adaptor.getP(), resultElementType);
+    auto pow = b.create<math::PowFOp>(loc, abs, p);
+    return b.create<arith::AddFOp>(loc, pow, result);
   } else if (isa<AtenLinalgVectorNormOp>(op)) {
     // This creates payload for only the first of the two linalg.generic ops.
     // TODO: Short-circuit operations if `ord` is zero or one.
@@ -433,7 +491,7 @@ private:
                          ConversionPatternRewriter &rewriter) const {
     auto opInfo = torch_to_linalg::ReductionOpInfo{false, Value{}, {}};
 
-    if (isa<AtenMaxOp, AtenMinOp, AtenSumOp>(op)) {
+    if (isa<AtenMaxOp, AtenMinOp, AtenSumOp, AtenNormScalarOp>(op)) {
       opInfo.tensorOperand = operands[0];
       auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
 
@@ -484,10 +542,12 @@ private:
     return err ? Value{} : powOp;
   }
 
-  FailureOr<Value> createSecondReductionForVectorNormOp(
-      Location loc, Type elemType, AtenLinalgVectorNormOp op, Value ordOp,
-      Value firstReduction, const torch_to_linalg::ReductionOpInfo &opInfo,
-      ConversionPatternRewriter &rewriter) const {
+  template <typename TOp>
+  FailureOr<Value>
+  createSecondReductionForNormOp(Location loc, Type elemType, TOp op,
+                                 Value ordOp, Value firstReduction,
+                                 const torch_to_linalg::ReductionOpInfo &opInfo,
+                                 ConversionPatternRewriter &rewriter) const {
     // Cast `ord` to float so that we can readily pass it math.powf.
     Value ordValue = convertScalarToDtype(rewriter, loc, ordOp, elemType);
 
@@ -544,13 +604,15 @@ private:
   LogicalResult
   validateReductionElementType(Operation *op, Type elemType,
                                ConversionPatternRewriter &rewriter) const {
-    if ((isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op)) &&
+    if ((isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op) ||
+         isa<AtenNormScalarOp>(op)) &&
         !elemType.isa<mlir::FloatType>())
       return rewriter.notifyMatchFailure(
           op, "only float types are valid for vector norm ops");
     if (isa<AtenAllDimOp>(op) && elemType.isa<mlir::IntegerType>() &&
         elemType.getIntOrFloatBitWidth() == 8)
       return rewriter.notifyMatchFailure(op, "uint8 is not supported");
+
     // No checks for all other reduction operations
     return success();
   }
@@ -587,11 +649,22 @@ public:
       return rewriter.notifyMatchFailure(
           op, "failed to create linalg.generic operation for reduction");
 
+    // If this is aten.norm.Scalar op, then we need to generate another
+    // linalg.generic op that references the first linalg.generic op.
+    if (isa<AtenNormScalarOp>(op)) {
+      AtenNormScalarOp::Adaptor adaptor(operands);
+      FailureOr<Value> secondReduceOp = createSecondReductionForNormOp(
+          loc, elemType, op, adaptor.getP(), reduceOp, *opInfo, rewriter);
+      if (failed(secondReduceOp))
+        return secondReduceOp;
+      reduceOp = *secondReduceOp;
+    }
+
     // If this is aten.linalg_vector_norm op, then we need to generate another
     // linalg.generic op that references the first linalg.generic op.
     if (auto normOp = dyn_cast<AtenLinalgVectorNormOp>(op)) {
       AtenLinalgVectorNormOp::Adaptor adaptor(operands);
-      FailureOr<Value> secondReduceOp = createSecondReductionForVectorNormOp(
+      FailureOr<Value> secondReduceOp = createSecondReductionForNormOp(
           loc, elemType, normOp, adaptor.getOrd(), reduceOp, *opInfo, rewriter);
       if (failed(secondReduceOp))
         return secondReduceOp;
@@ -627,6 +700,7 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   target.addIllegalOp<AtenMaxOp>();
   target.addIllegalOp<AtenMinOp>();
   target.addIllegalOp<AtenAllDimOp>();
+  target.addIllegalOp<AtenNormScalarOp>();
   target.addIllegalOp<AtenLinalgVectorNormOp>();
   target.addIllegalOp<AtenFrobeniusNormDimOp>();
   patterns.add<ConvertReductionOp>(typeConverter, context);

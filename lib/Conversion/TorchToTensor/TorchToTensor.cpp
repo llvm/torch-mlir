@@ -84,6 +84,12 @@ public:
         getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
 
     int64_t rank = operandTy.getRank();
+    if (rank == 0) {
+      rewriter.replaceOpWithNewOp<tensor::EmptyOp>(op, resultTy.getShape(),
+                                                   resultTy.getElementType());
+      return success();
+    }
+
     SmallVector<Value> dims;
     for (int i = 0; i < rank; ++i) {
       Value dim = rewriter.createOrFold<tensor::DimOp>(loc, operand, i);

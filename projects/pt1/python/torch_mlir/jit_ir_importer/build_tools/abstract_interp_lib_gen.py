@@ -438,6 +438,9 @@ def aten〇remainder〇Scalar〡shape(self: List[int], other: float) -> List[int
 def aten〇remainder〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇fmod〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇floor_divide〇Scalar〡shape(self: List[int], other: float) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -1721,6 +1724,9 @@ def aten〇linalg_vector_norm〡shape(self: List[int], ord: float = 2, dim: Opti
 
 def aten〇frobenius_norm〇dim〡shape(self: List[int], dim: List[int], keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, 0)
+
+def aten〇norm〇Scalar〡shape(self: List[int], p: float = 2) -> List[int]:
+    return upstream_shape_functions.sum_mean_dim(self, None, False, None)
 
 def aten〇norm〇ScalarOpt_dim〡shape(self: List[int], p: Optional[float], dim: List[int], keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, 0)
@@ -3488,6 +3494,14 @@ def aten〇fmod〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[
     dtypes = [self_dtype, get_dtype_of_scalar(other)]
     return promote_dtypes(ranks, dtypes)
 
+@check_dtype_function(_check_two_tensor_op())
+def aten〇fmod〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    other_rank, other_dtype = other_rank_dtype
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, other_rank]
+    dtypes = [self_dtype, other_dtype]
+    return promote_dtypes(ranks, dtypes)
+
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1) +
     _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1.0))
@@ -3922,6 +3936,21 @@ def aten〇linalg_vector_norm〡dtype(self_rank_dtype: Tuple[int, int], ord: Uni
             return aten〇std〡dtype((self_rank, dtype))
         assert not is_complex_dtype(dtype)
         return dtype
+    return aten〇std〡dtype(self_rank_dtype)
+
+@check_dtype_function(
+        _check_tensors_with_the_same_dtype(
+            num_of_tensors=1,
+            error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64}))
+def aten〇norm〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], p: Union[int, float, complex] = 2) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert not is_integer_dtype(self_dtype)
+    # The following check is added because aten〇std〡dtype
+    # does not handle complex32 transformation to float,
+    # so it is done manually (torch.half == torch.float16).
+    # Should possibly be added to aten〇std〡dtype.
+    if self_dtype == torch.complex32:
+        return torch.half
     return aten〇std〡dtype(self_rank_dtype)
 
 @check_dtype_function([Invocation(0.0),

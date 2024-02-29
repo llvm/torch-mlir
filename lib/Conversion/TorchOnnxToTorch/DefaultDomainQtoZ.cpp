@@ -181,7 +181,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         c = rewriter
                 .create<Torch::OperatorOp>(binder.getLoc(), cTy, newOperands,
-                                           newAttributes)
+                                           newAttributes,
+                                           binder.op->getRegions().size())
                 .getResult(0);
 
         Value outScale = rewriter.create<Torch::AtenMulFloatOp>(
@@ -1104,129 +1105,145 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value axes;
         int64_t keepDims;
         int64_t noop_with_empty_axes;
-        // Deal with case when no axes arg is passed
-        if (binder.op->getNumOperands() == 1) {
-          if (binder.tensorOperand(data) ||
-              binder.tensorResultType(resultType) ||
-              binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
-              binder.s64IntegerAttr(noop_with_empty_axes,
-                                    "noop_with_empty_axes", 0))
-            return failure();
-          if (noop_with_empty_axes == 0) {
-            Value keepDimsConstInt = rewriter.create<Torch::ConstantIntOp>(
-                binder.getLoc(), rewriter.getType<Torch::IntType>(),
-                rewriter.getIntegerAttr(rewriter.getIntegerType(64), keepDims));
-            Value keepDimsBool = rewriter.create<Torch::AtenBoolIntOp>(
-                binder.getLoc(), keepDimsConstInt);
-            int64_t numDims = dyn_cast<Torch::ValueTensorType>(data.getType())
-                                  .getSizes()
-                                  .size();
-            SmallVector<Value> axesList;
-            for (int i = 0; i < numDims; i++) {
-              Value curr = rewriter.create<Torch::ConstantIntOp>(
-                  binder.getLoc(), rewriter.getType<Torch::IntType>(),
-                  rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
-              axesList.push_back(curr);
-            }
-            Value axesValueList = rewriter.create<Torch::PrimListConstructOp>(
-                binder.getLoc(),
-                Torch::ListType::get(
-                    Torch::IntType::get(binder.op->getContext())),
-                axesList);
-            rewriter.replaceOpWithNewOp<Torch::AtenAminOp>(
-                binder.op, resultType, data, axesValueList, keepDimsBool);
-          } else {
-            rewriter.replaceOp(binder.op, data);
-          }
-          return success();
-        }
-        if (binder.tensorOperands(data, axes) ||
+        if (binder.tensorOperandAtIndex(data, 0) ||
             binder.tensorResultType(resultType) ||
             binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
             binder.s64IntegerAttr(noop_with_empty_axes, "noop_with_empty_axes",
                                   0))
           return failure();
-        Torch::BaseTensorType axesType =
-            axes.getType().cast<Torch::BaseTensorType>();
-        SmallVector<Value> dimList;
-        SmallVector<int64_t> selectSizes;
-        selectSizes.push_back(1);
-        Type selectResultType = axesType.getWithSizesAndDtype(
-            llvm::ArrayRef(selectSizes), axesType.getOptionalDtype());
-        auto sizes =
-            dyn_cast<Torch::ValueTensorType>(axes.getType()).getSizes();
-        // deal with case when axes is empty
-        if (sizes.size() == 1 && sizes[0] == 0) {
-          if (noop_with_empty_axes == 0) {
-            // create dims list with all dims [0, data.getSizes().size())
-            Value keepDimsConstInt = rewriter.create<Torch::ConstantIntOp>(
-                binder.getLoc(), rewriter.getType<Torch::IntType>(),
-                rewriter.getIntegerAttr(rewriter.getIntegerType(64), keepDims));
-            Value keepDimsBool = rewriter.create<Torch::AtenBoolIntOp>(
-                binder.getLoc(), keepDimsConstInt);
-            int64_t numDims = dyn_cast<Torch::ValueTensorType>(data.getType())
-                                  .getSizes()
-                                  .size();
-            for (int i = 0; i < numDims; i++) {
-              Value curr = rewriter.create<Torch::ConstantIntOp>(
-                  binder.getLoc(), rewriter.getType<Torch::IntType>(),
-                  rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
-              dimList.push_back(curr);
-            }
-            Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
-                binder.getLoc(),
-                Torch::ListType::get(
-                    Torch::IntType::get(binder.op->getContext())),
-                dimList);
-            rewriter.replaceOpWithNewOp<Torch::AtenAminOp>(
-                binder.op, resultType, data, dimValueList, keepDimsBool);
-          } else {
-            rewriter.replaceOp(binder.op, data);
+
+        auto dataTy = cast<Torch::BaseTensorType>(data.getType());
+        Torch::IntType torchIntTy = rewriter.getType<Torch::IntType>();
+
+        // If any of the input dims are 0 we set to the upper limit:
+        if (llvm::any_of(dataTy.getSizes(), [](int64_t d) { return d == 0; }) &&
+            (llvm::any_of(dataTy.getSizes(),
+                          [](int64_t d) { return d == Torch::kUnknownSize; }) ||
+             keepDims)) {
+          auto dty = dataTy.getDtype();
+          Value scalar;
+          if (FloatType fpTy = dyn_cast<FloatType>(dty)) {
+            auto inf = APFloat::getInf(fpTy.getFloatSemantics());
+            scalar = rewriter.create<Torch::ConstantFloatOp>(
+                binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+                rewriter.getFloatAttr(rewriter.getF64Type(),
+                                      inf.convertToDouble()));
           }
+
+          if (IntegerType intTy = dyn_cast<IntegerType>(dty)) {
+            auto mx =
+                intTy.isSigned()
+                    ? APInt::getSignedMaxValue(intTy.getIntOrFloatBitWidth())
+                    : APInt::getMaxValue(intTy.getIntOrFloatBitWidth());
+            scalar = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), torchIntTy,
+                rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                        mx.getSExtValue()));
+          }
+
+          llvm::SmallVector<Value> fillDims;
+          for (int i = 0, s = resultType.getSizes().size(); i < s; ++i) {
+            auto staticDim = resultType.getSizes()[i];
+            if (staticDim != Torch::kUnknownSize) {
+              fillDims.push_back(rewriter.create<Torch::ConstantIntOp>(
+                  binder.getLoc(), torchIntTy,
+                  rewriter.getI64IntegerAttr(staticDim)));
+              continue;
+            }
+
+            Value iv = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), torchIntTy, rewriter.getI64IntegerAttr(i));
+            fillDims.push_back(rewriter.create<Torch::AtenSizeIntOp>(
+                binder.getLoc(), torchIntTy, data, iv));
+          }
+
+          Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+          Value fillDimsList = rewriter.create<Torch::PrimListConstructOp>(
+              binder.getLoc(), Torch::ListType::get(torchIntTy), fillDims);
+          rewriter.replaceOpWithNewOp<Torch::AtenFullOp>(
+              binder.op, resultType, fillDimsList, scalar, none, none, none,
+              none);
           return success();
         }
+
+        // Previous version of the operation had the axes as an attribute:
+        SmallVector<Value> axesList;
+        llvm::SmallVector<int64_t> axesAttr;
+        if (!binder.s64IntegerArrayAttr(axesAttr, "axes", {})) {
+          for (int i = 0, s = axesAttr.size(); i < s; ++i) {
+            axesList.push_back(rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), torchIntTy,
+                rewriter.getI64IntegerAttr(axesAttr[i])));
+          }
+        }
+
+        // Extract the axes values from the axes operand:
+        if (!binder.tensorOperandAtIndex(axes, 1)) {
+          Torch::BaseTensorType axesType =
+              axes.getType().cast<Torch::BaseTensorType>();
+          SmallVector<int64_t> selectSizes{1};
+          Type selectResultType = axesType.getWithSizesAndDtype(
+              selectSizes, axesType.getOptionalDtype());
+          auto sizes = axesType.getSizes();
+
+          Value zero = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+
+          // Extract the value of each axes:
+          for (int i = 0; i < sizes[0]; i++) {
+            // Go through the axes list and get each dim in the list
+            Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
+            Value extract = rewriter.create<Torch::AtenSelectIntOp>(
+                binder.getLoc(), selectResultType, axes, zero, selectIndex);
+            Value dim = rewriter.create<Torch::AtenItemOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
+            axesList.push_back(dim);
+          }
+        }
+
+        // Handle the noop case:
+        if (axesList.empty() && noop_with_empty_axes) {
+          rewriter.replaceOp(binder.op, data);
+          return success();
+        }
+
+        // Deal with case when no axes arg is passed but not a noop:
+        if (axesList.empty()) {
+          int64_t numDims = dyn_cast<Torch::ValueTensorType>(data.getType())
+                                .getSizes()
+                                .size();
+          for (int i = 0; i < numDims; i++) {
+            Value curr = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
+            axesList.push_back(curr);
+          }
+        }
+
+        // Handle negative axis:
+        Value rankVal = rewriter.create<Torch::AtenDimOp>(binder.getLoc(),
+                                                          torchIntTy, data);
         Value zero = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
-        int64_t adjustmentInt =
-            cast<Torch::ValueTensorType>(data.getType()).getSizes().size();
-        Value adjustment = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    adjustmentInt));
-        // convert axes (tensor) into torch int list while dealing with neg axis
-        for (int i = 0; i < sizes[0]; i++) {
-          // Go through the axes list and get each dim in the list
-          Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(),
-              rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
-          Value extract = rewriter.create<Torch::AtenSelectIntOp>(
-              binder.getLoc(), selectResultType, axes, zero, selectIndex);
-          Value dim = rewriter.create<Torch::AtenItemOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
-          // deal with neg axis: if (axis < 0) axis += rank
+            rewriter.getI64IntegerAttr(0));
+        for (Value &axes : axesList) {
           Value isNegative =
-              rewriter.create<Torch::AtenLtIntOp>(binder.getLoc(), dim, zero);
+              rewriter.create<Torch::AtenLtIntOp>(binder.getLoc(), axes, zero);
           isNegative = rewriter.create<Torch::AtenIntBoolOp>(binder.getLoc(),
                                                              isNegative);
           Value finalOffset = rewriter.create<Torch::AtenMulIntOp>(
-              binder.getLoc(), isNegative, adjustment);
-          Value finalDim = rewriter.create<Torch::AtenAddIntOp>(
-              binder.getLoc(), dim, finalOffset);
-          dimList.push_back(finalDim);
+              binder.getLoc(), isNegative, rankVal);
+          axes = rewriter.create<Torch::AtenAddIntOp>(binder.getLoc(), axes,
+                                                      finalOffset);
         }
+
         Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            dimList);
-        Value keepDimBool;
-        if (keepDims == 1) {
-          keepDimBool =
-              rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
-        } else {
-          keepDimBool =
-              rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
-        }
+            binder.getLoc(), Torch::ListType::get(torchIntTy), axesList);
+        Value keepDimBool =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), keepDims);
         rewriter.replaceOpWithNewOp<Torch::AtenAminOp>(
             binder.op, resultType, data, dimValueList, keepDimBool);
         return success();

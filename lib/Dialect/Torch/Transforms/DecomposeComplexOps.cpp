@@ -1316,6 +1316,57 @@ public:
 };
 } // namespace
 
+namespace {
+class DecomposeAtenAMinMaxOp : public OpRewritePattern<Torch::AtenAminOp> {
+public:
+  using OpRewritePattern<Torch::AtenAminOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(Torch::AtenAminOp op,
+                                PatternRewriter &rewriter) const override {
+    llvm::SmallVector<int64_t> dimList;
+    if (!matchPattern(op.getDim(), m_TorchListOfConstantInts(dimList))) {
+      return rewriter.notifyMatchFailure(op, "dims not foldable constants");
+    }
+
+    bool keepdim;
+    if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepdim))) {
+      return rewriter.notifyMatchFailure(op, "keepdims not foldable constants");
+    }
+
+    auto loc = op.getLoc();
+    std::sort(dimList.begin(), dimList.end(), std::greater<int64_t>());
+
+    Value reduction = op.getSelf();
+    auto resultTy = cast<Torch::ValueTensorType>(op.getType());
+    auto reductionTy = cast<Torch::ValueTensorType>(reduction.getType());
+    llvm::SmallVector<int64_t> reductionShape(reductionTy.getSizes());
+
+    for (auto dim : dimList) {
+      auto dimValue = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(dim));
+      reductionShape[dim] = 1;
+      if (!keepdim) {
+        for (int i = dim, s = reductionShape.size() - 1; i < s; ++i)
+          reductionShape[i] = reductionShape[i + 1];
+        reductionShape.resize(reductionShape.size() - 1);
+      }
+
+      reductionTy = rewriter.getType<Torch::ValueTensorType>(
+          reductionShape, resultTy.getOptionalDtype());
+      auto idxTy = rewriter.getType<Torch::ValueTensorType>(
+          reductionShape, rewriter.getIntegerType(32, /*is_signed*/ true));
+      llvm::SmallVector<Type, 2> types{reductionTy, idxTy};
+      reduction = rewriter
+                      .create<Torch::AtenMinDimOp>(loc, types, reduction,
+                                                   dimValue, op.getKeepdim())
+                      .getResult(0);
+    }
+
+    rewriter.replaceOp(op, reduction);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose `AtenArgMaxOp` into `AtenMaxDimOp` as well as `AtenArgMinOp` into
 // `AtenMinDimOp`
 namespace {
@@ -3974,25 +4025,20 @@ class DecomposeAtenInstanceNormOp
 
     auto inputTy = op.getInput().getType().cast<BaseTensorType>();
     int64_t inputRank = inputTy.getSizes().size();
-    auto reduceDimInts =
-        llvm::SmallVector<int64_t>({inputRank - 2, inputRank - 1});
-
     SmallVector<int64_t> reducedShape(inputTy.getSizes());
-    reducedShape[inputRank - 1] = 1;
-    reducedShape[inputRank - 2] = 1;
+    SmallVector<int64_t> reduceDimInts;
+    SmallVector<Value> reduceDimVals;
+    for (int i = 2; i < inputRank; ++i) {
+      reducedShape[i] = 1;
+      reduceDimVals.push_back(rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(i)));
+    }
 
     Type dtype = inputTy.getOptionalDtype();
     Type reducedTy = ValueTensorType::get(op.getContext(),
                                           llvm::ArrayRef(reducedShape), dtype);
 
     auto sizeListType = ListType::get(IntType::get(context));
-    SmallVector<Value> reduceDimVals;
-    reduceDimVals.reserve(reduceDimInts.size());
-    std::transform(reduceDimInts.begin(), reduceDimInts.end(),
-                   std::back_inserter(reduceDimVals), [&](int64_t d) {
-                     return rewriter.create<Torch::ConstantIntOp>(
-                         loc, rewriter.getI64IntegerAttr(d));
-                   });
     Value reduceDimList =
         rewriter.create<PrimListConstructOp>(loc, sizeListType, reduceDimVals);
     Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
@@ -4018,9 +4064,12 @@ class DecomposeAtenInstanceNormOp
         loc, reducedTy, inputSubMeanSquare, reduceDimList, cstTrue,
         /*dtype=*/none);
 
+    int64_t elemCount = 1;
+    for (int i = 2; i < inputRank; ++i)
+      elemCount *= inputTy.getSizes()[i];
+
     Value hw = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(inputTy.getSizes()[inputRank - 1] *
-                                        inputTy.getSizes()[inputRank - 2]));
+        loc, rewriter.getI64IntegerAttr(elemCount));
     Value inputVar =
         rewriter.create<AtenDivScalarOp>(loc, reducedTy, variancesum, hw);
 
@@ -4053,19 +4102,14 @@ class DecomposeAtenInstanceNormOp
         op.getContext(), llvm::ArrayRef(newWeightShape), dtype);
     weight = rewriter.create<AtenUnsqueezeOp>(loc, newWeightTy, weight, zero);
 
-    Value two = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(2));
-    newWeightShape.push_back(1);
-    newWeightTy = ValueTensorType::get(op.getContext(),
-                                       llvm::ArrayRef(newWeightShape), dtype);
-    weight = rewriter.create<AtenUnsqueezeOp>(loc, newWeightTy, weight, two);
-
-    Value three = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(3));
-    newWeightShape.push_back(1);
-    newWeightTy = ValueTensorType::get(op.getContext(),
-                                       llvm::ArrayRef(newWeightShape), dtype);
-    weight = rewriter.create<AtenUnsqueezeOp>(loc, newWeightTy, weight, three);
+    while (static_cast<int64_t>(newWeightShape.size()) < inputRank) {
+      Value i = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(newWeightShape.size()));
+      newWeightShape.push_back(1);
+      newWeightTy = ValueTensorType::get(op.getContext(),
+                                         llvm::ArrayRef(newWeightShape), dtype);
+      weight = rewriter.create<AtenUnsqueezeOp>(loc, newWeightTy, weight, i);
+    }
 
     Value weightExpanded =
         rewriter.create<AtenExpandAsOp>(loc, inputTy, weight, op.getInput());
@@ -4083,15 +4127,14 @@ class DecomposeAtenInstanceNormOp
                                           llvm::ArrayRef(newBiasShape), dtype);
     bias = rewriter.create<AtenUnsqueezeOp>(loc, newBiasTy, bias, zero);
 
-    newBiasShape.push_back(1);
-    newBiasTy = ValueTensorType::get(op.getContext(),
-                                     llvm::ArrayRef(newBiasShape), dtype);
-    bias = rewriter.create<AtenUnsqueezeOp>(loc, newBiasTy, bias, two);
-
-    newBiasShape.push_back(1);
-    newBiasTy = ValueTensorType::get(op.getContext(),
-                                     llvm::ArrayRef(newBiasShape), dtype);
-    bias = rewriter.create<AtenUnsqueezeOp>(loc, newBiasTy, bias, three);
+    while (static_cast<int64_t>(newBiasShape.size()) < inputRank) {
+      Value i = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(newBiasShape.size()));
+      newBiasShape.push_back(1);
+      newBiasTy = ValueTensorType::get(op.getContext(),
+                                       llvm::ArrayRef(newBiasShape), dtype);
+      bias = rewriter.create<AtenUnsqueezeOp>(loc, newBiasTy, bias, i);
+    }
 
     Value biasExpanded =
         rewriter.create<AtenExpandAsOp>(loc, inputTy, bias, op.getInput());
@@ -6867,6 +6910,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenAddmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanDimOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAMinMaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);

@@ -3721,6 +3721,50 @@ def ScalarImplicitIntModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+
+class FloatImplicitModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.float64, True),
+    ])
+    def forward(self, x):
+        return float(torch.ops.aten.FloatImplicit(x))
+
+
+@register_test_case(module_factory=lambda: FloatImplicitModule())
+def FloatImplicitModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand().double())
+
+
+# ==============================================================================
+
+
+class IntImplicitModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int64, True),
+    ])
+    def forward(self, x):
+        return float(torch.ops.aten.IntImplicit(x))
+
+
+@register_test_case(module_factory=lambda: IntImplicitModule())
+def IntImplicitModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint())
+
+
+# ==============================================================================
+
 class PowIntFloat(torch.nn.Module):
 
     def __init__(self):

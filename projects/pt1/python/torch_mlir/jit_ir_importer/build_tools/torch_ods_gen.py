@@ -449,6 +449,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::layer_norm : (Tensor, int[], Tensor?, Tensor?, float, bool) -> (Tensor)"
     )
+    emit("aten::norm.Scalar : (Tensor, Scalar) -> (Tensor)", has_verifier=True)
     emit(
         "aten::norm.ScalarOpt_dim : (Tensor, Scalar?, int[], bool) -> (Tensor)"
     )
@@ -581,7 +582,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::tensor.bool : (bool, int?, Device?, bool) -> (Tensor)")
     emit("aten::tensor.int : (int, int?, Device?, bool) -> (Tensor)")
     emit("aten::scalar_tensor : (Scalar, int?, int?, Device?, bool?) -> (Tensor)")
-    emit("aten::_shape_as_tensor : (Tensor) -> (Tensor)")
+    emit("aten::_shape_as_tensor : (Tensor) -> (Tensor)", has_folder=True)
     emit("aten::isnan : (Tensor) -> (Tensor)")
     emit("aten::isinf : (Tensor) -> (Tensor)")
     emit("aten::isneginf : (Tensor) -> (Tensor)")
@@ -668,8 +669,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::gather : (Tensor, int, Tensor, bool) -> (Tensor)")
     emit_with_mutating_variants("aten::scatter_add : (Tensor, int, Tensor, Tensor) -> (Tensor)")
     emit_with_mutating_variants("aten::scatter_reduce.two : (Tensor, int, Tensor, Tensor, str, bool) -> (Tensor)")
-    emit("aten::IntImplicit : (Tensor) -> (int)")
-    emit("aten::FloatImplicit : (Tensor) -> (float)")
+    emit("aten::IntImplicit : (Tensor) -> (int)", has_canonicalizer=True)
+    emit("aten::FloatImplicit : (Tensor) -> (float)", has_canonicalizer=True)
     emit("aten::tensor.float : (float, int?, Device?, bool) -> (Tensor)")
     emit("aten::Int.Tensor : (Tensor) -> (int)", has_folder=True)
     emit("aten::Float.Tensor : (Tensor) -> (float)", has_folder=True)

@@ -273,7 +273,7 @@ def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
 
     if sparsity.layout is torch.sparse_coo:
         assert sparse_dim == 2 and blocksize is None  # TODO: deeper sparse dims
-        lvls = f"d{batch_dim}:compressed(nonunique),d{batch_dim+1}:singleton"
+        lvls = f"d{batch_dim}:compressed(nonunique),d{batch_dim+1}:singleton(soa)"
     elif sparsity.layout is torch.sparse_csr:
         assert sparse_dim == 2 and blocksize is None
         lvls = f"d{batch_dim}:dense,d{batch_dim+1}:compressed"
@@ -623,7 +623,7 @@ class FxImporter:
         node_importer.return_node_values(loc, user_outputs)
         self.symbol_table.insert(func_op)
 
-    def import_frozen_program(self, prog: torch.export.ExportedProgram):
+    def import_frozen_program(self, prog: torch.export.ExportedProgram, func_name: str = "main"):
         """Imports a consolidated torch.export.ExportedProgram instance.
 
         If using the new torch.export path (vs a lower level precursor), then this is
@@ -702,7 +702,7 @@ class FxImporter:
                 node.replace_all_uses_with(replacement)
                 g.erase_node(node)
 
-        self.import_stateless_graph(g)
+        self.import_stateless_graph(g, func_name)
 
     def import_graph_module(self, gm: GraphModule):
         """Low-level import of a GraphModule assuming that it has been functionalized.
