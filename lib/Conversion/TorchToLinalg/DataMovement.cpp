@@ -795,17 +795,21 @@ public:
     auto resultType =
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
     int64_t resultRank = resultType.getRank();
-    if (resultRank == 0)
-      return rewriter.notifyMatchFailure(op,
-                                         "result shape of rank 0 is invalid");
+    if (resultRank == 0) {
+      rewriter
+          .replaceOpWithNewOp<tensor::CollapseShapeOp>(
+              op, resultType, input, ArrayRef<ReassociationIndices>())
+          .getResult();
+      return success();
+    }
 
     if (inputRank == 0) {
-      Value expanded =
-          rewriter
-              .create<tensor::ExpandShapeOp>(loc, resultType, input,
-                                             ArrayRef<ReassociationIndices>())
-              .getResult();
-      rewriter.replaceOp(op, expanded);
+      llvm::SmallVector<int64_t> outshape(resultRank, 1);
+      auto expandTy =
+          RankedTensorType::get(outshape, resultType.getElementType());
+      Value expand = rewriter.create<tensor::ExpandShapeOp>(
+          op.getLoc(), expandTy, input, ArrayRef<ReassociationIndices>());
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, expand);
       return success();
     }
 
