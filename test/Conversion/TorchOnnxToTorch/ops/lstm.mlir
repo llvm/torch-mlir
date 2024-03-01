@@ -3,10 +3,10 @@
 
 
 // CHECK-LABEL:   func.func @test_lstm_basic(
-// CHECK-SAME:                    %[[VAL_0:.*]]: !torch.vtensor<[15,2,4],f32>,
-// CHECK-SAME:                    %[[VAL_1:.*]]: !torch.vtensor<[1,12,4],f32>,
-// CHECK-SAME:                    %[[VAL_2:.*]]: !torch.vtensor<[1,12,3],f32>,
-// CHECK-SAME:                    %[[VAL_3:.*]]: !torch.vtensor<[1,24],f32>) -> (!torch.vtensor<[15,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+// CHECK-SAME:                               %[[VAL_0:.*]]: !torch.vtensor<[15,2,4],f32>,
+// CHECK-SAME:                               %[[VAL_1:.*]]: !torch.vtensor<[1,12,4],f32>,
+// CHECK-SAME:                               %[[VAL_2:.*]]: !torch.vtensor<[1,12,3],f32>,
+// CHECK-SAME:                               %[[VAL_3:.*]]: !torch.vtensor<[1,24],f32>) -> (!torch.vtensor<[15,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
 // CHECK:           %[[VAL_4:.*]] = torch.constant.none
 // CHECK:           %[[VAL_5:.*]] = torch.constant.int 0
 // CHECK:           %[[VAL_6:.*]] = torch.constant.int 0
@@ -41,44 +41,42 @@
 // CHECK:           %[[VAL_35:.*]] = torch.constant.int 15
 // CHECK:           %[[VAL_36:.*]] = torch.constant.bool true
 // CHECK:           %[[VAL_37:.*]] = torch.constant.int 0
-// CHECK:           %[[VAL_38:.*]] = torch.constant.int 1
-// CHECK:           %[[VAL_39:.*]]:2 = torch.prim.Loop %[[VAL_35]], %[[VAL_36]], init(%[[VAL_26]], %[[VAL_29]]) {
-// CHECK:           ^bb0(%[[VAL_40:.*]]: !torch.int, %[[VAL_41:.*]]: !torch.vtensor<[2,3],f32>, %[[VAL_42:.*]]: !torch.vtensor<[2,3],f32>):
-// CHECK:             %[[VAL_43:.*]] = torch.aten.select.int %[[VAL_0]], %[[VAL_37]], %[[VAL_40]] : !torch.vtensor<[15,2,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[2,4],f32>
-// CHECK:             %[[VAL_44:.*]] = torch.constant.int 0
-// CHECK:             %[[VAL_45:.*]] = torch.constant.int 1
-// CHECK:             %[[VAL_46:.*]] = torch.constant.int 4
-// CHECK:             %[[VAL_47:.*]] = torch.prim.ListConstruct %[[VAL_45]], %[[VAL_46]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:             %[[VAL_48:.*]] = torch.aten.tile %[[VAL_43]], %[[VAL_47]] : !torch.vtensor<[2,4],f32>, !torch.list<int> -> !torch.vtensor<[2,16],f32>
-// CHECK:             %[[VAL_49:.*]] = torch.aten.tile %[[VAL_41]], %[[VAL_47]] : !torch.vtensor<[2,3],f32>, !torch.list<int> -> !torch.vtensor<[2,12],f32>
-// CHECK:             %[[VAL_50:.*]] = torch.aten.linear %[[VAL_48]], %[[VAL_7]], %[[VAL_32]] : !torch.vtensor<[2,16],f32>, !torch.vtensor<[12,4],f32>, !torch.vtensor<[12],f32> -> !torch.vtensor<[2,12],f32>
-// CHECK:             %[[VAL_51:.*]] = torch.aten.linear %[[VAL_49]], %[[VAL_10]], %[[VAL_33]] : !torch.vtensor<[2,12],f32>, !torch.vtensor<[12,3],f32>, !torch.vtensor<[12],f32> -> !torch.vtensor<[2,12],f32>
-// CHECK:             %[[VAL_52:.*]] = torch.aten.add.Tensor %[[VAL_50]], %[[VAL_51]], %[[VAL_45]] : !torch.vtensor<[2,12],f32>, !torch.vtensor<[2,12],f32>, !torch.int -> !torch.vtensor<[2,12],f32>
-// CHECK:             %[[VAL_53:.*]] = torch.constant.int 3
-// CHECK:             %[[VAL_54:.*]] = torch.constant.int 6
-// CHECK:             %[[VAL_55:.*]] = torch.constant.int 9
-// CHECK:             %[[VAL_56:.*]] = torch.constant.int 12
-// CHECK:             %[[VAL_57:.*]] = torch.aten.slice.Tensor %[[VAL_52]], %[[VAL_45]], %[[VAL_44]], %[[VAL_55]], %[[VAL_45]] : !torch.vtensor<[2,12],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,9],f32>
-// CHECK:             %[[VAL_58:.*]] = torch.aten.slice.Tensor %[[VAL_52]], %[[VAL_45]], %[[VAL_55]], %[[VAL_56]], %[[VAL_45]] : !torch.vtensor<[2,12],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3],f32>
-// CHECK:             %[[VAL_59:.*]] = torch.aten.sigmoid %[[VAL_57]] : !torch.vtensor<[2,9],f32> -> !torch.vtensor<[2,9],f32>
-// CHECK:             %[[VAL_60:.*]] = torch.aten.tanh %[[VAL_58]] : !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>
-// CHECK:             %[[VAL_61:.*]] = torch.aten.slice.Tensor %[[VAL_59]], %[[VAL_45]], %[[VAL_44]], %[[VAL_53]], %[[VAL_45]] : !torch.vtensor<[2,9],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3],f32>
-// CHECK:             %[[VAL_62:.*]] = torch.aten.slice.Tensor %[[VAL_59]], %[[VAL_45]], %[[VAL_53]], %[[VAL_54]], %[[VAL_45]] : !torch.vtensor<[2,9],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3],f32>
-// CHECK:             %[[VAL_63:.*]] = torch.aten.slice.Tensor %[[VAL_59]], %[[VAL_45]], %[[VAL_54]], %[[VAL_55]], %[[VAL_45]] : !torch.vtensor<[2,9],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3],f32>
-// CHECK:             %[[VAL_64:.*]] = torch.aten.mul.Tensor %[[VAL_63]], %[[VAL_42]] : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>
-// CHECK:             %[[VAL_65:.*]] = torch.aten.mul.Tensor %[[VAL_61]], %[[VAL_60]] : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>
-// CHECK:             %[[VAL_66:.*]] = torch.aten.add.Tensor %[[VAL_64]], %[[VAL_65]], %[[VAL_45]] : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.int -> !torch.vtensor<[2,3],f32>
-// CHECK:             %[[VAL_67:.*]] = torch.aten.tanh %[[VAL_66]] : !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>
-// CHECK:             %[[VAL_68:.*]] = torch.aten.mul.Tensor %[[VAL_62]], %[[VAL_67]] : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>
-// CHECK:             %[[VAL_69:.*]] = torch.aten.append.t %[[VAL_34]], %[[VAL_68]] : !torch.list<vtensor<[2,3],f32>>, !torch.vtensor<[2,3],f32> -> !torch.list<vtensor<[2,3],f32>>
-// CHECK:             %[[VAL_70:.*]] = torch.aten.add.int %[[VAL_40]], %[[VAL_38]] : !torch.int, !torch.int -> !torch.int
-// CHECK:             torch.prim.Loop.condition %[[VAL_36]], iter(%[[VAL_68]], %[[VAL_66]] : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>)
+// CHECK:           %[[VAL_38:.*]]:2 = torch.prim.Loop %[[VAL_35]], %[[VAL_36]], init(%[[VAL_26]], %[[VAL_29]]) {
+// CHECK:           ^bb0(%[[VAL_39:.*]]: !torch.int, %[[VAL_40:.*]]: !torch.vtensor<[2,3],f32>, %[[VAL_41:.*]]: !torch.vtensor<[2,3],f32>):
+// CHECK:             %[[VAL_42:.*]] = torch.aten.select.int %[[VAL_0]], %[[VAL_37]], %[[VAL_39]] : !torch.vtensor<[15,2,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[2,4],f32>
+// CHECK:             %[[VAL_43:.*]] = torch.constant.int 0
+// CHECK:             %[[VAL_44:.*]] = torch.constant.int 1
+// CHECK:             %[[VAL_45:.*]] = torch.constant.int 4
+// CHECK:             %[[VAL_46:.*]] = torch.prim.ListConstruct %[[VAL_44]], %[[VAL_45]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:             %[[VAL_47:.*]] = torch.aten.tile %[[VAL_42]], %[[VAL_46]] : !torch.vtensor<[2,4],f32>, !torch.list<int> -> !torch.vtensor<[2,16],f32>
+// CHECK:             %[[VAL_48:.*]] = torch.aten.tile %[[VAL_40]], %[[VAL_46]] : !torch.vtensor<[2,3],f32>, !torch.list<int> -> !torch.vtensor<[2,12],f32>
+// CHECK:             %[[VAL_49:.*]] = torch.aten.linear %[[VAL_47]], %[[VAL_7]], %[[VAL_32]] : !torch.vtensor<[2,16],f32>, !torch.vtensor<[12,4],f32>, !torch.vtensor<[12],f32> -> !torch.vtensor<[2,12],f32>
+// CHECK:             %[[VAL_50:.*]] = torch.aten.linear %[[VAL_48]], %[[VAL_10]], %[[VAL_33]] : !torch.vtensor<[2,12],f32>, !torch.vtensor<[12,3],f32>, !torch.vtensor<[12],f32> -> !torch.vtensor<[2,12],f32>
+// CHECK:             %[[VAL_51:.*]] = torch.aten.add.Tensor %[[VAL_49]], %[[VAL_50]], %[[VAL_44]] : !torch.vtensor<[2,12],f32>, !torch.vtensor<[2,12],f32>, !torch.int -> !torch.vtensor<[2,12],f32>
+// CHECK:             %[[VAL_52:.*]] = torch.constant.int 3
+// CHECK:             %[[VAL_53:.*]] = torch.constant.int 6
+// CHECK:             %[[VAL_54:.*]] = torch.constant.int 9
+// CHECK:             %[[VAL_55:.*]] = torch.constant.int 12
+// CHECK:             %[[VAL_56:.*]] = torch.aten.slice.Tensor %[[VAL_51]], %[[VAL_44]], %[[VAL_43]], %[[VAL_54]], %[[VAL_44]] : !torch.vtensor<[2,12],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,9],f32>
+// CHECK:             %[[VAL_57:.*]] = torch.aten.slice.Tensor %[[VAL_51]], %[[VAL_44]], %[[VAL_54]], %[[VAL_55]], %[[VAL_44]] : !torch.vtensor<[2,12],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3],f32>
+// CHECK:             %[[VAL_58:.*]] = torch.aten.sigmoid %[[VAL_56]] : !torch.vtensor<[2,9],f32> -> !torch.vtensor<[2,9],f32>
+// CHECK:             %[[VAL_59:.*]] = torch.aten.tanh %[[VAL_57]] : !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>
+// CHECK:             %[[VAL_60:.*]] = torch.aten.slice.Tensor %[[VAL_58]], %[[VAL_44]], %[[VAL_43]], %[[VAL_52]], %[[VAL_44]] : !torch.vtensor<[2,9],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3],f32>
+// CHECK:             %[[VAL_61:.*]] = torch.aten.slice.Tensor %[[VAL_58]], %[[VAL_44]], %[[VAL_52]], %[[VAL_53]], %[[VAL_44]] : !torch.vtensor<[2,9],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3],f32>
+// CHECK:             %[[VAL_62:.*]] = torch.aten.slice.Tensor %[[VAL_58]], %[[VAL_44]], %[[VAL_53]], %[[VAL_54]], %[[VAL_44]] : !torch.vtensor<[2,9],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3],f32>
+// CHECK:             %[[VAL_63:.*]] = torch.aten.mul.Tensor %[[VAL_62]], %[[VAL_41]] : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>
+// CHECK:             %[[VAL_64:.*]] = torch.aten.mul.Tensor %[[VAL_60]], %[[VAL_59]] : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>
+// CHECK:             %[[VAL_65:.*]] = torch.aten.add.Tensor %[[VAL_63]], %[[VAL_64]], %[[VAL_44]] : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.int -> !torch.vtensor<[2,3],f32>
+// CHECK:             %[[VAL_66:.*]] = torch.aten.tanh %[[VAL_65]] : !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>
+// CHECK:             %[[VAL_67:.*]] = torch.aten.mul.Tensor %[[VAL_61]], %[[VAL_66]] : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>
+// CHECK:             %[[VAL_68:.*]] = torch.aten.append.t %[[VAL_34]], %[[VAL_67]] : !torch.list<vtensor<[2,3],f32>>, !torch.vtensor<[2,3],f32> -> !torch.list<vtensor<[2,3],f32>>
+// CHECK:             torch.prim.Loop.condition %[[VAL_36]], iter(%[[VAL_67]], %[[VAL_65]] : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>)
 // CHECK:           } : (!torch.int, !torch.bool, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>)
-// CHECK:           %[[VAL_71:.*]] = torch.aten.unsqueeze %[[VAL_72:.*]]#0, %[[VAL_18]] : !torch.vtensor<[2,3],f32>, !torch.int -> !torch.vtensor<[1,2,3],f32>
-// CHECK:           %[[VAL_73:.*]] = torch.aten.unsqueeze %[[VAL_72]]#1, %[[VAL_18]] : !torch.vtensor<[2,3],f32>, !torch.int -> !torch.vtensor<[1,2,3],f32>
-// CHECK:           %[[VAL_74:.*]] = torch.aten.stack %[[VAL_34]], %[[VAL_18]] : !torch.list<vtensor<[2,3],f32>>, !torch.int -> !torch.vtensor<[15,2,3],f32>
-// CHECK:           %[[VAL_75:.*]] = torch.aten.unsqueeze %[[VAL_74]], %[[VAL_19]] : !torch.vtensor<[15,2,3],f32>, !torch.int -> !torch.vtensor<[15,1,2,3],f32>
-// CHECK:           return %[[VAL_75]], %[[VAL_71]], %[[VAL_73]] : !torch.vtensor<[15,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>
+// CHECK:           %[[VAL_69:.*]] = torch.aten.unsqueeze %[[VAL_70:.*]]#0, %[[VAL_18]] : !torch.vtensor<[2,3],f32>, !torch.int -> !torch.vtensor<[1,2,3],f32>
+// CHECK:           %[[VAL_71:.*]] = torch.aten.unsqueeze %[[VAL_70]]#1, %[[VAL_18]] : !torch.vtensor<[2,3],f32>, !torch.int -> !torch.vtensor<[1,2,3],f32>
+// CHECK:           %[[VAL_72:.*]] = torch.aten.stack %[[VAL_34]], %[[VAL_18]] : !torch.list<vtensor<[2,3],f32>>, !torch.int -> !torch.vtensor<[15,2,3],f32>
+// CHECK:           %[[VAL_73:.*]] = torch.aten.unsqueeze %[[VAL_72]], %[[VAL_19]] : !torch.vtensor<[15,2,3],f32>, !torch.int -> !torch.vtensor<[15,1,2,3],f32>
+// CHECK:           return %[[VAL_73]], %[[VAL_69]], %[[VAL_71]] : !torch.vtensor<[15,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>
 // CHECK:         }
 module {
   func.func @test_lstm_basic(%arg0: !torch.vtensor<[15,2,4],f32>, %arg1: !torch.vtensor<[1,12,4],f32>, %arg2: !torch.vtensor<[1,12,3],f32>, %arg3: !torch.vtensor<[1,24],f32>) -> (!torch.vtensor<[15,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {

@@ -1,3 +1,30 @@
+/*
+
+TODO list:
+
+- slice before doing anything to avoid type complexity
+  - fewer types
+  - fuse matmuls and activations
+  - support activations
+  - slice outside loop
+- put my functions into their own CPP file
+- get rid of comments and use self-documentating variable names
+- after fixing scf loop issue, numerical evaluation against onnxruntime
+- support optional inputs and attributes
+  - peephole
+  - don't do sequence_lengths because we can infer it from the shape of X
+  - activations
+  - direction
+  - clip?
+  - input_forget?
+  - support bidirectional lstm
+  - reverse
+
+
+
+
+*/
+
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -221,13 +248,13 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
     Value initial_c,
     // initial_c shape [batch_size, hidden_size]
     Value W,
-    // W shape [num_directions, hidden_size*4, input_size]
+    // W shape [hidden_size*4, input_size]
     Value Wb,
-    // Wb shape [hidden_size*8]
+    // Wb shape [hidden_size*4]
     Value R,
     // R shape [hidden_size*4, hidden_size]
     Value Rb
-    // Rb shape [num_directions, hidden_size*8]
+    // Rb shape [hidden_size*4]
 ) {
 
   Location loc = binder.getLoc();
@@ -236,6 +263,28 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
   int64_t input_size = X.getType().cast<Torch::ValueTensorType>().getSizes()[2];
   int64_t hidden_size =
       initial_h.getType().cast<Torch::ValueTensorType>().getSizes()[1];
+
+  // check sizes
+  assert(initial_h.getType().cast<Torch::ValueTensorType>().getSizes()[0] ==
+         batch_size);
+  assert(initial_h.getType().cast<Torch::ValueTensorType>().getSizes()[1] ==
+         hidden_size);
+  assert(initial_c.getType().cast<Torch::ValueTensorType>().getSizes()[0] ==
+         batch_size);
+  assert(initial_c.getType().cast<Torch::ValueTensorType>().getSizes()[1] ==
+         hidden_size);
+  assert(W.getType().cast<Torch::ValueTensorType>().getSizes()[0] ==
+         hidden_size * 4);
+  assert(W.getType().cast<Torch::ValueTensorType>().getSizes()[1] ==
+         input_size);
+  assert(Wb.getType().cast<Torch::ValueTensorType>().getSizes()[0] ==
+         hidden_size * 4);
+  assert(R.getType().cast<Torch::ValueTensorType>().getSizes()[0] ==
+         hidden_size * 4);
+  assert(R.getType().cast<Torch::ValueTensorType>().getSizes()[1] ==
+         hidden_size);
+  assert(Rb.getType().cast<Torch::ValueTensorType>().getSizes()[0] ==
+         hidden_size * 4);
 
   Torch::ValueTensorType HType =
       initial_h.getType().cast<Torch::ValueTensorType>();
@@ -256,16 +305,8 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
   Value cstZero = rewriter.create<Torch::ConstantIntOp>(
       loc, rewriter.getType<Torch::IntType>(),
       rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
-  Value cstOne = rewriter.create<Torch::ConstantIntOp>(
-      loc, rewriter.getType<Torch::IntType>(),
-      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 1));
 
   Type loopIndexType = rewriter.getType<Torch::IntType>();
-  // iter args:
-  //  i: loop index
-  //  Y: history of hidden states
-  //  H: hidden state
-  //  C: cell state
   auto loop = rewriter.create<Torch::PrimLoopOp>(
       loc, /*results=*/TypeRange({HType, CType}), maxTripCount,
       /*initialCondition=*/cTrue,
@@ -310,9 +351,6 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
     // append H_new to Y
     rewriter.create<Torch::AtenAppendTOp>(loc, Y_list.getType(), Y_list, H_new);
 
-    Value nextLoopIndex = rewriter.create<Torch::AtenAddIntOp>(
-        loc, loopIndexType, loopIndex, cstOne);
-
     // we don't need this because we're using maxTripCount, right?
     // Value loopCondition = rewriter.create<Torch::AtenLtIntOp>(
     //     loc, rewriter.getType<Torch::BoolType>(), nextLoopIndex,
@@ -337,15 +375,17 @@ LogicalResult OnnxLSTMHandler(OpBinder binder,
   int64_t hidden_size;
 
   // optional inputs
-  Value B, sequence_lens, initial_h, initial_c, P;
+  // we skip sequence_lengths because we infer it from the shape of X
+  Value B, initial_h, initial_c;
   Torch::ValueTensorType BType;
+  // Value P;
 
   // optional attributes
-  float activation_alpha, activation_beta;
+  // float activation_alpha, activation_beta;
   llvm::SmallVector<std::string> activations;
-  float clip;
   std::string direction;
-  int64_t input_forget;
+  // float clip;
+  // int64_t input_forget;
 
   // result types
   Torch::ValueTensorType YType, Y_hType, Y_cType;
@@ -389,21 +429,6 @@ LogicalResult OnnxLSTMHandler(OpBinder binder,
                                   WType.getDtype())
             .cast<Torch::ValueTensorType>();
     B = rewriter.create<Torch::AtenZerosOp>(binder.getLoc(), W.getType(), W);
-  }
-
-  // we are currently only some of the optional inputs/outputs
-  // fail if optional inputs/outputs are found
-  if (!binder.tensorOperandAtIndex(sequence_lens, 4) ||
-          !binder.tensorOperandAtIndex(P, 7) ||
-          !binder.f32FloatAttr(activation_alpha, "activation_alpha", 1.0f) ||
-          !binder.f32FloatAttr(activation_beta, "activation_beta", 0.0f) ||
-          !binder.f32FloatAttr(clip, "clip", 0.0f) ||
-          !binder.s64IntegerAttr(input_forget, "input_forget"),
-      0) {
-    LLVM_DEBUG(
-        llvm::dbgs()
-        << "LSTM: Optional inputs/outputs/attributes are not supported\n");
-    return failure();
   }
 
   // TODO: activations: edit this check when custom activations are supported
@@ -450,6 +475,7 @@ LogicalResult OnnxLSTMHandler(OpBinder binder,
   int64_t seq_lengths = XShape[0]; // number of timesteps
   int64_t batch_size = XShape[1];
   int64_t input_size = XShape[2]; // number of features
+  assert(WType.getSizes()[2] == input_size);
 
   // split W, R, B into forward and back
   // W = [W_forward, W_reverse]
