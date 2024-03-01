@@ -8,15 +8,27 @@
 #define DEBUG_TYPE "torch-onnx-to-torch-patterns"
 namespace mlir::torch::onnx_c {
 
+void printTensorShape(const char *name, const Value &tensor) {
+  auto sizes = tensor.getType().cast<Torch::ValueTensorType>().getSizes();
+  llvm::dbgs() << name << " shape: [";
+  for (size_t i = 0; i < sizes.size(); ++i) {
+    llvm::dbgs() << sizes[i];
+    if (i != sizes.size() - 1) {
+      llvm::dbgs() << ", ";
+    }
+  }
+  llvm::dbgs() << "]\n";
+}
+
 std::pair<Value, Value>
 lstm_cell(OpBinder binder, ConversionPatternRewriter &rewriter,
           Value Xt, // =input_seq shape [batch_size, input_size]
           Value H,  // =hidden_state shape [batch_size, hidden_size]
           Value C,  // =cell_state shape [batch_size, hidden_size]
           Value W,  // =weights_hh shape [hidden_size*4, input_size]
-          Value Wb, // =bias_hh shape [hidden_size*8]
+          Value Wb, // =bias_hh shape [hidden_size*4]
           Value R,  // =weights_hr shape [hidden_size*4, hidden_size]
-          Value Rb
+          Value Rb  // =bias_hr shape [hidden_size*4]
           // Value P, // =peephole shape [hidden_size*3]; not supported yet
 ) {
   // this function is made based on
@@ -27,6 +39,53 @@ lstm_cell(OpBinder binder, ConversionPatternRewriter &rewriter,
   Torch::ValueTensorType HType = H.getType().cast<Torch::ValueTensorType>();
   int64_t hidden_size = HType.getSizes()[1];
   int64_t batch_size = HType.getSizes()[0];
+  int64_t input_size = XType.getSizes()[1];
+  // use some assertions to check the shapes
+  // batch size
+  if (Xt.getType().cast<Torch::ValueTensorType>().getSizes()[0] !=
+          H.getType().cast<Torch::ValueTensorType>().getSizes()[0] ||
+      Xt.getType().cast<Torch::ValueTensorType>().getSizes()[0] !=
+          C.getType().cast<Torch::ValueTensorType>().getSizes()[0] ||
+      Xt.getType().cast<Torch::ValueTensorType>().getSizes()[1] !=
+          W.getType().cast<Torch::ValueTensorType>().getSizes()[1] ||
+      H.getType().cast<Torch::ValueTensorType>().getSizes()[1] !=
+          W.getType().cast<Torch::ValueTensorType>().getSizes()[0] / 4 ||
+      H.getType().cast<Torch::ValueTensorType>().getSizes()[1] !=
+          R.getType().cast<Torch::ValueTensorType>().getSizes()[1] ||
+      H.getType().cast<Torch::ValueTensorType>().getSizes()[1] !=
+          R.getType().cast<Torch::ValueTensorType>().getSizes()[0] / 4 ||
+      H.getType().cast<Torch::ValueTensorType>().getSizes()[1] !=
+          Wb.getType().cast<Torch::ValueTensorType>().getSizes()[0] / 4 ||
+      H.getType().cast<Torch::ValueTensorType>().getSizes()[1] !=
+          Rb.getType().cast<Torch::ValueTensorType>().getSizes()[0] / 4) {
+    LLVM_DEBUG(llvm::dbgs() << "LSTM: input shapes are not consistent\n");
+    LLVM_DEBUG(llvm::dbgs() << "Expected Xt shape:[" << batch_size << ","
+                            << input_size << "]"
+                            << "\n");
+    printTensorShape("Xt", Xt);
+    LLVM_DEBUG(llvm::dbgs() << "Expected H shape:[" << batch_size << ","
+                            << hidden_size << "]"
+                            << "\n");
+    printTensorShape("H", H);
+    LLVM_DEBUG(llvm::dbgs() << "Expected C shape:[" << batch_size << ","
+                            << hidden_size << "]"
+                            << "\n");
+    printTensorShape("C", C);
+    LLVM_DEBUG(llvm::dbgs() << "Expected W shape:[" << hidden_size * 4 << ","
+                            << input_size << "]"
+                            << "\n");
+    printTensorShape("W", W);
+    LLVM_DEBUG(llvm::dbgs() << "Expected R shape:[" << hidden_size * 4 << ","
+                            << hidden_size << "]"
+                            << "\n");
+    printTensorShape("R", R);
+    LLVM_DEBUG(llvm::dbgs() << "Expected Wb shape:[" << hidden_size * 4 << "]"
+                            << "\n");
+    printTensorShape("Wb", Wb);
+    LLVM_DEBUG(llvm::dbgs() << "Expected Rb shape:[" << hidden_size * 4 << "]"
+                            << "\n");
+    printTensorShape("Rb", Rb);
+  }
 
   auto getTiledType = [&](Torch::ValueTensorType input_type, int64_t tile_dim,
                           int64_t tile_factor) {
@@ -67,9 +126,8 @@ lstm_cell(OpBinder binder, ConversionPatternRewriter &rewriter,
 
   // gates = linear(Xt, W, Wb) + linear(H_prev, R, Rb)
   Value G_x = rewriter.create<Torch::AtenLinearOp>(
-      /*loc*/ binder.getLoc(), /*type*/ XTiledType,
+      /*loc*/ binder.getLoc(), /*type*/ HTiledType,
       /*input=*/XTiled, /*weight=*/W, /*bias=*/Wb);
-  // hidden / recurrence term
   Value G_h = rewriter.create<Torch::AtenLinearOp>(
       /*loc*/ binder.getLoc(), /*type*/ HTiledType,
       /*input=*/HTiled, /*weight=*/R, /*bias=*/Rb);
@@ -90,26 +148,27 @@ lstm_cell(OpBinder binder, ConversionPatternRewriter &rewriter,
       binder.getLoc(), rewriter.getType<Torch::IntType>(),
       rewriter.getIntegerAttr(rewriter.getIntegerType(64), 4 * hidden_size));
 
+  Torch::ValueTensorType G_iof_type = rewriter.getType<Torch::ValueTensorType>(
+      llvm::SmallVector<int64_t>{batch_size, hidden_size * 3},
+      Xt.getType().cast<Torch::ValueTensorType>().getDtype());
+
   // Gate Vector splitting
   // G_iof = gates[:, :3 * hidden_size]
   // G_c = gates[:, 3 * hidden_size:]
   Value G_iof = rewriter.create<Torch::AtenSliceTensorOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HTiledType,
+      /*loc*/ binder.getLoc(), /*type*/ G_iof_type,
       /*input=*/G, /*dim=*/c_1, /*start=*/c_0, /*end=*/HSizeX3,
       /*step=*/c_1);
   Value G_c = rewriter.create<Torch::AtenSliceTensorOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HTiledType,
+      /*loc*/ binder.getLoc(), /*type*/ HType,
       /*input=*/G, /*dim=*/c_1, /*start=*/HSizeX3, /*end=*/HSizeX4,
       /*step=*/c_1);
 
   // Activation for IOF
   // TODO: activations: support non-default activations
   // this is activation f in the ONNX docs
-  Torch::ValueTensorType IOFType = rewriter.getType<Torch::ValueTensorType>(
-      llvm::SmallVector<int64_t>{batch_size, hidden_size * 3},
-      Xt.getType().cast<Torch::ValueTensorType>().getDtype());
   Value Activation_IOF = rewriter.create<Torch::AtenSigmoidOp>(
-      /*loc*/ binder.getLoc(), /*type*/ IOFType, /*input=*/G_iof);
+      /*loc*/ binder.getLoc(), /*type*/ G_iof_type, /*input=*/G_iof);
   // Activation for C
   // TODO: activations: support non-default activations
   // this is activation g in the ONNX docs
@@ -158,19 +217,17 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
     OpBinder binder, ConversionPatternRewriter &rewriter, Value X,
     // X shape [seq_length, batch_size, input_size]
     Value initial_h,
-    // =hidden_state shape [num_layers*num_directions, batch_size, hidden_size]
+    // =hidden_state shape [batch_size, hidden_size]
     Value initial_c,
-    // initial_c shape [num_layers*num_directions, batch_size, hidden_size]
+    // initial_c shape [batch_size, hidden_size]
     Value W,
-    // W shape [num_layers*num_directions, hidden_size*4, input_size]
+    // W shape [num_directions, hidden_size*4, input_size]
     Value Wb,
-    // Wb shape [num_layers*num_directions, hidden_size*8]
+    // Wb shape [hidden_size*8]
     Value R,
-    // R shape [num_layers*num_directions, hidden_size*4, hidden_size]
+    // R shape [hidden_size*4, hidden_size]
     Value Rb
-    // Rb shape [num_layers*num_directions, hidden_size*8]
-    // Value P, // =peephole shape [num_layers*num_directions, hidden_size*3];
-    // TODO: support peephole not supported yet
+    // Rb shape [num_directions, hidden_size*8]
 ) {
 
   Location loc = binder.getLoc();
@@ -178,7 +235,7 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
   int64_t batch_size = X.getType().cast<Torch::ValueTensorType>().getSizes()[1];
   int64_t input_size = X.getType().cast<Torch::ValueTensorType>().getSizes()[2];
   int64_t hidden_size =
-      initial_h.getType().cast<Torch::ValueTensorType>().getSizes()[2];
+      initial_h.getType().cast<Torch::ValueTensorType>().getSizes()[1];
 
   Torch::ValueTensorType HType =
       initial_h.getType().cast<Torch::ValueTensorType>();
@@ -236,16 +293,16 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
     Torch::ValueTensorType XtType = rewriter.getType<Torch::ValueTensorType>(
         llvm::SmallVector<int64_t>{batch_size, input_size}, XType.getDtype());
 
-    Value loopIndexTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
-        binder.getLoc(),
-        Torch::ValueTensorType::get(
-            rewriter.getContext(),
-            /*shape*/ ArrayRef<int64_t>{1},
-            /*dtype*/ rewriter.getIntegerType(64, /*signed*/ 1)),
-        loopIndex);
+    // Value loopIndexTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+    //     binder.getLoc(),
+    //     Torch::ValueTensorType::get(
+    //         rewriter.getContext(),
+    //         /*shape*/ ArrayRef<int64_t>{1},
+    //         /*dtype*/ rewriter.getIntegerType(64, /*signed*/ 1)),
+    //     loopIndex);
 
-    Value Xt = rewriter.create<Torch::AtenIndexSelectOp>(
-        loc, XtType, X, cstZero, loopIndexTensor);
+    Value Xt = rewriter.create<Torch::AtenSelectIntOp>(loc, XtType, X, cstZero,
+                                                       loopIndex);
 
     auto [H_new, C_new] =
         lstm_cell(binder, rewriter, Xt, H_prev, C_prev, W, Wb, R, Rb);
@@ -256,8 +313,10 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
     Value nextLoopIndex = rewriter.create<Torch::AtenAddIntOp>(
         loc, loopIndexType, loopIndex, cstOne);
 
-    Value loopCondition = rewriter.create<Torch::AtenLtIntOp>(
-        loc, rewriter.getType<Torch::BoolType>(), nextLoopIndex, maxTripCount);
+    // we don't need this because we're using maxTripCount, right?
+    // Value loopCondition = rewriter.create<Torch::AtenLtIntOp>(
+    //     loc, rewriter.getType<Torch::BoolType>(), nextLoopIndex,
+    //     maxTripCount);
 
     rewriter.create<Torch::PrimLoopConditionOp>(
         loc, /*shouldContinue=*/cTrue,
@@ -271,9 +330,6 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
 LogicalResult OnnxLSTMHandler(OpBinder binder,
                               ConversionPatternRewriter &rewriter) {
   // TODO: maybe move LSTM Handler and its helpers to their own file
-
-  auto loc = binder.getLoc();
-
   // required inputs
   Value X, W, R;
   Torch::ValueTensorType XType, WType, RType;
@@ -282,8 +338,7 @@ LogicalResult OnnxLSTMHandler(OpBinder binder,
 
   // optional inputs
   Value B, sequence_lens, initial_h, initial_c, P;
-  Torch::ValueTensorType BType, sequence_lensType, initial_hType, initial_cType,
-      PType;
+  Torch::ValueTensorType BType;
 
   // optional attributes
   float activation_alpha, activation_beta;
@@ -418,25 +473,13 @@ LogicalResult OnnxLSTMHandler(OpBinder binder,
         binder.getLoc(), rewriter.getType<Torch::IntType>(),
         rewriter.getIntegerAttr(rewriter.getIntegerType(64), direction));
 
-    Value directionTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
-        binder.getLoc(),
-        Torch::ValueTensorType::get(
-            rewriter.getContext(),
-            /*shape*/ ArrayRef<int64_t>{1},
-            /*dtype*/ rewriter.getIntegerType(64, /*signed*/ 1)),
-        cstDirection);
-    return rewriter.create<Torch::AtenIndexSelectOp>(
-        binder.getLoc(), outputType, input, cstZero,
-        /*AnyTorchTensorType:$index*/ directionTensor);
+    return rewriter.create<Torch::AtenSelectIntOp>(
+        binder.getLoc(), outputType, input, cstZero, cstDirection);
   };
 
   Value W_forward = getDirection(0, W);
   Value R_forward = getDirection(0, R);
   Value B_forward = getDirection(0, B);
-
-  // ### everything hereon is only one direction ###
-  // todo: support bidirectional and reverse LSTM. it's possible that
-  // it could be done by just reusing the lstm_layer function
 
   Torch::ValueTensorType HType = rewriter.getType<Torch::ValueTensorType>(
       llvm::SmallVector<int64_t>{num_directions, batch_size, hidden_size},
@@ -457,6 +500,9 @@ LogicalResult OnnxLSTMHandler(OpBinder binder,
   Value cst_Zero = rewriter.create<Torch::ConstantIntOp>(
       binder.getLoc(), rewriter.getType<Torch::IntType>(),
       rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+  Value cst_One = rewriter.create<Torch::ConstantIntOp>(
+      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 1));
 
   Value initial_hc_shape = rewriter.create<Torch::PrimListConstructOp>(
       binder.getLoc(),
@@ -488,14 +534,68 @@ LogicalResult OnnxLSTMHandler(OpBinder binder,
                                                     /*pin_memory*/ cst_None);
   }
 
+  Value initial_h_forward = getDirection(0, initial_h);
+  Value initial_c_forward = getDirection(0, initial_c);
+
+  // ### everything hereon is only one direction. they won't have the direction
+  // dimension ### todo: support bidirectional and reverse LSTM. it's possible
+  // that it could be done by just reusing the lstm_layer function
+
+  Value HSizeX4 = rewriter.create<Torch::ConstantIntOp>(
+      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 4 * hidden_size));
+  Value HSizeX8 = rewriter.create<Torch::ConstantIntOp>(
+      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 8 * hidden_size));
+
+  Torch::ValueTensorType WbRbType = rewriter.getType<Torch::ValueTensorType>(
+      llvm::SmallVector<int64_t>{hidden_size * 4}, WType.getDtype());
+
+  Value Wb = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), WbRbType,
+      /*input=*/B_forward, /*dim=*/cst_Zero, /*start=*/cst_Zero,
+      /*end=*/HSizeX4, /*step=*/cst_One);
+  Value Rb = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), WbRbType,
+      /*input=*/B_forward, /*dim=*/cst_Zero, /*start=*/HSizeX4,
+      /*end=*/HSizeX8, /*step=*/cst_One);
+
   auto [Y_list, Y_h, Y_c] =
-      lstm_layer(binder, rewriter, X, initial_h, initial_c, W_forward,
-                 B_forward, R_forward, B_forward);
+      lstm_layer(binder, rewriter, X, initial_h_forward, initial_c_forward,
+                 W_forward, Wb, R_forward, Rb);
 
-  Value Y = rewriter.create<Torch::AtenStackOp>(binder.getLoc(), YType, Y_list,
-                                                /*dim*/ cst_Zero);
+  // ### everything hereon has to have the direction dimension again ###
+  // unsqueeze dim0 of Y_H and Y_c
+  // Y_h = Y_h.unsqueeze(0)
+  // Y_c = Y_c.unsqueeze(0)
+  assert(num_directions == 1); // TODO: support bidirectional LSTM by doing both
+                               // directions and replacing Unsqueeze with Stack
+  Torch::ValueTensorType Y_h_Y_c_unsqueezed_type =
+      rewriter.getType<Torch::ValueTensorType>(
+          llvm::SmallVector<int64_t>{num_directions, batch_size, hidden_size},
+          Y_h.getType().cast<Torch::ValueTensorType>().getDtype());
+  Value Y_h_unsqueezed = rewriter.create<Torch::AtenUnsqueezeOp>(
+      binder.getLoc(), Y_h_Y_c_unsqueezed_type, Y_h, cst_Zero);
+  Value Y_c_unsqueezed = rewriter.create<Torch::AtenUnsqueezeOp>(
+      binder.getLoc(), Y_h_Y_c_unsqueezed_type, Y_c, cst_Zero);
 
-  rewriter.replaceOp(binder.op, mlir::ValueRange{Y, Y_h, Y_c});
+  Torch::ValueTensorType Y_nonumdirections_type =
+      rewriter.getType<Torch::ValueTensorType>(
+          llvm::SmallVector<int64_t>{seq_lengths, batch_size, hidden_size},
+          YType.cast<Torch::ValueTensorType>().getDtype());
+
+  Value Y_nonumdirections = rewriter.create<Torch::AtenStackOp>(
+      binder.getLoc(), Y_nonumdirections_type, Y_list,
+      /*dim*/ cst_Zero);
+
+  // unsqueeze num_directions dim1 of Y
+  // to create the onnx.LSTM output shape [seq_length, num_directions,
+  // batch_size, hidden_size]
+  Value Y_unsqueezed = rewriter.create<Torch::AtenUnsqueezeOp>(
+      binder.getLoc(), YType, Y_nonumdirections, cst_One);
+
+  rewriter.replaceOp(binder.op, mlir::ValueRange{Y_unsqueezed, Y_h_unsqueezed,
+                                                 Y_c_unsqueezed});
   return success();
 }
 } // namespace mlir::torch::onnx_c
