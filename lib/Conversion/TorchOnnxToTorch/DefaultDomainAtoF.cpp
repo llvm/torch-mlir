@@ -603,34 +603,35 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                 });
   patterns.onOp(
       "Clip", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // Note: Clip existed in older versions but with some differences:
+        // https://onnx.ai/onnx/operators/onnx__Clip.html. Notably:
+        //   * Prior to version 12, only floating point values were accepted.
+        //   * In version 6, the Clip op used 1 input with attributes for
+        //     min/max instead of 1-3 inputs.
+
+        // Inputs and outputs must be tensors. Min and max are both optional
+        // and if provided must be "tensors of empty shape" (scalars).
+        Value source;
         Torch::ValueTensorType resultType;
+        if (binder.tensorOperandAtIndex(source, 0) ||
+            binder.tensorResultType(resultType)) {
+          return failure();
+        }
+
         if (binder.op->getNumOperands() == 1) {
-          Value source;
-          if (binder.tensorOperand(source) ||
-              binder.tensorResultType(resultType))
-            return failure();
           Value cstNone =
               rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
           rewriter.replaceOpWithNewOp<Torch::AtenClampOp>(
               binder.op, resultType, source, /*min=*/cstNone, /*max=*/cstNone);
           return success();
         } else if (binder.op->getNumOperands() == 2) {
-          Value source, min;
-          if (binder.tensorOperands(source, min) ||
-              binder.tensorResultType(resultType))
-            return failure();
           rewriter.replaceOpWithNewOp<Torch::AtenClampMinTensorOp>(
-              binder.op, resultType, source, /*min=*/min);
+              binder.op, resultType, source, /*min=*/binder.op->getOperand(1));
           return success();
         } else if (binder.op->getNumOperands() == 3) {
-          Value source, min, max;
-          if (binder.tensorOperandAtIndex(source, 0) ||
-              binder.tensorOperandAtIndex(min, 1) ||
-              binder.tensorOperandAtIndex(max, 2) ||
-              binder.tensorResultType(resultType))
-            return failure();
           rewriter.replaceOpWithNewOp<Torch::AtenClampTensorOp>(
-              binder.op, resultType, source, min, max);
+              binder.op, resultType, source, /*min=*/binder.op->getOperand(1),
+              /*max=*/binder.op->getOperand(2));
           return success();
         }
         return failure();
