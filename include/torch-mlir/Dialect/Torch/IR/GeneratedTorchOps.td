@@ -12594,6 +12594,7 @@ def Torch_AtenCatOp : Torch_Op<"aten.cat", [
     }
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenStackOp : Torch_Op<"aten.stack", [

@@ -727,7 +727,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::Delete.Dict_str : (Dict(str, t), str) -> ()")
 
     # List ops.
-    emit("aten::cat : (Tensor[], int) -> (Tensor)", has_folder=True)
+    emit("aten::cat : (Tensor[], int) -> (Tensor)", has_canonicalizer=True, has_folder=True)
     emit("aten::stack : (Tensor[], int) -> (Tensor)")
     emit("aten::append.t : (t[], t) -> (t[])")
     emit("aten::add.t : (t[], t[]) -> (t[])", has_canonicalizer=True)
