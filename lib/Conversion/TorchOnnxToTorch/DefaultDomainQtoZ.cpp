@@ -1832,7 +1832,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 binder.getLoc(), rewriter.getI64IntegerAttr(i));
             Value extract = rewriter.create<Torch::AtenSelectIntOp>(
                 binder.getLoc(),
-                axesType.getWithSizesAndDtype(llvm::ArrayRef<int64_t>{1},
+                axesType.getWithSizesAndDtype(llvm::SmallVector<int64_t>{1},
                                               axesType.getOptionalDtype()),
                 axes, zero, selectIndex);
             Value dim = rewriter.create<Torch::AtenItemOp>(binder.getLoc(),
@@ -1880,10 +1880,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value trueVal =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
-        SmallVector<int64_t> intermediateShape;
-        for (int i = 0; i < rank; i++) {
-          intermediateShape.push_back(Torch::kUnknownSize);
-        }
+        SmallVector<int64_t> intermediateShape(rank, Torch::kUnknownSize);
         Value dataReduceProd = data;
         for (auto axis : axesList) {
           Type resultTyReduceProd = dataTy.getWithSizesAndDtype(
@@ -1909,8 +1906,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             }
             dataReduceProdSize.push_back(1);
           }
-        } else {
-          // Handle the keepDimsBool == False case:
+        }
+
+        if (keepDims) {
+          // Handle the keepDimsBool == True case:
           // Just use the resultTypeSizes as the final shape.
           for (auto dim : resultTypeSizes) {
             dataReduceProdSize.push_back(dim);
