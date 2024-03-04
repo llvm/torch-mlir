@@ -638,6 +638,68 @@ public:
 };
 } // namespace
 
+// Lower aten.unflatten.int into tensor.expand_shape
+namespace {
+class ConvertAtenUnflattenIntOp
+    : public OpConversionPattern<AtenUnflattenIntOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenUnflattenIntOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    BaseTensorType outputTensorType = op.getType().cast<BaseTensorType>();
+    if (!outputTensorType.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: output must have known sizes");
+
+    std::optional<unsigned> maybeRank = getTensorRank(self);
+    if (!maybeRank)
+      return rewriter.notifyMatchFailure(op, "unimplemented: unranked tensor");
+    auto inputTensorType = self.getType().cast<Torch::ValueTensorType>();
+    if (!inputTensorType || !inputTensorType.hasSizes()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Expected input type having sizes");
+    }
+    int inputRank = inputTensorType.getSizes().size();
+    int outputRank = outputTensorType.getSizes().size();
+
+    int64_t dimInt;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dimInt)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: requires dim to be constants");
+
+    dimInt = toPositiveDim(dimInt, inputRank);
+    if (!isValidDim(dimInt, inputRank))
+      return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
+
+    auto sizesOp = op.getSizes().getDefiningOp<Torch::PrimListConstructOp>();
+    int numSizes = sizesOp.getNumOperands();
+
+    SmallVector<ReassociationIndices> reassociations(inputRank);
+    if (inputRank > 0) {
+      for (int i = 0; i < dimInt; ++i)
+        reassociations[i].push_back(i);
+
+      for (int i = 0; i < numSizes; ++i)
+        reassociations[dimInt].push_back(i + dimInt);
+
+      for (int i = dimInt + numSizes; i < outputRank; ++i)
+        reassociations[i - numSizes + 1].push_back(i);
+    }
+
+    auto expandTy = getTypeConverter()->convertType(outputTensorType);
+    auto expand = rewriter
+                      .create<tensor::ExpandShapeOp>(
+                          loc, expandTy, adaptor.getSelf(), reassociations)
+                      .getResult();
+    rewriter.replaceOp(op, expand);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 /// The `ConvertAtenViewOp` conversion pattern converts `aten.View` op to
 /// one `linalg.TensorExpandShape` op for all expanded dimensions and one
@@ -2043,6 +2105,8 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   target.addIllegalOp<AtenFlattenUsingIntsOp>();
   patterns.add<ConvertAtenFlattenUsingIntsOp>(typeConverter, context);
   target.addIllegalOp<AtenViewOp>();
+  patterns.add<ConvertAtenUnflattenIntOp>(typeConverter, context);
+  target.addIllegalOp<AtenUnflattenIntOp>();
   patterns.add<ConvertAtenViewOp>(typeConverter, context);
   target.addIllegalOp<AtenSqueezeOp>();
   patterns.add<ConvertAtenSqueezeOp>(typeConverter, context);
