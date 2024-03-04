@@ -1917,14 +1917,6 @@ ONNX_XFAIL_SET = {
     "TypeConversionI64ToI32Module_basic",
 
     # Failure - onnx_lowering: onnx.Clip
-    "ElementwiseClampMaxModule_basic",
-    "ElementwiseClampMinModule_basic",
-    "ElementwiseClampMinTensorFloatModule_basic",
-    "ElementwiseClampMinTensorIntModule_basic",
-    "ElementwiseClampModule_basic",
-    "ElementwiseClampTensorFloatModule_basic",
-    "ElementwiseClampTensorInt8Module_basic",
-    "ElementwiseClampTensorIntModule_basic",
     "NormalizeModule_basic",
 
     # Failure - onnx_lowering: onnx.Einsum
