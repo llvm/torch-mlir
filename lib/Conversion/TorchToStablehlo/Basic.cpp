@@ -11,6 +11,7 @@
 
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
+#include "Utils.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
@@ -1662,19 +1663,14 @@ LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
     if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeInt)))
       return rewriter.notifyMatchFailure(
           op, "unimplemented: dtype must be a constant integer or none");
-    FailureOr<Type> maybeResultElementType = getTypeForScalarType(
-        op->getContext(), (torch_upstream::ScalarType)dtypeInt);
+    FailureOr<Type> maybeResultElementType =
+        torch_to_stablehlo::getBackendTypeForScalarType(
+            op->getContext(), (torch_upstream::ScalarType)dtypeInt);
     if (failed(maybeResultElementType)) {
       return rewriter.notifyMatchFailure(
           op, "unable to convert `dtypeInt` to builtin type");
     }
     resultElementType = *maybeResultElementType;
-    // The stablehlo backend expects signed integers to be signless.
-    if (resultElementType.isSignedInteger()) {
-      resultElementType = IntegerType::get(
-          op->getContext(), resultElementType.getIntOrFloatBitWidth(),
-          IntegerType::Signless);
-    }
   }
 
   // Create an uninitialized tensor of `resultSize` shape.
