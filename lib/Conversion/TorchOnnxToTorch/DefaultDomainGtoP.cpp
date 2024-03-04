@@ -572,10 +572,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         auto ctx = binder.op->getContext();
         auto indicesTy = cast<Torch::ValueTensorType>(indices.getType());
         auto dataTy = cast<Torch::ValueTensorType>(data.getType());
-        if (!dataTy || !dataTy.hasSizes())
+        if (!dataTy || !dataTy.hasSizes() || !indicesTy.hasSizes())
           return failure();
-        if (axis < 0)
-          axis += dataTy.getSizes().size();
+
+        int64_t dataRank = dataTy.getSizes().size();
+        int64_t indicesRank = indicesTy.getSizes().size();
+        axis = axis < 0 ? axis + dataRank : axis;
 
         Value index = rewriter.create<Torch::ConstantIntOp>(
             loc, Torch::IntType::get(ctx), rewriter.getI64IntegerAttr(axis));
@@ -599,8 +601,16 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         auto intListTy = rewriter.getType<Torch::ListType>(
             rewriter.getType<Torch::IntType>());
-        auto indicesSize =
-            rewriter.create<Torch::AtenSizeOp>(loc, intListTy, indices);
+
+        llvm::SmallVector<Value> indicesDims;
+        for (int i = 0, s = indicesTy.getSizes().size(); i < s; ++i) {
+          Value k = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), i);
+          indicesDims.push_back(rewriter.create<Torch::AtenSizeIntOp>(
+              binder.getLoc(), indices, k));
+        }
+
+        Value indicesSizeList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(), intListTy, indicesDims);
 
         // Determine the collapsed dim size:
         auto indicesCt = 1;
@@ -615,20 +625,37 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         auto flattenTy = rewriter.getType<Torch::ValueTensorType>(
             SmallVector<int64_t>{indicesCt}, indicesTy.getOptionalDtype());
-        Value rank = rewriter.create<Torch::AtenDimOp>(loc, intTy, indices);
-        Value end = rewriter.create<Torch::AtenSubIntOp>(loc, rank, one);
-        indices = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
-            loc, flattenTy, indices, zero, end);
+
+        if (indicesRank == 0) {
+          indices = rewriter.create<Torch::AtenUnsqueezeOp>(
+              binder.getLoc(), flattenTy, indices, zero);
+        } else if (indicesRank > 1) {
+          Value rank = rewriter.create<Torch::AtenDimOp>(loc, intTy, indices);
+          Value end = rewriter.create<Torch::AtenSubIntOp>(loc, rank, one);
+          indices = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
+              loc, flattenTy, indices, zero, end);
+        }
 
         llvm::SmallVector<int64_t> gatherShape(dataTy.getSizes());
         gatherShape[axis] = indicesCt;
-
         auto gatherTy = rewriter.getType<Torch::ValueTensorType>(
             gatherShape, dataTy.getOptionalDtype());
         Value gather = rewriter.create<Torch::AtenIndexSelectOp>(
             loc, gatherTy, data, index, indices);
-        rewriter.replaceOpWithNewOp<Torch::AtenUnflattenIntOp>(
-            binder.op, resultType, gather, index, indicesSize);
+
+        if (indicesRank == 1) {
+          rewriter.replaceOp(binder.op, gather);
+          return success();
+        }
+
+        if (indicesRank > 1) {
+          gather = rewriter.replaceOpWithNewOp<Torch::AtenUnflattenIntOp>(
+              binder.op, resultType, gather, index, indicesSizeList);
+          return success();
+        }
+
+        rewriter.replaceOpWithNewOp<Torch::AtenSqueezeOp>(binder.op, resultType,
+                                                          gather);
         return success();
       });
   patterns.onOp(
