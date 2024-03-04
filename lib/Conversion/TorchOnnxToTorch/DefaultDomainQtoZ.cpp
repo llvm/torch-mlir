@@ -1882,7 +1882,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         SmallVector<int64_t> intermediateShape(rank, Torch::kUnknownSize);
         Value dataReduceProd = data;
-        for (auto axis : axesList) {
+        for (int i = 0, numAxes = axesList.size(); i < numAxes; i++) {
+          auto axis = axesList[i];
+          if (keepDims && i == numAxes - 1) {
+            dataReduceProd = rewriter.create<Torch::AtenProdDimIntOp>(
+                binder.getLoc(),
+                dataTy.getWithSizesAndDtype(resultType.getSizes(),
+                                            dataTy.getOptionalDtype()),
+                dataReduceProd, axis, trueVal, noneVal);
+            rewriter.replaceOp(binder.op, dataReduceProd);
+            return success();
+          }
           Type resultTyReduceProd = dataTy.getWithSizesAndDtype(
               ArrayRef(intermediateShape), dataTy.getOptionalDtype());
           dataReduceProd = rewriter.create<Torch::AtenProdDimIntOp>(
@@ -1905,14 +1915,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               continue;
             }
             dataReduceProdSize.push_back(1);
-          }
-        }
-
-        if (keepDims) {
-          // Handle the keepDimsBool == True case:
-          // Just use the resultTypeSizes as the final shape.
-          for (auto dim : resultTypeSizes) {
-            dataReduceProdSize.push_back(dim);
           }
         }
 

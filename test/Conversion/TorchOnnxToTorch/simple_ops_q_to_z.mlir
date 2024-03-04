@@ -1129,13 +1129,8 @@ func.func @test_reduce_prod_default_axes_keepdims_random(%arg0: !torch.vtensor<[
   // CHECK: %[[NONE:.*]] = torch.constant.none
   // CHECK: %[[PROD_0:.*]] = torch.aten.prod.dim_int %arg0, %[[ADD]], %[[TRUE]], %[[NONE]] : !torch.vtensor<[3,2,2],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[?,?,?],f32>
   // CHECK: %[[PROD_1:.*]] = torch.aten.prod.dim_int %[[PROD_0]], %[[ADD_0]], %[[TRUE]], %[[NONE]] : !torch.vtensor<[?,?,?],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[?,?,?],f32>
-  // CHECK: %[[PROD_2:.*]] = torch.aten.prod.dim_int %[[PROD_1]], %[[ADD_1]], %[[TRUE]], %[[NONE]] : !torch.vtensor<[?,?,?],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[?,?,?],f32>
-  // CHECK: %[[DIM0:.*]] = torch.constant.int 1
-  // CHECK: %[[DIM1:.*]] = torch.constant.int 1
-  // CHECK: %[[DIM2:.*]] = torch.constant.int 1
-  // CHECK: %[[LIST:.*]] = torch.prim.ListConstruct %[[DIM0]], %[[DIM1]], %[[DIM2]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
-  // CHECK: %[[RESHAPE:.*]] = torch.aten.reshape %[[PROD_2]], %[[LIST]] : !torch.vtensor<[?,?,?],f32>, !torch.list<int> -> !torch.vtensor<[1,1,1],f32>
-  // CHECK: return %[[RESHAPE]] : !torch.vtensor<[1,1,1],f32>
+  // CHECK: %[[PROD_2:.*]] = torch.aten.prod.dim_int %[[PROD_1]], %[[ADD_1]], %[[TRUE]], %[[NONE]] : !torch.vtensor<[?,?,?],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[1,1,1],f32>
+  // CHECK: return %[[PROD_2]] : !torch.vtensor<[1,1,1],f32>
   %0 = torch.operator "onnx.ReduceProd"(%arg0) {torch.onnx.keepdims = 1 : si64} : (!torch.vtensor<[3,2,2],f32>) -> !torch.vtensor<[1,1,1],f32>
   return %0 : !torch.vtensor<[1,1,1],f32>
 }
@@ -1155,13 +1150,8 @@ func.func @test_reduce_prod_keepdims_random(%arg0: !torch.vtensor<[3,2,2],f32>, 
 // CHECK: %[[ADD:.*]] = torch.aten.add.int %[[ITEM]], %[[MUL]] : !torch.int, !torch.int -> !torch.int
 // CHECK: %[[BOOL:.*]] = torch.constant.bool true
 // CHECK: %[[NONE:.*]] = torch.constant.none
-// CHECK: %[[PROD:.*]] = torch.aten.prod.dim_int %arg0, %[[ADD]], %[[BOOL]], %[[NONE]] : !torch.vtensor<[3,2,2],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[?,?,?],f32>
-// CHECK: %[[DIM0:.*]] = torch.constant.int 3
-// CHECK: %[[DIM1:.*]] = torch.constant.int 1
-// CHECK: %[[DIM2:.*]] = torch.constant.int 2
-// CHECK: %[[LIST:.*]] = torch.prim.ListConstruct %[[DIM0]], %[[DIM1]], %[[DIM2]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
-// CHECK: %[[RESHAPE:.*]] = torch.aten.reshape %[[PROD]], %[[LIST]] : !torch.vtensor<[?,?,?],f32>, !torch.list<int> -> !torch.vtensor<[3,1,2],f32>
-// CHECK: return %[[RESHAPE]] : !torch.vtensor<[3,1,2],f32>
+// CHECK: %[[PROD:.*]] = torch.aten.prod.dim_int %arg0, %[[ADD]], %[[BOOL]], %[[NONE]] : !torch.vtensor<[3,2,2],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[3,1,2],f32>
+// CHECK: return %[[PROD]] : !torch.vtensor<[3,1,2],f32>
   %0 = torch.operator "onnx.ReduceProd"(%arg0, %arg1) {torch.onnx.keepdims = 1 : si64} : (!torch.vtensor<[3,2,2],f32>, !torch.vtensor<[1],si64>) -> !torch.vtensor<[3,1,2],f32>
   return %0 : !torch.vtensor<[3,1,2],f32>
 }
