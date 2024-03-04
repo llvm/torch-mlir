@@ -2899,6 +2899,9 @@ OpFoldResult AtenSubIntOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenCatOp::fold(FoldAdaptor adaptor) {
+  // We set a maximum folding size of 16. This is a reasonable upper limit
+  // for shape computations.
+  constexpr int64_t kMaxFoldSize = 16;
   auto list = getOperand(0).getDefiningOp<PrimListConstructOp>();
   if (!list)
     return nullptr;
@@ -2912,7 +2915,7 @@ OpFoldResult AtenCatOp::fold(FoldAdaptor adaptor) {
     return nullptr;
 
   auto bResultTy = resultTy.toBuiltinTensor();
-  if (!bResultTy.hasStaticShape() || bResultTy.getNumElements() > 16)
+  if (!bResultTy.hasStaticShape() || bResultTy.getNumElements() > kMaxFoldSize)
     return nullptr;
 
   auto dimAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
