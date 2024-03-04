@@ -1778,6 +1778,163 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         return success();
       });
   patterns.onOp(
+      "ReduceProd", 13,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // ReduceProd allows us to pass a list of dims but AtenProdDimIn only
+        // allow one dim as input.
+        Torch::ValueTensorType resultType;
+        Value data;
+        Value axes;
+        int64_t keepDims;
+        int64_t noop_with_empty_axes;
+        if (binder.tensorOperandAtIndex(data, 0) ||
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
+            binder.s64IntegerAttr(noop_with_empty_axes, "noop_with_empty_axes",
+                                  0))
+          return failure();
+
+        auto dataTy = cast<Torch::BaseTensorType>(data.getType());
+        Torch::IntType torchIntTy = rewriter.getType<Torch::IntType>();
+
+        if (!resultType.hasSizes() || !resultType.areAllSizesKnown() ||
+            !dataTy.areAllSizesKnown())
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Expected the input and result type to have known sizes");
+
+        int64_t rank = dataTy.getSizes().size();
+        SmallVector<Value> axesList;
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+
+        // Previous version of the operation had the axes as an attribute:
+        llvm::SmallVector<int64_t> axesAttr;
+        if (!binder.s64IntegerArrayAttr(axesAttr, "axes", {})) {
+          for (int i = 0, s = axesAttr.size(); i < s; ++i) {
+            axesList.push_back(rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), torchIntTy,
+                rewriter.getI64IntegerAttr(axesAttr[i])));
+          }
+        }
+
+        // Handle cases that axes are explicitly specified.
+        // Extract the axes values from the axes operand.
+        // This really shouldn't happen but it helps pass weird tests.
+        // TODO: Derive the chosen axes from the data type and final result type
+        // instead of using the dynamic axes at operand[1].
+        if (!binder.tensorOperandAtIndex(axes, 1)) {
+          Torch::BaseTensorType axesType =
+              axes.getType().cast<Torch::BaseTensorType>();
+          auto sizes = axesType.getSizes();
+          for (int i = 0; i < sizes[0]; i++) {
+            Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(i));
+            Value extract = rewriter.create<Torch::AtenSelectIntOp>(
+                binder.getLoc(),
+                axesType.getWithSizesAndDtype(llvm::SmallVector<int64_t>{1},
+                                              axesType.getOptionalDtype()),
+                axes, zero, selectIndex);
+            Value dim = rewriter.create<Torch::AtenItemOp>(binder.getLoc(),
+                                                           torchIntTy, extract);
+            axesList.push_back(dim);
+          }
+        }
+
+        // Handle the noop case:
+        // When axes is empty and noop_with_empty_axes is set to true, input
+        // tensor will not be reduced, and the output tensor would be
+        // equivalent to input tensor.
+        if (axesList.empty() && noop_with_empty_axes) {
+          rewriter.replaceOp(binder.op, data);
+          return success();
+        }
+
+        // Handle case when no axes arg is passed but not a noop:
+        // Manually set positive axis to all dims.
+        if (axesList.empty()) {
+          for (int i = 0; i < rank; i++) {
+            Value dimValue = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(i));
+            axesList.push_back(dimValue);
+          }
+        }
+
+        // Handle negative axis:
+        Value rankVal = rewriter.create<Torch::AtenDimOp>(binder.getLoc(),
+                                                          torchIntTy, data);
+        for (Value &axes : axesList) {
+          Value isNegative =
+              rewriter.create<Torch::AtenLtIntOp>(binder.getLoc(), axes, zero);
+          isNegative = rewriter.create<Torch::AtenIntBoolOp>(binder.getLoc(),
+                                                             isNegative);
+          Value finalOffset = rewriter.create<Torch::AtenMulIntOp>(
+              binder.getLoc(), isNegative, rankVal);
+          axes = rewriter.create<Torch::AtenAddIntOp>(binder.getLoc(), axes,
+                                                      finalOffset);
+        }
+
+        // Handle multiple axes case:
+        // ReduceProd on each dim, always set keepDimsBool == True to avoid
+        // segfault.
+        Value trueVal =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        SmallVector<int64_t> intermediateShape(rank, Torch::kUnknownSize);
+        Value dataReduceProd = data;
+        for (int i = 0, numAxes = axesList.size(); i < numAxes; i++) {
+          auto axis = axesList[i];
+          if (keepDims && i == numAxes - 1) {
+            dataReduceProd = rewriter.create<Torch::AtenProdDimIntOp>(
+                binder.getLoc(),
+                dataTy.getWithSizesAndDtype(resultType.getSizes(),
+                                            dataTy.getOptionalDtype()),
+                dataReduceProd, axis, trueVal, noneVal);
+            rewriter.replaceOp(binder.op, dataReduceProd);
+            return success();
+          }
+          Type resultTyReduceProd = dataTy.getWithSizesAndDtype(
+              ArrayRef(intermediateShape), dataTy.getOptionalDtype());
+          dataReduceProd = rewriter.create<Torch::AtenProdDimIntOp>(
+              binder.getLoc(), resultTyReduceProd, dataReduceProd, axis,
+              trueVal, noneVal);
+        }
+
+        // Derived the final shape of the tensor after prod loop of each axis.
+        SmallVector<int64_t> dataReduceProdSize;
+        auto dataSize = dataTy.getSizes();
+        auto resultTypeSizes = resultType.getSizes();
+        if (!keepDims) {
+          // Handle the keepDimsBool == False case:
+          // 2 point algorithm to derive the static shape after prod loop.
+          int j = 0;
+          for (int i = 0; i < rank; i++) {
+            if (resultTypeSizes.size() && dataSize[i] == resultTypeSizes[j]) {
+              dataReduceProdSize.push_back(resultTypeSizes[i]);
+              j++;
+              continue;
+            }
+            dataReduceProdSize.push_back(1);
+          }
+        }
+
+        // Handle the keepDimsBool == False case:
+        // Reshape the prod loop result to the final result shape.
+        SmallVector<Value> dataReduceProdShape;
+        for (auto dim : dataReduceProdSize)
+          dataReduceProdShape.push_back(rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(dim)));
+        Value dataReduceProdShapeList =
+            rewriter.create<Torch::PrimListConstructOp>(
+                binder.getLoc(),
+                rewriter.getType<Torch::ListType>(
+                    rewriter.getType<Torch::IntType>()),
+                dataReduceProdShape);
+        rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(
+            binder.op, resultType, dataReduceProd, dataReduceProdShapeList);
+        return success();
+      });
+  patterns.onOp(
       "Range", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         // ONNX.Range(start, limit, delta) -- limit is exclusive
 
