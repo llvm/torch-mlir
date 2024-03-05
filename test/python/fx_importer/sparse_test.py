@@ -160,7 +160,6 @@ def sparse_jit(f, *args, **kwargs):
     xargs = []
     for a in args:
         if a.layout is torch.sparse_coo:
-            xargs.append(a.values().numpy())
             # Construct the additional position array required by MLIR with data
             # array([0, nnz]).
             xargs.append(torch.tensor([0, a._nnz()], dtype=a.indices().dtype).numpy())
@@ -168,14 +167,15 @@ def sparse_jit(f, *args, **kwargs):
             # MLIR SoA COO representation.
             for idx in a.indices():
                 xargs.append(idx.numpy())
-        elif a.layout is torch.sparse_csr or a.layout is torch.sparse_bsr:
             xargs.append(a.values().numpy())
+        elif a.layout is torch.sparse_csr or a.layout is torch.sparse_bsr:
             xargs.append(a.crow_indices().numpy())
             xargs.append(a.col_indices().numpy())
-        elif a.layout is torch.sparse_csc or a.layout is torch.sparse_bsc:
             xargs.append(a.values().numpy())
+        elif a.layout is torch.sparse_csc or a.layout is torch.sparse_bsc:
             xargs.append(a.ccol_indices().numpy())
             xargs.append(a.row_indices().numpy())
+            xargs.append(a.values().numpy())
         else:
             xargs.append(a.numpy())
     # Invoke.
