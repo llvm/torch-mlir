@@ -351,8 +351,8 @@ def test_sparse_eltwise():
     )
 
     # This yields a **batched** CSR.
-    sparse_input = dense_input.to_sparse_csr(dense_dim=0)
-    m = export_and_import(net, sparse_input)
+    batch_input = dense_input.to_sparse_csr(dense_dim=0)
+    m = export_and_import(net, batch_input)
     print(m)
 
     # This yields a plain CSR with dense **sub**tensor
@@ -364,15 +364,12 @@ def test_sparse_eltwise():
     #
     # TODO: note several issues that need to be fixed
     #  (1) since we do not propagate sparsity into elt-wise, MLIR returns dense result
-    sparse_input = dense_input.to_sparse_csr(dense_dim=1)
     res1 = net(sparse_input)
     res2 = sparse_jit(net, sparse_input)
+    res3 = sparse_jit(net, batch_input)
     print("torch.sparse")
     print(res1)
     print("torch.mlir")
     print(res2)
-
-    batch_input = dense_input.to_sparse_csr(dense_dim=0)
-    res2 = sparse_jit(net, batch_input)
     print("torch.mlir.batch")
-    print(res2)
+    print(res3)
