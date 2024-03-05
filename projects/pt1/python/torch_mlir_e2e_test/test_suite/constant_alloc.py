@@ -768,6 +768,26 @@ def OnesLikeModule_falsePinMemory(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ConstantBoolean(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None
+    ])
+    def forward(self):
+        return torch.asarray([True, False, False, True, True], dtype=torch.bool)
+
+
+@register_test_case(module_factory=lambda: ConstantBoolean())
+def ConstantBoolean_basic(module, tu: TestUtils):
+    module.forward()
+
+# ==============================================================================
+
+
 class NewZerosModuleDefaultDtype(torch.nn.Module):
 
     def __init__(self):
