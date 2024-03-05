@@ -315,15 +315,24 @@ def is_builtin_function_or_method(obj: Any) -> bool:
     return isinstance(obj, (BuiltinMethodType, BuiltinFunctionType))
 
 
-@dataclass(frozen=True, slots=True)
+# TODO: switch back to `slots=True` when py3.9 support is dropped
+@dataclass(frozen=True)
 class InputInfo:
     """Provides additional metadata when resolving inputs."""
+
+    __slots__ = [
+        "program",
+        "input_spec",
+        "node",
+        "ir_type",
+        "mutable_producer_node_name",
+    ]
 
     program: torch.export.ExportedProgram
     input_spec: TypingInputSpec
     node: Node
     ir_type: IrType
-    mutable_producer_node_name: Optional[str] = None
+    mutable_producer_node_name: Optional[str]
 
 
 class FxImporterHooks:
@@ -546,7 +555,13 @@ class FxImporter:
                 node_ir_type = self._cc.node_val_to_type(node, mutable=False)
                 parameter_bindings[node] = (
                     value,
-                    InputInfo(prog, input_spec, node=node, ir_type=node_ir_type),
+                    InputInfo(
+                        prog,
+                        input_spec,
+                        node=node,
+                        ir_type=node_ir_type,
+                        mutable_producer_node_name=None,
+                    ),
                 )
             elif input_spec.kind == InputKind.BUFFER and isinstance(
                 arg, TensorArgument
