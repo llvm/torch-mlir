@@ -315,6 +315,7 @@ def is_builtin_function_or_method(obj: Any) -> bool:
     return isinstance(obj, (BuiltinMethodType, BuiltinFunctionType))
 
 
+# TODO: switch back to `slots=True` when py3.9 support is dropped
 @dataclass(frozen=True)
 class InputInfo:
     """Provides additional metadata when resolving inputs."""
