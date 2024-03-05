@@ -1479,15 +1479,6 @@ ONNX_XFAIL_SET = {
     "VarBiasedModule_basic",
     "VarMeanBiasedModule_basic",
 
-    # Failure - constant int lowering
-    "SplitTensorGetItem_Module_basic",
-    "SplitTensorLastSmallerModule_basic",
-    "SplitTensorListUnpackModule_basic",
-    "SplitTensorNegativeDimModule_basic",
-    "SplitWithSizesListUnpackModule_basic",
-    "UnbindIntGetItem_Module_basic",
-    "UnbindIntListUnpack_Module_basic",
-
     # Failure - incorrect numerics
     "AdaptiveAvgPool1dUnitOutputSizeDynamicModule_basic",
     "AdaptiveAvgPool2dUnitOutputSizeDynamicModule_basic",
