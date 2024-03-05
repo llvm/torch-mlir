@@ -908,7 +908,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   return success();
                 });
   patterns.onOp(
-      "Pad", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Pad", 19, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value data, pads, axes;
         std::string mode;
