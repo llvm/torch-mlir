@@ -772,7 +772,7 @@ class DecomposeAtenSplitWithSizesOp
     int64_t rank = selfTy.getSizes().size();
     auto resultTy = dyn_cast<Torch::ListType>(op.getResult().getType());
     if (!resultTy)
-      return rewriter.notifyMatchFailure(op, "Result tpe not a list");
+      return rewriter.notifyMatchFailure(op, "Result type not a list");
 
     auto sliceTy =
         dyn_cast_or_null<Torch::BaseTensorType>(resultTy.getContainedType());
