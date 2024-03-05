@@ -1510,9 +1510,6 @@ ONNX_XFAIL_SET = {
     "BroadcastToModule_basic",
     "ExpandModule_basic",
     "MoveDimIntNegativeIndexModule_basic",
-    "ReduceAmaxKeepDim_basic",
-    "ReduceMaxKeepDimReturnBoth_basic",
-    "ReduceMaxNegativeDim_basic",
     "ViewSizeFromOtherTensor_basic",
 
     # Failure - onnx_export
@@ -2115,17 +2112,7 @@ ONNX_XFAIL_SET = {
     "TriuBroadcastModule_basic",
     "TriuModule_basic",
 
-    # Failure - rankless return
-    "ReduceAmaxMultiDim_basic",
-    "ReduceAmaxOutOfOrderDim_basic",
-    "ReduceAmaxSingleDim_basic",
-    "ReduceMaxAllDims_basic",
-    "ReduceMaxAlongDimNegative_basic",
-    "ReduceMaxAlongDimSignedInt_basic",
-    "ReduceMaxAlongDimUnsignedInt_basic",
-    "ReduceMaxAlongDim_basic",
-    "ReduceMaxFloatModule_basic",
-    "ReduceMaxSignedIntModule_basic",
+    # Failure - incorrect dtype
     "ReduceMaxUnsignedIntModule_basic",
 
     # Failure - torch.aten.view lower
