@@ -619,10 +619,9 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         }
 
         if (binder.op->getNumOperands() == 1) {
-          Value cstNone =
-              rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
-          rewriter.replaceOpWithNewOp<Torch::AtenClampOp>(
-              binder.op, resultType, source, /*min=*/cstNone, /*max=*/cstNone);
+          // Cliping between numeric_limits::lowest() and numeric_limits::max()
+          // is a no-op.
+          rewriter.replaceOp(binder.op, source);
           return success();
         } else if (binder.op->getNumOperands() == 2) {
           rewriter.replaceOpWithNewOp<Torch::AtenClampMinTensorOp>(
