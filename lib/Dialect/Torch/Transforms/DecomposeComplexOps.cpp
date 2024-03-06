@@ -2431,7 +2431,8 @@ public:
     if (!selfTy.hasSizes())
       return rewriter.notifyMatchFailure(op, "input sizes unknown");
 
-    // Materialize out 1 dimensions to broadcast along. This includes materializing out preceding batch dimensions:
+    // Materialize out 1 dimensions to broadcast along. This includes
+    // materializing out preceding batch dimensions:
     for (int i = 0; i < repeatSz; ++i) {
       auto oldSizes = selfTy.getSizes();
       llvm::SmallVector<int64_t> sizes;
@@ -2444,7 +2445,8 @@ public:
         sizes.push_back(oldSizes[j]);
 
       Value dim = rewriter.create<Torch::ConstantIntOp>(loc, squeezeDim);
-      selfTy = rewriter.getType<ValueTensorType>(sizes, selfTy.getOptionalDtype());
+      selfTy =
+          rewriter.getType<ValueTensorType>(sizes, selfTy.getOptionalDtype());
       self = rewriter.create<AtenUnsqueezeOp>(loc, selfTy, self, dim);
     }
 
@@ -2455,13 +2457,14 @@ public:
         continue;
       }
 
-      Value iv = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i * 2 + 1 - batch));
+      Value iv = rewriter.create<ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(i * 2 + 1 - batch));
       Value dim = rewriter.create<AtenSizeIntOp>(loc, self, /*dim=*/iv);
       lengths.push_back(repeats[i]);
       lengths.push_back(dim);
     }
 
-    Value lengthv =  rewriter.create<PrimListConstructOp>(
+    Value lengthv = rewriter.create<PrimListConstructOp>(
         loc, ListType::get(rewriter.getType<IntType>()), lengths);
 
     llvm::SmallVector<int64_t> expandShape(selfTy.getSizes());
@@ -2479,8 +2482,10 @@ public:
       return lhs * rhs;
     };
 
-    BaseTensorType expandTy = rewriter.getType<ValueTensorType>(expandShape, selfTy.getOptionalDtype());
-    Value expand = rewriter.create<AtenBroadcastToOp>(loc, expandTy, self, lengthv);
+    BaseTensorType expandTy = rewriter.getType<ValueTensorType>(
+        expandShape, selfTy.getOptionalDtype());
+    Value expand =
+        rewriter.create<AtenBroadcastToOp>(loc, expandTy, self, lengthv);
 
     for (int i = 0; i < rank; ++i) {
       auto oldShape = expandTy.getSizes();
@@ -2488,19 +2493,23 @@ public:
       int64_t flattenDim = i + batch;
       for (int j = 0; j < flattenDim; ++j)
         newShape.push_back(oldShape[j]);
-      newShape.push_back(mulDim(oldShape[flattenDim], oldShape[flattenDim+1]));
+      newShape.push_back(
+          mulDim(oldShape[flattenDim], oldShape[flattenDim + 1]));
       for (int j = flattenDim + 2, s = oldShape.size(); j < s; ++j)
         newShape.push_back(oldShape[j]);
 
-      expandTy = rewriter.getType<ValueTensorType>(newShape, expandTy.getOptionalDtype());
+      expandTy = rewriter.getType<ValueTensorType>(newShape,
+                                                   expandTy.getOptionalDtype());
 
       // Used to keep the return type the same on the last flatten:
       expandTy = i < rank - 1 ? expandTy : cast<BaseTensorType>(op.getType());
-      
-      Value start = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(flattenDim));
-      Value end = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(flattenDim+1));
-      expand = rewriter.create<AtenFlattenUsingIntsOp>(
-        loc, expandTy, expand, start, end);
+
+      Value start = rewriter.create<ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(flattenDim));
+      Value end = rewriter.create<ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(flattenDim + 1));
+      expand = rewriter.create<AtenFlattenUsingIntsOp>(loc, expandTy, expand,
+                                                       start, end);
     }
 
     rewriter.replaceOp(op, expand);
