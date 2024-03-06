@@ -2515,13 +2515,13 @@ public:
                           ->convertType(op.getResult().getType())
                           .cast<RankedTensorType>();
     SmallVector<Value> resultSize{};
-    if(resultType.isDynamicDim(0))
+    if (resultType.isDynamicDim(0))
       resultSize.push_back(rewriter.create<tensor::DimOp>(loc, input, 0));
-    if(resultType.isDynamicDim(1))
+    if (resultType.isDynamicDim(1))
       resultSize.push_back(rewriter.create<tensor::DimOp>(loc, input, 1));
-    if(resultType.isDynamicDim(2))
+    if (resultType.isDynamicDim(2))
       resultSize.push_back(rewriter.create<tensor::DimOp>(loc, grid, 1));
-    if(resultType.isDynamicDim(3))
+    if (resultType.isDynamicDim(3))
       resultSize.push_back(rewriter.create<tensor::DimOp>(loc, grid, 2));
     Value resultFinal =
         rewriter.create<tensor::EmptyOp>(loc, resultType, resultSize);
