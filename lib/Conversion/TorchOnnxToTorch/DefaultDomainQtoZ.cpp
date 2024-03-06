@@ -1981,6 +1981,52 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         return success();
       });
   patterns.onOp(
+      "Size", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        Value repeatDims;
+        if (binder.tensorOperand(operand) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        auto loc = binder.getLoc();
+        auto &op = binder.op;
+        auto operandTy = cast<Torch::BaseTensorType>(operand.getType());
+
+        if (!operandTy.hasSizes())
+          return rewriter.notifyMatchFailure(op, "input rank unknown");
+
+        llvm::SmallVector<Value> dims;
+        int64_t rank = operandTy.getSizes().size();
+        for (int i = 0; i < rank; ++i) {
+          auto iv = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(i));
+          Value dim = rewriter.create<Torch::AtenSizeIntOp>(
+              loc, rewriter.getType<Torch::IntType>(), operand, iv);
+          dims.push_back(dim);
+        }
+
+        Value cstFalse =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+
+        if (dims.empty()) {
+          Value one = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(1));
+          rewriter.replaceOpWithNewOp<Torch::AtenTensorIntOp>(
+              op, resultType, one, none, none, cstFalse);
+          return success();
+        }
+
+        Value prod = dims[0];
+        for (int i = 1, s = dims.size(); i < s; ++i)
+          prod = rewriter.create<Torch::AtenMulIntOp>(loc, prod, dims[i]);
+
+        rewriter.replaceOpWithNewOp<Torch::AtenTensorIntOp>(
+            op, resultType, prod, none, none, cstFalse);
+        return success();
+      });
+  patterns.onOp(
       "Tile", 6, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value operand;
