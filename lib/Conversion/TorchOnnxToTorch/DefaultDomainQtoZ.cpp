@@ -1984,7 +1984,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       "Size", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value operand;
-        Value repeatDims;
         if (binder.tensorOperand(operand) ||
             binder.tensorResultType(resultType))
           return failure();
