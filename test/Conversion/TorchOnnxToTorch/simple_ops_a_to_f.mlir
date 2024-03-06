@@ -1409,6 +1409,25 @@ func.func @dense_constant() -> () attributes {torch.onnx_meta.ir_version = 8 : s
 
 // -----
 
+// CHECK-LABEL: @dense_constant_i1
+func.func @dense_constant_i1() -> !torch.vtensor<[5],i1> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 17 : si64} {
+  // CHECK: %[[CST:.+]] = torch.vtensor.literal(dense<[true, false, false, true, true]> : tensor<5xi1>) : !torch.vtensor<[5],i1> 
+  // CHECK: return %[[CST]] : !torch.vtensor<[5],i1> 
+  %0 = torch.operator "onnx.Constant"() {torch.onnx.value = dense_resource<_> : tensor<5xi1>} : () -> !torch.vtensor<[5],i1> 
+  return %0 : !torch.vtensor<[5],i1>
+}
+
+{-#
+  dialect_resources: {
+    builtin: {
+      _: "0x080000000100000101"
+    }
+  }
+#-}
+
+// -----
+
+
 // CHECK-LABEL: @test_flatten_4d_axis_2
 func.func @test_flatten_4d_axis_2(%arg0: !torch.vtensor<[2,3,4,5],f32>) -> !torch.vtensor<[6,20],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK-DAG: %[[RIGHT_START:.*]] = torch.constant.int 2

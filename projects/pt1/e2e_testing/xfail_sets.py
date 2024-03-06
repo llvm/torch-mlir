@@ -20,7 +20,8 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "IscloseStaticModule_basic",
-    "IscloseStaticModuleTrue_basic"
+    "IscloseStaticModuleTrue_basic",
+    "SplitWithSizes_Module_basic",
 }
 
 TORCHDYNAMO_XFAIL_SET = {
@@ -1111,6 +1112,7 @@ TOSA_PASS_SET = {
     "LiftFreshCopyModule_basic",
     "LinalgVectorNormKeepDimModule_basic",
     "LinalgVectorNormModule_basic",
+    "LinalgNormKeepDimModule_basic",
     "MaskedFillScalarDefaultModule_basic",
     "MaskedFillScalarIntValueModule_basic",
     "MaskedFillScalarIntValueStaticModule_basic",
@@ -1477,15 +1479,6 @@ ONNX_XFAIL_SET = {
     "StdBiasedModule_basic",
     "VarBiasedModule_basic",
     "VarMeanBiasedModule_basic",
-
-    # Failure - constant int lowering
-    "SplitTensorGetItem_Module_basic",
-    "SplitTensorLastSmallerModule_basic",
-    "SplitTensorListUnpackModule_basic",
-    "SplitTensorNegativeDimModule_basic",
-    "SplitWithSizesListUnpackModule_basic",
-    "UnbindIntGetItem_Module_basic",
-    "UnbindIntListUnpack_Module_basic",
 
     # Failure - incorrect numerics
     "AdaptiveAvgPool1dUnitOutputSizeDynamicModule_basic",
@@ -1893,6 +1886,8 @@ ONNX_XFAIL_SET = {
     "ScatterReduceIntSumModuleIncludeSelf",
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
+    "LinalgNormKeepDimModule_basic",
+    "LinalgNormModule_basic",
 
     # Failure - onnx_lowering: onnx.AveragePool
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
