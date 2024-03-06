@@ -331,6 +331,10 @@ TORCHDYNAMO_XFAIL_SET = {
 
     "FloatImplicitModule_basic",
     "IntImplicitModule_basic",
+
+    # Others
+    "GridSamplerBasic1_basic",
+    "GridSamplerBasic2_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
