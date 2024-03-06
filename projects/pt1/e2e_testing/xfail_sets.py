@@ -2142,7 +2142,6 @@ ONNX_XFAIL_SET = {
     "IndexTensorMultiInputThreeIndexers_basic",
     "IndexTensorMultiInput_basic",
     "IndexTensorStaticContiguousWithNoneModule_basic",
-    "RepeatModule_basic",
     "SelectIntModule_basic",
     "SliceSingleIdxModule_basic",
     "ViewFlattenAndExpandModule_basic",
