@@ -11,7 +11,7 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
-class GridSamplerBasic(torch.nn.Module):
+class GridSamplerBasic1(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -19,22 +19,24 @@ class GridSamplerBasic(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([4, 10, 10, 4], torch.float32, True),
-        ([4, 6, 8, 2], torch.float32, True)
+        ([7, 8, 12, 4], torch.float32, True),
+        ([7, 11, 13, 2], torch.float32, True)
     ])
     def forward(self, x, g):
         interpolation_mode=0,
         padding_mode=0,
         align_corners=True,
-        tRes = torch.ops.aten.grid_sampler(x, g, interpolation_mode[0], padding_mode[0], align_corners[0])
-        #print(tRes)
-        return 1
-    
+        tRes = torch.ops.aten.grid_sampler(x, g, interpolation_mode[0],
+                                           padding_mode[0], align_corners[0])
+        return tRes
+
 @register_test_case(
-    module_factory=lambda: GridSamplerBasic())
-def GridSamplerBasic_basic(
+    module_factory=lambda: GridSamplerBasic1())
+def GridSamplerBasic1_basic(
         module, tu: TestUtils):
-    module.forward(tu.rand(4, 10, 10, 4), tu.rand(4,6,8,2,low=-1.0, high=1.0))
+    inp = torch.rand(7,8,12,4)
+    grd = torch.rand(7,11,13,2)*2-1
+    module.forward(inp, grd)
 
 
 class GridSamplerBasic2(torch.nn.Module):
@@ -46,15 +48,15 @@ class GridSamplerBasic2(torch.nn.Module):
     @annotate_args([
         None,
         ([1, 1, 4, 4], torch.float32, True),
-        ([1, 1, 3, 2], torch.float32, True),
-        ([1, 1, 1, 3], torch.float32, True)
+        ([1, 1, 3, 2], torch.float32, True)
     ])
-    def forward(self, x, g, e):
+    def forward(self, x, g):
         interpolation_mode=0,
         padding_mode=0,
         align_corners=True,
-        tRes = torch.ops.aten.grid_sampler(x, g, interpolation_mode[0], padding_mode[0], align_corners[0])
-        return 1
+        tRes = torch.ops.aten.grid_sampler(x, g, interpolation_mode[0],
+                                           padding_mode[0], align_corners[0])
+        return tRes
 
 @register_test_case(
     module_factory=lambda: GridSamplerBasic2())
@@ -65,27 +67,5 @@ def GridSamplerBasic2_basic(
           [0.4556, 0.6323, 0.3489, 0.4017],
           [0.0223, 0.1689, 0.2939, 0.5185]]]]).type(torch.FloatTensor)
     grd = torch.tensor([[[[-0.3498, -0.8196],[-0.2127,  0.2138],[-0.6515, -0.0513]]]]).type(torch.FloatTensor)
-    exp = torch.tensor([[[[0.72483041723, 0.58586429802, 0.5077060201]]]]).type(torch.FloatTensor)
-    module.forward(inp, grd, exp)
+    module.forward(inp, grd)
 
-
-class GridSamplerBasic3(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([4, 10, 10, 4], torch.float32, True),
-        ([4, 6, 8, 2], torch.float32, True)
-    ])
-    def forward(self, x, g):
-        tRes = torch.nn.functional.grid_sample(x, g, align_corners=True)
-        return tRes
-    
-@register_test_case(
-    module_factory=lambda: GridSamplerBasic3())
-def GridSamplerBasic3_basic(
-        module, tu: TestUtils):
-    module.forward(tu.rand(4, 10, 10, 4), tu.rand(4,6,8,2,low=-1.0, high=1.0))
