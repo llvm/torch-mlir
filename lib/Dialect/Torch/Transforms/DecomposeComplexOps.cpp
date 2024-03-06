@@ -6972,6 +6972,37 @@ public:
 } // namespace
 
 namespace {
+// Decompose AtenLinalgNormOp to AtenLinalgVectorNormOp only
+class DecomposeAtenLinalgNormOp : public OpRewritePattern<AtenLinalgNormOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLinalgNormOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    SmallVector<Value> dimList;
+    if (!getListConstructElements(op.getDim(), dimList)) {
+      return rewriter.notifyMatchFailure(
+          op, "dim should comes from a PrimListConstructOp");
+    }
+    if (dimList.size() != 1) {
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: only dim size of 1 is supported");
+    }
+
+    // default ord value is 2 for vector_norm
+    auto ord = op.getOrd();
+    if (ord.getType().isa<Torch::NoneType>()) {
+      ord = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2));
+    }
+    rewriter.replaceOpWithNewOp<Torch::AtenLinalgVectorNormOp>(
+        op, op.getType(), op.getSelf(), ord, op.getDim(), op.getKeepdim(),
+        op.getDtype());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -7177,6 +7208,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTriuOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgNormOp>(patterns);
     // More specific conv ops
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvTbcOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv1dOp>(patterns);

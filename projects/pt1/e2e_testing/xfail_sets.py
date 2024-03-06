@@ -1112,6 +1112,7 @@ TOSA_PASS_SET = {
     "LiftFreshCopyModule_basic",
     "LinalgVectorNormKeepDimModule_basic",
     "LinalgVectorNormModule_basic",
+    "LinalgNormKeepDimModule_basic",
     "MaskedFillScalarDefaultModule_basic",
     "MaskedFillScalarIntValueModule_basic",
     "MaskedFillScalarIntValueStaticModule_basic",
@@ -1885,6 +1886,8 @@ ONNX_XFAIL_SET = {
     "ScatterReduceIntSumModuleIncludeSelf",
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
+    "LinalgNormKeepDimModule_basic",
+    "LinalgNormModule_basic",
 
     # Failure - onnx_lowering: onnx.AveragePool
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
