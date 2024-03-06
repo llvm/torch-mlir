@@ -2113,7 +2113,7 @@ ONNX_XFAIL_SET = {
     "TriuModule_basic",
 
     # Failure - incorrect dtype
-    "ReduceMaxUnsignedIntModule_basic",
+    "ReduceMaxAlongDimUnsignedInt_basic",
 
     # Failure - torch.aten.view lower
     "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
