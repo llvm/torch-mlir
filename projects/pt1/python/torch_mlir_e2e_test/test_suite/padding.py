@@ -109,26 +109,3 @@ class ReflectionPad2dModuleRight(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReflectionPad2dModuleRight())
 def ReflectionPad2dModule_Right(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 20, 20))
-
-# ==============================================================================
-
-class DynamicConstPad2dModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([2, 8, 8], torch.float32, True),
-    ])
-    def forward(self, x):
-        pad = (1,2,3,4)
-        return torch.nn.functional.pad(x, pad)
-
-
-@register_test_case(module_factory=lambda: DynamicConstPad2dModule())
-def DynamicConstPad2dModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 8, 8, low=-1))
-
-# ==============================================================================

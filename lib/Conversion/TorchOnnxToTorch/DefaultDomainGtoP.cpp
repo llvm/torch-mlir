@@ -938,6 +938,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(binder.op,
                                              "expect 1-d pad tensor");
 
+        int64_t padsSize = padsShape[0];
+        if (padsSize == Torch::kUnknownSize)
+          return rewriter.notifyMatchFailure(binder.op, "pad length is unknown");
+
         Value constantValue;
         if (binder.getNumOperands() >= 3) {
           if (!binder.tensorOperandAtIndex(constantValue, 2)) {
@@ -971,7 +975,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         // Extract all the values of 1-D pad tensor and create a list of all
         // these values as torch.pad op expects pad list.
-        int64_t padsSize = padsShape[0];
         Value constZero = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(0));
         SmallVector<Value> padsTensorValue;
