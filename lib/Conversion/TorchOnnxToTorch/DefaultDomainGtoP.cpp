@@ -693,7 +693,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.f32FloatAttr(beta, "beta", 1.0f) ||
             binder.tensorResultType(resultType))
           return failure();
-        
+
         Value zero = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
@@ -724,11 +724,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         if (binder.getNumOperands() == 2) {
-          rewriter.replaceOpWithNewOp<Torch::AtenMmOp>(binder.op,
-                                                       resultType, a, b);
+          rewriter.replaceOpWithNewOp<Torch::AtenMmOp>(binder.op, resultType, a,
+                                                       b);
           return success();
         }
-        if(binder.tensorOperandAtIndex(c, 2))
+        if (binder.tensorOperandAtIndex(c, 2))
           return failure();
 
         Value mm =
