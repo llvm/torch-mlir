@@ -71,8 +71,8 @@ static Type computeReductionType(PatternRewriter &rewriter, Operation *op,
   }
 
   Type resultType = tensorType.getWithSizesAndDtype(
-      sizes.size() == 0 ? std::optional<ArrayRef<int64_t>>()
-                        : llvm::ArrayRef(sizes),
+      !tensorType.hasSizes() ? std::optional<ArrayRef<int64_t>>()
+                             : llvm::ArrayRef(sizes),
       tensorType.getOptionalDtype());
   return resultType;
 }
