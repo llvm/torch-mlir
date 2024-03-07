@@ -2680,22 +2680,33 @@ ONNX_XFAIL_SET = {
     # Failure - onnx_lowering: onnx.SoftmaxCrossEntropyLoss
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
-    
-    # Failure - onnx_lowering: onnx.Squeeze
-    "SqueezeModule_allUnitDim",
-    "SqueezeModule_broadcast",
-    "SqueezeModule_static",
 
     # RuntimeError: unsupported input type: Device
     "PrimsIotaModule_basic",
-    
+
+    # Failure - incorrect dtype
+    "ReduceMaxAlongDimUnsignedInt_basic",
+    "ElementwiseToDtypeI64ToUI8Module_basic",
+
+    # Failure - torch.aten.view lower
+    "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
+    "IndexTensorDyanmicInputNonContiguousWithNoneModule_basic",
+    "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
+    "IndexTensorMultiInputContiguousCenter_basic",
+    "IndexTensorMultiInputNonContiguousMultipleStaticDims_basic",
+    "IndexTensorMultiInputNonContiguous_basic",
+    "IndexTensorMultiInputOneDim_basic",
+    "IndexTensorMultiInputThreeIndexers_basic",
+    "IndexTensorMultiInput_basic",
+    "IndexTensorMultiInputContiguousOneDimDynamic_basic",
+    "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
+
+    # Failure - torch.aten.mm lower (mixed signedness of qtypes)
+    "QuantizedMLP_basic",
+    "QuantizedSingleLayer_basic",
+
     # Failure - unknown
     "BernoulliModule_basic",
-    "BucketizeTensorFloatModule_basic",
-    "BucketizeTensorModule_basic",
-    "BucketizeTensorOutInt32RightModule_basic",
-    "BucketizeTensorStaticFloatModule_basic",
-    "BucketizeTensorStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "CopyWithDifferentDTypesAndSizesModule_basic",
     "CopyWithDifferentDTypesModule_basic",
@@ -2712,22 +2723,34 @@ ONNX_XFAIL_SET = {
     "ElementwiseErfIntModule_basic",
     "ElementwiseExpIntModule_basic",
     "ElementwiseLogIntModule_basic",
-    "ElementwisePreluModule_basic",
-    "ElementwisePreluStaticModule_basic",
     "ElementwiseSigmoidIntModule_basic",
     "ElementwiseSinIntModule_basic",
     "ElementwiseTanIntModule_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
     "ElementwiseUnaryIntModule_basic",
-    "ElementwiseUnsqueezeNegDimsModule_basic",
-    "GroupNormModule_basic",
+    "EmbeddingModuleF16_basic",
+    "EmbeddingModuleI32_basic",
+    "EmbeddingModuleI64_basic",
+    "FlattenDynamicModule_basic",
+    "GluStaticModule_basic",
+    "IndexTensorHackedTwinModule3dInput_basic",
+    "IndexTensorHackedTwinModule_basic",
+    "IndexTensorModule3dInput_basic",
+    "IndexTensorModule_basic",
+    "IndexTensorSelectDimModule_basic",
     "MaskedFillTensorFloatValueModule_basic",
     "NativeDropoutTrainModule_basic",
     "NativeDropoutTrainStaticShapeModule_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
-    "TensorsStackNegativeDimModule_basic",
-    "TensorsStackPromoteDTypeModule_basic",
+
+    # Failure - "RuntimeError: linalg.cross: inputs dimension 1 must have length 3. Got 1 and 1"
+    "AtenLinalgCrossDynamic_basic",
+
+    # Failure - value not close to golden value (op is incorrectly truncating) 
+    "ElementwiseAtenFloorDivideTensorNegativeModule_basic",
+    "ElementwiseAtenFloorDivideScalarNegativeModule_basic",
+
 }
 
 if torch_version_for_comparison() >= version.parse("2.4.0.dev"):
