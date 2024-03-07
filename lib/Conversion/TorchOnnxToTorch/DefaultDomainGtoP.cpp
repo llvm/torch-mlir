@@ -948,7 +948,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           if (!binder.tensorOperandAtIndex(constantValue, 2)) {
             auto constTy =
                 dyn_cast<Torch::BaseTensorType>(constantValue.getType());
-            if (!constTy | !constTy.hasDtype())
+            if (!constTy || !constTy.hasDtype())
               return rewriter.notifyMatchFailure(
                   binder.op, "constant ty is unsupport type");
 
