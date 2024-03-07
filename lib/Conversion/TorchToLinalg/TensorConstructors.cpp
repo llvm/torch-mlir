@@ -61,10 +61,10 @@ public:
     // Initialize low/high paddings with the dims that should not be padded.
     int64_t noPad = rank - padRank;
     Attribute zero = rewriter.getIndexAttr(0);
-    SmallVector<int64_t, 4> staticLow(noPad, 0);
-    SmallVector<int64_t, 4> staticHigh(noPad, 0);
-    SmallVector<OpFoldResult, 4> lowPad(noPad, zero);
-    SmallVector<OpFoldResult, 4> highPad(noPad, zero);
+    SmallVector<int64_t> staticLow(noPad, 0);
+    SmallVector<int64_t> staticHigh(noPad, 0);
+    SmallVector<OpFoldResult> lowPad(noPad, zero);
+    SmallVector<OpFoldResult> highPad(noPad, zero);
 
     auto tc = getTypeConverter();
 
