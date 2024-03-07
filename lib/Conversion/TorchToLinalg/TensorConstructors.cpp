@@ -45,36 +45,69 @@ public:
     auto type = self.getType().cast<RankedTensorType>();
     int64_t rank = type.getRank();
 
-    // Pattern match against the op's original operands, because otherwise we
-    // will get the lowered version of the operands which is harder to pattern
-    // match.
-    SmallVector<int64_t> padInts;
-    if (!matchPattern(op.getPad(), m_TorchListOfConstantInts(padInts)))
-      return rewriter.notifyMatchFailure(
-          op, "only support constant int pad ranges");
-    uint64_t padRank = padInts.size() / 2;
-    if (padRank * 2 != padInts.size())
+    auto primList = op.getPad().getDefiningOp<Torch::PrimListConstructOp>();
+    if (!primList) {
+      return rewriter.notifyMatchFailure(op, "unable to get pad values");
+    }
+
+    SmallVector<Value> padVals(primList.getOperands());
+
+    uint64_t padRank = padVals.size() / 2;
+    if (padRank * 2 != padVals.size())
       return rewriter.notifyMatchFailure(op, "pad range size is not even");
     if (rank < 0 || padRank > (uint64_t)rank)
       return rewriter.notifyMatchFailure(op, "padding exceeds tensor rank");
 
     // Initialize low/high paddings with the dims that should not be padded.
-    SmallVector<int64_t, 4> lowPadding(/*Size=*/rank - padRank, /*Value=*/0);
-    SmallVector<int64_t, 4> highPadding(/*Size=*/rank - padRank, /*Value=*/0);
+    int64_t noPad = rank - padRank;
+    Attribute zero = rewriter.getIndexAttr(0);
+    SmallVector<int64_t, 4> staticLow(noPad, 0);
+    SmallVector<int64_t, 4> staticHigh(noPad, 0);
+    SmallVector<OpFoldResult, 4> lowPad(noPad, zero);
+    SmallVector<OpFoldResult, 4> highPad(noPad, zero);
+
+    auto tc = getTypeConverter();
+
     // Add the requested padding - note op.pad() is highest dim first ordered
     // pairs of low,high.
     for (uint64_t i = padRank; i > 0; --i) {
-      lowPadding.push_back(padInts[i * 2 - 2]);
-      highPadding.push_back(padInts[i * 2 - 1]);
+      int64_t lowi, highi;
+      Value lowv = padVals[i * 2 - 2];
+      Value highv = padVals[i * 2 - 1];
+      if (!matchPattern(lowv, m_TorchConstantInt(&lowi))) {
+        Type cty = tc->convertType(lowv.getType());
+        lowv = tc->materializeTargetConversion(rewriter, loc, cty, lowv);
+        lowv = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(),
+                                                   lowv);
+        lowPad.push_back(lowv);
+        staticLow.push_back(ShapedType::kDynamic);
+      } else {
+        lowPad.push_back(rewriter.getIndexAttr(lowi));
+        staticLow.push_back(lowi);
+      }
+
+      if (!matchPattern(highv, m_TorchConstantInt(&highi))) {
+        Type cty = tc->convertType(highv.getType());
+        highv = tc->materializeTargetConversion(rewriter, loc, cty, highv);
+        highv = rewriter.create<arith::IndexCastOp>(
+            loc, rewriter.getIndexType(), highv);
+        highPad.push_back(highv);
+        staticHigh.push_back(ShapedType::kDynamic);
+      } else {
+        highPad.push_back(rewriter.getIndexAttr(highi));
+        staticHigh.push_back(highi);
+      }
     }
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
     Type elementType = newResultType.cast<RankedTensorType>().getElementType();
     Value castedValue =
         convertScalarToDtype(rewriter, loc, adaptor.getValue(), elementType);
-    Value paddedInput = torch_to_linalg::getPaddedTensor(
-        op, rewriter, self, lowPadding, highPadding, castedValue);
 
+    Type padType = tensor::PadOp::inferResultType(
+        self.getType().cast<RankedTensorType>(), staticLow, staticHigh);
+    Value paddedInput = rewriter.create<tensor::PadOp>(
+        loc, padType, self, lowPad, highPad, castedValue);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, paddedInput);
     return success();
   }

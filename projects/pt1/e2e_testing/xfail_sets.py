@@ -1962,12 +1962,6 @@ ONNX_XFAIL_SET = {
     "OneHotModule_basic",
 
     # Failure - onnx_lowering: onnx.Pad
-    "ConstantPad2dStaticModule_basic",
-    "ConstantPadNdModule_basic",
-    "ConstantPadNdPartialStaticModule_basic",
-    "ConstantPadNdStaticModule_basic",
-    "PadModule_basic",
-    "PadWithNoneValModule_basic",
     "ReflectionPad1dModule2dInput_Right",
     "ReflectionPad1dModule2dInput_basic",
     "ReflectionPad1dModule3dInput_Left",
