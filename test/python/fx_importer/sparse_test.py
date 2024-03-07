@@ -104,7 +104,7 @@ def sparse_export(
     mask = [a.layout in SPARSE_LAYOUTS for a in args]
     # Build the regular FX traced graph with only dense arguments
     # (the current version would crash otherwise, see issue above).
-    prog = torch.export.export(f, dargs, kwargs, constraints=None)
+    prog = torch.export.export(f, dargs, kwargs)
     # Annotate sparse arguments in the graph. Note that we currently
     # only account for sparsity defined by the user inputs to the model.
     # TODO: support sparsity in model parameters (weights, biases)

@@ -2514,19 +2514,23 @@ public:
     auto resultType = getTypeConverter()
                           ->convertType(op.getResult().getType())
                           .cast<RankedTensorType>();
-    llvm::SmallVector<Value> resultSize{
-        rewriter.create<tensor::DimOp>(loc, input, 0),
-        rewriter.create<tensor::DimOp>(loc, input, 1),
-        rewriter.create<tensor::DimOp>(loc, grid, 1),
-        rewriter.create<tensor::DimOp>(loc, grid, 2)};
+    SmallVector<Value> resultSize{};
+    if (resultType.isDynamicDim(0))
+      resultSize.push_back(rewriter.create<tensor::DimOp>(loc, input, 0));
+    if (resultType.isDynamicDim(1))
+      resultSize.push_back(rewriter.create<tensor::DimOp>(loc, input, 1));
+    if (resultType.isDynamicDim(2))
+      resultSize.push_back(rewriter.create<tensor::DimOp>(loc, grid, 1));
+    if (resultType.isDynamicDim(3))
+      resultSize.push_back(rewriter.create<tensor::DimOp>(loc, grid, 2));
     Value resultFinal =
         rewriter.create<tensor::EmptyOp>(loc, resultType, resultSize);
     auto sGrid = rewriter.create<linalg::GenericOp>(
         loc, TypeRange{resultType}, ValueRange{gridCollapsed0, gridCollapsed1},
         ValueRange(resultFinal), gridMaps, gridIterators,
         [&](OpBuilder &b, Location loc, ValueRange args) {
-          Value gr0 = args[0];
-          Value gr1 = args[1];
+          Value gr0 = args[1];
+          Value gr1 = args[0];
           Value gplus0 = b.create<arith::AddFOp>(loc, gr0, oneFloat);
           Value gplus1 = b.create<arith::AddFOp>(loc, gr1, oneFloat);
           Value result0 = b.create<arith::MulFOp>(loc, gplus0, innerDim0e);
@@ -2571,8 +2575,8 @@ public:
               b.create<arith::SelectOp>(loc, notValid1, zeroFloat, result11a);
           Value lw0a = b.create<arith::SIToFPOp>(loc, floatType, lower0);
           Value lw1a = b.create<arith::SIToFPOp>(loc, floatType, lower1);
-          Value d0 = b.create<arith::SubFOp>(loc, result0, lw0a);
-          Value d1 = b.create<arith::SubFOp>(loc, result1, lw1a);
+          Value d1 = b.create<arith::SubFOp>(loc, result0, lw0a);
+          Value d0 = b.create<arith::SubFOp>(loc, result1, lw1a);
           Value resultScaled0 = lambdaInter(b, loc, result00, result01a, d0);
           Value resultScaled1 = lambdaInter(b, loc, result10a, result11b, d0);
           Value resultScaled =

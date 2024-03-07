@@ -1228,6 +1228,42 @@ def LinalgVectorNormKeepDimModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class LinalgNormModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.linalg_norm(a, ord=None, dim=[0], keepdim=False)
+
+@register_test_case(module_factory=lambda: LinalgNormModule())
+def LinalgNormModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(3, 4, 5))
+
+# ==============================================================================
+
+class LinalgNormKeepDimModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.linalg_norm(a, ord=None, dim=[0], keepdim=True)
+
+@register_test_case(module_factory=lambda: LinalgNormKeepDimModule())
+def LinalgNormKeepDimModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(3, 4, 5))
+
+# ==============================================================================
+
 class MseLossNoReductionModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

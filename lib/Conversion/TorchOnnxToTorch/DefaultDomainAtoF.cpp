@@ -728,9 +728,19 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           }
 
           auto ty = cast<ShapedType>(attr.getType());
+          ElementsAttr denseAttr;
           auto ptr = attr.getRawHandle().getBlob()->getData();
-          DenseElementsAttr denseAttr =
-              DenseElementsAttr::getFromRawBuffer(ty, ptr);
+          if (cast<ShapedType>(attr.getType()).getElementType().isInteger(1)) {
+            llvm::SmallVector<APInt> newContents;
+            for (auto val : ptr) {
+              APInt apval(1, val);
+              newContents.push_back(apval);
+            }
+            denseAttr = DenseElementsAttr::get(ty, newContents);
+          } else {
+            denseAttr = DenseElementsAttr::getFromRawBuffer(ty, ptr);
+          }
+
           rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
               binder.op, resultType, denseAttr);
           return success();

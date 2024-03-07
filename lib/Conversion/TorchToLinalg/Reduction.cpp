@@ -87,6 +87,7 @@ public:
       return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
 
     Type inElementType = inputType.getElementType();
+    bool isUnsigned = false;
     if (!inElementType.isa<mlir::FloatType>()) {
       if (inElementType.isa<mlir::IntegerType>()) {
         auto integerTy = op.getSelf()
@@ -94,10 +95,7 @@ public:
                              .template cast<BaseTensorType>()
                              .getDtype()
                              .template dyn_cast<mlir::IntegerType>();
-        if (integerTy.isUnsigned())
-          return rewriter.notifyMatchFailure(
-              op, opName + " to linalg.* requires input element type "
-                           "to be signed in case of integer");
+        isUnsigned = integerTy.isUnsigned();
       } else {
         return rewriter.notifyMatchFailure(
             op, opName + " to linalg.* requires Float or Integer "
@@ -130,10 +128,15 @@ public:
               APFloat::getInf(
                   inElementType.cast<mlir::FloatType>().getFloatSemantics(),
                   /*Negative=*/isMax)));
-    } else {
+    } else if (!isUnsigned) {
       auto width = inElementType.cast<mlir::IntegerType>().getWidth();
       auto init = isMax ? APSInt::getSignedMinValue(width)
                         : APSInt::getSignedMaxValue(width);
+      fillValue = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getIntegerAttr(inElementType, init));
+    } else if (isUnsigned) {
+      auto width = inElementType.cast<mlir::IntegerType>().getWidth();
+      auto init = isMax ? APInt::getMinValue(width) : APInt::getMaxValue(width);
       fillValue = rewriter.create<arith::ConstantOp>(
           loc, rewriter.getIntegerAttr(inElementType, init));
     }
@@ -193,13 +196,25 @@ public:
           } else {
             arith::CmpIPredicate predType;
             if (isMax) {
-              predType = arith::CmpIPredicate::sgt;
-              resultVal = rewriter.create<arith::MaxSIOp>(nestedLoc, newValue,
-                                                          oldValue);
+              predType = isUnsigned ? arith::CmpIPredicate::ugt
+                                    : arith::CmpIPredicate::sgt;
+              if (isUnsigned) {
+                resultVal = rewriter.create<arith::MaxUIOp>(nestedLoc, newValue,
+                                                            oldValue);
+              } else {
+                resultVal = rewriter.create<arith::MaxSIOp>(nestedLoc, newValue,
+                                                            oldValue);
+              }
             } else {
-              predType = arith::CmpIPredicate::slt;
-              resultVal = rewriter.create<arith::MinSIOp>(nestedLoc, newValue,
-                                                          oldValue);
+              predType = isUnsigned ? arith::CmpIPredicate::ult
+                                    : arith::CmpIPredicate::slt;
+              if (isUnsigned) {
+                resultVal = rewriter.create<arith::MinUIOp>(nestedLoc, newValue,
+                                                            oldValue);
+              } else {
+                resultVal = rewriter.create<arith::MinSIOp>(nestedLoc, newValue,
+                                                            oldValue);
+              }
             }
             predicate = rewriter.create<arith::CmpIOp>(nestedLoc, predType,
                                                        newValue, oldValue);

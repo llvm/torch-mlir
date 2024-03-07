@@ -20,7 +20,8 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "IscloseStaticModule_basic",
-    "IscloseStaticModuleTrue_basic"
+    "IscloseStaticModuleTrue_basic",
+    "SplitWithSizes_Module_basic",
 }
 
 TORCHDYNAMO_XFAIL_SET = {
@@ -330,6 +331,10 @@ TORCHDYNAMO_XFAIL_SET = {
 
     "FloatImplicitModule_basic",
     "IntImplicitModule_basic",
+
+    # Others
+    "GridSamplerBasic1_basic",
+    "GridSamplerBasic2_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -1111,6 +1116,7 @@ TOSA_PASS_SET = {
     "LiftFreshCopyModule_basic",
     "LinalgVectorNormKeepDimModule_basic",
     "LinalgVectorNormModule_basic",
+    "LinalgNormKeepDimModule_basic",
     "MaskedFillScalarDefaultModule_basic",
     "MaskedFillScalarIntValueModule_basic",
     "MaskedFillScalarIntValueStaticModule_basic",
@@ -1478,15 +1484,6 @@ ONNX_XFAIL_SET = {
     "VarBiasedModule_basic",
     "VarMeanBiasedModule_basic",
 
-    # Failure - constant int lowering
-    "SplitTensorGetItem_Module_basic",
-    "SplitTensorLastSmallerModule_basic",
-    "SplitTensorListUnpackModule_basic",
-    "SplitTensorNegativeDimModule_basic",
-    "SplitWithSizesListUnpackModule_basic",
-    "UnbindIntGetItem_Module_basic",
-    "UnbindIntListUnpack_Module_basic",
-
     # Failure - incorrect numerics
     "AdaptiveAvgPool1dUnitOutputSizeDynamicModule_basic",
     "AdaptiveAvgPool2dUnitOutputSizeDynamicModule_basic",
@@ -1518,9 +1515,6 @@ ONNX_XFAIL_SET = {
     "BroadcastToModule_basic",
     "ExpandModule_basic",
     "MoveDimIntNegativeIndexModule_basic",
-    "ReduceAmaxKeepDim_basic",
-    "ReduceMaxKeepDimReturnBoth_basic",
-    "ReduceMaxNegativeDim_basic",
     "ViewSizeFromOtherTensor_basic",
 
     # Failure - onnx_export
@@ -1893,6 +1887,8 @@ ONNX_XFAIL_SET = {
     "ScatterReduceIntSumModuleIncludeSelf",
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
+    "LinalgNormKeepDimModule_basic",
+    "LinalgNormModule_basic",
 
     # Failure - onnx_lowering: onnx.AveragePool
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
@@ -2115,18 +2111,8 @@ ONNX_XFAIL_SET = {
     "TriuBroadcastModule_basic",
     "TriuModule_basic",
 
-    # Failure - rankless return
-    "ReduceAmaxMultiDim_basic",
-    "ReduceAmaxOutOfOrderDim_basic",
-    "ReduceAmaxSingleDim_basic",
-    "ReduceMaxAllDims_basic",
-    "ReduceMaxAlongDimNegative_basic",
-    "ReduceMaxAlongDimSignedInt_basic",
+    # Failure - incorrect dtype
     "ReduceMaxAlongDimUnsignedInt_basic",
-    "ReduceMaxAlongDim_basic",
-    "ReduceMaxFloatModule_basic",
-    "ReduceMaxSignedIntModule_basic",
-    "ReduceMaxUnsignedIntModule_basic",
 
     # Failure - torch.aten.view lower
     "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
@@ -2139,7 +2125,6 @@ ONNX_XFAIL_SET = {
     "IndexTensorMultiInputThreeIndexers_basic",
     "IndexTensorMultiInput_basic",
     "IndexTensorStaticContiguousWithNoneModule_basic",
-    "RepeatModule_basic",
     "SelectIntModule_basic",
     "SliceSingleIdxModule_basic",
     "ViewFlattenAndExpandModule_basic",
@@ -2174,7 +2159,6 @@ ONNX_XFAIL_SET = {
     "ElementwiseTanIntModule_basic",
     "ElementwiseUnaryIntModule_basic",
     "ElementwiseUnsqueezeNegDimsModule_basic",
-    "ElementwiseWhereScalarModule_basic",
     "EmbeddingModuleF16_basic",
     "EmbeddingModuleI32_basic",
     "EmbeddingModuleI64_basic",
@@ -2198,6 +2182,12 @@ ONNX_XFAIL_SET = {
     "TensorsStackNegativeDimModule_basic",
     "TensorsStackPromoteDTypeModule_basic",
 }
+
+if torch_version_for_comparison() < version.parse("2.3.0.dev"):
+    ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
+        # ERROR: dtype (torch.float64) is not equal to golden dtype (torch.float32)
+        "ElementwiseWhereScalarModule_basic",
+    }
 
 ONNX_CRASHING_SET = { }
 

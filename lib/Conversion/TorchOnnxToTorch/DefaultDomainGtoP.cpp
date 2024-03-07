@@ -93,7 +93,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         return success();
       });
   patterns.onOp(
-      "GridSample", 20,
+      "GridSample", 17,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value input;
@@ -140,9 +140,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (binder.s64IntegerAttr(align, "align_corners", 0))
           return rewriter.notifyMatchFailure(binder.op,
                                              "align_corners bind failure");
-        if (align != 0)
+        if (align != 1)
           return rewriter.notifyMatchFailure(
-              binder.op, "currently only align_corners : 0 supported");
+              binder.op, "currently only align_corners = 1 supported");
 
         Value interpolationMode = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),

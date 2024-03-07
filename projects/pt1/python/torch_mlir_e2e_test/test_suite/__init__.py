@@ -61,3 +61,4 @@ def register_all_tests():
     from . import stats
     from . import padding
     from . import diagonal
+    from . import gridsampler
