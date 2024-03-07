@@ -20,7 +20,6 @@ def export_and_import(
     f,
     *args,
     fx_importer: Optional[FxImporter] = None,
-    constraints: Optional[torch.export.Constraint] = None,
     experimental_support_mutation: bool = False,
     hooks: Optional[FxImporterHooks] = None,
     func_name: str = "main",
@@ -31,7 +30,7 @@ def export_and_import(
 
     if fx_importer is None:
         fx_importer = FxImporter(context=context, hooks=hooks)
-    prog = torch.export.export(f, args, kwargs, constraints=constraints)
+    prog = torch.export.export(f, args, kwargs)
     decomp_table = get_decomposition_table()
     prog = prog.run_decompositions(decomp_table)
     if experimental_support_mutation:
