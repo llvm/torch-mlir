@@ -109,5 +109,3 @@ class ReflectionPad2dModuleRight(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReflectionPad2dModuleRight())
 def ReflectionPad2dModule_Right(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 20, 20))
-
-# ==============================================================================
