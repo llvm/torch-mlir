@@ -1920,14 +1920,6 @@ ONNX_XFAIL_SET = {
     "EinsumStaticFourDimensionModule_basic",
     "EinsumStaticModule_basic",
 
-    # Failure - onnx_lowering: onnx.Gemm
-    "AtenMmFloatTypes_basic",
-    "AtenMmIntTypes_basic",
-    "MmDagModule_basic",
-    "MmModule_basic",
-    "MmModule_chained",
-    "MmTanhModule_basic",
-
     # Failure - onnx_lowering: onnx.HardSwish
     "HardswishModule_basic",
     "HardswishRandomModule_basic",

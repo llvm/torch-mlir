@@ -687,7 +687,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         int64_t transA, transB;
         if (binder.tensorOperandAtIndex(a, 0) ||
             binder.tensorOperandAtIndex(b, 1) ||
-            binder.tensorOperandAtIndex(c, 2) ||
             binder.s64IntegerAttr(transA, "transA", 0) ||
             binder.s64IntegerAttr(transB, "transB", 0) ||
             binder.f32FloatAttr(alpha, "alpha", 1.0f) ||
@@ -723,6 +722,16 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (transB) {
           b = transpose(b);
         }
+
+        if (binder.getNumOperands() == 2) {
+          rewriter.replaceOpWithNewOp<Torch::AtenMmOp>(binder.op, resultType, a,
+                                                       b);
+          return success();
+        }
+
+        if (binder.tensorOperandAtIndex(c, 2))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Expected either 2 or 3 inputs");
 
         Value mm =
             rewriter.create<Torch::AtenMmOp>(binder.getLoc(), resultType, a, b);
