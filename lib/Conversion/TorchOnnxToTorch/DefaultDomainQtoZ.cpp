@@ -2005,8 +2005,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           dims.push_back(dim);
         }
 
-        Value cstFalse =
-            rewriter.create<Torch::ConstantBoolOp>(loc, false);
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
         Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
 
         if (dims.empty()) {
