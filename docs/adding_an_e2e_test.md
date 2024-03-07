@@ -87,7 +87,7 @@ following order:
 
 1. Shape of input tensor. Use `-1` for dynamic dimensions
 2. Dtype of the input tensor
-3. Boolean representing whether the input tensor [has value semantics](https://github.com/llvm/torch-mlir/blob/ba17a4d6c09b4bbb4ef21b1d8d4a93cb056be109/python/torch_mlir/jit_ir_importer/csrc/class_annotator.h#L54-L67). This
+3. Boolean representing whether the input tensor [has value semantics](https://github.com/llvm/torch-mlir/blob/main/projects/jit_ir_common/csrc/jit_ir_importer/class_annotator.h#L54-L67). This
    will always be true for E2E tests, since the [Torch-MLIR backend contract](architecture.md#the-backend-contract) requires all tensors in the
    IR to eventually have value semantics.
 
