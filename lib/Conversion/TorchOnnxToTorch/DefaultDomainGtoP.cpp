@@ -940,7 +940,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         int64_t padsSize = padsShape[0];
         if (padsSize == Torch::kUnknownSize)
-          return rewriter.notifyMatchFailure(binder.op, "pad length is unknown");
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "pad length is unknown");
 
         Value constantValue;
         if (binder.getNumOperands() >= 3) {
