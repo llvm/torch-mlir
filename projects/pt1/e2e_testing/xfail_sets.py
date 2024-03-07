@@ -1889,7 +1889,6 @@ ONNX_XFAIL_SET = {
     "AvgPool2dStaticModule_basic",
 
     # Failure - onnx_lowering: onnx.Cast
-    "BucketizeTensorOutInt32RightModule_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
     "QuantizedMLP_basic",
 
@@ -2029,11 +2028,6 @@ ONNX_XFAIL_SET = {
     "ElementwiseMishModule_basic",
     "SoftplusModule_basic",
 
-    # Failure - onnx_lowering: onnx.Squeeze
-    "SqueezeModule_allUnitDim",
-    "SqueezeModule_broadcast",
-    "SqueezeModule_static",
-
     # Failure - onnx_lowering: onnx.TopK
     "SortTensorDescending_basic",
     "SortTensorInteger_basic",
@@ -2073,10 +2067,6 @@ ONNX_XFAIL_SET = {
     "ViewSizeDimLedByExpandedOnesModule_basic",
 
     # Failure - unknown
-    "BucketizeTensorFloatModule_basic",
-    "BucketizeTensorModule_basic",
-    "BucketizeTensorStaticFloatModule_basic",
-    "BucketizeTensorStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "CopyWithDifferentDTypesAndSizesModule_basic",
     "CopyWithDifferentDTypesModule_basic",
@@ -2090,18 +2080,15 @@ ONNX_XFAIL_SET = {
     "ElementwiseErfIntModule_basic",
     "ElementwiseExpIntModule_basic",
     "ElementwiseLogIntModule_basic",
-    "ElementwisePreluModule_basic",
     "ElementwiseSigmoidIntModule_basic",
     "ElementwiseSinIntModule_basic",
     "ElementwiseTanIntModule_basic",
     "ElementwiseUnaryIntModule_basic",
-    "ElementwiseUnsqueezeNegDimsModule_basic",
     "EmbeddingModuleF16_basic",
     "EmbeddingModuleI32_basic",
     "EmbeddingModuleI64_basic",
     "FlattenDynamicModule_basic",
     "GluStaticModule_basic",
-    "GroupNormModule_basic",
     "IndexTensorHackedTwinModule3dInput_basic",
     "IndexTensorHackedTwinModule_basic",
     "IndexTensorModule3dInput_basic",
@@ -2115,8 +2102,6 @@ ONNX_XFAIL_SET = {
     "ReduceAllDimFloat_basic",
     "ReduceAllDimInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
-    "TensorsStackNegativeDimModule_basic",
-    "TensorsStackPromoteDTypeModule_basic",
 
     # Failure - "RuntimeError: linalg.cross: inputs dimension 1 must have length 3. Got 1 and 1"
     "AtenLinalgCrossDynamic_basic"
@@ -2125,5 +2110,6 @@ ONNX_XFAIL_SET = {
 ONNX_CRASHING_SET = { 
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
+    "ElementwisePreluModule_basic",
 }
 
