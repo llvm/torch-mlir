@@ -602,38 +602,66 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                   return success();
                 });
   patterns.onOp(
-      "Clip", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Clip", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // https://onnx.ai/onnx/operators/onnx__Clip.html
+
+        // Inputs and outputs must be tensors.
+        Value source;
         Torch::ValueTensorType resultType;
-        if (binder.op->getNumOperands() == 1) {
-          Value source;
-          if (binder.tensorOperand(source) ||
-              binder.tensorResultType(resultType))
+        if (binder.tensorOperandAtIndex(source, 0) ||
+            binder.tensorResultType(resultType)) {
+          return failure();
+        }
+
+        // Min and max can be args (version 11+) or attributes (version 6-).
+        // They default to numeric_limits::lowest() and numeric_limits::max().
+        Value min;
+        Value max;
+        if (binder.op->getNumOperands() >= 2)
+          min = binder.op->getOperand(1);
+        if (binder.op->getNumOperands() == 3)
+          max = binder.op->getOperand(2);
+
+        // Note: attribute versions of the op only support float types.
+        auto resultDtype = resultType.getDtype();
+        if (!min && binder.op->hasAttr("torch.onnx.min")) {
+          float minValue;
+          if (binder.f32FloatAttr(minValue, "min",
+                                  std::numeric_limits<float>::lowest()))
             return failure();
-          Value cstNone =
-              rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
-          rewriter.replaceOpWithNewOp<Torch::AtenClampOp>(
-              binder.op, resultType, source, /*min=*/cstNone, /*max=*/cstNone);
-          return success();
-        } else if (binder.op->getNumOperands() == 2) {
-          Value source, min;
-          if (binder.tensorOperands(source, min) ||
-              binder.tensorResultType(resultType))
+          auto minSplatAttr = SplatElementsAttr::get(
+              resultType.toBuiltinTensor().clone(resultDtype),
+              rewriter.getFloatAttr(resultDtype, minValue));
+          min = rewriter.create<Torch::ValueTensorLiteralOp>(
+              binder.getLoc(), resultType, minSplatAttr);
+        }
+        if (!max && binder.op->hasAttr("torch.onnx.max")) {
+          float maxValue;
+          if (binder.f32FloatAttr(maxValue, "max",
+                                  std::numeric_limits<float>::max()))
             return failure();
-          rewriter.replaceOpWithNewOp<Torch::AtenClampMinTensorOp>(
-              binder.op, resultType, source, /*min=*/min);
-          return success();
-        } else if (binder.op->getNumOperands() == 3) {
-          Value source, min, max;
-          if (binder.tensorOperandAtIndex(source, 0) ||
-              binder.tensorOperandAtIndex(min, 1) ||
-              binder.tensorOperandAtIndex(max, 2) ||
-              binder.tensorResultType(resultType))
-            return failure();
-          rewriter.replaceOpWithNewOp<Torch::AtenClampTensorOp>(
-              binder.op, resultType, source, min, max);
+          auto maxSplatAttr = SplatElementsAttr::get(
+              resultType.toBuiltinTensor().clone(resultDtype),
+              rewriter.getFloatAttr(resultDtype, maxValue));
+          max = rewriter.create<Torch::ValueTensorLiteralOp>(
+              binder.getLoc(), resultType, maxSplatAttr);
+        }
+
+        if (!min && !max) {
+          // Cliping with no limits is a no-op.
+          rewriter.replaceOp(binder.op, source);
           return success();
         }
-        return failure();
+
+        if (!max) {
+          rewriter.replaceOpWithNewOp<Torch::AtenClampMinTensorOp>(
+              binder.op, resultType, source, min);
+          return success();
+        }
+
+        rewriter.replaceOpWithNewOp<Torch::AtenClampTensorOp>(
+            binder.op, resultType, source, min, max);
+        return success();
       });
   patterns.onOp(
       "Concat", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
