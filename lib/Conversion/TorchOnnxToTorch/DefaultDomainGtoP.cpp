@@ -728,8 +728,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                                                        b);
           return success();
         }
+
         if (binder.tensorOperandAtIndex(c, 2))
-          return failure();
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Expected either 2 or 3 inputs");
 
         Value mm =
             rewriter.create<Torch::AtenMmOp>(binder.getLoc(), resultType, a, b);
