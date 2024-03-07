@@ -1400,76 +1400,79 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         rewriter.replaceOp(binder.op, {dropout, mask});
         return success();
       });
-  patterns.onOp("DynamicQuantizeLinear", 11,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Location loc = binder.getLoc();
-                  Value input;
-                  Torch::ValueTensorType resultType, scaleType, zeroPointType;
-                  if (binder.tensorOperand(input) ||
-                      binder.tensorResultTypeAtIndex(resultType, 0)  ||
-                      binder.tensorResultTypeAtIndex(scaleType, 1) ||
-                      binder.tensorResultTypeAtIndex(zeroPointType, 2))
-                    return failure(); 
-                  
-                  // get input element type (f32)
-                  auto inputType = cast<Torch::ValueTensorType>(input.getType());
-                  auto inputDType = inputType.getDtype();
+  patterns.onOp(
+      "DynamicQuantizeLinear", 11,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Location loc = binder.getLoc();
+        Value input;
+        Torch::ValueTensorType resultType, scaleType, zeroPointType;
+        if (binder.tensorOperand(input) ||
+            binder.tensorResultTypeAtIndex(resultType, 0) ||
+            binder.tensorResultTypeAtIndex(scaleType, 1) ||
+            binder.tensorResultTypeAtIndex(zeroPointType, 2))
+          return failure();
 
-                  Value scale, zeroPoint;
+        Value scale, zeroPoint;
 
-                  // scale = ( max(0, max(input)) - min(0, min(input)) ) / 255 
-                  // the max and min below return zero-dim vtensors
-                  SmallVector<int64_t> extremaTensorSizes;
-                  Torch::ValueTensorType extremaTensorType = Torch::ValueTensorType::get(
-                    binder.op->getContext(), llvm::ArrayRef(extremaTensorSizes), inputDType); 
-                  Value inputMax = rewriter.create<Torch::AtenMaxOp>(loc, extremaTensorType, input);
-                  Value inputMin = rewriter.create<Torch::AtenMinOp>(loc, extremaTensorType, input);
-                  inputMax.dump();
-                  inputMin.dump();
-                  Value constantZero = rewriter.create<Torch::ConstantFloatOp>(
-                      loc, rewriter.getF32FloatAttr(0));
-                  Value constantOne = rewriter.create<Torch::ConstantIntOp>(
-                      loc, rewriter.getI64IntegerAttr(1));
-                  constantZero.dump();
-                  Value zeroTensor = createRank0Tensor(rewriter, loc,
-                                                      scaleType, constantZero);
-                  zeroTensor.dump();
-                  Value inputMaxW0 = rewriter.create<Torch::AtenMaximumOp>(loc,scaleType,inputMax,zeroTensor);
-                  Value inputMinW0 = rewriter.create<Torch::AtenMinimumOp>(loc,scaleType,inputMin,zeroTensor);
-                  inputMaxW0.dump();
-                  inputMinW0.dump();  
-                  Value scaleTensor = rewriter.create<Torch::AtenSubTensorOp>(loc,scaleType, inputMaxW0, inputMinW0, constantOne);
-                  scaleTensor.dump();
-                  // hard-coded for ui8
-                  Value width = rewriter.create<Torch::ConstantFloatOp>(
-                    loc, rewriter.getF32FloatAttr(255));
-                  Value widthTensor = createRank0Tensor(rewriter,loc, scaleType, width);
-                  scaleTensor = rewriter.create<Torch::AtenDivTensorOp>(loc, scaleType, scaleTensor, widthTensor);
-                  scaleTensor.dump();
-                  // compute the preZeroPoint = 0 - (inputMin/scale)
-                  // compute the zeroPoint = cast ( round (clip or saturate (preZeroPoint)))
-                  Value preZeroPoint = rewriter.create<Torch::AtenDivTensorOp>(loc, scaleType, inputMin, scaleTensor);
-                  preZeroPoint = rewriter.create<Torch::AtenSubTensorOp>(loc, scaleType, zeroTensor, preZeroPoint, constantOne);
-                  preZeroPoint.dump();
-                  // ok, now how am I supposed to clip/saturate this? 
-                  // What about rounding/casting to uint8?
-                  Type qTy = rewriter.getType<Torch::QUInt8Type>();
-                  auto qTensorTy = rewriter.getType<Torch::ValueTensorType>(
-                      resultType.getOptionalSizes(), qTy);
-                  auto torchqTy = Torch::getScalarTypeForType(qTy);
-                  Value tyConst = rewriter.create<Torch::ConstantIntOp>(
-                      binder.getLoc(), rewriter.getType<Torch::IntType>(),
-                      rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                              static_cast<int64_t>(torchqTy)));
-                  zeroPoint = rewriter.create<Torch::AtenItemOp>(loc, rewriter.getType<Torch::IntType>(), zeroPoint);
-                  scale = rewriter.create<Torch::AtenItemOp>(loc, rewriter.getType<Torch::FloatType>(), scaleTensor);
-                  Value quantizedTensor = rewriter.create<Torch::AtenQuantizePerTensorOp>(loc, qTensorTy, input, scale, zeroPoint, tyConst);
-                  quantizedTensor.dump();
-                  Value output = rewriter.create<Torch::AtenIntReprOp>(loc, resultType, quantizedTensor);
-                  output.dump();
-                  rewriter.replaceOp(binder.op, {output, scale, zeroPoint});
-                  return success();
-                });
+        // scale = ( max(0, max(input)) - min(0, min(input)) ) / 255
+        Value inputMax =
+            rewriter.create<Torch::AtenMaxOp>(loc, scaleType, input);
+        Value inputMin =
+            rewriter.create<Torch::AtenMinOp>(loc, scaleType, input);
+        Value constantZero = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getF64FloatAttr(0));
+        Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(1));
+        Value zeroTensor =
+            createRank0Tensor(rewriter, loc, scaleType, constantZero);
+        Value inputMaxW0 = rewriter.create<Torch::AtenMaximumOp>(
+            loc, scaleType, inputMax, zeroTensor);
+        Value inputMinW0 = rewriter.create<Torch::AtenMinimumOp>(
+            loc, scaleType, inputMin, zeroTensor);
+        Value scaleTensor = rewriter.create<Torch::AtenSubTensorOp>(
+            loc, scaleType, inputMaxW0, inputMinW0, constantOne);
+        // hard-coded for ui8
+        Value width = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getF64FloatAttr(255));
+        Value widthTensor = createRank0Tensor(rewriter, loc, scaleType, width);
+        scaleTensor = rewriter.create<Torch::AtenDivTensorOp>(
+            loc, scaleType, scaleTensor, widthTensor);
+        // compute the preZeroPoint = 0 - (inputMin/scale)
+        // compute the zeroPoint = cast ( round (clip or saturate
+        // (preZeroPoint)))
+        Value preZeroPoint = rewriter.create<Torch::AtenDivTensorOp>(
+            loc, scaleType, inputMin, scaleTensor);
+        preZeroPoint = rewriter.create<Torch::AtenSubTensorOp>(
+            loc, scaleType, zeroTensor, preZeroPoint, constantOne);
+        // saturate to interval [0, 255]
+        preZeroPoint = rewriter.create<Torch::AtenClampOp>(
+            loc, scaleType, preZeroPoint, /*min=*/constantZero, /*max=*/width);
+        // What about rounding/casting to uint8?
+        Type qTy = rewriter.getType<Torch::QUInt8Type>();
+        auto qTensorTy = rewriter.getType<Torch::ValueTensorType>(
+            resultType.getOptionalSizes(), qTy);
+        auto torchqTy = Torch::getScalarTypeForType(qTy);
+        Value tyConst = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                    static_cast<int64_t>(torchqTy)));
+        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+        Value zeroPointTensor = rewriter.create<Torch::AtenToDtypeOp>(
+            loc, zeroPointType, preZeroPoint, tyConst,
+            /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+            /*memory_format=*/none);
+        zeroPoint = rewriter.create<Torch::AtenItemOp>(
+            loc, rewriter.getType<Torch::IntType>(), zeroPointTensor);
+        scale = rewriter.create<Torch::AtenItemOp>(
+            loc, rewriter.getType<Torch::FloatType>(), scaleTensor);
+        Value quantizedTensor = rewriter.create<Torch::AtenQuantizePerTensorOp>(
+            loc, qTensorTy, input, scale, zeroPoint, tyConst);
+        Value output = rewriter.create<Torch::AtenIntReprOp>(loc, resultType,
+                                                             quantizedTensor);
+        rewriter.replaceOp(binder.op, {output, scaleTensor, zeroPointTensor});
+        return success();
+      });
   patterns.onOp("Equal", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
