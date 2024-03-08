@@ -220,8 +220,18 @@ PY_BUILTIN_TO_TORCH_OP = {
     "gt": torch.ops.aten.gt,
 }
 
-# this allows stripping of cuda versions like: "+cu113"
-if torch.__version__.split("+")[0] <= "2.1.0":
+# torch with cuda has a __version__ that looks like  "2.1.0+cu113",
+# so split by + and 0 index will always give the base version
+_IS_TORCH_2_1_OR_EARLIER = torch.__version__.split("+")[0] <= "2.1.0"
+
+# The following are maps from symbolic ops to their non symbolic equivalents.
+# In <=2.1.0, imported fx graphs come with torch.ops.aten.sym_size and a number
+# identifying either default or int for the types we include here. Later
+# versions drop this in favor of torch.ops.aten.sym_size.<type>.
+# Once we drop support for <2.1.0, we can get rid of the the SYMBOLIC_TORCH_OPS
+# set and just check key existence in SYMBOLIC_OP_TO_TORCH_OP
+
+if _IS_TORCH_2_1_OR_EARLIER:
     SYMBOLIC_TORCH_OPS = {
         torch.ops.aten.sym_size,
         torch.ops.aten.sym_stride,
@@ -1230,7 +1240,7 @@ class GraphNodeImporter:
             ), f"Unsupported builtin function for symbolic types: {target} with args {node.args}"
             concrete_target = getattr(torch_op, op_overload)
         else:
-            if torch.__version__.split("+")[0] <= "2.1.0":
+            if _IS_TORCH_2_1_OR_EARLIER:
                 concrete_target = SYMBOLIC_OP_TO_TORCH_OP.get((target, len(node.args)))
             else:
                 concrete_target = SYMBOLIC_OP_TO_TORCH_OP.get(target)
