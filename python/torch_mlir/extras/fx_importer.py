@@ -222,33 +222,33 @@ PY_BUILTIN_TO_TORCH_OP = {
 
 # this allows stripping of cuda versions like: "+cu113"
 if torch.__version__.split("+")[0] <= "2.1.0":
-	SYMBOLIC_TORCH_OPS = {
-		torch.ops.aten.sym_size,
-		torch.ops.aten.sym_stride,
-		torch.ops.aten.sym_numel,
-	}
+    SYMBOLIC_TORCH_OPS = {
+        torch.ops.aten.sym_size,
+        torch.ops.aten.sym_stride,
+        torch.ops.aten.sym_numel,
+    }
 
-	SYMBOLIC_OP_TO_TORCH_OP = {
-		(torch.ops.aten.sym_size, 1): torch.ops.aten.size.default,
-		(torch.ops.aten.sym_size, 2): torch.ops.aten.size.int,
-		(torch.ops.aten.sym_stride, 1): torch.ops.aten.stride.default,
-		(torch.ops.aten.sym_stride, 2): torch.ops.aten.stride.int,
-		(torch.ops.aten.sym_numel, 1): torch.ops.aten.numel.default,
-	}
+    SYMBOLIC_OP_TO_TORCH_OP = {
+        (torch.ops.aten.sym_size, 1): torch.ops.aten.size.default,
+        (torch.ops.aten.sym_size, 2): torch.ops.aten.size.int,
+        (torch.ops.aten.sym_stride, 1): torch.ops.aten.stride.default,
+        (torch.ops.aten.sym_stride, 2): torch.ops.aten.stride.int,
+        (torch.ops.aten.sym_numel, 1): torch.ops.aten.numel.default,
+    }
 else:
-	SYMBOLIC_TORCH_OPS = {
-		torch.ops.aten.sym_size.int,
-		torch.ops.aten.sym_stride.int,
-		torch.ops.aten.sym_numel.default,
-	}
+    SYMBOLIC_TORCH_OPS = {
+        torch.ops.aten.sym_size.int,
+        torch.ops.aten.sym_stride.int,
+        torch.ops.aten.sym_numel.default,
+    }
 
-	SYMBOLIC_OP_TO_TORCH_OP = {
-		torch.ops.aten.sym_size.default: torch.ops.aten.size.default,
-		torch.ops.aten.sym_size.int : torch.ops.aten.size.int,
-		torch.ops.aten.sym_stride.default : torch.ops.aten.stride.default,
-		torch.ops.aten.sym_stride.int : torch.ops.aten.stride.int,
-		torch.ops.aten.sym_numel.default : torch.ops.aten.numel.default,
-	}
+    SYMBOLIC_OP_TO_TORCH_OP = {
+        torch.ops.aten.sym_size.default: torch.ops.aten.size.default,
+        torch.ops.aten.sym_size.int: torch.ops.aten.size.int,
+        torch.ops.aten.sym_stride.default: torch.ops.aten.stride.default,
+        torch.ops.aten.sym_stride.int: torch.ops.aten.stride.int,
+        torch.ops.aten.sym_numel.default: torch.ops.aten.numel.default,
+    }
 
 
 @dataclass(frozen=True)
@@ -639,7 +639,9 @@ class FxImporter:
         node_importer.return_node_values(loc, user_outputs)
         self.symbol_table.insert(func_op)
 
-    def import_frozen_program(self, prog: torch.export.ExportedProgram, func_name: str = "main"):
+    def import_frozen_program(
+        self, prog: torch.export.ExportedProgram, func_name: str = "main"
+    ):
         """Imports a consolidated torch.export.ExportedProgram instance.
 
         If using the new torch.export path (vs a lower level precursor), then this is
@@ -1632,8 +1634,7 @@ class TypeSubclassMap:
 
 # Opaque value to indicate something is empty. Used in cases where 'None'
 # may have a different meaning.
-class EmptyType:
-    ...
+class EmptyType: ...
 
 
 Empty = EmptyType()
