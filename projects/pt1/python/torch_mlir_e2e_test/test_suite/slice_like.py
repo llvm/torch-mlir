@@ -897,3 +897,25 @@ class ChunkListUnpackUnevenDynamic_Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: ChunkListUnpackUnevenDynamic_Module())
 def ChunkListUnpackUnevenDynamic_Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 13, 2))
+
+# ==============================================================================
+
+class SplitWithSizes_Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        split = torch.split(x, [2, 1, 2], dim=0)
+        return split[0], split[1], split[2]
+
+@register_test_case(module_factory=lambda: SplitWithSizes_Module())
+def SplitWithSizes_Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 2, 2))
+
+
+
