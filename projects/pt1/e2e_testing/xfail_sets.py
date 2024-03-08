@@ -1083,7 +1083,6 @@ TOSA_PASS_SET = {
     "ElementwiseToDtypeIdentityModule_basic",
     "ElementwiseUnaryModule_basic",
     "ElementwiseUnsqueezeBroadcastModule_basic",
-    "ElementwiseWhereScalarModule_basic",
     "ElementwiseNanToNumModule_Basic",
     "EmbeddingModule1DIndices_basic",
     "EmbeddingModuleI32Static_basic",
