@@ -225,9 +225,11 @@ PY_BUILTIN_TO_TORCH_OP = {
 _IS_TORCH_2_1_OR_EARLIER = torch.__version__.split("+")[0] <= "2.1.0"
 
 # The following are maps from symbolic ops to their non symbolic equivalents.
-# In <=2.1.0, imported fx graphs come with torch.ops.aten.sym_size and a number
-# identifying either default or int for the types we include here. Later
-# versions drop this in favor of torch.ops.aten.sym_size.<type>.
+# In <=2.1.0, imported fx graphs come with a type inspecific torch.ops.aten.sym_size
+# We identify it using the number of args in the node, 1 being default, 2 being int
+# In the mapping below (torch.aten.sym_size, 2) indicates len(args)=2 therefore
+# map to torch.aten.size.int.
+# Thankfully, newer versions provide a specific torch.ops.aten.sym_size.<type>.
 # Once we drop support for <2.1.0, we can get rid of the the SYMBOLIC_TORCH_OPS
 # set and just check key existence in SYMBOLIC_OP_TO_TORCH_OP
 
