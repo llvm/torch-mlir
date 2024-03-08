@@ -525,3 +525,33 @@ LogicalResult Torch::getTransposedType(BaseTensorType inType, int64_t dimA,
                                                inType.getOptionalDtype());
   return success();
 }
+
+Type Torch::getDefaultAccType(PatternRewriter &rewriter, Type inputType) {
+  if (inputType.isF16())
+    return rewriter.getF32Type();
+  if (inputType.isBF16())
+    return rewriter.getF32Type();
+  if (inputType.isa<Float32Type>())
+    return rewriter.getF32Type();
+  if (inputType.isa<Float64Type>())
+    return rewriter.getF64Type();
+  if (inputType.isFloat8E5M2())
+    return rewriter.getF32Type();
+  if (inputType.isFloat8E4M3FN())
+    return rewriter.getF32Type();
+  if (inputType.isFloat8E5M2FNUZ())
+    return rewriter.getF32Type();
+  if (inputType.isFloat8E4M3FNUZ())
+    return rewriter.getF32Type();
+  if (inputType.isSignedInteger(8))
+    return rewriter.getI64Type();
+  if (inputType.isUnsignedInteger(8))
+    return rewriter.getI64Type();
+  if (inputType.isSignedInteger(16))
+    return rewriter.getI64Type();
+  if (inputType.isSignedInteger(32))
+    return rewriter.getI64Type();
+  if (inputType.isSignedInteger(64))
+    return rewriter.getI64Type();
+  llvm::report_fatal_error("unhandled type for getDefaultAccType");
+}

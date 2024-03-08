@@ -1237,22 +1237,32 @@ public:
 //     softmax = unnorm / sum(unnorm, dim, keepdim = True)
 template <typename OpTy>
 static Value getSoftmaxResult(OpTy op, Value self, Type resultType,
-                              PatternRewriter &rewriter) {
+                              Type accumulatorType, PatternRewriter &rewriter) {
   Location loc = op.getLoc();
   Value dim = op.getDim();
+  if (resultType != accumulatorType)
+    self = convertTensorToDtype(rewriter, loc, self, accumulatorType);
   Value xMax =
       createMaxAlongDimension(rewriter, loc, op, self, dim, /*keepDim=*/true);
+
   if (!xMax)
     return nullptr;
-  Value unNormalized = createTensorSub(rewriter, loc, resultType, self, xMax);
+  Value unNormalized =
+      createTensorSub(rewriter, loc, self.getType(), self, xMax);
   Value unNormalizedExp =
-      rewriter.create<AtenExpOp>(loc, resultType, unNormalized);
+      rewriter.create<AtenExpOp>(loc, self.getType(), unNormalized);
   Value sum = createSumAlongDimension(rewriter, loc, op, unNormalizedExp, dim,
                                       /*keepDim=*/true);
   if (!sum)
     return nullptr;
-  return rewriter.create<AtenDivTensorOp>(loc, resultType, unNormalizedExp,
-                                          sum);
+
+  Value result = rewriter.create<AtenDivTensorOp>(loc, self.getType(),
+                                                  unNormalizedExp, sum);
+  if (resultType != accumulatorType)
+    result = convertTensorToDtype(rewriter, loc, result,
+                                  resultType.cast<BaseTensorType>().getDtype());
+
+  return result;
 }
 
 // Decompose softmax into: exp(x) / sum(exp(x))
@@ -1284,7 +1294,10 @@ public:
           /*non_blocking=*/cstFalse, /*copy=*/cstFalse, /*memory_format=*/none);
     }
 
-    Value result = getSoftmaxResult(op, self, resultTensorType, rewriter);
+    Type accumulatorTensorType = getDefaultAccType(rewriter, resultTensorDtype);
+
+    Value result = getSoftmaxResult(op, self, resultTensorType,
+                                    accumulatorTensorType, rewriter);
     if (!result)
       return failure();
     rewriter.replaceOpWithNewOp<TensorStaticInfoCastOp>(op, op.getType(),
@@ -1329,7 +1342,11 @@ public:
           getDtypeIntValueForType(rewriter, loc, resultTensorDtype),
           /*non_blocking=*/cstFalse, /*copy=*/cstFalse, /*memory_format=*/none);
     }
-    Value result = getSoftmaxResult(op, self, resultTensorType, rewriter);
+
+    Type accumulatorTensorType = getDefaultAccType(rewriter, resultTensorDtype);
+
+    Value result = getSoftmaxResult(op, self, resultTensorType,
+                                    accumulatorTensorType, rewriter);
     if (!result)
       return op.emitError("failed to get softmax result");
     rewriter.replaceOpWithNewOp<TensorStaticInfoCastOp>(op, resultTensorType,
