@@ -42,7 +42,7 @@ func.func @test_gather_nd(%arg0: !torch.vtensor<[3,4,5],f32>, %arg1: !torch.vten
   // CHECK: %[[AXIS:.+]] = torch.constant.int 0
   // CHECK: %[[ZERO:.+]] = torch.constant.int 0
   // CHECK: %[[ONE:.+]] = torch.constant.int 1
-  // CHECK: %[[LT:.+]] = torch.aten.le.Scalar %arg1, %[[ZERO]]
+  // CHECK: %[[LT:.+]] = torch.aten.lt.Scalar %arg1, %[[ZERO]]
   // CHECK: %[[SZ:.+]] = torch.aten.size.int %arg0, %[[AXIS]]
   // CHECK: %[[ADD:.+]] = torch.aten.add.Scalar %arg1, %[[SZ]], %[[ONE]]
   // CHECK: %[[SEL:.+]] = torch.aten.where.self %[[LT]], %[[ADD]], %arg1
@@ -72,7 +72,7 @@ func.func @test_gather_scalar(%arg0: !torch.vtensor<[3,4,5],f32>, %arg1: !torch.
   // CHECK: %[[AXIS:.+]] = torch.constant.int 0
   // CHECK: %[[ZERO:.+]] = torch.constant.int 0
   // CHECK: %[[ONE:.+]] = torch.constant.int 1
-  // CHECK: %[[LT:.+]] = torch.aten.le.Scalar %arg1, %[[ZERO]]
+  // CHECK: %[[LT:.+]] = torch.aten.lt.Scalar %arg1, %[[ZERO]]
   // CHECK: %[[SZ:.+]] = torch.aten.size.int %arg0, %[[AXIS]]
   // CHECK: %[[ADD:.+]] = torch.aten.add.Scalar %arg1, %[[SZ]], %[[ONE]]
   // CHECK: %[[SEL:.+]] = torch.aten.where.self %[[LT]], %[[ADD]], %arg1
