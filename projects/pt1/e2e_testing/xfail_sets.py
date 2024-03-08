@@ -1507,8 +1507,6 @@ ONNX_XFAIL_SET = {
     "ArangeStartOutDtypeModule_basic",
     "ArangeStartOutViewModule_basic",
     "BroadcastDynamicDimModule_basic",
-    "BroadcastToModule_basic",
-    "ExpandModule_basic",
     "MoveDimIntNegativeIndexModule_basic",
     "ViewSizeFromOtherTensor_basic",
 
