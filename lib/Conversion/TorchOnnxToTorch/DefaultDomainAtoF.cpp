@@ -1486,6 +1486,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         preZeroPoint = rewriter.create<Torch::AtenClampOp>(
             loc, scaleType, preZeroPoint, /*min=*/constantZero, /*max=*/width);
         // What about rounding/casting to uint8?
+        preZeroPoint = rewriter.create<Torch::AtenRoundOp>(loc, scaleType,
+                                                           preZeroPoint);
         Type qTy = rewriter.getType<Torch::QUInt8Type>();
         auto qTensorTy = rewriter.getType<Torch::ValueTensorType>(
             resultType.getOptionalSizes(), qTy);
