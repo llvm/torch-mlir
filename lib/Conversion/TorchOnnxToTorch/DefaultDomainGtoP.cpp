@@ -591,7 +591,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value one = rewriter.create<Torch::ConstantIntOp>(
             loc, intTy, rewriter.getI64IntegerAttr(1));
         Value lt =
-            rewriter.create<Torch::AtenLeScalarOp>(loc, boolTy, indices, zero);
+            rewriter.create<Torch::AtenLtScalarOp>(loc, boolTy, indices, zero);
         Value dim =
             rewriter.create<Torch::AtenSizeIntOp>(loc, intTy, data, index);
         Value add = rewriter.create<Torch::AtenAddScalarOp>(loc, indicesTy,

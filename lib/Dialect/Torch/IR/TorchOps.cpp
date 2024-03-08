@@ -1482,6 +1482,197 @@ OpFoldResult AtenEqTensorOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenLeScalarOp
+//===----------------------------------------------------------------------===//
+
+using ComparisonFoldFpOperator = std::function<bool(double, double)>;
+using ComparisonFoldIntOperator = std::function<bool(APInt, APInt, bool)>;
+
+static OpFoldResult comparisonScaleFolder(DenseElementsAttr lhs, Attribute rhs,
+                                          ValueTensorType resultTy,
+                                          ComparisonFoldFpOperator fpFolder,
+                                          ComparisonFoldIntOperator intFolder) {
+  constexpr int64_t kMaxFold = 16;
+  if (!lhs || !rhs || !resultTy)
+    return nullptr;
+  if (!resultTy.hasSizes() || !resultTy.hasDtype())
+    return nullptr;
+
+  for (auto size : resultTy.getSizes())
+    if (size == Torch::kUnknownSize)
+      return nullptr;
+
+  auto ctx = lhs.getContext();
+  auto resultETy = resultTy.getDtype();
+  auto tensorETy = cast<RankedTensorType>(lhs.getType()).getElementType();
+  if (lhs.isSplat()) {
+    if (auto intAttr = dyn_cast<IntegerAttr>(rhs)) {
+      auto unsign = cast<IntegerType>(tensorETy).isUnsigned();
+      auto scalarAP = intAttr.getValue();
+      auto tensorAP = lhs.getSplatValue<IntegerAttr>().getValue();
+      tensorAP = APInt(
+          scalarAP.getBitWidth(),
+          unsign ? tensorAP.getZExtValue() : tensorAP.getSExtValue(), !unsign);
+      auto resultBool = intFolder(tensorAP, scalarAP, unsign);
+      auto resultAP = IntegerAttr::get(IntegerType::get(ctx, 1), resultBool);
+      return DenseElementsAttr::get(resultTy.toBuiltinTensor().clone(resultETy),
+                                    resultAP);
+    }
+
+    if (auto floatAttr = dyn_cast<FloatAttr>(rhs)) {
+      APFloat scalarAP = floatAttr.getValue();
+      APFloat tensorAP = lhs.getSplatValue<FloatAttr>().getValue();
+      auto resultBool =
+          fpFolder(tensorAP.convertToDouble(), scalarAP.convertToDouble());
+      auto resultAP = IntegerAttr::get(IntegerType::get(ctx, 1), resultBool);
+      return DenseElementsAttr::get(resultTy.toBuiltinTensor().clone(resultETy),
+                                    resultAP);
+    }
+    return nullptr;
+  }
+
+  int64_t count = 1;
+  for (auto size : resultTy.getSizes())
+    count *= size;
+
+  if (count > kMaxFold)
+    return nullptr;
+
+  if (auto intAttr = dyn_cast<IntegerAttr>(rhs)) {
+    auto unsign = cast<IntegerType>(tensorETy).isUnsigned();
+    llvm::SmallVector<bool> values;
+    for (auto tensorAP : lhs.getValues<APInt>()) {
+      auto scalarAP = intAttr.getValue();
+      tensorAP = APInt(
+          scalarAP.getBitWidth(),
+          unsign ? tensorAP.getZExtValue() : tensorAP.getSExtValue(), !unsign);
+      auto resultBool = intFolder(tensorAP, scalarAP, unsign);
+      values.push_back(resultBool);
+    }
+    return DenseElementsAttr::get(resultTy.toBuiltinTensor().clone(resultETy),
+                                  values);
+  }
+
+  if (auto floatAttr = dyn_cast<FloatAttr>(rhs)) {
+    llvm::SmallVector<bool> values;
+    for (auto tensorAP : lhs.getValues<APFloat>()) {
+      APFloat scalarAP = floatAttr.getValue();
+      auto resultBool =
+          fpFolder(tensorAP.convertToDouble(), scalarAP.convertToDouble());
+      values.push_back(resultBool);
+    }
+    return DenseElementsAttr::get(resultTy.toBuiltinTensor().clone(resultETy),
+                                  values);
+  }
+
+  return nullptr;
+}
+
+OpFoldResult AtenLeScalarOp::fold(FoldAdaptor adaptor) {
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto other = adaptor.getOther();
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+
+  auto fpFold = [](double lhs, double rhs) -> bool { return lhs <= rhs; };
+
+  auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
+    return unsign ? lhs.ule(rhs) : lhs.sle(rhs);
+  };
+
+  return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenLtScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenLtScalarOp::fold(FoldAdaptor adaptor) {
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto other = adaptor.getOther();
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+
+  auto fpFold = [](double lhs, double rhs) -> bool { return lhs < rhs; };
+
+  auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
+    return unsign ? lhs.ult(rhs) : lhs.slt(rhs);
+  };
+
+  return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenGtScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenGtScalarOp::fold(FoldAdaptor adaptor) {
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto other = adaptor.getOther();
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+
+  auto fpFold = [](double lhs, double rhs) -> bool { return lhs > rhs; };
+
+  auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
+    return unsign ? lhs.ugt(rhs) : lhs.sgt(rhs);
+  };
+
+  return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenGeScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenGeScalarOp::fold(FoldAdaptor adaptor) {
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto other = adaptor.getOther();
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+
+  auto fpFold = [](double lhs, double rhs) -> bool { return lhs >= rhs; };
+
+  auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
+    return unsign ? lhs.uge(rhs) : lhs.sge(rhs);
+  };
+
+  return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenEqScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenEqScalarOp::fold(FoldAdaptor adaptor) {
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto other = adaptor.getOther();
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+
+  auto fpFold = [](double lhs, double rhs) -> bool { return lhs == rhs; };
+
+  auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
+    return lhs.eq(rhs);
+  };
+
+  return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenNeScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenNeScalarOp::fold(FoldAdaptor adaptor) {
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto other = adaptor.getOther();
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+
+  auto fpFold = [](double lhs, double rhs) -> bool { return lhs != rhs; };
+
+  auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
+    return lhs.ne(rhs);
+  };
+
+  return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
+}
+
+//===----------------------------------------------------------------------===//
 // AtenFloorOp
 //===----------------------------------------------------------------------===//
 void AtenFloorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,

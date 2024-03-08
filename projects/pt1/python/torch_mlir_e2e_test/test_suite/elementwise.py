@@ -413,7 +413,7 @@ class ElementwiseWhereScalarModule(torch.nn.Module):
         ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, a):
-        return torch.where(a > 0.5, 4.0, 8.0)
+        return torch.where(a > 0.5, 4.0, 8.0).to(torch.float)
 
 
 @register_test_case(module_factory=lambda: ElementwiseWhereScalarModule())
