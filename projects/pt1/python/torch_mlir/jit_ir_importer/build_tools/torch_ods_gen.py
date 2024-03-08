@@ -301,12 +301,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::le.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::ne.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::div.Scalar : (Tensor, Scalar) -> (Tensor)",
-            "aten::ne.Scalar : (Tensor, Scalar) -> (Tensor)",
-            "aten::eq.Scalar : (Tensor, Scalar) -> (Tensor)",
-            "aten::gt.Scalar : (Tensor, Scalar) -> (Tensor)",
-            "aten::ge.Scalar : (Tensor, Scalar) -> (Tensor)",
-            "aten::lt.Scalar : (Tensor, Scalar) -> (Tensor)",
-            "aten::le.Scalar : (Tensor, Scalar) -> (Tensor)",
             "aten::fmod.Scalar : (Tensor, Scalar) -> (Tensor)",
             "aten::masked_fill.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)",
             "aten::clamp : (Tensor, Scalar?, Scalar?) -> (Tensor)",
@@ -347,6 +341,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit_with_mutating_variants("aten::sub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)", has_canonicalizer=True)
     emit_with_mutating_variants("aten::mul.Scalar : (Tensor, Scalar) -> (Tensor)", has_canonicalizer=True)
     emit_with_mutating_variants("aten::eq.Tensor : (Tensor, Tensor) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::le.Scalar : (Tensor, Scalar) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::lt.Scalar : (Tensor, Scalar) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::gt.Scalar : (Tensor, Scalar) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::ge.Scalar : (Tensor, Scalar) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::eq.Scalar : (Tensor, Scalar) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::ne.Scalar : (Tensor, Scalar) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants("aten::floor : (Tensor) -> (Tensor)", has_canonicalizer=True)
     emit_with_mutating_variants("aten::masked_fill.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
 

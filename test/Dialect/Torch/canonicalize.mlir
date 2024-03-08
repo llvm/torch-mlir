@@ -2708,3 +2708,128 @@ func.func @aten_cat_zero(%arg0 : !torch.vtensor<[4,5,6],f32>, %arg1 : !torch.vte
   %0 = torch.aten.cat %list, %dim : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[4,5,6],f32>
   return %0 : !torch.vtensor<[4,5,6],f32>
 }
+
+// -----
+
+// CHECK-LABEL: @aten_tensor_scalar_lt
+func.func @aten_tensor_scalar_lt() -> (!torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>) {
+  // CHECK: %[[CST:.+]] = torch.vtensor.literal(dense<true> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[CST]], %[[CST]] : !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>
+  %intTensor = torch.vtensor.literal(dense<1> : tensor<4xsi8>) : !torch.vtensor<[4],si8>
+  %fpTensor = torch.vtensor.literal(dense<1.0> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %intScalar = torch.constant.int 2
+  %fpScalar = torch.constant.float 2.0
+  %intBool = torch.aten.lt.Scalar %intTensor, %intScalar : !torch.vtensor<[4],si8>, !torch.int -> !torch.vtensor<[4],i1>
+  %fpBool = torch.aten.lt.Scalar %fpTensor, %fpScalar : !torch.vtensor<[4],f32>, !torch.float -> !torch.vtensor<[4],i1>
+  return %intBool, %fpBool : !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>
+}
+
+
+// -----
+
+// CHECK-LABEL: @aten_tensor_tensor_lt
+func.func @aten_tensor_tensor_lt() -> (!torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>) {
+  // CHECK: %[[UNSIGN:.+]] = torch.vtensor.literal(dense<true> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: %[[SIGNED:.+]] = torch.vtensor.literal(dense<[true, false, false, false]> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[UNSIGN]], %[[SIGNED]], %[[SIGNED]]
+  %intTensor = torch.vtensor.literal(dense<[127, -128, -127, -126]> : tensor<4xsi8>) : !torch.vtensor<[4],si8>
+  %uintTensor = torch.vtensor.literal(dense<[127, 128, 129, 130]> : tensor<4xui8>) : !torch.vtensor<[4],ui8>
+  %fpTensor = torch.vtensor.literal(dense<[127.0, 128.0, 129.0, 130.0]> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %intScalar = torch.constant.int 128
+  %fpScalar = torch.constant.float 128.0
+  %intBool = torch.aten.lt.Scalar %intTensor, %intScalar : !torch.vtensor<[4],si8>, !torch.int -> !torch.vtensor<[4],i1>
+  %uintBool = torch.aten.lt.Scalar %uintTensor, %intScalar : !torch.vtensor<[4],ui8>, !torch.int -> !torch.vtensor<[4],i1>
+  %fpBool = torch.aten.lt.Scalar %fpTensor, %fpScalar : !torch.vtensor<[4],f32>, !torch.float -> !torch.vtensor<[4],i1>
+  return %intBool, %uintBool, %fpBool : !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_tensor_tensor_le
+func.func @aten_tensor_tensor_le() -> (!torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>) {
+  // CHECK: %[[UNSIGN:.+]] = torch.vtensor.literal(dense<true> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: %[[SIGNED:.+]] = torch.vtensor.literal(dense<[true, true, false, false]> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[UNSIGN]], %[[SIGNED]], %[[SIGNED]]
+  %intTensor = torch.vtensor.literal(dense<[127, -128, -127, -126]> : tensor<4xsi8>) : !torch.vtensor<[4],si8>
+  %uintTensor = torch.vtensor.literal(dense<[127, 128, 129, 130]> : tensor<4xui8>) : !torch.vtensor<[4],ui8>
+  %fpTensor = torch.vtensor.literal(dense<[127.0, 128.0, 129.0, 130.0]> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %intScalar = torch.constant.int 128
+  %fpScalar = torch.constant.float 128.0
+  %intBool = torch.aten.le.Scalar %intTensor, %intScalar : !torch.vtensor<[4],si8>, !torch.int -> !torch.vtensor<[4],i1>
+  %uintBool = torch.aten.le.Scalar %uintTensor, %intScalar : !torch.vtensor<[4],ui8>, !torch.int -> !torch.vtensor<[4],i1>
+  %fpBool = torch.aten.le.Scalar %fpTensor, %fpScalar : !torch.vtensor<[4],f32>, !torch.float -> !torch.vtensor<[4],i1>
+  return %intBool, %uintBool, %fpBool : !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>
+}
+
+
+// -----
+
+// CHECK-LABEL: @aten_tensor_tensor_ge
+func.func @aten_tensor_tensor_ge() -> (!torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>) {
+  // CHECK: %[[UNSIGN:.+]] = torch.vtensor.literal(dense<false> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: %[[SIGNED:.+]] = torch.vtensor.literal(dense<[false, true, true, true]> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[UNSIGN]], %[[SIGNED]], %[[SIGNED]]
+  %intTensor = torch.vtensor.literal(dense<[127, -128, -127, -126]> : tensor<4xsi8>) : !torch.vtensor<[4],si8>
+  %uintTensor = torch.vtensor.literal(dense<[127, 128, 129, 130]> : tensor<4xui8>) : !torch.vtensor<[4],ui8>
+  %fpTensor = torch.vtensor.literal(dense<[127.0, 128.0, 129.0, 130.0]> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %intScalar = torch.constant.int 128
+  %fpScalar = torch.constant.float 128.0
+  %intBool = torch.aten.ge.Scalar %intTensor, %intScalar : !torch.vtensor<[4],si8>, !torch.int -> !torch.vtensor<[4],i1>
+  %uintBool = torch.aten.ge.Scalar %uintTensor, %intScalar : !torch.vtensor<[4],ui8>, !torch.int -> !torch.vtensor<[4],i1>
+  %fpBool = torch.aten.ge.Scalar %fpTensor, %fpScalar : !torch.vtensor<[4],f32>, !torch.float -> !torch.vtensor<[4],i1>
+  return %intBool, %uintBool, %fpBool : !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_tensor_tensor_gt
+func.func @aten_tensor_tensor_gt() -> (!torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>) {
+  // CHECK: %[[UNSIGN:.+]] = torch.vtensor.literal(dense<false> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: %[[SIGNED:.+]] = torch.vtensor.literal(dense<[false, false, true, true]> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[UNSIGN]], %[[SIGNED]], %[[SIGNED]]
+  %intTensor = torch.vtensor.literal(dense<[127, -128, -127, -126]> : tensor<4xsi8>) : !torch.vtensor<[4],si8>
+  %uintTensor = torch.vtensor.literal(dense<[127, 128, 129, 130]> : tensor<4xui8>) : !torch.vtensor<[4],ui8>
+  %fpTensor = torch.vtensor.literal(dense<[127.0, 128.0, 129.0, 130.0]> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %intScalar = torch.constant.int 128
+  %fpScalar = torch.constant.float 128.0
+  %intBool = torch.aten.gt.Scalar %intTensor, %intScalar : !torch.vtensor<[4],si8>, !torch.int -> !torch.vtensor<[4],i1>
+  %uintBool = torch.aten.gt.Scalar %uintTensor, %intScalar : !torch.vtensor<[4],ui8>, !torch.int -> !torch.vtensor<[4],i1>
+  %fpBool = torch.aten.gt.Scalar %fpTensor, %fpScalar : !torch.vtensor<[4],f32>, !torch.float -> !torch.vtensor<[4],i1>
+  return %intBool, %uintBool, %fpBool : !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_tensor_tensor_eq
+func.func @aten_tensor_tensor_eq() -> (!torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>) {
+  // CHECK: %[[UNSIGN:.+]] = torch.vtensor.literal(dense<false> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: %[[SIGNED:.+]] = torch.vtensor.literal(dense<[false, true, false, false]> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[UNSIGN]], %[[SIGNED]], %[[SIGNED]]
+  %intTensor = torch.vtensor.literal(dense<[127, -128, -127, -126]> : tensor<4xsi8>) : !torch.vtensor<[4],si8>
+  %uintTensor = torch.vtensor.literal(dense<[127, 128, 129, 130]> : tensor<4xui8>) : !torch.vtensor<[4],ui8>
+  %fpTensor = torch.vtensor.literal(dense<[127.0, 128.0, 129.0, 130.0]> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %intScalar = torch.constant.int 128
+  %fpScalar = torch.constant.float 128.0
+  %intBool = torch.aten.eq.Scalar %intTensor, %intScalar : !torch.vtensor<[4],si8>, !torch.int -> !torch.vtensor<[4],i1>
+  %uintBool = torch.aten.eq.Scalar %uintTensor, %intScalar : !torch.vtensor<[4],ui8>, !torch.int -> !torch.vtensor<[4],i1>
+  %fpBool = torch.aten.eq.Scalar %fpTensor, %fpScalar : !torch.vtensor<[4],f32>, !torch.float -> !torch.vtensor<[4],i1>
+  return %intBool, %uintBool, %fpBool : !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_tensor_tensor_ne
+func.func @aten_tensor_tensor_ne() -> (!torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>) {
+  // CHECK: %[[UNSIGN:.+]] = torch.vtensor.literal(dense<true> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: %[[SIGNED:.+]] = torch.vtensor.literal(dense<[true, false, true, true]> : tensor<4xi1>) : !torch.vtensor<[4],i1>
+  // CHECK: return %[[UNSIGN]], %[[SIGNED]], %[[SIGNED]]
+  %intTensor = torch.vtensor.literal(dense<[127, -128, -127, -126]> : tensor<4xsi8>) : !torch.vtensor<[4],si8>
+  %uintTensor = torch.vtensor.literal(dense<[127, 128, 129, 130]> : tensor<4xui8>) : !torch.vtensor<[4],ui8>
+  %fpTensor = torch.vtensor.literal(dense<[127.0, 128.0, 129.0, 130.0]> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %intScalar = torch.constant.int 128
+  %fpScalar = torch.constant.float 128.0
+  %intBool = torch.aten.ne.Scalar %intTensor, %intScalar : !torch.vtensor<[4],si8>, !torch.int -> !torch.vtensor<[4],i1>
+  %uintBool = torch.aten.ne.Scalar %uintTensor, %intScalar : !torch.vtensor<[4],ui8>, !torch.int -> !torch.vtensor<[4],i1>
+  %fpBool = torch.aten.ne.Scalar %fpTensor, %fpScalar : !torch.vtensor<[4],f32>, !torch.float -> !torch.vtensor<[4],i1>
+  return %intBool, %uintBool, %fpBool : !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>
+}

@@ -1495,11 +1495,6 @@ ONNX_XFAIL_SET = {
     "FlipNegativeIndexModule_basic",
     "HardsigmoidModule_basic",
     "HardsigmoidRandomModule_basic",
-    "IndexSelectDynamicInputSizeModule_basic",
-    "IndexSelectWholeDimensionModule_basic",
-    "IndexSelectWholeTensorModule_basic",
-    "IndexTensorStaticModule_basic",
-    "IndexTensorStaticNonContiguousWithNoneModule_basic",
     "PixelShuffleModuleStaticRank4Float32_basic",
     "ResNet18Module_basic",
     "SliceCopyEndGreaterThanDimSize_Module_basic",
@@ -1998,24 +1993,15 @@ ONNX_XFAIL_SET = {
     "NativeDropoutTrainModule_basic",
     "NativeDropoutTrainStaticShapeModule_basic",
     "ReduceProdDimIntFloatModule_basic",
-    "StdCorrectionAllDimReduceModule_basic",
-    "StdCorrectionKeepDimModule_basic",
     "StdCorrectionLargeInputModule_basic",
     "StdCorrectionModule_basic",
     "StdCorrectionNoneModule_basic",
     "StdDimNoneDimModule_basic",
     "StdUnbiasedModule_basic",
-    "VarCorrectionAllDimReduceModule_basic",
-    "VarCorrectionKeepDimModule_basic",
     "VarCorrectionLargeInputModule_basic",
     "VarCorrectionModule_basic",
     "VarCorrectionNoneModule_basic",
-    "VarDimAllDimReduceModule_basic",
-    "VarDimModule_basic",
-    "VarDimMultiDimModule_basic",
     "VarDimNoneDimModule_basic",
-    "VarDimSingleDimModule_basic",
-    "VarDimUnbiasedModule_basic",
     "VarMeanCorrectionNoneModule_basic",
     "VarMeanUnbiasedModule_basic",
     "VarUnbiasedModule_basic",
@@ -2110,9 +2096,6 @@ ONNX_XFAIL_SET = {
     "IndexTensorMultiInputOneDim_basic",
     "IndexTensorMultiInputThreeIndexers_basic",
     "IndexTensorMultiInput_basic",
-    "IndexTensorStaticContiguousWithNoneModule_basic",
-    "SelectIntModule_basic",
-    "SliceSingleIdxModule_basic",
     "ViewFlattenAndExpandModule_basic",
     "ViewSizeDimFollowedByCollapsedOnesModule_basic",
     "ViewSizeDimFollowedByExpandedOnesModule_basic",
@@ -2151,7 +2134,6 @@ ONNX_XFAIL_SET = {
     "FlattenDynamicModule_basic",
     "GluStaticModule_basic",
     "GroupNormModule_basic",
-    "IndexSelectDynamicModulebasic",
     "IndexTensorHackedTwinModule3dInput_basic",
     "IndexTensorHackedTwinModule_basic",
     "IndexTensorModule3dInput_basic",
@@ -2168,12 +2150,6 @@ ONNX_XFAIL_SET = {
     "TensorsStackNegativeDimModule_basic",
     "TensorsStackPromoteDTypeModule_basic",
 }
-
-if torch_version_for_comparison() < version.parse("2.3.0.dev"):
-    ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
-        # ERROR: dtype (torch.float64) is not equal to golden dtype (torch.float32)
-        "ElementwiseWhereScalarModule_basic",
-    }
 
 ONNX_CRASHING_SET = { }
 
