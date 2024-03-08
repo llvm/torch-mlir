@@ -1083,6 +1083,7 @@ TOSA_PASS_SET = {
     "ElementwiseToDtypeIdentityModule_basic",
     "ElementwiseUnaryModule_basic",
     "ElementwiseUnsqueezeBroadcastModule_basic",
+    "ElementwiseWhereScalarModule_basic",
     "ElementwiseNanToNumModule_Basic",
     "EmbeddingModule1DIndices_basic",
     "EmbeddingModuleI32Static_basic",
@@ -2157,12 +2158,6 @@ ONNX_XFAIL_SET = {
     "TensorsStackNegativeDimModule_basic",
     "TensorsStackPromoteDTypeModule_basic",
 }
-
-if torch_version_for_comparison() < version.parse("2.3.0.dev"):
-    ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
-        # ERROR: dtype (torch.float64) is not equal to golden dtype (torch.float32)
-        "ElementwiseWhereScalarModule_basic",
-    }
 
 ONNX_CRASHING_SET = { }
 
