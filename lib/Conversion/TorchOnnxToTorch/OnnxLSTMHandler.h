@@ -2,7 +2,7 @@
 
 TODO list:
 
-- slice before doing anything to avoid type complexity
+- slice before doing anything to avoid type complexity [done]
   - fewer types
   - fuse matmuls and activations
   - support activations
@@ -46,196 +46,73 @@ void printTensorShape(const char *name, const Value &tensor) {
   }
   llvm::dbgs() << "]\n";
 }
-
 std::pair<Value, Value>
 lstm_cell(OpBinder binder, ConversionPatternRewriter &rewriter,
-          Value Xt, // =input_seq shape [batch_size, input_size]
-          Value H,  // =hidden_state shape [batch_size, hidden_size]
-          Value C,  // =cell_state shape [batch_size, hidden_size]
-          Value W,  // =weights_hh shape [hidden_size*4, input_size]
-          Value Wb, // =bias_hh shape [hidden_size*4]
-          Value R,  // =weights_hr shape [hidden_size*4, hidden_size]
-          Value Rb  // =bias_hr shape [hidden_size*4]
-          // Value P, // =peephole shape [hidden_size*3]; not supported yet
-) {
-  // this function is made based on
-  // https://github.com/pytorch/pytorch/pull/91465
-  // and the names should match
-  // it returns the hidden state and cell state after the lstm cell
-  Torch::ValueTensorType XType = Xt.getType().cast<Torch::ValueTensorType>();
-  Torch::ValueTensorType HType = H.getType().cast<Torch::ValueTensorType>();
-  int64_t hidden_size = HType.getSizes()[1];
-  int64_t batch_size = HType.getSizes()[0];
-  int64_t input_size = XType.getSizes()[1];
-  // use some assertions to check the shapes
-  // batch size
-  if (Xt.getType().cast<Torch::ValueTensorType>().getSizes()[0] !=
-          H.getType().cast<Torch::ValueTensorType>().getSizes()[0] ||
-      Xt.getType().cast<Torch::ValueTensorType>().getSizes()[0] !=
-          C.getType().cast<Torch::ValueTensorType>().getSizes()[0] ||
-      Xt.getType().cast<Torch::ValueTensorType>().getSizes()[1] !=
-          W.getType().cast<Torch::ValueTensorType>().getSizes()[1] ||
-      H.getType().cast<Torch::ValueTensorType>().getSizes()[1] !=
-          W.getType().cast<Torch::ValueTensorType>().getSizes()[0] / 4 ||
-      H.getType().cast<Torch::ValueTensorType>().getSizes()[1] !=
-          R.getType().cast<Torch::ValueTensorType>().getSizes()[1] ||
-      H.getType().cast<Torch::ValueTensorType>().getSizes()[1] !=
-          R.getType().cast<Torch::ValueTensorType>().getSizes()[0] / 4 ||
-      H.getType().cast<Torch::ValueTensorType>().getSizes()[1] !=
-          Wb.getType().cast<Torch::ValueTensorType>().getSizes()[0] / 4 ||
-      H.getType().cast<Torch::ValueTensorType>().getSizes()[1] !=
-          Rb.getType().cast<Torch::ValueTensorType>().getSizes()[0] / 4) {
-    LLVM_DEBUG(llvm::dbgs() << "LSTM: input shapes are not consistent\n");
-    LLVM_DEBUG(llvm::dbgs() << "Expected Xt shape:[" << batch_size << ","
-                            << input_size << "]"
-                            << "\n");
-    printTensorShape("Xt", Xt);
-    LLVM_DEBUG(llvm::dbgs() << "Expected H shape:[" << batch_size << ","
-                            << hidden_size << "]"
-                            << "\n");
-    printTensorShape("H", H);
-    LLVM_DEBUG(llvm::dbgs() << "Expected C shape:[" << batch_size << ","
-                            << hidden_size << "]"
-                            << "\n");
-    printTensorShape("C", C);
-    LLVM_DEBUG(llvm::dbgs() << "Expected W shape:[" << hidden_size * 4 << ","
-                            << input_size << "]"
-                            << "\n");
-    printTensorShape("W", W);
-    LLVM_DEBUG(llvm::dbgs() << "Expected R shape:[" << hidden_size * 4 << ","
-                            << hidden_size << "]"
-                            << "\n");
-    printTensorShape("R", R);
-    LLVM_DEBUG(llvm::dbgs() << "Expected Wb shape:[" << hidden_size * 4 << "]"
-                            << "\n");
-    printTensorShape("Wb", Wb);
-    LLVM_DEBUG(llvm::dbgs() << "Expected Rb shape:[" << hidden_size * 4 << "]"
-                            << "\n");
-    printTensorShape("Rb", Rb);
-  }
+          Value Xt,     // =input_seq shape [batch_size, input_size]
+          Value H_prev, // =hidden_state shape [batch_size, hidden_size]
+          Value C,      // =cell_state shape [batch_size, hidden_size]
+          Value W_i, Value W_o, Value W_f, Value W_c,
+          // W shape [hidden_size, input_size]
+          Value Wb_i, Value Wb_o, Value Wb_f, Value Wb_c,
+          // Wb shape [hidden_size]
+          Value R_i, Value R_o, Value R_f, Value R_c,
+          // R shape [hidden_size, hidden_size]
+          Value Rb_i, Value Rb_o, Value Rb_f, Value Rb_c) {
+  Torch::ValueTensorType HType =
+      H_prev.getType().cast<Torch::ValueTensorType>();
 
-  auto getTiledType = [&](Torch::ValueTensorType input_type, int64_t tile_dim,
-                          int64_t tile_factor) {
-    return rewriter
-        .getType<Torch::ValueTensorType>(
-            llvm::SmallVector<int64_t>{input_type.getSizes()[0],
-                                       4 * input_type.getSizes()[1]},
-            input_type.getDtype())
-        .cast<Torch::ValueTensorType>();
-  };
-
-  Torch::ValueTensorType XTiledType = getTiledType(XType, 1, 4);
-  Torch::ValueTensorType HTiledType = getTiledType(HType, 1, 4);
-
-  Value c_0 = rewriter.create<Torch::ConstantIntOp>(
-      binder.getLoc(), rewriter.getType<Torch::IntType>(),
-      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
   Value c_1 = rewriter.create<Torch::ConstantIntOp>(
       binder.getLoc(), rewriter.getType<Torch::IntType>(),
       rewriter.getIntegerAttr(rewriter.getIntegerType(64), 1));
-  Value c_4 = rewriter.create<Torch::ConstantIntOp>(
-      binder.getLoc(), rewriter.getType<Torch::IntType>(),
-      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 4));
 
-  Value dimListValue = rewriter.create<Torch::PrimListConstructOp>(
-      binder.getLoc(),
-      rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
-      ArrayRef<Value>{c_1, c_4});
+  // Apply linear/matmul for each gate separately
+  Value I_x = rewriter.create<Torch::AtenLinearOp>(binder.getLoc(), HType, Xt,
+                                                   W_i, Wb_i);
+  Value I_h = rewriter.create<Torch::AtenLinearOp>(binder.getLoc(), HType,
+                                                   H_prev, R_i, Rb_i);
+  Value I = rewriter.create<Torch::AtenAddTensorOp>(binder.getLoc(), HType, I_x,
+                                                    I_h, c_1);
+  Value I_act =
+      rewriter.create<Torch::AtenSigmoidOp>(binder.getLoc(), HType, I);
 
-  Value XTiled = rewriter.create<Torch::AtenTileOp>(
-      /*loc*/ binder.getLoc(), /*type*/ XTiledType,
-      /*self=*/Xt,
-      /*dims=*/dimListValue);
-  Value HTiled = rewriter.create<Torch::AtenTileOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HTiledType,
-      /*self=*/H,
-      /*dims=*/dimListValue);
+  Value O_x = rewriter.create<Torch::AtenLinearOp>(binder.getLoc(), HType, Xt,
+                                                   W_o, Wb_o);
+  Value O_h = rewriter.create<Torch::AtenLinearOp>(binder.getLoc(), HType,
+                                                   H_prev, R_o, Rb_o);
+  Value O = rewriter.create<Torch::AtenAddTensorOp>(binder.getLoc(), HType, O_x,
+                                                    O_h, c_1);
+  Value O_act =
+      rewriter.create<Torch::AtenSigmoidOp>(binder.getLoc(), HType, O);
 
-  // gates = linear(Xt, W, Wb) + linear(H_prev, R, Rb)
-  Value G_x = rewriter.create<Torch::AtenLinearOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HTiledType,
-      /*input=*/XTiled, /*weight=*/W, /*bias=*/Wb);
-  Value G_h = rewriter.create<Torch::AtenLinearOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HTiledType,
-      /*input=*/HTiled, /*weight=*/R, /*bias=*/Rb);
-  Value G = rewriter.create<Torch::AtenAddTensorOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HTiledType,
-      /*input=*/G_x, /*other=*/G_h, /*alpha=*/c_1);
+  Value F_x = rewriter.create<Torch::AtenLinearOp>(binder.getLoc(), HType, Xt,
+                                                   W_f, Wb_f);
+  Value F_h = rewriter.create<Torch::AtenLinearOp>(binder.getLoc(), HType,
+                                                   H_prev, R_f, Rb_f);
+  Value F = rewriter.create<Torch::AtenAddTensorOp>(binder.getLoc(), HType, F_x,
+                                                    F_h, c_1);
+  Value F_act =
+      rewriter.create<Torch::AtenSigmoidOp>(binder.getLoc(), HType, F);
 
-  Value HSizeX1 = rewriter.create<Torch::ConstantIntOp>(
-      binder.getLoc(), rewriter.getType<Torch::IntType>(),
-      rewriter.getIntegerAttr(rewriter.getIntegerType(64), hidden_size));
-  Value HSizeX2 = rewriter.create<Torch::ConstantIntOp>(
-      binder.getLoc(), rewriter.getType<Torch::IntType>(),
-      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 2 * hidden_size));
-  Value HSizeX3 = rewriter.create<Torch::ConstantIntOp>(
-      binder.getLoc(), rewriter.getType<Torch::IntType>(),
-      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 3 * hidden_size));
-  Value HSizeX4 = rewriter.create<Torch::ConstantIntOp>(
-      binder.getLoc(), rewriter.getType<Torch::IntType>(),
-      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 4 * hidden_size));
+  Value C_x = rewriter.create<Torch::AtenLinearOp>(binder.getLoc(), HType, Xt,
+                                                   W_c, Wb_c);
+  Value C_h = rewriter.create<Torch::AtenLinearOp>(binder.getLoc(), HType,
+                                                   H_prev, R_c, Rb_c);
+  Value C_pre = rewriter.create<Torch::AtenAddTensorOp>(binder.getLoc(), HType,
+                                                        C_x, C_h, c_1);
+  Value C_act =
+      rewriter.create<Torch::AtenTanhOp>(binder.getLoc(), HType, C_pre);
 
-  Torch::ValueTensorType G_iof_type = rewriter.getType<Torch::ValueTensorType>(
-      llvm::SmallVector<int64_t>{batch_size, hidden_size * 3},
-      Xt.getType().cast<Torch::ValueTensorType>().getDtype());
+  Value C_forget =
+      rewriter.create<Torch::AtenMulTensorOp>(binder.getLoc(), HType, F_act, C);
+  Value C_input = rewriter.create<Torch::AtenMulTensorOp>(binder.getLoc(),
+                                                          HType, I_act, C_act);
+  Value C_new = rewriter.create<Torch::AtenAddTensorOp>(binder.getLoc(), HType,
+                                                        C_forget, C_input, c_1);
 
-  // Gate Vector splitting
-  // G_iof = gates[:, :3 * hidden_size]
-  // G_c = gates[:, 3 * hidden_size:]
-  Value G_iof = rewriter.create<Torch::AtenSliceTensorOp>(
-      /*loc*/ binder.getLoc(), /*type*/ G_iof_type,
-      /*input=*/G, /*dim=*/c_1, /*start=*/c_0, /*end=*/HSizeX3,
-      /*step=*/c_1);
-  Value G_c = rewriter.create<Torch::AtenSliceTensorOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HType,
-      /*input=*/G, /*dim=*/c_1, /*start=*/HSizeX3, /*end=*/HSizeX4,
-      /*step=*/c_1);
-
-  // Activation for IOF
-  // TODO: activations: support non-default activations
-  // this is activation f in the ONNX docs
-  Value Activation_IOF = rewriter.create<Torch::AtenSigmoidOp>(
-      /*loc*/ binder.getLoc(), /*type*/ G_iof_type, /*input=*/G_iof);
-  // Activation for C
-  // TODO: activations: support non-default activations
-  // this is activation g in the ONNX docs
-  Value Activation_C = rewriter.create<Torch::AtenTanhOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HType, /*input=*/G_c); // HType
-
-  Value Activation_I = rewriter.create<Torch::AtenSliceTensorOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HType,
-      /*input=*/Activation_IOF, /*dim=*/c_1, /*start=*/c_0, /*end=*/HSizeX1,
-      /*step=*/c_1);
-  Value Activation_O = rewriter.create<Torch::AtenSliceTensorOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HType,
-      /*input=*/Activation_IOF, /*dim=*/c_1, /*start=*/HSizeX1, /*end=*/HSizeX2,
-      /*step=*/c_1);
-  Value Activation_F = rewriter.create<Torch::AtenSliceTensorOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HType,
-      /*input=*/Activation_IOF, /*dim=*/c_1, /*start=*/HSizeX2, /*end=*/HSizeX3,
-      /*step=*/c_1);
-
-  // Ct = (ft * Ct_prev) + (it * ct)
-  Value C_forget_contribution = rewriter.create<Torch::AtenMulTensorOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HType,
-      /*input=*/Activation_F,
-      /*other=*/C); // this is really the part of C that is NOT forgotten
-  Value C_input_contribution = rewriter.create<Torch::AtenMulTensorOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HType,
-      /*input=*/Activation_I, /*other=*/Activation_C);
-  Value C_new = rewriter.create<Torch::AtenAddTensorOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HType,
-      /*input=*/C_forget_contribution, /*other=*/C_input_contribution,
-      /*alpha=*/c_1);
-
-  // TODO: activations: replace tanh with op corresponding to activations[2]
-  // this is activation h in the ONNX docs
-  // Ht = ot (.) h(Ct)  where h is tanh by default
-  Value C_new_tanh = rewriter.create<Torch::AtenTanhOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HType, /*input=*/C_new);
-  Value H_new = rewriter.create<Torch::AtenMulTensorOp>(
-      /*loc*/ binder.getLoc(), /*type*/ HType,
-      /*input=*/Activation_O, /*other=*/C_new_tanh);
+  Value C_new_act =
+      rewriter.create<Torch::AtenTanhOp>(binder.getLoc(), HType, C_new);
+  Value H_new = rewriter.create<Torch::AtenMulTensorOp>(binder.getLoc(), HType,
+                                                        O_act, C_new_act);
 
   return std::make_pair(H_new, C_new);
 }
@@ -264,28 +141,6 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
   int64_t hidden_size =
       initial_h.getType().cast<Torch::ValueTensorType>().getSizes()[1];
 
-  // check sizes
-  assert(initial_h.getType().cast<Torch::ValueTensorType>().getSizes()[0] ==
-         batch_size);
-  assert(initial_h.getType().cast<Torch::ValueTensorType>().getSizes()[1] ==
-         hidden_size);
-  assert(initial_c.getType().cast<Torch::ValueTensorType>().getSizes()[0] ==
-         batch_size);
-  assert(initial_c.getType().cast<Torch::ValueTensorType>().getSizes()[1] ==
-         hidden_size);
-  assert(W.getType().cast<Torch::ValueTensorType>().getSizes()[0] ==
-         hidden_size * 4);
-  assert(W.getType().cast<Torch::ValueTensorType>().getSizes()[1] ==
-         input_size);
-  assert(Wb.getType().cast<Torch::ValueTensorType>().getSizes()[0] ==
-         hidden_size * 4);
-  assert(R.getType().cast<Torch::ValueTensorType>().getSizes()[0] ==
-         hidden_size * 4);
-  assert(R.getType().cast<Torch::ValueTensorType>().getSizes()[1] ==
-         hidden_size);
-  assert(Rb.getType().cast<Torch::ValueTensorType>().getSizes()[0] ==
-         hidden_size * 4);
-
   Torch::ValueTensorType HType =
       initial_h.getType().cast<Torch::ValueTensorType>();
   Torch::ValueTensorType CType =
@@ -312,6 +167,72 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
       /*initialCondition=*/cTrue,
       /*iterArgsInit=*/ValueRange({initial_h, initial_c}));
   // Create the loop body.
+
+  Value c_0 = rewriter.create<Torch::ConstantIntOp>(
+      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+  Value c_1 = rewriter.create<Torch::ConstantIntOp>(
+      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 1));
+  Value HSizeX1 = rewriter.create<Torch::ConstantIntOp>(
+      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+      rewriter.getIntegerAttr(rewriter.getIntegerType(64), hidden_size));
+  Value HSizeX2 = rewriter.create<Torch::ConstantIntOp>(
+      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 2 * hidden_size));
+  Value HSizeX3 = rewriter.create<Torch::ConstantIntOp>(
+      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 3 * hidden_size));
+  Value HSizeX4 = rewriter.create<Torch::ConstantIntOp>(
+      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 4 * hidden_size));
+
+  Torch::ValueTensorType GateWeightsType =
+      rewriter.getType<Torch::ValueTensorType>(
+          llvm::SmallVector<int64_t>{hidden_size, input_size},
+          W.getType().cast<Torch::ValueTensorType>().getDtype());
+
+  Torch::ValueTensorType GateBiasType =
+      rewriter.getType<Torch::ValueTensorType>(
+          llvm::SmallVector<int64_t>{hidden_size},
+          Wb.getType().cast<Torch::ValueTensorType>().getDtype());
+
+  // Slice weights and biases for each gate
+  Value W_i = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateWeightsType, W, c_0, c_0, HSizeX1, c_1);
+  Value W_o = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateWeightsType, W, c_0, HSizeX1, HSizeX2, c_1);
+  Value W_f = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateWeightsType, W, c_0, HSizeX2, HSizeX3, c_1);
+  Value W_c = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateWeightsType, W, c_0, HSizeX3, HSizeX4, c_1);
+
+  Value R_i = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateWeightsType, R, c_0, c_0, HSizeX1, c_1);
+  Value R_o = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateWeightsType, R, c_0, HSizeX1, HSizeX2, c_1);
+  Value R_f = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateWeightsType, R, c_0, HSizeX2, HSizeX3, c_1);
+  Value R_c = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateWeightsType, R, c_0, HSizeX3, HSizeX4, c_1);
+
+  Value Wb_i = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateBiasType, Wb, c_0, c_0, HSizeX1, c_1);
+  Value Wb_o = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateBiasType, Wb, c_0, HSizeX1, HSizeX2, c_1);
+  Value Wb_f = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateBiasType, Wb, c_0, HSizeX2, HSizeX3, c_1);
+  Value Wb_c = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateBiasType, Wb, c_0, HSizeX3, HSizeX4, c_1);
+
+  Value Rb_i = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateBiasType, Rb, c_0, c_0, HSizeX1, c_1);
+  Value Rb_o = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateBiasType, Rb, c_0, HSizeX1, HSizeX2, c_1);
+  Value Rb_f = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateBiasType, Rb, c_0, HSizeX2, HSizeX3, c_1);
+  Value Rb_c = rewriter.create<Torch::AtenSliceTensorOp>(
+      binder.getLoc(), GateBiasType, Rb, c_0, HSizeX3, HSizeX4, c_1);
   {
     OpBuilder::InsertionGuard guard(rewriter);
 
@@ -345,23 +266,17 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
     Value Xt = rewriter.create<Torch::AtenSelectIntOp>(loc, XtType, X, cstZero,
                                                        loopIndex);
 
-    auto [H_new, C_new] =
-        lstm_cell(binder, rewriter, Xt, H_prev, C_prev, W, Wb, R, Rb);
+    auto [H_new, C_new] = lstm_cell(binder, rewriter, Xt, H_prev, C_prev, W_i,
+                                    W_o, W_f, W_c, Wb_i, Wb_o, Wb_f, Wb_c, R_i,
+                                    R_o, R_f, R_c, Rb_i, Rb_o, Rb_f, Rb_c);
 
-    // append H_new to Y
     rewriter.create<Torch::AtenAppendTOp>(loc, Y_list.getType(), Y_list, H_new);
-
-    // we don't need this because we're using maxTripCount, right?
-    // Value loopCondition = rewriter.create<Torch::AtenLtIntOp>(
-    //     loc, rewriter.getType<Torch::BoolType>(), nextLoopIndex,
-    //     maxTripCount);
 
     rewriter.create<Torch::PrimLoopConditionOp>(
         loc, /*shouldContinue=*/cTrue,
         /*iterArgs=*/ValueRange({H_new, C_new}));
   }
 
-  // Return the result of the loop.
   return std::make_tuple(Y_list, loop.getResult(0), loop.getResult(1));
 }
 
