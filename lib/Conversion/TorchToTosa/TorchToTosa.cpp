@@ -803,14 +803,14 @@ template <>
 LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
     AtenArgmaxOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-
-  Value self = adaptor.getSelf();
+  
+    Value self = adaptor.getSelf();
   auto selfTy = self.getType().template cast<RankedTensorType>();
 
   if (!selfTy)
-    return rewriter.notifyMatchFailure(
+        return rewriter.notifyMatchFailure(
         op, "Only ranked tensor types supported in TOSA argmax");
-
+    
   int64_t reduceDim;
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&reduceDim))) {
     // NoneType indicates reduce on all dims
@@ -819,21 +819,21 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
     int64_t inputRank = selfTy.getRank();
     reduceDim = toPositiveDim(reduceDim, inputRank);
     if (!isValidDim(reduceDim, inputRank))
-      return rewriter.notifyMatchFailure(op,
+            return rewriter.notifyMatchFailure(op,
                                          "reduce dim is statically invalid");
-  }
-
+    }
+  
   bool keepDim = false;
   if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim)))
-    return rewriter.notifyMatchFailure(
+        return rewriter.notifyMatchFailure(
         op, "non-const keepdim parameter unsupported");
-
+        
   auto resultTy = getTypeConverter()
                       ->convertType(op.getResult().getType())
                       .cast<RankedTensorType>();
   auto outputETy = resultTy.getElementType();
 
-  // Create a single instance of tosa.argmax.
+    // Create a single instance of tosa.argmax.
   // Multiple dims require chained construct.
   auto buildArgmax = [&](int64_t reduceDim, Value input) -> Value {
     auto inputTy = input.getType().cast<RankedTensorType>();
@@ -850,13 +850,13 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
       }
     }
 
-    // Tosa argmax output is i32, while Torch backend mandates i64.
+        // Tosa argmax output is i32, while Torch backend mandates i64.
     auto outputReduceTy = RankedTensorType::get(
         makeShapeLLVMCompatible(ArrayRef<int64_t>(outputShapeArr)),
         rewriter.getI32Type());
-    auto reduceDimAttr =
+        auto reduceDimAttr =
         rewriter.getIntegerAttr(rewriter.getI64Type(), reduceDim);
-    return rewriter
+        return rewriter
         .create<tosa::ArgMaxOp>(op->getLoc(),
                                 getTypeConverter()->convertType(outputReduceTy),
                                 input, reduceDimAttr)
@@ -880,14 +880,14 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
 
     return success();
   };
-
+  
   if (reduceDim == -1) { // reducing on all dims
     Value input = self;
     for (int dim = 0; dim < selfTy.getRank(); dim++) {
       // progressively reduce each 0-th dim
       input = buildArgmax(0, input);
     }
-    return castToInt64(input);
+        return castToInt64(input);
   } else {
     return castToInt64(buildArgmax(reduceDim, self));
   }
@@ -2485,7 +2485,7 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
 
   // Not a ranked tensor type
   auto selfType = adaptor.getSelf().getType().dyn_cast<RankedTensorType>();
-  if (!selfType || !selfType.hasStaticShape())
+  if (!selfType)
     return rewriter.notifyMatchFailure(
         op,
         "Only ranked tensor types with static shapes are currently supported");
@@ -2511,16 +2511,29 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op,
                                        "end_dim must be larger than start_dim");
 
+  SmallVector<int64_t> oldShape;
+
+  if (selfType.hasStaticShape())
+  {
+    for(auto s: selfType.getShape())
+      oldShape.push_back(s);
+  }
+  else
+  {
+    for(unsigned i = 0; i < selfRank; i++)
+      oldShape.push_back(ShapedType::kDynamic);
+  }
+
   SmallVector<int64_t> newShape;
   for (auto s :
-       llvm::enumerate(makeShapeTorchCompatible(selfType.getShape()))) {
+       llvm::enumerate(makeShapeTorchCompatible(oldShape))) {
     int64_t idx = s.index();
     if (idx < start_dim || idx > end_dim) {
       newShape.push_back(s.value());
     } else {
       if (idx == start_dim)
         newShape.push_back(s.value());
-      else
+      else if(s.value() >=0)
         newShape.back() *= s.value();
     }
   }
