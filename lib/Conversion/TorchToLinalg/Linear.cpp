@@ -943,37 +943,123 @@ public:
     // - grouped 1d-3d (quantized)
     // - ungrouped 1d-3d
     if (groupSize == 1 && !inputZp && !weightZp) {
+      // Get default accumulator tensor type for the result tensor and use
+      // it for upcast/downcast if it doesn't match with the result type.
+      Value accumulatorTensor;
+      Type accumulatorTensorType = getDefaultAccType(rewriter, resultDTy);
+      if (accumulatorTensorType != resultDTy) {
+        Value initAccumTensor = rewriter.create<tensor::EmptyOp>(
+            loc, getAsOpFoldResult(outDims), accumulatorTensorType);
+
+        if (bias.getType().isa<Torch::NoneType>()) {
+          Value c0;
+          if (accumulatorTensorType.isa<mlir::FloatType>()) {
+            c0 = rewriter.create<arith::ConstantOp>(
+                loc, FloatAttr::get(accumulatorTensorType, 0.0));
+          } else if (accumulatorTensorType.isa<mlir::IntegerType>()) {
+            c0 = rewriter.create<arith::ConstantOp>(
+                loc, IntegerAttr::get(accumulatorTensorType, 0));
+          }
+          accumulatorTensor =
+              rewriter.create<linalg::FillOp>(loc, c0, initAccumTensor)
+                  .getResult(0);
+
+        } else {
+          auto biasType = bias.getType().cast<RankedTensorType>();
+          auto biasShape = biasType.getShape();
+          llvm::SmallVector<int64_t> biasShapeVector;
+          for (int i = 0; i < biasType.getRank(); ++i)
+            biasShapeVector.push_back(biasShape[i]);
+          auto accumulatorRankedType =
+              RankedTensorType::get(biasShapeVector, accumulatorTensorType);
+          bias =
+              rewriter.create<arith::ExtFOp>(loc, accumulatorRankedType, bias);
+          if (biasType.getRank() != 1)
+            return rewriter.notifyMatchFailure(op, "expect bias to be rank 1");
+
+          auto resultRank =
+              initAccumTensor.getType().cast<RankedTensorType>().getRank();
+          SmallVector<AffineMap> indexingMaps = {
+              // bias is used to initialize the channels - dimension 1 of output
+              AffineMap::get(/*dimCount=*/resultRank, /*symbolCount=*/0,
+                             rewriter.getAffineDimExpr(1), context),
+              rewriter.getMultiDimIdentityMap(resultRank)};
+          SmallVector<utils::IteratorType> iteratorTypes(
+              resultRank, utils::IteratorType::parallel);
+          accumulatorTensor =
+              rewriter
+                  .create<linalg::GenericOp>(
+                      loc, initAccumTensor.getType(), bias, initAccumTensor,
+                      indexingMaps, iteratorTypes,
+                      [](OpBuilder &b, Location loc, ValueRange args) {
+                        b.create<linalg::YieldOp>(loc, args[0]);
+                      })
+                  .getResult(0);
+        }
+      }
       switch (numSpatialDims) {
       case 1:
-        conv = rewriter
-                   .create<linalg::Conv1DNcwFcwOp>(
-                       loc, outputTensor.getType(),
-                       ValueRange{paddedInput, weight}, outputTensor,
-                       stridesAttr, dilationAttr)
-                   .getResult(0);
+        if (accumulatorTensorType != resultDTy) {
+          conv = rewriter
+                     .create<linalg::Conv1DNcwFcwOp>(
+                         loc, accumulatorTensor.getType(),
+                         ValueRange{paddedInput, weight}, accumulatorTensor,
+                         stridesAttr, dilationAttr)
+                     .getResult(0);
+        } else {
+          conv = rewriter
+                     .create<linalg::Conv1DNcwFcwOp>(
+                         loc, outputTensor.getType(),
+                         ValueRange{paddedInput, weight}, outputTensor,
+                         stridesAttr, dilationAttr)
+                     .getResult(0);
+        }
         break;
       case 2:
-        conv = rewriter
-                   .create<linalg::Conv2DNchwFchwOp>(
-                       loc, outputTensor.getType(),
-                       ValueRange{paddedInput, weight}, outputTensor,
-                       stridesAttr, dilationAttr)
-                   .getResult(0);
+        if (accumulatorTensorType != resultDTy) {
+          conv = rewriter
+                     .create<linalg::Conv2DNchwFchwOp>(
+                         loc, accumulatorTensor.getType(),
+                         ValueRange{paddedInput, weight}, accumulatorTensor,
+                         stridesAttr, dilationAttr)
+                     .getResult(0);
+        } else {
+          conv = rewriter
+                     .create<linalg::Conv2DNchwFchwOp>(
+                         loc, outputTensor.getType(),
+                         ValueRange{paddedInput, weight}, outputTensor,
+                         stridesAttr, dilationAttr)
+                     .getResult(0);
+        }
         break;
       case 3:
-        conv = rewriter
-                   .create<linalg::Conv3DNcdhwFcdhwOp>(
-                       loc, outputTensor.getType(),
-                       ValueRange{paddedInput, weight}, outputTensor,
-                       stridesAttr, dilationAttr)
-                   .getResult(0);
+        if (accumulatorTensorType != resultDTy) {
+          conv = rewriter
+                     .create<linalg::Conv3DNcdhwFcdhwOp>(
+                         loc, accumulatorTensor.getType(),
+                         ValueRange{paddedInput, weight}, accumulatorTensor,
+                         stridesAttr, dilationAttr)
+                     .getResult(0);
+        } else {
+          conv = rewriter
+                     .create<linalg::Conv3DNcdhwFcdhwOp>(
+                         loc, outputTensor.getType(),
+                         ValueRange{paddedInput, weight}, outputTensor,
+                         stridesAttr, dilationAttr)
+                     .getResult(0);
+        }
         break;
       default:
         return rewriter.notifyMatchFailure(
             op, "unimplemented: only 1D, 2D, and 3D convolution supported");
       };
       Type newResultType = getTypeConverter()->convertType(op.getType());
-      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
+      if (accumulatorTensorType != resultDTy) {
+        conv = rewriter.create<arith::TruncFOp>(loc, newResultType, conv);
+        rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
+      } else {
+        rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
+      }
       return success();
     }
 
