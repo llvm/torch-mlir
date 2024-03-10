@@ -14275,6 +14275,31 @@ def Torch_Aten_SetItemTOp : Torch_Op<"aten._set_item.t", [
   }];
 }
 
+def Torch_AtenMulOp : Torch_Op<"aten.mul", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::mul : (Scalar, Scalar) -> (Scalar)`";
+  let arguments = (ins
+    AnyTorchScalarType:$a,
+    AnyTorchScalarType:$b
+  );
+  let results = (outs
+    AnyTorchScalarType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenMulOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenMulOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_AtenDivOp : Torch_Op<"aten.div", [
     AllowsTypeRefinement,
     HasValueSemantics,
