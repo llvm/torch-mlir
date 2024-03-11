@@ -845,7 +845,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             /*dtype=*/noneVal);
         return success();
       });
-  // onnx.ReduceMean with axes provided as argument introduced in opset 18
   patterns.onOp(
       "ReduceMean", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
