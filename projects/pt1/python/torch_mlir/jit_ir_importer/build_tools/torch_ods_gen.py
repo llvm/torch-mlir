@@ -805,6 +805,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
          has_canonicalizer=True)
     emit("aten::__getitem__.t : (t[], int) -> (t)", has_canonicalizer=True)
     emit("aten::_set_item.t : (t[], int, t) -> (t[])")
+    emit("aten::mul : (Scalar, Scalar) -> (Scalar)", has_folder=True)
     emit("aten::div : (Scalar, Scalar) -> (float)", has_folder=True)
     emit("aten::add : (Scalar, Scalar) -> (Scalar)", has_folder=True)
     emit("aten::sub : (Scalar, Scalar) -> (Scalar)", has_folder=True)
