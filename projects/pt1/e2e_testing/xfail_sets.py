@@ -1474,15 +1474,7 @@ LTC_XFAIL_SET = {
 
 ONNX_XFAIL_SET = {
     # Failure - cast error
-    "MeanDimNoneDimModule_basic",
-    "MeanDtypeModule_basic",
-    "MeanDynamicSizesModule_basic",
-    "MeanModule_basic",
-    "MseLossMeanReductionModule_basic",
     "PermuteNegativeIndexModule_basic",
-    "StdBiasedModule_basic",
-    "VarBiasedModule_basic",
-    "VarMeanBiasedModule_basic",
 
     # Failure - incorrect numerics
     "AdaptiveAvgPool1dUnitOutputSizeDynamicModule_basic",
@@ -1992,17 +1984,7 @@ ONNX_XFAIL_SET = {
     "NativeDropoutTrainStaticShapeModule_basic",
     "ReduceProdDimIntFloatModule_basic",
     "StdCorrectionLargeInputModule_basic",
-    "StdCorrectionModule_basic",
-    "StdCorrectionNoneModule_basic",
-    "StdDimNoneDimModule_basic",
-    "StdUnbiasedModule_basic",
     "VarCorrectionLargeInputModule_basic",
-    "VarCorrectionModule_basic",
-    "VarCorrectionNoneModule_basic",
-    "VarDimNoneDimModule_basic",
-    "VarMeanCorrectionNoneModule_basic",
-    "VarMeanUnbiasedModule_basic",
-    "VarUnbiasedModule_basic",
 
     # Failure - onnx_lowering: onnx.ReduceSum
     "MseLossSumReductionWithDifferentElemTypeModule_basic",
