@@ -3768,7 +3768,8 @@ OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
 
   Type resultType = getResult().getType();
   BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
-  if (!resultTensorType || !resultTensorType.hasDtype() || !resultTensorType.hasSizes()) {
+  if (!resultTensorType || !resultTensorType.hasDtype() ||
+      !resultTensorType.hasSizes()) {
     return nullptr;
   }
 
@@ -3806,7 +3807,8 @@ OpFoldResult AtenZerosOp::fold(FoldAdaptor adaptor) {
 
   Type resultType = getResult().getType();
   BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
-  if (!resultTensorType || !resultTensorType.hasDtype() || !resultTensorType.hasSizes()) {
+  if (!resultTensorType || !resultTensorType.hasDtype() ||
+      !resultTensorType.hasSizes()) {
     return nullptr;
   }
 
@@ -3846,7 +3848,8 @@ OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
 
   Type resultType = getResult().getType();
   BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
-  if (!resultTensorType || !resultTensorType.hasDtype() || !resultTensorType.hasSizes()) {
+  if (!resultTensorType || !resultTensorType.hasDtype() ||
+      !resultTensorType.hasSizes()) {
     return nullptr;
   }
 
