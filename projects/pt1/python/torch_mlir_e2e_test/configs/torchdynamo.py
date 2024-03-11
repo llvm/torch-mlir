@@ -53,6 +53,40 @@ def _returns_empty_tuple(fx_graph: torch.fx.GraphModule) -> bool:
                 return False
     return True
 
+# Replaces torch.aten.add.Tensor/torch.aten.mul.Tensor to 
+# torch.aten.add.Scalar/torch.aten.mul.Scalar in case of Scalar argument
+# Cannot be done on earlier stage, e.g. in _FXGraphImporter as it 
+# needs to check argument types, which are not yet determined. 
+# Maybe schema or target should be changed, but it decided in
+# _dynamo eval_frame on pytorch side. Also Python schema not matches
+# with mlir Schema - check include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
+# So in general it covers some of overload cases, which done on Python side automatically.
+# e.g. conversion Scalar -> Tensor and vice versa
+def scalarize_tensor_ops_on_scalars(gm: torch.fx.GraphModule):
+    # Modify gm.graph
+    for node in gm.graph.nodes:
+        # Checks if we're calling a function (i.e:
+        # torch.add)
+        if node.op == 'call_function':
+            # The target attribute is the function
+            # that call_function calls.
+            # call_function[target=torch.ops.aten.add.Tensor](args = (%arg64_1, 1), kwargs = {})
+            if node.target == torch.ops.aten.add.Tensor:
+                if len(node.args) != 2 or node.kwargs != {}:
+                    continue
+                elif not isinstance(node.args[1], torch.fx.node.Node):
+                    node.target = torch.ops.aten.add.Scalar
+            if node.target == torch.ops.aten.mul.Tensor:
+                if len(node.args) != 2 or node.kwargs != {}:
+                    continue
+                elif not isinstance(node.args[1], torch.fx.node.Node):
+                    node.target = torch.ops.aten.mul.Scalar
+
+    gm.graph.lint() # Does some checks to make sure the
+
+    # Recompile the forward() method of `gm` from its Graph
+    gm.recompile()
+
 
 def jit(
     model: torch.nn.Module,
@@ -86,6 +120,8 @@ def jit(
         # functions that have as a return type `()`. In other words, there is no
         # way of differentiating between the two.
         assert not _returns_empty_tuple(gm), "encountered graph that does not return anything"
+
+        scalarize_tensor_ops_on_scalars(gm)
 
         nonlocal mlir_module
         *_, model_name, nth_graph = get_aot_compilation_context()
