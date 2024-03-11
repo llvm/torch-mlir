@@ -1469,7 +1469,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             loc, scaleType, inputMin, zeroTensor);
         Value scaleTensor = rewriter.create<Torch::AtenSubTensorOp>(
             loc, scaleType, inputMaxW0, inputMinW0, constantOne);
-        // hard-coded for ui8
+        // Note: the following is hard-coded for ui8
         Value width = rewriter.create<Torch::ConstantFloatOp>(
             loc, rewriter.getF64FloatAttr(255));
         Value widthTensor = createRank0Tensor(rewriter, loc, scaleType, width);
@@ -1485,9 +1485,9 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         // saturate to interval [0, 255]
         preZeroPoint = rewriter.create<Torch::AtenClampOp>(
             loc, scaleType, preZeroPoint, /*min=*/constantZero, /*max=*/width);
-        // What about rounding/casting to uint8?
-        preZeroPoint = rewriter.create<Torch::AtenRoundOp>(loc, scaleType,
-                                                           preZeroPoint);
+        // round, then cast to uint8
+        preZeroPoint =
+            rewriter.create<Torch::AtenRoundOp>(loc, scaleType, preZeroPoint);
         Type qTy = rewriter.getType<Torch::QUInt8Type>();
         auto qTensorTy = rewriter.getType<Torch::ValueTensorType>(
             resultType.getOptionalSizes(), qTy);
@@ -1502,12 +1502,15 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             loc, zeroPointType, preZeroPoint, tyConst,
             /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
             /*memory_format=*/none);
+        // extract scale and zeroPoint scalars to pass to
+        // AtenQuantizePerTensorOp
         zeroPoint = rewriter.create<Torch::AtenItemOp>(
             loc, rewriter.getType<Torch::IntType>(), zeroPointTensor);
         scale = rewriter.create<Torch::AtenItemOp>(
             loc, rewriter.getType<Torch::FloatType>(), scaleTensor);
         Value quantizedTensor = rewriter.create<Torch::AtenQuantizePerTensorOp>(
             loc, qTensorTy, input, scale, zeroPoint, tyConst);
+        // get uint8 tensor output
         Value output = rewriter.create<Torch::AtenIntReprOp>(loc, resultType,
                                                              quantizedTensor);
         rewriter.replaceOp(binder.op, {output, scaleTensor, zeroPointTensor});
