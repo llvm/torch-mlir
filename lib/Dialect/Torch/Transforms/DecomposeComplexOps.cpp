@@ -1838,7 +1838,6 @@ public:
 
     Type dtype = resType.getDtype();
     if (dtype.isa<mlir::ComplexType>()) {
-      printf("Is a complex type\n");
       return rewriter.notifyMatchFailure(
           op, "lowering of aten.linalg_cross for complex inputs dtype is "
               "currently unimplemented");

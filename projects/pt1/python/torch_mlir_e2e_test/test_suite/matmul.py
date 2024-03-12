@@ -380,3 +380,23 @@ class AtenLinalgCrossNegativeDim(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenLinalgCrossNegativeDim())
 def AtenLinalgCrossNegativeDim_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 4, 3, 2, 2), tu.rand(5, 4, 3, 2, 1))
+
+# ==============================================================================
+
+class AtenLinalgCrossDynamic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return torch.ops.aten.linalg_cross(a, b, dim=1)
+
+
+@register_test_case(module_factory=lambda: AtenLinalgCrossDynamic())
+def AtenLinalgCrossDynamic_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 3, 1, 6), tu.rand(4, 3, 7, 1))
