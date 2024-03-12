@@ -867,7 +867,6 @@ class ContextCache:
         try:
             tensor_meta = node.meta.get("tensor_meta")
             val = node.meta.get("val")
-            print('BIK SEES', tensor_meta)
             if tensor_meta is not None:
                 assert isinstance(tensor_meta, TensorMetadata)
                 # Quantized tensor meta data is not preserved in our lowering,
