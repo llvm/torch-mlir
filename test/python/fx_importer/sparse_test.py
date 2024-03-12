@@ -8,11 +8,9 @@
 from typing import Any, Callable, Optional
 
 import torch
-import torch.export
 import torch.nn as nn
 
 from torch_mlir.extras.fx_importer import FxImporter
-from torch_mlir.extras.fx_importer import SparsityMeta
 from torch_mlir import ir
 from torch_mlir.dialects import torch as torch_d
 from torch_mlir.compiler_utils import run_pipeline_with_repro_report
@@ -21,114 +19,12 @@ from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import (
 )
 
 
-# All sparse layouts currently supported in torch.sparse.
-SPARSE_LAYOUTS = [
-    torch.sparse_coo,
-    torch.sparse_csr,
-    torch.sparse_csc,
-    torch.sparse_bsr,
-    torch.sparse_bsc,
-]
-
-
-def sparse_metadata(a: torch.Tensor) -> SparsityMeta:
-    """
-    Returns a meta data tuple for the given sparse tensor.
-
-    NOTE: this will be fully replaced by fx graph SparseTensorMetadata
-    """
-    sparse_dim = a.sparse_dim()
-    dense_dim = a.dense_dim()
-    batch_dim = a.ndim - dense_dim - sparse_dim
-    blocksize = None
-    if a.layout is torch.sparse_coo:
-        return SparsityMeta(
-            a.layout,
-            batch_dim,
-            sparse_dim,
-            dense_dim,
-            blocksize,
-            a.indices().dtype,
-            a.indices().dtype,
-        )
-    elif a.layout is torch.sparse_csr or a.layout is torch.sparse_bsr:
-        if a.layout is torch.sparse_bsr:
-            blocksize = a.values().shape[batch_dim + 1 : batch_dim + 3]
-        return SparsityMeta(
-            a.layout,
-            batch_dim,
-            sparse_dim,
-            dense_dim,
-            blocksize,
-            a.crow_indices().dtype,
-            a.col_indices().dtype,
-        )
-    elif a.layout is torch.sparse_csc or a.layout is torch.sparse_bsc:
-        if a.layout is torch.sparse_bsc:
-            blocksize = a.values().shape[batch_dim + 1 : batch_dim + 3]
-        return SparsityMeta(
-            a.layout,
-            batch_dim,
-            sparse_dim,
-            dense_dim,
-            blocksize,
-            a.ccol_indices().dtype,
-            a.row_indices().dtype,
-        )
-    else:
-        raise RuntimeError(f"Unsupported sparse layout for {a}")
-
-
-def sparse_export(
-    f: Callable, args: tuple[Any, ...], kwargs: Optional[dict[str, Any]] = None
-) -> torch.export.ExportedProgram:
-    """
-    This is a ***temporary*** wrapper around `torch.export.export`
-    that eventually should be removed and simply replaced by the
-    standard API for exporting traced graphs.
-
-    But until issue
-
-      https://github.com/pytorch/pytorch/pull/117907
-
-    is addressed, this wrapper provides support for the sparse
-    tensor types by first converting all operands to dense tensors,
-    building the traced graph as for the dense case, and then
-    annotation sparse parameters with their actual sparse layout
-    attributes. This temporary solution accelerates testing
-    torch-mlir with PyTorch sparse tensors until the issue is
-    resolved.
-    """
-    # Convert all arguments to dense.
-    dargs = tuple(a.to_dense() if a.layout in SPARSE_LAYOUTS else a for a in args)
-    mask = [a.layout in SPARSE_LAYOUTS for a in args]
-    # Build the regular FX traced graph with only dense arguments
-    # (the current version would crash otherwise, see issue above).
-    prog = torch.export.export(f, dargs, kwargs)
-    # Annotate sparse arguments in the graph. Note that we currently
-    # only account for sparsity defined by the user inputs to the model.
-    # TODO: support sparsity in model parameters (weights, biases)
-    # TODO: propagate sparsity into the layers
-    specs = prog.graph_signature.input_specs
-    alen = len(specs)
-    k = 0
-    for i, node in enumerate(prog.graph.nodes):
-        if i >= alen:
-            break
-        spec = specs[i]
-        if spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
-            if mask[k]:
-                node.meta["sparsity"] = sparse_metadata(args[k])
-            k = k + 1
-    return prog
-
-
 def export_and_import(f, *args, **kwargs):
     """This method implements Stella's importer, stripped down to essentials."""
     context = ir.Context()
     torch_d.register_dialect(context)
     fx_importer = FxImporter(context=context)
-    prog = sparse_export(f, args, kwargs)
+    prog = torch.export.export(f, args, kwargs)
     fx_importer.import_frozen_program(prog)
     return fx_importer.module
 

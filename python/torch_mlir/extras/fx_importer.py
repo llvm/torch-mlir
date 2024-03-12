@@ -263,57 +263,38 @@ else:
     }
 
 
-@dataclass(frozen=True)
-class SparsityMeta:
-    """
-    Class for keeping track of sparsity meta data.
-
-    NOTE: this will be fully replaced by
-          torch.fx.passes.shape_prop.SparseTensorMetadata
-    """
-
-    layout: torch.layout
-    batch_dim: int
-    sparse_dim: int
-    dense_dim: int
-    blocksize: Optional[tuple[int, int]]
-    pos_dtype: torch.dtype
-    crd_dtype: torch.dtype
-
-
-def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
-    """Returns sparse tensor encoding for the given sparse layout as string."""
-    assert sparsity is not None
+def sparsity_encoding(tm: TensorMetadata) -> str:
+    """Returns sparse tensor encoding for the given sparse tensor as string."""
 
     # Sparse tensors have the form
     #   [ <batch_dimensions> , <sparse_dimensions>, <dense_dimensions> ]
     # which map directly to MLIR types.
     batch_dim, sparse_dim, dense_dim = (
-        sparsity.batch_dim,
-        sparsity.sparse_dim,
-        sparsity.dense_dim,
+        tm.batch_dim,
+        tm.sparse_dim,
+        tm.dense_dim,
     )
     dim = batch_dim + sparse_dim + dense_dim
-    assert dim == len(shape)
-    blocksize = sparsity.blocksize
+    assert dim == len(tm.shape)
+    blocksize = tm.blocksize
 
     dims = ",".join(f"d{d}" for d in range(0, dim))
 
-    if sparsity.layout is torch.sparse_coo:
+    if tm.layout is torch.sparse_coo:
         assert sparse_dim == 2 and blocksize is None  # TODO: deeper sparse dims
         lvls = f"d{batch_dim}:compressed(nonunique),d{batch_dim+1}:singleton(soa)"
-    elif sparsity.layout is torch.sparse_csr:
+    elif tm.layout is torch.sparse_csr:
         assert sparse_dim == 2 and blocksize is None
         lvls = f"d{batch_dim}:dense,d{batch_dim+1}:compressed"
-    elif sparsity.layout is torch.sparse_csc:
+    elif tm.layout is torch.sparse_csc:
         assert sparse_dim == 2 and blocksize is None
         lvls = f"d{batch_dim+1}:dense,d{batch_dim}:compressed"
     else:
         assert sparse_dim == 2 and blocksize is not None
-        if sparsity.layout is torch.sparse_bsr:
+        if tm.layout is torch.sparse_bsr:
             i, j = batch_dim, batch_dim + 1
         else:
-            assert sparsity.layout is torch.sparse_bsc
+            assert tm.layout is torch.sparse_bsc
             j, i = batch_dim, batch_dim + 1
         m, n = blocksize
         lvls = (
@@ -329,8 +310,7 @@ def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
         dense = ",".join(f"d{d}:dense" for d in range(batch_dim + sparse_dim, dim))
         lvls = f"{lvls},{dense}"
 
-    posw = torch.iinfo(sparsity.pos_dtype).bits
-    crdw = torch.iinfo(sparsity.crd_dtype).bits
+    posw = crdw = torch.iinfo(tm.idx_dtype).bits
     return f"#sparse_tensor.encoding<{{map=({dims})->({lvls}),posWidth={posw},crdWidth={crdw}}}>"
 
 
@@ -865,15 +845,15 @@ class ContextCache:
         shape: torch.Size,
         dtype: torch.dtype,
         *,
-        sparsity: Optional[SparsityMeta] = None,
+        tm: Optional[TensorMetadata] = None,
         mutable: bool = False,
     ):
         """Return IrType for !torch.vtensor with the given shape and dtype"""
         stem = "torch.tensor" if mutable else "torch.vtensor"
         shape_asm = self.format_asm_shape(shape)
         mlir_dtype = str(self.dtype_to_type(dtype))
-        if sparsity is not None:
-            encoding = sparsity_encoding(shape, sparsity)
+        if tm is not None and tm.sparse_dim is not None:
+            encoding = sparsity_encoding(tm)
             assert encoding is not None
             return IrType.parse(
                 f"!{stem}<[{shape_asm}],{str(mlir_dtype)},{encoding}>",
@@ -887,7 +867,7 @@ class ContextCache:
         try:
             tensor_meta = node.meta.get("tensor_meta")
             val = node.meta.get("val")
-            sparsity = node.meta.get("sparsity", None)
+            print('BIK SEES', tensor_meta)
             if tensor_meta is not None:
                 assert isinstance(tensor_meta, TensorMetadata)
                 # Quantized tensor meta data is not preserved in our lowering,
@@ -898,14 +878,14 @@ class ContextCache:
                     )
                 else:
                     return self.tensor_metadata_to_type(
-                        tensor_meta, sparsity=sparsity, mutable=mutable
+                        tensor_meta, mutable=mutable
                     )
             elif val is not None:
                 # some nodes with symbolic inputs pass a 'val' attribute rather than
                 # tensor_meta
                 if isinstance(val, TorchFakeTensor):
                     return self.get_vtensor_type(
-                        val.size(), val.dtype, sparsity=sparsity, mutable=mutable
+                        val.size(), val.dtype, mutable=mutable
                     )
 
                 t = SCALAR_TYPE_TO_TORCH_MLIR_TYPE.get(type(val))
@@ -925,18 +905,18 @@ class ContextCache:
         self,
         tm: TensorMetadata,
         *,
-        sparsity: Optional[SparsityMeta] = None,
         mutable: bool = False,
     ) -> IrType:
         tm_shape = tuple(
             item.node if is_symbolic(item) else item for item in list(tm.shape)
         )
 
-        key = (tm_shape, tm.dtype, sparsity, mutable)
+        sparse_key = (tm.layout, tm.sparse_dim, tm.dense_dim, tm.blocksize, tm.idx_dtype)
+        key = (tm_shape, tm.dtype, sparse_key, mutable)
         t = self._tensor_metadata_cache.get(key)
         if t is None:
             t = self.get_vtensor_type(
-                tm.shape, tm.dtype, sparsity=sparsity, mutable=mutable
+                tm.shape, tm.dtype, tm=tm, mutable=mutable
             )
             self._tensor_metadata_cache[key] = t
         return t
