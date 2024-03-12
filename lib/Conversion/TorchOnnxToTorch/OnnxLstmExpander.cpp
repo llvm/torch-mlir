@@ -413,7 +413,7 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   // ### everything hereon is only one direction. they won't have the direction
   // dimension ### todo: support bidirectional and reverse LSTM.
   // you might be able to do it by just doing both directions and then stacking
-
+  auto intType = rewriter.getType<Torch::IntType>();
   Value HSizeX4 = rewriter.create<Torch::ConstantIntOp>(
       loc, intType,
       rewriter.getIntegerAttr(rewriter.getIntegerType(64), 4 * hidden_size));
