@@ -1153,21 +1153,21 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, tensor, slope);
                   return success();
                 });
-  patterns.onOp("Mod", 13,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  Value lhs, rhs;
-                  int64_t fmod;
-                  if (binder.tensorOperands(lhs, rhs) ||
-                      binder.tensorResultType(resultType) || 
-                      binder.s64IntegerAttr(fmod, "fmod", 0)) {
-                    return failure();
-                  }
-                  Value constFmod = rewriter.create<Torch::ConstantIntOp>(
-                		    binder.getLoc(), rewriter.getType<Torch::IntType>(),
-                		    rewriter.getIntegerAttr(rewriter.getIntegerType(64), fmod));
-                  rewriter.replaceOpWithNewOp<Torch::AtenFmodTensorOp>(
-                      binder.op, resultType, lhs, rhs, constFmod);
-                  return success();
-                });
+  patterns.onOp(
+      "Mod", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value lhs, rhs;
+        int64_t fmod;
+        if (binder.tensorOperands(lhs, rhs) ||
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerAttr(fmod, "fmod", 0)) {
+          return failure();
+        }
+        Value constFmod = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), fmod));
+        rewriter.replaceOpWithNewOp<Torch::AtenFmodTensorOp>(
+            binder.op, resultType, lhs, rhs, constFmod);
+        return success();
+      });
 }
