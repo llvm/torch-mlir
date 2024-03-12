@@ -405,6 +405,8 @@ STABLEHLO_PASS_SET = {
     "AtenItemIntOpModule_basic",
     "AtenMmFloatTypes_basic",
     "AtenMmIntTypes_basic",
+    "AtenRoundFloatHalfToEvenModule_basic",
+    "AtenRoundFloatModule_basic",
     "AtenRoundIntModule_basic",
     "AtenSubFloatModule_basic",
     "AtenToDeviceModule_basic",
