@@ -1598,8 +1598,6 @@ ONNX_XFAIL_SET = {
     "ElementwiseOrTensorStaticShapeModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
     "ElementwiseRemainderTensorModule_Int_basic",
-    "ElementwiseFmodTensor_Float_basic",
-    "ElementwiseFmodTensor_Int_Float_basic",
     "ElementwiseFmodTensor_Int_basic",
     "EmptyStridedModule_basic",
     "EmptyStridedSizeIntStrideModule_basic",
@@ -1897,14 +1895,6 @@ ONNX_XFAIL_SET = {
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
     "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
     "MaxPool2dWithIndicesStaticModule_basic",
-
-    # Failure - onnx_lowering: onnx.Mod
-    "ElementwiseRemainderScalarModule_Bool_basic",
-    "ElementwiseRemainderScalarModule_Int_basic",
-    "UnflattenIntNegativeOneDimStaticModule_basic",
-    "UnflattenIntNegativeOneSizeStaticModule_basic",
-    "UnflattenIntStaticModule_basic",
-    "UnflattenStaticModule_basic",
 
     # Failure - onnx_lowering: onnx.OneHot
     "OneHotModule_basic",
