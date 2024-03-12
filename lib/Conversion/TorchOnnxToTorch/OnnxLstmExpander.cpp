@@ -1,4 +1,4 @@
-#include "OnnxLSTMHandler.h"
+#include "torch-mlir/Conversion/TorchOnnxToTorch/OnnxLstmExpander.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -249,8 +249,8 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
   return std::make_tuple(Y_list, loop.getResult(0), loop.getResult(1));
 }
 
-LogicalResult OnnxLSTMHandler(OpBinder binder,
-                              ConversionPatternRewriter &rewriter) {
+LogicalResult OnnxLstmExpander(OpBinder binder,
+                               ConversionPatternRewriter &rewriter) {
   Location loc = binder.getLoc();
   // required inputs
   Value X, W, R;

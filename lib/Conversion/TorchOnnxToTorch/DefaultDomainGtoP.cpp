@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "./OnnxLSTMHandler.h"
+#include "torch-mlir/Conversion/TorchOnnxToTorch/OnnxLstmExpander.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -196,7 +196,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp("LSTM", 1, onnx_c::OnnxLSTMHandler);
+  patterns.onOp("LSTM", 1, onnx_c::OnnxLstmExpander);
   patterns.onOp("MatMul", 13,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
