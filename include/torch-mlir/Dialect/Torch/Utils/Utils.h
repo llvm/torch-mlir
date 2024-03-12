@@ -131,6 +131,15 @@ Value createRank0Tensor(PatternRewriter &rewriter, Location loc,
 LogicalResult getTransposedType(BaseTensorType inType, int64_t dimA,
                                 int64_t dimB, Type &transposedType);
 
+// Approximates the heuristic in the torch `acc_type` template for kernels
+// that are defined in terms of it. For now, this just returns accumulators
+// as if for CUDA from that implementation. In the future, this could be
+// extended to look at hints on the `forOp` or its container to better
+// control the behavior. Such support would be done in coordination with
+// the fx_importer and APIs, which could add hints to the IR (based on
+// Torch flags, user options, etc).
+Type getDefaultAccType(PatternRewriter &rewriter, Type inputType);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
