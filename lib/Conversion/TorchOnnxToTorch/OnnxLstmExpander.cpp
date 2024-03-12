@@ -124,6 +124,8 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
       initial_h.getType().cast<Torch::ValueTensorType>();
   Torch::ValueTensorType CType = HType;
 
+  auto intType = rewriter.getType<Torch::IntType>();
+
   Value c_0 = rewriter.create<Torch::ConstantIntOp>(
       loc, intType, rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
   Value c_1 = rewriter.create<Torch::ConstantIntOp>(
@@ -369,6 +371,8 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
       llvm::SmallVector<int64_t>{num_directions, batch_size, hidden_size},
       XType.getDtype());
 
+  auto intType = rewriter.getType<Torch::IntType>();
+
   // construct a list containing the shape of initial_h and initial_c
   // this is used to check if initial_h and initial_c are provided
   Value cst_num_directions = rewriter.create<Torch::ConstantIntOp>(
@@ -413,7 +417,6 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   // ### everything hereon is only one direction. they won't have the direction
   // dimension ### todo: support bidirectional and reverse LSTM.
   // you might be able to do it by just doing both directions and then stacking
-  auto intType = rewriter.getType<Torch::IntType>();
   Value HSizeX4 = rewriter.create<Torch::ConstantIntOp>(
       loc, intType,
       rewriter.getIntegerAttr(rewriter.getIntegerType(64), 4 * hidden_size));
