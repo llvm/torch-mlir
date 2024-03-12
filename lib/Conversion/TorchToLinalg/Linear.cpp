@@ -512,8 +512,8 @@ public:
       resultShape.insert(resultShape.end(), {lhsDim0, rhsDim1});
       Value zeroTensor =
           createZeroInitTensor(rewriter, loc, resultShape, elementType);
-      auto indexingMaps =
-          AffineMap::inferFromExprList({lhsExpr, rhsExpr, outExpr});
+      auto indexingMaps = AffineMap::inferFromExprList(
+          {lhsExpr, rhsExpr, outExpr}, rewriter.getContext());
       iteratorTypes.insert(iteratorTypes.end(),
                            {utils::IteratorType::parallel,
                             utils::IteratorType::reduction,
@@ -653,7 +653,7 @@ public:
           op, "lhs and rhs of convolution must either be both int or fp");
     }
 
-    if (inputZp && weightZp) {
+    if (inputZp && weightZp && !isa<Torch::NoneType>(bias.getType())) {
       auto biasDTy = bias.getType().cast<RankedTensorType>().getElementType();
       if (!biasDTy.isInteger(32)) {
         return rewriter.notifyMatchFailure(
@@ -882,14 +882,14 @@ public:
     if (bias.getType().isa<Torch::NoneType>()) {
       Value c0;
       if (resultDTy.isa<mlir::FloatType>()) {
-        c0 = rewriter.create<arith::ConstantOp>(
-            loc, FloatAttr::get(resultDTy, 0.0));
+        c0 = rewriter.create<arith::ConstantOp>(loc,
+                                                FloatAttr::get(resultDTy, 0.0));
       } else if (resultDTy.isa<mlir::IntegerType>()) {
-        c0 = rewriter.create<arith::ConstantOp>(
-            loc, IntegerAttr::get(resultDTy, 0));
+        c0 = rewriter.create<arith::ConstantOp>(loc,
+                                                IntegerAttr::get(resultDTy, 0));
       }
-      outputTensor = rewriter.create<linalg::FillOp>(loc, c0, initTensor)
-                         .getResult(0);
+      outputTensor =
+          rewriter.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
 
     } else {
       auto biasType = bias.getType().cast<RankedTensorType>();
@@ -1058,11 +1058,11 @@ public:
           loc, collapsedType, weight, collapsedDims);
 
       conv = rewriter
-                .create<linalg::DepthwiseConv2DNchwChwOp>(
-                    loc, outputTensor.getType(),
-                    ValueRange{paddedInput, collapsedWeight}, outputTensor,
-                    stridesAttr, dilationAttr)
-                .getResult(0);
+                 .create<linalg::DepthwiseConv2DNchwChwOp>(
+                     loc, outputTensor.getType(),
+                     ValueRange{paddedInput, collapsedWeight}, outputTensor,
+                     stridesAttr, dilationAttr)
+                 .getResult(0);
 
       Type newResultType = getTypeConverter()->convertType(op.getType());
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);

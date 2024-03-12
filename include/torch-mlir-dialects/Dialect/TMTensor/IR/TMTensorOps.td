@@ -137,6 +137,7 @@ def TMTensor_ScatterOp : TMTensor_Op<"scatter",
   let arguments = (ins
       Variadic<AnyRankedTensorOrMemRefType>:$inputs,
       Variadic<AnyRankedTensorOrMemRefType>:$outputs,
+      DenseI64ArrayAttr:$dimension_map,
       DefaultValuedAttr<BoolAttr, "true">:$unique_indices
   );
   let results = (outs Variadic<AnyRankedTensor>:$results);
@@ -313,9 +314,6 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
     int64_t getOutputRank() {
       return getOutputType().getRank();
     }
-    int64_t getIterationDomainRank() {
-      return 2;
-    };
     // Method to implement for specifying output range for
     // DestinationStyleOpInterface
     std::pair<int64_t, int64_t> getDpsInitsPositionRange() {

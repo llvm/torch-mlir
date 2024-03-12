@@ -245,12 +245,20 @@ mlir::RankedTensorType GetTypeFromTensorShape(llvm::ArrayRef<int64_t> shape,
                                      elementType, encoding);
 }
 
+static std::optional<int64_t> getIntegerValue(Value scalar) {
+  if (auto constOp = scalar.getDefiningOp<Torch::ConstantIntOp>()) {
+    return std::optional<int64_t>(constOp.getValue());
+  }
+  return std::optional<int64_t>();
+}
+
 // Convert a scalar value to the target type. The scalar value can be an element
 // from a tensor or a scalar in the pytorch dialect. Both the scalar and dtype
 // should be converted builtin types.
 Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
                            std::optional<Type> srcOriginalDtype,
-                           std::optional<Type> dstOriginalDtype) {
+                           std::optional<Type> dstOriginalDtype,
+                           std::optional<Value> originalScalar) {
   Type scalarType = scalar.getType();
   if (scalarType == dtype)
     return scalar;
@@ -262,7 +270,8 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
     return false;
   };
 
-  // We don't support conversion to Byte dtype.
+  // We support conversion to Byte dtype only if the original scalar is an
+  // integer constant with value lying between 0 - 63.
   if (isByteOrChar(dtype)) {
     if (!dstOriginalDtype.has_value()) {
       mlir::emitError(loc)
@@ -271,10 +280,22 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
       return nullptr;
     }
     if (dstOriginalDtype->isUnsignedInteger()) {
-      mlir::emitError(loc)
-          << "unsupported: conversion to byte type for convertScalarToDtype "
-          << scalarType << "(scalar type) -> " << dtype << "(dtype)";
-      return nullptr;
+      if (originalScalar.has_value()) {
+        std::optional<int64_t> optConstVal =
+            getIntegerValue(originalScalar.value());
+        if (optConstVal.has_value()) {
+          int64_t constVal = optConstVal.value();
+          if (constVal < 0 || constVal > 63) {
+            // Do the conversion only if the original integer value is between
+            // 0 - 63.
+            mlir::emitError(loc)
+                << "unsupported: conversion to byte type for "
+                   "convertScalarToDtype "
+                << scalarType << "(scalar type) -> " << dtype << "(dtype)";
+            return nullptr;
+          }
+        }
+      }
     }
   }
 

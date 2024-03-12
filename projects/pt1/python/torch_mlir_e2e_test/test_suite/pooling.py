@@ -945,7 +945,7 @@ def AvgPool1dStaticModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 class AdaptiveAvgPool1dStaticLargerOutput(torch.nn.Module):
-    
+
     def __init__(self):
         super().__init__()
         self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=13)
@@ -965,7 +965,7 @@ def AdaptiveAvgPool1dStaticLargerOutput_basic(
     module.forward(tu.rand(5, 512, 7))
 
 class AdaptiveAvgPool1dStaticEvenMultiple(torch.nn.Module):
-    
+
     def __init__(self):
         super().__init__()
         self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=7)
@@ -985,7 +985,7 @@ def AdaptiveAvgPool1dStaticEvenMultiple_basic(
     module.forward(tu.rand(5, 512, 147))
 
 class AdaptiveAvgPool1dGeneralDynamic(torch.nn.Module):
-    
+
     def __init__(self):
         super().__init__()
         self.aap1d = torch.nn.AdaptiveAvgPool1d(output_size=7)
@@ -1254,7 +1254,7 @@ def AdaptiveMaxPool1dStatic_basic(
 # AdaptiveMaxPool2d
 
 class AdaptiveMaxPool2dDynamic(torch.nn.Module):
-    
+
     def __init__(self):
         super().__init__()
         self.amp2d = torch.nn.AdaptiveMaxPool2d(output_size=(7,13), return_indices=False)
@@ -1294,7 +1294,7 @@ def AdaptiveMaxPool2dDynamicNoBatch_basic(
     module.forward(tu.rand(512, 10, 16))
 
 class AdaptiveMaxPool2dDynamicWithIndices(torch.nn.Module):
-    
+
     def __init__(self):
         super().__init__()
         self.amp2d = torch.nn.AdaptiveMaxPool2d(output_size=(7,13), return_indices=True)
@@ -1312,10 +1312,10 @@ class AdaptiveMaxPool2dDynamicWithIndices(torch.nn.Module):
 def AdaptiveMaxPool2dDynamicWithIndices_basic(
         module, tu: TestUtils):
     module.forward(tu.rand(1, 512, 10, 16))
-    
+
 
 class AdaptiveMaxPool2dStatic(torch.nn.Module):
-    
+
     def __init__(self):
         super().__init__()
         self.amp2d = torch.nn.AdaptiveMaxPool2d(output_size=(7,13), return_indices=False)
@@ -1335,7 +1335,7 @@ def AdaptiveMaxPool2dStatic_basic(
     module.forward(tu.rand(1, 512, 10, 9))
 
 class AdaptiveMaxPool2dStaticWithIndices(torch.nn.Module):
-    
+
     def __init__(self):
         super().__init__()
         self.amp2d = torch.nn.AdaptiveMaxPool2d(output_size=(7,13), return_indices=True)

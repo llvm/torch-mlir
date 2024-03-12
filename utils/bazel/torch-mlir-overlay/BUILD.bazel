@@ -867,7 +867,10 @@ cc_library(
     hdrs = [
         "include/torch-mlir/InitAll.h",
     ],
-    copts = ["-DTORCH_MLIR_ENABLE_REFBACKEND"],
+    copts = [
+        "-DTORCH_MLIR_ENABLE_REFBACKEND",
+        "-DTORCH_MLIR_ENABLE_STABLEHLO",
+    ],
     strip_include_prefix = "include",
     deps = [
         ":TorchMLIRConversionPasses",
@@ -882,6 +885,8 @@ cc_library(
         "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:DialectUtils",
         "@llvm-project//mlir:IR",
+        "@stablehlo//:linalg_passes",
+        "@stablehlo//:stablehlo_passes",
     ],
 )
 

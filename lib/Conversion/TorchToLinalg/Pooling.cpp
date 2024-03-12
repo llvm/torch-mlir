@@ -447,8 +447,8 @@ public:
 
     // Here we have six dimensions, each corresponding to N, C, Hout, Wout, kH,
     // and kW, respectively, as described in the algorithm above.
-    SmallVector<AffineMap> indexingMaps =
-        AffineMap::inferFromExprList({inputExprs, kernelExprs, outputExprs});
+    SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
+        {inputExprs, kernelExprs, outputExprs}, rewriter.getContext());
     SmallVector<utils::IteratorType> iteratorTypes(
         4, utils::IteratorType::parallel);
     iteratorTypes.push_back(utils::IteratorType::reduction);
@@ -993,8 +993,8 @@ public:
     for (unsigned i = rank; i < 2 * rank - nonSpatial; i++) {
       kIterExprs.push_back(rewriter.getAffineDimExpr(i));
     }
-    SmallVector<AffineMap> indexingMaps =
-        AffineMap::inferFromExprList({kIterExprs, outputExprs, auxTensorExprs});
+    SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
+        {kIterExprs, outputExprs, auxTensorExprs}, rewriter.getContext());
     SmallVector<utils::IteratorType> iteratorTypes(
         rank, utils::IteratorType::parallel);
     for (unsigned i = 0; i < rank - nonSpatial; i++) {

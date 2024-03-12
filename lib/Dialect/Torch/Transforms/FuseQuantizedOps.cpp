@@ -64,10 +64,6 @@ public:
     if (operands.size() < 3)
       return failure();
 
-    Value bias = operands[2];
-    if (bias.getDefiningOp<AtenDequantizeTensorOp>())
-      return failure();
-
     Value lhsScale;
     if (auto qLhs =
             operands[0].getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>())
@@ -82,10 +78,17 @@ public:
       return failure();
 
     auto resultTy = cast<ValueTensorType>(op.getType());
-    auto biasTy = bias.getType().cast<ValueTensorType>();
-    auto biasETy = biasTy.getOptionalDtype();
-    if (!biasETy || !isa<mlir::FloatType>(biasETy))
+    if (!isa<mlir::FloatType>(resultTy.getDtype()))
       return failure();
+
+    Value bias = operands[2];
+    auto biasTy = bias.getType().dyn_cast<ValueTensorType>();
+
+    if (biasTy) {
+      auto biasETy = biasTy.getOptionalDtype();
+      if (!biasETy || !isa<mlir::FloatType>(biasETy))
+        return failure();
+    }
 
     Value biasScale = rewriter.create<AtenMulFloatOp>(
         op.getLoc(), lhsScale.getType(), lhsScale, rhsScale);
@@ -95,19 +98,21 @@ public:
         rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
 
     auto qi32Ty = rewriter.getType<QInt32Type>();
-    auto newBiasTy =
-        rewriter.getType<ValueTensorType>(biasTy.getOptionalSizes(), qi32Ty);
-    Value dtype = getDtypeIntValueForType(rewriter, op.getLoc(), qi32Ty);
-    bias = rewriter.create<AtenQuantizePerTensorOp>(
-        op.getLoc(), newBiasTy, bias, biasScale, zero, dtype);
-    bias = rewriter.create<AtenIntReprOp>(
-        op.getLoc(),
-        rewriter.getType<ValueTensorType>(
-            biasTy.getOptionalSizes(),
-            rewriter.getIntegerType(32, IntegerType::Signed)),
-        bias);
 
-    operands[2] = bias;
+    if (biasTy) {
+      auto newBiasTy =
+          rewriter.getType<ValueTensorType>(biasTy.getOptionalSizes(), qi32Ty);
+      Value dtype = getDtypeIntValueForType(rewriter, op.getLoc(), qi32Ty);
+      bias = rewriter.create<AtenQuantizePerTensorOp>(
+          op.getLoc(), newBiasTy, bias, biasScale, zero, dtype);
+      bias = rewriter.create<AtenIntReprOp>(
+          op.getLoc(),
+          rewriter.getType<ValueTensorType>(
+              biasTy.getOptionalSizes(),
+              rewriter.getIntegerType(32, IntegerType::Signed)),
+          bias);
+      operands[2] = bias;
+    }
 
     auto convTy = rewriter.getType<ValueTensorType>(
         resultTy.getOptionalSizes(),

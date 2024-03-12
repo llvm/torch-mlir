@@ -64,7 +64,7 @@ func.func @scan_1d_exclusive(%in: tensor<128xi32>, %out: tensor<128xi32>, %acc: 
 // CHECK:           %[[ORIG_MEMREF:.*]] = bufferization.to_memref %[[ORIG_TENSOR]] : memref<8xi32>
 // CHECK:           %[[ORIG_MEMREF_NEW:.*]] = memref.alloc() : memref<8xi32>
 // CHECK:           memref.copy %[[ORIG_MEMREF]], %[[ORIG_MEMREF_NEW]] : memref<8xi32> to memref<8xi32>
-// CHECK:           tm_tensor.scatter unique_indices(true) ins(%[[UPDATES_MEMREF]], %[[INDICES_MEMREF]]
+// CHECK:           tm_tensor.scatter {dimension_map = array<i64: 0>} unique_indices(true) ins(%[[UPDATES_MEMREF]], %[[INDICES_MEMREF]]
 // CHECK-SAME:        : memref<3xi32>, memref<3x1xi32>) outs(%[[ORIG_MEMREF_NEW]] : memref<8xi32>) {
 // CHECK:           ^bb0(%[[UPDATE_SCALAR:.*]]: i32, %[[ORIG_SCALAR:.*]]: i32):
 // CHECK:             tm_tensor.yield %[[UPDATE_SCALAR]] : i32
@@ -74,7 +74,7 @@ func.func @scan_1d_exclusive(%in: tensor<128xi32>, %out: tensor<128xi32>, %acc: 
 func.func @scatter_update_scalar_1D(
     %original: tensor<8xi32>, %indices: tensor<3x1xi32>,
     %updates: tensor<3xi32>) -> tensor<8xi32> {
-  %0 = tm_tensor.scatter unique_indices(true)
+  %0 = tm_tensor.scatter {dimension_map = array<i64: 0>} unique_indices(true)
     ins(%updates, %indices : tensor<3xi32>, tensor<3x1xi32>)
     outs(%original : tensor<8xi32>)  {
   ^bb0(%update: i32, %orig: i32):  // no predecessors
@@ -92,7 +92,7 @@ func.func @scatter_update_scalar_1D(
 // CHECK:           %[[ORIG_MEMREF:.*]] = bufferization.to_memref %[[ORIG_TENSOR]] : memref<8xi32>
 // CHECK:           %[[ORIG_MEMREF_NEW:.*]] = memref.alloc() : memref<8xi32>
 // CHECK:           memref.copy %[[ORIG_MEMREF]], %[[ORIG_MEMREF_NEW]] : memref<8xi32> to memref<8xi32>
-// CHECK:           tm_tensor.scatter unique_indices(true) ins(%[[UPDATES_MEMREF]], %[[INDICES_MEMREF]]
+// CHECK:           tm_tensor.scatter {dimension_map = array<i64: 0>} unique_indices(true) ins(%[[UPDATES_MEMREF]], %[[INDICES_MEMREF]]
 // CHECK-SAME:        : memref<3xi32>, memref<3x1xi32>) outs(%[[ORIG_MEMREF_NEW]] : memref<8xi32>) {
 // CHECK:           ^bb0(%[[UPDATE_SCALAR:.*]]: i32, %[[ORIG_SCALAR:.*]]: i32):
 // CHECK:             %[[CST1:.*]] = arith.constant 1 : i32
@@ -104,7 +104,7 @@ func.func @scatter_update_scalar_1D(
 func.func @scatter_add_scalar_1D(
     %original: tensor<8xi32>, %indices: tensor<3x1xi32>,
     %updates: tensor<3xi32>) -> tensor<8xi32> {
-  %0 = tm_tensor.scatter unique_indices(true)
+  %0 = tm_tensor.scatter {dimension_map = array<i64: 0>} unique_indices(true)
     ins(%updates, %indices : tensor<3xi32>, tensor<3x1xi32>)
     outs(%original : tensor<8xi32>)  {
   ^bb0(%update: i32, %orig: i32):  // no predecessors

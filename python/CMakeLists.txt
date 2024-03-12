@@ -39,6 +39,14 @@ declare_mlir_python_sources(TorchMLIRPythonSources.Importers
     extras/onnx_importer.py
 )
 
+declare_mlir_python_sources(TorchMLIRPythonSources.PublicAPI
+  ROOT_DIR "${TORCH_MLIR_PYTHON_ROOT_DIR}"
+  ADD_TO_PARENT TorchMLIRPythonSources
+  SOURCES
+    fx.py
+    extras/fx_decomp_util.py
+)
+
 declare_mlir_python_sources(TorchMLIRPythonSources.Tools
   ROOT_DIR "${TORCH_MLIR_PYTHON_ROOT_DIR}"
   ADD_TO_PARENT TorchMLIRPythonSources

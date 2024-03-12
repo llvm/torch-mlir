@@ -29,7 +29,7 @@ We have few paths to lower down to the Torch MLIR Dialect.
  - LazyTensorCore
     Read more details [here](docs/ltc_backend.md).
  - We also have basic TorchDynamo/PyTorch 2.0 support, see our
-   [long-term roadmap](docs/long_term_roadmap.md) and
+   [long-term roadmap](docs/roadmap.md) and
    [Thoughts on PyTorch 2.0](https://discourse.llvm.org/t/thoughts-on-pytorch-2-0/67000/3)
    for more details.
 

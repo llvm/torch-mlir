@@ -115,6 +115,21 @@ static void setupFinalization(ConversionTarget &target,
   setupFinalization<OpTy2, OpTys...>(target, patterns, typeConverter);
 }
 
+static void stripTorchAttrs(FunctionOpInterface func) {
+  bool modified = false;
+  SmallVector<NamedAttribute> newAttrs;
+  for (auto attr : func->getDialectAttrs()) {
+    if (attr.getName().getValue().starts_with("torch."))
+      modified = true;
+    else
+      newAttrs.push_back(attr);
+  }
+  if (modified)
+    func->setDialectAttrs(newAttrs);
+
+  // Note: this could also strip "arg" and "result" attrs if they were used.
+}
+
 namespace {
 struct FinalizingBackendTypeConversionPass
     : public FinalizingBackendTypeConversionBase<
@@ -151,11 +166,14 @@ struct FinalizingBackendTypeConversionPass
 
     if (failed(applyFullConversion(func, target, std::move(patterns))))
       signalPassFailure();
+
+    // Drop attributes that are no longer used after conversion out of Torch.
+    stripTorchAttrs(func);
   }
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
+std::unique_ptr<InterfacePass<FunctionOpInterface>>
 mlir::torch::TorchConversion::createFinalizingBackendTypeConversionPass() {
   return std::make_unique<FinalizingBackendTypeConversionPass>();
 }

@@ -229,7 +229,7 @@ class ConvertCustomQuantOpPass
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
+std::unique_ptr<InterfacePass<FunctionOpInterface>>
 mlir::torch::TorchConversion::createConvertCustomQuantOpPass() {
   return std::make_unique<ConvertCustomQuantOpPass>();
 }

@@ -1,4 +1,4 @@
-// RUN: torch-mlir-opt -torch-reduce-op-variants  %s | FileCheck %s
+// RUN: torch-mlir-opt -torch-reduce-op-variants --split-input-file %s | FileCheck %s
 
 // CHECK-LABEL:   func.func @convert_to_value_semantic_tensors(
 // CHECK-SAME:                                       %[[ARG:.*]]: !torch.tensor<[],f32>) -> !torch.tensor<[],f32> {
@@ -10,6 +10,8 @@ func.func @convert_to_value_semantic_tensors(%arg0: !torch.tensor<[],f32>) -> !t
   %0 = torch.aten.tanh %arg0 : !torch.tensor<[],f32> -> !torch.tensor<[],f32>
   return %0 : !torch.tensor<[],f32>
 }
+
+// -----
 
 // CHECK-LABEL:   func.func @convert_to_value_semantic_tensors_list(
 // CHECK-SAME:                  %[[VT0:.*]]: !torch.vtensor, %[[VT1:.*]]: !torch.vtensor,
@@ -39,6 +41,8 @@ func.func @convert_to_value_semantic_tensors_list(%vt0: !torch.vtensor, %vt1: !t
   %ret = torch.aten.cat %list, %int1 : !torch.list<tensor>, !torch.int -> !torch.tensor
   return %ret : !torch.tensor
 }
+
+// -----
 
 // CHECK-LABEL:   func.func @convert_to_value_semantic_tensors_optional(
 // CHECK-SAME:         %[[INPUT:.*]]: !torch.tensor, %[[FLOAT_TENSOR:.*]]: !torch.tensor<[4],f32>,
@@ -83,6 +87,8 @@ func.func @convert_to_value_semantic_tensors_optional(%t: !torch.tensor,
     return %ret: !torch.tensor
 }
 
+// -----
+
 // CHECK-LABEL:   func.func @reduce_trailing_underscore_inplace_variant(
 // CHECK-SAME:                          %[[ARG0:.*]]: !torch.tensor<[2,2],f32>,
 // CHECK-SAME:                          %[[ARG1:.*]]: !torch.tensor<[2,2],f32>) -> (!torch.tensor<[2,2],f32>, !torch.tensor<[2,2],f32>) {
@@ -106,6 +112,7 @@ func.func @reduce_trailing_underscore_inplace_variant(%arg0: !torch.tensor<[2,2]
   %0 = torch.aten.add_.Tensor %arg0, %arg1, %c1 : !torch.tensor<[2,2],f32>, !torch.tensor<[2,2],f32>, !torch.int -> !torch.tensor<[2,2],f32>
   return %0, %arg0 : !torch.tensor<[2,2],f32>, !torch.tensor<[2,2],f32>
 }
+// -----
 
 // CHECK-LABEL:   func.func @torch.tensor.literal() -> !torch.tensor {
 // CHECK:           %[[VTENSOR:.*]] = torch.vtensor.literal(dense<0.000000e+00> : tensor<7xf32>) : !torch.vtensor<[7],f32>
@@ -116,6 +123,8 @@ func.func @torch.tensor.literal() -> !torch.tensor {
   %0 = torch.tensor.literal(dense<0.0> : tensor<7xf32>) : !torch.tensor
   return %0 : !torch.tensor
 }
+
+// -----
 
 // CHECK-LABEL:   func.func @convert_to_value_semantic_tensors_optional_list(
 // CHECK-SAME:         %[[SELF:.*]]: !torch.tensor<[5],f32>,
@@ -133,6 +142,8 @@ func.func @convert_to_value_semantic_tensors_optional_list(%self: !torch.tensor<
   %ret = torch.aten.index.Tensor %self, %tensor_optional_list : !torch.tensor<[5],f32>, !torch.list<optional<tensor<[2,3],si64>>> -> !torch.tensor
   return %ret : !torch.tensor
 }
+
+// -----
 
 // CHECK-LABEL:   func.func @convert_to_value_semantic_tensors_optional_list_nones_and_tensors(
 // CHECK-SAME:         %[[SELF:.*]]: !torch.tensor<[5],f32>,
@@ -155,6 +166,8 @@ func.func @convert_to_value_semantic_tensors_optional_list_nones_and_tensors(%se
   return %ret : !torch.tensor
 }
 
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.bernoulli_.float(
 // CHECK-SAME:                                      %[[T:.*]]: !torch.tensor) -> !torch.tensor {
 // CHECK:           %[[GENERATOR:.*]] = torch.constant.none
@@ -170,4 +183,23 @@ func.func @torch.aten.bernoulli_.float(%t: !torch.tensor) -> !torch.tensor {
   %p = torch.constant.float 5.000000e-01
   %ret = torch.aten.bernoulli_.float %t, %p, %generator : !torch.tensor, !torch.float, !torch.none -> !torch.tensor
   return %ret : !torch.tensor
+}
+
+// -----
+
+// CHECK-LABEL: func.func @scaled_dot_product_flash_attention_for_cpu
+// CHECK-SAME: %[[ARG0:.+]]: !torch.vtensor<[1,1,5,5],f32>, %[[ARG1:.+]]: !torch.vtensor<[1,1,5,5],f32>, %[[ARG2:.+]]: !torch.vtensor<[1,1,5,5],f32>
+// CHECK:      %[[ZERO:.+]] = torch.constant.float 0.000000e+00
+// CHECK:      %[[FALSE:.+]] = torch.constant.bool false
+// CHECK:      %[[NONE0:.+]] = torch.constant.none
+// CHECK:      %[[NONE1:.+]] = torch.constant.none
+// CHECK:      %[[ATTEN:.+]] = torch.aten.scaled_dot_product_attention %[[ARG0]], %[[ARG1]], %[[ARG2]], %[[NONE0]], %[[ZERO]], %[[FALSE]], %[[NONE1]]
+// CHECK:      return %[[ATTEN]]
+func.func @scaled_dot_product_flash_attention_for_cpu(%arg0: !torch.vtensor<[1,1,5,5],f32>, %arg1: !torch.vtensor<[1,1,5,5],f32>, %arg2: !torch.vtensor<[1,1,5,5],f32>) -> !torch.vtensor<[1,1,5,5],f32> {
+  %float0.000000e00 = torch.constant.float 0.000000e+00
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %none_0 = torch.constant.none
+  %0:2 = torch.operator "torch.aten._scaled_dot_product_flash_attention_for_cpu"(%arg0, %arg1, %arg2, %float0.000000e00, %false, %none, %none_0) : (!torch.vtensor<[1,1,5,5],f32>, !torch.vtensor<[1,1,5,5],f32>, !torch.vtensor<[1,1,5,5],f32>, !torch.float, !torch.bool, !torch.none, !torch.none) -> (!torch.vtensor<[1,1,5,5],f32>, !torch.vtensor<[1,1,5],f32>)
+  return %0#0 : !torch.vtensor<[1,1,5,5],f32>
 }

@@ -6,7 +6,7 @@
 from typing import Any
 
 import torch
-import torch_mlir
+from torch_mlir import torchscript
 
 from torch_mlir_e2e_test.linalg_on_tensors_backends.abc import LinalgOnTensorsBackend
 from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
@@ -30,7 +30,7 @@ class LinalgOnTensorsBackendTestConfig(TestConfig):
 
     def compile(self, program: torch.nn.Module) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
-        module = torch_mlir.compile(
+        module = torchscript.compile(
             program, example_args, output_type="linalg-on-tensors")
 
         return self.backend.compile(module)
