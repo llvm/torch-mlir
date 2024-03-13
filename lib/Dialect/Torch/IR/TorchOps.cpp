@@ -744,20 +744,6 @@ OpFoldResult AtenSqueezeDimOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
-// AtenRoundOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult AtenRoundOp::fold(FoldAdaptor adaptor) {
-  if (getSelf().getType() != getResult().getType())
-    return nullptr;
-  if (auto selfType = getSelf().getType().dyn_cast<BaseTensorType>()) {
-    if (selfType.hasDtype() && selfType.getDtype().isa<mlir::IntegerType>())
-      return getSelf();
-  }
-  return nullptr;
-}
-
-//===----------------------------------------------------------------------===//
 // AtenToDtypeOp
 //===----------------------------------------------------------------------===//
 
@@ -1675,17 +1661,40 @@ OpFoldResult AtenNeScalarOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 // AtenFloorOp
 //===----------------------------------------------------------------------===//
-void AtenFloorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
-                                              MLIRContext *context) {
-  patterns.add(+[](AtenFloorOp op, PatternRewriter &rewriter) {
-    auto outputTy = op.getType().dyn_cast<ValueTensorType>();
-    if (outputTy && outputTy.hasDtype() &&
-        outputTy.getDtype().isa<mlir::IntegerType>()) {
-      rewriter.replaceOp(op, op.getSelf());
-      return success();
-    }
-    return failure();
-  });
+
+OpFoldResult AtenFloorOp::fold(FoldAdaptor adaptor) {
+  auto resultType = getType().dyn_cast<ValueTensorType>();
+  if (resultType && resultType.hasDtype() &&
+      resultType.getDtype().isa<mlir::IntegerType>()) {
+    return getSelf();
+  }
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
+// AtenCeilOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenCeilOp::fold(FoldAdaptor adaptor) {
+  auto resultType = getType().dyn_cast<ValueTensorType>();
+  if (resultType && resultType.hasDtype() &&
+      resultType.getDtype().isa<mlir::IntegerType>()) {
+    return getSelf();
+  }
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
+// AtenRoundOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenRoundOp::fold(FoldAdaptor adaptor) {
+  auto resultType = getType().dyn_cast<ValueTensorType>();
+  if (resultType && resultType.hasDtype() &&
+      resultType.getDtype().isa<mlir::IntegerType>()) {
+    return getSelf();
+  }
+  return {};
 }
 
 //===----------------------------------------------------------------------===//
