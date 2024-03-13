@@ -289,3 +289,114 @@ class AtenMmQuint8(torch.nn.Module):
 def AtenMmQuint8_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-128, high=127).to(torch.int8),
                    tu.randint(4, 3, low=-128, high=127).to(torch.int8))
+    
+# ==============================================================================
+
+class AtenLinalgCrossInt(torch.nn.Module):
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3], torch.int64, True),
+        ([2, 3], torch.int64, True),
+    ])
+    def forward(self, a, b):
+        return torch.ops.aten.linalg_cross(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenLinalgCrossInt())
+def AtenLinalgCrossInt_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 3), tu.randint(2, 3))
+
+# ==============================================================================
+
+class AtenLinalgCrossFloat(torch.nn.Module):
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3], torch.float32, True),
+        ([2, 3], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return torch.ops.aten.linalg_cross(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenLinalgCrossFloat())
+def AtenLinalgCrossFloat_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3), tu.rand(2, 3))
+
+
+# ==============================================================================
+
+class AtenLinalgCrossBroadcast(torch.nn.Module):
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 4, 3], torch.float32, True),
+        ([5, 4, 3], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return torch.ops.aten.linalg_cross(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenLinalgCrossBroadcast())
+def AtenLinalgCrossBroadcast_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 4, 3), tu.rand(5, 4, 3))
+
+# ==============================================================================
+
+class AtenLinalgCrossCustomDim(torch.nn.Module):
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 4, 3, 2, 2], torch.float32, True),
+        ([5, 4, 3, 2, 1], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return torch.ops.aten.linalg_cross(a, b, dim=2)
+
+
+@register_test_case(module_factory=lambda: AtenLinalgCrossCustomDim())
+def AtenLinalgCrossCustomDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 4, 3, 2, 2), tu.rand(5, 4, 3, 2, 1))
+
+# ==============================================================================
+
+class AtenLinalgCrossNegativeDim(torch.nn.Module):
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 4, 3, 2, 2], torch.float32, True),
+        ([5, 4, 3, 2, 1], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return torch.ops.aten.linalg_cross(a, b, dim=-3)
+
+
+@register_test_case(module_factory=lambda: AtenLinalgCrossNegativeDim())
+def AtenLinalgCrossNegativeDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 4, 3, 2, 2), tu.rand(5, 4, 3, 2, 1))
+
+# ==============================================================================
+
+class AtenLinalgCrossDynamic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return torch.ops.aten.linalg_cross(a, b, dim=1)
+
+
+@register_test_case(module_factory=lambda: AtenLinalgCrossDynamic())
+def AtenLinalgCrossDynamic_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 3, 1, 6), tu.rand(4, 3, 7, 1))
