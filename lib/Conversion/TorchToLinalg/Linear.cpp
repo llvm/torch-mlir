@@ -132,7 +132,8 @@ public:
     Type newResultType = getTypeConverter()->convertType(op.getType());
     Type elementType = newResultType.cast<TensorType>().getElementType();
     auto accumulatorDType = getDefaultAccType(rewriter, resultDTy);
-    if (accumulatorDType != resultDTy) {
+    if (!isa<mlir::NoneType>(accumulatorDType) &&
+        accumulatorDType != resultDTy) {
       elementType = accumulatorDType;
     }
     Value zeroFill = createZeroInitTensor(
@@ -170,10 +171,13 @@ public:
                    .getResult(0);
     }
 
-    Type resultElementType =
-        newResultType.cast<RankedTensorType>().getElementType();
-    matmul = torch_to_linalg::convertTensorToElementType(rewriter, loc, matmul,
-                                                         resultElementType);
+    if (!isa<mlir::NoneType>(accumulatorDType) &&
+        accumulatorDType != resultDTy) {
+      Type resultElementType =
+          newResultType.cast<RankedTensorType>().getElementType();
+      matmul = torch_to_linalg::convertTensorToElementType(
+          rewriter, loc, matmul, resultElementType);
+    }
 
     // When constructed with just dynamic sizes, EmptyOp will have a result
     // type which has all `?`'s for dimensions, which might not be the result
