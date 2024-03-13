@@ -43,6 +43,8 @@ static int64_t onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx) {
     switch (dtypeIntOnnx) {
     case 1:
       return 6; // float
+    case 3:
+      return 1; // int8
     case 7:
       return 5; // int64
     case 9:
