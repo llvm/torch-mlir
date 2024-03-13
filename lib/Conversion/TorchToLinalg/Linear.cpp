@@ -170,14 +170,11 @@ public:
                    .getResult(0);
     }
 
-    // AccumulatorDType could be one of f32, f64, i64.
-    if (accumulatorDType != resultDTy &&
-        (accumulatorDType.isF32() || accumulatorDType.isF64())) {
-      matmul = rewriter.create<arith::TruncFOp>(loc, newResultType, matmul);
-    } else if (accumulatorDType != resultDTy &&
-               accumulatorDType.isInteger(64)) {
-      matmul = rewriter.create<arith::TruncIOp>(loc, newResultType, matmul);
-    }
+    Type resultElementType =
+        newResultType.cast<RankedTensorType>().getElementType();
+    matmul = torch_to_linalg::convertTensorToElementType(rewriter, loc, matmul,
+                                                         resultElementType);
+
     // When constructed with just dynamic sizes, EmptyOp will have a result
     // type which has all `?`'s for dimensions, which might not be the result
     // type of `op`. The constraints on later linalg ops means that the result
