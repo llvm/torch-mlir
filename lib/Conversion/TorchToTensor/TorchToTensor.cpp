@@ -50,7 +50,7 @@ public:
         op.getLoc(), operandTy.getElementType(), operand, indices);
     auto extractTy = extract.getType();
     if (isa<mlir::IntegerType>(extractTy) && !extractTy.isInteger(64)) {
-      if (torchDTy.isSignlessInteger()) {
+      if (torchDTy.isUnsignedInteger()) {
         extract = rewriter.create<arith::ExtUIOp>(
             op.getLoc(), rewriter.getIntegerType(64), extract);
       } else {
