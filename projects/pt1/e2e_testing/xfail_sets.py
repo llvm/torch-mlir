@@ -1888,11 +1888,6 @@ ONNX_XFAIL_SET = {
     "HardswishRandomModule_basic",
     "MobilenetV3Module_basic",
 
-    # Failure - onnx_lowering: onnx.LogSoftmax
-    "LogSoftmaxIntModule_basic",
-    "_LogSoftmaxModuleStable_basic",
-    "_LogSoftmaxModule_basic",
-
     # Failure - onnx_lowering: onnx.MaxPool
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
     "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
