@@ -602,6 +602,47 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                   return success();
                 });
   patterns.onOp(
+      "Celu", 12, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        float alpha;
+        if (binder.tensorOperand(operand) ||
+            binder.tensorResultType(resultType) ||
+            binder.f32FloatAttr(alpha, "alpha", 1.0f))
+          return failure();
+        // exp(x/alpha)
+        Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr(alpha));
+        Value xDivAlpha = rewriter.create<Torch::AtenDivScalarOp>(
+            binder.getLoc(), resultType, operand, constAlpha);
+        Value expXDivAlpha = rewriter.create<Torch::AtenExpOp>(
+            binder.getLoc(), resultType, xDivAlpha);
+        // alpha * (exp(x/alpha) - 1)
+        Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value subOne = rewriter.create<Torch::AtenSubScalarOp>(
+            binder.getLoc(), resultType, expXDivAlpha, constantOne,
+            constantOne);
+        Value mulAlpha = rewriter.create<Torch::AtenMulScalarOp>(
+            binder.getLoc(), resultType, subOne, constAlpha);
+        Value constantZero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value zeroTensor = createRank0Tensor(rewriter, binder.getLoc(),
+                                             resultType, constantZero);
+        // min(0, alpha * (exp(x/alpha) - 1))
+        Value minExpression = rewriter.create<Torch::AtenMinimumOp>(
+            binder.getLoc(), resultType, zeroTensor, mulAlpha);
+
+        // max(0, x)
+        Value maxExpression = rewriter.create<Torch::AtenMaximumOp>(
+            binder.getLoc(), resultType, zeroTensor, operand);
+        // max(0,x) + min(0, alpha * (exp(x/alpha) - 1))
+        rewriter.replaceOpWithNewOp<Torch::AtenAddTensorOp>(
+            binder.op, resultType, maxExpression, minExpression, constantOne);
+        return success();
+      });
+  patterns.onOp(
       "Clip", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         // https://onnx.ai/onnx/operators/onnx__Clip.html
 
