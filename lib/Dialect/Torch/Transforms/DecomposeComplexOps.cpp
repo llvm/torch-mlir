@@ -6260,12 +6260,14 @@ public:
     Value result;
     if (!op.getDtype().getType().isa<Torch::NoneType>()) {
       result = rewriter.create<AtenToDtypeOp>(
-          loc, op.getType(), addStart, op.getDtype(), falseVal, falseVal, none);
+          loc, op.getType(), addStart, op.getDtype(), /*non_blocking=*/falseVal,
+          /*copy=*/falseVal, /*memory_format=*/none);
     } else {
       Value f32Type = rewriter.create<ConstantIntOp>(
           loc, (int)torch_upstream::ScalarType::Float);
       result = rewriter.create<AtenToDtypeOp>(
-          loc, op.getType(), addStart, f32Type, falseVal, falseVal, none);
+          loc, op.getType(), addStart, f32Type, /*non_blocking=*/falseVal,
+          /*copy=*/falseVal, /*memory_format=*/none);
     }
     rewriter.replaceOp(op, result);
     return success();
