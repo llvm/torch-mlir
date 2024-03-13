@@ -13,7 +13,7 @@
 set -euo pipefail
 
 src_dir="$(realpath "$(dirname "$0")"/..)"
-build_dir="$(realpath "${TORCH_MLIR_BUILD_DIR:-$src_dir/build}")"
+build_dir="$(realpath "${TORCH_MLIR_BUILD_DIR:-$src_dir/build/cmake_build}")"
 torch_transforms_cpp_dir="${src_dir}/lib/Dialect/Torch/Transforms"
 
 in_tree_pkg_dir="${build_dir}/tools/torch-mlir/python_packages"
