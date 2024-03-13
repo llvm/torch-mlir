@@ -131,6 +131,10 @@ public:
     auto resultDTy = resultTy.toBuiltinTensor().getElementType();
     Type newResultType = getTypeConverter()->convertType(op.getType());
     Type elementType = newResultType.cast<TensorType>().getElementType();
+    auto accumulatorDType = getDefaultAccType(rewriter, resultDTy);
+    if (accumulatorDType != resultDTy) {
+      elementType = accumulatorDType;
+    }
     Value zeroFill = createZeroInitTensor(
         rewriter, loc, ValueRange{lhsDim0, rhsDim1}, elementType);
 
@@ -160,25 +164,19 @@ public:
                        loc, zeroFill.getType(), ValueRange{lhs, rhs}, zeroFill)
                    .getResult(0);
     } else {
-      auto accumulatorTensorType = getDefaultAccType(rewriter, resultDTy);
-      if (accumulatorTensorType != resultDTy) {
-        auto zeroFillType = zeroFill.getType().cast<RankedTensorType>();
-        auto zeroFillShape = zeroFillType.getShape();
-        llvm::SmallVector<int64_t> zeroFillShapeVector;
-        for (int i = 0; i < zeroFillType.getRank(); ++i)
-          zeroFillShapeVector.push_back(zeroFillShape[i]);
-        auto accumulatorRankedTensorType =
-            RankedTensorType::get(zeroFillShapeVector, accumulatorTensorType);
-        zeroFill = rewriter.create<arith::ExtFOp>(
-            loc, accumulatorRankedTensorType, zeroFill);
-      }
       matmul = rewriter
                    .create<linalg::MatmulOp>(loc, zeroFill.getType(),
                                              ValueRange{lhs, rhs}, zeroFill)
                    .getResult(0);
-      if (accumulatorTensorType != resultDTy) {
-        matmul = rewriter.create<arith::TruncFOp>(loc, newResultType, matmul);
-      }
+    }
+
+    // AccumulatorDType could be one of f32, f64, i64.
+    if (accumulatorDType != resultDTy &&
+        (accumulatorDType.isF32() || accumulatorDType.isF64())) {
+      matmul = rewriter.create<arith::TruncFOp>(loc, newResultType, matmul);
+    } else if (accumulatorDType != resultDTy &&
+               accumulatorDType.isInteger(64)) {
+      matmul = rewriter.create<arith::TruncIOp>(loc, newResultType, matmul);
     }
     // When constructed with just dynamic sizes, EmptyOp will have a result
     // type which has all `?`'s for dimensions, which might not be the result
