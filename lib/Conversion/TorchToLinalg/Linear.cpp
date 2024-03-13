@@ -160,47 +160,23 @@ public:
                        loc, zeroFill.getType(), ValueRange{lhs, rhs}, zeroFill)
                    .getResult(0);
     } else {
-      // Value lhsAccumulatorTensor, rhsAccumulatorTensor;
       auto accumulatorTensorType = getDefaultAccType(rewriter, resultDTy);
-      // Type lhsAccumulatorTensorType = getDefaultAccType(rewriter, lhsTorchType.getDtype());
-      // Type rhsAccumulatorTensorType = getDefaultAccType(rewriter, rhsTorchType.getDtype());
       if (accumulatorTensorType != resultDTy) {
         auto zeroFillType = zeroFill.getType().cast<RankedTensorType>();
         auto zeroFillShape = zeroFillType.getShape();
         llvm::SmallVector<int64_t> zeroFillShapeVector;
         for (int i = 0; i < zeroFillType.getRank(); ++i)
           zeroFillShapeVector.push_back(zeroFillShape[i]);
-        auto zeroFillTestType =
+        auto accumulatorRankedTensorType =
             RankedTensorType::get(zeroFillShapeVector, accumulatorTensorType);
-        // auto lhsTestElementType =
-        //     lhsTestType.cast<RankedTensorType>().getElementType();
-        // // lhs = rewriter.create<arith::ExtFOp>(loc, lhsTestType, lhs);
-        // lhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, lhs,
-        //                                                   lhsTestElementType);
-        // auto rhsShape = rhsType.getShape();
-        // llvm::SmallVector<int64_t> rhsShapeVector;
-        // for (int i = 0; i < rhsType.getRank(); ++i)
-        //   rhsShapeVector.push_back(rhsShape[i]);
-        // auto rhsTestType =
-        //     RankedTensorType::get(rhsShapeVector, rhsAccumulatorTensorType);
-        // auto rhsTestElementType =
-        //     rhsTestType.cast<RankedTensorType>().getElementType();
-        // // rhs = rewriter.create<arith::ExtFOp>(loc, rhsTestType, rhs);
-        // rhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, lhs,
-        //                                                   rhsTestElementType);
-        // zeroFill = torch_to_linalg::convertTensorToElementType(rewriter, loc, zeroFill,
-        //                                                   accumulatorTensorType);
-        zeroFill = rewriter.create<arith::ExtFOp>(loc, zeroFillTestType, zeroFill);
+        zeroFill = rewriter.create<arith::ExtFOp>(
+            loc, accumulatorRankedTensorType, zeroFill);
       }
       matmul = rewriter
                    .create<linalg::MatmulOp>(loc, zeroFill.getType(),
                                              ValueRange{lhs, rhs}, zeroFill)
                    .getResult(0);
       if (accumulatorTensorType != resultDTy) {
-        Type resultElementType =
-            newResultType.cast<RankedTensorType>().getElementType();
-        // matmul = torch_to_linalg::convertTensorToElementType(rewriter, loc, matmul,
-        //                                                   resultElementType);
         matmul = rewriter.create<arith::TruncFOp>(loc, newResultType, matmul);
       }
     }
