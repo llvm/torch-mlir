@@ -1504,12 +1504,12 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     APInt max = isUnsigned ? APInt::getMaxValue(bitwidth)
                            : APInt::getSignedMaxValue(bitwidth);
 
+    double minI = isUnsigned ? static_cast<double>(min.getZExtValue()) : static_cast<double>(min.getSExtValue());
+    double maxI = isUnsigned ? static_cast<double>(max.getZExtValue()) : static_cast<double>(max.getSExtValue());
     Value minVal = b.create<arith::ConstantOp>(
-        loc, b.getFloatAttr(valueTy, isUnsigned ? min.getZExtValue()
-                                                : min.getSExtValue()));
+        loc, b.getFloatAttr(valueTy, minI));
     Value maxVal = b.create<arith::ConstantOp>(
-        loc, b.getFloatAttr(valueTy, isUnsigned ? max.getZExtValue()
-                                                : max.getSExtValue()));
+        loc, b.getFloatAttr(valueTy, maxI));
     Value minCmp =
         b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT, value, minVal);
     Value maxCmp =
