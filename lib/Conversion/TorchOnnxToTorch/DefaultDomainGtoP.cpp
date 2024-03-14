@@ -195,22 +195,23 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp("LogSoftmax", 13,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Value input;
-                  Torch::ValueTensorType resultType;
-                  if (binder.tensorOperand(input) ||
-                      binder.tensorResultType(resultType))
-                      return failure();
-                  int64_t axis = -1;
-                  if (binder.s64IntegerAttr(axis, "axis", {}))
-                    return rewriter.notifyMatchFailure(binder.op, "axis bind failure");
-                  Value axisAttr = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), rewriter.getI64IntegerAttr(axis));
-                  Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
-                  rewriter.replaceOpWithNewOp<Torch::AtenLogSoftmaxIntOp>(
-                    binder.op, resultType, input, axisAttr, none);
-                  return success();
-                });
+  patterns.onOp(
+      "LogSoftmax", 13,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value input;
+        Torch::ValueTensorType resultType;
+        if (binder.tensorOperand(input) || binder.tensorResultType(resultType))
+          return failure();
+        int64_t axis;
+        if (binder.s64IntegerAttr(axis, "axis", -1))
+          return rewriter.notifyMatchFailure(binder.op, "axis bind failure");
+        Value axisAttr = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(axis));
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        rewriter.replaceOpWithNewOp<Torch::AtenLogSoftmaxIntOp>(
+            binder.op, resultType, input, axisAttr, none);
+        return success();
+      });
   patterns.onOp("MatMul", 13,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
