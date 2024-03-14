@@ -285,14 +285,9 @@ private:
   }
 
 public:
-  // ConversionPatternRewriter * const rewriterPtr;
-
   LogicalResult
   matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-
-    // rewriterPtr = &rewriter;
-
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
@@ -797,8 +792,8 @@ public:
                           const SmallVector<AffineExpr> &outputExprs) {
 
     Location loc = op->getLoc();
-    SmallVector<AffineMap> indexingMaps1 =
-        AffineMap::inferFromExprList({auxTensorExprs, outputExprs});
+    SmallVector<AffineMap> indexingMaps1 = AffineMap::inferFromExprList(
+        {auxTensorExprs, outputExprs}, op.getContext());
     SmallVector<utils::IteratorType> iteratorTypes1(
         rank, utils::IteratorType::parallel);
     auto output = rewriter.create<linalg::GenericOp>(
