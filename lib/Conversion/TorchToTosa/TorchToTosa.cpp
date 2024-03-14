@@ -2510,19 +2510,9 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op,
                                        "end_dim must be larger than start_dim");
 
-  SmallVector<int64_t> oldShape;
-
-  if (selfType.hasStaticShape()) {
-    for (auto s : selfType.getShape())
-      oldShape.push_back(s);
-  } else {
-    // Pushing unknown sizes
-    for (unsigned i = 0; i < selfRank; i++)
-      oldShape.push_back(ShapedType::kDynamic);
-  }
-
   SmallVector<int64_t> newShape;
-  for (auto s : llvm::enumerate(makeShapeTorchCompatible(oldShape))) {
+  for (auto s :
+       llvm::enumerate(makeShapeTorchCompatible(selfType.getShape()))) {
     int64_t idx = s.index();
     if (idx < start_dim || idx > end_dim) {
       newShape.push_back(s.value());
@@ -2530,7 +2520,7 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
       if (idx == start_dim)
         newShape.push_back(s.value());
       // Only updating when the shapes are static
-      else if (s.value() >= 0)
+      else if (s.value() > 0 && newShape.back() > 0)
         newShape.back() *= s.value();
     }
   }

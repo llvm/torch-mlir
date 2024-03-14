@@ -1075,6 +1075,7 @@ TOSA_PASS_SET = {
     "EmbeddingModuleI32Static_basic",
     "FlattenRank0Module_basic",
     "FlattenStaticModule_basic",
+    "FlattenDynamicModuleCollapseAll_basic",
     "FullLikeModuleFloat3DStatic_basic",
     "FullLikeModuleInt2DStatic_basic",
     "FullModuleDefaultDtype_basic",
