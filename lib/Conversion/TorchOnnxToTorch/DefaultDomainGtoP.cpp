@@ -1545,4 +1545,30 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, input);
                   return success();
                 });
+  patterns.onOp(
+      "GroupNormalization", 18,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        llvm::SmallVector<Value> operands;
+        float eps;
+        int64_t num_groups;
+        if (binder.tensorOperands(operands, 3) ||
+            binder.tensorResultType(resultType) || operands.size() != 3 ||
+            binder.f32FloatAttr(eps, "epsilon", 1e-05f) ||
+            binder.s64IntegerAttr(num_groups, "num_groups")) {
+          return failure();
+        }
+        Value boolFalse =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+
+        Value numGroupsValue = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(num_groups));
+        auto epsValue = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getF64FloatAttr(eps));
+
+        rewriter.replaceOpWithNewOp<Torch::AtenGroupNormOp>(
+            binder.op, resultType, operands[0], numGroupsValue, operands[1],
+            operands[2], epsValue, boolFalse);
+        return success();
+      });
 }
