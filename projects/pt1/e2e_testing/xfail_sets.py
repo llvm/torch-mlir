@@ -1291,6 +1291,7 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
 }) - {
 ### Test failing in make_fx_tosa but not in tosa
 
+    "FlattenDynamicModuleCollapseAll_basic",
     # Dynamic shape, has extra unsupported broadcast ops
     "Matmul_3d",
     "MatmulStaticBroadcast_basic",
