@@ -127,8 +127,14 @@ public:
               "mismatching contracting dimension for torch.aten.mm"));
     }
 
+    auto resultTy = op.getType().cast<ValueTensorType>();
+    auto resultDTy = resultTy.toBuiltinTensor().getElementType();
     Type newResultType = getTypeConverter()->convertType(op.getType());
     Type elementType = newResultType.cast<TensorType>().getElementType();
+    auto accumulatorDType = getDefaultAccType(rewriter, resultDTy);
+    if (accumulatorDType != resultDTy) {
+      elementType = accumulatorDType;
+    }
     Value zeroFill = createZeroInitTensor(
         rewriter, loc, ValueRange{lhsDim0, rhsDim1}, elementType);
 
@@ -162,6 +168,13 @@ public:
                    .create<linalg::MatmulOp>(loc, zeroFill.getType(),
                                              ValueRange{lhs, rhs}, zeroFill)
                    .getResult(0);
+    }
+
+    if (accumulatorDType != resultDTy) {
+      Type resultElementType =
+          newResultType.cast<RankedTensorType>().getElementType();
+      matmul = torch_to_linalg::convertTensorToElementType(
+          rewriter, loc, matmul, resultElementType);
     }
     // When constructed with just dynamic sizes, EmptyOp will have a result
     // type which has all `?`'s for dimensions, which might not be the result
