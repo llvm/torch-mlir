@@ -535,6 +535,10 @@ Value torch_to_linalg::removeSizeInformation(OpBuilder &b, Location loc,
 Value torch_to_linalg::convertTensorToElementType(OpBuilder &b, Location loc,
                                                   Value tensor,
                                                   Type elementType) {
+  auto tensorType = tensor.getType().dyn_cast<RankedTensorType>();
+  if (tensorType && tensorType.getElementType() == elementType)
+    return tensor;
+
   auto dtypePromoteBody = [&](OpBuilder &builder, Location loc,
                               ValueRange payloadArgs) {
     Value elem =

@@ -884,15 +884,8 @@ public:
     Value outputTensor;
     Value initTensor = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(outDims), accumulatorDType);
-
-    auto biasType = bias.getType().cast<RankedTensorType>();
-    auto biasShape = biasType.getShape();
-    llvm::SmallVector<int64_t> biasShapeVector;
-    for (int i = 0; i < biasType.getRank(); ++i)
-      biasShapeVector.push_back(biasShape[i]);
-    auto accumulatorRankedType =
-        RankedTensorType::get(biasShapeVector, accumulatorDType);
-    bias = rewriter.create<arith::ExtFOp>(loc, accumulatorRankedType, bias);
+    bias = torch_to_linalg::convertTensorToElementType(rewriter, loc, bias,
+                                                       accumulatorDType);
 
     if (bias.getType().isa<Torch::NoneType>()) {
       Value c0;
@@ -988,13 +981,11 @@ public:
             op, "unimplemented: only 1D, 2D, and 3D convolution supported");
       };
       Type newResultType = getTypeConverter()->convertType(op.getType());
-      if (!isa<mlir::NoneType>(accumulatorDType) &&
-          accumulatorDType != resultDTy) {
-        Type resultElementType =
-            newResultType.cast<RankedTensorType>().getElementType();
-        conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
-                                                           resultElementType);
-      }
+      Type resultElementType =
+          newResultType.cast<RankedTensorType>().getElementType();
+      conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
+                                                         resultElementType);
+
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
     }
@@ -1049,13 +1040,10 @@ public:
       conv = transposeValue(op.getLoc(), conv, outPerms, rewriter);
 
       Type newResultType = getTypeConverter()->convertType(op.getType());
-      if (!isa<mlir::NoneType>(accumulatorDType) &&
-          accumulatorDType != resultDTy) {
-        Type resultElementType =
-            newResultType.cast<RankedTensorType>().getElementType();
-        conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
-                                                           resultElementType);
-      }
+      Type resultElementType =
+          newResultType.cast<RankedTensorType>().getElementType();
+      conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
+                                                         resultElementType);
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
     }
@@ -1094,13 +1082,10 @@ public:
                  .getResult(0);
 
       Type newResultType = getTypeConverter()->convertType(op.getType());
-      if (!isa<mlir::NoneType>(accumulatorDType) &&
-          accumulatorDType != resultDTy) {
-        Type resultElementType =
-            newResultType.cast<RankedTensorType>().getElementType();
-        conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
-                                                           resultElementType);
-      }
+      Type resultElementType =
+          newResultType.cast<RankedTensorType>().getElementType();
+      conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
+                                                         resultElementType);
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
     }
@@ -1173,13 +1158,10 @@ public:
         loc, outputTensor.getType(), conv,
         expandOutputTensor.getReassociationIndices());
     Type newResultType = getTypeConverter()->convertType(op.getType());
-    if (!isa<mlir::NoneType>(accumulatorDType) &&
-        accumulatorDType != resultDTy) {
-      Type resultElementType =
-          newResultType.cast<RankedTensorType>().getElementType();
-      conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
-                                                         resultElementType);
-    }
+    Type resultElementType =
+        newResultType.cast<RankedTensorType>().getElementType();
+    conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
+                                                       resultElementType);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
     return success();
   }
