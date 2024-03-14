@@ -841,6 +841,11 @@ STABLEHLO_PASS_SET = {
     "ZerosModuleFloat3D_basic",
     "ZerosModuleInt2D_basic",
     "ZerosModuleInt3D_basic",
+    "LinspaceDtypeModule_basic",
+    "LinspaceEmptyModule_basic",
+    "LinspaceModule_basic",
+    "LinspaceOneSizeModule_basic",
+    "LinspaceTwoSizeModule_basic",
 }
 
 STABLEHLO_CRASHING_SET =  {
@@ -1260,6 +1265,9 @@ TOSA_PASS_SET = {
     "_LogSoftmaxModuleStable_basic",
     "_LogSoftmaxModule_basic",
     "_SoftmaxModule_basic",
+    "LinspaceModule_basic",
+    "LinspaceOneSizeModule_basic",
+    "LinspaceTwoSizeModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {

@@ -6332,6 +6332,78 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenLinspaceOp : public OpRewritePattern<AtenLinspaceOp> {
+public:
+  using OpRewritePattern<AtenLinspaceOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLinspaceOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *context = getContext();
+
+    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value falseVal = rewriter.create<ConstantBoolOp>(loc, false);
+    Value zero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+
+    Value addStart;
+    int64_t steps;
+    if (matchPattern(op.getSteps(), m_TorchConstantInt(&steps)) && steps == 1) {
+      // specically handle steps == 1
+      Value arange = rewriter.create<AtenArangeStartOp>(
+          loc, baseType, zero, op.getSteps(), /*dtype=*/none, op.getLayout(),
+          op.getDevice(), op.getPinMemory());
+      addStart = rewriter.create<AtenAddScalarOp>(loc, baseType, arange,
+                                                  op.getStart(), one);
+    } else {
+      // handle steps != 1 or dynamic steps
+      Value neOrNot = rewriter.create<AtenNeIntOp>(loc, op.getSteps(), one);
+      rewriter.create<RuntimeAssertOp>(
+          loc, neOrNot,
+          rewriter.getStringAttr("linspace's dynamic steps must not be 1"));
+      // create arange: [0, ..., steps - 1]
+      Value arange = rewriter.create<AtenArangeStartOp>(
+          loc, baseType, zero, op.getSteps(), /*dtype=*/none, op.getLayout(),
+          op.getDevice(), op.getPinMemory());
+      // calculate (end - start) / (steps - 1)
+      Value sub;
+      if (op.getEnd().getType().isa<Torch::FloatType>() ||
+          op.getStart().getType().isa<Torch::FloatType>()) {
+        sub = rewriter.create<AtenSubOp>(loc, Torch::FloatType::get(context),
+                                         op.getEnd(), op.getStart());
+      } else {
+        sub = rewriter.create<AtenSubIntOp>(loc, op.getEnd(), op.getStart());
+      }
+      Value div = rewriter.create<AtenDivOp>(
+          loc, sub, rewriter.create<AtenSubIntOp>(loc, op.getSteps(), one));
+      // calculate [0, ..., steps - 1] * ((end - start) / (steps - 1)) + start
+      Value mulScalar =
+          rewriter.create<AtenMulScalarOp>(loc, baseType, arange, div);
+      addStart = rewriter.create<AtenAddScalarOp>(loc, baseType, mulScalar,
+                                                  op.getStart(), one);
+    }
+    // to dtype
+    Value result;
+    if (!op.getDtype().getType().isa<Torch::NoneType>()) {
+      result = rewriter.create<AtenToDtypeOp>(
+          loc, op.getType(), addStart, op.getDtype(), /*non_blocking=*/falseVal,
+          /*copy=*/falseVal, /*memory_format=*/none);
+    } else {
+      Value f32Type = rewriter.create<ConstantIntOp>(
+          loc, (int)torch_upstream::ScalarType::Float);
+      result = rewriter.create<AtenToDtypeOp>(
+          loc, op.getType(), addStart, f32Type, /*non_blocking=*/falseVal,
+          /*copy=*/falseVal, /*memory_format=*/none);
+    }
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenVarMeanOp : public OpRewritePattern<AtenVarMeanOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -7216,6 +7288,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvTranspose2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeStartOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLinspaceOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenArgMinMaxOp<AtenArgmaxOp, AtenMaxDimOp>>(patterns);
     addPatternIfTargetOpIsIllegal<
