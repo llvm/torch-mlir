@@ -875,18 +875,22 @@ public:
             castIndexToInt(weightDims[i]), strideIntValues[i]));
     }
 
+    Type accumulatorDType = getDefaultAccType(rewriter, resultDTy);
     Value initTensor = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(outDims), resultDTy);
+        loc, getAsOpFoldResult(outDims), accumulatorDType);
 
     Value outputTensor;
+    if (accumulatorDType != resultDTy)
+      bias = torch_to_linalg::convertTensorToElementType(rewriter, loc, bias,
+                                                         accumulatorDType);
     if (bias.getType().isa<Torch::NoneType>()) {
       Value c0;
-      if (resultDTy.isa<mlir::FloatType>()) {
-        c0 = rewriter.create<arith::ConstantOp>(loc,
-                                                FloatAttr::get(resultDTy, 0.0));
-      } else if (resultDTy.isa<mlir::IntegerType>()) {
-        c0 = rewriter.create<arith::ConstantOp>(loc,
-                                                IntegerAttr::get(resultDTy, 0));
+      if (accumulatorDType.isa<mlir::FloatType>()) {
+        c0 = rewriter.create<arith::ConstantOp>(
+            loc, FloatAttr::get(accumulatorDType, 0.0));
+      } else if (accumulatorDType.isa<mlir::IntegerType>()) {
+        c0 = rewriter.create<arith::ConstantOp>(
+            loc, IntegerAttr::get(accumulatorDType, 0));
       }
       outputTensor =
           rewriter.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
@@ -973,6 +977,12 @@ public:
             op, "unimplemented: only 1D, 2D, and 3D convolution supported");
       };
       Type newResultType = getTypeConverter()->convertType(op.getType());
+      if (accumulatorDType != resultDTy) {
+        Type resultElementType =
+            newResultType.cast<RankedTensorType>().getElementType();
+        conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
+                                                           resultElementType);
+      }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
     }
@@ -1027,6 +1037,12 @@ public:
       conv = transposeValue(op.getLoc(), conv, outPerms, rewriter);
 
       Type newResultType = getTypeConverter()->convertType(op.getType());
+      if (accumulatorDType != resultDTy) {
+        Type resultElementType =
+            newResultType.cast<RankedTensorType>().getElementType();
+        conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
+                                                           resultElementType);
+      }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
     }
@@ -1065,6 +1081,12 @@ public:
                  .getResult(0);
 
       Type newResultType = getTypeConverter()->convertType(op.getType());
+      if (accumulatorDType != resultDTy) {
+        Type resultElementType =
+            newResultType.cast<RankedTensorType>().getElementType();
+        conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
+                                                           resultElementType);
+      }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
     }
@@ -1137,6 +1159,12 @@ public:
         loc, outputTensor.getType(), conv,
         expandOutputTensor.getReassociationIndices());
     Type newResultType = getTypeConverter()->convertType(op.getType());
+    if (accumulatorDType != resultDTy) {
+      Type resultElementType =
+          newResultType.cast<RankedTensorType>().getElementType();
+      conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
+                                                         resultElementType);
+    }
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
     return success();
   }
