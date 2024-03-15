@@ -45,8 +45,10 @@ static int64_t onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx) {
       return 6; // float
     case 3:
       return 1; // int8
+    case 6:
+      return 3; // int32
     case 7:
-      return 5; // int64
+      return 4; // int64
     case 9:
       return 11; // bool
     case 10:
@@ -603,6 +605,47 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
+  patterns.onOp(
+      "Celu", 12, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        float alpha;
+        if (binder.tensorOperand(operand) ||
+            binder.tensorResultType(resultType) ||
+            binder.f32FloatAttr(alpha, "alpha", 1.0f))
+          return failure();
+        // exp(x/alpha)
+        Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr(alpha));
+        Value xDivAlpha = rewriter.create<Torch::AtenDivScalarOp>(
+            binder.getLoc(), resultType, operand, constAlpha);
+        Value expXDivAlpha = rewriter.create<Torch::AtenExpOp>(
+            binder.getLoc(), resultType, xDivAlpha);
+        // alpha * (exp(x/alpha) - 1)
+        Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value subOne = rewriter.create<Torch::AtenSubScalarOp>(
+            binder.getLoc(), resultType, expXDivAlpha, constantOne,
+            constantOne);
+        Value mulAlpha = rewriter.create<Torch::AtenMulScalarOp>(
+            binder.getLoc(), resultType, subOne, constAlpha);
+        Value constantZero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value zeroTensor = createRank0Tensor(rewriter, binder.getLoc(),
+                                             resultType, constantZero);
+        // min(0, alpha * (exp(x/alpha) - 1))
+        Value minExpression = rewriter.create<Torch::AtenMinimumOp>(
+            binder.getLoc(), resultType, zeroTensor, mulAlpha);
+
+        // max(0, x)
+        Value maxExpression = rewriter.create<Torch::AtenMaximumOp>(
+            binder.getLoc(), resultType, zeroTensor, operand);
+        // max(0,x) + min(0, alpha * (exp(x/alpha) - 1))
+        rewriter.replaceOpWithNewOp<Torch::AtenAddTensorOp>(
+            binder.op, resultType, maxExpression, minExpression, constantOne);
+        return success();
+      });
   patterns.onOp(
       "Clip", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         // https://onnx.ai/onnx/operators/onnx__Clip.html
@@ -1575,23 +1618,34 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
   patterns.onOp(
       "Expand", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         // uses ideas and code from onnx.Reshape
+        auto loc = binder.getLoc();
         Torch::ValueTensorType resultType;
         Value data, shape;
         if (binder.tensorOperands(data, shape) ||
             binder.tensorResultType(resultType))
           return failure();
-        Torch::BaseTensorType shapeType =
-            shape.getType().cast<Torch::BaseTensorType>();
+
+        auto dataType = cast<Torch::BaseTensorType>(data.getType());
+        auto shapeType = cast<Torch::BaseTensorType>(shape.getType());
+        if (!dataType.hasSizes() || !shapeType.hasSizes())
+          return failure();
+
+        auto shapeSizes = shapeType.getSizes();
+        int64_t dataRank = dataType.getSizes().size();
+        int64_t shapeRank = shapeSizes.size();
+        if (shapeRank != 1 || shapeSizes[0] == Torch::kUnknownSize)
+          return failure();
+
+        auto rankDifference = dataRank - shapeSizes[0];
+
         SmallVector<int64_t> selectSizes;
         Type selectResultType = shapeType.getWithSizesAndDtype(
             llvm::ArrayRef(selectSizes), shapeType.getOptionalDtype());
         // Variable to store 1-D onnx shape tensor, shapeSizes[0] has the
         // dimension size
-        auto shapeSizes =
-            dyn_cast<Torch::ValueTensorType>(shape.getType()).getSizes();
         // A constant zero value
         Value zero = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+            loc, rewriter.getI64IntegerAttr(0));
         // Variable to store pytorch int list of shape (dimension)
         SmallVector<Value> dimList;
 
@@ -1600,12 +1654,21 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         // takes list of int
         for (int i = 0; i < shapeSizes[0]; i++) {
           Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              loc, rewriter.getType<Torch::IntType>(),
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
           Value extract = rewriter.create<Torch::AtenSelectIntOp>(
-              binder.getLoc(), selectResultType, shape, zero, selectIndex);
+              loc, selectResultType, shape, zero, selectIndex);
           Value dim = rewriter.create<Torch::AtenItemOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
+              loc, rewriter.getType<Torch::IntType>(), extract);
+
+          if (i + rankDifference >= 0) {
+            Value iv =
+                rewriter.create<Torch::ConstantIntOp>(loc, i + rankDifference);
+            auto sz = rewriter.create<Torch::AtenSizeIntOp>(
+                loc, rewriter.getType<Torch::IntType>(), data, iv);
+            dim = rewriter.create<Torch::PrimMaxIntOp>(loc, dim, sz);
+          }
+
           dimList.push_back(dim);
         }
         Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(

@@ -286,7 +286,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::atanh : (Tensor) -> (Tensor)",
             "aten::atan2 : (Tensor, Tensor) -> (Tensor)",
             "aten::neg : (Tensor) -> (Tensor)",
-            "aten::ceil : (Tensor) -> (Tensor)",
             "aten::bitwise_not : (Tensor) -> (Tensor)",
             "aten::div.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::logical_or : (Tensor, Tensor) -> (Tensor)",
@@ -301,12 +300,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::le.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::ne.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::div.Scalar : (Tensor, Scalar) -> (Tensor)",
-            "aten::ne.Scalar : (Tensor, Scalar) -> (Tensor)",
-            "aten::eq.Scalar : (Tensor, Scalar) -> (Tensor)",
-            "aten::gt.Scalar : (Tensor, Scalar) -> (Tensor)",
-            "aten::ge.Scalar : (Tensor, Scalar) -> (Tensor)",
-            "aten::lt.Scalar : (Tensor, Scalar) -> (Tensor)",
-            "aten::le.Scalar : (Tensor, Scalar) -> (Tensor)",
             "aten::fmod.Scalar : (Tensor, Scalar) -> (Tensor)",
             "aten::masked_fill.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)",
             "aten::clamp : (Tensor, Scalar?, Scalar?) -> (Tensor)",
@@ -347,11 +340,20 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit_with_mutating_variants("aten::sub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)", has_canonicalizer=True)
     emit_with_mutating_variants("aten::mul.Scalar : (Tensor, Scalar) -> (Tensor)", has_canonicalizer=True)
     emit_with_mutating_variants("aten::eq.Tensor : (Tensor, Tensor) -> (Tensor)", has_folder=True)
-    emit_with_mutating_variants("aten::floor : (Tensor) -> (Tensor)", has_canonicalizer=True)
+    emit_with_mutating_variants("aten::le.Scalar : (Tensor, Scalar) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::lt.Scalar : (Tensor, Scalar) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::gt.Scalar : (Tensor, Scalar) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::ge.Scalar : (Tensor, Scalar) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::eq.Scalar : (Tensor, Scalar) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::ne.Scalar : (Tensor, Scalar) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::floor : (Tensor) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::ceil : (Tensor) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::round : (Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants("aten::masked_fill.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
 
     emit_with_mutating_variants("aten::addcmul : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)")
     emit_with_mutating_variants("aten::addcdiv : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)")
+    emit("aten::fake_quantize_per_tensor_affine : (Tensor, float, int, int, int) -> (Tensor)")
     emit("aten::maximum : (Tensor, Tensor) -> (Tensor)")
     emit("aten::minimum : (Tensor, Tensor) -> (Tensor)")
     emit("aten::mish : (Tensor) -> (Tensor)")
@@ -397,7 +399,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     emit_with_mutating_variants("aten::triu : (Tensor, int) -> (Tensor)")
     emit_with_mutating_variants("aten::tril : (Tensor, int) -> (Tensor)")
-    emit_with_mutating_variants("aten::round : (Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants(
         "aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)")
     emit_with_mutating_variants(
@@ -687,6 +688,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::fmod.Tensor : (Tensor, Tensor) -> (Tensor)")
     emit("aten::unique_consecutive : (Tensor, bool, bool, int?) -> (Tensor, Tensor, Tensor)")
     emit("aten::linspace : (Scalar, Scalar, int, int?, int?, Device?, bool?) -> (Tensor)")
+    emit("aten::linalg_cross : (Tensor, Tensor, int) -> (Tensor)", has_verifier=True)
 
     # Functionalization ops
     emit("aten::alias_copy : (Tensor) -> (Tensor)")
@@ -753,6 +755,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::str : (t) -> (str)")
     emit("aten::format : (...) -> (str)")
     emit("aten::join : (str, str[]) -> (str)")
+    emit("aten::warn : (str, int) -> ()")
 
     # Type conversion ops.
     emit("aten::Float.Scalar : (Scalar) -> (float)", has_folder=True)
@@ -804,6 +807,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
          has_canonicalizer=True)
     emit("aten::__getitem__.t : (t[], int) -> (t)", has_canonicalizer=True)
     emit("aten::_set_item.t : (t[], int, t) -> (t[])")
+    emit("aten::mul : (Scalar, Scalar) -> (Scalar)", has_folder=True)
     emit("aten::div : (Scalar, Scalar) -> (float)", has_folder=True)
     emit("aten::add : (Scalar, Scalar) -> (Scalar)", has_folder=True)
     emit("aten::sub : (Scalar, Scalar) -> (Scalar)", has_folder=True)

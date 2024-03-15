@@ -220,19 +220,47 @@ PY_BUILTIN_TO_TORCH_OP = {
     "gt": torch.ops.aten.gt,
 }
 
-SYMBOLIC_TORCH_OPS = {
-    torch.ops.aten.sym_size,
-    torch.ops.aten.sym_stride,
-    torch.ops.aten.sym_numel,
-}
+# torch with cuda has a __version__ that looks like  "2.1.0+cu113",
+# so split by + and 0 index will always give the base version
+_IS_TORCH_2_1_OR_EARLIER = torch.__version__.split("+")[0] <= "2.1.0"
 
-SYMBOLIC_OP_TO_TORCH_OP = {
-    (torch.ops.aten.sym_size, 1): torch.ops.aten.size.default,
-    (torch.ops.aten.sym_size, 2): torch.ops.aten.size.int,
-    (torch.ops.aten.sym_stride, 1): torch.ops.aten.stride.default,
-    (torch.ops.aten.sym_stride, 2): torch.ops.aten.stride.int,
-    (torch.ops.aten.sym_numel, 1): torch.ops.aten.numel.default,
-}
+# The following are maps from symbolic ops to their non symbolic equivalents.
+# In <=2.1.0, imported fx graphs come with a type inspecific torch.ops.aten.sym_size
+# We identify it using the number of args in the node, 1 being default, 2 being int
+# In the mapping below (torch.aten.sym_size, 2) indicates len(args)=2 therefore
+# map to torch.aten.size.int.
+# Thankfully, newer versions provide a specific torch.ops.aten.sym_size.<type>.
+# Once we drop support for <2.1.0, we can get rid of the the SYMBOLIC_TORCH_OPS
+# set and just check key existence in SYMBOLIC_OP_TO_TORCH_OP
+
+if _IS_TORCH_2_1_OR_EARLIER:
+    SYMBOLIC_TORCH_OPS = {
+        torch.ops.aten.sym_size,
+        torch.ops.aten.sym_stride,
+        torch.ops.aten.sym_numel,
+    }
+
+    SYMBOLIC_OP_TO_TORCH_OP = {
+        (torch.ops.aten.sym_size, 1): torch.ops.aten.size.default,
+        (torch.ops.aten.sym_size, 2): torch.ops.aten.size.int,
+        (torch.ops.aten.sym_stride, 1): torch.ops.aten.stride.default,
+        (torch.ops.aten.sym_stride, 2): torch.ops.aten.stride.int,
+        (torch.ops.aten.sym_numel, 1): torch.ops.aten.numel.default,
+    }
+else:
+    SYMBOLIC_TORCH_OPS = {
+        torch.ops.aten.sym_size.int,
+        torch.ops.aten.sym_stride.int,
+        torch.ops.aten.sym_numel.default,
+    }
+
+    SYMBOLIC_OP_TO_TORCH_OP = {
+        torch.ops.aten.sym_size.default: torch.ops.aten.size.default,
+        torch.ops.aten.sym_size.int: torch.ops.aten.size.int,
+        torch.ops.aten.sym_stride.default: torch.ops.aten.stride.default,
+        torch.ops.aten.sym_stride.int: torch.ops.aten.stride.int,
+        torch.ops.aten.sym_numel.default: torch.ops.aten.numel.default,
+    }
 
 
 @dataclass(frozen=True)
@@ -248,7 +276,7 @@ class SparsityMeta:
     batch_dim: int
     sparse_dim: int
     dense_dim: int
-    blocksize: Optional[tuple[int, int]]
+    blocksize: Optional[Tuple[int, int]]
     pos_dtype: torch.dtype
     crd_dtype: torch.dtype
 
@@ -461,8 +489,8 @@ class FxImporter:
         default policy is to capture them as frozen values.
         """
         # Create lookaside table of placeholders/outputs.
-        placeholder_nodes: dict[str, Node] = {}
-        all_producer_nodes: dict[str, Node] = {}
+        placeholder_nodes: Dict[str, Node] = {}
+        all_producer_nodes: Dict[str, Node] = {}
         loc: Optional[Location] = None
         for node in prog.graph.nodes:
             if loc is None:
@@ -494,15 +522,15 @@ class FxImporter:
         }
 
         # Additional bindings that we need to set up after the function is created.
-        mutable_buffer_target_producers: dict[str, str] = {}
-        constant_tensors: dict[Node, torch.Tensor] = {}
-        parameter_bindings: dict[Node, tuple[Any, InputInfo]] = {}
-        buffer_bindings: dict[Node, tuple[Any, InputInfo]] = {}
+        mutable_buffer_target_producers: Dict[str, str] = {}
+        constant_tensors: Dict[Node, torch.Tensor] = {}
+        parameter_bindings: Dict[Node, Tuple[Any, InputInfo]] = {}
+        buffer_bindings: Dict[Node, Tuple[Any, InputInfo]] = {}
 
         # Derive user outputs that we preserve. These will be nodes of the
         # producer for the output.
-        user_outputs: list[Node] = []
-        user_output_types: list[IrType] = []
+        user_outputs: List[Node] = []
+        user_output_types: List[IrType] = []
         for output_spec in sig.output_specs:
             kind = output_spec.kind
             arg = output_spec.arg
@@ -520,8 +548,8 @@ class FxImporter:
                 mutable_buffer_target_producers[output_spec.target] = arg.name
 
         # Derive user inputs. These will be op=='placeholder' nodes.
-        user_inputs: list[Node] = []
-        user_input_types: list[IrType] = []
+        user_inputs: List[Node] = []
+        user_input_types: List[IrType] = []
         for input_spec in sig.input_specs:
             arg = input_spec.arg
             if input_spec.kind == InputKind.USER_INPUT:
@@ -638,7 +666,9 @@ class FxImporter:
         node_importer.return_node_values(loc, user_outputs)
         self.symbol_table.insert(func_op)
 
-    def import_frozen_program(self, prog: torch.export.ExportedProgram, func_name: str = "main"):
+    def import_frozen_program(
+        self, prog: torch.export.ExportedProgram, func_name: str = "main"
+    ):
         """Imports a consolidated torch.export.ExportedProgram instance.
 
         If using the new torch.export path (vs a lower level precursor), then this is
@@ -670,7 +700,7 @@ class FxImporter:
         """
         sig = prog.graph_signature
         state_dict = prog.state_dict
-        arg_replacements: dict[str, Any] = {}
+        arg_replacements: Dict[str, Any] = {}
 
         # If there is no "constants" attribute, consult the "state_dict". Otherwise, only look
         # at "constants". Relevant upstream patch: https://github.com/pytorch/pytorch/pull/118969
@@ -973,7 +1003,7 @@ class GraphNodeImporter:
         # constructs and returns a value.
         self._v: Dict[Union[Callable[[], Value], Tuple[torch_fx.Node, int]], Value] = {}
         # Map of node name to hook that should be called when it is produced.
-        self._on_node_produced: dict[str, Callable[[Value], None]] = {}
+        self._on_node_produced: Dict[str, Callable[[Value], None]] = {}
         # Statically multi-result nodes which we have de-tupled are noted here.
         # They will have their getitem calls short-circuited.
         self._multi_result_nodes: Set[torch_fx.Node] = set()
@@ -1088,7 +1118,7 @@ class GraphNodeImporter:
 
             self._on_node_produced[info.mutable_producer_node_name] = on_produced
 
-    def return_node_values(self, loc, nodes: list[Node]):
+    def return_node_values(self, loc, nodes: List[Node]):
         with loc, InsertionPoint(self._b):
             operands = [self.resolve_node_value(n) for n in nodes]
             func_dialect.ReturnOp(operands, loc=loc)
@@ -1137,14 +1167,14 @@ class GraphNodeImporter:
                             raise NotImplementedError(
                                 f"General getitem access to non-multi-result ops"
                             )
-                    elif isinstance(target, TorchOpOverload):
-                        # Dispatch to an ATen op.
-                        self._import_torch_op_overload(loc, node, target)
                     elif target in SYMBOLIC_TORCH_OPS or (
                         is_symbolic(node.meta.get("val"))
                         and is_builtin_function_or_method(target)
                     ):
                         self._import_symbolic_torch_op(loc, node, target)
+                    elif isinstance(target, TorchOpOverload):
+                        # Dispatch to an ATen op.
+                        self._import_torch_op_overload(loc, node, target)
                     else:
                         raise NotImplementedError(
                             f"FIX ME: Unimplemented call_function: target={node.target}, {node.meta}"
@@ -1227,7 +1257,10 @@ class GraphNodeImporter:
             ), f"Unsupported builtin function for symbolic types: {target} with args {node.args}"
             concrete_target = getattr(torch_op, op_overload)
         else:
-            concrete_target = SYMBOLIC_OP_TO_TORCH_OP.get((target, len(node.args)))
+            if _IS_TORCH_2_1_OR_EARLIER:
+                concrete_target = SYMBOLIC_OP_TO_TORCH_OP.get((target, len(node.args)))
+            else:
+                concrete_target = SYMBOLIC_OP_TO_TORCH_OP.get(target)
 
         assert (
             concrete_target is not None
@@ -1628,8 +1661,7 @@ class TypeSubclassMap:
 
 # Opaque value to indicate something is empty. Used in cases where 'None'
 # may have a different meaning.
-class EmptyType:
-    ...
+class EmptyType: ...
 
 
 Empty = EmptyType()

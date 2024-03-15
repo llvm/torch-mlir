@@ -62,6 +62,7 @@ class ArangeZeroElementOutputModule(torch.nn.Module):
 def ArangeZeroElementOutputModule_basic(module, tu: TestUtils):
     module.forward()
 
+# ==============================================================================
 
 class ArangeStartIntModule(torch.nn.Module):
     def __init__(self):
@@ -130,6 +131,7 @@ class ArangeNegativeStartFloatModule(torch.nn.Module):
 def ArangeNegativeStartFloatModule_basic(module, tu: TestUtils):
     module.forward()
 
+# ==============================================================================
 
 class ArangeStartStepIntModule(torch.nn.Module):
     def __init__(self):
@@ -198,6 +200,7 @@ class ArangeStartNegativeStepFloatModule(torch.nn.Module):
 def ArangeStartNegativeStepFloatModule_basic(module, tu: TestUtils):
     module.forward()
 
+# ==============================================================================
 
 class ArangeDtypeFloatModule(torch.nn.Module):
     def __init__(self):
@@ -232,6 +235,7 @@ class ArangeDtypeIntModule(torch.nn.Module):
 def ArangeDtypeIntModule_basic(module, tu: TestUtils):
     module.forward()
 
+# ==============================================================================
 
 class ArangeFalsePinMemoryModule(torch.nn.Module):
     def __init__(self):
@@ -298,3 +302,81 @@ class ArangeStartOutDtypeModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ArangeStartOutDtypeModule())
 def ArangeStartOutDtypeModule_basic(module, tu: TestUtils):
     module.forward(torch.zeros(12).to(torch.int64))
+
+# ==============================================================================
+    
+class LinspaceModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.linspace(-10.1, 10.1, 10)
+
+@register_test_case(module_factory=lambda: LinspaceModule())
+def LinspaceModule_basic(module, tu: TestUtils):
+    module.forward()
+
+class LinspaceDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.linspace(-10.1, 10.1, 10, dtype=torch.int64)
+
+
+@register_test_case(module_factory=lambda: LinspaceDtypeModule())
+def LinspaceDtypeModule_basic(module, tu: TestUtils):
+    module.forward()
+
+class LinspaceEmptyModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.linspace(-10.1, 10.1, 0)
+
+@register_test_case(module_factory=lambda: LinspaceEmptyModule())
+def LinspaceEmptyModule_basic(module, tu: TestUtils):
+    module.forward()
+
+class LinspaceOneSizeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.linspace(-10.1, 10.1, 1)
+
+@register_test_case(module_factory=lambda: LinspaceOneSizeModule())
+def LinspaceOneSizeModule_basic(module, tu: TestUtils):
+    module.forward()
+
+class LinspaceTwoSizeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.linspace(-10.1, 10.1, 2)
+
+@register_test_case(module_factory=lambda: LinspaceTwoSizeModule())
+def LinspaceTwoSizeModule_basic(module, tu: TestUtils):
+    module.forward()
