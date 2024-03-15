@@ -306,7 +306,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                   return success();
                 });
   patterns.onOp(
-      "AveragePool", 19,
+      "AveragePool", 11,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         std::string autoPad;
         SmallVector<int64_t> dilation;
@@ -357,7 +357,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               binder.op,
               "padding list size does not match twice the number of axes");
         }
-        if (binder.s64IntegerArrayAttr(strides, "strides", {1})) {
+        if (binder.s64IntegerArrayAttr(
+                strides, "strides", llvm::SmallVector<int64_t>(rank - 2, 1))) {
           return failure();
         }
         if (strides.size() != 1 && strides.size() != rank - 2) {
