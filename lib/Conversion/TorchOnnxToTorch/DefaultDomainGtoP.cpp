@@ -205,11 +205,104 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         int64_t axis;
         if (binder.s64IntegerAttr(axis, "axis", -1))
           return rewriter.notifyMatchFailure(binder.op, "axis bind failure");
-        Value axisAttr = rewriter.create<Torch::ConstantIntOp>(
+        Value axisConst = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(axis));
         Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         rewriter.replaceOpWithNewOp<Torch::AtenLogSoftmaxIntOp>(
-            binder.op, resultType, input, axisAttr, none);
+            binder.op, resultType, input, axisConst, none);
+        return success();
+      });
+  patterns.onOp(
+      "LogSoftmax", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value input;
+        Torch::ValueTensorType resultType;
+        if (binder.tensorOperand(input) || binder.tensorResultType(resultType))
+          return failure();
+
+        int64_t axis;
+        if (binder.s64IntegerAttr(axis, "axis", 1))
+          return rewriter.notifyMatchFailure(binder.op, "axis bind failure");
+        if (axis <= 0) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "NYI: non-positive axis.");
+        }
+        std::optional<unsigned> maybeRank = Torch::getTensorRank(input);
+        if (!maybeRank)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Unsupported: unranked tensor");
+        int64_t rank = *maybeRank;
+        auto inputTy = input.getType().cast<Torch::ValueTensorType>();
+        if (!inputTy || !inputTy.hasSizes())
+          return rewriter.notifyMatchFailure(
+              binder.op, "failed to get input type or sizes");
+
+        Value axisConst = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(axis));
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        // Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+        //     binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        // Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+        //     binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value cstEnd = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(rank - axis));
+        // Value axisMOne = rewriter.create<Torch::ConstantIntOp>(
+        //     binder.getLoc(), rewriter.getI64IntegerAttr(axis-1));
+
+        // flatten before and after axis k: [d0,d1,...,dk-1,dk,dk+1,...,dr-1]
+        // i.e., inputFlatRight = flatten(input, axis, end = rank-1)
+        // then inputFlat = flatten(inputFlatRight, 0, axis-1)
+        // becomes [d0*d1*...*dk-1 , dk*dk+1*...*dr-1]
+
+        if (!inputTy || !inputTy.hasSizes())
+          return failure();
+        llvm::SmallVector<int64_t> allDims(inputTy.getSizes());
+        llvm::SmallVector<int64_t> leftDims(allDims.begin(),
+                                            allDims.begin() + axis);
+        llvm::SmallVector<int64_t> rightDims(allDims.begin() + axis,
+                                             allDims.end());
+
+        int64_t prodRightSizes = 1;
+        for (int64_t n : rightDims) {
+          if (n == Torch::kUnknownSize) {
+            prodRightSizes = -1;
+            break;
+          }
+          prodRightSizes *= n;
+        }
+        leftDims.push_back(prodRightSizes);
+        auto flatRightTy = rewriter.getType<Torch::ValueTensorType>(
+            leftDims, inputTy.getOptionalDtype());
+        leftDims.pop_back();
+
+        // int64_t prodLeftSizes = 1;
+        // for (int64_t n : leftDims){
+        //   if (n == Torch::kUnknownSize){
+        //     prodLeftSizes = -1;
+        //     break;
+        //   }
+        //   prodLeftSizes*=n;
+        // }
+        // llvm::SmallVector<int64_t> flatDims = {prodLeftSizes,
+        // prodRightSizes}; auto flatTy =
+        // rewriter.getType<Torch::ValueTensorType>(flatDims,
+        // inputTy.getOptionalDtype());
+        Value inputFlatRight = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
+            binder.getLoc(), flatRightTy, input, axisConst, cstEnd);
+        // Value inputFlat =
+        // rewriter.create<Torch::AtenFlattenUsingIntsOp>(binder.getLoc(),
+        // flatTy, inputFlatRight, cstZero, axisMOne); Compute LogSoftmax over
+        // dim1 of the bi-flattened input tensor
+        Value outputFlatRight = rewriter.create<Torch::AtenLogSoftmaxIntOp>(
+            binder.getLoc(), flatRightTy, inputFlatRight, axisConst, none);
+        // Unflatten the result:
+        // Value leftDimsPrimList = createConstantIntList(binder, rewriter,
+        // leftDims);
+        Value rightDimsPrimList =
+            createConstantIntList(binder, rewriter, rightDims);
+        rewriter.replaceOpWithNewOp<Torch::AtenUnflattenIntOp>(
+            binder.op, resultType, outputFlatRight, axisConst,
+            rightDimsPrimList);
         return success();
       });
   patterns.onOp("MatMul", 13,
