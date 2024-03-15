@@ -1386,7 +1386,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
         return failure();
       });
-  patterns.onOp("Div", 14,
+  patterns.onOp("Div", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value lhs, rhs;
