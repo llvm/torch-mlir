@@ -229,6 +229,7 @@ setup(
         "build_py": CMakeBuild,
     },
     ext_modules=EXT_MODULES,
+    python_requires=">=3.8",
     install_requires=INSTALL_REQUIRES,
     extras_require={
         "onnx": [

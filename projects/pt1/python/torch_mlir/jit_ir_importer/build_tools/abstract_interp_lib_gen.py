@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-from typing import List, Optional, Any, Tuple, Union
+from typing import List, Optional, Any, Tuple, Union, Dict, Set
 import argparse
 import os
 
@@ -1767,9 +1767,9 @@ _SORTED_TORCH_TYPES = [
 
 def _check_tensors_with_the_same_dtype(
         num_of_tensors: Optional[int] = None,
-        tensor_shapes: Optional[list[tuple[int]]] = None,
+        tensor_shapes: Optional[List[Tuple[int]]] = None,
         tensor_device: Optional[torch.device] = None,
-        error_types: Optional[set[int]] = None, *args, **kwargs):
+        error_types: Optional[Set[int]] = None, *args, **kwargs):
     """Create invocations where all tensors have the same dtype.
 
     This function generates invocations with `num_of_tensors` tensors
@@ -1801,10 +1801,10 @@ def _check_tensors_with_the_same_dtype(
     return invocations
 
 def _check_two_tensor_op(
-        tensor_shapes: Optional[list[tuple[int]]] = None,
+        tensor_shapes: Optional[List[Tuple[int]]] = None,
         tensor_device: Optional[torch.device] = None,
-        input_error_types: Optional[set[int]] = None,
-        output_error_types: Optional[set[int]] = None, **kwargs):
+        input_error_types: Optional[Set[int]] = None,
+        output_error_types: Optional[Set[int]] = None, **kwargs):
     """Generate invocations for basic two-tensor dtype functions.
 
     This helper function is meant to be used to check dtype functions that
