@@ -2522,6 +2522,8 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
       // Only updating when the shapes are static
       else if (s.value() > 0 && newShape.back() > 0)
         newShape.back() *= s.value();
+      else
+        newShape.back() = kUnknownSize;
     }
   }
 
