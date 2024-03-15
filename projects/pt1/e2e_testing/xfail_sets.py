@@ -1883,10 +1883,7 @@ ONNX_XFAIL_SET = {
     "BucketizeTensorOutInt32RightModule_basic",
     "ElementwiseToDtypeI64ToI8Module_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
-    "HBC_basic",
     "QuantizedMLP_basic",
-    "TypeConversionI1ToI32Module_basic",
-    "TypeConversionI64ToI32Module_basic",
 
     # Failure - onnx_lowering: onnx.Clip
     "NormalizeModule_basic",
