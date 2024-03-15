@@ -33,7 +33,7 @@ except ModuleNotFoundError as e:
         "The onnx package (`pip install onnx`) is required to use the onnx importer"
     ) from e
 
-from typing import Optional
+from typing import Optional, List, Dict, Tuple
 
 from dataclasses import dataclass
 
@@ -113,16 +113,16 @@ class GraphInfo:
     def __init__(self, model_info: ModelInfo, graph_proto: onnx.GraphProto):
         self.model_info = model_info
         self.graph_proto = graph_proto
-        self.initializer_map: dict[str, onnx.TensorProto] = {
+        self.initializer_map: Dict[str, onnx.TensorProto] = {
             n.name: n for n in graph_proto.initializer
         }
-        self.value_info_map: dict[str, onnx.ValueInfoProto] = {
+        self.value_info_map: Dict[str, onnx.ValueInfoProto] = {
             n.name: n for n in graph_proto.value_info
         }
-        self.declared_input_map: dict[str, onnx.ValueInfoProto] = {
+        self.declared_input_map: Dict[str, onnx.ValueInfoProto] = {
             n.name: n for n in graph_proto.input
         }
-        self.output_map: dict[str, onnx.ValueInfoProto] = {
+        self.output_map: Dict[str, onnx.ValueInfoProto] = {
             n.name: n for n in graph_proto.output
         }
 
@@ -191,7 +191,7 @@ class NodeImporter:
         self._gi = graph_info
         self._p = parent_op
         self._b = block
-        self._nv_map: dict[str, Value] = {}
+        self._nv_map: Dict[str, Value] = {}
 
     @classmethod
     def define_function(
@@ -225,7 +225,7 @@ class NodeImporter:
         with container_op.context:
             i64_type = IntegerType.get_signed(64)
             default_opset_version = 0
-            opset_versions: dict[str, IntegerAttr] = {}
+            opset_versions: Dict[str, IntegerAttr] = {}
             for opset_import in m.opset_import:
                 if opset_import.domain:
                     opset_versions[opset_import.domain] = IntegerAttr.get(
@@ -335,7 +335,7 @@ class NodeImporter:
             for output_name, output_value in zip(output_names, custom_op.results):
                 self._nv_map[output_name] = output_value
 
-    def import_attributes(self, onnx_attrs: list[onnx.AttributeProto]):
+    def import_attributes(self, onnx_attrs: List[onnx.AttributeProto]):
         attrs = {}
         for onnx_attr in onnx_attrs:
             attr_type = onnx_attr.type
@@ -358,14 +358,14 @@ class NodeImporter:
             attrs[f"torch.onnx.{onnx_attr.name}"] = result
         return attrs
 
-    def count_regions(self, onnx_attrs: list[onnx.AttributeProto]):
+    def count_regions(self, onnx_attrs: List[onnx.AttributeProto]):
         count = 0
         for onnx_attr in onnx_attrs:
             if onnx_attr.type == onnx.AttributeProto.AttributeType.GRAPH:
                 count += 1
         return count
 
-    def import_regions(self, onnx_attrs: list[onnx.AttributeProto], op):
+    def import_regions(self, onnx_attrs: List[onnx.AttributeProto], op):
         attr_map = {}
         for onnx_attr in onnx_attrs:
             attr_type = onnx_attr.type
@@ -458,10 +458,10 @@ class ContextCache:
 
     def __init__(self, context: Context):
         self._c = context
-        self._elem_type_map: dict[int, IrType] = {}
-        self._list_type_map:dict[str, IrType] = {}
-        self._optional_type_map:dict[str, IrType] = {}
-        self._vtensor_type_map: dict[tuple[tuple[Optional[int]], IrType], IrType] = {}
+        self._elem_type_map: Dict[int, IrType] = {}
+        self._list_type_map:Dict[str, IrType] = {}
+        self._optional_type_map:Dict[str, IrType] = {}
+        self._vtensor_type_map: Dict[Tuple[Tuple[Optional[int]], IrType], IrType] = {}
 
     def tensor_element_type(self, elem_type: int) -> IrType:
         t = self._elem_type_map.get(elem_type)
@@ -539,7 +539,7 @@ class ContextCache:
             f"Unsupport optional element type")
 
     def get_vtensor_type(
-        self, dims: tuple[Optional[int]], element_type: IrType
+        self, dims: Tuple[Optional[int]], element_type: IrType
     ) -> IrType:
         key = (dims, element_type)
         t = self._vtensor_type_map.get(key)
