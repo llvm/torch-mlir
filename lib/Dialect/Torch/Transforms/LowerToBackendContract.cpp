@@ -449,6 +449,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenHardsigmoidOp>();
   target.addIllegalOp<AtenRelu6Op>();
   target.addIllegalOp<AtenEluOp>();
+  target.addIllegalOp<AtenFakeQuantizePerTensorAffineOp>();
   target.addIllegalOp<AtenGluOp>();
   target.addIllegalOp<AtenSeluOp>();
   target.addIllegalOp<AtenHardswishOp>();

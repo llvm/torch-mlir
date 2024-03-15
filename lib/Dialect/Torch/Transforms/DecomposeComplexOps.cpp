@@ -7197,6 +7197,57 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenFakeQuantizePerTensorAffineOp
+    : public OpRewritePattern<AtenFakeQuantizePerTensorAffineOp> {
+public:
+  using OpRewritePattern<AtenFakeQuantizePerTensorAffineOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFakeQuantizePerTensorAffineOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *context = getContext();
+
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value falseVal = rewriter.create<ConstantBoolOp>(loc, false);
+    Value one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
+
+    // input/scale
+    Value divScale = rewriter.create<AtenDivScalarOp>(
+        loc, op.getType(), op.getSelf(), op.getScale());
+    // std::nearby_int(input/scale)
+    Value round = rewriter.create<AtenRoundOp>(loc, op.getType(), divScale);
+    // std::nearby_int(input/scale) + zero_point
+    Value addZeroPoint = rewriter.create<AtenAddScalarOp>(
+        loc, op.getType(), round, op.getZeroPoint(), one);
+    // max(quant_min, std::nearby_int(input/scale) + zero_point)
+    Value max = rewriter.create<AtenMaximumOp>(
+        loc, op.getType(), addZeroPoint,
+        rewriter.create<AtenTensorIntOp>(loc, baseType, op.getQuantMin(),
+                                         /*dtype=*/none,
+                                         /*device=*/none,
+                                         /*requires_grad=*/falseVal));
+    // min(quant_max, max(quant_min, std::nearby_int(input/scale) + zero_point))
+    Value min = rewriter.create<AtenMinimumOp>(
+        loc, op.getType(), max,
+        rewriter.create<AtenTensorIntOp>(loc, baseType, op.getQuantMax(),
+                                         /*dtype=*/none, /*device=*/none,
+                                         /*requires_grad=*/falseVal));
+    // min(quant_max, max(quant_min, std::nearby_int(input/scale) + zero_point))
+    // - zero_point
+    Value subZeroPoint = rewriter.create<AtenSubScalarOp>(
+        loc, op.getType(), min, op.getZeroPoint(), one);
+    // (min(quant_max, max(quant_min, std::nearby_int(input/scale) +
+    // zero_point)) - zero_point) * scale
+    Value result = rewriter.create<AtenMulScalarOp>(
+        loc, op.getType(), subZeroPoint, op.getScale());
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -7382,6 +7433,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenNormalFunctionalOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEluOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFakeQuantizePerTensorAffineOp>(
+        patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSeluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluBackwardOp>(patterns);

@@ -308,6 +308,9 @@ TORCHDYNAMO_XFAIL_SET = {
     # Others
     "GridSamplerBasic1_basic",
     "GridSamplerBasic2_basic",
+    "FakeQuantizePerTensorAffineModule_basic",
+    "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
+    "FakeQuantizePerTensorAffineRoundToEvenModule_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -846,6 +849,8 @@ STABLEHLO_PASS_SET = {
     "LinspaceModule_basic",
     "LinspaceOneSizeModule_basic",
     "LinspaceTwoSizeModule_basic",
+    "FakeQuantizePerTensorAffineModule_basic",
+    "FakeQuantizePerTensorAffineRoundToEvenModule_basic",
 }
 
 STABLEHLO_CRASHING_SET =  {
@@ -2120,5 +2125,8 @@ ONNX_XFAIL_SET = {
     "AtenLinalgCrossDynamic_basic"
 }
 
-ONNX_CRASHING_SET = { }
+ONNX_CRASHING_SET = { 
+    "FakeQuantizePerTensorAffineModule_basic",
+    "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
+}
 
