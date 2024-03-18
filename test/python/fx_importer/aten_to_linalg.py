@@ -1,8 +1,9 @@
 import os
+from typing import Tuple
+
 from torch_mlir import fx
 import torch
 from torch import Tensor
-
 from torch_mlir.compiler_utils import run_pipeline_with_repro_report
 
 
@@ -59,30 +60,26 @@ class Transform:
 ################################################################
 #  Add torch kernel example
 ################################################################
-        
-# error TODO
-# python exception: Failure while executing pass pipeline:
-# error: unknown: failed to legalize operation 'torch.constant.int'
-# note: unknown: see current operation: %0 = "torch.constant.int"() <{value = 1 : i64}> : () -> !torch.int
+
 # @run
-def test_index_add():
-    class Index_add(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
+# def test_index_add():
+#     class Index_add(torch.nn.Module):
+#         def __init__(self):
+#             super().__init__()
 
-        def forward(self, x:Tensor, dim, index:Tensor, source:Tensor) -> Tensor:
-            return x.index_add_(dim, index, source)
+#         def forward(self, x:Tensor, dim:torch.int, index:Tensor, source:Tensor, alpha=1) -> Tensor:
+#             return torch.ops.aten.index_add(x, dim, index, source)
     
-    index_add = Transform(
-        Index_add(), 
-        torch.randn(128, 128, dtype=torch.float), 
-        0,
-        torch.tensor([8, 16, 32, 64, 127, 48, 72, 96], dtype=torch.int),
-        torch.randn(8, 128, dtype=torch.float),
-        )
-    index_add.run()
+#     index_add = Transform(
+#         Index_add(), 
+#         torch.randn(128, 128, dtype=torch.float), 
+#         0,
+#         torch.tensor([8, 16, 32, 64, 127, 48, 72, 96], dtype=torch.int),
+#         torch.randn(8, 128, dtype=torch.float),
+#         )
+#     index_add.run()
 
-@run
+# @run
 def test_sigmoid():
     class Sigmoid(torch.nn.Module):
         def __init__(self):
@@ -94,7 +91,90 @@ def test_sigmoid():
     sigmoid = Transform(Sigmoid(), torch.randn(128, 128))
     sigmoid.run()
 
-@run
+# @run
+# TODO aten to linalg error
+def test_sigmoid_backward():
+    class Sigmoid_backward(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, grad:Tensor, input:Tensor) -> Tensor:
+            return torch.ops.aten.sigmoid_backward(grad, input)
+    sigmoid_backward = Transform(Sigmoid_backward(), torch.randn(128, 128), torch.randn(128, 128))
+    sigmoid_backward.run()
+
+# # @run
+# def test_logit_backward():
+#     class Logit_backward(torch.nn.Module):
+#         def __init__(self):
+#             super().__init__()
+
+#         def forward(self, grad:Tensor, input:Tensor) -> Tensor:
+#             return torch.ops.aten.logit_backward(grad, input)
+#     logit_backward = Transform(Logit_backward(), torch.randn(128, 128), torch.randn(128, 128))
+#     logit_backward.run()
+
+# @run
+def test_tanh_backward():
+    class Tanh_backward(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, grad:Tensor, input:Tensor) -> Tensor:
+            return torch.ops.aten.tanh_backward(grad, input)
+    tanh_backward = Transform(Tanh_backward(), torch.randn(128, 128), torch.randn(128, 128))
+    tanh_backward.run()
+
+# @run
+def test_avg_pool2d():
+    class Avg_pool2d(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x:Tensor, kernel_size:Tuple[int, ...]) -> Tensor:
+            return torch.nn.functional.avg_pool2d(x, kernel_size)
+
+    avg_pool2d = Transform(Avg_pool2d(), torch.randn(1, 1, 128, 128), (2, 2))
+    avg_pool2d.run()
+
+# @run
+# aten to linalg error
+def test_adaptive_avg_pool2d_backward():
+    class Adaptive_avg_pool2d_backward(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, grad:Tensor, input:Tensor) -> Tensor:
+            return torch.ops.aten._adaptive_avg_pool2d_backward(grad, input)
+    adaptive_avg_pool2d_backward = Transform(Adaptive_avg_pool2d_backward(), torch.randn(1, 1, 128, 128), torch.randn(1, 1, 128, 128))
+    adaptive_avg_pool2d_backward.run()
+
+
+# @run
+# def test_softplus_backward():
+#     class Softplus_backward(torch.nn.Module):
+#         def __init__(self):
+#             super().__init__()
+
+#         def forward(self, grad:Tensor, input:Tensor) -> Tensor:
+#             return torch.ops.aten.softplus_backward(grad, input, beta=1, threshold=20)
+
+#     softplus_backward = Transform(Softplus_backward(), torch.randn(128, 128), torch.randn(128, 128), Tensor(1), Tensor(20))
+#     softplus_backward.run()
+
+# @run
+def test_log_sigmoid_forward():
+    class Log_sigmoid_forward(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, input:Tensor) -> Tensor:
+            return torch.nn.functional.logsigmoid(input)
+
+    log_sigmoid_forward = Transform(Log_sigmoid_forward(), torch.randn(128, 128))
+    log_sigmoid_forward.run()
+
+# @run
 def test_softmax():
     class Softmax(torch.nn.Module):
         def __init__(self):
@@ -104,4 +184,27 @@ def test_softmax():
             return torch.nn.functional.softmax(x, dim, torch.float32)
     softmax = Transform(Softmax(), torch.randn(128, 128), 1)
     softmax.run()
+
+# @run
+def test_leaky_relu_backward():
+    class Leaky_relu_backward(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, grad:Tensor, input:Tensor):
+            return torch.ops.aten.leaky_relu_backward(grad, input, negative_slope=0.1, self_is_result=False)
+
+    leaky_relu_backward = Transform(Leaky_relu_backward(), torch.randn(128, 128), torch.randn(128, 128))
+    leaky_relu_backward.run()
+
+@run
+def test_leaky_relu():
+    class Leaky_relu(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x:Tensor) -> Tensor:
+            return torch.nn.functional.softmax(x)
+    leaky_relu = Transform(Leaky_relu(), torch.randn(128, 128))
+    leaky_relu.run()
 
