@@ -8,8 +8,8 @@
 from typing import Optional
 
 import torch
-import torch.export
 import torch.nn as nn
+from torch.export import Dim
 
 from torch_mlir import fx
 
@@ -76,4 +76,20 @@ def test_import_frozen_exported_program_with_func_name():
             return torch.tanh(x) * get_a() * self.b * self.p
 
     m = fx.export_and_import(Basic(), torch.randn(3, 4), func_name="test_net")
+    print(m)
+
+@run
+# CHECK-LABEL: test_import_frozen_exported_program_with_dynamic_shapes
+# CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,4],f32>) -> !torch.vtensor<[?,4],f32>
+def test_import_frozen_exported_program_with_dynamic_shapes():
+    class Basic(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return torch.tanh(x)
+
+    batch = Dim("batch")
+    dynamic_shapes = {"x": {0: batch}}
+    m = fx.export_and_import(Basic(), torch.randn(3, 4), dynamic_shapes=dynamic_shapes, func_name="test_net")
     print(m)
