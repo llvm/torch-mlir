@@ -2520,7 +2520,7 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
       if (idx == start_dim)
         newShape.push_back(s.value());
       // Only updating when the shapes are static
-      else if (s.value() > 0 && newShape.back() > 0)
+      else if (s.value() != kUnknownSize && newShape.back() != kUnknownSize)
         newShape.back() *= s.value();
       else
         newShape.back() = kUnknownSize;
