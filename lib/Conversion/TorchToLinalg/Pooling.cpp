@@ -648,6 +648,20 @@ public:
   Type elementType;
 };
 
+// The following two derived helper classes are used to store the differing
+// logic between adaptive avg pooling and adaptive max pooling.
+// 1. auxTensorSetup initializes a tensor for storing either indices (max) or
+// kernel volumes (avg)
+// 2. payloadCustomization customizes those features of the main linalg generic
+// op that are not generically "AdaptivePooling". Specifically, for switching
+// between sum/max and writing the code for computing the aux tensor elements.
+// 3. customizedOpReplacement finishes the op replacement. In the adaptive avg
+// case, it includes an additional generic op to divide the sum pool by the
+// kernel volume.
+// To access these helper functions in the conversion pattern, we
+// have an AdaptivePoolingOpTraits class that stores the number of dimensions
+// and aliases the associated helper class to a more generic name.
+
 template <class OpTy>
 class AdaptiveMaxPoolingHelper : public AdaptivePoolingHelper {
 
@@ -864,26 +878,6 @@ class ConvertAtenAdaptivePoolOp : public OpConversionPattern<OpTy> {
 
 private:
   static const int64_t Dim = AdaptivePoolingOpTraits<OpTy>::Dim;
-
-  virtual LogicalResult payloadCustomization(
-      OpBuilder &b, Location loc, const Value &inElt, const Value &res,
-      const Value &maxIndex, const SmallVector<Value> &inputElementIndices,
-      const int64_t &rank, const int64_t &nonSpatial,
-      const SmallVector<Value> &inputSpatialSizes, const Value &indexOne,
-      const SmallVector<Value> &starts, const SmallVector<Value> &ends,
-      const Type &elementType, Value &out2, Value &auxOut) const {
-    return failure();
-  }
-
-  virtual LogicalResult customizedOpReplacement(
-      OpTy op, ConversionPatternRewriter &rewriter,
-      const RankedTensorType &outputType, const RankedTensorType &auxTensorType,
-      const Value &adaptivePoolOutput, const Value &auxTensorReturn,
-      const SmallVector<AffineExpr> &auxTensorExprs,
-      const SmallVector<AffineExpr> &outputExprs, const int64_t &rank) const {
-    return rewriter.notifyMatchFailure(op,
-                                       "unimplemented customizedOpReplacement");
-  }
 
 public:
   LogicalResult
