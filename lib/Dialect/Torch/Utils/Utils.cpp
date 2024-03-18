@@ -553,5 +553,5 @@ Type Torch::getDefaultAccType(PatternRewriter &rewriter, Type inputType) {
     return rewriter.getI64Type();
   if (inputType.isSignedInteger(64))
     return rewriter.getI64Type();
-  llvm::report_fatal_error("unhandled type for getDefaultAccType");
+  return inputType;
 }

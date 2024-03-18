@@ -4739,5 +4739,52 @@ class GluStaticModule(torch.nn.Module):
         return torch.ops.aten.glu(x, dim=1)
 
 @register_test_case(module_factory=lambda: GluStaticModule())
-def  GluStaticModule_basic(module, tu: TestUtils):
+def GluStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 24, 5))
+
+# ==============================================================================
+
+class FakeQuantizePerTensorAffineModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    @export
+    @annotate_args([
+        None,
+        ([4, 50], torch.float32, True)
+    ])
+    def forward(self, x):
+       return torch.ops.aten.fake_quantize_per_tensor_affine(x, 0.1, 1, 0, 255)
+
+@register_test_case(module_factory=lambda: FakeQuantizePerTensorAffineModule())
+def FakeQuantizePerTensorAffineModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 50))
+
+class FakeQuantizePerTensorAffineDynamicShapeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True)
+    ])
+    def forward(self, x):
+       return torch.ops.aten.fake_quantize_per_tensor_affine(x, 0.1, 1, 0, 255)
+
+@register_test_case(module_factory=lambda: FakeQuantizePerTensorAffineDynamicShapeModule())
+def FakeQuantizePerTensorAffineDynamicShapeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 50))
+
+class FakeQuantizePerTensorAffineRoundToEvenModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    @export
+    @annotate_args([
+        None,
+        ([4], torch.float32, True)
+    ])
+    def forward(self, x):
+       return torch.ops.aten.fake_quantize_per_tensor_affine(x, 0.1, 0, -128, 127)
+
+@register_test_case(module_factory=lambda: FakeQuantizePerTensorAffineRoundToEvenModule())
+def FakeQuantizePerTensorAffineRoundToEvenModule_basic(module, tu: TestUtils):
+    module.forward(torch.FloatTensor([0.5, 1.5, -0.5, -1.5]))
