@@ -5,7 +5,7 @@
 
 # RUN: %PYTHON %s | FileCheck %s
 
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Tuple, Dict
 
 import torch
 import torch.nn as nn

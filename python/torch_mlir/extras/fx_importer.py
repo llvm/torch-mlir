@@ -469,8 +469,8 @@ class FxImporter:
         default policy is to capture them as frozen values.
         """
         # Create lookaside table of placeholders/outputs.
-        placeholder_nodes: dict[str, Node] = {}
-        all_producer_nodes: dict[str, Node] = {}
+        placeholder_nodes: Dict[str, Node] = {}
+        all_producer_nodes: Dict[str, Node] = {}
         loc: Optional[Location] = None
         for node in prog.graph.nodes:
             if loc is None:
@@ -502,15 +502,15 @@ class FxImporter:
         }
 
         # Additional bindings that we need to set up after the function is created.
-        mutable_buffer_target_producers: dict[str, str] = {}
-        constant_tensors: dict[Node, torch.Tensor] = {}
-        parameter_bindings: dict[Node, tuple[Any, InputInfo]] = {}
-        buffer_bindings: dict[Node, tuple[Any, InputInfo]] = {}
+        mutable_buffer_target_producers: Dict[str, str] = {}
+        constant_tensors: Dict[Node, torch.Tensor] = {}
+        parameter_bindings: Dict[Node, Tuple[Any, InputInfo]] = {}
+        buffer_bindings: Dict[Node, Tuple[Any, InputInfo]] = {}
 
         # Derive user outputs that we preserve. These will be nodes of the
         # producer for the output.
-        user_outputs: list[Node] = []
-        user_output_types: list[IrType] = []
+        user_outputs: List[Node] = []
+        user_output_types: List[IrType] = []
         for output_spec in sig.output_specs:
             kind = output_spec.kind
             arg = output_spec.arg
@@ -528,8 +528,8 @@ class FxImporter:
                 mutable_buffer_target_producers[output_spec.target] = arg.name
 
         # Derive user inputs. These will be op=='placeholder' nodes.
-        user_inputs: list[Node] = []
-        user_input_types: list[IrType] = []
+        user_inputs: List[Node] = []
+        user_input_types: List[IrType] = []
         for input_spec in sig.input_specs:
             arg = input_spec.arg
             if input_spec.kind == InputKind.USER_INPUT:
@@ -680,7 +680,7 @@ class FxImporter:
         """
         sig = prog.graph_signature
         state_dict = prog.state_dict
-        arg_replacements: dict[str, Any] = {}
+        arg_replacements: Dict[str, Any] = {}
 
         # If there is no "constants" attribute, consult the "state_dict". Otherwise, only look
         # at "constants". Relevant upstream patch: https://github.com/pytorch/pytorch/pull/118969
@@ -982,7 +982,7 @@ class GraphNodeImporter:
         # constructs and returns a value.
         self._v: Dict[Union[Callable[[], Value], Tuple[torch_fx.Node, int]], Value] = {}
         # Map of node name to hook that should be called when it is produced.
-        self._on_node_produced: dict[str, Callable[[Value], None]] = {}
+        self._on_node_produced: Dict[str, Callable[[Value], None]] = {}
         # Statically multi-result nodes which we have de-tupled are noted here.
         # They will have their getitem calls short-circuited.
         self._multi_result_nodes: Set[torch_fx.Node] = set()
@@ -1097,7 +1097,7 @@ class GraphNodeImporter:
 
             self._on_node_produced[info.mutable_producer_node_name] = on_produced
 
-    def return_node_values(self, loc, nodes: list[Node]):
+    def return_node_values(self, loc, nodes: List[Node]):
         with loc, InsertionPoint(self._b):
             operands = [self.resolve_node_value(n) for n in nodes]
             func_dialect.ReturnOp(operands, loc=loc)
