@@ -40,6 +40,61 @@ class RefinePublicReturnPass
     });
   }
 
+  Value newValueOperand(OpBuilder &builder, Location loc, Value operand) {
+    Value newOperand = operand;
+    // Look through TensorStaticInfoCastOp's, CopyToNonValueTensorOp's, and
+    // DerefineOp's.
+    for (;;) {
+      if (auto cast = newOperand.getDefiningOp<TensorStaticInfoCastOp>()) {
+        newOperand = cast.getOperand();
+      } else if (auto copy =
+                     newOperand.getDefiningOp<CopyToNonValueTensorOp>()) {
+        // If the return (or transitively other ops) are not the only users,
+        // then we can't be sure that the tensor hasn't been mutated, so stop
+        // here.
+        SetVector<Operation *> users(copy->getUsers().begin(),
+                                     copy->getUsers().end());
+        if (users.size() != 1)
+          break;
+        newOperand = copy.getOperand();
+      } else if (auto derefine = newOperand.getDefiningOp<DerefineOp>()) {
+        newOperand = derefine.getOperand();
+      } else if (auto listCon =
+                     newOperand.getDefiningOp<PrimListConstructOp>()) {
+        // clang-format off
+        // Convert:
+        //   %4 = torch.copy.to_tensor %3 : !torch.tensor
+        //   %5 = torch.prim.ListConstruct %4 : (!torch.tensor) -> !torch.list<tensor>
+        //   return %5 : !torch.list<tensor>
+        // to:
+        //   %4 = torch.prim.ListConstruct %3 : (!torch.vtensor) -> !torch.list<vtensor>
+        //   return %4 : !torch.list<vtensor>
+        // clang-format on
+        auto listType = listCon.getType().dyn_cast<ListType>();
+        if (listCon.getElements().empty() ||
+            !(listType.getContainedType().isa<NonValueTensorType>() ||
+              listType.getContainedType().isa<OptionalType>())) {
+          break;
+        }
+        auto newListElements = llvm::to_vector(
+            llvm::map_range(listCon.getElements(), [&](Value tensor) -> Value {
+              return newValueOperand(builder, loc, tensor);
+            }));
+        assert(!newListElements.empty());
+        newOperand = builder.create<PrimListConstructOp>(
+            loc, ListType::get(newListElements[0].getType()), newListElements);
+        break;
+      } else {
+        break;
+      }
+    }
+    if (auto tensorType = newOperand.getType().dyn_cast<BaseTensorType>()) {
+      return copyTensorToType(builder, loc, tensorType.getWithValueSemantics(),
+                              newOperand);
+    }
+    return newOperand;
+  }
+
   void rewriteSignature(func::FuncOp func) {
     // Find the unique return op.
     func::ReturnOp returnOp;
@@ -60,38 +115,11 @@ class RefinePublicReturnPass
     // presumed to have a more precise type.
     SmallVector<Value> newOperands;
     OpBuilder builder(returnOp);
-    for (auto operand : returnOp.getOperands()) {
-      Value newOperand = operand;
-      // Look through TensorStaticInfoCastOp's, CopyToNonValueTensorOp's, and
-      // DerefineOp's.
-      for (;;) {
-        if (auto cast = newOperand.getDefiningOp<TensorStaticInfoCastOp>()) {
-          newOperand = cast.getOperand();
-        } else if (auto copy =
-                       newOperand.getDefiningOp<CopyToNonValueTensorOp>()) {
-          // If the return (or transitively other ops) are not the only users,
-          // then we can't be sure that the tensor hasn't been mutated, so stop
-          // here.
-          SetVector<Operation *> users(copy->getUsers().begin(),
-                                       copy->getUsers().end());
-          if (users.size() != 1)
-            break;
-          newOperand = copy.getOperand();
-        } else if (auto derefine = newOperand.getDefiningOp<DerefineOp>()) {
-          newOperand = derefine.getOperand();
-        } else {
-          break;
-        }
-      }
-
-      if (auto tensorType = newOperand.getType().dyn_cast<BaseTensorType>()) {
-        newOperands.push_back(
-            copyTensorToType(builder, returnOp->getLoc(),
-                             tensorType.getWithValueSemantics(), newOperand));
-      } else {
-        newOperands.push_back(newOperand);
-      }
-    }
+    llvm::transform(returnOp.getOperands(), std::back_inserter(newOperands),
+                    [this, &builder, &returnOp](Value operand) {
+                      return newValueOperand(builder, returnOp.getLoc(),
+                                             operand);
+                    });
     returnOp->setOperands(newOperands);
 
     // Update the function type.
