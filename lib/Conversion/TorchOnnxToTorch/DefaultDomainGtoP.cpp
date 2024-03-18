@@ -1153,4 +1153,25 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, tensor, slope);
                   return success();
                 });
+  patterns.onOp("Mod", 13,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value self, other;
+                  int64_t fmod;
+                  if (binder.tensorOperands(self, other) ||
+                      binder.tensorResultType(resultType) ||
+                      binder.s64IntegerAttr(fmod, "fmod", 0)) {
+                    return failure();
+                  }
+
+                  if (fmod) {
+                    rewriter.replaceOpWithNewOp<Torch::AtenFmodTensorOp>(
+                        binder.op, resultType, self, other);
+                    return success();
+                  }
+
+                  rewriter.replaceOpWithNewOp<Torch::AtenRemainderTensorOp>(
+                      binder.op, resultType, self, other);
+                  return success();
+                });
 }
