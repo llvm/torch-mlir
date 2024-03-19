@@ -1,4 +1,4 @@
-// RUN: torch-mlir-opt <%s -convert-torch-to-scf | FileCheck %s
+// RUN: torch-mlir-opt <%s --split-input-file -convert-torch-to-scf| FileCheck %s
 
 // CHECK-LABEL:   func.func @torch.prim.if(
 // CHECK-SAME:                        %[[VAL_0:.*]]: !torch.bool) -> !torch.int {
@@ -215,8 +215,11 @@ func.func @torch.prim.Loop$for_with_multiple_results(%arg0: !torch.int) -> (!tor
   return %0#0, %0#1 : !torch.float, !torch.float
 }
 
-// CHECK-LABEL:   func.func @test_forloop_tensorargs() -> !torch.vtensor<[2,3],f32> {
-// CHECK:           %[[LOOP_RESULT:.*]] = scf.for %[[FORLOOP_RESULT:.*]] = %[[RANGE_START:.*]] to %[[RANGE_END:.*]] step %[[RANGE_STEP:.*]] iter_args(%[[LOOP_TENSOR_ARG:.*]] = %[[LOOP_TENSOR_ARG_INIT_VAL:.*]]) -> (tensor<2x3xf32>) {
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.prim.Loop$for_with_tensor_arg() -> !torch.vtensor<[2,3],f32> {
+// CHECK:           %[[LOOP_RESULT:.*]] = scf.for %[[LOOP_VARIABLE:.*]] = %[[RANGE_START:.*]] to %[[RANGE_END:.*]] step %[[RANGE_STEP:.*]] iter_args(%[[LOOP_TENSOR_ARG:.*]] = %[[LOOP_TENSOR_ARG_INIT_VAL:.*]]) -> (tensor<2x3xf32>) {
 // CHECK:             %[[LOOP_TENSOR_ARG_TORCH_TENSOR:.*]] = torch_c.from_builtin_tensor %[[LOOP_TENSOR_ARG]]
 // CHECK:           }
 // CHECK:         }
