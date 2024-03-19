@@ -275,7 +275,9 @@ public:
         torchArg = typeConverter->materializeSourceConversion(
             rewriter, scfForOp.getLoc(), targetType, {to});
       } else if (auto tty = dyn_cast<RankedTensorType>(targetType)) {
-        targetType = op.getIterArgsInit()[barg.index() - scfForOp.getNumInductionVars()].getType();
+        targetType =
+            op.getIterArgsInit()[barg.index() - scfForOp.getNumInductionVars()]
+                .getType();
         torchArg = typeConverter->materializeSourceConversion(
             rewriter, scfForOp.getLoc(), targetType, {to});
       }
