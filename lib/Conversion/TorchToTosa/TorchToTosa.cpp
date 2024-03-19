@@ -2485,10 +2485,9 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
 
   // Not a ranked tensor type
   auto selfType = adaptor.getSelf().getType().dyn_cast<RankedTensorType>();
-  if (!selfType || !selfType.hasStaticShape())
-    return rewriter.notifyMatchFailure(
-        op,
-        "Only ranked tensor types with static shapes are currently supported");
+  if (!selfType)
+    return rewriter.notifyMatchFailure(op,
+                                       "Only ranked tensor types supported");
 
   int64_t selfRank = selfType.getRank();
 
@@ -2520,8 +2519,11 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
     } else {
       if (idx == start_dim)
         newShape.push_back(s.value());
-      else
+      // Only updating when the shapes are static
+      else if (s.value() != kUnknownSize && newShape.back() != kUnknownSize)
         newShape.back() *= s.value();
+      else
+        newShape.back() = kUnknownSize;
     }
   }
 
