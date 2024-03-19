@@ -66,14 +66,16 @@ class TorchPrimLoopForLikeTensorArgModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.int64, True)
+        ([7,9], torch.float32, True),
     ])
-    def forward(self, n: torch.Tensor) -> torch.Tensor:
-        x = torch.zeros([5]).float()
-        for i in range(int(n)):
-            x = x + i
-        return x
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        y = x
+        for i in range(x.size(0)):
+            y = y + i
+        return y
 
 @register_test_case(module_factory=lambda: TorchPrimLoopForLikeTensorArgModule())
-def TorchPrimLoopForLikeModule_basic(module, tu: TestUtils):
-    module.forward(tu.tensor(10, dtype=torch.int64))
+def TorchPrimLoopForLikeTensorArgModule_basic(module, tu: TestUtils):
+    x_test = torch.zeros([7, 9]).float()
+
+    module.forward(x_test)
