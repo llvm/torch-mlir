@@ -25,6 +25,7 @@
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
+#include "stablehlo/transforms/Passes.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 #endif
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -134,9 +135,14 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
 void TorchConversion::createTorchBackendToStablehloBackendPipeline(
     OpPassManager &pm,
     const TorchConversion::StablehloBackendPipelineOptions &options) {
-  // Generate Stablehlo ops.
+  // Generate Stablehlo & Chlo ops.
   pm.addNestedPass<func::FuncOp>(createConvertTorchToStablehloPass(
       options.enableStaticShape, options.enableI32Index));
+  // Lowering Chlo ops to Stablehlo
+  pm.addNestedPass<func::FuncOp>(
+      stablehlo::createChloLegalizeToStablehloPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+
   // Lowering remained ops to Arith
   pm.addNestedPass<func::FuncOp>(createConvertTorchToArithPass());
 

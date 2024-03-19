@@ -20,6 +20,7 @@ set(LinkedLibs
 if(TORCH_MLIR_ENABLE_STABLEHLO)
   list(APPEND LinkedLibs
     StablehloOps
+    StablehloPasses
   )
 endif()
 
