@@ -32,7 +32,7 @@ set(LinkedLibs
 )
 
 if(TORCH_MLIR_ENABLE_STABLEHLO)
-list(APPEND LinkedLibs StablehloPasses StablehloLinalgTransforms)
+list(APPEND LinkedLibs StablehloLinalgTransforms)
 endif()
 
 if(TORCH_MLIR_ENABLE_REFBACKEND)

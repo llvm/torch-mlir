@@ -31,7 +31,6 @@
 
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 #include "stablehlo/conversions/linalg/transforms/Passes.h"
-#include "stablehlo/transforms/Passes.h"
 #endif
 
 void mlir::torch::registerAllDialects(mlir::DialectRegistry &registry) {
@@ -58,7 +57,6 @@ void mlir::torch::registerAllPasses() {
   mlir::torch::TMTensor::registerPasses();
 
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
-  mlir::stablehlo::registerChloLegalizeToStablehloPass();
   mlir::stablehlo::registerStablehloLegalizeToLinalgPass();
 #endif
 
