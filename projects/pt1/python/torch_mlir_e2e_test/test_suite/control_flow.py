@@ -69,10 +69,9 @@ class TorchPrimLoopForLikeTensorArgModule(torch.nn.Module):
         ([7,9], torch.float32, True),
     ])
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        y = x
-        for i in range(x.size(0)):
-            y = y + i
-        return y
+        for i in range(50):
+            x = x + i
+        return x
 
 @register_test_case(module_factory=lambda: TorchPrimLoopForLikeTensorArgModule())
 def TorchPrimLoopForLikeTensorArgModule_basic(module, tu: TestUtils):
