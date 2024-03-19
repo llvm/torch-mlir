@@ -391,6 +391,25 @@ class FlattenDynamicModule(torch.nn.Module):
 def FlattenDynamicModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 3, 8, 9, 3, 4))
 
+class FlattenDynamicModuleCollapseAll(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.flat = torch.nn.Flatten(0)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, 9, 3, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.flat(x)
+
+
+@register_test_case(module_factory=lambda: FlattenDynamicModuleCollapseAll())
+def FlattenDynamicModuleCollapseAll_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 3, 8, 9, 3, 4))
+
 
 # ==============================================================================
 
