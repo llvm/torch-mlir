@@ -46,7 +46,7 @@ class Transform:
                 "torch-backend-to-linalg-on-tensors-backend-pipeline)"
             ),
             "Lowering TorchFX IR -> Linalg IR",
-            enable_ir_printing=False,
+            enable_ir_printing=True,
         )
         print("linalg ir:")
         print(self.module)
@@ -273,6 +273,7 @@ def test_cumsum():
             return torch.cumsum(x, dim)
     cumsum = Transform(Cumsum(), torch.randn(1024), 0)
     cumsum.run()
+<<<<<<< HEAD
 
 # @run
 def test_permute():
@@ -1960,3 +1961,5 @@ def test_dropout():
             return torch.nn.Dropout(x)
     dropout = Transform(Dropout(), 0.3)
     dropout.run()
+=======
+>>>>>>> add Cumsum elu glu logical_not transpose smooth_l1_loss
