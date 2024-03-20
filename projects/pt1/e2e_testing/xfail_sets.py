@@ -1884,7 +1884,6 @@ ONNX_XFAIL_SET = {
 
     # Failure - onnx_lowering: onnx.Cast
     "BucketizeTensorOutInt32RightModule_basic",
-    "ElementwiseToDtypeI64ToI8Module_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
     "QuantizedMLP_basic",
 
