@@ -1733,8 +1733,13 @@ ONNX_XFAIL_SET = {
     "NllLossModule_mean_basic",
     "NllLossModule_sum_basic",
     "NormScalarModule_basic",
+    "NormScalarComplexModule_basic",
     "NormScalarOptDimKeepDimModule_basic",
     "NormScalarOptDimModule_basic",
+    "NormScalarOptDimKeepDimComplexModule_basic",
+    "LinalgNormKeepDimComplexModule_basic",
+    "LinalgVectorNormComplexModule_basic",
+    "ReduceFrobeniusNormComplexModule_basic",
     "NormalFunctionalModule_basic",
     "NumToTensorFloatModule_basic",
     "NumToTensorIntModule_basic",
@@ -1978,9 +1983,17 @@ ONNX_XFAIL_SET = {
     # Failure - onnx_lowering: onnx.ReduceL1
     "ReduceL1NormModule_basic",
     "ReduceL1NormWithDTypeModule_basic",
+    "ReduceL1NormComplexModule_basic",
 
     # Failure - onnx_lowering: onnx.ReduceL2
     "ReduceL2NormModule_basic",
+    "ReduceL2NormComplexModule_basic",
+
+    # Failure - onnx_lowering: onnx.ReduceL3
+    "ReduceL3NormAllDimsModule_basic",
+    "ReduceL3NormKeepDimModule_basic",
+    "ReduceL3NormKeepDimComplexModule_basic",
+
 
     # Failure - onnx_lowering: onnx.ReduceProd
     "BernoulliModule_basic",
@@ -1994,8 +2007,6 @@ ONNX_XFAIL_SET = {
 
     # Failure - onnx_lowering: onnx.ReduceSum
     "MseLossSumReductionWithDifferentElemTypeModule_basic",
-    "ReduceL3NormAllDimsModule_basic",
-    "ReduceL3NormKeepDimModule_basic",
     "ReduceSumDtypeFloatModule_basic",
     "ReduceSumDtypeIntModule_basic",
     "ReduceSumElementTypeBoolModule_basic",
