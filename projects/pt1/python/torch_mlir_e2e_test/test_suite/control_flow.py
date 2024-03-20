@@ -55,3 +55,26 @@ class TorchPrimLoopWhileLikeModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: TorchPrimLoopWhileLikeModule())
 def TorchPrimLoopWhileLikeModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(6, 8, high=10))
+
+
+# ==============================================================================
+
+class TorchPrimLoopForLikeTensorArgModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([7,9], torch.float32, True),
+    ])
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        for i in range(50):
+            x = x + i
+        return x
+
+@register_test_case(module_factory=lambda: TorchPrimLoopForLikeTensorArgModule())
+def TorchPrimLoopForLikeTensorArgModule_basic(module, tu: TestUtils):
+    x_test = torch.zeros([7, 9]).float()
+
+    module.forward(x_test)

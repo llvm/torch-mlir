@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-from typing import Optional
+from typing import Optional, Union, Dict, Tuple, Any
 
 import warnings
 
@@ -20,6 +20,7 @@ def export_and_import(
     f,
     *args,
     fx_importer: Optional[FxImporter] = None,
+    dynamic_shapes: Optional[Union[Dict[str, Any], Tuple[Any]]] = None,
     experimental_support_mutation: bool = False,
     hooks: Optional[FxImporterHooks] = None,
     func_name: str = "main",
@@ -30,7 +31,7 @@ def export_and_import(
 
     if fx_importer is None:
         fx_importer = FxImporter(context=context, hooks=hooks)
-    prog = torch.export.export(f, args, kwargs)
+    prog = torch.export.export(f, args, kwargs, dynamic_shapes=dynamic_shapes)
     decomp_table = get_decomposition_table()
     prog = prog.run_decompositions(decomp_table)
     if experimental_support_mutation:

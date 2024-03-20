@@ -308,6 +308,9 @@ TORCHDYNAMO_XFAIL_SET = {
     # Others
     "GridSamplerBasic1_basic",
     "GridSamplerBasic2_basic",
+    "FakeQuantizePerTensorAffineModule_basic",
+    "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
+    "FakeQuantizePerTensorAffineRoundToEvenModule_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -841,6 +844,14 @@ STABLEHLO_PASS_SET = {
     "ZerosModuleFloat3D_basic",
     "ZerosModuleInt2D_basic",
     "ZerosModuleInt3D_basic",
+    "LinspaceDtypeModule_basic",
+    "LinspaceEmptyModule_basic",
+    "LinspaceModule_basic",
+    "LinspaceOneSizeModule_basic",
+    "LinspaceTwoSizeModule_basic",
+    "FakeQuantizePerTensorAffineModule_basic",
+    "FakeQuantizePerTensorAffineRoundToEvenModule_basic",
+    "TorchPrimLoopForLikeTensorArgModule_basic",
 }
 
 STABLEHLO_CRASHING_SET =  {
@@ -875,6 +886,9 @@ TOSA_PASS_SET = {
     "ArangeStartNegativeStepFloatModule_basic",
     "ArangeStartOutDtypeModule_basic",
     "ArangeStartStepFloatModule_basic",
+    "ArgmaxIntModule_basic",
+    "ArgmaxIntModule_multiple_maxs",
+    "ArgmaxModule_basic",
     "ArgmaxModule_keepDim",
     "ArgmaxModule_with_dim",
     "AtenComplex64Module_basic",
@@ -1067,6 +1081,7 @@ TOSA_PASS_SET = {
     "EmbeddingModuleI32Static_basic",
     "FlattenRank0Module_basic",
     "FlattenStaticModule_basic",
+    "FlattenDynamicModuleCollapseAll_basic",
     "FullLikeModuleFloat3DStatic_basic",
     "FullLikeModuleInt2DStatic_basic",
     "FullModuleDefaultDtype_basic",
@@ -1260,6 +1275,10 @@ TOSA_PASS_SET = {
     "_LogSoftmaxModuleStable_basic",
     "_LogSoftmaxModule_basic",
     "_SoftmaxModule_basic",
+    "LinspaceModule_basic",
+    "LinspaceOneSizeModule_basic",
+    "LinspaceTwoSizeModule_basic",
+    "TorchPrimLoopForLikeTensorArgModule_basic"
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
@@ -1276,9 +1295,11 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "TensorIntModule_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
+    "TorchPrimLoopForLikeTensorArgModule_basic",
 }) - {
 ### Test failing in make_fx_tosa but not in tosa
 
+    "FlattenDynamicModuleCollapseAll_basic",
     # Dynamic shape, has extra unsupported broadcast ops
     "Matmul_3d",
     "MatmulStaticBroadcast_basic",
@@ -1313,6 +1334,7 @@ LTC_CRASHING_SET = {
 }
 
 LTC_XFAIL_SET = {
+    "TorchPrimLoopForLikeTensorArgModule_basic"
     "CollapseAllDimensionsModule_basic",
     "CollapseRank1DynamicModule_basic",
     "CollapseStaticModule_basic",
@@ -1598,8 +1620,6 @@ ONNX_XFAIL_SET = {
     "ElementwiseOrTensorStaticShapeModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
     "ElementwiseRemainderTensorModule_Int_basic",
-    "ElementwiseFmodTensor_Float_basic",
-    "ElementwiseFmodTensor_Int_Float_basic",
     "ElementwiseFmodTensor_Int_basic",
     "EmptyStridedModule_basic",
     "EmptyStridedSizeIntStrideModule_basic",
@@ -1868,12 +1888,8 @@ ONNX_XFAIL_SET = {
 
     # Failure - onnx_lowering: onnx.Cast
     "BucketizeTensorOutInt32RightModule_basic",
-    "ElementwiseToDtypeI64ToI8Module_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
-    "HBC_basic",
     "QuantizedMLP_basic",
-    "TypeConversionI1ToI32Module_basic",
-    "TypeConversionI64ToI32Module_basic",
 
     # Failure - onnx_lowering: onnx.Clip
     "NormalizeModule_basic",
@@ -1897,14 +1913,6 @@ ONNX_XFAIL_SET = {
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
     "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
     "MaxPool2dWithIndicesStaticModule_basic",
-
-    # Failure - onnx_lowering: onnx.Mod
-    "ElementwiseRemainderScalarModule_Bool_basic",
-    "ElementwiseRemainderScalarModule_Int_basic",
-    "UnflattenIntNegativeOneDimStaticModule_basic",
-    "UnflattenIntNegativeOneSizeStaticModule_basic",
-    "UnflattenIntStaticModule_basic",
-    "UnflattenStaticModule_basic",
 
     # Failure - onnx_lowering: onnx.OneHot
     "OneHotModule_basic",
@@ -2107,7 +2115,13 @@ ONNX_XFAIL_SET = {
     "ReduceMinAlongDimUnsignedInt_basic",
     "TensorsStackNegativeDimModule_basic",
     "TensorsStackPromoteDTypeModule_basic",
+
+    # Failure - "RuntimeError: linalg.cross: inputs dimension 1 must have length 3. Got 1 and 1"
+    "AtenLinalgCrossDynamic_basic"
 }
 
-ONNX_CRASHING_SET = { }
+ONNX_CRASHING_SET = { 
+    "FakeQuantizePerTensorAffineModule_basic",
+    "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
+}
 
