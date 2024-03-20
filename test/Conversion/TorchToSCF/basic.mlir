@@ -1,4 +1,4 @@
-// RUN: torch-mlir-opt <%s -convert-torch-to-scf | FileCheck %s
+// RUN: torch-mlir-opt <%s --split-input-file -convert-torch-to-scf| FileCheck %s
 
 // CHECK-LABEL:   func.func @torch.prim.if(
 // CHECK-SAME:                        %[[VAL_0:.*]]: !torch.bool) -> !torch.int {
@@ -213,4 +213,32 @@ func.func @torch.prim.Loop$for_with_multiple_results(%arg0: !torch.int) -> (!tor
     torch.prim.Loop.condition %true, iter(%1, %2 : !torch.float, !torch.float)
   } : (!torch.int, !torch.bool, !torch.float, !torch.float) -> (!torch.float, !torch.float)
   return %0#0, %0#1 : !torch.float, !torch.float
+}
+
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.prim.Loop$for_with_tensor_arg() -> !torch.vtensor<[2,3],f32> {
+// CHECK:           %[[LOOP_RESULT:.*]] = scf.for %[[LOOP_VARIABLE:.*]] = %[[RANGE_START:.*]] to %[[RANGE_END:.*]] step %[[RANGE_STEP:.*]] iter_args(%[[LOOP_TENSOR_ARG:.*]] = %[[LOOP_TENSOR_ARG_INIT_VAL:.*]]) -> (tensor<2x3xf32>) {
+// CHECK:             %[[LOOP_TENSOR_ARG_TORCH_TENSOR:.*]] = torch_c.from_builtin_tensor %[[LOOP_TENSOR_ARG]]
+// CHECK:           }
+// CHECK:         }
+func.func @torch.prim.Loop$for_with_tensor_arg() -> (!torch.vtensor<[2,3],f32>) {
+    %true = torch.constant.bool true
+    %int0 = torch.constant.int 0
+    %int1 = torch.constant.int 1
+    %int2 = torch.constant.int 2
+    %int3 = torch.constant.int 3
+    %int5 = torch.constant.int 5
+    %int6 = torch.constant.int 6
+    %none = torch.constant.none
+    %0 = torch.prim.ListConstruct %int2, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+    %1 = torch.aten.zeros %0, %int6, %none, %none, %none : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,3],f32>
+    %2 = torch.aten.ones %0, %int6, %none, %none, %none : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,3],f32>
+    %3:1 = torch.prim.Loop %int5, %true, init(%1) {
+    ^bb0(%arg1: !torch.int, %arg2: !torch.vtensor<[2,3],f32>):
+        %4 = torch.aten.add.Tensor %arg2, %2, %int1 : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.int -> !torch.vtensor<[2,3],f32>
+        torch.prim.Loop.condition %true, iter(%4 : !torch.vtensor<[2,3],f32>)
+    } : (!torch.int, !torch.bool, !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[2,3],f32>)
+    return %3#0 : !torch.vtensor<[2,3],f32>
 }

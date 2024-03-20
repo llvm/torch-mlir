@@ -851,6 +851,7 @@ STABLEHLO_PASS_SET = {
     "LinspaceTwoSizeModule_basic",
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineRoundToEvenModule_basic",
+    "TorchPrimLoopForLikeTensorArgModule_basic",
 }
 
 STABLEHLO_CRASHING_SET =  {
@@ -1277,6 +1278,7 @@ TOSA_PASS_SET = {
     "LinspaceModule_basic",
     "LinspaceOneSizeModule_basic",
     "LinspaceTwoSizeModule_basic",
+    "TorchPrimLoopForLikeTensorArgModule_basic"
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
@@ -1293,6 +1295,7 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "TensorIntModule_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
+    "TorchPrimLoopForLikeTensorArgModule_basic",
 }) - {
 ### Test failing in make_fx_tosa but not in tosa
 
@@ -1331,6 +1334,7 @@ LTC_CRASHING_SET = {
 }
 
 LTC_XFAIL_SET = {
+    "TorchPrimLoopForLikeTensorArgModule_basic"
     "CollapseAllDimensionsModule_basic",
     "CollapseRank1DynamicModule_basic",
     "CollapseStaticModule_basic",
