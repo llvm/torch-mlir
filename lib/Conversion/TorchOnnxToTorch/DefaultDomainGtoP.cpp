@@ -224,7 +224,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (binder.s64IntegerAttr(axis, "axis", 1))
           return rewriter.notifyMatchFailure(binder.op, "axis bind failure");
         if (axis < 0) {
-          return rewriter.notifyMatchFailure(binder.op, "NYI: negative axis.");
+          return rewriter.notifyMatchFailure(
+              binder.op, "Not yet implemented: negative axis.");
         }
         std::optional<unsigned> maybeRank = Torch::getTensorRank(input);
         if (!maybeRank)
