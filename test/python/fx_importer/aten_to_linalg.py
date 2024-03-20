@@ -46,7 +46,7 @@ class Transform:
                 "torch-backend-to-linalg-on-tensors-backend-pipeline)"
             ),
             "Lowering TorchFX IR -> Linalg IR",
-            enable_ir_printing=False,
+            enable_ir_printing=True,
         )
         print("linalg ir:")
         print(self.module)
@@ -197,7 +197,7 @@ def test_leaky_relu_backward():
     leaky_relu_backward = Transform(Leaky_relu_backward(), torch.randn(128, 128), torch.randn(128, 128))
     leaky_relu_backward.run()
 
-@run
+# @run
 def test_leaky_relu():
     class Leaky_relu(torch.nn.Module):
         def __init__(self):
@@ -208,3 +208,68 @@ def test_leaky_relu():
     leaky_relu = Transform(Leaky_relu(), torch.randn(128, 128))
     leaky_relu.run()
 
+# @run
+def test_glu():
+    class Glu(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self,input):
+            return torch.nn.functional.glu(input, dim=-1)
+    glu = Transform(Glu(), torch.randn(128, 128))
+    glu.run()
+
+# @run
+def test_elu():
+    class Elu(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self,input):
+            return torch.nn.functional.elu(input, alpha=1.0, inplace=False)
+    elu = Transform(Elu(), torch.randn(128, 128))
+    elu.run()
+
+@run
+def test_smoothl1loss():
+    class Smooth_l1_loss(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, input, target):
+            return torch.nn.functional.smooth_l1_loss(input, target, size_average=None, reduce=None, reduction='none',beta=1.0)
+    smooth_l1_loss = Transform(Smooth_l1_loss(), torch.randn(128, 128), torch.randn(128, 128))
+    smooth_l1_loss.run()
+
+# @run
+def test_logical_not():
+    class Logicalnot(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x:Tensor):
+            return torch.logical_not(x)
+    softmax = Transform(Logicalnot(), torch.randn(128, 128))
+    softmax.run()
+
+# @run
+def test_transpose():
+    class Transpose(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x:Tensor, dim0, dim1):
+            return torch.transpose(x, dim0, dim1)
+    transpose = Transform(Transpose(), torch.randn(128, 128), 0, 1)
+    transpose.run()
+
+# @run
+def test_cumsum():
+    class Cumsum(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x, dim):
+            return torch.cumsum(x, dim)
+    cumsum = Transform(Cumsum(), torch.randn(1024), 0)
+    cumsum.run()
