@@ -707,6 +707,72 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         return success();
       });
   patterns.onOp(
+      "Compress", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand, conditionTensor;
+        int64_t axis;
+        if (binder.tensorOperands(operand, conditionTensor) ||
+            binder.s64IntegerAttr(axis, "axis", INT64_MAX) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        // get indexs from the condition tensor
+        auto dtype = dyn_cast<Torch::ValueTensorType>(conditionTensor.getType())
+                         .getDtype();
+        auto constOp = dyn_cast<Torch::ValueTensorLiteralOp>(
+            conditionTensor.getDefiningOp());
+        auto elementsAttr =
+            dyn_cast<DenseIntElementsAttr>(constOp.getValueAttr());
+        SmallVector<APInt> apValues;
+        int64_t index = 0;
+        for (auto intAttr : elementsAttr.getValues<Attribute>()) {
+          int64_t i = dyn_cast<IntegerAttr>(intAttr).getSInt();
+          if (i)
+            apValues.push_back(APInt(dtype.getIntOrFloatBitWidth(), index));
+          index++;
+        }
+        SmallVector<int64_t> indexShape = {static_cast<long>(apValues.size())};
+        auto indexType = Torch::ValueTensorType::get(binder.op->getContext(),
+                                                     indexShape, dtype);
+        auto attr = DenseElementsAttr::get(
+            cast<ShapedType>(RankedTensorType::get(indexShape, dtype)),
+            apValues);
+        Value indexVal =
+            rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
+                constOp, indexType, attr);
+
+        auto shapeSizes =
+            dyn_cast<Torch::ValueTensorType>(operand.getType()).getSizes();
+        if (axis == INT64_MAX) {
+          // flatten input tensor if using default axis
+          Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(0));
+          Value cstNegOne = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(-1));
+          int64_t numElements = 1;
+          for (auto i : shapeSizes) {
+            numElements *= i;
+          }
+          SmallVector<int64_t> flattenShape = {numElements};
+          auto flattenType = Torch::ValueTensorType::get(
+              binder.op->getContext(), flattenShape, resultType.getDtype());
+          Value flattenTensor = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
+              binder.getLoc(), flattenType, operand, cstZero, cstNegOne);
+          rewriter.replaceOpWithNewOp<Torch::AtenIndexSelectOp>(
+              binder.op, resultType, flattenTensor, cstZero, indexVal);
+          return success();
+        } else {
+          if (axis < 0)
+            // Negative axis value means counting dimensions from the back
+            axis += shapeSizes.size();
+          Value dim = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(axis));
+          rewriter.replaceOpWithNewOp<Torch::AtenIndexSelectOp>(
+              binder.op, resultType, operand, dim, indexVal);
+        }
+        return success();
+      });
+  patterns.onOp(
       "Concat", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         SmallVector<Value> tensors;
