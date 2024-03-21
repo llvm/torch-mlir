@@ -78,7 +78,7 @@ def _verify_fx_graph_conforms_to_subset(g: torch.fx.Graph):
                     assert len(node.args) < len(node.target._schema.arguments)
                     for i, argument in enumerate(
                             node.target._schema.arguments[len(node.args):]):
-                        if not argument.has_default_value():
+                        if not argument.has_default_value() and argument.name not in node.kwargs:
                             raise Exception(
                                 f"Unsupported: missing default value for argument {i} in schema for {node.target}"
                             )

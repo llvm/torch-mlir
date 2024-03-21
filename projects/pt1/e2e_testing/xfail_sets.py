@@ -239,9 +239,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseSubScalarFloatModule_basic",
     "ElementwiseSubScalarIntModule_basic",
 
-    # ERROR: Exception: Unsupported: missing default value for argument 0 in schema for aten.div.Tensor_mode
-    "ElementwiseDivRoundingModeFloorModule_basic",
-    "ElementwiseDivRoundingModeTruncModule_basic",
+    # ERROR: 'torch.aten.mul.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.int'
     "AdaptiveAvgPool1dStaticLargerOutput_basic",
     "AdaptiveAvgPool1dGeneralDynamic_basic",
 
@@ -250,10 +248,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "NumToTensorIntModule_basic",
     "TensorFloatModule_basic",
     "TensorIntModule_basic",
-
-    # ERROR: Exception: Unsupported: missing default value for argument 0 in schema for aten.randn.generator
-    "RandnGeneratorF64Module_basic",
-    "RandnGeneratorModule_basic",
 
     # START tests failing due to: complex floating point ops
     # END tests failing due to: complex floating point ops
