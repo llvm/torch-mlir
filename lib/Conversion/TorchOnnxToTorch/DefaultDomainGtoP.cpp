@@ -269,6 +269,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           prodRightSizes *= n;
         }
         leftDims.push_back(prodRightSizes);
+        // the following list will be used to unflatten the right side
         Value rightDimsPrimList = rewriter.create<Torch::PrimListConstructOp>(
             binder.getLoc(),
             rewriter.getType<Torch::ListType>(
