@@ -244,36 +244,45 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value cstEnd = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(rank - 1));
 
-        if (!inputTy || !inputTy.hasSizes())
-          return failure();
-        llvm::SmallVector<int64_t> allDims(inputTy.getSizes());
-        llvm::SmallVector<int64_t> leftDims(allDims.begin(),
-                                            allDims.begin() + axis);
         // The old version of LogSoftmax flattens post-axis dims, performs
         // LogSoftmax on the flattened dim, then unflattens back to the original
         // shape.
 
-        // flatten post-axis dims
+        // this section gets some size information necessary for
+        // flattening/unflattening
+        if (!inputTy || !inputTy.hasSizes())
+          return failure();
+        llvm::ArrayRef<int64_t> allDims(inputTy.getSizes());
+        llvm::ArrayRef<int64_t> rightDims(allDims.begin() + axis,
+                                          allDims.end());
+        llvm::SmallVector<int64_t> leftDims(allDims.begin(),
+                                            allDims.begin() + axis);
         int64_t prodRightSizes = 1;
-        for (auto n = allDims.begin() + axis; n < allDims.end(); n++) {
-          if (*n == Torch::kUnknownSize) {
+        llvm::SmallVector<Value> rightDimConsts;
+        for (int64_t n : rightDims) {
+          rightDimConsts.push_back(rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(n)));
+          if (n == Torch::kUnknownSize) {
             prodRightSizes = -1;
             break;
           }
-          prodRightSizes *= *n;
+          prodRightSizes *= n;
         }
         leftDims.push_back(prodRightSizes);
+        Value rightDimsPrimList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            rewriter.getType<Torch::ListType>(
+                rewriter.getType<Torch::IntType>()),
+            rightDimConsts);
         auto flatRightTy = rewriter.getType<Torch::ValueTensorType>(
             leftDims, inputTy.getOptionalDtype());
+        // flatten input
         Value inputFlatRight = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
             binder.getLoc(), flatRightTy, input, axisConst, cstEnd);
         // compute lsm over flattened index
         Value outputFlatRight = rewriter.create<Torch::AtenLogSoftmaxIntOp>(
             binder.getLoc(), flatRightTy, inputFlatRight, axisConst, none);
         // unflatten
-        Value rightDimsPrimList = createConstantIntList(
-            binder, rewriter,
-            llvm::SmallVector<int64_t>(allDims.begin() + axis, allDims.end()));
         rewriter.replaceOpWithNewOp<Torch::AtenUnflattenIntOp>(
             binder.op, resultType, outputFlatRight, axisConst,
             rightDimsPrimList);
