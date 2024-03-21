@@ -2135,7 +2135,7 @@ public:
 
                   Value inputElem = b.create<tensor::ExtractOp>(
                       loc, resultElemType, input, inputIndices);
- 
+
                   Value result = rewriter.create<arith::SelectOp>(
                       loc, isDiagonal, inputElem, args[0]);
                   b.create<linalg::YieldOp>(loc, result);
