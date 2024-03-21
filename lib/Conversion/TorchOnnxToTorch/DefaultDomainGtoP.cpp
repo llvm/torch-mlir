@@ -223,15 +223,16 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         int64_t axis;
         if (binder.s64IntegerAttr(axis, "axis", 1))
           return rewriter.notifyMatchFailure(binder.op, "axis bind failure");
-        if (axis < 0) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "Not yet implemented: negative axis.");
-        }
         std::optional<unsigned> maybeRank = Torch::getTensorRank(input);
         if (!maybeRank)
           return rewriter.notifyMatchFailure(binder.op,
                                              "Unsupported: unranked tensor");
         int64_t rank = *maybeRank;
+        // if negative axis is provided, then flip it to a positive axis
+        if (axis < 0) {
+          axis = rank + axis;
+        }
+        // need input type and sizes to flatten/unflatten later.
         auto inputTy = input.getType().cast<Torch::ValueTensorType>();
         if (!inputTy || !inputTy.hasSizes())
           return rewriter.notifyMatchFailure(
@@ -241,36 +242,38 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.getLoc(), rewriter.getI64IntegerAttr(axis));
         Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         Value cstEnd = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(rank - axis));
+            binder.getLoc(), rewriter.getI64IntegerAttr(rank - 1));
 
         if (!inputTy || !inputTy.hasSizes())
           return failure();
         llvm::SmallVector<int64_t> allDims(inputTy.getSizes());
         llvm::SmallVector<int64_t> leftDims(allDims.begin(),
                                             allDims.begin() + axis);
-        llvm::SmallVector<int64_t> rightDims(allDims.begin() + axis,
-                                             allDims.end());
+        // The old version of LogSoftmax flattens post-axis dims, performs
+        // LogSoftmax on the flattened dim, then unflattens back to the original
+        // shape.
+
         // flatten post-axis dims
         int64_t prodRightSizes = 1;
-        for (int64_t n : rightDims) {
-          if (n == Torch::kUnknownSize) {
+        for (auto n = allDims.begin() + axis; n < allDims.end(); n++) {
+          if (*n == Torch::kUnknownSize) {
             prodRightSizes = -1;
             break;
           }
-          prodRightSizes *= n;
+          prodRightSizes *= *n;
         }
         leftDims.push_back(prodRightSizes);
         auto flatRightTy = rewriter.getType<Torch::ValueTensorType>(
             leftDims, inputTy.getOptionalDtype());
-        leftDims.pop_back();
         Value inputFlatRight = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
             binder.getLoc(), flatRightTy, input, axisConst, cstEnd);
         // compute lsm over flattened index
         Value outputFlatRight = rewriter.create<Torch::AtenLogSoftmaxIntOp>(
             binder.getLoc(), flatRightTy, inputFlatRight, axisConst, none);
         // unflatten
-        Value rightDimsPrimList =
-            createConstantIntList(binder, rewriter, rightDims);
+        Value rightDimsPrimList = createConstantIntList(
+            binder, rewriter,
+            llvm::SmallVector<int64_t>(allDims.begin() + axis, allDims.end()));
         rewriter.replaceOpWithNewOp<Torch::AtenUnflattenIntOp>(
             binder.op, resultType, outputFlatRight, axisConst,
             rightDimsPrimList);
