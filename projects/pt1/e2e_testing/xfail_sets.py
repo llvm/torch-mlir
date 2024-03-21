@@ -296,6 +296,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
+    "ElementwiseQuantizePerTensorUIntModule_basic",
     "AtenMmQuint8_basic",
     "Conv2dQInt8Module_basic",
 
@@ -1619,6 +1620,7 @@ ONNX_XFAIL_SET = {
     "ElementwiseOrTensorModule_basic",
     "ElementwiseOrTensorStaticShapeModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
+    "ElementwiseQuantizePerTensorUIntModule_basic",
     "ElementwiseRemainderTensorModule_Int_basic",
     "ElementwiseFmodTensor_Int_basic",
     "EmptyStridedModule_basic",

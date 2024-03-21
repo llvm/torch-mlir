@@ -1276,10 +1276,16 @@ class GraphNodeImporter:
         # replace lift_fresh_copy with clone op
         if target == torch.ops.aten.lift_fresh_copy.default:
             node.target = target = torch.ops.aten.clone.default
-            node.args = (node.args[0], None)
+            node.args = (node.args[0],)
+            node.kwargs = {"memory_format": None}
         elif target == torch.ops.aten.lift_fresh_copy.out:
+            # TODO: It seems not possible to hit this case from user code.
+            # Retaining in case if it is triggered internally somehow, but
+            # it can most likely be removed once assuming full
+            # functionalization in all cases.
             node.target = target = torch.ops.aten.clone.out
-            node.args = (node.args[0], None, node.args[1])
+            node.args = (node.args[0],)
+            node.kwargs = {"memory_format": None, "out": node.args[1]}
         # TODO: generalize empty.memory_format in the future
         # Currently, the aten.baddbmm.default op for Unet includes multiplying an
         # empty.memory_format input with a constant, which creates NaN values
@@ -1664,7 +1670,8 @@ class TypeSubclassMap:
 
 # Opaque value to indicate something is empty. Used in cases where 'None'
 # may have a different meaning.
-class EmptyType: ...
+class EmptyType:
+    ...
 
 
 Empty = EmptyType()
