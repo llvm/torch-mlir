@@ -22,6 +22,7 @@ import pdb
 # introducing new concepts or abstractions into the import process.
 
 from typing import Dict, Tuple
+from typing_extensions import deprecated
 
 import operator
 import re
@@ -426,6 +427,7 @@ class _FXGraphImporter:
         raise Exception(f"Unsupported literal: {arg}")
 
 
+@deprecated("Please use fx importer as a replacement to support torchdynamo")
 def import_fx_graph_as_func(g: torch.fx.Graph, func_name: str) -> ir.Module:
     """Imports the given FX graph as a function in a new MLIR module.
 
