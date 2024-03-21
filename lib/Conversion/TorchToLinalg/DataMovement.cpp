@@ -2152,7 +2152,8 @@ public:
     dim1 = toPositiveDim(dim1, resultRank);
     if (!isValidDim(dim1, resultRank))
       return rewriter.notifyMatchFailure(
-          op, "dim1 can only be between [" + std::to_string(-resultRank) + "," +
+          op, "dim1 can only be in closed range [" +
+                  std::to_string(-resultRank) + "," +
                   std::to_string(resultRank - 1) + "]");
 
     int64_t dim2;
