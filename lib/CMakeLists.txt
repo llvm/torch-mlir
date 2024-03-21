@@ -31,6 +31,10 @@ set(LinkedLibs
   TorchMLIRTorchOnnxToTorch
 )
 
+if(TORCH_MLIR_ENABLE_STABLEHLO)
+list(APPEND LinkedLibs StablehloLinalgTransforms)
+endif()
+
 if(TORCH_MLIR_ENABLE_REFBACKEND)
   add_subdirectory(RefBackend)
   list(APPEND LinkedLibs TorchMLIRRefBackend)

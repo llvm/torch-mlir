@@ -1,4 +1,4 @@
-// RUN: torch-mlir-opt %s -torch-finalizing-backend-type-conversion -split-input-file -verify-diagnostics -allow-unregistered-dialect | FileCheck %s
+// RUN: torch-mlir-opt %s '-pass-pipeline=builtin.module(func.func(torch-finalizing-backend-type-conversion))' -split-input-file -verify-diagnostics -allow-unregistered-dialect | FileCheck %s
 
 // This test is largely copied from `finalizing-bufferize` upstream, as it
 // covers the same scope.
@@ -50,6 +50,20 @@ func.func @eliminate_materializations$torch.Generator(%arg0: i64) -> i64 {
   %0 = torch_c.i64_to_generator %arg0
   %1 = torch_c.generator_to_i64 %0
   return %1 : i64
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @eliminate_attributes()
+// CHECK-NOT: attributes
+// CHECK-NOT: torch.onnx_meta
+func.func @eliminate_attributes() attributes {
+  torch.onnx_meta.ir_version = 8 : si64,
+  torch.onnx_meta.opset_version = 17 : si64,
+  torch.onnx_meta.producer_name = "pytorch",
+  torch.onnx_meta.producer_version = "2.1.0"
+} {
+  return
 }
 
 // -----

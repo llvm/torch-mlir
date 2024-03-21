@@ -137,7 +137,7 @@ class UnpackQuantTensorPass
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
+std::unique_ptr<InterfacePass<FunctionOpInterface>>
 mlir::torch::TorchConversion::createUnpackQuantTensorPass() {
   return std::make_unique<UnpackQuantTensorPass>();
 }

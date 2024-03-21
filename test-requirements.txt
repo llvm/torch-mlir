@@ -2,3 +2,4 @@ pillow
 dill
 multiprocess
 onnx==1.15.0
+mpmath==1.3.0

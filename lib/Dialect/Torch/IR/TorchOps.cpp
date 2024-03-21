@@ -744,20 +744,6 @@ OpFoldResult AtenSqueezeDimOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
-// AtenRoundOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult AtenRoundOp::fold(FoldAdaptor adaptor) {
-  if (getSelf().getType() != getResult().getType())
-    return nullptr;
-  if (auto selfType = getSelf().getType().dyn_cast<BaseTensorType>()) {
-    if (selfType.hasDtype() && selfType.getDtype().isa<mlir::IntegerType>())
-      return getSelf();
-  }
-  return nullptr;
-}
-
-//===----------------------------------------------------------------------===//
 // AtenToDtypeOp
 //===----------------------------------------------------------------------===//
 
@@ -1107,6 +1093,177 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
 }
 
 //===----------------------------------------------------------------------===//
+// NAry folder helpers
+//===----------------------------------------------------------------------===//
+
+static bool checkSameDTypes(llvm::ArrayRef<Attribute> attrs) {
+  bool allFp = true;
+  bool allInt = true;
+
+  for (auto attr : attrs) {
+    if (!attr)
+      return false;
+
+    Type attrty;
+    if (auto dense = dyn_cast_or_null<ElementsAttr>(attr))
+      attrty = dense.getType();
+    if (auto fp = dyn_cast_or_null<mlir::FloatAttr>(attr))
+      attrty = fp.getType();
+    if (auto integer = dyn_cast_or_null<mlir::IntegerAttr>(attr))
+      attrty = integer.getType();
+    if (auto shaped = dyn_cast_or_null<ShapedType>(attrty))
+      attrty = shaped.getElementType();
+    allFp &= isa<mlir::FloatType>(attrty);
+    allInt &= isa<mlir::IntegerType>(attrty);
+  }
+
+  return allFp || allInt;
+}
+
+static bool checkAllSplats(llvm::ArrayRef<Attribute> attrs) {
+  for (auto attr : attrs) {
+    if (auto dense = dyn_cast_or_null<ElementsAttr>(attr)) {
+      if (!dense.isSplat())
+        return false;
+    }
+  }
+
+  return true;
+}
+
+llvm::SmallVector<double> getFoldValueAtIndexFp(llvm::ArrayRef<Attribute> attrs,
+                                                int64_t idx = 0) {
+  llvm::SmallVector<double> splattrs;
+
+  for (auto attr : attrs) {
+    if (auto dense = dyn_cast<ElementsAttr>(attr)) {
+      if (dense.isSplat()) {
+        splattrs.push_back(dense.getSplatValue<APFloat>().convertToDouble());
+      } else {
+        splattrs.push_back(dense.getValues<APFloat>()[idx].convertToDouble());
+      }
+    } else if (auto intattr = dyn_cast<FloatAttr>(attr)) {
+      splattrs.push_back(intattr.getValueAsDouble());
+    } else {
+      return {};
+    }
+  }
+
+  return splattrs;
+}
+
+llvm::SmallVector<APInt> getFoldValueAtIndexInt(llvm::ArrayRef<Attribute> attrs,
+                                                int64_t bitwidth,
+                                                int64_t idx = 0) {
+  llvm::SmallVector<APInt> splattrs;
+
+  for (auto attr : attrs) {
+    bool isunsigned = false;
+    if (auto dense = dyn_cast<ElementsAttr>(attr)) {
+      isunsigned = dyn_cast<IntegerType>(dense.getElementType()).isUnsigned();
+      if (dense.isSplat()) {
+        splattrs.push_back(dense.getSplatValue<APInt>());
+      } else {
+        splattrs.push_back(dense.getValues<APInt>()[idx]);
+      }
+    } else if (auto intattr = dyn_cast<IntegerAttr>(attr)) {
+      isunsigned = cast<IntegerType>(intattr.getType()).isUnsigned();
+      splattrs.push_back(intattr.getValue());
+    } else {
+      return {};
+    }
+
+    auto &apint = splattrs.back();
+    if (apint.getBitWidth() < bitwidth) {
+      if (isunsigned) {
+        apint = apint.zextOrTrunc(bitwidth);
+      } else {
+        apint = apint.sextOrTrunc(bitwidth);
+      }
+    }
+  }
+
+  return splattrs;
+}
+
+using NAryFoldFpOperator = std::function<double(ArrayRef<double>)>;
+using NAryFoldIntOperator = std::function<APInt(ArrayRef<APInt>)>;
+
+static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
+                                     NAryFoldFpOperator fpFolder,
+                                     NAryFoldIntOperator intFolder) {
+  constexpr int64_t maxFold = 16;
+  if (!checkSameDTypes(operands))
+    return nullptr;
+
+  auto resultTy = dyn_cast<ValueTensorType>(ty);
+  if (!resultTy || !resultTy.hasDtype() || !resultTy.hasSizes())
+    return nullptr;
+
+  auto dty = resultTy.getDtype();
+  auto resultBTy = resultTy.toBuiltinTensor().clone(dty);
+
+  auto fpTy = dyn_cast<mlir::FloatType>(dty);
+  auto intTy = dyn_cast<mlir::IntegerType>(dty);
+  if (!fpTy && !intTy)
+    return nullptr;
+
+  bool allSplats = checkAllSplats(operands);
+  bool withinMaxFold =
+      resultBTy.hasStaticShape() && resultBTy.getNumElements() <= maxFold;
+
+  if (!allSplats && !withinMaxFold)
+    return nullptr;
+
+  // We do not support broadcasting in the non-splat case so validate same
+  // shaped inputs / outputs:
+  if (!allSplats) {
+    auto resultShape = resultBTy.getShape();
+    for (int i = 0, s = operands.size(); i < s; ++i) {
+      if (auto dense = dyn_cast<DenseElementsAttr>(operands[i])) {
+        if (dense.isSplat())
+          continue;
+        auto operandShape = cast<ShapedType>(dense.getType()).getShape();
+        if (operandShape.size() != resultShape.size())
+          return nullptr;
+        for (int i = 0, s = operandShape.size(); i < s; ++i)
+          if (operandShape[i] != resultShape[i])
+            return nullptr;
+      }
+    }
+  }
+
+  const int64_t numValues = allSplats ? 1 : resultBTy.getNumElements();
+
+  if (fpTy) {
+    llvm::SmallVector<APFloat> folded;
+    for (int i = 0, s = numValues; i < s; ++i) {
+      auto inputs = getFoldValueAtIndexFp(operands, i);
+      double fold = fpFolder(inputs);
+
+      APFloat val(fold);
+      bool unused;
+      val.convert(fpTy.getFloatSemantics(), APFloat::rmNearestTiesToEven,
+                  &unused);
+      folded.push_back(val);
+    }
+    return DenseElementsAttr::get(resultBTy, folded);
+  }
+
+  if (intTy) {
+    llvm::SmallVector<APInt> folded;
+    for (int i = 0, s = numValues; i < s; ++i) {
+      auto inputs =
+          getFoldValueAtIndexInt(operands, dty.getIntOrFloatBitWidth(), i);
+      folded.push_back(intFolder(inputs));
+    }
+    return DenseElementsAttr::get(resultBTy, folded);
+  }
+
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenAddTensorOp
 //===----------------------------------------------------------------------===//
 void AtenAddTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
@@ -1114,6 +1271,20 @@ void AtenAddTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   patterns.add(+[](AtenAddTensorOp op, PatternRewriter &rewriter) {
     return rewrite0DBinaryTensorOp(op, rewriter);
   });
+}
+
+OpFoldResult AtenAddTensorOp::fold(FoldAdaptor adaptor) {
+  auto fpFold = [](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 3);
+    return inputs[0] + (inputs[1] * inputs[2]);
+  };
+
+  auto intFold = [](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 3);
+    return inputs[0] + (inputs[1] * inputs[2]);
+  };
+
+  return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1134,6 +1305,20 @@ void AtenSubTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   patterns.add(+[](AtenSubTensorOp op, PatternRewriter &rewriter) {
     return rewrite0DBinaryTensorOp(op, rewriter);
   });
+}
+
+OpFoldResult AtenSubTensorOp::fold(FoldAdaptor adaptor) {
+  auto fpFold = [](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 3);
+    return inputs[0] - (inputs[1] * inputs[2]);
+  };
+
+  auto intFold = [](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 3);
+    return inputs[0] - (inputs[1] * inputs[2]);
+  };
+
+  return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1166,20 +1351,350 @@ void AtenMulTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   });
 }
 
+OpFoldResult AtenMulTensorOp::fold(FoldAdaptor adaptor) {
+  auto fpFold = [](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 2);
+    return inputs[0] * inputs[1];
+  };
+
+  auto intFold = [](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 2);
+    return inputs[0] * inputs[1];
+  };
+
+  return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenEqTensorOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenEqTensorOp::fold(FoldAdaptor adaptor) {
+  constexpr int64_t kMaxFold = 16;
+  auto ty = dyn_cast<ValueTensorType>(getType());
+  if (!ty || !ty.hasDtype() || !ty.hasSizes())
+    return nullptr;
+
+  auto bty = ty.toBuiltinTensor().clone(ty.getDtype());
+  if (!bty.hasStaticShape())
+    return nullptr;
+
+  if (getSelf() == getOther())
+    return DenseElementsAttr::get(bty,
+                                  IntegerAttr::get(bty.getElementType(), 1));
+
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto other = dyn_cast_or_null<DenseElementsAttr>(adaptor.getOther());
+  if (!self || !other)
+    return nullptr;
+
+  auto selfTy = dyn_cast<ShapedType>(self.getType());
+  auto otherTy = dyn_cast<ShapedType>(other.getType());
+  if (!selfTy || !otherTy ||
+      selfTy.getElementType() != otherTy.getElementType())
+    return nullptr;
+
+  // If both values are splats we can just compute the output value as a splat.
+  if (self.isSplat() && other.isSplat()) {
+    if (isa<mlir::FloatType>(selfTy.getElementType())) {
+      APFloat lhsFp = self.getSplatValue<APFloat>();
+      APFloat rhsFp = other.getSplatValue<APFloat>();
+      bool eq = lhsFp.compare(rhsFp) == APFloat::cmpEqual;
+      return DenseElementsAttr::get(bty, eq);
+    }
+
+    if (isa<mlir::IntegerType>(selfTy.getElementType())) {
+      APInt lhsInt = self.getSplatValue<APInt>();
+      APInt rhsInt = other.getSplatValue<APInt>();
+      bool eq = lhsInt == rhsInt;
+      return DenseElementsAttr::get(bty, eq);
+    }
+
+    return nullptr;
+  }
+
+  if (selfTy != otherTy || bty.getNumElements() > kMaxFold)
+    return nullptr;
+
+  if (isa<mlir::FloatType>(selfTy.getElementType())) {
+    auto extract = [bty](DenseElementsAttr attr) {
+      llvm::SmallVector<APFloat> vals;
+      if (attr.isSplat()) {
+        vals.resize(bty.getNumElements(), attr.getSplatValue<APFloat>());
+        return vals;
+      }
+
+      for (auto fp : attr.getValues<APFloat>()) {
+        vals.push_back(fp);
+      }
+      return vals;
+    };
+
+    llvm::SmallVector<APFloat> lhsFp = extract(self);
+    llvm::SmallVector<APFloat> rhsFp = extract(other);
+    llvm::SmallVector<bool> vals(bty.getNumElements());
+    for (int i = 0, s = bty.getNumElements(); i < s; ++i) {
+      vals[i] = lhsFp[i].compare(rhsFp[i]) == APFloat::cmpEqual;
+    }
+
+    return DenseElementsAttr::get(bty, vals);
+  }
+
+  if (isa<mlir::IntegerType>(selfTy.getElementType())) {
+    auto extract = [bty](DenseElementsAttr attr) {
+      llvm::SmallVector<APInt> vals;
+      if (attr.isSplat()) {
+        vals.resize(bty.getNumElements(), attr.getSplatValue<APInt>());
+        return vals;
+      }
+
+      for (auto fp : attr.getValues<APInt>()) {
+        vals.push_back(fp);
+      }
+      return vals;
+    };
+
+    llvm::SmallVector<APInt> lhsInt = extract(self);
+    llvm::SmallVector<APInt> rhsInt = extract(other);
+    llvm::SmallVector<bool> vals(bty.getNumElements());
+    for (int i = 0, s = bty.getNumElements(); i < s; ++i) {
+      vals[i] = lhsInt[i] == rhsInt[i];
+    }
+
+    return DenseElementsAttr::get(bty, vals);
+  }
+
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenLeScalarOp
+//===----------------------------------------------------------------------===//
+
+using ComparisonFoldFpOperator = std::function<bool(double, double)>;
+using ComparisonFoldIntOperator = std::function<bool(APInt, APInt, bool)>;
+
+static OpFoldResult comparisonScaleFolder(DenseElementsAttr lhs, Attribute rhs,
+                                          ValueTensorType resultTy,
+                                          ComparisonFoldFpOperator fpFolder,
+                                          ComparisonFoldIntOperator intFolder) {
+  constexpr int64_t kMaxFold = 16;
+  if (!lhs || !rhs || !resultTy)
+    return nullptr;
+  if (!resultTy.hasSizes() || !resultTy.hasDtype())
+    return nullptr;
+
+  for (auto size : resultTy.getSizes())
+    if (size == Torch::kUnknownSize)
+      return nullptr;
+
+  auto ctx = lhs.getContext();
+  auto resultETy = resultTy.getDtype();
+  auto tensorETy = cast<RankedTensorType>(lhs.getType()).getElementType();
+  if (lhs.isSplat()) {
+    if (auto intAttr = dyn_cast<IntegerAttr>(rhs)) {
+      auto unsign = cast<IntegerType>(tensorETy).isUnsigned();
+      auto scalarAP = intAttr.getValue();
+      auto tensorAP = lhs.getSplatValue<IntegerAttr>().getValue();
+      tensorAP = APInt(
+          scalarAP.getBitWidth(),
+          unsign ? tensorAP.getZExtValue() : tensorAP.getSExtValue(), !unsign);
+      auto resultBool = intFolder(tensorAP, scalarAP, unsign);
+      auto resultAP = IntegerAttr::get(IntegerType::get(ctx, 1), resultBool);
+      return DenseElementsAttr::get(resultTy.toBuiltinTensor().clone(resultETy),
+                                    resultAP);
+    }
+
+    if (auto floatAttr = dyn_cast<FloatAttr>(rhs)) {
+      APFloat scalarAP = floatAttr.getValue();
+      APFloat tensorAP = lhs.getSplatValue<FloatAttr>().getValue();
+      auto resultBool =
+          fpFolder(tensorAP.convertToDouble(), scalarAP.convertToDouble());
+      auto resultAP = IntegerAttr::get(IntegerType::get(ctx, 1), resultBool);
+      return DenseElementsAttr::get(resultTy.toBuiltinTensor().clone(resultETy),
+                                    resultAP);
+    }
+    return nullptr;
+  }
+
+  int64_t count = 1;
+  for (auto size : resultTy.getSizes())
+    count *= size;
+
+  if (count > kMaxFold)
+    return nullptr;
+
+  if (auto intAttr = dyn_cast<IntegerAttr>(rhs)) {
+    auto unsign = cast<IntegerType>(tensorETy).isUnsigned();
+    llvm::SmallVector<bool> values;
+    for (auto tensorAP : lhs.getValues<APInt>()) {
+      auto scalarAP = intAttr.getValue();
+      tensorAP = APInt(
+          scalarAP.getBitWidth(),
+          unsign ? tensorAP.getZExtValue() : tensorAP.getSExtValue(), !unsign);
+      auto resultBool = intFolder(tensorAP, scalarAP, unsign);
+      values.push_back(resultBool);
+    }
+    return DenseElementsAttr::get(resultTy.toBuiltinTensor().clone(resultETy),
+                                  values);
+  }
+
+  if (auto floatAttr = dyn_cast<FloatAttr>(rhs)) {
+    llvm::SmallVector<bool> values;
+    for (auto tensorAP : lhs.getValues<APFloat>()) {
+      APFloat scalarAP = floatAttr.getValue();
+      auto resultBool =
+          fpFolder(tensorAP.convertToDouble(), scalarAP.convertToDouble());
+      values.push_back(resultBool);
+    }
+    return DenseElementsAttr::get(resultTy.toBuiltinTensor().clone(resultETy),
+                                  values);
+  }
+
+  return nullptr;
+}
+
+OpFoldResult AtenLeScalarOp::fold(FoldAdaptor adaptor) {
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto other = adaptor.getOther();
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+
+  auto fpFold = [](double lhs, double rhs) -> bool { return lhs <= rhs; };
+
+  auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
+    return unsign ? lhs.ule(rhs) : lhs.sle(rhs);
+  };
+
+  return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenLtScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenLtScalarOp::fold(FoldAdaptor adaptor) {
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto other = adaptor.getOther();
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+
+  auto fpFold = [](double lhs, double rhs) -> bool { return lhs < rhs; };
+
+  auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
+    return unsign ? lhs.ult(rhs) : lhs.slt(rhs);
+  };
+
+  return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenGtScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenGtScalarOp::fold(FoldAdaptor adaptor) {
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto other = adaptor.getOther();
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+
+  auto fpFold = [](double lhs, double rhs) -> bool { return lhs > rhs; };
+
+  auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
+    return unsign ? lhs.ugt(rhs) : lhs.sgt(rhs);
+  };
+
+  return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenGeScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenGeScalarOp::fold(FoldAdaptor adaptor) {
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto other = adaptor.getOther();
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+
+  auto fpFold = [](double lhs, double rhs) -> bool { return lhs >= rhs; };
+
+  auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
+    return unsign ? lhs.uge(rhs) : lhs.sge(rhs);
+  };
+
+  return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenEqScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenEqScalarOp::fold(FoldAdaptor adaptor) {
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto other = adaptor.getOther();
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+
+  auto fpFold = [](double lhs, double rhs) -> bool { return lhs == rhs; };
+
+  auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
+    return lhs.eq(rhs);
+  };
+
+  return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenNeScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenNeScalarOp::fold(FoldAdaptor adaptor) {
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto other = adaptor.getOther();
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+
+  auto fpFold = [](double lhs, double rhs) -> bool { return lhs != rhs; };
+
+  auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
+    return lhs.ne(rhs);
+  };
+
+  return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
+}
+
 //===----------------------------------------------------------------------===//
 // AtenFloorOp
 //===----------------------------------------------------------------------===//
-void AtenFloorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
-                                              MLIRContext *context) {
-  patterns.add(+[](AtenFloorOp op, PatternRewriter &rewriter) {
-    auto outputTy = op.getType().dyn_cast<ValueTensorType>();
-    if (outputTy && outputTy.hasDtype() &&
-        outputTy.getDtype().isa<mlir::IntegerType>()) {
-      rewriter.replaceOp(op, op.getSelf());
-      return success();
-    }
-    return failure();
-  });
+
+OpFoldResult AtenFloorOp::fold(FoldAdaptor adaptor) {
+  auto resultType = getType().dyn_cast<ValueTensorType>();
+  if (resultType && resultType.hasDtype() &&
+      resultType.getDtype().isa<mlir::IntegerType>()) {
+    return getSelf();
+  }
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
+// AtenCeilOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenCeilOp::fold(FoldAdaptor adaptor) {
+  auto resultType = getType().dyn_cast<ValueTensorType>();
+  if (resultType && resultType.hasDtype() &&
+      resultType.getDtype().isa<mlir::IntegerType>()) {
+    return getSelf();
+  }
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
+// AtenRoundOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenRoundOp::fold(FoldAdaptor adaptor) {
+  auto resultType = getType().dyn_cast<ValueTensorType>();
+  if (resultType && resultType.hasDtype() &&
+      resultType.getDtype().isa<mlir::IntegerType>()) {
+    return getSelf();
+  }
+  return {};
 }
 
 //===----------------------------------------------------------------------===//
@@ -1249,6 +1764,38 @@ void AtenScalarImplicitOp::getCanonicalizationPatterns(
     if (!scalarValue)
       return failure();
     rewriter.replaceOpWithNewOp<Torch::DerefineOp>(op, outType, scalarValue);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenFloatImplicitOp
+//===----------------------------------------------------------------------===//
+void AtenFloatImplicitOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenFloatImplicitOp op, PatternRewriter &rewriter) {
+    Location loc = op.getLoc();
+    Value a = op.getA();
+    Value scalarValue = getScalarFloatValue(a, loc, rewriter);
+    if (!scalarValue)
+      return failure();
+    rewriter.replaceOp(op, scalarValue);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenIntImplicitOp
+//===----------------------------------------------------------------------===//
+void AtenIntImplicitOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                    MLIRContext *context) {
+  patterns.add(+[](AtenIntImplicitOp op, PatternRewriter &rewriter) {
+    Location loc = op.getLoc();
+    Value a = op.getA();
+    Value scalarValue = getScalarIntValue(a, loc, rewriter);
+    if (!scalarValue)
+      return failure();
+    rewriter.replaceOp(op, scalarValue);
     return success();
   });
 }
@@ -1325,6 +1872,41 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     rewriter.eraseOp(op);
     return failure();
   });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenSelectIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenSelectIntOp::fold(FoldAdaptor adaptor) {
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto ty = dyn_cast<ValueTensorType>(getType());
+  if (!self || !ty || !ty.hasDtype() || !ty.hasSizes())
+    return nullptr;
+
+  auto selfTy = cast<ShapedType>(self.getType());
+  auto bty = ty.toBuiltinTensor().clone(ty.getDtype());
+  if (!bty.hasStaticShape())
+    return nullptr;
+
+  if (self.isSplat())
+    return DenseElementsAttr::get(bty, self.getSplatValue<Attribute>());
+
+  auto dimAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
+  auto indexAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getIndex());
+  if (!dimAttr || !indexAttr || bty.getNumElements() != 1)
+    return nullptr;
+
+  auto dim = dimAttr.getInt();
+  auto index = indexAttr.getInt();
+
+  for (int i = 0, s = selfTy.getRank(); i < s; ++i) {
+    if (i != dim && selfTy.getDimSize(i) != 1)
+      return nullptr;
+  }
+
+  auto splattr = self.getValues<Attribute>()[index];
+  return DenseElementsAttr::get(bty, splattr);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2517,12 +3099,92 @@ OpFoldResult AtenSubIntOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenCatOp::fold(FoldAdaptor adaptor) {
+  // We set a maximum folding size of 16. This is a reasonable upper limit
+  // for shape computations.
+  constexpr int64_t kMaxFoldSize = 16;
   auto list = getOperand(0).getDefiningOp<PrimListConstructOp>();
-  if (!list || !list->hasOneUse() || list.getElements().size() != 1)
+  if (!list)
     return nullptr;
-  if (list.getElements()[0].getType() != getResult().getType())
+
+  auto elements = list.getElements();
+  if (elements.size() == 1 && elements[0].getType() == getResult().getType())
+    return list.getElements()[0];
+
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasSizes() || !resultTy.hasDtype())
     return nullptr;
-  return list.getElements()[0];
+
+  auto bResultTy = resultTy.toBuiltinTensor();
+  if (!bResultTy.hasStaticShape() || bResultTy.getNumElements() > kMaxFoldSize)
+    return nullptr;
+
+  auto dimAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
+  if (!dimAttr)
+    return nullptr;
+  auto dim = dimAttr.getValue().getSExtValue();
+  dim += dim < 0 ? bResultTy.getRank() : 0;
+
+  for (int i = 0, s = bResultTy.getRank(); i < s; ++i) {
+    if (i == dim)
+      continue;
+    if (bResultTy.getDimSize(i) != 1)
+      return nullptr;
+  }
+
+  llvm::SmallVector<Attribute> values;
+  for (auto operand : list.getOperands()) {
+    DenseElementsAttr dattr;
+    if (!matchPattern(operand, m_Constant(&dattr)))
+      return nullptr;
+
+    auto oty = dyn_cast<RankedTensorType>(dattr.getType());
+    if (!oty)
+      return nullptr;
+
+    if (dattr.isSplat()) {
+      for (int i = 0, s = oty.getDimSize(dim); i < s; ++i)
+        values.push_back(dattr.getSplatValue<Attribute>());
+    } else {
+      auto evals = dattr.getValues<Attribute>();
+      for (int i = 0, s = oty.getDimSize(dim); i < s; ++i)
+        values.push_back(evals[i]);
+    }
+  }
+
+  return DenseElementsAttr::get(bResultTy.clone(resultTy.getDtype()), values);
+}
+
+void AtenCatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                            MLIRContext *context) {
+  patterns.add(+[](AtenCatOp op, PatternRewriter &rewriter) {
+    auto list = op.getTensors().getDefiningOp<PrimListConstructOp>();
+    auto resultTy = dyn_cast<BaseTensorType>(op.getType());
+    if (!list || !resultTy)
+      return failure();
+
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return failure();
+
+    llvm::SmallVector<Value> filtered;
+    for (auto operand : list.getOperands()) {
+      auto operandTy = dyn_cast<BaseTensorType>(operand.getType());
+      if (!operandTy || !operandTy.hasSizes())
+        return failure();
+      int64_t adim = dim < 0 ? dim + operandTy.getSizes().size() : dim;
+      if (operandTy.getSizes()[adim] != 0)
+        filtered.push_back(operand);
+    }
+
+    if (filtered.size() == list.getNumOperands())
+      return failure();
+
+    auto newlist = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), list.getType(), filtered);
+    rewriter.replaceOpWithNewOp<AtenCatOp>(op, op.getType(), newlist,
+                                           op.getDim());
+    return success();
+  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -2532,19 +3194,32 @@ OpFoldResult AtenCatOp::fold(FoldAdaptor adaptor) {
 OpFoldResult AtenBroadcastToOp::fold(FoldAdaptor adaptor) {
   auto inType = getOperand(0).getType().dyn_cast<BaseTensorType>();
   auto outType = getResult().getType().dyn_cast<BaseTensorType>();
-  if (inType != outType)
+  if (!inType || !outType || !inType.hasSizes() || !outType.hasSizes() ||
+      !outType.hasDtype())
     return nullptr;
-  if (!inType || !outType || !inType.hasSizes() || !outType.hasSizes())
+
+  if (!inType.areAllSizesKnown() || !outType.areAllSizesKnown())
     return nullptr;
-  if (inType.getSizes().size() != outType.getSizes().size() ||
-      (!isAssumingStrictSymbolicShapes((*this)->getBlock()) &&
-       (!inType.areAllSizesKnown() || !outType.areAllSizesKnown())))
-    return nullptr;
-  for (size_t i = 0; i < inType.getSizes().size(); ++i) {
-    if (inType.getSizes()[i] != outType.getSizes()[i])
-      return nullptr;
+
+  auto inSizes = inType.getSizes();
+  auto outSizes = outType.getSizes();
+  if (inSizes.size() == outSizes.size()) {
+    bool sameSizes = true;
+    for (int i = 0, s = inSizes.size(); i < s; ++i)
+      sameSizes &= inSizes[i] == outSizes[i];
+
+    if (sameSizes)
+      return getOperand(0);
   }
-  return getOperand(0);
+
+  auto selfAttr = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  if (!selfAttr)
+    return nullptr;
+  if (!selfAttr.isSplat())
+    return nullptr;
+
+  auto attrty = RankedTensorType::get(outType.getSizes(), outType.getDtype());
+  return DenseElementsAttr::get(attrty, selfAttr.getSplatValue<Attribute>());
 }
 
 //===----------------------------------------------------------------------===//
@@ -2580,21 +3255,44 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
         outType.toBuiltinTensor().clone(inType.getDtype()),
         input.getSplatValue<Attribute>());
 
-  // If the output is a single value we can index into a constant input and grab
-  // that single value:
-  if (input && start && dim &&
-      llvm::all_of(outType.getSizes(), [](int64_t dim) { return dim == 1; })) {
-    bool unaryNonDim = true;
-    int64_t dimInt = dim.getValue().getSExtValue();
-    for (int i = 0, s = inType.getSizes().size(); i < s; ++i) {
-      unaryNonDim &= inType.getSizes()[i] == 1 || i == dimInt;
-    }
-    if (unaryNonDim) {
-      Attribute value =
-          input.getValues<Attribute>()[start.getValue().getSExtValue()];
-      return DenseElementsAttr::get(
-          outType.toBuiltinTensor().clone(inType.getDtype()), value);
-    }
+  int count = 1;
+  for (auto dim : outType.getSizes())
+    count = count * dim;
+
+  if (count == 0)
+    return {};
+
+  if (!dim)
+    return nullptr;
+  int64_t dimInt = dim.getValue().getSExtValue();
+  if (dimInt < 0)
+    dimInt += inType.getSizes().size();
+
+  bool unaryNonDim = true;
+  for (int i = 0, s = outType.getSizes().size(); i < s; ++i)
+    unaryNonDim &= outType.getSizes()[i] == 1 || i == dimInt;
+
+  // Fold the slice if the output tensor is relatively small, currently
+  // coded to 16:
+  if (input && start && step && dim && count < 16 && unaryNonDim &&
+      count < 16) {
+    int64_t inCount = input.getNumElements();
+    int64_t begin = start.getValue().getSExtValue();
+    int64_t stride = step.getValue().getSExtValue();
+    if (stride < 1)
+      return {};
+    int64_t limit = end.getValue().getSExtValue();
+    begin = begin < 0 ? begin + inCount : begin;
+    limit = limit < 0 ? limit + inCount : limit;
+    limit = limit < 0 ? inType.getSizes()[dimInt] : limit;
+    limit = std::min(limit, inType.getSizes()[dimInt]);
+
+    llvm::SmallVector<Attribute> values;
+    for (int i = begin; i < limit; i += stride)
+      values.push_back(input.getValues<Attribute>()[i]);
+
+    return DenseElementsAttr::get(
+        outType.toBuiltinTensor().clone(inType.getDtype()), values);
   }
 
   // If the input and output shapes are the same we can just fold:
@@ -2655,6 +3353,25 @@ OpFoldResult AtenAddOp::fold(FoldAdaptor adaptor) {
   return atenBinaryFloatOperatorFoldHelper(
       adaptor.getOperands(),
       [](double a, double b) -> double { return a + b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenMulOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenMulOp::fold(FoldAdaptor adaptor) {
+  if (!adaptor.getA() || !adaptor.getB()) {
+    return nullptr;
+  }
+
+  if (adaptor.getA().isa<IntegerAttr>() && adaptor.getB().isa<IntegerAttr>()) {
+    return atenBinaryIntOperatorFoldHelper(
+        adaptor.getOperands(),
+        [](int64_t a, int64_t b) -> int64_t { return a * b; });
+  }
+  return atenBinaryFloatOperatorFoldHelper(
+      adaptor.getOperands(),
+      [](double a, double b) -> double { return a * b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -2856,6 +3573,34 @@ OpFoldResult AtenTensorOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenTensorOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten_ShapeAsTensorOp::fold(FoldAdaptor adaptor) {
+  auto selfTy = dyn_cast<BaseTensorType>(getSelf().getType());
+  auto resultTy = dyn_cast<BaseTensorType>(getType());
+  if (!selfTy || !resultTy || !selfTy.hasSizes() || !resultTy.hasDtype() ||
+      !resultTy.hasSizes())
+    return {};
+
+  llvm::SmallVector<int64_t> values(selfTy.getSizes());
+  if (llvm::any_of(values, [](int64_t d) { return d == Torch::kUnknownSize; }))
+    return {};
+
+  auto dty = dyn_cast<IntegerType>(resultTy.getDtype());
+  if (!dty)
+    return {};
+
+  llvm::SmallVector<Attribute> attrs;
+  for (auto val : values) {
+    attrs.push_back(IntegerAttr::get(dty, val));
+  }
+
+  auto attrty = RankedTensorType::get(resultTy.getSizes(), dty);
+  return DenseElementsAttr::get(attrty, attrs);
+}
+
+//===----------------------------------------------------------------------===//
 // AtenIntTensorOp
 //===----------------------------------------------------------------------===//
 
@@ -2912,6 +3657,95 @@ OpFoldResult AtenDivIntOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenIndexSelectOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
+  auto self = getSelf();
+  auto index = getIndex();
+  auto selfTy = dyn_cast<ValueTensorType>(self.getType());
+  auto indexTy = dyn_cast<ValueTensorType>(index.getType());
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!selfTy || !indexTy || !resultTy || !selfTy.hasSizes() ||
+      !indexTy.hasSizes() || !resultTy.hasSizes() || !selfTy.hasDtype() ||
+      !indexTy.hasDtype() || !resultTy.hasDtype())
+    return nullptr;
+
+  auto selfSizes = selfTy.getSizes();
+  auto indexSizes = indexTy.getSizes();
+  auto resultSizes = resultTy.getSizes();
+
+  if (selfTy.getDtype() != resultTy.getDtype() ||
+      selfSizes.size() != resultSizes.size() || indexSizes.size() != 1)
+    return nullptr;
+
+  // If the selection results in a tensor of the same dimensions as the
+  // input, the selection must have specified every index of the input,
+  // so the result is exactly the same as the input.
+
+  bool fullTensor = true;
+  for (int i = 0, s = selfSizes.size(); i < s; ++i) {
+    fullTensor &= selfSizes[i] == resultSizes[i];
+    fullTensor &= selfSizes[i] != Torch::kUnknownSize;
+    fullTensor &= resultSizes[i] != Torch::kUnknownSize;
+  }
+
+  if (fullTensor && indexSizes[0] == 1)
+    return self;
+
+  // If the input tensor, index dimension, or indexes are non-constant,
+  // can't fold.
+
+  auto selfAttr = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto dimAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
+  auto indexAttr = dyn_cast_or_null<DenseElementsAttr>(adaptor.getIndex());
+
+  if (!selfAttr || !dimAttr || !indexAttr)
+    return {};
+
+  // If the input's dimensions are all 1 except for one dimension, and if
+  // there is a single index in the index list (as detected by the result
+  // dimension being 1), then fold to a <1x1x...x1> tensor literal containing
+  // a single element.  Handles float and int types.
+
+  int64_t dimInt = dimAttr.getInt();
+  // If the selected dim is negative, count backwards from the last dim
+  if (dimInt < 0)
+    dimInt = selfSizes.size() + dimInt;
+  assert(uint64_t(dimInt) < selfSizes.size() &&
+         "Selected dim > number of dims");
+
+  for (int i = 0, s = selfSizes.size(); i < s; ++i) {
+    if ((selfSizes[i] != 1 && i != dimInt) || resultSizes[i] != 1)
+      return nullptr;
+  }
+
+  // Get the single index value for the selected dimension
+  auto splatValue = indexAttr.getSplatValue<IntegerAttr>();
+  int64_t indexInt = getIntAttrAsSigned(splatValue);
+  indexInt = indexInt < 0 && selfSizes[dimInt] ? indexInt + selfSizes[dimInt]
+                                               : indexInt;
+
+  // Extract the single constant value from the input tensor and turn the
+  // extracted value into a single-element tensor of the output shape and dtype
+  Attribute splattr = selfAttr.isSplat()
+                          ? selfAttr.getSplatValue<Attribute>()
+                          : selfAttr.getValues<Attribute>()[indexInt];
+
+  auto dty = resultTy.getDtype();
+  auto attrTy = resultTy.toBuiltinTensor().clone(dty);
+  if (auto floatAttr = dyn_cast<FloatAttr>(splattr))
+    return DenseElementsAttr::get(
+        attrTy, FloatAttr::get(dty, floatAttr.getValueAsDouble()));
+
+  if (auto intAttr = dyn_cast<IntegerAttr>(splattr)) {
+    return DenseElementsAttr::get(attrTy,
+                                  IntegerAttr::get(dty, intAttr.getValue()));
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenItemOp
 //===----------------------------------------------------------------------===//
 
@@ -2938,25 +3772,28 @@ OpFoldResult AtenItemOp::fold(FoldAdaptor adaptor) {
 OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
   SmallVector<int64_t> sizes;
   if (!matchPattern(getSize(), m_TorchListOfConstantInts(sizes))) {
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: size operand is "
-                               "not a list of constant integers.\n");
     return nullptr;
   }
 
   Type resultType = getResult().getType();
   BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
-  if (!resultTensorType || !resultTensorType.hasDtype()) {
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: result type is not "
-                               "a tensor type or does not have a dtype.\n");
+  if (!resultTensorType || !resultTensorType.hasDtype() ||
+      !resultTensorType.hasSizes()) {
     return nullptr;
   }
+
+  for (auto sz : sizes)
+    if (sz == Torch::kUnknownSize || sz < 0)
+      return nullptr;
+
+  for (auto sz : resultTensorType.getSizes())
+    if (sz == Torch::kUnknownSize || sz < 0)
+      return nullptr;
 
   ShapedType shapedty =
       mlir::RankedTensorType::get( // convert Torch type to builtin ShapedType
           sizes, resultTensorType.getDtype());
   if (!shapedty) {
-    LLVM_DEBUG(llvm::dbgs()
-               << "Failing to fold AtenOnesOp: ShapedType cast failed.\n");
     return nullptr;
   }
   auto elementType = shapedty.getElementType();
@@ -2968,33 +3805,34 @@ OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
     Attribute attribute = FloatAttr::get(elementType, 1.0);
     return DenseElementsAttr::get(shapedty, attribute);
   }
-  LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenOnesOp: element type is "
-                             "not integer or float.\n");
   return nullptr;
 }
 
 OpFoldResult AtenZerosOp::fold(FoldAdaptor adaptor) {
   SmallVector<int64_t> sizes;
   if (!matchPattern(getSize(), m_TorchListOfConstantInts(sizes))) {
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenZerosOp: size operand is "
-                               "not a list of constant integers.\n");
     return nullptr;
   }
 
   Type resultType = getResult().getType();
   BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
-  if (!resultTensorType || !resultTensorType.hasDtype()) {
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenZerosOp: result type is "
-                               "not a tensor type or does not have a dtype.\n");
+  if (!resultTensorType || !resultTensorType.hasDtype() ||
+      !resultTensorType.hasSizes()) {
     return nullptr;
   }
+
+  for (auto sz : sizes)
+    if (sz == Torch::kUnknownSize || sz < 0)
+      return nullptr;
+
+  for (auto sz : resultTensorType.getSizes())
+    if (sz == Torch::kUnknownSize || sz < 0)
+      return nullptr;
 
   ShapedType shapedty =
       mlir::RankedTensorType::get( // convert Torch type to builtin ShapedType
           sizes, resultTensorType.getDtype());
   if (!shapedty) {
-    LLVM_DEBUG(llvm::dbgs()
-               << "Failing to fold AtenZerosOp: ShapedType cast failed.\n");
     return nullptr;
   }
 
@@ -3008,35 +3846,33 @@ OpFoldResult AtenZerosOp::fold(FoldAdaptor adaptor) {
     return DenseElementsAttr::get(shapedty, attribute);
   }
 
-  LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenZerosOp: element type is "
-                             "not integer or float.\n");
   return nullptr;
 }
 
 OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
   SmallVector<int64_t> sizes;
   if (!matchPattern(getSize(), m_TorchListOfConstantInts(sizes))) {
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenFullOp: size operand is "
-                               "not a list of constant integers.\n");
     return nullptr;
   }
 
   Type resultType = getResult().getType();
   BaseTensorType resultTensorType = resultType.dyn_cast<BaseTensorType>();
-  if (!resultTensorType || !resultTensorType.hasDtype()) {
-    LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenFullOp: result type is not "
-                               "a tensor type or does not have a dtype.\n");
+  if (!resultTensorType || !resultTensorType.hasDtype() ||
+      !resultTensorType.hasSizes()) {
     return nullptr;
   }
 
+  for (auto sz : sizes)
+    if (sz == Torch::kUnknownSize || sz < 0)
+      return nullptr;
+
+  for (auto sz : resultTensorType.getSizes())
+    if (sz == Torch::kUnknownSize || sz < 0)
+      return nullptr;
+
   ShapedType shapedty =
-      mlir::RankedTensorType::get( // convert Torch type to builtin ShapedType
-          sizes, resultTensorType.getDtype());
-  if (!shapedty) {
-    LLVM_DEBUG(llvm::dbgs()
-               << "Failing to fold AtenFullOp: ShapedType cast failed.\n");
-    return nullptr;
-  }
+      mlir::RankedTensorType::get(sizes, resultTensorType.getDtype());
+
   auto elementType = shapedty.getElementType();
   if (elementType.isa<IntegerType>()) {
     int64_t value = 0;
@@ -3052,8 +3888,6 @@ OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
       return DenseElementsAttr::get(shapedty, attribute);
     }
   }
-  LLVM_DEBUG(llvm::dbgs() << "Failing to fold AtenFullOp: element type is "
-                             "not integer or float.\n");
   return nullptr;
 }
 //===----------------------------------------------------------------------===//
@@ -3065,6 +3899,126 @@ OpFoldResult AtenCeilFloatOp::fold(FoldAdaptor adaptor) {
   if (matchPattern(getOperand(), m_TorchConstantFloat(&c)))
     return getI64IntegerAttr(getContext(), std::ceil(c));
   return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenWhereSelfOp
+//===----------------------------------------------------------------------===//
+
+static Attribute getBroadcastedAttr(Attribute attr, ValueTensorType ty) {
+  if (!attr || !ty.hasDtype() || !ty.hasSizes())
+    return nullptr;
+
+  auto dty = ty.getDtype();
+
+  if (auto valueDense = dyn_cast<DenseElementsAttr>(attr)) {
+    if (!valueDense.isSplat())
+      return nullptr;
+    auto splattr = valueDense.getSplatValue<Attribute>();
+    auto attrty = ty.toBuiltinTensor().clone(dty);
+    return DenseElementsAttr::get(attrty, splattr);
+  }
+
+  if (auto intAttr = dyn_cast_or_null<IntegerAttr>(attr)) {
+    if (!isa<mlir::IntegerType>(dty))
+      return nullptr;
+    int64_t intval = intAttr.getInt();
+    auto attrty = ty.toBuiltinTensor().clone(dty);
+    return DenseElementsAttr::get(attrty, IntegerAttr::get(dty, intval));
+  }
+
+  if (auto fpAttr = dyn_cast_or_null<FloatAttr>(attr)) {
+    if (!isa<mlir::FloatType>(dty))
+      return nullptr;
+    double dblval = fpAttr.getValueAsDouble();
+    auto attrty = ty.toBuiltinTensor().clone(dty);
+    return DenseElementsAttr::get(attrty, FloatAttr::get(dty, dblval));
+  }
+
+  return nullptr;
+}
+
+OpFoldResult AtenWhereSelfOp::fold(FoldAdaptor adaptor) {
+  auto dense = dyn_cast_or_null<DenseElementsAttr>(adaptor.getCondition());
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasDtype() || !resultTy.hasSizes() || !dense ||
+      !dense.isSplat())
+    return nullptr;
+
+  auto condattr = dense.getSplatValue<APInt>();
+  auto value = getSelf();
+  auto valueAttr = adaptor.getSelf();
+  if (condattr.isZero()) {
+    value = getOther();
+    valueAttr = adaptor.getOther();
+  }
+
+  auto valueTy = dyn_cast<ValueTensorType>(value.getType());
+  if (valueTy && valueTy.hasSizes() && valueTy.hasDtype() &&
+      valueTy == resultTy)
+    return value;
+
+  return getBroadcastedAttr(valueAttr, resultTy);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenWhereScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenWhereScalarOp::fold(FoldAdaptor adaptor) {
+  auto dense = dyn_cast_or_null<DenseElementsAttr>(adaptor.getCondition());
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasDtype() || !resultTy.hasSizes() || !dense ||
+      !dense.isSplat())
+    return nullptr;
+
+  auto condattr = dense.getSplatValue<APInt>();
+  auto valueAttr = adaptor.getSelf();
+  if (condattr.isZero()) {
+    valueAttr = adaptor.getOther();
+  }
+
+  return getBroadcastedAttr(valueAttr, resultTy);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenWhereScalarOtherOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenWhereScalarOtherOp::fold(FoldAdaptor adaptor) {
+  auto dense = dyn_cast_or_null<DenseElementsAttr>(adaptor.getCondition());
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasDtype() || !resultTy.hasSizes() || !dense ||
+      !dense.isSplat())
+    return nullptr;
+
+  auto condattr = dense.getSplatValue<APInt>();
+  auto valueAttr = adaptor.getSelf();
+  if (condattr.isZero()) {
+    valueAttr = adaptor.getOther();
+  }
+
+  return getBroadcastedAttr(valueAttr, resultTy);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenWhereScalarSelfOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenWhereScalarSelfOp::fold(FoldAdaptor adaptor) {
+  auto dense = dyn_cast_or_null<DenseElementsAttr>(adaptor.getCondition());
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasDtype() || !resultTy.hasSizes() || !dense ||
+      !dense.isSplat())
+    return nullptr;
+
+  auto condattr = dense.getSplatValue<APInt>();
+  auto valueAttr = adaptor.getSelf();
+  if (condattr.isZero()) {
+    valueAttr = adaptor.getOther();
+  }
+
+  return getBroadcastedAttr(valueAttr, resultTy);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3084,6 +4038,30 @@ OpFoldResult PrimMaxIntOp::fold(FoldAdaptor adaptor) {
   return IntegerAttr::get(
       lhs.getType(),
       std::max(lhs.getValue().getSExtValue(), rhs.getValue().getSExtValue()));
+}
+
+//===----------------------------------------------------------------------===//
+// PrimNumToTensorScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult PrimNumToTensorScalarOp::fold(FoldAdaptor adaptor) {
+  Attribute a = adaptor.getA();
+  auto resultTy = cast<BaseTensorType>(getType());
+  if (!a)
+    return {};
+  if (!resultTy.hasDtype() || !resultTy.hasSizes())
+    return {};
+
+  auto dty = resultTy.getDtype();
+  if (auto iattr = dyn_cast<IntegerAttr>(a)) {
+    a = IntegerAttr::get(dty, iattr.getInt());
+  } else if (auto fattr = dyn_cast<FloatAttr>(a)) {
+    a = FloatAttr::get(dty, fattr.getValueAsDouble());
+  }
+
+  auto mlirTensorType =
+      RankedTensorType::get(resultTy.getSizes(), resultTy.getDtype());
+  return SplatElementsAttr::get(mlirTensorType, a);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3184,6 +4162,42 @@ LogicalResult ShapeCalculateYieldShapesOp::verify() {
   return success();
 }
 
+//===----------------------------------------------------------------------===//
+// AtenNormScalarOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenNormScalarOp::verify() {
+
+  // Verificaion of input type for torch.aten.norm.Scalar.
+  // Per PyTorch docs, only float and complex types are valid for norm
+  // operation.
+
+  auto inTensor = getSelf().getType().cast<BaseTensorType>();
+
+  // If no dtype is specified, it will default to a float one.
+  if (!inTensor.hasDtype()) {
+    return success();
+  }
+
+  auto inTensorDtype = inTensor.getDtype();
+
+  // Check if dtype is one of those supported by norm operation.
+  // ComplexType will match any torch complex types, but each float must be
+  // checked individually.
+  if (!inTensorDtype.isa<mlir::ComplexType, mlir::Float16Type,
+                         mlir::Float32Type, mlir::Float64Type>()) {
+    return emitOpError(
+               "expected a float or complex type for input tensor, but got ")
+           << inTensorDtype;
+  }
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// AtenPermuteOp
+//===----------------------------------------------------------------------===//
+
 LogicalResult AtenPermuteOp::verify() {
 
   // Verification of the permute op for input & output dimensions with
@@ -3268,6 +4282,96 @@ LogicalResult AtenPermuteOp::verify() {
              << " is " << outShape[to]
              << " : they should be the same with this permutation. ";
     }
+  }
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// AtenLinalgCrossOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenLinalgCrossOp::verify() {
+
+  auto selfType = getSelf().getType().cast<BaseTensorType>();
+  auto otherType = getOther().getType().cast<BaseTensorType>();
+
+  if (!selfType.hasDtype() || !otherType.hasDtype() || !selfType.hasSizes() ||
+      !otherType.hasSizes()) {
+    return success();
+  }
+
+  Type selfDtype = selfType.getDtype();
+  Type otherDtype = otherType.getDtype();
+
+  // the operation succeeds only if both inputs have the same dtype
+  if (selfDtype != otherDtype) {
+    return emitOpError("input tensors must have the same dtype, but got ")
+           << selfDtype << " and " << otherDtype;
+  }
+
+  // Check if any of the input tensors has torch.bool dtype.
+  // The operation does not support this type.
+  // The docs state that only float, double, cfloat and cdouble dtypes are
+  // supported, but, when testing, it fails only for boolean dtype. Update to
+  // fit the docs if necessary.
+  // https://pytorch.org/docs/stable/generated/torch.linalg.cross.html
+  if (selfDtype.isSignlessInteger(1) || otherDtype.isSignlessInteger(1)) {
+    return emitOpError("input tensors must not have bool dtype");
+  }
+
+  ArrayRef<int64_t> selfShape = selfType.getSizes();
+  ArrayRef<int64_t> otherShape = otherType.getSizes();
+
+  int64_t selfRank = selfShape.size();
+  int64_t otherRank = otherShape.size();
+
+  // check if both input tensors have the same number of dims
+  if (selfRank != otherRank) {
+    return emitOpError("input tensors must have the same number of dimensions, "
+                       "but got ")
+           << selfRank << " and " << otherRank;
+  }
+
+  // convert dim to an integer type
+  int64_t dim;
+  if (!matchPattern(getDim(), m_TorchConstantInt(&dim))) {
+    return success();
+  }
+
+  // check if dim is in the correct range
+  if (dim >= selfRank || dim < -selfRank) {
+    return emitOpError("dim expected to be in rank of [")
+           << -selfRank << ", " << selfRank - 1 << "], but got " << dim;
+  }
+
+  // compensate for possible negative dim value
+  if (dim < 0) {
+    dim += selfRank;
+  }
+
+  // check if the size of the dimensions specified by 'dim' is equal to 3
+  // (required by the operation)
+  if ((selfShape[dim] != 3 && selfShape[dim] != kUnknownSize) ||
+      (otherShape[dim] != 3 && otherShape[dim] != kUnknownSize)) {
+    return emitOpError("inputs dimension ")
+           << dim << " must have length 3, but got " << selfShape[dim]
+           << " and " << otherShape[dim];
+  }
+
+  // Check if there is a disparity between dimension sizes.
+  // Dimensions at the same index must either have the same size,
+  // or one of them must be equal to 1.
+  int32_t i = 0;
+  for (auto [selfCurrent, otherCurrent] :
+       llvm::zip_equal(selfShape, otherShape)) {
+    if (selfCurrent != otherCurrent && selfCurrent != 1 && otherCurrent != 1) {
+      return emitOpError("the size of first tensor (")
+             << selfCurrent << ") must match the size of second tensor ("
+             << otherCurrent << ") at dimension " << i
+             << " or one of them must be 1";
+    }
+    ++i;
   }
 
   return success();

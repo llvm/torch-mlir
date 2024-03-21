@@ -489,3 +489,21 @@ class LayerNormNormalizeOverAllDimsModule(torch.nn.Module):
 def LayerNormNormalizeOverAllDimsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 2, 3))
 
+class AtenInstanceNormModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 2, 1, 3], torch.float32, True),
+        ([2], torch.float32, True),
+        ([2], torch.float32, True)
+    ])
+    def forward(self, x, w, b):
+        return torch.ops.aten.instance_norm(x, w, b, None,
+                None, True, 0.0, 1e-05, False)
+
+@register_test_case(module_factory=lambda: AtenInstanceNormModule())
+def AtenInstanceNormModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 1, 3), tu.rand(2), tu.rand(2))

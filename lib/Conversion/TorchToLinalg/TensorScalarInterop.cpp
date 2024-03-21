@@ -191,12 +191,14 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenScalarImplicitOp
-    : public OpConversionPattern<AtenScalarImplicitOp> {
+// Converts a tensor with one element to a scalar value.
+template <typename OpTy>
+class ConvertAtenImplicitLikeOp : public OpConversionPattern<OpTy> {
 public:
-  using OpConversionPattern::OpConversionPattern;
+  using OpConversionPattern<OpTy>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenScalarImplicitOp op, OpAdaptor adaptor,
+  matchAndRewrite(OpTy op,
+                  typename OpConversionPattern<OpTy>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     rewriter.replaceOpWithNewOp<tensor::ExtractOp>(op, adaptor.getA());
     return success();
@@ -224,6 +226,12 @@ void mlir::torch::torch_to_linalg::
   patterns.add<ConvertAtenScalarToTensorLike>(typeConverter, context);
   target.addIllegalOp<PrimNumToTensorScalarOp>();
   patterns.add<ConvertPrimNumToTensorScalarOp>(typeConverter, context);
-  patterns.add<ConvertAtenScalarImplicitOp>(typeConverter, context);
-  target.addIllegalOp<AtenScalarImplicitOp>();
+  patterns.add<ConvertAtenImplicitLikeOp<AtenScalarImplicitOp>>(typeConverter,
+                                                                context);
+  patterns.add<ConvertAtenImplicitLikeOp<AtenFloatImplicitOp>>(typeConverter,
+                                                               context);
+  patterns.add<ConvertAtenImplicitLikeOp<AtenIntImplicitOp>>(typeConverter,
+                                                             context);
+  target.addIllegalOp<AtenScalarImplicitOp, AtenFloatImplicitOp,
+                      AtenIntImplicitOp>();
 }

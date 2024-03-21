@@ -22,7 +22,7 @@ def FuncBackendTypeConversion : Pass<"torch-func-backend-type-conversion", "Modu
 }
 
 def FinalizingBackendTypeConversion
-    : Pass<"torch-finalizing-backend-type-conversion", "func::FuncOp"> {
+    : InterfacePass<"torch-finalizing-backend-type-conversion", "mlir::FunctionOpInterface"> {
   let summary = "Finalizes a partial conversion to builtin tensors";
   let constructor =
     "mlir::torch::TorchConversion::createFinalizingBackendTypeConversionPass()";
@@ -51,12 +51,12 @@ def VerifyStablehloBackendContract : Pass<"torch-verify-stablehlo-backend-contra
 
 // The following passes are for a one-off conversion of a specific kind of quantized group matmul.
 // They should not be included in default lowering flows until further along.
-def UnpackQuantTensor : Pass<"torch-unpack-quant-tensor", "func::FuncOp"> {
+def UnpackQuantTensor : InterfacePass<"torch-unpack-quant-tensor", "mlir::FunctionOpInterface"> {
   let summary = "Unpack quantized int4 tensor from int8 containter";
   let constructor = "mlir::torch::TorchConversion::createUnpackQuantTensorPass()";
 }
 
-def ConvertCustomQuantOp : Pass<"torch-convert-custom-quant-op", "func::FuncOp"> {
+def ConvertCustomQuantOp : InterfacePass<"torch-convert-custom-quant-op", "mlir::FunctionOpInterface"> {
   let summary = "Convert torch custom quant op to linalg";
   let constructor = "mlir::torch::TorchConversion::createConvertCustomQuantOpPass()";
 }

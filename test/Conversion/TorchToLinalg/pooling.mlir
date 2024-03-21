@@ -71,6 +71,5 @@ func.func @forward_max_pool3d(%arg0: !torch.vtensor<[?,?,?,?,?],f32>) -> !torch.
   // CHECK-NEXT:    %[[MAXF:.*]] = arith.maximumf %[[CURRENT_VALUE:.*]], %[[ACC_OUT:.*]] : f32
   // CHECK-NEXT:    linalg.yield %[[MAXF:.*]] : f32
   // CHECK:  } -> tensor<?x?x?x?x?xf32>
-
   return %4 : !torch.vtensor<[?,?,?,?,?],f32>
 }

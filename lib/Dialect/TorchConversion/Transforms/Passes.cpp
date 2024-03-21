@@ -9,6 +9,7 @@
 
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 #include "mlir/Conversion/Passes.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/Passes.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
@@ -24,6 +25,7 @@
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
+#include "stablehlo/transforms/Passes.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 #endif
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -74,7 +76,9 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   // (e.g. dimensions which must be constant in a ranked programming model)
   // and those constants get somewhat obscured by TorchToArith.
   pm.addNestedPass<func::FuncOp>(createConvertTorchToTMTensorPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToLinalgPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToSCFPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToArithPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToTensorPass());
@@ -131,9 +135,14 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
 void TorchConversion::createTorchBackendToStablehloBackendPipeline(
     OpPassManager &pm,
     const TorchConversion::StablehloBackendPipelineOptions &options) {
-  // Generate Stablehlo ops.
+  // Generate Stablehlo & Chlo ops.
   pm.addNestedPass<func::FuncOp>(createConvertTorchToStablehloPass(
       options.enableStaticShape, options.enableI32Index));
+  // Lowering Chlo ops to Stablehlo
+  pm.addNestedPass<func::FuncOp>(
+      stablehlo::createChloLegalizeToStablehloPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+
   // Lowering remained ops to Arith
   pm.addNestedPass<func::FuncOp>(createConvertTorchToArithPass());
 

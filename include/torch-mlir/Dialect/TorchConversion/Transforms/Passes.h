@@ -10,7 +10,7 @@
 #ifndef TORCHMLIR_DIALECT_TORCHCONVERSION_TRANSFORMS_PASSES_H
 #define TORCHMLIR_DIALECT_TORCHCONVERSION_TRANSFORMS_PASSES_H
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 #include "mlir/Pass/Pass.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
@@ -54,7 +54,7 @@ createVerifyStablehloBackendContractPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();
 
-std::unique_ptr<OperationPass<func::FuncOp>>
+std::unique_ptr<InterfacePass<FunctionOpInterface>>
 createFinalizingBackendTypeConversionPass();
 
 // These passes do a one-off conversion of a specific kind of quantized group
@@ -62,8 +62,10 @@ createFinalizingBackendTypeConversionPass();
 // obviate them but that are being carried for now in order to unblock progress
 // on full integrations. See https://github.com/llvm/torch-mlir/issues/2417 for
 // the plan to support a more generalized lowering for these graphs.
-std::unique_ptr<OperationPass<func::FuncOp>> createUnpackQuantTensorPass();
-std::unique_ptr<OperationPass<func::FuncOp>> createConvertCustomQuantOpPass();
+std::unique_ptr<InterfacePass<FunctionOpInterface>>
+createUnpackQuantTensorPass();
+std::unique_ptr<InterfacePass<FunctionOpInterface>>
+createConvertCustomQuantOpPass();
 
 std::unique_ptr<OperationPass<ModuleOp>>
 createVerifyLinalgOnTensorsBackendContractPass();
