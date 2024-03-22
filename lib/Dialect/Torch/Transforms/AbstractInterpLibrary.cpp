@@ -8305,7 +8305,7 @@ StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
 "      %16 = torch.aten.__contains__.int_list %15, %arg4 : !torch.list<int>, !torch.int -> !torch.bool\n"
 "      %17 = torch.prim.If %16 -> (!torch.int) {\n"
 "        %18 = torch.aten.__getitem__.t %arg0, %int-1 : !torch.list<int>, !torch.int -> !torch.int\n"
-"        %19 = torch.operator \"prim.abs.int\"(%arg1) : (!torch.int) -> !torch.int\n"
+"        %19 = torch.operator \"prim.abs.int\"(%arg1) : (!torch.int) -> !torch.int \n"
 "        %20 = torch.aten.add.int %18, %19 : !torch.int, !torch.int -> !torch.int\n"
 "        %21 = torch.aten.append.t %13, %20 : !torch.list<int>, !torch.int -> !torch.list<int>\n"
 "        torch.prim.If.yield %arg5 : !torch.int\n"
