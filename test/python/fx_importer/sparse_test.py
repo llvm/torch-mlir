@@ -130,7 +130,7 @@ def export_and_import(f, *args, **kwargs):
     fx_importer = FxImporter(context=context)
     prog = sparse_export(f, args, kwargs)
     fx_importer.import_frozen_program(prog)
-    return fx_importer.module
+    return fx_importer.module_op
 
 
 def sparse_jit(f, *args, **kwargs):

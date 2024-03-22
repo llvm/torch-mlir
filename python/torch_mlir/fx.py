@@ -41,7 +41,7 @@ def export_and_import(
     else:
         fx_importer.import_frozen_program(prog, func_name=func_name)
 
-    return fx_importer.module
+    return fx_importer.module_op
 
 
 def stateless_fx_import(
@@ -55,4 +55,4 @@ def stateless_fx_import(
     if fx_importer is None:
         fx_importer = FxImporter(context=context, hooks=hooks)
     fx_importer.import_stateless_graph(gm.graph, func_name=model_name)
-    return fx_importer.module
+    return fx_importer.module_op
