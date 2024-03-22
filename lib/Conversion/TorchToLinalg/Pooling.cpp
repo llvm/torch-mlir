@@ -114,8 +114,22 @@ static Value padInputTensor(Operation *op, ConversionPatternRewriter &rewriter,
                             SmallVectorImpl<int64_t> &paddingInts,
                             Value initValue) {
   SmallVector<int64_t> lowPaddingIncludingNC = {0, 0};
-  lowPaddingIncludingNC.append(paddingInts);
-  SmallVector<int64_t> highPaddingIncludingNC = lowPaddingIncludingNC;
+  SmallVector<int64_t> highPaddingIncludingNC = {0, 0};
+
+  unsigned selfRank = self.getType().cast<RankedTensorType>().getRank();
+  unsigned paddingIntsSize = paddingInts.size();
+
+  if (paddingIntsSize == 2 * (selfRank - 2)) {
+    // This condition being true means that the `paddingInts` contain seperate
+    // values for low padding and high padding.
+    for (unsigned i = 0; i < paddingIntsSize / 2; i++)
+      lowPaddingIncludingNC.push_back(paddingInts[i]);
+    for (unsigned i = paddingIntsSize / 2; i < paddingIntsSize; i++)
+      highPaddingIncludingNC.push_back(paddingInts[i]);
+  } else {
+    lowPaddingIncludingNC.append(paddingInts);
+    highPaddingIncludingNC = lowPaddingIncludingNC;
+  }
 
   if (ceilMode) {
     for (int64_t i = 0; i < dimensionality; ++i) {
@@ -527,6 +541,95 @@ template <typename OpTy, typename PoolingOpTy, int Dim>
 class ConvertAtenAvgPoolOp : public OpConversionPattern<OpTy> {
 public:
   using OpConversionPattern<OpTy>::OpConversionPattern;
+
+  LogicalResult createPoolingAvg3D(AtenAvgPool3dOp &op,
+                                   typename OpTy::Adaptor adaptor,
+                                   ConversionPatternRewriter &rewriter,
+                                   SmallVectorImpl<Value> &kernelSizeIntValues,
+                                   SmallVectorImpl<int64_t> &strideInts,
+                                   SmallVectorImpl<int64_t> &paddingInts,
+                                   SmallVectorImpl<int64_t> &dilationInts,
+                                   bool ceilMode,
+                                   SmallVectorImpl<Value> &outTensorShape,
+                                   Value &result) const {
+    Value self = adaptor.getSelf();
+    Type elementType = self.getType().cast<RankedTensorType>().getElementType();
+    Value initValue = rewriter.create<arith::ConstantOp>(
+        op->getLoc(), rewriter.getZeroAttr(elementType));
+
+    Value paddedInput = padInputTensor(op, rewriter, self, ceilMode, 3,
+                                       strideInts, paddingInts, initValue);
+
+    auto outTensorInitialized = computeOutputTensor(
+        op, rewriter, self, 3, ceilMode, strideInts, paddingInts, dilationInts,
+        kernelSizeIntValues, outTensorShape, initValue);
+
+    auto shape =
+        castIntVectorToIndexVector(rewriter, op->getLoc(), kernelSizeIntValues);
+    Value windowTensor = rewriter.create<tensor::EmptyOp>(
+        op->getLoc(), getAsOpFoldResult(shape), elementType);
+
+    MLIRContext *context = rewriter.getContext();
+
+    auto mapInput = mlir::AffineMap::get(
+        8, 0,
+        {
+            rewriter.getAffineDimExpr(0), // n
+            rewriter.getAffineDimExpr(1), // c
+            // dim_d * stride_d + kernal_d * dilation_d
+            rewriter.getAffineDimExpr(2) *
+                    getAffineConstantExpr(strideInts[0], context) +
+                rewriter.getAffineDimExpr(5) *
+                    getAffineConstantExpr(dilationInts[0], context),
+            // dim_h * stride_h + kernal_h * dilation_h
+            rewriter.getAffineDimExpr(3) *
+                    getAffineConstantExpr(strideInts[1], context) +
+                rewriter.getAffineDimExpr(6) *
+                    getAffineConstantExpr(dilationInts[1], context),
+            // dim_w * stride_w + kernal_w * dilation_w
+            rewriter.getAffineDimExpr(4) *
+                    getAffineConstantExpr(strideInts[2], context) +
+                rewriter.getAffineDimExpr(7) *
+                    getAffineConstantExpr(dilationInts[2], context),
+        },
+        context);
+    auto mapKernel =
+        mlir::AffineMap::get(8, 0,
+                             {
+                                 rewriter.getAffineDimExpr(5), // kd
+                                 rewriter.getAffineDimExpr(6), // kh
+                                 rewriter.getAffineDimExpr(7)  // kw
+                             },
+                             context);
+    auto mapOutput = mlir::AffineMap::get(
+        8, 0,
+        {rewriter.getAffineDimExpr(0), rewriter.getAffineDimExpr(1),
+         rewriter.getAffineDimExpr(2), rewriter.getAffineDimExpr(3),
+         rewriter.getAffineDimExpr(4)},
+        context);
+    auto iteratorTypes =
+        SmallVector<utils::IteratorType>(5, utils::IteratorType::parallel);
+    iteratorTypes.append(3, utils::IteratorType::reduction);
+    SmallVector<AffineMap> indexingMaps = {mapInput, mapKernel, mapOutput};
+
+    result = rewriter
+                 .create<linalg::GenericOp>(
+                     op->getLoc(),
+                     /* result types */ outTensorInitialized.getType(),
+                     /* operands */ ValueRange({paddedInput, windowTensor}),
+                     /* outputs */ outTensorInitialized,
+                     /*indexingMaps=*/indexingMaps,
+                     /*iteratorTypes=*/iteratorTypes,
+                     [&](OpBuilder &b, Location loc, ValueRange args) {
+                       Value currentVal = args[0], accMaxValue = args[2];
+                       Value max_result = b.create<arith::AddFOp>(
+                           loc, currentVal, accMaxValue);
+                       b.create<linalg::YieldOp>(loc, max_result);
+                     })
+                 .getResult(0);
+    return success();
+  }
+
   LogicalResult
   matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
@@ -566,24 +669,33 @@ public:
     }
 
     // `sumPool` contains the result of sumpool operation over the input.
-    Value sumPool, paddedInput;
+    Value sumPool;
     SmallVector<Value, Dim + 2> outTensorShape;
-    if (failed(createPoolingOp<PoolingOpTy>(
-            op, rewriter, self, /*supportNonFPInput=*/true, ceilMode,
-            /*dimensionality=*/Dim, kernelSizeIntValues, strideInts,
-            paddingInts, dilationInts, rewriter.getZeroAttr(inputElementType),
-            outTensorShape, paddedInput, sumPool)))
-      return rewriter.notifyMatchFailure(op, "unable to compute sumpool");
-    Value divisor;
-    if constexpr (std::is_same<OpTy, AtenAvgPool2dOp>()) {
-      Value kHtimeskW = rewriter.create<arith::MulIOp>(
-          loc, kernelSizeIntValues[0], kernelSizeIntValues[1]);
+    if constexpr (std::is_same<OpTy, AtenAvgPool3dOp>()) {
+      if (failed(createPoolingAvg3D(op, adaptor, rewriter, kernelSizeIntValues,
+                                    strideInts, paddingInts, dilationInts,
+                                    ceilMode, outTensorShape, sumPool)))
+        return rewriter.notifyMatchFailure(op, "unable to compute 3D sumpool");
+    } else {
+      Value paddedInput;
+      if (failed(createPoolingOp<PoolingOpTy>(
+              op, rewriter, self, /*supportNonFPInput=*/true, ceilMode,
+              /*dimensionality=*/Dim, kernelSizeIntValues, strideInts,
+              paddingInts, dilationInts, rewriter.getZeroAttr(inputElementType),
+              outTensorShape, paddedInput, sumPool)))
+        return rewriter.notifyMatchFailure(op, "unable to compute sumpool");
+    }
+
+    Value divisor = kernelSizeIntValues[0];
+    for (unsigned i = 1; i < kernelSizeIntValues.size(); i++) {
+      divisor =
+          rewriter.create<arith::MulIOp>(loc, divisor, kernelSizeIntValues[i]);
+    }
+    if constexpr (!std::is_same<OpTy, AtenAvgPool1dOp>()) {
       divisor =
           op.getDivisorOverride().getType().template isa<Torch::NoneType>()
-              ? kHtimeskW
+              ? divisor
               : adaptor.getDivisorOverride();
-    } else {
-      divisor = kernelSizeIntValues[0];
     }
     divisor = convertScalarToDtype(rewriter, loc, divisor, resultElementType);
 
@@ -1009,13 +1121,15 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
 
   target.addIllegalOp<AtenMaxPool2dWithIndicesOp>();
   patterns.add<ConvertAtenMaxPool2dWithIndicesOp>(typeConverter, context);
-  target.addIllegalOp<AtenAvgPool1dOp, AtenAvgPool2dOp>();
+  target.addIllegalOp<AtenAvgPool1dOp, AtenAvgPool2dOp, AtenAvgPool3dOp>();
   patterns
       .add<ConvertAtenAvgPoolOp<AtenAvgPool1dOp, linalg::PoolingNcwSumOp, 1>>(
           typeConverter, context);
   patterns
       .add<ConvertAtenAvgPoolOp<AtenAvgPool2dOp, linalg::PoolingNchwSumOp, 2>>(
           typeConverter, context);
+  patterns.add<ConvertAtenAvgPoolOp<AtenAvgPool3dOp, NoneType, 3>>(
+      typeConverter, context);
   target.addIllegalOp<AtenAdaptiveAvgPool1dOp>();
   patterns.add<ConvertAtenAdaptiveAvgPool1dOp>(typeConverter, context);
   target.addIllegalOp<AtenAdaptiveMaxPool2dOp>();
