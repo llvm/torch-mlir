@@ -195,6 +195,100 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, operand);
                   return success();
                 });
+  patterns.onOp(
+      "LogSoftmax", 13,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value input;
+        Torch::ValueTensorType resultType;
+        if (binder.tensorOperand(input) || binder.tensorResultType(resultType))
+          return failure();
+        int64_t axis;
+        if (binder.s64IntegerAttr(axis, "axis", -1))
+          return rewriter.notifyMatchFailure(binder.op, "axis bind failure");
+        Value axisConst = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(axis));
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        rewriter.replaceOpWithNewOp<Torch::AtenLogSoftmaxIntOp>(
+            binder.op, resultType, input, axisConst, none);
+        return success();
+      });
+  patterns.onOp(
+      "LogSoftmax", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value input;
+        Torch::ValueTensorType resultType;
+        if (binder.tensorOperand(input) || binder.tensorResultType(resultType))
+          return failure();
+
+        int64_t axis;
+        if (binder.s64IntegerAttr(axis, "axis", 1))
+          return rewriter.notifyMatchFailure(binder.op, "axis bind failure");
+        std::optional<unsigned> maybeRank = Torch::getTensorRank(input);
+        if (!maybeRank)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Unsupported: unranked tensor");
+        int64_t rank = *maybeRank;
+        // if negative axis is provided, then flip it to a positive axis
+        if (axis < 0) {
+          axis = rank + axis;
+        }
+        // need input type and sizes to flatten/unflatten later.
+        auto inputTy = input.getType().cast<Torch::ValueTensorType>();
+        if (!inputTy || !inputTy.hasSizes())
+          return rewriter.notifyMatchFailure(
+              binder.op, "failed to get input type or sizes");
+
+        Value axisConst = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(axis));
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value cstEnd = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(rank - 1));
+
+        // The old version of LogSoftmax flattens post-axis dims, performs
+        // LogSoftmax on the flattened dim, then unflattens back to the original
+        // shape.
+
+        // this section gets some size information necessary for
+        // flattening/unflattening
+        if (!inputTy || !inputTy.hasSizes())
+          return failure();
+        llvm::ArrayRef<int64_t> allDims(inputTy.getSizes());
+        llvm::ArrayRef<int64_t> rightDims(allDims.begin() + axis,
+                                          allDims.end());
+        llvm::SmallVector<int64_t> leftDims(allDims.begin(),
+                                            allDims.begin() + axis);
+        int64_t prodRightSizes = 1;
+        llvm::SmallVector<Value> rightDimConsts;
+        for (int64_t n : rightDims) {
+          rightDimConsts.push_back(rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(n)));
+          if (n == Torch::kUnknownSize) {
+            prodRightSizes = -1;
+            break;
+          }
+          prodRightSizes *= n;
+        }
+        leftDims.push_back(prodRightSizes);
+        // the following list will be used to unflatten the right side
+        Value rightDimsPrimList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            rewriter.getType<Torch::ListType>(
+                rewriter.getType<Torch::IntType>()),
+            rightDimConsts);
+        auto flatRightTy = rewriter.getType<Torch::ValueTensorType>(
+            leftDims, inputTy.getOptionalDtype());
+        // flatten input
+        Value inputFlatRight = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
+            binder.getLoc(), flatRightTy, input, axisConst, cstEnd);
+        // compute lsm over flattened index
+        Value outputFlatRight = rewriter.create<Torch::AtenLogSoftmaxIntOp>(
+            binder.getLoc(), flatRightTy, inputFlatRight, axisConst, none);
+        // unflatten
+        rewriter.replaceOpWithNewOp<Torch::AtenUnflattenIntOp>(
+            binder.op, resultType, outputFlatRight, axisConst,
+            rightDimsPrimList);
+        return success();
+      });
   patterns.onOp("MatMul", 13,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
