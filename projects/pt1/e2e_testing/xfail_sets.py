@@ -1924,11 +1924,6 @@ ONNX_XFAIL_SET = {
     "EinsumStaticFourDimensionModule_basic",
     "EinsumStaticModule_basic",
 
-    # Failure - onnx_lowering: onnx.HardSwish
-    "HardswishModule_basic",
-    "HardswishRandomModule_basic",
-    "MobilenetV3Module_basic",
-
     # Failure - onnx_lowering: onnx.MaxPool
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
     "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
@@ -2043,10 +2038,6 @@ ONNX_XFAIL_SET = {
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
 
-    # Failure - onnx_lowering: onnx.Softplus
-    "ElementwiseMishModule_basic",
-    "SoftplusModule_basic",
-
     # Failure - onnx_lowering: onnx.Squeeze
     "SqueezeModule_allUnitDim",
     "SqueezeModule_broadcast",
@@ -2058,16 +2049,6 @@ ONNX_XFAIL_SET = {
     "SortTensorNegativeDimension_basic",
     "SortTensorSpecificDimension_basic",
     "SortTensor_basic",
-
-    # Failure - onnx_lowering: onnx.Trilu
-    "AtenTrilModule_basic",
-    "AtenTrilWithNegDiagonalModule_basic",
-    "AtenTrilWithPosDiagonalModule_basic",
-    "AtenTriuModule_basic",
-    "AtenTriuWithNegDiagonalModule_basic",
-    "AtenTriuWithPosDiagonalModule_basic",
-    "TriuBroadcastModule_basic",
-    "TriuModule_basic",
 
     # Failure - incorrect dtype
     "ReduceMaxAlongDimUnsignedInt_basic",
