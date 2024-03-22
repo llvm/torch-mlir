@@ -1081,7 +1081,7 @@ def aten〇new_empty_strided〡shape(self: List[int], size: List[int], stride: L
     Invocation(TensorOfShape(2, 3, 4), offset=1, dim1=3, dim2=1), # Reverse dim1 and dim2
     Invocation(TensorOfShape(2, 3, 4), offset=-1, dim1=1, dim2=3), # Negative offset
     Invocation(TensorOfShape(2, 3, 4), offset=3), # large `offset`.
-    ErrorInvocation(TensorOfShape(2)), # Input one-dimensional.
+    Invocation(TensorOfShape(2)), # Input one-dimensional.
     ErrorInvocation(TensorOfShape(2, 3, 4), dim1=1, dim2=1), # `dim1` and `dim2` equal.
     ErrorInvocation(TensorOfShape(2, 3, 4), dim1=4, dim2=1), # `dim1` out of bounds.
 ])
