@@ -790,7 +790,7 @@ class FxImporter:
                 func_name,
                 ftype,
                 ip=self._m_ip,
-                func_visibility=func_visibility,
+                visibility=func_visibility,
             )
             entry_block = Block.create_at_start(func.body, ftype.inputs)
         node_importer = GraphNodeImporter(
