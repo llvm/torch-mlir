@@ -684,10 +684,20 @@ public:
                              /*keepDim=*/true),
         op.getSelf(), dim, start, startPlusOne, /*step=*/one);
 
-    // `aten.slice.tensor` doesn't squeeze the dim even when it's size 1 after
-    // slicing, while `aten.select.int` does.
-    rewriter.replaceOpWithNewOp<AtenSqueezeDimOp>(op, op.getResult().getType(),
-                                                  slice, op.getDim());
+    std::optional<unsigned> maybeSliceRank = getTensorRank(slice);
+    std::optional<unsigned> maybeResultRank = getTensorRank(op.getResult());
+    if (!maybeSliceRank || !maybeResultRank)
+      return rewriter.notifyMatchFailure(
+          op, "expected slice op result and op result to have rank");
+
+    if (maybeSliceRank > maybeResultRank) {
+      // `aten.slice.tensor` doesn't squeeze the dim even when it's size 1 after
+      // slicing, while `aten.select.int` does.
+      rewriter.replaceOpWithNewOp<AtenSqueezeDimOp>(
+          op, op.getResult().getType(), slice, op.getDim());
+      return success();
+    }
+    rewriter.replaceOp(op, slice);
     return success();
   }
 };
