@@ -28,6 +28,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/ADT/APInt.h"
 
 #include <numeric>
 
@@ -770,6 +771,8 @@ public:
     SmallVector<int64_t> yIndicesResult({0});
     size_t nextXIndex = 1;
     size_t nextYIndex = 1;
+    if (xTotalSize == kUnknownSize)
+      return failure();
     while (xTotalSize != yTotalSize) {
       if (xTotalSize < yTotalSize) {
         if (nextXIndex == xDims.size() || xDims[nextXIndex] == kUnknownSize)
@@ -779,6 +782,62 @@ public:
       } else {
         if (nextYIndex == yDims.size() || yDims[nextYIndex] == kUnknownSize)
           return failure();
+        yTotalSize *= yDims[nextYIndex];
+        yIndicesResult.push_back(nextYIndex++);
+      }
+    }
+
+    xIndices.assign(std::move(xIndicesResult));
+    yIndices.assign(std::move(yIndicesResult));
+    return success();
+  }
+
+  // Starting from the beginning of the dims arrays, this helper finds the
+  // smallest set of consecutive dims in each array such that the product of the
+  // dim sizes in the two subsets is equal. The indices arrays are populated
+  // with the indices of the dims arrays that correspond to the subsets found.
+  //
+  // An error is returned if two subsets of dims with total number of elements
+  // equal to each other is not found.
+  static LogicalResult mapParallelUnknownDims(
+      ArrayRef<int64_t> xDims, ArrayRef<int64_t> yDims,
+      SmallVector<int64_t> &xIndices, SmallVector<int64_t> &yIndices,
+      int64_t xMultiplier, int64_t yMultiplier) {
+    if (xDims.empty() || yDims.empty())
+      return failure();
+    if (llvm::count(xDims, kUnknownSize) > 1
+        || llvm::count(yDims, kUnknownSize) > 1)
+      return failure();
+
+    int64_t xTotalSize = xDims[0];
+    int64_t yTotalSize = yDims[0];
+    SmallVector<int64_t> xIndicesResult({0});
+    SmallVector<int64_t> yIndicesResult({0});
+    size_t nextXIndex = 1;
+    size_t nextYIndex = 1;
+    if (xTotalSize == kUnknownSize)
+      xTotalSize *= xMultiplier;
+    if (yTotalSize == kUnknownSize)
+      yTotalSize *= yMultiplier;
+
+    while (xTotalSize != yTotalSize) {
+      if (xTotalSize < 0 && yTotalSize < 0) {
+        xTotalSize = -xTotalSize;
+        yTotalSize = -yTotalSize;
+      }
+      if (yTotalSize < 0
+          || (xTotalSize > 0 && xTotalSize < yTotalSize)) {
+        if (nextXIndex == xDims.size())
+          return failure();
+        if (xDims[nextXIndex] == kUnknownSize)
+          xTotalSize *= xMultiplier;
+        xTotalSize *= xDims[nextXIndex];
+        xIndicesResult.push_back(nextXIndex++);
+      } else {
+        if (nextYIndex == yDims.size())
+          return failure();
+        if (yDims[nextYIndex] == kUnknownSize)
+          yTotalSize *= yMultiplier;
         yTotalSize *= yDims[nextYIndex];
         yIndicesResult.push_back(nextYIndex++);
       }
@@ -842,6 +901,22 @@ public:
 
     calculateSingleDynamicSize(inputShape, outputShape);
     return std::make_pair(inputShape, outputShape);
+  }
+
+  static std::pair<int64_t, int64_t>
+  getMultiplier(SmallVector<int64_t> inputShape,
+                SmallVector<int64_t> outputShape) {
+    int64_t inputMultiplier = 1;
+    int64_t outputMultiplier = 1;
+    int64_t totalInputElements = std::abs(productReduce(inputShape));
+    int64_t totalOutputElements = std::abs(productReduce(outputShape));
+    APInt GCD = llvm::APIntOps::GreatestCommonDivisor(
+        APInt(64, totalInputElements),
+        APInt(64, totalOutputElements));
+    int64_t gcd = *(GCD.getRawData());
+    inputMultiplier = totalOutputElements / gcd;
+    outputMultiplier = totalInputElements / gcd;
+    return std::make_pair(inputMultiplier, outputMultiplier);
   }
 
   LogicalResult
@@ -923,6 +998,10 @@ public:
         inputHasOneDynDim && outputHasOneDynDim &&
         productReduce(inputShape) == productReduce(outputShape);
     SmallVector<std::pair<int64_t, int64_t>> unchangedDims;
+
+    auto [inputMultiplier, outputMultiplier] =
+        getMultiplier(inputShape, outputShape);
+
     for (auto [outputDim, outputDimSize] :
          llvm::enumerate(outputSizeTorchInt)) {
       int64_t inputDim;
@@ -1020,6 +1099,14 @@ public:
           /// `mapStaticallyKnownDims` maps the smallest number of
           /// input and output dimensions in the slice statically
           /// known to have the same number of elements.
+        } else if (succeeded(mapParallelUnknownDims(
+                       inputShapeSlice, outputShapeSlice, inputSliceIndices,
+                       outputSliceIndices, inputMultiplier,
+                       outputMultiplier))) {
+          /// `mapParallelUnknownDims` maps the smallest number of
+          /// input and output dimensions in the slice statically known
+          /// or parallel unknown to have the same number of elements.
+          assumedDynamicDimNotSplit = true;
         } else if (inputShapeSlice[0] == kUnknownSize) {
           // If the input is dynamic, assume it is not split
           checkDimEqualHelper(rewriter, loc, inputSize[inputDim],
