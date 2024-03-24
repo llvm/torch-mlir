@@ -799,14 +799,16 @@ public:
   //
   // An error is returned if two subsets of dims with total number of elements
   // equal to each other is not found.
-  static LogicalResult mapParallelUnknownDims(
-      ArrayRef<int64_t> xDims, ArrayRef<int64_t> yDims,
-      SmallVector<int64_t> &xIndices, SmallVector<int64_t> &yIndices,
-      int64_t xMultiplier, int64_t yMultiplier) {
+  static LogicalResult mapParallelUnknownDims(ArrayRef<int64_t> xDims,
+                                              ArrayRef<int64_t> yDims,
+                                              SmallVector<int64_t> &xIndices,
+                                              SmallVector<int64_t> &yIndices,
+                                              int64_t xMultiplier,
+                                              int64_t yMultiplier) {
     if (xDims.empty() || yDims.empty())
       return failure();
-    if (llvm::count(xDims, kUnknownSize) > 1
-        || llvm::count(yDims, kUnknownSize) > 1)
+    if (llvm::count(xDims, kUnknownSize) > 1 ||
+        llvm::count(yDims, kUnknownSize) > 1)
       return failure();
 
     int64_t xTotalSize = xDims[0];
@@ -825,8 +827,7 @@ public:
         xTotalSize = -xTotalSize;
         yTotalSize = -yTotalSize;
       }
-      if (yTotalSize < 0
-          || (xTotalSize > 0 && xTotalSize < yTotalSize)) {
+      if (yTotalSize < 0 || (xTotalSize > 0 && xTotalSize < yTotalSize)) {
         if (nextXIndex == xDims.size())
           return failure();
         if (xDims[nextXIndex] == kUnknownSize)
@@ -911,8 +912,7 @@ public:
     int64_t totalInputElements = std::abs(productReduce(inputShape));
     int64_t totalOutputElements = std::abs(productReduce(outputShape));
     APInt GCD = llvm::APIntOps::GreatestCommonDivisor(
-        APInt(64, totalInputElements),
-        APInt(64, totalOutputElements));
+        APInt(64, totalInputElements), APInt(64, totalOutputElements));
     int64_t gcd = *(GCD.getRawData());
     inputMultiplier = totalOutputElements / gcd;
     outputMultiplier = totalInputElements / gcd;
