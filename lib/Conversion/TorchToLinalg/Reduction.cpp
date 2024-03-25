@@ -12,10 +12,10 @@
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
@@ -284,7 +284,8 @@ public:
 
 } // namespace
 
-static Value createAbsOpForNormOps(OpBuilder &b, Location loc, Value elem, Type resultElementType) {
+static Value createAbsOpForNormOps(OpBuilder &b, Location loc, Value elem,
+                                   Type resultElementType) {
   if (elem.getType().isa<mlir::ComplexType>()) {
     return b.create<complex::AbsOp>(loc, elem);
   }
@@ -432,7 +433,7 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
   } else if (isa<AtenFrobeniusNormDimOp>(op)) {
     Value elem = payloadArgs[0];
     Value result = payloadArgs[1];
-    
+
     TypedAttr twoAttr = b.getFloatAttr(resultElementType, 2.0);
     auto ord = b.create<arith::ConstantOp>(loc, twoAttr);
 
