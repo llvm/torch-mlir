@@ -1490,7 +1490,6 @@ ONNX_XFAIL_SET = {
     "HardsigmoidModule_basic",
     "HardsigmoidRandomModule_basic",
     "PixelShuffleModuleStaticRank4Float32_basic",
-    "ResNet18Module_basic",
     "SliceCopyEndGreaterThanDimSize_Module_basic",
     "SliceCopyNegative_Module_basic",
     "SliceCopyNonZeroDim_Module_basic",
