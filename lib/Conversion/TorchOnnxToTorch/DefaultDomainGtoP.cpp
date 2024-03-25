@@ -1501,4 +1501,28 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, self, other);
                   return success();
                 });
+  patterns.onOp("Mish", 18,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value input;
+                  if (binder.tensorOperand(input) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenMishOp>(
+                      binder.op, resultType, input);
+                  return success();
+                });
+  patterns.onOp("HardSwish", 14,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value input;
+                  if (binder.tensorOperand(input) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenHardswishOp>(
+                      binder.op, resultType, input);
+                  return success();
+                });
 }
