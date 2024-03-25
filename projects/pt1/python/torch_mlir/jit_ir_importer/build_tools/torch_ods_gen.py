@@ -512,7 +512,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::adaptive_avg_pool3d : (Tensor, int[]) -> (Tensor)")
     emit("aten::_adaptive_avg_pool3d : (Tensor, int[]) -> (Tensor)")
     emit("aten::_adaptive_avg_pool3d_backward : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::adaptive_max_pool1d : (Tensor, int[]) -> (Tensor, Tensor)")
     emit("aten::adaptive_max_pool2d : (Tensor, int[]) -> (Tensor, Tensor)")
+    emit("aten::adaptive_max_pool3d : (Tensor, int[]) -> (Tensor, Tensor)")
     emit("aten::topk : (Tensor, int, int, bool, bool) -> (Tensor, Tensor)")
     emit("aten::transpose.int : (Tensor, int, int) -> (Tensor)")
     emit("aten::pixel_shuffle : (Tensor, int) -> (Tensor)")
@@ -559,6 +561,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::log_sigmoid_backward : (Tensor, Tensor, Tensor) -> (Tensor)")
     emit("aten::sigmoid_backward : (Tensor, Tensor) -> (Tensor)")
     emit("aten::cosine_embedding_loss : (Tensor, Tensor, Tensor, float, int) -> (Tensor)")
+    emit("aten::diag_embed : (Tensor, int, int, int) -> (Tensor)")
 
     # Misc tensor ops.
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")

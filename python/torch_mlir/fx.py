@@ -41,4 +41,18 @@ def export_and_import(
     else:
         fx_importer.import_frozen_program(prog, func_name=func_name)
 
-    return fx_importer.module_op
+    return fx_importer.module
+
+
+def stateless_fx_import(
+    gm: torch.fx.GraphModule,
+    fx_importer: Optional[FxImporter] = None,
+    hooks: Optional[FxImporterHooks] = None,
+    model_name: str = "main",
+):
+    context = ir.Context()
+    torch_d.register_dialect(context)
+    if fx_importer is None:
+        fx_importer = FxImporter(context=context, hooks=hooks)
+    fx_importer.import_stateless_graph(gm.graph, func_name=model_name)
+    return fx_importer.module
