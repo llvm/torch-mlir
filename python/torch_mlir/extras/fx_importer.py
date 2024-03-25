@@ -870,7 +870,7 @@ class ContextCache:
             encoding = sparsity_encoding(val)
             return IrType.parse(
                 f"!{stem}<[{shape_asm}],{str(mlir_dtype)},{encoding}>",
-                context=self._c
+                context=self._c,
             )
         return IrType.parse(
             f"!{stem}<[{shape_asm}],{str(mlir_dtype)}>", context=self._c
@@ -924,8 +924,7 @@ class ContextCache:
             item.node if is_symbolic(item) else item for item in list(tm.shape)
         )
 
-        sparse_key = None #(tm.layout, tm.sparse_dim, tm.dense_dim, tm.blocksize, tm.idx_dtype)
-        key = (tm_shape, tm.dtype, sparse_key, mutable)
+        key = (tm_shape, tm.dtype, val, mutable)
         t = self._tensor_metadata_cache.get(key)
         if t is None:
             t = self.get_vtensor_type(
