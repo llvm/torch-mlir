@@ -1481,8 +1481,6 @@ ONNX_XFAIL_SET = {
     "PermuteNegativeIndexModule_basic",
 
     # Failure - incorrect numerics
-    "AdaptiveAvgPool1dUnitOutputSizeDynamicModule_basic",
-    "AdaptiveAvgPool2dUnitOutputSizeDynamicModule_basic",
     "ElementwiseAtan2TensorIntModule_basic",
     "ElementwiseLog10IntModule_basic",
     "ElementwiseLog2IntModule_basic",
