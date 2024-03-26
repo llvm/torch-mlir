@@ -21,6 +21,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include <cstdint>
+#include <set>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -156,6 +157,91 @@ static SmallVector<int64_t> computeDimsOrderForMoveDim(int64_t srcDimInt,
   dimsOrder.erase(dimsOrder.begin() + srcDimInt);
   dimsOrder.insert(dimsOrder.begin() + dstDimInt, srcDimInt);
   return dimsOrder;
+}
+
+static bool
+rewriteEquationWithEllipsisSlicing(std::string &equation,
+                                   SmallVector<int64_t> &inputRanks) {
+  // split equation into input and result
+  size_t arrowPos = equation.find("->");
+  if (arrowPos == std::string::npos) {
+    return false;
+  }
+  std::string inputStr = equation.substr(0, arrowPos);
+  std::string resultStr = equation.substr(arrowPos + 2);
+
+  // split input into tokens
+  llvm::SmallVector<std::string> inputTokens;
+  size_t start = 0;
+  size_t end = 0;
+  std::set<char> usedTokens;
+  while (end < inputStr.size()) {
+    end = inputStr.find(",", start);
+    if (end == std::string::npos) {
+      end = inputStr.size();
+    }
+    std::string token = inputStr.substr(start, end - start);
+    inputTokens.push_back(token);
+    start = end + 1;
+  }
+  if (inputTokens.size() != inputRanks.size()) {
+    return false;
+  }
+
+  // find the rank which ellipsis represents, and max ellipsis rank because a
+  // tensor can be broadcasted
+  SmallVector<int64_t> ellipsisRanks;
+  int maxEllipsisRank = 0;
+  for (const auto &[token, inputRank] : llvm::zip(inputTokens, inputRanks)) {
+    int explictRank = 0;
+    for (auto c : token) {
+      if (std::isalpha(c)) {
+        usedTokens.insert(c);
+        explictRank++;
+      } else if (c == '.' || c == ' ') {
+        continue;
+      } else {
+        return false;
+      }
+    }
+    int ellipsisRank = inputRank - explictRank;
+    if (ellipsisRank > maxEllipsisRank) {
+      maxEllipsisRank = ellipsisRank;
+    }
+    if (ellipsisRank < 0) {
+      return false;
+    }
+    ellipsisRanks.push_back(inputRank - explictRank);
+  }
+  auto ellipsisToken = [&usedTokens, &maxEllipsisRank]() {
+    std::string token;
+    int num = maxEllipsisRank;
+    char lastChar = 'a';
+    while (num--) {
+      while (usedTokens.find(lastChar) != usedTokens.end()) {
+        lastChar++;
+      }
+      token.push_back(lastChar);
+      lastChar++;
+    }
+    return token;
+  }();
+  // replace ellipsis with ellipsisToken
+  for (size_t i = 0; i < inputTokens.size(); i++) {
+    if (ellipsisRanks[i] == 0) {
+      continue;
+    }
+    size_t ellipsisPos = inputTokens[i].find("...");
+    inputTokens[i].replace(ellipsisPos, 3, ellipsisToken.substr(maxEllipsisRank - ellipsisRanks[i]));
+  }
+
+  // replace ellipsis in result
+  size_t ellipsisPos = resultStr.find("...");
+  if (ellipsisPos != std::string::npos) {
+    resultStr.replace(ellipsisPos, 3, ellipsisToken);
+  }
+  equation = llvm::join(inputTokens, ",") + " -> " + resultStr;
+  return true;
 }
 
 static bool parseEquation(const std::string &equation,
@@ -1128,16 +1214,6 @@ public:
   LogicalResult matchAndRewrite(AtenEinsumOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    std::string equation;
-    if (!matchPattern(op.getEquation(), m_TorchConstantStr(equation))) {
-      return rewriter.notifyMatchFailure(op, "Unsupported value of equation");
-    }
-    SmallVector<char> resultTokens;
-    SmallVector<SmallVector<char>> inputTokens;
-    if (!parseEquation(equation, inputTokens, resultTokens)) {
-      return rewriter.notifyMatchFailure(
-          op, "Unexpected character in equations encountered");
-    }
 
     SmallVector<Value> inputTensors;
     if (!getListConstructElements(op.getTensors(), inputTensors)) {
@@ -1155,6 +1231,36 @@ public:
     if (!llvm::all_of(inputTensors, allTensorHasSizes)) {
       return rewriter.notifyMatchFailure(op,
                                          "all input tensors should have sizes");
+    }
+
+    std::string equation;
+    if (!matchPattern(op.getEquation(), m_TorchConstantStr(equation))) {
+      return rewriter.notifyMatchFailure(op, "Unsupported value of equation");
+    }
+    // if "..." in equation, modify it
+    if (equation.find("...") != std::string::npos) {
+      // get rank of input tensor
+      // SmallVector<int64_t> inputRanks =
+      //     llvm::to_vector(llvm::map_range(inputTensors, [](Value tensor) {
+      //       auto type = tensor.getType().cast<BaseTensorType>();
+      //       return type.getSizes().size();
+      //     }));
+      SmallVector<int64_t> inputRanks;
+      for (Value tensor : inputTensors) {
+        auto type = tensor.getType().cast<BaseTensorType>();
+        inputRanks.push_back(type.getSizes().size());
+      }
+
+      if (!rewriteEquationWithEllipsisSlicing(equation, inputRanks)) {
+        return rewriter.notifyMatchFailure(
+            op, "Unexpected character in equations encountered");
+      }
+    }
+    SmallVector<char> resultTokens;
+    SmallVector<SmallVector<char>> inputTokens;
+    if (!parseEquation(equation, inputTokens, resultTokens)) {
+      return rewriter.notifyMatchFailure(
+          op, "Unexpected character in equations encountered");
     }
 
     SmallVector<char> lhsTokens = inputTokens[0];
