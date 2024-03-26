@@ -20,12 +20,12 @@ func.func @shape_as_tensor(%arg0 : !torch.vtensor<[5,?,?],f32>) -> !torch.vtenso
 
 // CHECK-LABEL: @shape_as_tensor_dim
 func.func @shape_as_tensor_dim(%arg0 : !torch.vtensor<[5,?,?],f32>) -> !torch.vtensor<[],si32> {
-    // CHECK-DAG: %[[FALSE:.+]] = torch.constant.bool false
-    // CHECK-DAG: %[[NONE:.+]] = torch.constant.none
-    // CHECK-DAG: %[[INT1:.+]] = torch.constant.int 1
-    // CHECK-DAG: %[[SZ:.+]] = torch.aten.size.int %arg0, %int1 : !torch.vtensor<[5,?,?],f32>, !torch.int -> !torch.int
-    // CHECK-DAG: %[[LIST:.+]] = torch.prim.ListConstruct %[[SZ]]
-    // CHECK-DAG: %[[TENSOR:.+]] = torch.aten.tensor %[[LIST]], %[[NONE]], %[[NONE]], %[[FALSE]]
+    // CHECK: %[[FALSE:.+]] = torch.constant.bool false
+    // CHECK: %[[NONE:.+]] = torch.constant.none
+    // CHECK: %[[INT1:.+]] = torch.constant.int 1
+    // CHECK: %[[SZ:.+]] = torch.aten.size.int %arg0, %[[INT1]]
+    // CHECK: %[[LIST:.+]] = torch.prim.ListConstruct %[[INT1]]
+    // CHECK: %[[TENSOR:.+]] = torch.aten.full %[[LIST]], %[[SZ]], %[[NONE]], %[[NONE]], %[[NONE]], %[[FALSE]]
     // CHECK: return %[[TENSOR]] : !torch.vtensor<[],si32>
     %shape = torch.aten._shape_as_tensor %arg0 : !torch.vtensor<[5,?,?],f32> -> !torch.vtensor<[3],si32>
     %dim = torch.constant.int 0
