@@ -272,7 +272,8 @@ public:
       sizes.push_back(rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(size)));
 
-    Value one = rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getType<Torch::IntType>(), 1);
+    Value one = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getType<Torch::IntType>(), 1);
     Value sizeList = rewriter.create<Torch::PrimListConstructOp>(
         loc,
         rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
