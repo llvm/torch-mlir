@@ -240,6 +240,23 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenIntBoolOp : public OpConversionPattern<AtenIntBoolOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenIntBoolOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Type resultType =
+        this->getTypeConverter()->convertType(op->getResult(0).getType());
+    Value result =
+        convertScalarToDtype(rewriter, op.getLoc(), adaptor.getA(), resultType);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenFloatScalarOp : public OpConversionPattern<AtenFloatScalarOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -432,6 +449,9 @@ public:
 
     target.addIllegalOp<AtenFloatScalarOp>();
     patterns.add<ConvertAtenFloatScalarOp>(typeConverter, context);
+
+    target.addIllegalOp<AtenIntBoolOp>();
+    patterns.add<ConvertAtenIntBoolOp>(typeConverter, context);
 
     target.addIllegalOp<AtenAddOp>();
     patterns.add<ConvertAtenAddOp>(typeConverter, context);

@@ -3206,52 +3206,6 @@ def Torch_AtenSquare_Op : Torch_Op<"aten.square_", [
   }];
 }
 
-def Torch_AtenUnsqueezeOp : Torch_Op<"aten.unsqueeze", [
-    AllowsTypeRefinement,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::unsqueeze : (Tensor, int) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    Torch_IntType:$dim
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenUnsqueezeOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 2, 1);
-    }
-    void AtenUnsqueezeOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 2, 1);
-    }
-  }];
-}
-
-def Torch_AtenUnsqueeze_Op : Torch_Op<"aten.unsqueeze_", [
-    IsTrailingUnderscoreInplaceVariant,
-    AllowsTypeRefinement
-  ]> {
-  let summary = "Generated op for `aten::unsqueeze_ : (Tensor, int) -> (Tensor)`";
-  let arguments = (ins
-    Torch_NonValueTensorType:$self,
-    Torch_IntType:$dim
-  );
-  let results = (outs
-    Torch_NonValueTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenUnsqueeze_Op::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 2, 1);
-    }
-    void AtenUnsqueeze_Op::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 2, 1);
-    }
-  }];
-}
-
 def Torch_AtenZeroOp : Torch_Op<"aten.zero", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -3386,6 +3340,53 @@ def Torch_AtenFill_TensorOp : Torch_Op<"aten.fill_.Tensor", [
       return parseDefaultTorchOp(parser, result, 2, 1);
     }
     void AtenFill_TensorOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
+def Torch_AtenUnsqueezeOp : Torch_Op<"aten.unsqueeze", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::unsqueeze : (Tensor, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenUnsqueezeOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenUnsqueezeOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
+def Torch_AtenUnsqueeze_Op : Torch_Op<"aten.unsqueeze_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::unsqueeze_ : (Tensor, int) -> (Tensor)`";
+  let arguments = (ins
+    Torch_NonValueTensorType:$self,
+    Torch_IntType:$dim
+  );
+  let results = (outs
+    Torch_NonValueTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenUnsqueeze_Op::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenUnsqueeze_Op::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];

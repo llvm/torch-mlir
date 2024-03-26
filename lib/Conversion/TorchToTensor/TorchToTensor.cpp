@@ -105,6 +105,43 @@ public:
   }
 };
 
+class ConvertAtenTensorOpPattern : public OpConversionPattern<AtenTensorOp> {
+public:
+  using OpConversionPattern<AtenTensorOp>::OpConversionPattern;
+  using OpAdaptor = typename AtenTensorOp::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenTensorOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto list = op.getData().getDefiningOp<Torch::PrimListConstructOp>();
+    if (!list)
+      return failure();
+
+    auto typeConverter = getTypeConverter();
+    auto resultTy = cast<ShapedType>(typeConverter->convertType(op.getType()));
+    auto resultETy = resultTy.getElementType();
+
+    SmallVector<Value> values;
+    for (Value operand : list.getOperands()) {
+      Value value = typeConverter->materializeTargetConversion(
+          rewriter, loc, typeConverter->convertType(operand.getType()),
+          operand);
+
+      if (isa<mlir::IntegerType>(resultETy) && value.getType() != resultETy)
+        value = rewriter.create<arith::TruncIOp>(loc, resultETy, value);
+
+      if (isa<mlir::FloatType>(resultETy) && value.getType() != resultETy)
+        value = rewriter.create<arith::TruncFOp>(loc, resultETy, value);
+
+      values.push_back(value);
+    }
+
+    rewriter.replaceOpWithNewOp<tensor::FromElementsOp>(op, resultTy, values);
+
+    return success();
+  }
+};
+
 class ConvertTorchToTensor
     : public ConvertTorchToTensorBase<ConvertTorchToTensor> {
 public:
@@ -118,6 +155,7 @@ public:
     target.addLegalDialect<arith::ArithDialect>();
     target.addLegalDialect<tensor::TensorDialect>();
     target.addIllegalOp<Torch::AtenItemOp>();
+    target.addIllegalOp<Torch::AtenTensorOp>();
     target.addIllegalOp<Torch::Aten_ShapeAsTensorOp>();
 
     TypeConverter typeConverter;
@@ -125,8 +163,8 @@ public:
     TorchConversion::setupBackendTypeConversion(target, typeConverter);
 
     RewritePatternSet patterns(context);
-    patterns.add<ConvertAtenShapeToTensorPatternOp, ConvertAtenItemOp>(
-        typeConverter, context);
+    patterns.add<ConvertAtenShapeToTensorPatternOp, ConvertAtenItemOp,
+                 ConvertAtenTensorOpPattern>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

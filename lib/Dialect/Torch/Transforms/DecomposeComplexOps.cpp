@@ -684,6 +684,13 @@ public:
                              /*keepDim=*/true),
         op.getSelf(), dim, start, startPlusOne, /*step=*/one);
 
+    auto sliceTy = cast<BaseTensorType>(slice.getType());
+    auto resultTy = cast<BaseTensorType>(op.getResult().getType());
+    if (sliceTy.getSizes().size() == resultTy.getSizes().size()) {
+      rewriter.replaceOp(op, slice);
+      return success();
+    }
+
     // `aten.slice.tensor` doesn't squeeze the dim even when it's size 1 after
     // slicing, while `aten.select.int` does.
     rewriter.replaceOpWithNewOp<AtenSqueezeDimOp>(op, op.getResult().getType(),

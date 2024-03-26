@@ -716,15 +716,57 @@ OpFoldResult AtenNeBoolOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenUnsqueezeOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenUnsqueezeOp::fold(FoldAdaptor adaptor) {
+  auto selfTy = dyn_cast<BaseTensorType>(getSelf().getType());
+  auto rty = dyn_cast<BaseTensorType>(getType());
+  if (!rty.hasDtype())
+    return {};
+
+  if (auto attr = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf())) {
+    auto aty = dyn_cast<RankedTensorType>(attr.getType());
+    if (rty.hasSizes() && rty.areAllSizesKnown() && attr.isSplat()) {
+      auto naty = RankedTensorType::get(rty.getSizes(), aty.getElementType());
+      return DenseElementsAttr::get(naty, attr.getSplatValue<Attribute>());
+    }
+  }
+
+  if (getSelf().getType() != getResult().getType())
+    return nullptr;
+  if (selfTy && rty) {
+    if (selfTy.hasSizes() && rty.hasSizes() &&
+        selfTy.getSizes().size() == rty.getSizes().size())
+      return getSelf();
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSqueezeOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenSqueezeOp::fold(FoldAdaptor adaptor) {
-  if (getOperand().getType() != getResult().getType())
+  auto selfTy = dyn_cast<BaseTensorType>(getSelf().getType());
+  auto rty = dyn_cast<BaseTensorType>(getType());
+  if (!rty.hasDtype())
+    return {};
+
+  if (auto attr = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf())) {
+    auto aty = dyn_cast<RankedTensorType>(attr.getType());
+    if (rty.hasSizes() && rty.areAllSizesKnown() && attr.isSplat()) {
+      auto naty = RankedTensorType::get(rty.getSizes(), aty.getElementType());
+      return DenseElementsAttr::get(naty, attr.getSplatValue<Attribute>());
+    }
+  }
+
+  if (getSelf().getType() != getResult().getType())
     return nullptr;
-  if (auto tensorType = getOperand().getType().dyn_cast<BaseTensorType>()) {
-    if (tensorType.hasSizes() && tensorType.getSizes().size() == 0)
-      return getOperand();
+  if (selfTy && rty) {
+    if (selfTy.hasSizes() && rty.hasSizes() &&
+        selfTy.getSizes().size() == rty.getSizes().size())
+      return getSelf();
   }
   return nullptr;
 }
