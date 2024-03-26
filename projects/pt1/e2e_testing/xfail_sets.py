@@ -468,6 +468,7 @@ STABLEHLO_PASS_SET = {
     "EinsumStaticFourDimensionModule_basic",
     "EinsumStaticModule_basic",
     "EinsumStaticWithEllipsisSlicingModule_basic",
+    "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
     "ElementwiseAbsFloatModule_basic",
     "ElementwiseAbsIntModule_basic",
     "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
@@ -956,6 +957,7 @@ TOSA_PASS_SET = {
     "EinsumStaticFourDimensionModule_basic",
     "EinsumStaticModule_basic",
     "EinsumStaticWithEllipsisSlicingModule_basic",
+    "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
     "ElementwiseAbsFloatModule_basic",
     "ElementwiseAbsIntModule_basic",
     "ElementwiseAddModule_basic",
@@ -1926,6 +1928,7 @@ ONNX_XFAIL_SET = {
     "EinsumStaticFourDimensionModule_basic",
     "EinsumStaticModule_basic",
     "EinsumStaticWithEllipsisSlicingModule_basic",
+    "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
 
     # Failure - onnx_lowering: onnx.MaxPool
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",

@@ -228,13 +228,19 @@ rewriteEquationWithEllipsisSlicing(std::string &equation,
   }();
   // replace ellipsis with ellipsisToken
   for (size_t i = 0; i < inputTokens.size(); i++) {
-    if (ellipsisRanks[i] == 0) {
+    size_t ellipsisPos = inputTokens[i].find("...");
+    if (ellipsisPos == std::string::npos) {
       continue;
     }
-    size_t ellipsisPos = inputTokens[i].find("...");
-    inputTokens[i].replace(
-        ellipsisPos, 3,
-        ellipsisToken.substr(maxEllipsisRank - ellipsisRanks[i]));
+    if (ellipsisRanks[i] == maxEllipsisRank) {
+      inputTokens[i].replace(ellipsisPos, 3, ellipsisToken);
+    } else if (ellipsisRanks[i] == 0) {
+      inputTokens[i].replace(ellipsisPos, 3, "");
+    } else {
+      inputTokens[i].replace(
+          ellipsisPos, 3,
+          ellipsisToken.substr(ellipsisToken.size() - ellipsisRanks[i]));
+    }
   }
 
   // replace ellipsis in result

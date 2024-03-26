@@ -1117,3 +1117,21 @@ class EinsumStaticWithEllipsisSlicingModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: EinsumStaticWithEllipsisSlicingModule())
 def EinsumStaticWithEllipsisSlicingModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 6), tu.rand(3, 6, 5))
+
+class EinsumStaticWithEllipsisSlicingAndBroadcastModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+        ([2, 6, 4, 5], torch.float32, True),
+        ([6, 5], torch.float32, True),
+    ])
+    def forward(self, tensor1, tensor2):
+        # should be abnd,bd -> abn
+        return torch.ops.aten.einsum('...nd,...d->...n', [tensor1, tensor2])
+    
+@register_test_case(module_factory=lambda: EinsumStaticWithEllipsisSlicingAndBroadcastModule())
+def EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 6, 4, 5), tu.rand(6, 5))
