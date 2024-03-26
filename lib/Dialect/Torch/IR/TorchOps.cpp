@@ -720,19 +720,24 @@ OpFoldResult AtenNeBoolOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenUnsqueezeOp::fold(FoldAdaptor adaptor) {
+  auto ty = dyn_cast<BaseTensorType>(getSelf().getType());
+  auto rty = dyn_cast<BaseTensorType>(getType());
+  if (!rty.hasDtype())
+    return {};
+
   if (auto attr = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf())) {
-    auto ty = cast<RankedTensorType>(attr.getType());
-    auto rty = cast<BaseTensorType>(getType());
+    auto aty = dyn_cast<RankedTensorType>(attr.getType());
     if (rty.hasSizes() && rty.areAllSizesKnown() && attr.isSplat()) {
-      auto aty = RankedTensorType::get(rty.getSizes(), ty.getElementType());
-      return DenseElementsAttr::get(aty, attr.getSplatValue<Attribute>());
+      auto naty = RankedTensorType::get(rty.getSizes(), aty.getElementType());
+      return DenseElementsAttr::get(naty, attr.getSplatValue<Attribute>());
     }
   }
 
   if (getSelf().getType() != getResult().getType())
     return nullptr;
-  if (auto tensorType = getSelf().getType().dyn_cast<BaseTensorType>()) {
-    if (tensorType.hasSizes() && tensorType.getSizes().size() == 0)
+  if (ty && rty) {
+    if (ty.hasSizes() && rty.hasSizes() &&
+        ty.getSizes().size() == rty.getSizes().size())
       return getSelf();
   }
   return nullptr;
@@ -743,20 +748,25 @@ OpFoldResult AtenUnsqueezeOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenSqueezeOp::fold(FoldAdaptor adaptor) {
+  auto ty = dyn_cast<BaseTensorType>(getSelf().getType());
+  auto rty = dyn_cast<BaseTensorType>(getType());
+  if (!rty.hasDtype())
+    return {};
+
   if (auto attr = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf())) {
-    auto ty = cast<RankedTensorType>(attr.getType());
-    auto rty = cast<BaseTensorType>(getType());
+    auto aty = dyn_cast<RankedTensorType>(attr.getType());
     if (rty.hasSizes() && rty.areAllSizesKnown() && attr.isSplat()) {
-      auto aty = RankedTensorType::get(rty.getSizes(), ty.getElementType());
-      return DenseElementsAttr::get(aty, attr.getSplatValue<Attribute>());
+      auto naty = RankedTensorType::get(rty.getSizes(), aty.getElementType());
+      return DenseElementsAttr::get(naty, attr.getSplatValue<Attribute>());
     }
   }
 
-  if (getOperand().getType() != getResult().getType())
+  if (getSelf().getType() != getResult().getType())
     return nullptr;
-  if (auto tensorType = getOperand().getType().dyn_cast<BaseTensorType>()) {
-    if (tensorType.hasSizes() && tensorType.getSizes().size() == 0)
-      return getOperand();
+  if (ty && rty) {
+    if (ty.hasSizes() && rty.hasSizes() &&
+        ty.getSizes().size() == rty.getSizes().size())
+      return getSelf();
   }
   return nullptr;
 }
