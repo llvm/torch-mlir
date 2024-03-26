@@ -149,6 +149,10 @@ public:
 } // namespace
 
 namespace {
+// Conversion attempts to handle some common propagatable slice cases, namely
+// splatted values, no-op slices, known list of values, or any case where a
+// new construction can be generated from a previous set of scalars allowing
+// the parent tensor to be bypassed.
 class PropagateAtenSliceTensorPattern
     : public OpRewritePattern<AtenSliceTensorOp> {
 public:
