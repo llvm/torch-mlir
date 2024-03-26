@@ -82,7 +82,6 @@ class OnnxBackendTestConfig(TestConfig):
     def compile(self, program: torch.nn.Module) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
         onnx_module = convert_onnx(program, example_args)
-        print(onnx_module)
         compiled_module = self.backend.compile(onnx_module)
         return compiled_module
 
