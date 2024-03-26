@@ -1871,7 +1871,7 @@ ONNX_XFAIL_SET = {
     "_SoftmaxModule_basic",
 
     # Failure - onnx_import
-    "DiagonalModule_basic",
+    #"DiagonalModule_basic",
     "DiagonalModule_nonsquare",
     "DiagonalModule_transposed",
     "DiagonalModule_with_dims",
@@ -1912,9 +1912,9 @@ ONNX_XFAIL_SET = {
     "AvgPool2dStaticModule_basic",
 
     # Failure - onnx_lowering: onnx.Cast
-    "BucketizeTensorOutInt32RightModule_basic",
-    "ElementwiseToDtypeI64ToUI8Module_basic",
-    "QuantizedMLP_basic",
+    #"BucketizeTensorOutInt32RightModule_basic",
+    #"ElementwiseToDtypeI64ToUI8Module_basic",
+    #"QuantizedMLP_basic",
 
     # Failure - onnx_lowering: onnx.Clip
     "NormalizeModule_basic",
