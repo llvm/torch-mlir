@@ -232,7 +232,9 @@ rewriteEquationWithEllipsisSlicing(std::string &equation,
       continue;
     }
     size_t ellipsisPos = inputTokens[i].find("...");
-    inputTokens[i].replace(ellipsisPos, 3, ellipsisToken.substr(maxEllipsisRank - ellipsisRanks[i]));
+    inputTokens[i].replace(
+        ellipsisPos, 3,
+        ellipsisToken.substr(maxEllipsisRank - ellipsisRanks[i]));
   }
 
   // replace ellipsis in result
@@ -1239,12 +1241,6 @@ public:
     }
     // if "..." in equation, modify it
     if (equation.find("...") != std::string::npos) {
-      // get rank of input tensor
-      // SmallVector<int64_t> inputRanks =
-      //     llvm::to_vector(llvm::map_range(inputTensors, [](Value tensor) {
-      //       auto type = tensor.getType().cast<BaseTensorType>();
-      //       return type.getSizes().size();
-      //     }));
       SmallVector<int64_t> inputRanks;
       for (Value tensor : inputTensors) {
         auto type = tensor.getType().cast<BaseTensorType>();
