@@ -244,6 +244,9 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseDivRoundingModeTruncModule_basic",
     "AdaptiveAvgPool1dStaticLargerOutput_basic",
     "AdaptiveAvgPool1dGeneralDynamic_basic",
+    "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
+    "AdaptiveAvgPool2dDynamic_basic",
+    "AdaptiveAvgPool2dDynamicNoBatch_basic",
 
     # ERROR: Exception: Unsupported op: get_attr
     "NumToTensorFloatModule_basic",
@@ -1512,6 +1515,19 @@ ONNX_XFAIL_SET = {
     "AdaptiveMaxPool2dDynamic_basic",
     "AdaptiveMaxPool2dStaticWithIndices_basic",
     "AdaptiveMaxPool2dStatic_basic",
+    "AdaptiveMaxPool3dStatic_basic",
+    "AdaptiveMaxPool3dStaticWithIndices_basic",
+    "AdaptiveMaxPool3dDynamic_basic",
+    "AdaptiveMaxPool3dDynamicWithIndices_basic",
+    "AdaptiveMaxPool3dDynamicNoBatch_basic",
+    "AdaptiveMaxPool2dDynamicNoBatch_basic",
+    "AdaptiveMaxPool1dStatic_basic",
+    "AdaptiveMaxPool1dDynamic_basic",
+    "AdaptiveMaxPool1dDynamicNoBatch_basic",
+    "AdaptiveAvgPool3dDynamic_basic",
+    "AdaptiveAvgPool3dDynamicNoBatch_basic",
+    "AdaptiveAvgPool2dDynamic_basic",
+    "AdaptiveAvgPool2dDynamicNoBatch_basic",
     "AddCDivModule_basic",
     "AddIntModule_basic",
     "Add_Module_basic",
@@ -1862,6 +1878,12 @@ ONNX_XFAIL_SET = {
     "DiagonalModule_with_dims_and_offset",
     "DiagonalModule_with_negative_dims",
     "DiagonalModule_with_offset",
+    "AtenDiagEmbedDefaultDiag_basic",
+    "AtenDiagEmbedDimDiag_basic",
+    "AtenDiagEmbedOffsetDiag_basic",
+    "AtenDiagEmbedRevDimDiag_basic",
+    "AtenDiagEmbedNegOffsetDiag_basic",
+    "AtenDiagEmbedNonDefault4DDiag_basic",
     "ScatterReduceFloatMaxModuleIncludeSelf",
     "ScatterReduceFloatMinModuleIncludeSelf",
     "ScatterReduceFloatProdModuleIncludeSelf",
@@ -1879,6 +1901,7 @@ ONNX_XFAIL_SET = {
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dStaticEvenMultiple_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
+    "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
     "AvgPool1dFloatModule_basic",
     "AvgPool1dIntModule_basic",
     "AvgPool1dStaticModule_basic",
@@ -1900,16 +1923,6 @@ ONNX_XFAIL_SET = {
     "EinsumStaticContractRhsModule_basic",
     "EinsumStaticFourDimensionModule_basic",
     "EinsumStaticModule_basic",
-
-    # Failure - onnx_lowering: onnx.HardSwish
-    "HardswishModule_basic",
-    "HardswishRandomModule_basic",
-    "MobilenetV3Module_basic",
-
-    # Failure - onnx_lowering: onnx.LogSoftmax
-    "LogSoftmaxIntModule_basic",
-    "_LogSoftmaxModuleStable_basic",
-    "_LogSoftmaxModule_basic",
 
     # Failure - onnx_lowering: onnx.MaxPool
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
@@ -2025,10 +2038,6 @@ ONNX_XFAIL_SET = {
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
 
-    # Failure - onnx_lowering: onnx.Softplus
-    "ElementwiseMishModule_basic",
-    "SoftplusModule_basic",
-
     # Failure - onnx_lowering: onnx.Squeeze
     "SqueezeModule_allUnitDim",
     "SqueezeModule_broadcast",
@@ -2040,16 +2049,6 @@ ONNX_XFAIL_SET = {
     "SortTensorNegativeDimension_basic",
     "SortTensorSpecificDimension_basic",
     "SortTensor_basic",
-
-    # Failure - onnx_lowering: onnx.Trilu
-    "AtenTrilModule_basic",
-    "AtenTrilWithNegDiagonalModule_basic",
-    "AtenTrilWithPosDiagonalModule_basic",
-    "AtenTriuModule_basic",
-    "AtenTriuWithNegDiagonalModule_basic",
-    "AtenTriuWithPosDiagonalModule_basic",
-    "TriuBroadcastModule_basic",
-    "TriuModule_basic",
 
     # Failure - incorrect dtype
     "ReduceMaxAlongDimUnsignedInt_basic",
