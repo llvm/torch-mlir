@@ -1,3 +1,4 @@
+# This build script is used by e2eshark test suite CI to build torch-mlir from source and the wheel
 #!/bin/bash
 
 set -eu -o errtrace
