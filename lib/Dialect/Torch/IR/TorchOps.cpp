@@ -150,7 +150,7 @@ static Value getScalarIntValue(Value input, Location loc,
 
   if (auto valueTensorLiteralOp = input.getDefiningOp<ValueTensorLiteralOp>()) {
     auto val = valueTensorLiteralOp.getValue()
-                   .cast<DenseElementsAttr>()
+                   .cast<DenseIntElementsAttr>()
                    .getSplatValue<int64_t>();
     return rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(val));
@@ -3604,14 +3604,13 @@ OpFoldResult Aten_ShapeAsTensorOp::fold(FoldAdaptor adaptor) {
 // AtenIntTensorOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult AtenIntTensorOp::fold(FoldAdaptor adaptor) {
-  // If a scalar number is converted to a 0-d tensor and passed on to
-  // aten.Int.Tensor, fold to the scalar number.
-  if (auto numToTensorScalar = getA().getDefiningOp<PrimNumToTensorScalarOp>())
-    return numToTensorScalar.getA();
-  if (auto tensorIntOp = getA().getDefiningOp<AtenTensorIntOp>())
-    return tensorIntOp.getT();
-  return nullptr;
+void AtenIntTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add(+[](AtenIntTensorOp op, PatternRewriter &rewriter) {
+    Value scalarInt = getScalarIntValue(op.getA(), op.getLoc(), rewriter);
+    rewriter.replaceOp(op, scalarInt);
+    return success();
+  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -4057,6 +4056,9 @@ OpFoldResult PrimNumToTensorScalarOp::fold(FoldAdaptor adaptor) {
     a = IntegerAttr::get(dty, iattr.getInt());
   } else if (auto fattr = dyn_cast<FloatAttr>(a)) {
     a = FloatAttr::get(dty, fattr.getValueAsDouble());
+  } else {
+    // doesn't handle other types, like complex type
+    return {};
   }
 
   auto mlirTensorType =
