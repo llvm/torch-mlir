@@ -235,6 +235,11 @@ def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "func::FuncOp"> {
   }];
 }
 
+def ScalarizeShapes : Pass<"torch-scalarize-shapes", "func::FuncOp"> {
+  let summary = "Takes common shape computation operations and scalarizes them to";
+  let constructor = "mlir::torch::Torch::createScalarizeShapesPass()";
+}
+
 def RecomposeComplexOps : Pass<"torch-recompose-complex-ops", "func::FuncOp"> {
   let summary = "Recompose torch operations that have been decomposed by TorchScript";
   let constructor = "mlir::torch::Torch::createRecomposeComplexOpsPass()";

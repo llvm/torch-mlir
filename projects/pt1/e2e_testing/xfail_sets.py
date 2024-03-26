@@ -2063,12 +2063,8 @@ ONNX_XFAIL_SET = {
     "IndexTensorMultiInputOneDim_basic",
     "IndexTensorMultiInputThreeIndexers_basic",
     "IndexTensorMultiInput_basic",
-    "ViewFlattenAndExpandModule_basic",
-    "ViewSizeDimFollowedByCollapsedOnesModule_basic",
     "ViewSizeDimFollowedByExpandedOnesModule_basic",
-    "ViewSizeDimLedAndFollowedByCollapsedOnesModule_basic",
     "ViewSizeDimLedAndFollowedByExpandedOnesModule_basic",
-    "ViewSizeDimLedByCollapsedOnesModule_basic",
     "ViewSizeDimLedByExpandedOnesModule_basic",
 
     # Failure - unknown
