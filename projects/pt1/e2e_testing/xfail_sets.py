@@ -1925,6 +1925,7 @@ ONNX_XFAIL_SET = {
     "EinsumStaticContractRhsModule_basic",
     "EinsumStaticFourDimensionModule_basic",
     "EinsumStaticModule_basic",
+    "EinsumStaticWithEllipsisSlicingModule_basic",
 
     # Failure - onnx_lowering: onnx.MaxPool
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
