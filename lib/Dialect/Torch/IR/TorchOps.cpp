@@ -3608,6 +3608,8 @@ void AtenIntTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                   MLIRContext *context) {
   patterns.add(+[](AtenIntTensorOp op, PatternRewriter &rewriter) {
     Value scalarInt = getScalarIntValue(op.getA(), op.getLoc(), rewriter);
+    if (!scalarInt)
+      return failure();
     rewriter.replaceOp(op, scalarInt);
     return success();
   });
