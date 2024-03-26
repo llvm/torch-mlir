@@ -720,7 +720,7 @@ OpFoldResult AtenNeBoolOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenUnsqueezeOp::fold(FoldAdaptor adaptor) {
-  auto ty = dyn_cast<BaseTensorType>(getSelf().getType());
+  auto selfTy = dyn_cast<BaseTensorType>(getSelf().getType());
   auto rty = dyn_cast<BaseTensorType>(getType());
   if (!rty.hasDtype())
     return {};
@@ -735,9 +735,9 @@ OpFoldResult AtenUnsqueezeOp::fold(FoldAdaptor adaptor) {
 
   if (getSelf().getType() != getResult().getType())
     return nullptr;
-  if (ty && rty) {
-    if (ty.hasSizes() && rty.hasSizes() &&
-        ty.getSizes().size() == rty.getSizes().size())
+  if (selfTy && rty) {
+    if (selfTy.hasSizes() && rty.hasSizes() &&
+        selfTy.getSizes().size() == rty.getSizes().size())
       return getSelf();
   }
   return nullptr;
@@ -748,7 +748,7 @@ OpFoldResult AtenUnsqueezeOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenSqueezeOp::fold(FoldAdaptor adaptor) {
-  auto ty = dyn_cast<BaseTensorType>(getSelf().getType());
+  auto selfTy = dyn_cast<BaseTensorType>(getSelf().getType());
   auto rty = dyn_cast<BaseTensorType>(getType());
   if (!rty.hasDtype())
     return {};
@@ -763,9 +763,9 @@ OpFoldResult AtenSqueezeOp::fold(FoldAdaptor adaptor) {
 
   if (getSelf().getType() != getResult().getType())
     return nullptr;
-  if (ty && rty) {
-    if (ty.hasSizes() && rty.hasSizes() &&
-        ty.getSizes().size() == rty.getSizes().size())
+  if (selfTy && rty) {
+    if (selfTy.hasSizes() && rty.hasSizes() &&
+        selfTy.getSizes().size() == rty.getSizes().size())
       return getSelf();
   }
   return nullptr;
