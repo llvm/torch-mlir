@@ -2162,4 +2162,201 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                       binder.op, resultType, input, cstAlpha, value);
                   return success();
                 });
+  patterns.onOp(
+      "Resize", 19, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        llvm::SmallVector<Value> operands;
+        std::string mode;
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+
+        if (binder.tensorOperandsList(operands) ||
+            binder.tensorResultType(resultType) ||
+            binder.customOpNameStringAttr(mode, "mode"))
+          return failure();
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+
+        Value cstFalse =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+
+        Value modeStrValue;
+        if (mode == "linear") {
+          modeStrValue = rewriter.create<Torch::ConstantStrOp>(binder.getLoc(),
+                                                               "bilinear");
+
+          if (operands.size() < 4) {
+            Value scalesOperand = operands[2];
+            SmallVector<Value> scalesList;
+            auto sizes =
+                dyn_cast<Torch::ValueTensorType>(scalesOperand.getType())
+                    .getSizes();
+            Torch::BaseTensorType scalesOperandType =
+                scalesOperand.getType().cast<Torch::BaseTensorType>();
+
+            SmallVector<int64_t> selectSizes;
+            selectSizes.push_back(1);
+            Type selectResultType = scalesOperandType.getWithSizesAndDtype(
+                llvm::ArrayRef(selectSizes),
+                scalesOperandType.getOptionalDtype());
+
+            MLIRContext *context = binder.op->getContext();
+            // Float List Type
+            for (int i = sizes[0] - 2; i < sizes[0]; i++) {
+              Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
+                  binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                  rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
+              Value extract = rewriter.create<Torch::AtenSelectIntOp>(
+                  binder.getLoc(), selectResultType, scalesOperand, zero,
+                  selectIndex);
+              Value scale = rewriter.create<Torch::AtenItemOp>(
+                  binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+                  extract);
+              scalesList.push_back(scale);
+            }
+            Value scalesValueList = rewriter.create<Torch::PrimListConstructOp>(
+                binder.getLoc(),
+                Torch::ListType::get(Torch::FloatType::get(context)),
+                scalesList);
+
+            rewriter.replaceOpWithNewOp<
+                Torch::Aten__InterpolateSizeListScaleListOp>(
+                binder.op, resultType, operands[0], noneVal, scalesValueList,
+                modeStrValue,
+                /* AnyTorchOptionalBoolType:$align_corners */ cstFalse,
+                /* AnyTorchOptionalBoolType:$recompute_scale_factor */ noneVal,
+                /*Torch_BoolType:$antialias*/ cstFalse);
+          } else {
+            Value sizesOperand = operands[3];
+            SmallVector<Value> sizesList;
+            auto sizes =
+                dyn_cast<Torch::ValueTensorType>(sizesOperand.getType())
+                    .getSizes();
+            Torch::BaseTensorType sizesOperandType =
+                sizesOperand.getType().cast<Torch::BaseTensorType>();
+
+            SmallVector<int64_t> selectSizes;
+            selectSizes.push_back(1);
+            Type selectResultType = sizesOperandType.getWithSizesAndDtype(
+                llvm::ArrayRef(selectSizes),
+                sizesOperandType.getOptionalDtype());
+
+            MLIRContext *context = binder.op->getContext();
+            for (int i = sizes[0] - 2; i < sizes[0]; i++) {
+              Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
+                  binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                  rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
+              Value extract = rewriter.create<Torch::AtenSelectIntOp>(
+                  binder.getLoc(), selectResultType, sizesOperand, zero,
+                  selectIndex);
+              Value dim = rewriter.create<Torch::AtenItemOp>(
+                  binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
+              sizesList.push_back(dim);
+            }
+            Value sizesValueList = rewriter.create<Torch::PrimListConstructOp>(
+                binder.getLoc(),
+                Torch::ListType::get(Torch::IntType::get(context)), sizesList);
+
+            rewriter.replaceOpWithNewOp<
+                Torch::Aten__InterpolateSizeListScaleListOp>(
+                binder.op, resultType, operands[0], sizesValueList, noneVal,
+                modeStrValue,
+                /* AnyTorchOptionalBoolType:$align_corners */ cstFalse,
+                /* AnyTorchOptionalBoolType:$recompute_scale_factor */ noneVal,
+                /*Torch_BoolType:$antialias*/ cstFalse);
+          }
+          return success();
+        }
+        if (mode == "nearest") {
+          modeStrValue =
+              rewriter.create<Torch::ConstantStrOp>(binder.getLoc(), "nearest");
+          if (operands.size() < 4) {
+            Value scalesOperand = operands[2];
+            SmallVector<Value> scalesList;
+            auto sizes =
+                dyn_cast<Torch::ValueTensorType>(scalesOperand.getType())
+                    .getSizes();
+            Torch::BaseTensorType scalesOperandType =
+                scalesOperand.getType().cast<Torch::BaseTensorType>();
+
+            SmallVector<int64_t> selectSizes;
+            selectSizes.push_back(1);
+            Type selectResultType = scalesOperandType.getWithSizesAndDtype(
+                llvm::ArrayRef(selectSizes),
+                scalesOperandType.getOptionalDtype());
+
+            MLIRContext *context = binder.op->getContext();
+            // Float List Type
+            for (int i = sizes[0] - 2; i < sizes[0]; i++) {
+              Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
+                  binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                  rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
+              Value extract = rewriter.create<Torch::AtenSelectIntOp>(
+                  binder.getLoc(), selectResultType, scalesOperand, zero,
+                  selectIndex);
+              Value scale = rewriter.create<Torch::AtenItemOp>(
+                  binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+                  extract);
+              scalesList.push_back(scale);
+            }
+            Value scalesValueList = rewriter.create<Torch::PrimListConstructOp>(
+                binder.getLoc(),
+                Torch::ListType::get(Torch::FloatType::get(context)),
+                scalesList);
+
+            rewriter.replaceOpWithNewOp<
+                Torch::Aten__InterpolateSizeListScaleListOp>(
+                binder.op, resultType, operands[0], noneVal, scalesValueList,
+                modeStrValue,
+                /* AnyTorchOptionalBoolType:$align_corners */ cstFalse,
+                /* AnyTorchOptionalBoolType:$recompute_scale_factor */ noneVal,
+                /*Torch_BoolType:$antialias*/ cstFalse);
+            return success();
+          } else {
+            Value sizesOperand = operands[3];
+            SmallVector<Value> sizesList;
+            auto sizes =
+                dyn_cast<Torch::ValueTensorType>(sizesOperand.getType())
+                    .getSizes();
+            Torch::BaseTensorType sizesOperandType =
+                sizesOperand.getType().cast<Torch::BaseTensorType>();
+
+            SmallVector<int64_t> selectSizes;
+            selectSizes.push_back(1);
+            Type selectResultType = sizesOperandType.getWithSizesAndDtype(
+                llvm::ArrayRef(selectSizes),
+                sizesOperandType.getOptionalDtype());
+
+            MLIRContext *context = binder.op->getContext();
+            // Float List Type
+            for (int i = sizes[0] - 2; i < sizes[0]; i++) {
+              Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
+                  binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                  rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
+              Value extract = rewriter.create<Torch::AtenSelectIntOp>(
+                  binder.getLoc(), selectResultType, sizesOperand, zero,
+                  selectIndex);
+              Value dim = rewriter.create<Torch::AtenItemOp>(
+                  binder.getLoc(), rewriter.getType<Torch::IntType>(), extract);
+              sizesList.push_back(dim);
+            }
+            Value sizesValueList = rewriter.create<Torch::PrimListConstructOp>(
+                binder.getLoc(),
+                Torch::ListType::get(Torch::IntType::get(context)), sizesList);
+            rewriter.replaceOpWithNewOp<
+                Torch::Aten__InterpolateSizeListScaleListOp>(
+                binder.op, resultType, operands[0], sizesValueList, noneVal,
+                modeStrValue,
+                /* AnyTorchOptionalBoolType:$align_corners */ cstFalse,
+                /* AnyTorchOptionalBoolType:$recompute_scale_factor */ noneVal,
+                /*Torch_BoolType:$antialias*/ cstFalse);
+            /* rewriter.replaceOpWithNewOp<Torch::AtenUpsampleNearest2dOp>(
+                 binder.op, resultType, operands[0], sizesValueList, noneVal,
+                 noneVal);
+             */
+          }
+          return success();
+        }
+        return success();
+      });
 }
