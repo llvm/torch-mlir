@@ -6,6 +6,7 @@ add_mlir_conversion_library(TorchMLIRTorchOnnxToTorch
     Patterns.cpp
     TorchOnnxToTorch.cpp
     Utils.cpp
+    OnnxLstmExpander.cpp
 
     ADDITIONAL_HEADER_DIRS
     ${PROJECT_SOURCE_DIR}/include/torch-mlir/Conversion/TorchOnnxToTorch
