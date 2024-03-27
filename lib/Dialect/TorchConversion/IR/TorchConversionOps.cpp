@@ -72,6 +72,19 @@ LogicalResult FromBuiltinTensorOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// FromI1Op
+//===----------------------------------------------------------------------===//
+
+OpFoldResult FromI1Op::fold(FoldAdaptor adaptor) {
+  auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::BoolAttr>();
+  if (attr) {
+    return attr;
+  } else {
+    return nullptr;
+  }
+}
+
+//===----------------------------------------------------------------------===//
 // FromI64Op
 //===----------------------------------------------------------------------===//
 
