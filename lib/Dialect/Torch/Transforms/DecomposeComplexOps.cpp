@@ -2255,32 +2255,36 @@ public:
 } // namespace
 
 namespace {
-  class DecomposeAtenPreluOp : public OpRewritePattern<AtenPreluOp> {
-  public:
-    using OpRewritePattern::OpRewritePattern;
-    LogicalResult matchAndRewrite(AtenPreluOp op,
-                                  PatternRewriter &rewriter) const override {
-      Location loc = op.getLoc();
-      Value self = op.getSelf();
-      Value weight = op.getWeight();
-      auto resType = op.getType().cast<BaseTensorType>();
-      if (!resType.hasDtype()) {
-        return rewriter.notifyMatchFailure(op, "result should have dtype");
-      }
-      Value zero =
-        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
-      Value weightMulSelf = rewriter.create<AtenMulTensorOp>(loc, resType, weight, self);
-      auto boolResType = inputType.getWithSizesAndDtype(inputType.getSizes(),
-                                                  rewriter.getI1Type());
-      Value greaterThanZero = rewriter.create<AtenGtScalar>(loc, resType, self, zero);
-      Value preluOutput = rewriter.create<AtenWhereSelfOp>(loc, resType, greaterThanZero, self, weightMulSelf);
-
-      rewriter.replaceOp(op, preluOutput);
-      return success();
+class DecomposeAtenPreluOp : public OpRewritePattern<AtenPreluOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenPreluOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    Value weight = op.getWeight();
+    auto resType = op.getType().cast<BaseTensorType>();
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
     }
-  };
+    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+    Value zero =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+    Value weightMulInput =
+        rewriter.create<AtenMulTensorOp>(loc, inputType, weight, input);
+    auto boolResType = inputType.getWithSizesAndDtype(inputType.getSizes(),
+                                                      rewriter.getI1Type());
+    Value greaterThanZero =
+        rewriter.create<AtenGtScalarOp>(loc, boolResType, input, zero);
+    Value preluOutput = rewriter.create<AtenWhereSelfOp>(
+        loc, inputType, greaterThanZero, input, weightMulInput);
 
-}
+    rewriter.replaceOp(op, preluOutput);
+    return success();
+  }
+};
+
+} // namespace
 
 namespace {
 class DecomposeAtenLerpScalarOp : public OpRewritePattern<AtenLerpScalarOp> {
