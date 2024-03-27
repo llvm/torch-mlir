@@ -213,19 +213,23 @@ rewriteEquationWithEllipsisSlicing(std::string &equation,
     }
     ellipsisRanks.push_back(inputRank - explictRank);
   }
-  auto ellipsisToken = [&usedTokens, &maxEllipsisRank]() {
-    std::string token;
-    int num = maxEllipsisRank;
-    char lastChar = 'a';
-    while (num--) {
-      while (usedTokens.find(lastChar) != usedTokens.end()) {
-        lastChar++;
+
+  auto isTokenUsed = [&usedTokens](char c) {
+    return usedTokens.find(c) != usedTokens.end();
+  };
+  std::string ellipsisToken;
+  int usedCount = 0;
+  // Iterate over the alphabet to create a new token for ellipsis
+  for (char c = 'a'; c <= 'z'; ++c) {
+    if (!isTokenUsed(c)) {
+      ellipsisToken.push_back(c);
+      usedCount++;
+      if (usedCount == maxEllipsisRank) {
+        break;
       }
-      token.push_back(lastChar);
-      lastChar++;
     }
-    return token;
-  }();
+  }
+
   // replace ellipsis with ellipsisToken
   for (size_t i = 0; i < inputTokens.size(); i++) {
     size_t ellipsisPos = inputTokens[i].find("...");
@@ -248,6 +252,8 @@ rewriteEquationWithEllipsisSlicing(std::string &equation,
   if (ellipsisPos != std::string::npos) {
     resultStr.replace(ellipsisPos, 3, ellipsisToken);
   }
+
+  // join input and result
   equation = llvm::join(inputTokens, ",") + " -> " + resultStr;
   return true;
 }
