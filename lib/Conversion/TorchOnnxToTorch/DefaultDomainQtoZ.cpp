@@ -1720,18 +1720,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 rewriter.create<Torch::AtenEqIntOp>(binder.getLoc(), dim, zero);
             isZero =
                 rewriter.create<Torch::AtenIntBoolOp>(binder.getLoc(), isZero);
-            Value adjustment;
+            Value adjustment = zero;
             int64_t inputDimsSize = dataSizes.size();
             if (i < inputDimsSize) {
               adjustment = rewriter.create<Torch::ConstantIntOp>(
                   binder.getLoc(), rewriter.getType<Torch::IntType>(),
                   rewriter.getIntegerAttr(rewriter.getIntegerType(64),
                                           dataSizes[i]));
-            }
-            // Will never have a 0 in the shape tensor input at an index out of
-            // bounds of original input dims Therefore, no need to adjust
-            else {
-              adjustment = zero;
             }
             Value finalOffset = rewriter.create<Torch::AtenMulIntOp>(
                 binder.getLoc(), isZero, adjustment);
