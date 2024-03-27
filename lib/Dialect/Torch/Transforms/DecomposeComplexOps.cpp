@@ -171,7 +171,7 @@ rewriteEquationWithEllipsisSlicing(std::string &equation,
   std::string resultStr = equation.substr(arrowPos + 2);
 
   // split input into tokens
-  llvm::SmallVector<std::string> inputTokens;
+  SmallVector<std::string> inputTokens;
   size_t start = 0;
   size_t end = 0;
   std::set<char> usedTokens;
