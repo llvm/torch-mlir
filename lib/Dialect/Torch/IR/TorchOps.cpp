@@ -4863,6 +4863,42 @@ LogicalResult AtenLinalgCrossOp::verify() {
   return success();
 }
 
+LogicalResult AtenKthvalueOp::verify() {
+
+  auto selfType = getSelf().getType().cast<BaseTensorType>();
+
+  if (!selfType.hasDtype() || !selfType.hasSizes())
+    return success();
+
+  Type selfDtype = selfType.getDtype();
+  if (selfDtype.isSignlessInteger(1))
+    return emitOpError("input tensors must not have bool dtype");
+
+  int64_t dim;
+  if (!matchPattern(getDim(), m_TorchConstantInt(&dim)))
+    return success();
+
+  ArrayRef<int64_t> selfShape = selfType.getSizes();
+  int64_t selfRank = selfShape.size();
+
+  dim = toPositiveDim(dim, selfRank);
+  if (!isValidDim(dim, selfRank))
+    return emitOpError("dim expected to be in range of [")
+           << -selfRank << ", " << selfRank - 1 << "], but got " << dim;
+
+  // convert k to an integer type
+  int64_t k;
+  if (!matchPattern(getK(), m_TorchConstantInt(&k)))
+    return success();
+
+  // check if k is in the correct range
+  if (selfShape[dim] != kUnknownSize && (k < 1 || k > selfShape[dim]))
+    return emitOpError("k expected to be in range of [")
+           << 1 << ", " << selfShape[dim] << "], but got " << k;
+
+  return success();
+}
+
 //===----------------------------------------------------------------------===//
 // DtypeCalculateYieldDtypesOp
 //===----------------------------------------------------------------------===//

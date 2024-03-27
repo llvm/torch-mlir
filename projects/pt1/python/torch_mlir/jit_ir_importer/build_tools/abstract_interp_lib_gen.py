@@ -468,6 +468,14 @@ def aten〇linalg_cross〡shape(self: List[int], other: List[int], dim: int = -1
         assert (self[i] == other[i]) or self[i] == 1 or other[i] == 1, f"the size of first tensor ({self[i]}) must match the size of second tensor ({other[i]}) at dimension {i}"
     return upstream_shape_functions.broadcast(self, other)
 
+@check_shape_function([
+    Invocation(TensorOfShape(2, 4, 3, device="cpu"), k=2, dim=1, keepdim=True), # keep dim,
+    Invocation(TensorOfShape(2, 4, 3, device="cpu"), k=2, dim=1, keepdim=False), # don't keep dim
+])
+def aten〇kthvalue〡shape(self: List[int], k: int, dim: int = -1, keepdim: bool = False) -> Tuple[List[int], List[int]]:
+    new_shape = upstream_shape_functions.argmax(self, dim, keepdim)
+    return (new_shape, new_shape)
+
 def aten〇_log_softmax_backward_data〡shape(grad_output: List[int], output: List[int], dim: int, input_dtype: int) -> List[int]:
     return upstream_shape_functions.unary(grad_output)
 
@@ -2704,6 +2712,13 @@ def aten〇linalg_cross〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dty
     assert self_dtype != torch.bool
     dtypes = [self_dtype, other_dtype]
     return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function([
+    Invocation(TensorOfShape(2, 4, 3, dtype=torch.int32, device="cpu"), k=2, dim=-1, keepdim=False)
+])
+def aten〇kthvalue〡dtype(self_rank_dtype: Tuple[int, int], k: int, dim: int = -1, keepdim: bool = False) -> Tuple[int, int]:
+    _, self_dtype = self_rank_dtype
+    return (self_dtype, torch.int64)
 
 @check_dtype_function(
     _check_two_tensor_op(dim=0, input_dtype=torch.float32) +

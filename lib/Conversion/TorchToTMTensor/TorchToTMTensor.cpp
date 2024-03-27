@@ -254,6 +254,41 @@ static Value createTMTensorScanOp(
   return scanOp->getResult(0);
 }
 
+static FailureOr<Value> createIntOrFloatCompareOp(PatternRewriter &rewriter,
+                                                  Location loc,
+                                                  Type elementType, Value lhs,
+                                                  Value rhs, bool isDescending,
+                                                  bool isEqual) {
+
+  Value compareOp;
+  if (auto intType = elementType.dyn_cast<mlir::IntegerType>()) {
+    // Case for using arith::CmpIOp.
+    arith::CmpIPredicate g =
+        isEqual ? arith::CmpIPredicate::sge : arith::CmpIPredicate::sgt;
+    arith::CmpIPredicate l =
+        isEqual ? arith::CmpIPredicate::sle : arith::CmpIPredicate::slt;
+    if (intType.isUnsignedInteger()) {
+      g = isEqual ? arith::CmpIPredicate::uge : arith::CmpIPredicate::ugt;
+      l = isEqual ? arith::CmpIPredicate::ule : arith::CmpIPredicate::ult;
+    }
+    arith::CmpIPredicate predicate = isDescending ? g : l;
+    compareOp = rewriter.create<arith::CmpIOp>(loc, predicate, lhs, rhs);
+  } else if (elementType.isa<mlir::FloatType>()) {
+    // Case for using arith::CmpFOp.
+    arith::CmpFPredicate g =
+        isEqual ? arith::CmpFPredicate::OGE : arith::CmpFPredicate::OGT;
+    arith::CmpFPredicate l =
+        isEqual ? arith::CmpFPredicate::OLE : arith::CmpFPredicate::OLT;
+
+    arith::CmpFPredicate predicate = isDescending ? g : l;
+    compareOp = rewriter.create<arith::CmpFOp>(loc, predicate, lhs, rhs);
+  } else {
+    return rewriter.notifyMatchFailure(
+        loc, "Only Integer and Floating element type expected.");
+  }
+  return compareOp;
+}
+
 // Utility function to create a TMTensor::SortOp.
 static FailureOr<SmallVector<Value>>
 createTMTensorSortOp(PatternRewriter &rewriter, Location sortOpLoc,
@@ -280,32 +315,58 @@ createTMTensorSortOp(PatternRewriter &rewriter, Location sortOpLoc,
   }
 
   // Step 3. Create comparison op which will be used as the sorting predicate.
-  Value compareOp;
-  if (auto intType = dyn_cast<mlir::IntegerType>(elementTypes[0])) {
-    // Case for using arith::CmpIOp.
-    arith::CmpIPredicate ge = arith::CmpIPredicate::sge;
-    arith::CmpIPredicate le = arith::CmpIPredicate::sle;
-    if (intType.isUnsignedInteger()) {
-      ge = arith::CmpIPredicate::uge;
-      le = arith::CmpIPredicate::ule;
-    }
-    arith::CmpIPredicate predicate = isDescending ? ge : le;
-    compareOp = rewriter.create<arith::CmpIOp>(
-        loc, predicate, block->getArgument(0), block->getArgument(1));
-  } else if (isa<mlir::FloatType>(elementTypes[0])) {
-    // Case for using arith::CmpFOp.
-    arith::CmpFPredicate predicate =
-        isDescending ? arith::CmpFPredicate::OGE : arith::CmpFPredicate::OLE;
-    compareOp = rewriter.create<arith::CmpFOp>(
-        loc, predicate, block->getArgument(0), block->getArgument(1));
-  } else {
+  auto compareOpRetVal = createIntOrFloatCompareOp(
+      rewriter, loc, elementTypes[0], block->getArgument(0),
+      block->getArgument(1), isDescending, true);
+
+  if (failed(compareOpRetVal))
     return rewriter.notifyMatchFailure(
-        sortOpLoc, "Only Integer and Floating element type expected.");
-  }
+        loc, "Only Integer and Floating element type expected.");
 
   // Step 4. Create yield op for yielding the sorting predicate.
-  rewriter.create<TMTensor::YieldOp>(loc, compareOp);
+  rewriter.create<TMTensor::YieldOp>(loc, compareOpRetVal.value());
   return SmallVector<Value>(sortOp.getResults());
+}
+
+static FailureOr<SmallVector<Value>> createTMTensorTopkOp(
+    PatternRewriter &rewriter, Location topkOpLoc, llvm::ArrayRef<Value> inputs,
+    llvm::ArrayRef<Value> outputs, llvm::ArrayRef<Type> elementTypes,
+    int64_t dimension, bool isMinK) {
+
+  // Generate output types.
+  SmallVector<Type> topkResultTypes;
+  for (Value val : outputs) {
+    topkResultTypes.push_back(val.getType());
+  }
+
+  // Create empty TopkOp, add body later.
+  auto topkOp = rewriter.create<TMTensor::TopkOp>(
+      topkOpLoc, topkResultTypes, inputs, outputs,
+      rewriter.getI64IntegerAttr(dimension));
+
+  Region *body = &topkOp.getRegion();
+  Block *block = rewriter.createBlock(body);
+  Location loc = body->getLoc();
+  // Add arguments for each passed body region element type.
+  for (Type elementType : elementTypes) {
+    block->addArgument({elementType}, {loc});
+  }
+
+  // Generate compare operator. If minK is chosen, isDescending should be false.
+  // Is equal should be false, because we do not want equality to cause element
+  // swap.
+  auto compareOpRetVal = createIntOrFloatCompareOp(
+      rewriter, loc, elementTypes[0], block->getArgument(0),
+      block->getArgument(1), /*isDescending=*/!isMinK, /*isEqual=*/false);
+
+  // Check if correct element types are passed.
+  if (failed(compareOpRetVal))
+    return rewriter.notifyMatchFailure(
+        loc, "Only Integer and Floating element type expected.");
+
+  // Yield the comparison result.
+  rewriter.create<TMTensor::YieldOp>(loc, compareOpRetVal.value());
+  return SmallVector<Value>(topkOp.getResults());
 }
 
 namespace {
@@ -1570,6 +1631,459 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenKthvalueOp : public OpConversionPattern<AtenKthvalueOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenKthvalueOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    const llvm::StringRef opName = op->getName().getStringRef();
+
+    Location loc = op.getLoc();
+    auto typec = this->getTypeConverter();
+
+    Value input = adaptor.getSelf();
+    auto inputType = input.getType().cast<RankedTensorType>();
+    unsigned inputRank = inputType.getRank();
+    Type inputElementType = inputType.getElementType();
+
+    auto valResultType =
+        cast<RankedTensorType>(typec->convertType(op.getResult(0).getType()));
+    auto valResultElementType =
+        getElementTypeOrSelf(typec->convertType(valResultType));
+
+    auto idxResultType =
+        cast<RankedTensorType>(typec->convertType(op.getResult(1).getType()));
+    auto idxResultElementType =
+        getElementTypeOrSelf(typec->convertType(idxResultType));
+
+    // get keepdim and check it is bool
+    bool keepDim = false;
+    if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim)))
+      return rewriter.notifyMatchFailure(
+          op, opName + " requires boolean value for keepdim");
+
+    // get dim, check it is constant int
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only constant dim value is supported");
+
+    // turn dim into positive if negative, and check it is in the valid range
+    dim = toPositiveDim(dim, inputRank);
+    if (!isValidDim(dim, inputRank)) {
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+    }
+
+    // get k, check it is a constant int
+    int64_t k;
+    if (!matchPattern(op.getK(), m_TorchConstantInt(&k)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only constant k value is supported");
+
+    // check if element type is float, int, or unsigned
+    bool isUnsigned = false;
+    if (!inputElementType.isa<mlir::FloatType>()) {
+      if (inputElementType.isa<mlir::IntegerType>()) {
+        auto integerTy = op.getSelf()
+                             .getType()
+                             .template cast<BaseTensorType>()
+                             .getDtype()
+                             .template dyn_cast<mlir::IntegerType>();
+        isUnsigned = integerTy.isUnsigned();
+      } else {
+        return rewriter.notifyMatchFailure(
+            op, opName + " to linalg.* requires Float or Integer "
+                         "input element type");
+      }
+    }
+
+    // Create the values to fill initial output tensors for
+    // topk op and linalg generic op for finding max value.
+    Value fillValLinalgFindMax;
+    Value fillValTopK;
+    if (inputElementType.isa<mlir::FloatType>()) {
+      // max float for topk tensor
+      fillValTopK = rewriter.create<arith::ConstantOp>(
+          loc,
+          rewriter.getFloatAttr(
+              inputElementType,
+              APFloat::getInf(
+                  inputElementType.cast<mlir::FloatType>().getFloatSemantics(),
+                  /*Negative=*/false)));
+      // min float for linalg generic op tensor
+      fillValLinalgFindMax = rewriter.create<arith::ConstantOp>(
+          loc,
+          rewriter.getFloatAttr(
+              inputElementType,
+              APFloat::getInf(
+                  inputElementType.cast<mlir::FloatType>().getFloatSemantics(),
+                  /*Negative=*/true)));
+    } else if (!isUnsigned) {
+      auto width = inputElementType.cast<mlir::IntegerType>().getWidth();
+      // max signed int for topk op tensor
+      auto init = APSInt::getSignedMaxValue(width);
+      fillValTopK = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getIntegerAttr(inputElementType, init));
+      // min signed int for linalg generic op tensor
+      init = APSInt::getSignedMinValue(width);
+      fillValLinalgFindMax = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getIntegerAttr(inputElementType, init));
+    } else if (isUnsigned) {
+      auto width = inputElementType.cast<mlir::IntegerType>().getWidth();
+      // max unsigned int for topk op tensor
+      auto init = APInt::getMaxValue(width);
+      fillValTopK = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getIntegerAttr(inputElementType, init));
+      // min unsigned int for linalg generic op tensor
+      init = APInt::getMinValue(width);
+      fillValLinalgFindMax = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getIntegerAttr(inputElementType, init));
+    }
+
+    auto i32Type = rewriter.getI32Type();
+
+    // ======== BEGIN: Topk op section ========
+    // Based on iree docs:
+    // https://iree.dev/reference/mlir-dialects/LinalgExt/#iree_linalg_extsort-linalgextsortop
+
+    // Create the output shape of topk op.
+    // For every dimension, topkShape[dimension] = inputShape[dimension],
+    // except topkShape[dim] = k.
+    SmallVector<Value> topkShape;
+    for (unsigned i = 0; i < inputRank; i++) {
+      auto currentDimSize = rewriter.create<tensor::DimOp>(loc, input, i);
+      topkShape.push_back(currentDimSize);
+    }
+    auto dimSize = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIntegerAttr(rewriter.getI64Type(), k));
+    topkShape[dim] = dimSize;
+
+    // Fill the initial topk op output tensor.
+    Value topkOutputVal = createInitTensor(rewriter, loc, topkShape,
+                                           valResultElementType, fillValTopK);
+
+    // Create the initial value to fill the topk output indices tensor.
+    // It is equal to the max 32-bit signless integer.
+    auto signlessType = mlir::IntegerType::get(op.getContext(), 32,
+                                               mlir::IntegerType::Signless);
+    auto initIdx = getNumericLimit(rewriter, signlessType, /*getMin=*/false);
+    auto fillValTopkIdx = rewriter.create<arith::ConstantOp>(loc, initIdx);
+    // Fill the initial topk op output indices tensor.
+    Value topkOutputIdx =
+        createInitTensor(rewriter, loc, topkShape, i32Type, fillValTopkIdx);
+
+    // Input arguments for topk op contain only the input tensor.
+    // Input indices will be inferred based on input shape.
+    // (See docs link above).
+    SmallVector<Value> topkInputs;
+    topkInputs.push_back(input);
+
+    // Outputs contain both the values and the indices tensors.
+    SmallVector<Value> topkOutputs;
+    topkOutputs.push_back(topkOutputVal);
+    topkOutputs.push_back(topkOutputIdx);
+
+    // Element types of the arguments passed to the topk op region.
+    // The region accepts the next value N, and the current output
+    // candidate K (see docs link above).
+    // Both N and K are values from the input tensors, thus the
+    // element types are the same and are taken from inputType.
+    SmallVector<Type> topkElementTypes;
+    topkElementTypes.push_back(inputType.getElementType());
+    topkElementTypes.push_back(inputType.getElementType());
+
+    // Create the TMTensor TopkOp.
+    FailureOr<SmallVector<Value>> topkOp;
+    {
+      OpBuilder::InsertionGuard guard(rewriter);
+      topkOp = createTMTensorTopkOp(rewriter, loc, topkInputs, topkOutputs,
+                                    topkElementTypes, dim, /*isMinK=*/true);
+    }
+    // Topk op creation fails with invalid element types.
+    if (failed(topkOp))
+      return rewriter.notifyMatchFailure(
+          loc, "Only Integer and Floating element type expected.");
+
+    auto topkOpVal = topkOp.value();
+    // ======== END: Topk op section ========
+
+    // ======== BEGIN: Linalg generic to find max in topk result ========
+
+    // Create result shape as both a vector of Value and of int64_t types.
+    // We assume that keepdim is false, and fix the result later if true.
+    // Result shape is equal to inputShape, with dim dimension removed.
+    SmallVector<Value> resultShape;
+    SmallVector<int64_t> resultShapeInt;
+    for (int64_t i = 0; i < inputType.getRank(); i++) {
+      if (dim != i) {
+        auto currentDimSize = rewriter.create<tensor::DimOp>(loc, input, i);
+        resultShape.push_back(currentDimSize);
+        resultShapeInt.push_back(inputType.getShape()[i]);
+      }
+    }
+
+    // Fill the initial output tensor for linalg op for finding max value.
+    Value findMaxOutputVal = createInitTensor(
+        rewriter, loc, resultShape, inputElementType, fillValLinalgFindMax);
+
+    // Fill the initial output indices tensor for linalg op for finding max
+    // value with zeros.
+    Value findMaxOutputIdx =
+        createZeroInitTensor(rewriter, loc, resultShape, idxResultElementType);
+
+    // Reduce along dim.
+    SmallVector<utils::IteratorType> findMaxIteratorTypes(
+        inputType.getRank(), utils::IteratorType::parallel);
+    findMaxIteratorTypes[dim] = utils::IteratorType::reduction;
+
+    SmallVector<AffineExpr> findMaxMapExprs;
+    SmallVector<AffineExpr> findMaxMapResultExprs;
+    for (auto size :
+         llvm::enumerate(makeShapeTorchCompatible(inputType.getShape()))) {
+      findMaxMapExprs.push_back(rewriter.getAffineDimExpr(size.index()));
+      if (unsigned(dim) != size.index())
+        findMaxMapResultExprs.push_back(
+            rewriter.getAffineDimExpr(size.index()));
+    }
+
+    auto findMaxMaps = AffineMap::inferFromExprList(
+        {findMaxMapExprs, findMaxMapResultExprs, findMaxMapResultExprs},
+        rewriter.getContext());
+
+    // Create linalg op for finding the max value in the extracted topk values.
+    auto findMaxLinalg = rewriter.create<linalg::GenericOp>(
+        loc,
+        ArrayRef<Type>(
+            {findMaxOutputVal.getType(), findMaxOutputIdx.getType()}),
+        topkOpVal.front(), ValueRange({findMaxOutputVal, findMaxOutputIdx}),
+        findMaxMaps, findMaxIteratorTypes,
+        [&](OpBuilder &nestedBuilder, Location nestedLoc,
+            ValueRange blockArgs) {
+          // Linalg generic body is the same as the decomposition for
+          // AtenMinDim: lib/Conversion/TorchToLinalg/Reduction.cpp
+
+          Value newValue = blockArgs[0];
+          Value oldValue = blockArgs[1];
+          Value oldIndex = blockArgs[2];
+
+          Value newIndex = rewriter.create<arith::IndexCastOp>(
+              nestedLoc, oldIndex.getType(),
+              rewriter.create<linalg::IndexOp>(nestedLoc, dim));
+
+          Value resultVal, predicate;
+          if (inputElementType.isa<mlir::FloatType>()) {
+            resultVal = rewriter.create<arith::MaximumFOp>(nestedLoc, newValue,
+                                                           oldValue);
+            predicate = rewriter.create<arith::CmpFOp>(
+                nestedLoc, arith::CmpFPredicate::OGT, newValue, oldValue);
+          } else {
+            arith::CmpIPredicate predType;
+            predType = isUnsigned ? arith::CmpIPredicate::ugt
+                                  : arith::CmpIPredicate::sgt;
+            if (isUnsigned) {
+              resultVal = rewriter.create<arith::MaxUIOp>(nestedLoc, newValue,
+                                                          oldValue);
+            } else {
+              resultVal = rewriter.create<arith::MaxSIOp>(nestedLoc, newValue,
+                                                          oldValue);
+            }
+            predicate = rewriter.create<arith::CmpIOp>(nestedLoc, predType,
+                                                       newValue, oldValue);
+          }
+          auto resultIndex = rewriter.create<arith::SelectOp>(
+              nestedLoc, predicate, newIndex, oldIndex);
+          nestedBuilder.create<linalg::YieldOp>(
+              nestedLoc, ValueRange{resultVal, resultIndex});
+        });
+
+    auto findMaxVal = findMaxLinalg.getResult(0);
+    auto findMaxIdx = findMaxLinalg.getResult(1);
+    auto findMaxIdxType = findMaxIdx.getType().cast<RankedTensorType>();
+
+    // ======== END: Linalg generic to find max in topk result ========
+
+    // ======== BEGIN: Linalg generic for index extraction ========
+    // The linalg op for finding max returned idx of max elements in the
+    // tensor returned by the topk op. We need the idx of those elements
+    // in the original input. The topk op returned the idx of the top k
+    // extracted elements in the original input. Using the linalg idx
+    // results to index the topk idx results returns the idx of kth
+    // max value in the original input. Example:
+    // input = [1, 7, 3, 6, 2, 8, 9, 5], k = 4
+    // topk_val = [1, 3, 2, 5], topk_idx = [0, 2, 4, 7]
+    // linalg_max_val = [5], linalg_max_idx = [3] (5 is at idx 3 in topk_val)
+    // index the topk_idx using linalg_max_idx -> topk_idx[3] = 7
+    // kth_val = [5], kth_idx = [7]
+
+    // Create a tensor for the resulting idx.
+    Value filledTensorExtractedIdx = createZeroInitTensor(
+        rewriter, loc, getTensorSizes(rewriter, loc, findMaxIdx), i32Type);
+
+    // We iterate through the idx tensor returned by the linalg generic op for
+    // finding max.
+    SmallVector<utils::IteratorType> extractedIdxIteratorTypes(
+        findMaxIdxType.getRank(), utils::IteratorType::parallel);
+
+    SmallVector<AffineExpr> extractedIdxMapExprs;
+    for (auto size :
+         llvm::enumerate(makeShapeTorchCompatible(findMaxIdxType.getShape()))) {
+      extractedIdxMapExprs.push_back(rewriter.getAffineDimExpr(size.index()));
+    }
+
+    auto extractedIdxMaps = AffineMap::inferFromExprList(
+        {extractedIdxMapExprs, extractedIdxMapExprs}, rewriter.getContext());
+
+    // Linalg generic op for indexing the topk output idx tensor using
+    // the idx tensor returned by the linalg generic op for finding max.
+    // Only the idx tensor from the linalg generic op is sent as input.
+    auto extractedIdxLinalg = rewriter.create<linalg::GenericOp>(
+        loc, ArrayRef<Type>({filledTensorExtractedIdx.getType()}), findMaxIdx,
+        filledTensorExtractedIdx, extractedIdxMaps, extractedIdxIteratorTypes,
+        [&](OpBuilder &nestedBuilder, Location nestedLoc,
+            ValueRange blockArgs) {
+          // Get the current input idx.
+          Value index = rewriter.create<arith::IndexCastOp>(
+              loc, rewriter.getIndexType(), blockArgs[0]);
+
+          // Create idx to index the topk idx tensor.
+          // Index the dim dimension using the current input idx.
+          SmallVector<Value> indexTarget;
+          for (unsigned i = 0; i < dim; i++)
+            indexTarget.push_back(rewriter.create<linalg::IndexOp>(loc, i));
+          indexTarget.push_back(index);
+          for (unsigned i = dim; i < findMaxIdxType.getRank(); i++)
+            indexTarget.push_back(rewriter.create<linalg::IndexOp>(loc, i));
+
+          // Extract the element from the topk idx tensor.
+          Value extractedElement = rewriter.create<tensor::ExtractOp>(
+              loc, topkOpVal.back(), indexTarget);
+          rewriter.create<linalg::YieldOp>(loc, extractedElement);
+        });
+
+    auto extractedIdx = extractedIdxLinalg.getResult(0);
+    auto extractedIdxType = extractedIdx.getType().cast<RankedTensorType>();
+
+    // ======== END: Linalg generic for index extraction ========
+
+    // ======== BEGIN: Linalg generic for topk idx cast ========
+    // Casts from i32 to idx result type of the Kthvalue op.
+
+    // Create the initial tensor for the cast result.
+    Value filledTensorCastedIdx = createZeroInitTensor(
+        rewriter, loc, getTensorSizes(rewriter, loc, extractedIdx),
+        idxResultElementType);
+
+    SmallVector<utils::IteratorType> castedIdxIteratorTypes(
+        extractedIdxType.getRank(), utils::IteratorType::parallel);
+
+    SmallVector<AffineExpr> castedIdxMapExprs;
+    for (auto size : llvm::enumerate(
+             makeShapeTorchCompatible(extractedIdxType.getShape()))) {
+      castedIdxMapExprs.push_back(rewriter.getAffineDimExpr(size.index()));
+    }
+
+    auto castedIdxMaps = AffineMap::inferFromExprList(
+        {castedIdxMapExprs, castedIdxMapExprs}, rewriter.getContext());
+
+    // Linalg generic op for casting topk idx output tensor elements from i32 to
+    // result idx tensor element type.
+    auto castedIdxLinalg = rewriter.create<linalg::GenericOp>(
+        loc, ArrayRef<Type>({filledTensorCastedIdx.getType()}), extractedIdx,
+        filledTensorCastedIdx, castedIdxMaps, castedIdxIteratorTypes,
+        [&](OpBuilder &nestedBuilder, Location nestedLoc,
+            ValueRange blockArgs) {
+          Value oldIdx = blockArgs[0];
+
+          // Cast from i32 to index.
+          Value oldIdxToIndexType = rewriter.create<arith::IndexCastOp>(
+              nestedLoc, rewriter.getIndexType(), oldIdx);
+          // Cast from index to result idx element type.
+          Value resultIdx = rewriter.create<arith::IndexCastOp>(
+              nestedLoc, idxResultElementType, oldIdxToIndexType);
+
+          nestedBuilder.create<linalg::YieldOp>(nestedLoc, resultIdx);
+        });
+
+    auto castedIdx = castedIdxLinalg.getResult(0);
+
+    // ======== END: Linalg generic for topk idx cast ========
+
+    // Create output value type ("squeezed" since we assume keepdim=False).
+    auto topkValResultType =
+        topkOpVal.front().getType().cast<RankedTensorType>();
+    auto squeezedValType = topkValResultType.cloneWith(
+        resultShapeInt,
+        findMaxVal.getType().cast<RankedTensorType>().getElementType());
+
+    // Create output idx type ("squeezed" since we assume keepdim=False).
+    auto castedIdxType = castedIdx.getType().cast<RankedTensorType>();
+    auto squeezedIdxType = castedIdxType.cloneWith(
+        resultShapeInt, findMaxIdxType.getElementType());
+
+    if (!keepDim) {
+      // If keepdim=false, cast the the outputs to appropriate type and return.
+      Value retVal =
+          rewriter.create<tensor::CastOp>(loc, squeezedValType, findMaxVal);
+      Value retIdx =
+          rewriter.create<tensor::CastOp>(loc, squeezedIdxType, castedIdx);
+      llvm::SmallVector<Value> res{retVal, retIdx};
+      rewriter.replaceOp(op, res);
+      return success();
+    }
+
+    // If keepdim is false, unsqueeze.
+    // Unsqueezing implementation taken from AteMinMaxDimOp lowering:
+    // lib/Conversion/TorchToLinalg/Reduction.cpp
+    llvm::SmallVector<int64_t> valShape(valResultType.getShape());
+    llvm::SmallVector<int64_t> idxShape(idxResultType.getShape());
+    for (int i = dim, s = valShape.size() - 1; i < s; ++i) {
+      valShape[i] = valShape[i + 1];
+      idxShape[i] = idxShape[i + 1];
+    }
+
+    valShape.resize(valShape.size() - 1);
+    idxShape.resize(idxShape.size() - 1);
+
+    Value retVal = rewriter.create<tensor::CastOp>(
+        loc, squeezedValType.clone(valShape), findMaxLinalg.getResult(0));
+    Value retIdx = rewriter.create<tensor::CastOp>(
+        loc, squeezedIdxType.clone(idxShape), castedIdx);
+
+    SmallVector<ReassociationIndices> reassociation(valShape.size());
+    if (reassociation.size() > 0) {
+      for (int i = 0; i < dim; ++i)
+        reassociation[i].push_back(i);
+      reassociation[std::max<int64_t>(0, dim - 1)].push_back(dim);
+      for (int i = dim, s = reassociation.size(); i < s; ++i)
+        reassociation[i].push_back(i + 1);
+    }
+
+    valShape.push_back(0);
+    idxShape.push_back(0);
+    for (int i = dim, s = valShape.size() - 1; i < s; ++i) {
+      valShape[i + 1] = valShape[i];
+      idxShape[i + 1] = idxShape[i];
+    }
+
+    valShape[dim] = 1;
+    idxShape[dim] = 1;
+
+    Value unsqueezeVal = rewriter.create<tensor::ExpandShapeOp>(
+        loc, valResultType, retVal, reassociation);
+
+    Value unsqueezeIdx = rewriter.create<tensor::ExpandShapeOp>(
+        loc, idxResultType, retIdx, reassociation);
+
+    // Return unsqueezed.
+    llvm::SmallVector<Value> unsqueezes = {unsqueezeVal, unsqueezeIdx};
+    rewriter.replaceOp(op, unsqueezes);
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -1619,6 +2133,8 @@ public:
 
     target.addIllegalOp<AtenScatterSrcOp>();
     patterns.add<ConvertAtenScatterSrcOp>(typeConverter, context);
+    target.addIllegalOp<AtenKthvalueOp>();
+    patterns.add<ConvertAtenKthvalueOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

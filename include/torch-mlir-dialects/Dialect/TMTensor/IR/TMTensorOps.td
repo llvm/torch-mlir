@@ -326,6 +326,82 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
   }];
 }
 
+def TMTensor_TopkOp : TMTensor_Op<"topk",
+    [DeclareOpInterfaceMethods<TMTensorInterface,
+        ["payloadUsesValueFromOperand"]>,
+    DeclareOpInterfaceMethods<ScalarLoopOpInterface,
+        ["generateScalarImplementation"]>]> {
+  let summary = "Top-K operator";
+  let description = [{
+    A Top-K operation for N-D tensors. Reduces the target dimension from the input
+    size N down to K elements based on the supplied binary region.
+
+    Accepts an N-D tensor input consisting of values and an optioanl N-D tensor
+    for indices of those values (i32 type). If input indices aren't provided, the
+    index mapping is inferred based on the k dim.  Both input values/indices
+    tensors and output values/indicies tensors must have the same shape. Top-K is
+    computed along the target dimension (from dimension()). Returns two output
+    tensors of values and the indicies of Top-K results. The output dimensions
+    must match the input save for the dimension that is reduced to K results.
+
+    Region accepts lhs=[next N input] and rhs=[exiting K output] and yeilds an
+    i1. If true, the two values are swapped:
+      - For Top-K compoarision: >
+      - For Min-K comparision: <
+    Note: when the two values are equal, the first occurence is always selected.
+  }];
+
+  let arguments = (ins Variadic<AnyShaped>:$inputs,
+                       Variadic<AnyShaped>:$outputs,
+                       I64Attr:$dimension
+  );
+
+  let results = (outs Variadic<AnyRankedTensor>:$results);
+  let regions = (region AnyRegion:$region);
+  let assemblyFormat = [{
+    attr-dict
+    `dimension` `(` $dimension `)`
+    `ins` `(` $inputs `:` type($inputs) `)`
+    `outs` `(` $outputs `:` type($outputs) `)`
+    $region (`->` type($results)^)?
+  }];
+
+  let extraClassDeclaration = extraTMTensorOpClassDeclaration # [{
+    Value values() {
+      return getInputOperand(0)->get();
+    }
+    std::optional<Value> indices() {
+      if (getNumInputs() < 2) {
+        return {};
+      } else {
+        return getInputOperand(1)->get();
+      }
+    }
+    Value outputValues() {
+      return getOutputOperand(0)->get();
+    }
+    Value outputIndices() {
+      return getOutputOperand(1)->get();
+    }
+    ShapedType getInputType() {
+      return values().getType().cast<ShapedType>();
+    }
+    int64_t getInputRank() {
+      return getInputType().getRank();
+    }
+
+    // Method to implement for specifying output range for
+    // DestinationStyleOpInterface
+    std::pair<int64_t, int64_t> getDpsInitsPositionRange() {
+      std::pair<unsigned, unsigned> outputsIndexAndLength =
+        getODSOperandIndexAndLength(1);
+      return std::make_pair<int64_t, int64_t>(
+          outputsIndexAndLength.first,
+          outputsIndexAndLength.first + outputsIndexAndLength.second);
+    }
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // Pure ops
 //===----------------------------------------------------------------------===//
