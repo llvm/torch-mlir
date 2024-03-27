@@ -12,6 +12,7 @@
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
@@ -283,6 +284,16 @@ public:
 
 } // namespace
 
+static Value createAbsOpForNormOps(OpBuilder &b, Location loc, Value elem,
+                                   Type resultElementType) {
+  if (elem.getType().isa<mlir::ComplexType>()) {
+    return b.create<complex::AbsOp>(loc, elem);
+  }
+
+  Value self = convertScalarToDtype(b, loc, elem, resultElementType);
+  return b.create<math::AbsFOp>(loc, self);
+}
+
 static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
                                           Operation *op, Type elementType) {
   if (isa<AtenSumOp, AtenSumDimIntListOp>(op))
@@ -400,18 +411,10 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     Value elem = payloadArgs[0];
     Value result = payloadArgs[1];
 
-    // TODO: Fix this part to support complex elements.
-    if (elem.getType().isa<mlir::ComplexType>()) {
-      op->emitError("lowering of complex input type for torch.aten.norm.Scalar "
-                    "is currently unimplemented");
-      return nullptr;
-    }
-
-    Value self = convertScalarToDtype(b, loc, elem, resultElementType);
-
-    auto abs = b.create<math::AbsFOp>(loc, self);
     AtenNormScalarOp::Adaptor adaptor(operands);
     Value p = convertScalarToDtype(b, loc, adaptor.getP(), resultElementType);
+
+    auto abs = createAbsOpForNormOps(b, loc, elem, resultElementType);
     auto pow = b.create<math::PowFOp>(loc, abs, p);
     return b.create<arith::AddFOp>(loc, pow, result);
   } else if (isa<AtenLinalgVectorNormOp>(op)) {
@@ -419,20 +422,22 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     // TODO: Short-circuit operations if `ord` is zero or one.
     Value elem = payloadArgs[0];
     Value result = payloadArgs[1];
-    Value self = convertScalarToDtype(b, loc, elem, resultElementType);
-    auto abs = b.create<math::AbsFOp>(loc, self);
+
     AtenLinalgVectorNormOp::Adaptor adaptor(operands);
     Value ord =
         convertScalarToDtype(b, loc, adaptor.getOrd(), resultElementType);
+
+    auto abs = createAbsOpForNormOps(b, loc, elem, resultElementType);
     auto pow = b.create<math::PowFOp>(loc, abs, ord);
     return b.create<arith::AddFOp>(loc, pow, result);
   } else if (isa<AtenFrobeniusNormDimOp>(op)) {
     Value elem = payloadArgs[0];
     Value result = payloadArgs[1];
-    Value self = convertScalarToDtype(b, loc, elem, resultElementType);
-    auto abs = b.create<math::AbsFOp>(loc, self);
+
     TypedAttr twoAttr = b.getFloatAttr(resultElementType, 2.0);
     auto ord = b.create<arith::ConstantOp>(loc, twoAttr);
+
+    auto abs = createAbsOpForNormOps(b, loc, elem, resultElementType);
     auto pow = b.create<math::PowFOp>(loc, abs, ord);
     return b.create<arith::AddFOp>(loc, pow, result);
   } else if (isa<AtenAllDimOp>(op)) {
