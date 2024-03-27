@@ -11444,7 +11444,7 @@ def Torch_AtenIntTensorOp : Torch_Op<"aten.Int.Tensor", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
-  let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenFloatTensorOp : Torch_Op<"aten.Float.Tensor", [

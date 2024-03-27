@@ -1425,6 +1425,15 @@ func.func @torch.aten.Int.Tensor(%arg0: !torch.int) -> !torch.int {
   return %scalar : !torch.int
 }
 
+// CHECK-LABEL:  @torch.aten.Int.Tensor$canonicalize_0d_const() -> !torch.int {
+// CHECK:           %[[NUM:.*]] = torch.constant.int 1
+// CHECK:           return %[[NUM]] : !torch.int
+func.func @torch.aten.Int.Tensor$canonicalize_0d_const() -> !torch.int {
+  %cst = torch.vtensor.literal(dense<1> : tensor<si64>) : !torch.vtensor<[],si64>
+  %scalar = torch.aten.Int.Tensor %cst : !torch.vtensor<[],si64> -> !torch.int
+  return %scalar : !torch.int
+}
+
 // CHECK-LABEL:   func.func @torch.aten.Int.float() -> !torch.int {
 // CHECK:             %[[NUM:.*]] = torch.constant.int 1
 // CHECK:             return %[[NUM]] : !torch.int
