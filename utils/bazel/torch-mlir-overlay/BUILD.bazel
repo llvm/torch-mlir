@@ -178,9 +178,9 @@ cc_library(
     ],
     strip_include_prefix = "include",
     deps = [
+        ":TorchMLIRTorchBackendTypeConversion",
         ":TorchMLIRTorchDialect",
         ":TorchMLIRTorchPassesIncGen",
-        ":TorchMLIRTorchBackendTypeConversion",
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Parser",
