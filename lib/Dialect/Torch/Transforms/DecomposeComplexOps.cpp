@@ -2264,19 +2264,16 @@ public:
     Value input = op.getSelf();
     Value weight = op.getWeight();
     auto resType = op.getType().cast<BaseTensorType>();
-    if (!resType.hasDtype()) {
-      return rewriter.notifyMatchFailure(op, "result should have dtype");
-    }
+    auto baseType =
+        ValueTensorType::getWithLeastStaticInformation(op.getContext());
     Value zero =
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
-    Value weightMulInput =
-        rewriter.create<AtenMulTensorOp>(loc, resType, weight, input);
-    auto boolResType =
-        resType.getWithSizesAndDtype(resType.getSizes(), rewriter.getI1Type());
-    Value greaterThanZero =
-        rewriter.create<AtenGtScalarOp>(loc, boolResType, input, zero);
+    Value inputMulWeight =
+        rewriter.create<AtenMulTensorOp>(loc, baseType, input, weight);
+    Value lessThanZero =
+        rewriter.create<AtenLtScalarOp>(loc, baseType, input, zero);
     Value preluOutput = rewriter.create<AtenWhereSelfOp>(
-        loc, resType, greaterThanZero, input, weightMulInput);
+        loc, resType, lessThanZero, inputMulWeight, input);
 
     rewriter.replaceOp(op, preluOutput);
     return success();

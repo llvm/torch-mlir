@@ -1334,6 +1334,10 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "Conv2dWithPaddingModule_basic",
 
     "AtenInstanceNormModule_basic",
+    
+    # failed to legalize operation 'torch.operator'
+    "ElementwisePreluModule_basic",
+    "ElementwisePreluStaticModule_basic", 
 }
 
 LTC_CRASHING_SET = {
