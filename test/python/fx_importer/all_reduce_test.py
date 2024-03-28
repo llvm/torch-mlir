@@ -18,6 +18,7 @@ import os
 from typing import Optional
 from torch_mlir.extras.fx_importer import FxImporter
 from torch_mlir import ir
+from torch_mlir import fx
 from torch_mlir.dialects import torch as torch_d
 from torch.distributed import init_process_group
 
@@ -46,7 +47,7 @@ def test_import_frozen_exported_program(rank):
             out = funcol.all_reduce(x, "sum", [0, 1, 2, 3])
             return out
     x = torch.tensor([1, 2, 3, 4], dtype=torch.float32)
-    m = export_and_import(All_Reduce(), x)
+    m = fx.export_and_import(All_Reduce(), x)
     if (rank == 0):
         f = test_import_frozen_exported_program
         print(f"{f.__name__}")
@@ -54,7 +55,6 @@ def test_import_frozen_exported_program(rank):
         print(m)
         print()
 
-# CHECK: module
 # CHECK-LABEL:   func.func @main(
 # CHECK-SAME:                    %[[VAL_0:.*]]: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4],f32> {
 # CHECK:           %[[VAL_1:.*]] = torch.constant.str "sum"
