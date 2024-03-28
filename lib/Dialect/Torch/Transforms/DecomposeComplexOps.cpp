@@ -2267,17 +2267,16 @@ public:
     if (!resType.hasDtype()) {
       return rewriter.notifyMatchFailure(op, "result should have dtype");
     }
-    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
     Value zero =
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
     Value weightMulInput =
-        rewriter.create<AtenMulTensorOp>(loc, inputType, weight, input);
-    auto boolResType = inputType.getWithSizesAndDtype(inputType.getSizes(),
+        rewriter.create<AtenMulTensorOp>(loc, resType, weight, input);
+    auto boolResType = resType.getWithSizesAndDtype(resType.getSizes(),
                                                       rewriter.getI1Type());
     Value greaterThanZero =
         rewriter.create<AtenGtScalarOp>(loc, boolResType, input, zero);
     Value preluOutput = rewriter.create<AtenWhereSelfOp>(
-        loc, inputType, greaterThanZero, input, weightMulInput);
+        loc, resType, greaterThanZero, input, weightMulInput);
 
     rewriter.replaceOp(op, preluOutput);
     return success();
