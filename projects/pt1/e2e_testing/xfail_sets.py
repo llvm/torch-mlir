@@ -244,6 +244,9 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseDivRoundingModeTruncModule_basic",
     "AdaptiveAvgPool1dStaticLargerOutput_basic",
     "AdaptiveAvgPool1dGeneralDynamic_basic",
+    "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
+    "AdaptiveAvgPool2dDynamic_basic",
+    "AdaptiveAvgPool2dDynamicNoBatch_basic",
 
     # ERROR: Exception: Unsupported op: get_attr
     "NumToTensorFloatModule_basic",
@@ -296,6 +299,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
+    "ElementwiseQuantizePerTensorUIntModule_basic",
     "AtenMmQuint8_basic",
     "Conv2dQInt8Module_basic",
 
@@ -463,6 +467,8 @@ STABLEHLO_PASS_SET = {
     "EinsumStaticContractRhsModule_basic",
     "EinsumStaticFourDimensionModule_basic",
     "EinsumStaticModule_basic",
+    "EinsumStaticWithEllipsisSlicingModule_basic",
+    "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
     "ElementwiseAbsFloatModule_basic",
     "ElementwiseAbsIntModule_basic",
     "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
@@ -851,6 +857,7 @@ STABLEHLO_PASS_SET = {
     "LinspaceTwoSizeModule_basic",
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineRoundToEvenModule_basic",
+    "TorchPrimLoopForLikeTensorArgModule_basic",
 }
 
 STABLEHLO_CRASHING_SET =  {
@@ -885,6 +892,9 @@ TOSA_PASS_SET = {
     "ArangeStartNegativeStepFloatModule_basic",
     "ArangeStartOutDtypeModule_basic",
     "ArangeStartStepFloatModule_basic",
+    "ArgmaxIntModule_basic",
+    "ArgmaxIntModule_multiple_maxs",
+    "ArgmaxModule_basic",
     "ArgmaxModule_keepDim",
     "ArgmaxModule_with_dim",
     "AtenComplex64Module_basic",
@@ -946,6 +956,8 @@ TOSA_PASS_SET = {
     "EinsumStaticContractRhsModule_basic",
     "EinsumStaticFourDimensionModule_basic",
     "EinsumStaticModule_basic",
+    "EinsumStaticWithEllipsisSlicingModule_basic",
+    "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
     "ElementwiseAbsFloatModule_basic",
     "ElementwiseAbsIntModule_basic",
     "ElementwiseAddModule_basic",
@@ -1077,6 +1089,7 @@ TOSA_PASS_SET = {
     "EmbeddingModuleI32Static_basic",
     "FlattenRank0Module_basic",
     "FlattenStaticModule_basic",
+    "FlattenDynamicModuleCollapseAll_basic",
     "FullLikeModuleFloat3DStatic_basic",
     "FullLikeModuleInt2DStatic_basic",
     "FullModuleDefaultDtype_basic",
@@ -1273,6 +1286,7 @@ TOSA_PASS_SET = {
     "LinspaceModule_basic",
     "LinspaceOneSizeModule_basic",
     "LinspaceTwoSizeModule_basic",
+    "TorchPrimLoopForLikeTensorArgModule_basic"
 }
 
 MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
@@ -1289,9 +1303,11 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "TensorIntModule_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
+    "TorchPrimLoopForLikeTensorArgModule_basic",
 }) - {
 ### Test failing in make_fx_tosa but not in tosa
 
+    "FlattenDynamicModuleCollapseAll_basic",
     # Dynamic shape, has extra unsupported broadcast ops
     "Matmul_3d",
     "MatmulStaticBroadcast_basic",
@@ -1326,6 +1342,7 @@ LTC_CRASHING_SET = {
 }
 
 LTC_XFAIL_SET = {
+    "TorchPrimLoopForLikeTensorArgModule_basic"
     "CollapseAllDimensionsModule_basic",
     "CollapseRank1DynamicModule_basic",
     "CollapseStaticModule_basic",
@@ -1502,6 +1519,19 @@ ONNX_XFAIL_SET = {
     "AdaptiveMaxPool2dDynamic_basic",
     "AdaptiveMaxPool2dStaticWithIndices_basic",
     "AdaptiveMaxPool2dStatic_basic",
+    "AdaptiveMaxPool3dStatic_basic",
+    "AdaptiveMaxPool3dStaticWithIndices_basic",
+    "AdaptiveMaxPool3dDynamic_basic",
+    "AdaptiveMaxPool3dDynamicWithIndices_basic",
+    "AdaptiveMaxPool3dDynamicNoBatch_basic",
+    "AdaptiveMaxPool2dDynamicNoBatch_basic",
+    "AdaptiveMaxPool1dStatic_basic",
+    "AdaptiveMaxPool1dDynamic_basic",
+    "AdaptiveMaxPool1dDynamicNoBatch_basic",
+    "AdaptiveAvgPool3dDynamic_basic",
+    "AdaptiveAvgPool3dDynamicNoBatch_basic",
+    "AdaptiveAvgPool2dDynamic_basic",
+    "AdaptiveAvgPool2dDynamicNoBatch_basic",
     "AddCDivModule_basic",
     "AddIntModule_basic",
     "Add_Module_basic",
@@ -1610,9 +1640,8 @@ ONNX_XFAIL_SET = {
     "ElementwiseOrTensorModule_basic",
     "ElementwiseOrTensorStaticShapeModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
+    "ElementwiseQuantizePerTensorUIntModule_basic",
     "ElementwiseRemainderTensorModule_Int_basic",
-    "ElementwiseFmodTensor_Float_basic",
-    "ElementwiseFmodTensor_Int_Float_basic",
     "ElementwiseFmodTensor_Int_basic",
     "EmptyStridedModule_basic",
     "EmptyStridedSizeIntStrideModule_basic",
@@ -1853,6 +1882,12 @@ ONNX_XFAIL_SET = {
     "DiagonalModule_with_dims_and_offset",
     "DiagonalModule_with_negative_dims",
     "DiagonalModule_with_offset",
+    "AtenDiagEmbedDefaultDiag_basic",
+    "AtenDiagEmbedDimDiag_basic",
+    "AtenDiagEmbedOffsetDiag_basic",
+    "AtenDiagEmbedRevDimDiag_basic",
+    "AtenDiagEmbedNegOffsetDiag_basic",
+    "AtenDiagEmbedNonDefault4DDiag_basic",
     "ScatterReduceFloatMaxModuleIncludeSelf",
     "ScatterReduceFloatMinModuleIncludeSelf",
     "ScatterReduceFloatProdModuleIncludeSelf",
@@ -1870,6 +1905,7 @@ ONNX_XFAIL_SET = {
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dStaticEvenMultiple_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
+    "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
     "AvgPool1dFloatModule_basic",
     "AvgPool1dIntModule_basic",
     "AvgPool1dStaticModule_basic",
@@ -1881,7 +1917,6 @@ ONNX_XFAIL_SET = {
 
     # Failure - onnx_lowering: onnx.Cast
     "BucketizeTensorOutInt32RightModule_basic",
-    "ElementwiseToDtypeI64ToI8Module_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
     "QuantizedMLP_basic",
 
@@ -1892,29 +1927,13 @@ ONNX_XFAIL_SET = {
     "EinsumStaticContractRhsModule_basic",
     "EinsumStaticFourDimensionModule_basic",
     "EinsumStaticModule_basic",
-
-    # Failure - onnx_lowering: onnx.HardSwish
-    "HardswishModule_basic",
-    "HardswishRandomModule_basic",
-    "MobilenetV3Module_basic",
-
-    # Failure - onnx_lowering: onnx.LogSoftmax
-    "LogSoftmaxIntModule_basic",
-    "_LogSoftmaxModuleStable_basic",
-    "_LogSoftmaxModule_basic",
+    "EinsumStaticWithEllipsisSlicingModule_basic",
+    "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
 
     # Failure - onnx_lowering: onnx.MaxPool
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
     "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
     "MaxPool2dWithIndicesStaticModule_basic",
-
-    # Failure - onnx_lowering: onnx.Mod
-    "ElementwiseRemainderScalarModule_Bool_basic",
-    "ElementwiseRemainderScalarModule_Int_basic",
-    "UnflattenIntNegativeOneDimStaticModule_basic",
-    "UnflattenIntNegativeOneSizeStaticModule_basic",
-    "UnflattenIntStaticModule_basic",
-    "UnflattenStaticModule_basic",
 
     # Failure - onnx_lowering: onnx.OneHot
     "OneHotModule_basic",
@@ -2025,10 +2044,6 @@ ONNX_XFAIL_SET = {
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
 
-    # Failure - onnx_lowering: onnx.Softplus
-    "ElementwiseMishModule_basic",
-    "SoftplusModule_basic",
-
     # Failure - onnx_lowering: onnx.Squeeze
     "SqueezeModule_allUnitDim",
     "SqueezeModule_broadcast",
@@ -2041,35 +2056,12 @@ ONNX_XFAIL_SET = {
     "SortTensorSpecificDimension_basic",
     "SortTensor_basic",
 
-    # Failure - onnx_lowering: onnx.Trilu
-    "AtenTrilModule_basic",
-    "AtenTrilWithNegDiagonalModule_basic",
-    "AtenTrilWithPosDiagonalModule_basic",
-    "AtenTriuModule_basic",
-    "AtenTriuWithNegDiagonalModule_basic",
-    "AtenTriuWithPosDiagonalModule_basic",
-    "TriuBroadcastModule_basic",
-    "TriuModule_basic",
-
     # Failure - incorrect dtype
     "ReduceMaxAlongDimUnsignedInt_basic",
 
     # Failure - torch.aten.view lower
-    "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
-    "IndexTensorDyanmicInputNonContiguousWithNoneModule_basic",
-    "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
-    "IndexTensorMultiInputContiguousCenter_basic",
-    "IndexTensorMultiInputNonContiguousMultipleStaticDims_basic",
-    "IndexTensorMultiInputNonContiguous_basic",
-    "IndexTensorMultiInputOneDim_basic",
-    "IndexTensorMultiInputThreeIndexers_basic",
-    "IndexTensorMultiInput_basic",
-    "ViewFlattenAndExpandModule_basic",
-    "ViewSizeDimFollowedByCollapsedOnesModule_basic",
     "ViewSizeDimFollowedByExpandedOnesModule_basic",
-    "ViewSizeDimLedAndFollowedByCollapsedOnesModule_basic",
     "ViewSizeDimLedAndFollowedByExpandedOnesModule_basic",
-    "ViewSizeDimLedByCollapsedOnesModule_basic",
     "ViewSizeDimLedByExpandedOnesModule_basic",
 
     # Failure - unknown
@@ -2106,9 +2098,6 @@ ONNX_XFAIL_SET = {
     "IndexTensorHackedTwinModule_basic",
     "IndexTensorModule3dInput_basic",
     "IndexTensorModule_basic",
-    "IndexTensorMultiInputContiguousOneDimDynamic_basic",
-    "IndexTensorMultiInputNonContiguousDynamic_basic",
-    "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
     "IndexTensorSelectDimModule_basic",
     "MaskedFillTensorFloatValueModule_basic",
     "ReduceAllDimEmpty_basic",
@@ -2125,5 +2114,19 @@ ONNX_XFAIL_SET = {
 ONNX_CRASHING_SET = { 
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
+
+    # WIP for supporting reshape:
+    "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
+    "IndexTensorDyanmicInputNonContiguousWithNoneModule_basic",
+    "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
+    "IndexTensorMultiInputContiguousCenter_basic",
+    "IndexTensorMultiInputNonContiguousMultipleStaticDims_basic",
+    "IndexTensorMultiInputNonContiguous_basic",
+    "IndexTensorMultiInputOneDim_basic",
+    "IndexTensorMultiInputThreeIndexers_basic",
+    "IndexTensorMultiInput_basic",
+    "IndexTensorMultiInputContiguousOneDimDynamic_basic",
+    "IndexTensorMultiInputNonContiguousDynamic_basic",
+    "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
 }
 

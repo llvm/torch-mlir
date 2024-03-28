@@ -324,12 +324,14 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::bitwise_right_shift.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::threshold : (Tensor, Scalar, Scalar) -> (Tensor)",
             "aten::square : (Tensor) -> (Tensor)",
-            "aten::unsqueeze : (Tensor, int) -> (Tensor)",
             "aten::zero : (Tensor) -> (Tensor)",
             "aten::fill.Scalar : (Tensor, Scalar) -> (Tensor)",
             "aten::fill.Tensor : (Tensor, Tensor) -> (Tensor)"
     ]:
         emit_with_mutating_variants(key)
+    # Shape manipulations:
+    emit_with_mutating_variants("aten::unsqueeze : (Tensor, int) -> (Tensor)", has_folder=True)
+
     # Elementwise tensor compute ops that don't have the standard mutating
     # variants.
     emit_with_mutating_variants("aten::div.Tensor_mode : (Tensor, Tensor, str?) -> (Tensor)", has_canonicalizer=True)
@@ -512,7 +514,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::adaptive_avg_pool3d : (Tensor, int[]) -> (Tensor)")
     emit("aten::_adaptive_avg_pool3d : (Tensor, int[]) -> (Tensor)")
     emit("aten::_adaptive_avg_pool3d_backward : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::adaptive_max_pool1d : (Tensor, int[]) -> (Tensor, Tensor)")
     emit("aten::adaptive_max_pool2d : (Tensor, int[]) -> (Tensor, Tensor)")
+    emit("aten::adaptive_max_pool3d : (Tensor, int[]) -> (Tensor, Tensor)")
     emit("aten::topk : (Tensor, int, int, bool, bool) -> (Tensor, Tensor)")
     emit("aten::transpose.int : (Tensor, int, int) -> (Tensor)")
     emit("aten::pixel_shuffle : (Tensor, int) -> (Tensor)")
@@ -559,6 +563,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::log_sigmoid_backward : (Tensor, Tensor, Tensor) -> (Tensor)")
     emit("aten::sigmoid_backward : (Tensor, Tensor) -> (Tensor)")
     emit("aten::cosine_embedding_loss : (Tensor, Tensor, Tensor, float, int) -> (Tensor)")
+    emit("aten::diag_embed : (Tensor, int, int, int) -> (Tensor)")
 
     # Misc tensor ops.
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")
@@ -674,7 +679,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::IntImplicit : (Tensor) -> (int)", has_canonicalizer=True)
     emit("aten::FloatImplicit : (Tensor) -> (float)", has_canonicalizer=True)
     emit("aten::tensor.float : (float, int?, Device?, bool) -> (Tensor)")
-    emit("aten::Int.Tensor : (Tensor) -> (int)", has_folder=True)
+    emit("aten::Int.Tensor : (Tensor) -> (int)", has_canonicalizer=True)
     emit("aten::Float.Tensor : (Tensor) -> (float)", has_folder=True)
     emit_with_mutating_variants("aten::dropout : (Tensor, float, bool) -> (Tensor)")
     emit("aten::native_dropout : (Tensor, float, bool?) -> (Tensor, Tensor)")

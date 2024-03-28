@@ -85,7 +85,7 @@ Recent Turbine Camp Attendees, from recent to less recent
 - Sungsoon.Cho@amd.com
 
 ## Links
-
+- IMPORTANT: read the LLVM style guide: https://llvm.org/docs/CodingStandards.html#use-early-exits-and-continue-to-simplify-code
 - Tutorials
   - [Sungsoon's Shark Getting Started Google Doc](https://docs.google.com/document/d/1H79DwW_wnVzUU81EogwY5ueXgnl-QzKet1p2lnqPar4/edit?pli=1)
     - This document contains commands that would help you set up shark and run demos

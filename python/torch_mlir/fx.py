@@ -16,6 +16,7 @@ from torch_mlir import ir
 from torch_mlir.dialects import torch as torch_d
 from torch_mlir.extras.fx_decomp_util import get_decomposition_table
 
+
 def export_and_import(
     f,
     *args,
@@ -23,6 +24,7 @@ def export_and_import(
     dynamic_shapes: Optional[Union[Dict[str, Any], Tuple[Any]]] = None,
     experimental_support_mutation: bool = False,
     hooks: Optional[FxImporterHooks] = None,
+    decomposition_table: Optional[list] = None,
     func_name: str = "main",
     **kwargs,
 ):
@@ -32,8 +34,10 @@ def export_and_import(
     if fx_importer is None:
         fx_importer = FxImporter(context=context, hooks=hooks)
     prog = torch.export.export(f, args, kwargs, dynamic_shapes=dynamic_shapes)
-    decomp_table = get_decomposition_table()
-    prog = prog.run_decompositions(decomp_table)
+    if decomposition_table is None:
+        decomposition_table = get_decomposition_table()
+    if decomposition_table:
+        prog = prog.run_decompositions(decomposition_table)
     if experimental_support_mutation:
         if torch.__version__ < "2.3.0.dev20240207":
             warnings.warn("Mutable program import only supported on PyTorch 2.3+")
@@ -41,4 +45,18 @@ def export_and_import(
     else:
         fx_importer.import_frozen_program(prog, func_name=func_name)
 
-    return fx_importer.module_op
+    return fx_importer.module
+
+
+def stateless_fx_import(
+    gm: torch.fx.GraphModule,
+    fx_importer: Optional[FxImporter] = None,
+    hooks: Optional[FxImporterHooks] = None,
+    model_name: str = "main",
+):
+    context = ir.Context()
+    torch_d.register_dialect(context)
+    if fx_importer is None:
+        fx_importer = FxImporter(context=context, hooks=hooks)
+    fx_importer.import_stateless_graph(gm.graph, func_name=model_name)
+    return fx_importer.module

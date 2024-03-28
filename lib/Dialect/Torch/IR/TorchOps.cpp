@@ -150,7 +150,7 @@ static Value getScalarIntValue(Value input, Location loc,
 
   if (auto valueTensorLiteralOp = input.getDefiningOp<ValueTensorLiteralOp>()) {
     auto val = valueTensorLiteralOp.getValue()
-                   .cast<DenseElementsAttr>()
+                   .cast<DenseIntElementsAttr>()
                    .getSplatValue<int64_t>();
     return rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(val));
@@ -716,15 +716,57 @@ OpFoldResult AtenNeBoolOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenUnsqueezeOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenUnsqueezeOp::fold(FoldAdaptor adaptor) {
+  auto selfTy = dyn_cast<BaseTensorType>(getSelf().getType());
+  auto rty = dyn_cast<BaseTensorType>(getType());
+  if (!rty.hasDtype())
+    return {};
+
+  if (auto attr = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf())) {
+    auto aty = dyn_cast<RankedTensorType>(attr.getType());
+    if (rty.hasSizes() && rty.areAllSizesKnown() && attr.isSplat()) {
+      auto naty = RankedTensorType::get(rty.getSizes(), aty.getElementType());
+      return DenseElementsAttr::get(naty, attr.getSplatValue<Attribute>());
+    }
+  }
+
+  if (getSelf().getType() != getResult().getType())
+    return nullptr;
+  if (selfTy && rty) {
+    if (selfTy.hasSizes() && rty.hasSizes() &&
+        selfTy.getSizes().size() == rty.getSizes().size())
+      return getSelf();
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSqueezeOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenSqueezeOp::fold(FoldAdaptor adaptor) {
-  if (getOperand().getType() != getResult().getType())
+  auto selfTy = dyn_cast<BaseTensorType>(getSelf().getType());
+  auto rty = dyn_cast<BaseTensorType>(getType());
+  if (!rty.hasDtype())
+    return {};
+
+  if (auto attr = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf())) {
+    auto aty = dyn_cast<RankedTensorType>(attr.getType());
+    if (rty.hasSizes() && rty.areAllSizesKnown() && attr.isSplat()) {
+      auto naty = RankedTensorType::get(rty.getSizes(), aty.getElementType());
+      return DenseElementsAttr::get(naty, attr.getSplatValue<Attribute>());
+    }
+  }
+
+  if (getSelf().getType() != getResult().getType())
     return nullptr;
-  if (auto tensorType = getOperand().getType().dyn_cast<BaseTensorType>()) {
-    if (tensorType.hasSizes() && tensorType.getSizes().size() == 0)
-      return getOperand();
+  if (selfTy && rty) {
+    if (selfTy.hasSizes() && rty.hasSizes() &&
+        selfTy.getSizes().size() == rty.getSizes().size())
+      return getSelf();
   }
   return nullptr;
 }
@@ -3604,14 +3646,15 @@ OpFoldResult Aten_ShapeAsTensorOp::fold(FoldAdaptor adaptor) {
 // AtenIntTensorOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult AtenIntTensorOp::fold(FoldAdaptor adaptor) {
-  // If a scalar number is converted to a 0-d tensor and passed on to
-  // aten.Int.Tensor, fold to the scalar number.
-  if (auto numToTensorScalar = getA().getDefiningOp<PrimNumToTensorScalarOp>())
-    return numToTensorScalar.getA();
-  if (auto tensorIntOp = getA().getDefiningOp<AtenTensorIntOp>())
-    return tensorIntOp.getT();
-  return nullptr;
+void AtenIntTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add(+[](AtenIntTensorOp op, PatternRewriter &rewriter) {
+    Value scalarInt = getScalarIntValue(op.getA(), op.getLoc(), rewriter);
+    if (!scalarInt)
+      return failure();
+    rewriter.replaceOp(op, scalarInt);
+    return success();
+  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -4057,6 +4100,9 @@ OpFoldResult PrimNumToTensorScalarOp::fold(FoldAdaptor adaptor) {
     a = IntegerAttr::get(dty, iattr.getInt());
   } else if (auto fattr = dyn_cast<FloatAttr>(a)) {
     a = FloatAttr::get(dty, fattr.getValueAsDouble());
+  } else {
+    // doesn't handle other types, like complex type
+    return {};
   }
 
   auto mlirTensorType =

@@ -1873,3 +1873,118 @@ class EmptyStridedSizeIntStrideModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: EmptyStridedSizeIntStrideModule())
 def EmptyStridedSizeIntStrideModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))
+
+# ==============================================================================
+
+
+class AtenDiagEmbedDefaultDiag(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.diag_embed(a)
+    
+
+    @register_test_case(module_factory=lambda: AtenDiagEmbedDefaultDiag())
+    def AtenDiagEmbedDefaultDiag_basic(module, tu: TestUtils):
+        module.forward(tu.rand(2, 3, 4))
+
+
+class AtenDiagEmbedDimDiag(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.diag_embed(a, offset=0, dim1=1, dim2=3)
+    
+
+    @register_test_case(module_factory=lambda: AtenDiagEmbedDimDiag())
+    def AtenDiagEmbedDimDiag_basic(module, tu: TestUtils):
+        module.forward(tu.rand(2, 3, 4))
+
+
+class AtenDiagEmbedOffsetDiag(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.diag_embed(a, offset=1, dim1=1, dim2=3)
+    
+
+    @register_test_case(module_factory=lambda: AtenDiagEmbedOffsetDiag())
+    def AtenDiagEmbedOffsetDiag_basic(module, tu: TestUtils):
+        module.forward(tu.rand(2, 3, 4))
+
+
+class AtenDiagEmbedRevDimDiag(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.diag_embed(a, offset=1, dim1=3, dim2=1)
+    
+
+    @register_test_case(module_factory=lambda: AtenDiagEmbedRevDimDiag())
+    def AtenDiagEmbedRevDimDiag_basic(module, tu: TestUtils):
+        module.forward(tu.rand(2, 3, 4))
+
+
+class AtenDiagEmbedNegOffsetDiag(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.diag_embed(a, offset=-1, dim1=1, dim2=3)
+    
+
+    @register_test_case(module_factory=lambda: AtenDiagEmbedNegOffsetDiag())
+    def AtenDiagEmbedNegOffsetDiag_basic(module, tu: TestUtils):
+        module.forward(tu.rand(2, 3, 4))
+
+class AtenDiagEmbedNonDefault4DDiag(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.diag_embed(a, offset=-2, dim1=1, dim2=-3)
+    
+
+    @register_test_case(module_factory=lambda: AtenDiagEmbedNonDefault4DDiag())
+    def AtenDiagEmbedNonDefault4DDiag_basic(module, tu: TestUtils):
+        module.forward(tu.rand(2, 3, 4, 5))
