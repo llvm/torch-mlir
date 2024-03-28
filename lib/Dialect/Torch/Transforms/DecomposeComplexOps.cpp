@@ -2271,8 +2271,8 @@ public:
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
     Value weightMulInput =
         rewriter.create<AtenMulTensorOp>(loc, resType, weight, input);
-    auto boolResType = resType.getWithSizesAndDtype(resType.getSizes(),
-                                                      rewriter.getI1Type());
+    auto boolResType =
+        resType.getWithSizesAndDtype(resType.getSizes(), rewriter.getI1Type());
     Value greaterThanZero =
         rewriter.create<AtenGtScalarOp>(loc, boolResType, input, zero);
     Value preluOutput = rewriter.create<AtenWhereSelfOp>(
