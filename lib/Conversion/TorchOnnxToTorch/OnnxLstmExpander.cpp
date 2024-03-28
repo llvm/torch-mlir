@@ -220,7 +220,6 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
       loc, intType,
       rewriter.getIntegerAttr(rewriter.getIntegerType(64), seq_len));
   Value cTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
-  Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
 
   Value cstZero = rewriter.create<Torch::ConstantIntOp>(
       loc, intType, rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));

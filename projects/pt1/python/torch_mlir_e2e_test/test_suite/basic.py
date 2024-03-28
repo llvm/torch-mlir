@@ -5085,8 +5085,6 @@ def CloneModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 5))
 
 
-
-
 # ==============================================================================
 
 
@@ -5104,7 +5102,7 @@ class LSTMModule(torch.nn.Module):
     def forward(self, input, h0, c0):
         return self.lstm(input, (h0, c0))
     
-@register_test_case(module_factory=lambda: LSTMModule())
+@register_test_case(module_factory=LSTMModule)
 def LSTMModule_basic(module, tu: TestUtils):
     inputs = torch.zeros(5,1,10)
     h0 = torch.zeros(1,1,20)
