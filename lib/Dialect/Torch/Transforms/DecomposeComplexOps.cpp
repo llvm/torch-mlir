@@ -2653,6 +2653,109 @@ public:
 };
 } // namespace
 
+// decompose aten.repeat_interleave.self_int into following ops:
+namespace {
+
+class DecomposeAtenRepeatInterleaveSelfIntOp
+    : public OpRewritePattern<AtenRepeatInterleaveSelfIntOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRepeatInterleaveSelfIntOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto context = op.getContext();
+    Value self = op.getSelf();
+    auto selfTy = cast<BaseTensorType>(self.getType());
+    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
+    if (!selfTy.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: no implementation for rankless tensor");
+    auto resType = op.getType().cast<BaseTensorType>();
+    if (!resType.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: no implementation for rankless tensor");
+
+    int64_t inputRank = selfTy.getSizes().size();
+
+    int64_t repeats;
+    if (!matchPattern(op.getRepeats(), m_TorchConstantInt(&repeats)))
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: repeats not constant int");
+    Value dimValue = op.getDim();
+    Value repeatFlatten;
+    if (dimValue.getType().isa<Torch::NoneType>()) {
+      // input.flatten().unsqueeze(-1).tile((1, repeats)).flatten()
+      Value constZero =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+      Value constMinusOne = rewriter.create<ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(inputRank - 1));
+      Value inputFlatten = rewriter.create<AtenFlattenUsingIntsOp>(
+          loc, baseType, self, constZero, constMinusOne);
+      Value unsqueezeDim =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+      Value inputUnsqueeze = rewriter.create<AtenUnsqueezeOp>(
+          loc, baseType, inputFlatten, unsqueezeDim);
+      Value constOne =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+      Value constRepeats = rewriter.create<ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(repeats));
+      SmallVector<Value> repeatsList = {constOne, constRepeats};
+      Value tileShape = rewriter.create<PrimListConstructOp>(
+          loc, ListType::get(IntType::get(context)), repeatsList);
+      Value inputTile =
+          rewriter.create<AtenTileOp>(loc, baseType, inputUnsqueeze, tileShape);
+      repeatFlatten = rewriter.create<AtenFlattenUsingIntsOp>(
+          loc, resType, inputTile, constZero, constMinusOne);
+    } else {
+      int64_t dim;
+      if (!matchPattern(dimValue, m_TorchConstantInt(&dim)))
+        return rewriter.notifyMatchFailure(
+            op, "Unimplemented: dim not constant int");
+      dim = toPositiveDim(dim, inputRank);
+      //       # Calculate the shape after repeat
+      // expanded_shape = list(input.shape)
+      // expanded_shape[dim] *= repeats
+      // # Repeat the tensor along the specified dimension
+      // repeat_shape = [1] * (input.dim() + 1)
+      // repeat_shape[dim + 1] = repeats
+      // input = input.unsqueeze(-1)
+
+      // # Tile and then reshape
+      // tiled = torch.tile(input, repeat_shape)
+      // # Rearrange and reshape
+      // repeated = tiled.reshape(*expanded_shape)
+
+      SmallVector<int64_t> expandedShape(selfTy.getSizes());
+      expandedShape[dim] *= repeats;
+      SmallVector<Value> expandedShapeValueList;
+      for (int64_t s : expandedShape)
+        expandedShapeValueList.push_back(
+            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(s)));
+      Value expandedShapeList = rewriter.create<PrimListConstructOp>(
+          loc, ListType::get(IntType::get(context)), expandedShapeValueList);
+      SmallVector<int64_t> repeatShape(inputRank + 1, 1);
+      repeatShape[dim + 1] = repeats;
+      SmallVector<Value> repeatShapeValueList;
+      for (int64_t s : repeatShape)
+        repeatShapeValueList.push_back(
+            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(s)));
+      Value repeatShapeList = rewriter.create<PrimListConstructOp>(
+          loc, ListType::get(IntType::get(context)), repeatShapeValueList);
+      Value constMinusOne =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+      Value inputUnsqueeze =
+          rewriter.create<AtenUnsqueezeOp>(loc, baseType, self, constMinusOne);
+      Value tiled = rewriter.create<AtenTileOp>(loc, baseType, inputUnsqueeze,
+                                                repeatShapeList);
+      repeatFlatten = rewriter.create<AtenReshapeOp>(loc, resType, tiled,
+                                                     expandedShapeList);
+    }
+    rewriter.replaceOp(op, repeatFlatten);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.flatten.using_ints into aten.view op.
 namespace {
 class DecomposeAtenFlattenUsingIntsOp
@@ -7302,6 +7405,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenStackOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRollOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatInterleaveSelfIntOp>(
+        patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenExpandOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFlattenUsingIntsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenUnflattenIntOp>(patterns);

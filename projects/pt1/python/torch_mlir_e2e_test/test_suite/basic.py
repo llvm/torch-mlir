@@ -1842,6 +1842,27 @@ def RepeatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class RepeatInterleaveModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4, 5], torch.float32, True),
+    ])
+    def forward(self, x):
+        return x.repeat_interleave(2, 1)
+
+
+@register_test_case(module_factory=lambda: RepeatInterleaveModule())
+def RepeatInterleaveModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
+
 class TileSmallDimsSizeModule(torch.nn.Module):
 
     def __init__(self):
