@@ -22,6 +22,9 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "IscloseStaticModule_basic",
     "IscloseStaticModuleTrue_basic",
     "SplitWithSizes_Module_basic",
+    # failed to legalize operation 'torch.operator' that was explicitly marked illegal
+    #  note: callsite("aten::lstm"("/opt/python/cp311-cp311/lib/python3.11/site-packages/torch/nn/modules/rnn.py":878:21)
+    "LstmModule_basic",
 }
 
 TORCHDYNAMO_XFAIL_SET = {
@@ -2147,5 +2150,4 @@ WEIGHT_INITIALIZATION_XFAIL_SET = {
 
 # add WEIGHT_INITIALIZATION_XFAIL_SET to the other xfail sets
 ONNX_XFAIL_SET.update(WEIGHT_INITIALIZATION_XFAIL_SET)
-LINALG_XFAIL_SET.update(WEIGHT_INITIALIZATION_XFAIL_SET)
 
