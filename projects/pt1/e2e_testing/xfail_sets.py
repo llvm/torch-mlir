@@ -68,6 +68,8 @@ TORCHDYNAMO_XFAIL_SET = {
     # error: unsupported by backend contract: tensor with unknown rank
     # note: see current operation: %1 = "torch.tensor_static_info_cast"(%arg0) : (!torch.vtensor<[5,4,3,2,1],f32>) -> !torch.vtensor<*,f32>
     "ElementwisePreluModule_basic",
+    # error: torch._dynamo.exc.BackendCompilerFailed: backend='compiler_fn' raised: AssertionError: Unregistered operation: torch.aten._prelu_kernel
+    "ElementwisePreluStaticModule_basic",
 
     #ERROR: value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=-1.336e-32, max=+0.9152, mean=+0.4837) is not close to golden value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=+0.02233, max=+0.9152, mean=+0.4777)
     "UpSampleNearest2dDynamicFactor_basic",
@@ -510,6 +512,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseNeIntTensorStaticModule_basic",
     "ElementwiseNegModule_basic",
     "ElementwiseOrTensorStaticShapeModule_basic",
+    "ElementwisePreluStaticModule_basic",
     "ElementwisePowTensorBroadcastStaticModule_basic",
     "ElementwisePowTensorStaticModule_basic",
     "ElementwiseReciprocalModule_basic",
@@ -1064,6 +1067,8 @@ TOSA_PASS_SET = {
     "ElementwiseOrTensorModule_basic",
     "ElementwiseOrTensorStaticShapeModule_basic",
     "ElementwisePowModule_basic",
+    "ElementwisePreluModule_basic",
+    "ElementwisePreluStaticModule_basic",
     "ElementwiseReciprocalModule_basic",
     "ElementwiseRelu6Module_basic",
     "ElementwiseReluModule_basic",
@@ -1333,6 +1338,10 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "Conv2dWithPaddingModule_basic",
 
     "AtenInstanceNormModule_basic",
+    
+    # failed to legalize operation 'torch.operator'
+    "ElementwisePreluModule_basic",
+    "ElementwisePreluStaticModule_basic", 
 }
 
 LTC_CRASHING_SET = {
@@ -2080,6 +2089,7 @@ ONNX_XFAIL_SET = {
     "ElementwiseExpIntModule_basic",
     "ElementwiseLogIntModule_basic",
     "ElementwisePreluModule_basic",
+    "ElementwisePreluStaticModule_basic",
     "ElementwiseSigmoidIntModule_basic",
     "ElementwiseSinIntModule_basic",
     "ElementwiseTanIntModule_basic",

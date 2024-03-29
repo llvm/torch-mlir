@@ -2369,6 +2369,34 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenPreluOp : public OpRewritePattern<AtenPreluOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenPreluOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    Value weight = op.getWeight();
+    auto resType = op.getType().cast<BaseTensorType>();
+    auto baseType =
+        ValueTensorType::getWithLeastStaticInformation(op.getContext());
+    Value zero =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+    Value inputMulWeight =
+        rewriter.create<AtenMulTensorOp>(loc, baseType, input, weight);
+    Value lessThanZero =
+        rewriter.create<AtenLtScalarOp>(loc, baseType, input, zero);
+    Value preluOutput = rewriter.create<AtenWhereSelfOp>(
+        loc, resType, lessThanZero, inputMulWeight, input);
+
+    rewriter.replaceOp(op, preluOutput);
+    return success();
+  }
+};
+
+} // namespace
+
+namespace {
 class DecomposeAtenLerpScalarOp : public OpRewritePattern<AtenLerpScalarOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -7488,6 +7516,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenPreluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);
