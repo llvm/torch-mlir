@@ -3765,15 +3765,7 @@ createUpsampleGetCubicCoefficients(PatternRewriter &rewriter, Location loc,
 
 // def _sum_tensors(ts) -> Tensor:
 //     return reduce(torch.add, ts)
-static Value createSumTensors(PatternRewriter &rewriter, Location loc,
-                              ArrayRef<Value> tensors) {
-  Value sum = tensors[0];
-  for (unsigned i = 1; i < tensors.size(); i++) {
-    sum =
-        rewriter.create<Torch::AtenAddOp>(loc, sum.getType(), sum, tensors[i]);
-  }
-  return sum;
-}
+
 
 // def _upsample_cubic_interp1d(coeffs: TensorSequenceType, ts: Tensor) ->
 // Tensor:
@@ -3798,6 +3790,18 @@ static Value createUpsampleCubicInterp1d(PatternRewriter &rewriter,
 */
 
 class DecomposeAtenGridSamplerOp : public OpRewritePattern<AtenGridSamplerOp> {
+private:
+  Value createSumTensors(PatternRewriter &rewriter, Location loc,
+                         ArrayRef<Value> tensors) const {
+    auto context = getContext();
+    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
+    Value sum = tensors[0];
+    for (unsigned i = 1; i < tensors.size(); i++) {
+      sum = rewriter.create<Torch::AtenAddOp>(loc, baseType, sum, tensors[i]);
+    }
+    return sum;
+  }
+
 public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenGridSamplerOp op,
@@ -4017,14 +4021,6 @@ public:
             loc, Torch::ListType::get(Torch::IntType::get(context)),
             ValueRange{constOne, constC, constOne, constOne}));
 
-    // x = grid[..., 0]
-    // y = grid[..., 1]
-    Value constMinusOne =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
-    Value x = rewriter.create<AtenSelectIntOp>(loc, baseType, grid,
-                                               constMinusOne, constZero);
-    Value y = rewriter.create<AtenSelectIntOp>(loc, baseType, grid,
-                                               constMinusOne, constOne);
 
     // def clip(xs: Tensor, ys: Tensor, ws: Tensor) -> TensorSequenceType:
     //     cond = in_bounds_cond(xs, ys)
@@ -4062,9 +4058,50 @@ public:
           loc, baseType, cond, ysInt64, constZero);
       Value where2 = rewriter.create<AtenWhereScalarOtherOp>(
           loc, baseType, cond, ws, constZero);
-
-      // Value view0 =
+      Value view0 = rewriter.create<AtenViewOp>(
+          loc, baseType, where0,
+          rewriter.create<PrimListConstructOp>(
+              loc, Torch::ListType::get(Torch::IntType::get(context)),
+              ValueRange{constN, c, constOH, constOW}));
+      Value view1 = rewriter.create<AtenViewOp>(
+          loc, baseType, where1,
+          rewriter.create<PrimListConstructOp>(
+              loc, Torch::ListType::get(Torch::IntType::get(context)),
+              ValueRange{constN, c, constOH, constOW}));
+      Value view2 = rewriter.create<AtenViewOp>(
+          loc, baseType, where2,
+          rewriter.create<PrimListConstructOp>(
+              loc, Torch::ListType::get(Torch::IntType::get(context)),
+              ValueRange{constN, c, constOH, constOW}));
+      return SmallVector<Value>{view0, view1, view2};
     };
+
+    // def get_summand(ix: Tensor, iy: Tensor, w) -> Tensor:
+    // # Perform clipping, index into input tensor and multiply by weight
+    // idx_x, idx_y, w_ = clip(ix, iy, w)
+    // return a[N_idx, C_idx, idx_y, idx_x] * w_
+    auto getSummand = [&](Value ix, Value iy, Value w) {
+      SmallVector<Value> clipRes = clip(ix, iy, w);
+      Value idxX = clipRes[0];
+      Value idxY = clipRes[1];
+      Value w_ = clipRes[2];
+      Value tensorIndexList = rewriter.create<PrimListConstructOp>(
+          loc, Torch::ListType::get(Torch::IntType::get(context)),
+          ValueRange{NIdx, CIdx, idxY, idxX});
+      Value a = rewriter.create<AtenIndexTensorOp>(
+          loc, baseType, input, tensorIndexList);
+      return rewriter.create<AtenMulTensorOp>(loc, baseType, a, w_);
+    };
+    
+
+    // x = grid[..., 0]
+    // y = grid[..., 1]
+    Value constMinusOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+    Value x = rewriter.create<AtenSelectIntOp>(loc, baseType, grid,
+                                               constMinusOne, constZero);
+    Value y = rewriter.create<AtenSelectIntOp>(loc, baseType, grid,
+                                               constMinusOne, constOne);
 
     Value result;
 
@@ -4121,9 +4158,16 @@ public:
                                            constOneFloat),
           rewriter.create<AtenSubTensorOp>(loc, baseType, iy, iy_nw,
                                            constOneFloat));
+
+      Value summand_nw = getSummand(ix_nw, iy_nw, w_nw);
+      Value summand_ne = getSummand(ix_ne, iy_ne, w_ne);
+      Value summand_sw = getSummand(ix_sw, iy_sw, w_sw);
+      Value summand_se = getSummand(ix_se, iy_se, w_se);
+      result = createSumTensors(rewriter, loc,
+                             {summand_nw, summand_ne, summand_sw, summand_se});
     }
 
-    // rewriter.replaceOp(op, output);
+    rewriter.replaceOp(op, output);
     return success();
   }
 };
