@@ -2124,3 +2124,13 @@ ONNX_CRASHING_SET = {
     "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
 }
 
+
+WEIGHT_INITIALIZATION_XFAIL_SET = {
+    # test cases failing due to different
+    # weight initializtion when generating 
+    # expected and actual results
+    "LSTMModule_basic",
+}
+
+# add WEIGHT_INITIALIZATION_XFAIL_SET to the other xfail sets
+ONNX_XFAIL_SET.update(WEIGHT_INITIALIZATION_XFAIL_SET)
