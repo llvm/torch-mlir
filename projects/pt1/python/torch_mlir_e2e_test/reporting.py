@@ -79,7 +79,7 @@ class ValueReport:
                 return self._record_mismatch_type_failure('float', value)
             if abs(value - golden) / golden > 1e-4:
                 return self._record_failure(
-                    f'value ({value!r}) of type {type(value)} is not equal to golden value ({golden!r}) of type {type(golden)}'
+                    f'value ({value!r}) is not close to golden value ({golden!r})'
                 )
             return
         if isinstance(golden, int):
@@ -87,7 +87,7 @@ class ValueReport:
                 return self._record_mismatch_type_failure('int', value)
             if value != golden:
                 return self._record_failure(
-                    f'value ({value!r}) of type {type(value)} is not equal to golden value ({golden!r}) of type {type(golden)}'
+                    f'value ({value!r}) is not equal to golden value ({golden!r})'
                 )
             return
         if isinstance(golden, str):
@@ -95,7 +95,7 @@ class ValueReport:
                 return self._record_mismatch_type_failure('str', value)
             if value != golden:
                 return self._record_failure(
-                    f'value ({value!r}) of type {type(value)} is not equal to golden value ({golden!r}) of type {type(golden)}'
+                    f'value ({value!r}) is not equal to golden value ({golden!r})'
                 )
             return
         if isinstance(golden, tuple):
@@ -103,7 +103,7 @@ class ValueReport:
                 return self._record_mismatch_type_failure('tuple', value)
             if len(value) != len(golden):
                 return self._record_failure(
-                    f'value ({value!r}) of type {type(value)} is not equal to golden value ({golden!r}) of type {type(golden)}'
+                    f'value ({len(value)!r}) is not equal to golden value ({len(golden)!r})'
                 )
             reports = [
                 ValueReport(v, g, self.context.chain(f'tuple element {i}'))
