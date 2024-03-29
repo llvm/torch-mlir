@@ -3833,6 +3833,7 @@ public:
           op, "only support floating type input for training mode");
 
     int64_t inputRank = inputType.getSizes().size();
+    llvm::errs() << "inputRank == " << inputRank << "\n";
     SmallVector<Value> inputDimVals;
     ArrayRef<int64_t> inputSizes = inputType.getSizes();
     for (int i = 0; i < inputRank; ++i) {
@@ -3848,6 +3849,7 @@ public:
     int64_t gridRank = gridType.getSizes().size();
     SmallVector<Value> gridDimVals;
     ArrayRef<int64_t> gridSizes = gridType.getSizes();
+    llvm::errs() << "gridRank == " << gridRank << "\n";
     for (int i = 0; i < gridRank; ++i) {
       gridDimVals.push_back(rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(i)));
@@ -4098,12 +4100,21 @@ public:
     // y = grid[..., 1]
     Value constMinusOne =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
-    Value x = rewriter.create<AtenSelectIntOp>(loc, baseType, grid,
+    SmallVector<int64_t> xySize;
+    for (int i = 0; i < gridRank - 1; ++i) {
+      xySize.push_back(gridSizes[i]);
+    }
+    auto xyType = rewriter.getType<ValueTensorType>(
+        xySize, inputType.getOptionalDtype());
+    Value x = rewriter.create<AtenSelectIntOp>(loc, xyType, grid,
                                                constMinusOne, constZero);
-    Value y = rewriter.create<AtenSelectIntOp>(loc, baseType, grid,
+    Value y = rewriter.create<AtenSelectIntOp>(loc, xyType, grid,
                                                constMinusOne, constOne);
 
     Value result;
+    llvm::errs() << "interpolationMode == " << interpolationMode << "\n";
+    llvm::errs() << "paddingMode == " << paddingMode << "\n";
+    llvm::errs() << "I am at 4110\n";
 
     if (interpolationMode == 0) {
       Value iWVal =
@@ -4167,7 +4178,8 @@ public:
                              {summand_nw, summand_ne, summand_sw, summand_se});
     }
 
-    rewriter.replaceOp(op, output);
+    rewriter.replaceOp(op, result);
+    llvm::errs() << "I am at 4175\n";
     return success();
   }
 };
@@ -7886,6 +7898,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_ToCopyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCopyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenDropoutOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenGridSamplerOp>(patterns);
     addPatternIfTargetOpIsIllegal<DeomposeAtenNativeDropoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexPutHackedTwinOp>(patterns);
