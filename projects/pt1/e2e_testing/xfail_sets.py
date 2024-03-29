@@ -22,6 +22,8 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "IscloseStaticModule_basic",
     "IscloseStaticModuleTrue_basic",
     "SplitWithSizes_Module_basic",
+    # linalg torchscript failure due to aten lstm not implemented
+    "LSTMModule_basic",
 }
 
 TORCHDYNAMO_XFAIL_SET = {
@@ -1490,6 +1492,9 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    # Failure - inconsistent initialization
+    "LSTMModule_basic",
+
     # Failure - cast error
     "PermuteNegativeIndexModule_basic",
 

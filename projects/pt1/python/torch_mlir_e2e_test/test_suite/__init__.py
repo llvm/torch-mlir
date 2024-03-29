@@ -15,9 +15,6 @@ COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
-    # onnx numerical failure due to weight initialization
-    # inconsistency. linalg torchscript failure due to aten lstm not implemented
-    "LSTMModule_basic",
 }
 
 # TODO: Delete once torch 2.1.0 is released
