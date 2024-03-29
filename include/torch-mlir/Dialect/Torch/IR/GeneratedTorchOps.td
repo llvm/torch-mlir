@@ -6139,7 +6139,7 @@ def Torch_AtenConvolutionBackwardOp : Torch_Op<"aten.convolution_backward", [
     AnyTorchListOfTorchBoolType:$output_mask
   );
   let results = (outs
-    AnyTorchTensorType:$result0,
+    AnyOptionalTorchTensorType:$result0,
     AnyTorchTensorType:$result1,
     AnyTorchTensorType:$result2
   );

@@ -202,6 +202,11 @@ def AnyTorchTensorType : Type<
     "Any Torch tensor type"
 >;
 
+def AnyOptionalTorchTensorType : Type<
+    CPred<"$_self.isa<::mlir::torch::Torch::BaseTensorType, ::mlir::torch::Torch::NoneType>()">,
+    "Any optional Torch tensor type"
+>;
+
 // TODO: It feels like this should be something more general.
 // However, to do that, we need to agree on construction operations
 // and the valid MLIR representations of the "None" state.
