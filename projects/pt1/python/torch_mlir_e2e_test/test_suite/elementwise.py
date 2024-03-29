@@ -830,6 +830,28 @@ def ElementwisePreluModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwisePreluStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 4, 3, 2, 1], torch.float32, True),
+        ([1], torch.float32, True),
+    ])
+    def forward(self, x, weight):
+        return torch.ops.aten.prelu(x, weight)
+
+@register_test_case(module_factory=lambda: ElementwisePreluStaticModule())
+def ElementwisePreluStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 3, 2, 1, low=-1, high=1), tu.rand(1) )
+
+
+# ==============================================================================
+
+
 class ElementwiseGeluModule(torch.nn.Module):
 
     def __init__(self):
