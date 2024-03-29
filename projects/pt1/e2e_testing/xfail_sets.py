@@ -1508,7 +1508,6 @@ ONNX_XFAIL_SET = {
     "ArangeStartOutViewModule_basic",
     "BroadcastDynamicDimModule_basic",
     "MoveDimIntNegativeIndexModule_basic",
-    "RepeatInterleaveSelfIntNoDimModule_basic",
     "ViewSizeFromOtherTensor_basic",
 
     # Failure - onnx_export
