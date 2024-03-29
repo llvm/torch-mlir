@@ -76,9 +76,8 @@ lstm_cell(OpBinder binder, ConversionPatternRewriter &rewriter,
   Value C_x = rewriter.create<Torch::AtenLinearOp>(loc, HType, Xt, W_c, Wb_c);
   Value C_h =
       rewriter.create<Torch::AtenLinearOp>(loc, HType, H_prev, R_c, Rb_c);
-  Value C_pre =
-      rewriter.create<Torch::AtenAddTensorOp>(loc, HType, C_x, C_h, c_1);
-  Value C_act = createActivationByName(rewriter, loc, activations[1], C_pre);
+  Value C = rewriter.create<Torch::AtenAddTensorOp>(loc, HType, C_x, C_h, c_1);
+  Value C_act = createActivationByName(rewriter, loc, activations[1], C);
 
   Value C_forget =
       rewriter.create<Torch::AtenMulTensorOp>(loc, HType, F_act, C_prev);
@@ -321,6 +320,9 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
 
 LogicalResult OnnxLstmExpander(OpBinder binder,
                                ConversionPatternRewriter &rewriter) {
+
+  // For shapes of X, W, R... and their meanings, see
+  // https://onnx.ai/onnx/operators/onnx__LSTM.html
   Location loc = binder.getLoc();
   // required inputs
   Value X, W, R;
