@@ -2687,8 +2687,8 @@ public:
       // input.flatten().unsqueeze(-1).tile((1, repeats)).flatten()
       Value constZero =
           rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
-      Value constMinusOne = rewriter.create<ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(-1));
+      Value constMinusOne =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
       Value inputFlatten = rewriter.create<AtenFlattenUsingIntsOp>(
           loc, baseType, self, constZero, constMinusOne);
       Value unsqueezeDim =
