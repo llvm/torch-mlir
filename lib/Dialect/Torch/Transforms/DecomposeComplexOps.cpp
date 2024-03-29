@@ -3683,6 +3683,120 @@ public:
 } // namespace
 
 namespace {
+
+/*
+// def _upsample_cubic_convolution1(x: Tensor, A: float) -> Tensor:
+//     return ((A + 2) * x - (A + 3)) * x * x + 1
+
+// def _upsample_cubic_convolution2(x: Tensor, A: float) -> Tensor:
+//     return ((A * x - 5 * A) * x + 8 * A) * x - 4 * A
+
+static Value createUpsampleCubicConvolution1(PatternRewriter &rewriter,
+                                             Location loc, Value x, Value A) {
+  Value two = rewriter.create<Torch::ConstantFloatOp>(
+      loc, rewriter.getF32FloatAttr(2.0));
+  Value three = rewriter.create<Torch::ConstantFloatOp>(
+      loc, rewriter.getF32FloatAttr(3.0));
+  Value x2 = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), x, x);
+  Value x3 = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), x2, x);
+  Value A2 = rewriter.create<Torch::AtenAddScalarOp>(loc, x.getType(), A, two);
+  Value A3 =
+      rewriter.create<Torch::AtenAddScalarOp>(loc, x.getType(), A, three);
+  Value res = rewriter.create<Torch::AtenSubOp>(loc, x.getType(), A2, A3);
+  res = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), res, x2);
+  res = rewriter.create<Torch::AtenAddScalarOp>(loc, x.getType(), res, 1.0);
+  return res;
+}
+
+static Value createUpsampleCubicConvolution2(PatternRewriter &rewriter,
+                                             Location loc, Value x, Value A) {
+  Value two = rewriter.create<Torch::ConstantFloatOp>(
+      loc, rewriter.getF32FloatAttr(2.0));
+  Value three = rewriter.create<Torch::ConstantFloatOp>(
+      loc, rewriter.getF32FloatAttr(3.0));
+  Value four = rewriter.create<Torch::ConstantFloatOp>(
+      loc, rewriter.getF32FloatAttr(4.0));
+  Value five = rewriter.create<Torch::ConstantFloatOp>(
+      loc, rewriter.getF32FloatAttr(5.0));
+  Value eight = rewriter.create<Torch::ConstantFloatOp>(
+      loc, rewriter.getF32FloatAttr(8.0));
+  Value x2 = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), x, x);
+  Value x3 = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), x2, x);
+  Value A2 = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), A, x);
+  A2 = rewriter.create<Torch::AtenSubOp>(loc, x.getType(), A2, five);
+  Value A3 = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), A, x);
+  A3 = rewriter.create<Torch::AtenAddOp>(loc, x.getType(), A3, eight);
+  Value res = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), A2, x);
+  res = rewriter.create<Torch::AtenAddOp>(loc, x.getType(), res, A3);
+  res = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), res, x);
+  res = rewriter.create<Torch::AtenSubOp>(loc, x.getType(), res, four);
+  return res;
+}
+
+// def _upsample_get_cubic_coefficients(t: Tensor) -> TensorSequenceType:
+//     A = -0.75
+//     return (
+//         _upsample_cubic_convolution2(t + 1.0, A),
+//         _upsample_cubic_convolution1(t, A),
+//         _upsample_cubic_convolution1(1.0 - t, A),
+//         _upsample_cubic_convolution2(2.0 - t, A),
+//     )
+static SmallVector<Value>
+createUpsampleGetCubicCoefficients(PatternRewriter &rewriter, Location loc,
+                                   Value t) {
+  Value one = rewriter.create<Torch::ConstantFloatOp>(
+      loc, rewriter.getF32FloatAttr(1.0));
+  Value two = rewriter.create<Torch::ConstantFloatOp>(
+      loc, rewriter.getF32FloatAttr(2.0));
+  Value A = rewriter.create<Torch::ConstantFloatOp>(
+      loc, rewriter.getF32FloatAttr(-0.75));
+  Value tPlusOne =
+      rewriter.create<Torch::AtenAddScalarOp>(loc, t.getType(), t, one);
+  Value tMinusOne =
+      rewriter.create<Torch::AtenSubScalarOp>(loc, t.getType(), one, t);
+  Value twoMinusT =
+      rewriter.create<Torch::AtenSubScalarOp>(loc, t.getType(), two, t);
+  Value res0 = createUpsampleCubicConvolution2(rewriter, loc, tPlusOne, A);
+  Value res1 = createUpsampleCubicConvolution1(rewriter, loc, t, A);
+  Value res2 = createUpsampleCubicConvolution1(rewriter, loc, tMinusOne, A);
+  Value res3 = createUpsampleCubicConvolution2(rewriter, loc, twoMinusT, A);
+  return {res0, res1, res2, res};
+}
+
+// def _sum_tensors(ts) -> Tensor:
+//     return reduce(torch.add, ts)
+static Value createSumTensors(PatternRewriter &rewriter, Location loc,
+                              ArrayRef<Value> tensors) {
+  Value sum = tensors[0];
+  for (unsigned i = 1; i < tensors.size(); i++) {
+    sum =
+        rewriter.create<Torch::AtenAddOp>(loc, sum.getType(), sum, tensors[i]);
+  }
+  return sum;
+}
+
+// def _upsample_cubic_interp1d(coeffs: TensorSequenceType, ts: Tensor) ->
+// Tensor:
+//     coeffs2 = _upsample_get_cubic_coefficients(ts)
+//     return _sum_tensors(c1 * c2 for (c1, c2) in zip(coeffs, coeffs2))
+static Value createUpsampleCubicInterp1d(PatternRewriter &rewriter,
+                                         Location loc, ArrayRef<Value> coeffs,
+                                         Value ts) {
+  MLIRContext *context = getContext();
+  auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
+  SmallVector<Value> coeffs2 =
+      createUpsampleGetCubicCoefficients(rewriter, loc, ts);
+  SmallVector<Value> res;
+  for (unsigned i = 0; i < coeffs.size(); i++) {
+    Value c1 = coeffs[i];
+    Value c2 = coeffs2[i];
+    Value resVal = rewriter.create<Torch::AtenMulOp>(loc, c1.getType(), c1, c2);
+    res.push_back(resVal);
+  }
+  return createSumTensors(rewriter, loc, res);
+}
+*/
+
 class DecomposeAtenGridSamplerOp : public OpRewritePattern<AtenGridSamplerOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -3690,6 +3804,7 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     auto *context = op.getContext();
+    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
     Value input = op.getInput();
     Value grid = op.getGrid();
 
@@ -3740,6 +3855,25 @@ public:
     int64_t oH = gridSizes[1];
     int64_t oW = gridSizes[2];
     int64_t two = gridSizes[3];
+    Value constZero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value constOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value constOneFloat = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr(1.0));
+    Value constN = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(N));
+    Value constC = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(C));
+    Value constIH = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(iH));
+    Value constIW = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(iW));
+    Value constOH = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(oH));
+    Value constOW = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(oW));
+
     if (two != 2)
       return rewriter.notifyMatchFailure(
           op, "grid must have a size of 2 in the last dimension");
@@ -3757,17 +3891,22 @@ public:
       Value mul;
       if (alignCorners) {
         mul = rewriter.create<AtenSubFloatOp>(
-            loc, rewriter.create<AtenMulScalarOp>(loc, size, constPointFive),
+            loc,
+            rewriter.create<AtenMulScalarOp>(loc, baseType, size,
+                                             constPointFive),
             constPointFive);
       } else {
-        mul = rewriter.create<AtenMulScalarOp>(loc, size, constPointFive);
+        mul = rewriter.create<AtenMulScalarOp>(loc, baseType, size,
+                                               constPointFive);
       }
       Value ofs = rewriter.create<AtenSubFloatOp>(
-          loc, rewriter.create<AtenMulScalarOp>(loc, size, constPointFive),
+          loc,
+          rewriter.create<AtenMulScalarOp>(loc, baseType, size, constPointFive),
           constPointFive);
       return rewriter.create<AtenAddTensorOp>(
-          loc, rewriter.create<AtenMulTensorOp>(loc, coords, mul, true), ofs,
-          true);
+          loc, baseType,
+          rewriter.create<AtenMulTensorOp>(loc, baseType, coords, mul), ofs,
+          constOneFloat);
     };
 
     // def compute_coordinates(coords: Tensor, size: int) -> Tensor:
@@ -3784,8 +3923,6 @@ public:
     //           1)
     //       return torch.clamp(coords_reflected, 0, size - 1)
     auto computeCoordinates = [&](Value coords, Value size) {
-      Value zero =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
       Value sizeMinusOne = rewriter.create<AtenSubIntOp>(
           loc, size,
           rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1)));
@@ -3809,11 +3946,14 @@ public:
       Value coordsReflected;
       if (paddingMode == 0) {
         return coords;
-      } else if (paddingMode == 1) {
-        return rewriter.create<AtenClampOp>(loc, coords, zero, sizeMinusOne);
+      } /*else if (paddingMode == 1) {
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: only padding_mode 0 supported");
+        // return rewriter.create<AtenClampOp>(loc, coords, constZero,
+        //                                     sizeMinusOne);
       } else {
         return rewriter.notifyMatchFailure(
-            op, "unimplemented: only padding_mode 0 and 1 supported");
+            op, "unimplemented: only padding_mode 0 supported");
         // if (alignCorners) {
         //   coordsReflected = rewriter.create<AtenReflectCoordinatesOp>(
         //       loc, coords, zero, twoTimesSizeMinusOne);
@@ -3823,7 +3963,8 @@ public:
         // }
         // return rewriter.create<AtenClampOp>(loc, coordsReflected, zero,
         //                                     sizeMinusOne);
-      }
+      }*/
+      return coords;
     };
 
     // def compute_source_index(coords: Tensor, size: int) -> Tensor:
@@ -3840,75 +3981,50 @@ public:
     //         < iH))
     //     )
     auto inBoundsCond = [&](Value xs, Value ys) {
-      Value zero =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
-      Value iWVal =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(iW));
-      Value iHVal =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(iH));
-      Value cond1 = rewriter.create<AtenLogicalAndOp>(
-          loc, xs,
-          rewriter.create<AtenGeScalarOp>(loc, xs, zero,
-                                          rewriter.getI64IntegerAttr(0)));
-      Value cond2 = rewriter.create<AtenLogicalAndOp>(
-          loc, xs,
-          rewriter.create<AtenLtScalarOp>(loc, xs, iWVal,
-                                          rewriter.getI64IntegerAttr(-1)));
-      Value cond3 = rewriter.create<AtenLogicalAndOp>(
-          loc, ys,
-          rewriter.create<AtenGeScalarOp>(loc, ys, zero,
-                                          rewriter.getI64IntegerAttr(0)));
-      Value cond4 = rewriter.create<AtenLogicalAndOp>(
-          loc, ys,
-          rewriter.create<AtenLtScalarOp>(loc, ys, iHVal,
-                                          rewriter.getI64IntegerAttr(-1)));
+      Value cond0 =
+          rewriter.create<AtenGeScalarOp>(loc, baseType, xs, constZero);
+      Value cond1 = rewriter.create<AtenLtScalarOp>(loc, baseType, xs, constIW);
+      Value cond2 =
+          rewriter.create<AtenGeScalarOp>(loc, baseType, ys, constZero);
+      Value cond3 = rewriter.create<AtenLtScalarOp>(loc, baseType, ys, constIH);
       return rewriter.create<AtenLogicalAndOp>(
-          loc, rewriter.create<AtenLogicalAndOp>(loc, cond1, cond2), cond3,
-          cond4);
+          loc, baseType,
+          rewriter.create<AtenLogicalAndOp>(
+              loc, baseType,
+              rewriter.create<AtenLogicalAndOp>(loc, baseType, cond0, cond1),
+              cond2),
+          cond3);
     };
 
     // N_idx = torch.arange(N, device=input.device).view(N, 1, 1, 1)
     // C_idx = torch.arange(C, device=input.device).view(1, C, 1, 1)
-    Value none = rewriter.create<ConstantNoneOp>(loc);
-    Value one =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value constNone = rewriter.create<ConstantNoneOp>(loc);
 
     Value NIdxFlatten = rewriter.create<AtenArangeOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)),
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(N)),
-        none, none, none, none);
-    SmallVector<int64_t> NIdxShape = {N};
+        loc, Torch::ListType::get(Torch::IntType::get(context)), constN,
+        constNone, constNone, constNone, constNone);
     Value NIdx = rewriter.create<AtenViewOp>(
-        loc, NIdxShape, NIdxFlatten,
+        loc, baseType, NIdxFlatten,
         rewriter.create<PrimListConstructOp>(
             loc, Torch::ListType::get(Torch::IntType::get(context)),
-            ValueRange{rewriter.create<ConstantIntOp>(
-                           loc, rewriter.getI64IntegerAttr(N)),
-                       one, one, one}));
+            ValueRange{constN, constOne, constOne, constOne}));
     Value CIdxFlatten = rewriter.create<AtenArangeOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)),
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(C)),
-        none, none, none, none);
-    SmallVector<int64_t> CIdxShape = {C};
+        loc, Torch::ListType::get(Torch::IntType::get(context)), constC,
+        constNone, constNone, constNone, constNone);
     Value CIdx = rewriter.create<AtenViewOp>(
-        loc, CIdxShape, CIdxFlatten,
+        loc, baseType, CIdxFlatten,
         rewriter.create<PrimListConstructOp>(
             loc, Torch::ListType::get(Torch::IntType::get(context)),
-            ValueRange{one,
-                       rewriter.create<ConstantIntOp>(
-                           loc, rewriter.getI64IntegerAttr(C)),
-                       one, one}));
+            ValueRange{constOne, constC, constOne, constOne}));
 
     // x = grid[..., 0]
     // y = grid[..., 1]
     Value constMinusOne =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
-    Value x = rewriter.create<AtenSelectIntOp>(
-        loc, gridType, grid, constMinusOne,
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0)));
-    Value y = rewriter.create<AtenSelectIntOp>(
-        loc, gridType, grid, constMinusOne,
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1)));
+    Value x = rewriter.create<AtenSelectIntOp>(loc, baseType, grid,
+                                               constMinusOne, constZero);
+    Value y = rewriter.create<AtenSelectIntOp>(loc, baseType, grid,
+                                               constMinusOne, constOne);
 
     // def clip(xs: Tensor, ys: Tensor, ws: Tensor) -> TensorSequenceType:
     //     cond = in_bounds_cond(xs, ys)
@@ -3924,31 +4040,33 @@ public:
 
     auto clip = [&](Value xs, Value ys, Value ws) {
       Value cond = inBoundsCond(xs, ys);
-      Value none = rewriter.create<ConstantNoneOp>(loc);
+      Value constNone = rewriter.create<ConstantNoneOp>(loc);
       Value cstFalse = rewriter.create<ConstantBoolOp>(loc, false);
       Value c = rewriter.create<ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(1)); // TODO: handle _expand_grid
-
+      auto int64Dtype = getDtypeIntValueForType(
+          rewriter, loc,
+          rewriter.getIntegerType(/*width=*/64, /*isSigned=*/true));
       Value xsInt64 = rewriter.create<AtenToDtypeOp>(
-          loc, Torch::IntType::get(context), xs,
-          rewriter.create<AtenConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(ScalarType::Int)));
+          loc, baseType, xs, int64Dtype,
+          /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+          /*memory_format=*/constNone);
       Value ysInt64 = rewriter.create<AtenToDtypeOp>(
-          loc, Torch::IntType::get(context), ys,
-          rewriter.create<AtenConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(ScalarType::Int)));
+          loc, baseType, ys, int64Dtype,
+          /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+          /*memory_format=*/constNone);
 
-      Value zero =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
-      Value where0 =
-          rewriter.create<AtenWhereScalarOtherOp>(loc, cond, xsInt64, zero);
-      Value where1 =
-          rewriter.create<AtenWhereScalarOtherOp>(loc, cond, ysInt64, zero);
-      Value where2 =
-          rewriter.create<AtenWhereScalarOtherOp>(loc, cond, ws, zero);
+      Value where0 = rewriter.create<AtenWhereScalarOtherOp>(
+          loc, baseType, cond, xsInt64, constZero);
+      Value where1 = rewriter.create<AtenWhereScalarOtherOp>(
+          loc, baseType, cond, ysInt64, constZero);
+      Value where2 = rewriter.create<AtenWhereScalarOtherOp>(
+          loc, baseType, cond, ws, constZero);
 
-      Value view0 =
+      // Value view0 =
     };
+
+    Value result;
 
     if (interpolationMode == 0) {
       Value iWVal =
@@ -3958,16 +4076,20 @@ public:
       Value ix = computeSourceIndex(x, iWVal);
       Value iy = computeSourceIndex(y, iHVal);
 
-      Value ix_nw = rewriter.create<AtenFloorOp>(loc, ix);
-      Value iy_nw = rewriter.create<AtenFloorOp>(loc, iy);
+      Value ix_nw = rewriter.create<AtenFloorOp>(loc, baseType, ix);
+      Value iy_nw = rewriter.create<AtenFloorOp>(loc, baseType, iy);
 
-      Value tx = rewriter.create<AtenSubTensorOp>(loc, ix, ix_nw);
-      Value ty = rewriter.create<AtenSubTensorOp>(loc, iy, iy_nw);
+      Value tx = rewriter.create<AtenSubTensorOp>(loc, baseType, ix, ix_nw,
+                                                  constOneFloat);
+      Value ty = rewriter.create<AtenSubTensorOp>(loc, baseType, iy, iy_nw,
+                                                  constOneFloat);
 
-      Value ix_ne = rewriter.create<AtenAddTensorOp>(loc, ix_nw, one);
+      Value ix_ne = rewriter.create<AtenAddScalarOp>(
+          loc, baseType, ix_nw, constOneFloat, constOneFloat);
       Value iy_ne = iy_nw;
       Value ix_sw = ix_nw;
-      Value iy_sw = rewriter.create<AtenAddTensorOp>(loc, iy_nw, one);
+      Value iy_sw = rewriter.create<AtenAddScalarOp>(
+          loc, baseType, iy_nw, constOneFloat, constOneFloat);
       Value ix_se = ix_ne;
       Value iy_se = iy_sw;
 
@@ -3976,20 +4098,32 @@ public:
       // w_sw = (ix_ne - ix) * (iy - iy_ne)
       // w_se = (ix - ix_nw) * (iy - iy_nw)
       Value w_nw = rewriter.create<AtenMulTensorOp>(
-          loc, rewriter.create<AtenSubTensorOp>(loc, ix_se, ix),
-          rewriter.create<AtenSubTensorOp>(loc, iy_se, iy));
+          loc, baseType,
+          rewriter.create<AtenSubTensorOp>(loc, baseType, ix_se, ix,
+                                           constOneFloat),
+          rewriter.create<AtenSubTensorOp>(loc, baseType, iy_se, iy,
+                                           constOneFloat));
       Value w_ne = rewriter.create<AtenMulTensorOp>(
-          loc, rewriter.create<AtenSubTensorOp>(loc, ix, ix_sw),
-          rewriter.create<AtenSubTensorOp>(loc, iy_sw, iy));
+          loc, baseType,
+          rewriter.create<AtenSubTensorOp>(loc, baseType, ix, ix_sw,
+                                           constOneFloat),
+          rewriter.create<AtenSubTensorOp>(loc, baseType, iy_sw, iy,
+                                           constOneFloat));
       Value w_sw = rewriter.create<AtenMulTensorOp>(
-          loc, rewriter.create<AtenSubTensorOp>(loc, ix_ne, ix),
-          rewriter.create<AtenSubTensorOp>(loc, iy, iy_ne));
+          loc, baseType,
+          rewriter.create<AtenSubTensorOp>(loc, baseType, ix_ne, ix,
+                                           constOneFloat),
+          rewriter.create<AtenSubTensorOp>(loc, baseType, iy, iy_ne,
+                                           constOneFloat));
       Value w_se = rewriter.create<AtenMulTensorOp>(
-          loc, rewriter.create<AtenSubTensorOp>(loc, ix, ix_nw),
-          rewriter.create<AtenSubTensorOp>(loc, iy, iy_nw));
+          loc, baseType,
+          rewriter.create<AtenSubTensorOp>(loc, baseType, ix, ix_nw,
+                                           constOneFloat),
+          rewriter.create<AtenSubTensorOp>(loc, baseType, iy, iy_nw,
+                                           constOneFloat));
     }
 
-    rewriter.replaceOp(op, output);
+    // rewriter.replaceOp(op, output);
     return success();
   }
 };
