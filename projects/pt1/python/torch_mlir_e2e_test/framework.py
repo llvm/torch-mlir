@@ -79,8 +79,7 @@ def clone_torch_script_value(v: TorchScriptValue):
         }
     if isinstance(v, float) or isinstance(v, int) or isinstance(v, str):
         return v
-    
-    assert False, "unhandled cloning of TorchScriptValue value type " + str(type(v)) + " with contents " + str(v)
+    assert False, "unhandled cloning of TorchScriptValue value type"
 
 
 # This clone helper is used to work around issues with output tensors when
