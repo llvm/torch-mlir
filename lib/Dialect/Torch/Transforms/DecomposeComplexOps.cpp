@@ -2654,6 +2654,7 @@ public:
 } // namespace
 
 // decompose aten.repeat_interleave.self_int into following ops:
+// aten.flatten.using_ints, aten.unsqueeze, aten.tile, aten.reshape
 namespace {
 
 class DecomposeAtenRepeatInterleaveSelfIntOp
@@ -2684,7 +2685,7 @@ public:
     Value dimValue = op.getDim();
     Value repeatFlatten;
     if (dimValue.getType().isa<Torch::NoneType>()) {
-      // input.flatten().unsqueeze(-1).tile((1, repeats)).flatten()
+      // return input.flatten().unsqueeze(-1).tile((1, repeats)).flatten()
       Value constZero =
           rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
       Value constMinusOne =
@@ -2712,19 +2713,14 @@ public:
         return rewriter.notifyMatchFailure(
             op, "Unimplemented: dim not constant int");
       dim = toPositiveDim(dim, inputRank);
-      //       # Calculate the shape after repeat
       // expanded_shape = list(input.shape)
       // expanded_shape[dim] *= repeats
-      // # Repeat the tensor along the specified dimension
       // repeat_shape = [1] * (input.dim() + 1)
       // repeat_shape[dim + 1] = repeats
       // input = input.unsqueeze(-1)
-
-      // # Tile and then reshape
       // tiled = torch.tile(input, repeat_shape)
-      // # Rearrange and reshape
       // repeated = tiled.reshape(*expanded_shape)
-
+      // return repeated
       SmallVector<int64_t> expandedShape(selfTy.getSizes());
       expandedShape[dim] *= repeats;
       SmallVector<Value> expandedShapeValueList;
