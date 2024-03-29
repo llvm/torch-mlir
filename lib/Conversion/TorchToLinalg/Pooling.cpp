@@ -114,8 +114,22 @@ static Value padInputTensor(Operation *op, ConversionPatternRewriter &rewriter,
                             SmallVectorImpl<int64_t> &paddingInts,
                             Value initValue) {
   SmallVector<int64_t> lowPaddingIncludingNC = {0, 0};
-  lowPaddingIncludingNC.append(paddingInts);
-  SmallVector<int64_t> highPaddingIncludingNC = lowPaddingIncludingNC;
+  SmallVector<int64_t> highPaddingIncludingNC = {0, 0};
+
+  unsigned selfRank = self.getType().cast<RankedTensorType>().getRank();
+  unsigned paddingIntsSize = paddingInts.size();
+
+  if (paddingIntsSize == 2 * (selfRank - 2)) {
+    // This condition being true means that the `paddingInts` contain seperate
+    // values for low padding and high padding.
+    for (unsigned i = 0; i < paddingIntsSize / 2; i++)
+      lowPaddingIncludingNC.push_back(paddingInts[i]);
+    for (unsigned i = paddingIntsSize / 2; i < paddingIntsSize; i++)
+      highPaddingIncludingNC.push_back(paddingInts[i]);
+  } else {
+    lowPaddingIncludingNC.append(paddingInts);
+    highPaddingIncludingNC = lowPaddingIncludingNC;
+  }
 
   if (ceilMode) {
     for (int64_t i = 0; i < dimensionality; ++i) {
