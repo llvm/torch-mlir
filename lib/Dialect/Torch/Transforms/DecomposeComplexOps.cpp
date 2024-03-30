@@ -3684,6 +3684,9 @@ public:
 
 namespace {
 
+// Inspired by PyTorch decompositions.py.
+// See
+// https://github.com/pytorch/pytorch/blob/ec58f1f74ebcec744d2ab90ad34abd09c1018e92/torch/_decomp/decompositions.py#L3923-L4086
 class DecomposeAtenGridSamplerOp : public OpRewritePattern<AtenGridSamplerOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -3709,8 +3712,8 @@ public:
       return rewriter.notifyMatchFailure(
           op, "only support interpolation_mode = 0 (bilinear)");
     if (paddingMode != 0)
-      return rewriter.notifyMatchFailure(
-          op, "only support paddingMode = 0 (Zero)");
+      return rewriter.notifyMatchFailure(op,
+                                         "only support paddingMode = 0 (Zero)");
 
     bool alignCorners = false;
     if (!matchPattern(op.getAlignCorners(), m_TorchConstantBool(&alignCorners)))
