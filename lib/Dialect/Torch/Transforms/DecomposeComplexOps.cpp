@@ -3892,26 +3892,25 @@ public:
     // ofs = size * 0.5 - 0.5
     // return coords * mul + ofs
     auto unnormalize = [&](Value coords, Value size) {
+      auto floatScalaType = Torch::FloatType::get(context);
       Value constPointFive =
           rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.5));
       Value mul;
       if (alignCorners) {
-        mul = rewriter.create<AtenSubFloatOp>(
-            loc,
-            rewriter.create<AtenMulScalarOp>(loc, baseType, size,
-                                             constPointFive),
+        mul = rewriter.create<AtenSubOp>(
+            loc, floatScalaType,
+            rewriter.create<AtenMulOp>(loc, floatScalaType, size, constPointFive),
             constPointFive);
       } else {
-        mul = rewriter.create<AtenMulScalarOp>(loc, baseType, size,
-                                               constPointFive);
+        mul = rewriter.create<AtenMulOp>(loc, floatScalaType, size, constPointFive);
       }
-      Value ofs = rewriter.create<AtenSubFloatOp>(
-          loc,
-          rewriter.create<AtenMulScalarOp>(loc, baseType, size, constPointFive),
+      Value ofs = rewriter.create<AtenSubOp>(
+          loc, floatScalaType,
+          rewriter.create<AtenMulOp>(loc, floatScalaType, size, constPointFive),
           constPointFive);
-      return rewriter.create<AtenAddTensorOp>(
+      return rewriter.create<AtenAddScalarOp>(
           loc, baseType,
-          rewriter.create<AtenMulTensorOp>(loc, baseType, coords, mul), ofs,
+          rewriter.create<AtenMulScalarOp>(loc, baseType, coords, mul), ofs,
           constOneFloat);
     };
 
@@ -4124,12 +4123,9 @@ public:
     llvm::errs() << "I am at 4110\n";
 
     if (interpolationMode == 0) {
-      Value iWVal =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(iW));
-      Value iHVal =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(iH));
-      Value ix = computeSourceIndex(x, iWVal);
-      Value iy = computeSourceIndex(y, iHVal);
+
+      Value ix = computeSourceIndex(x, constIW);
+      Value iy = computeSourceIndex(y, constIH);
 
       Value ix_nw = rewriter.create<AtenFloorOp>(loc, baseType, ix);
       Value iy_nw = rewriter.create<AtenFloorOp>(loc, baseType, iy);
