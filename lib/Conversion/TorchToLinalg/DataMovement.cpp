@@ -767,12 +767,12 @@ public:
       return failure();
     int64_t xTotalSize = xDims[0];
     int64_t yTotalSize = yDims[0];
+    if (xTotalSize == kUnknownSize || yTotalSize == kUnknownSize)
+      return failure();
     SmallVector<int64_t> xIndicesResult({0});
     SmallVector<int64_t> yIndicesResult({0});
     size_t nextXIndex = 1;
     size_t nextYIndex = 1;
-    if (xTotalSize == kUnknownSize)
-      return failure();
     while (xTotalSize != yTotalSize) {
       if (xTotalSize < yTotalSize) {
         if (nextXIndex == xDims.size() || xDims[nextXIndex] == kUnknownSize)
@@ -793,9 +793,13 @@ public:
   }
 
   // Starting from the beginning of the dims arrays, this helper finds the
-  // smallest set of consecutive dims in each array such that the product of the
-  // dim sizes in the two subsets is equal. The indices arrays are populated
-  // with the indices of the dims arrays that correspond to the subsets found.
+  // smallest set of consecutive dims in each array that satisfies one of
+  // the following conditions.
+  // 1. The product of the static dim sizes in the two subsets is equal.
+  // 2. The product of the dim size multiplied by the multiplier for the unknown
+  // one in both subsets is equal.
+  // The indices arrays are populated with the indices of the dims arrays that
+  // correspond to the subsets found.
   //
   // An error is returned if two subsets of dims with total number of elements
   // equal to each other is not found.
@@ -904,6 +908,8 @@ public:
     return std::make_pair(inputShape, outputShape);
   }
 
+  // Gets the ratio between the unknown dimensions in the input shape and the
+  // output shape.
   static std::pair<int64_t, int64_t>
   getMultiplier(SmallVector<int64_t> inputShape,
                 SmallVector<int64_t> outputShape) {
