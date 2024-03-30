@@ -3684,127 +3684,7 @@ public:
 
 namespace {
 
-/*
-// def _upsample_cubic_convolution1(x: Tensor, A: float) -> Tensor:
-//     return ((A + 2) * x - (A + 3)) * x * x + 1
-
-// def _upsample_cubic_convolution2(x: Tensor, A: float) -> Tensor:
-//     return ((A * x - 5 * A) * x + 8 * A) * x - 4 * A
-
-static Value createUpsampleCubicConvolution1(PatternRewriter &rewriter,
-                                             Location loc, Value x, Value A) {
-  Value two = rewriter.create<Torch::ConstantFloatOp>(
-      loc, rewriter.getF32FloatAttr(2.0));
-  Value three = rewriter.create<Torch::ConstantFloatOp>(
-      loc, rewriter.getF32FloatAttr(3.0));
-  Value x2 = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), x, x);
-  Value x3 = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), x2, x);
-  Value A2 = rewriter.create<Torch::AtenAddScalarOp>(loc, x.getType(), A, two);
-  Value A3 =
-      rewriter.create<Torch::AtenAddScalarOp>(loc, x.getType(), A, three);
-  Value res = rewriter.create<Torch::AtenSubOp>(loc, x.getType(), A2, A3);
-  res = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), res, x2);
-  res = rewriter.create<Torch::AtenAddScalarOp>(loc, x.getType(), res, 1.0);
-  return res;
-}
-
-static Value createUpsampleCubicConvolution2(PatternRewriter &rewriter,
-                                             Location loc, Value x, Value A) {
-  Value two = rewriter.create<Torch::ConstantFloatOp>(
-      loc, rewriter.getF32FloatAttr(2.0));
-  Value three = rewriter.create<Torch::ConstantFloatOp>(
-      loc, rewriter.getF32FloatAttr(3.0));
-  Value four = rewriter.create<Torch::ConstantFloatOp>(
-      loc, rewriter.getF32FloatAttr(4.0));
-  Value five = rewriter.create<Torch::ConstantFloatOp>(
-      loc, rewriter.getF32FloatAttr(5.0));
-  Value eight = rewriter.create<Torch::ConstantFloatOp>(
-      loc, rewriter.getF32FloatAttr(8.0));
-  Value x2 = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), x, x);
-  Value x3 = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), x2, x);
-  Value A2 = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), A, x);
-  A2 = rewriter.create<Torch::AtenSubOp>(loc, x.getType(), A2, five);
-  Value A3 = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), A, x);
-  A3 = rewriter.create<Torch::AtenAddOp>(loc, x.getType(), A3, eight);
-  Value res = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), A2, x);
-  res = rewriter.create<Torch::AtenAddOp>(loc, x.getType(), res, A3);
-  res = rewriter.create<Torch::AtenMulOp>(loc, x.getType(), res, x);
-  res = rewriter.create<Torch::AtenSubOp>(loc, x.getType(), res, four);
-  return res;
-}
-
-// def _upsample_get_cubic_coefficients(t: Tensor) -> TensorSequenceType:
-//     A = -0.75
-//     return (
-//         _upsample_cubic_convolution2(t + 1.0, A),
-//         _upsample_cubic_convolution1(t, A),
-//         _upsample_cubic_convolution1(1.0 - t, A),
-//         _upsample_cubic_convolution2(2.0 - t, A),
-//     )
-static SmallVector<Value>
-createUpsampleGetCubicCoefficients(PatternRewriter &rewriter, Location loc,
-                                   Value t) {
-  Value one = rewriter.create<Torch::ConstantFloatOp>(
-      loc, rewriter.getF32FloatAttr(1.0));
-  Value two = rewriter.create<Torch::ConstantFloatOp>(
-      loc, rewriter.getF32FloatAttr(2.0));
-  Value A = rewriter.create<Torch::ConstantFloatOp>(
-      loc, rewriter.getF32FloatAttr(-0.75));
-  Value tPlusOne =
-      rewriter.create<Torch::AtenAddScalarOp>(loc, t.getType(), t, one);
-  Value tMinusOne =
-      rewriter.create<Torch::AtenSubScalarOp>(loc, t.getType(), one, t);
-  Value twoMinusT =
-      rewriter.create<Torch::AtenSubScalarOp>(loc, t.getType(), two, t);
-  Value res0 = createUpsampleCubicConvolution2(rewriter, loc, tPlusOne, A);
-  Value res1 = createUpsampleCubicConvolution1(rewriter, loc, t, A);
-  Value res2 = createUpsampleCubicConvolution1(rewriter, loc, tMinusOne, A);
-  Value res3 = createUpsampleCubicConvolution2(rewriter, loc, twoMinusT, A);
-  return {res0, res1, res2, res};
-}
-
-// def _sum_tensors(ts) -> Tensor:
-//     return reduce(torch.add, ts)
-
-
-// def _upsample_cubic_interp1d(coeffs: TensorSequenceType, ts: Tensor) ->
-// Tensor:
-//     coeffs2 = _upsample_get_cubic_coefficients(ts)
-//     return _sum_tensors(c1 * c2 for (c1, c2) in zip(coeffs, coeffs2))
-static Value createUpsampleCubicInterp1d(PatternRewriter &rewriter,
-                                         Location loc, ArrayRef<Value> coeffs,
-                                         Value ts) {
-  MLIRContext *context = getContext();
-  auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
-  SmallVector<Value> coeffs2 =
-      createUpsampleGetCubicCoefficients(rewriter, loc, ts);
-  SmallVector<Value> res;
-  for (unsigned i = 0; i < coeffs.size(); i++) {
-    Value c1 = coeffs[i];
-    Value c2 = coeffs2[i];
-    Value resVal = rewriter.create<Torch::AtenMulOp>(loc, c1.getType(), c1, c2);
-    res.push_back(resVal);
-  }
-  return createSumTensors(rewriter, loc, res);
-}
-*/
-
 class DecomposeAtenGridSamplerOp : public OpRewritePattern<AtenGridSamplerOp> {
-private:
-  Value createSumTensors(PatternRewriter &rewriter, Location loc,
-                         ArrayRef<Value> tensors) const {
-    auto context = getContext();
-    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
-    Value constOneFloat = rewriter.create<Torch::ConstantFloatOp>(
-        loc, rewriter.getF64FloatAttr(1.0));
-    Value sum = tensors[0];
-    for (unsigned i = 1; i < tensors.size(); i++) {
-      sum = rewriter.create<Torch::AtenAddTensorOp>(loc, baseType, sum,
-                                                    tensors[i], constOneFloat);
-    }
-    return sum;
-  }
-
 public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenGridSamplerOp op,
@@ -3836,12 +3716,7 @@ public:
           op, "only support floating type input for training mode");
 
     int64_t inputRank = inputType.getSizes().size();
-    SmallVector<Value> inputDimVals;
     ArrayRef<int64_t> inputSizes = inputType.getSizes();
-    for (int i = 0; i < inputRank; ++i) {
-      inputDimVals.push_back(rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(i)));
-    }
 
     BaseTensorType gridType = grid.getType().cast<BaseTensorType>();
     if (!gridType.hasDtype() || !gridType.getDtype().isa<mlir::FloatType>())
@@ -3849,12 +3724,8 @@ public:
           op, "only support floating type input for training mode");
 
     int64_t gridRank = gridType.getSizes().size();
-    SmallVector<Value> gridDimVals;
     ArrayRef<int64_t> gridSizes = gridType.getSizes();
-    for (int i = 0; i < gridRank; ++i) {
-      gridDimVals.push_back(rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(i)));
-    }
+
     BaseTensorType resType = op.getType().cast<BaseTensorType>();
     if (!resType.hasDtype() || !resType.getDtype().isa<mlir::FloatType>())
       return rewriter.notifyMatchFailure(
