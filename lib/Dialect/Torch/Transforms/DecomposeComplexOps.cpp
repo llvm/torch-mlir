@@ -3705,6 +3705,13 @@ public:
       return rewriter.notifyMatchFailure(
           op, "padding_mode must be an integer constant");
 
+    if (interpolationMode != 0)
+      return rewriter.notifyMatchFailure(
+          op, "only support interpolation_mode = 0 (bilinear)");
+    if (paddingMode != 0)
+      return rewriter.notifyMatchFailure(
+          op, "only support paddingMode = 0 (Zero)");
+
     bool alignCorners = false;
     if (!matchPattern(op.getAlignCorners(), m_TorchConstantBool(&alignCorners)))
       return rewriter.notifyMatchFailure(
@@ -3902,21 +3909,14 @@ public:
       Value where2 = rewriter.create<AtenWhereScalarOtherOp>(
           loc, baseType, cond, ws, constZero);
       SmallVector<Value> viewShape = {constN, constOne, constOH, constOW};
-      Value view0 = rewriter.create<AtenViewOp>(
-          loc, baseType, where0,
-          rewriter.create<PrimListConstructOp>(
-              loc, Torch::ListType::get(Torch::IntType::get(context)),
-              viewShape));
-      Value view1 = rewriter.create<AtenViewOp>(
-          loc, baseType, where1,
-          rewriter.create<PrimListConstructOp>(
-              loc, Torch::ListType::get(Torch::IntType::get(context)),
-              viewShape));
-      Value view2 = rewriter.create<AtenViewOp>(
-          loc, baseType, where2,
-          rewriter.create<PrimListConstructOp>(
-              loc, Torch::ListType::get(Torch::IntType::get(context)),
-              viewShape));
+      Value viewShapeValue = rewriter.create<PrimListConstructOp>(
+          loc, Torch::ListType::get(Torch::IntType::get(context)), viewShape);
+      Value view0 =
+          rewriter.create<AtenViewOp>(loc, baseType, where0, viewShapeValue);
+      Value view1 =
+          rewriter.create<AtenViewOp>(loc, baseType, where1, viewShapeValue);
+      Value view2 =
+          rewriter.create<AtenViewOp>(loc, baseType, where2, viewShapeValue);
       return SmallVector<Value>{view0, view1, view2};
     };
 
