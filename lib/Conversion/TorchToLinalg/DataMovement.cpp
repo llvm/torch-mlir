@@ -909,7 +909,7 @@ public:
   }
 
   // Gets the ratio between the unknown dimensions in the input shape and the
-  // output shape.
+  // output shape. This ratio is used to match parallel unknown dimensions.
   static std::pair<int64_t, int64_t>
   getMultiplier(SmallVector<int64_t> inputShape,
                 SmallVector<int64_t> outputShape) {
