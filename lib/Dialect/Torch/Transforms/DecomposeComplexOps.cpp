@@ -3836,7 +3836,6 @@ public:
           op, "only support floating type input for training mode");
 
     int64_t inputRank = inputType.getSizes().size();
-    llvm::errs() << "inputRank == " << inputRank << "\n";
     SmallVector<Value> inputDimVals;
     ArrayRef<int64_t> inputSizes = inputType.getSizes();
     for (int i = 0; i < inputRank; ++i) {
@@ -3852,7 +3851,6 @@ public:
     int64_t gridRank = gridType.getSizes().size();
     SmallVector<Value> gridDimVals;
     ArrayRef<int64_t> gridSizes = gridType.getSizes();
-    llvm::errs() << "gridRank == " << gridRank << "\n";
     for (int i = 0; i < gridRank; ++i) {
       gridDimVals.push_back(rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(i)));
@@ -3936,50 +3934,7 @@ public:
     //           coords_reflected = reflect_coordinates(coords, -1, 2 * size -
     //           1)
     //       return torch.clamp(coords_reflected, 0, size - 1)
-    auto computeCoordinates = [&](Value coords, Value size) {
-      Value sizeMinusOne = rewriter.create<AtenSubIntOp>(
-          loc, size,
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1)));
-      Value sizeMinusOneFloat = rewriter.create<AtenSubFloatOp>(
-          loc, size,
-          rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0)));
-      Value twoTimesSizeMinusOne = rewriter.create<AtenMulIntOp>(
-          loc, size,
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2)));
-      Value twoTimesSizeMinusOneFloat = rewriter.create<AtenMulFloatOp>(
-          loc, size,
-          rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(2.0)));
-      Value twoTimesSize = rewriter.create<AtenMulIntOp>(
-          loc, size,
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2)));
-      Value twoTimesSizeFloat = rewriter.create<AtenMulFloatOp>(
-          loc, size,
-          rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(2.0)));
-      Value minusOne =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
-      Value coordsReflected;
-      if (paddingMode == 0) {
-        return coords;
-      } /*else if (paddingMode == 1) {
-        return rewriter.notifyMatchFailure(
-            op, "unimplemented: only padding_mode 0 supported");
-        // return rewriter.create<AtenClampOp>(loc, coords, constZero,
-        //                                     sizeMinusOne);
-      } else {
-        return rewriter.notifyMatchFailure(
-            op, "unimplemented: only padding_mode 0 supported");
-        // if (alignCorners) {
-        //   coordsReflected = rewriter.create<AtenReflectCoordinatesOp>(
-        //       loc, coords, zero, twoTimesSizeMinusOne);
-        // } else {
-        //   coordsReflected = rewriter.create<AtenReflectCoordinatesOp>(
-        //       loc, coords, minusOne, twoTimesSizeMinusOneFloat);
-        // }
-        // return rewriter.create<AtenClampOp>(loc, coordsReflected, zero,
-        //                                     sizeMinusOne);
-      }*/
-      return coords;
-    };
+    auto computeCoordinates = [&](Value coords, Value size) { return coords; };
 
     // def compute_source_index(coords: Tensor, size: int) -> Tensor:
     //   coords_un = unnormalize(coords, size)
@@ -4127,9 +4082,6 @@ public:
                                                constOne);
 
     Value result;
-    llvm::errs() << "interpolationMode == " << interpolationMode << "\n";
-    llvm::errs() << "paddingMode == " << paddingMode << "\n";
-    llvm::errs() << "I am at 4110\n";
 
     if (interpolationMode == 0) {
 
@@ -4138,11 +4090,6 @@ public:
 
       Value ix_nw = rewriter.create<AtenFloorOp>(loc, baseType, ix);
       Value iy_nw = rewriter.create<AtenFloorOp>(loc, baseType, iy);
-
-      Value tx = rewriter.create<AtenSubTensorOp>(loc, baseType, ix, ix_nw,
-                                                  constOneFloat);
-      Value ty = rewriter.create<AtenSubTensorOp>(loc, baseType, iy, iy_nw,
-                                                  constOneFloat);
 
       Value ix_ne = rewriter.create<AtenAddScalarOp>(
           loc, baseType, ix_nw, constOneFloat, constOneFloat);
