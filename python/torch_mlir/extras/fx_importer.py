@@ -359,7 +359,7 @@ class InputInfo:
     node: Node
     ir_type: IrType
     mutable_producer_node_name: Optional[str] = None
-    immutable_producer_node_name: Optional[str] = None
+    store_producer_node: Optional[str] = None
 
 
 class FxImporterHooks:
@@ -634,7 +634,7 @@ class FxImporter:
                         input_spec,
                         node=node,
                         ir_type=node_ir_type,
-                        immutable_producer_node_name=mutable_producer_node_name,
+                        store_producer_node=mutable_producer_node_name,
                     ),
                 )
             else:
@@ -1145,7 +1145,7 @@ class GraphNodeImporter:
         if info.mutable_producer_node_name is not None:
             raise NotImplementedError("NYI: Mutable SSA buffer updates")
 
-        if info.immutable_producer_node_name is not None:
+        if info.store_producer_node is not None:
 
             def on_produced(value: Value):
                 with loc, InsertionPoint(self._b):
@@ -1153,7 +1153,7 @@ class GraphNodeImporter:
                         self, buffer_value, value, info
                     )
 
-            self._on_node_produced[info.immutable_producer_node_name] = on_produced
+            self._on_node_produced[info.store_producer_node] = on_produced
 
     def return_node_values(self, loc, nodes: List[Node]):
         with loc, InsertionPoint(self._b):
