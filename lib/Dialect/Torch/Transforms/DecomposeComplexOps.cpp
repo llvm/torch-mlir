@@ -4066,7 +4066,7 @@ public:
           loc, baseType, cond, ysInt64, constZero);
       Value where2 = rewriter.create<AtenWhereScalarOtherOp>(
           loc, baseType, cond, ws, constZero);
-      SmallVector<Value> viewShape = {NIdx, CIdx, constOH, constOW};
+      SmallVector<Value> viewShape = {constN, constOne, constOH, constOW};
       Value view0 = rewriter.create<AtenViewOp>(
           loc, baseType, where0,
           rewriter.create<PrimListConstructOp>(
@@ -4095,7 +4095,7 @@ public:
       Value idxY = clipRes[1];
       Value w_ = clipRes[2];
       Value tensorIndexList = rewriter.create<PrimListConstructOp>(
-          loc, Torch::ListType::get(Torch::IntType::get(context)),
+          loc, Torch::ListType::get(baseType),
           ValueRange{NIdx, CIdx, idxY, idxX});
       Value a = rewriter.create<AtenIndexTensorOp>(loc, baseType, input,
                                                    tensorIndexList);
