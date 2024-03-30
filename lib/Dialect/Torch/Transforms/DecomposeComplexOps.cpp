@@ -4005,24 +4005,31 @@ public:
     // N_idx = torch.arange(N, device=input.device).view(N, 1, 1, 1)
     // C_idx = torch.arange(C, device=input.device).view(1, C, 1, 1)
     Value constNone = rewriter.create<ConstantNoneOp>(loc);
+    auto si64Type = rewriter.getIntegerType(/*width=*/64, /*isSigned=*/true);
+    auto int64DtypeValue = getDtypeIntValueForType(rewriter, loc, si64Type);
+    auto arangeTypeN =
+        inputType.getWithSizesAndDtype(llvm::ArrayRef<int64_t>{N}, si64Type);
+    auto arangeTypeC =
+        inputType.getWithSizesAndDtype(llvm::ArrayRef<int64_t>{C}, si64Type);
 
-    Value NIdxFlatten = rewriter.create<AtenArangeOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)), constN,
-        constNone, constNone, constNone, constNone);
+    Value NIdxFlatten =
+        rewriter.create<AtenArangeOp>(loc, arangeTypeN, constN, int64DtypeValue,
+                                      constNone, constNone, constNone);
+    SmallVector<Value> NIdxShape = {constN, constOne, constOne, constOne};
+    SmallVector<Value> CIdxShape = {constOne, constC, constOne, constOne};
     Value NIdx = rewriter.create<AtenViewOp>(
         loc, baseType, NIdxFlatten,
         rewriter.create<PrimListConstructOp>(
             loc, Torch::ListType::get(Torch::IntType::get(context)),
-            ValueRange{constN, constOne, constOne, constOne}));
-    Value CIdxFlatten = rewriter.create<AtenArangeOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)), constC,
-        constNone, constNone, constNone, constNone);
+            NIdxShape));
+    Value CIdxFlatten =
+        rewriter.create<AtenArangeOp>(loc, arangeTypeC, constC, int64DtypeValue,
+                                      constNone, constNone, constNone);
     Value CIdx = rewriter.create<AtenViewOp>(
         loc, baseType, CIdxFlatten,
         rewriter.create<PrimListConstructOp>(
             loc, Torch::ListType::get(Torch::IntType::get(context)),
-            ValueRange{constOne, constC, constOne, constOne}));
-
+            CIdxShape));
 
     // def clip(xs: Tensor, ys: Tensor, ws: Tensor) -> TensorSequenceType:
     //     cond = in_bounds_cond(xs, ys)
@@ -4060,21 +4067,22 @@ public:
           loc, baseType, cond, ysInt64, constZero);
       Value where2 = rewriter.create<AtenWhereScalarOtherOp>(
           loc, baseType, cond, ws, constZero);
+      SmallVector<Value> viewShape = {NIdx, CIdx, constOH, constOW};
       Value view0 = rewriter.create<AtenViewOp>(
           loc, baseType, where0,
           rewriter.create<PrimListConstructOp>(
               loc, Torch::ListType::get(Torch::IntType::get(context)),
-              ValueRange{constN, c, constOH, constOW}));
+              viewShape));
       Value view1 = rewriter.create<AtenViewOp>(
           loc, baseType, where1,
           rewriter.create<PrimListConstructOp>(
               loc, Torch::ListType::get(Torch::IntType::get(context)),
-              ValueRange{constN, c, constOH, constOW}));
+              viewShape));
       Value view2 = rewriter.create<AtenViewOp>(
           loc, baseType, where2,
           rewriter.create<PrimListConstructOp>(
               loc, Torch::ListType::get(Torch::IntType::get(context)),
-              ValueRange{constN, c, constOH, constOW}));
+              viewShape));
       return SmallVector<Value>{view0, view1, view2};
     };
 
@@ -4090,11 +4098,10 @@ public:
       Value tensorIndexList = rewriter.create<PrimListConstructOp>(
           loc, Torch::ListType::get(Torch::IntType::get(context)),
           ValueRange{NIdx, CIdx, idxY, idxX});
-      Value a = rewriter.create<AtenIndexTensorOp>(
-          loc, baseType, input, tensorIndexList);
+      Value a = rewriter.create<AtenIndexTensorOp>(loc, baseType, input,
+                                                   tensorIndexList);
       return rewriter.create<AtenMulTensorOp>(loc, baseType, a, w_);
     };
-    
 
     // x = grid[..., 0]
     // y = grid[..., 1]
@@ -4104,12 +4111,12 @@ public:
     for (int i = 0; i < gridRank - 1; ++i) {
       xySize.push_back(gridSizes[i]);
     }
-    auto xyType = rewriter.getType<ValueTensorType>(
-        xySize, inputType.getOptionalDtype());
-    Value x = rewriter.create<AtenSelectIntOp>(loc, xyType, grid,
-                                               constMinusOne, constZero);
-    Value y = rewriter.create<AtenSelectIntOp>(loc, xyType, grid,
-                                               constMinusOne, constOne);
+    auto xyType =
+        rewriter.getType<ValueTensorType>(xySize, inputType.getOptionalDtype());
+    Value x = rewriter.create<AtenSelectIntOp>(loc, xyType, grid, constMinusOne,
+                                               constZero);
+    Value y = rewriter.create<AtenSelectIntOp>(loc, xyType, grid, constMinusOne,
+                                               constOne);
 
     Value result;
     llvm::errs() << "interpolationMode == " << interpolationMode << "\n";
@@ -4174,8 +4181,8 @@ public:
       Value summand_ne = getSummand(ix_ne, iy_ne, w_ne);
       Value summand_sw = getSummand(ix_sw, iy_sw, w_sw);
       Value summand_se = getSummand(ix_se, iy_se, w_se);
-      result = createSumTensors(rewriter, loc,
-                             {summand_nw, summand_ne, summand_sw, summand_se});
+      result = createSumTensors(
+          rewriter, loc, {summand_nw, summand_ne, summand_sw, summand_se});
     }
 
     rewriter.replaceOp(op, result);
