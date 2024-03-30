@@ -394,7 +394,7 @@ class ViewDynamicExpandCollapseWithParallelUnknownDimModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ViewDynamicExpandCollapseWithParallelUnknownDimModule())
 def ViewDynamicExpandCollapseWithParallelUnknownDimModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 3, -1, 5))
+    module.forward(tu.rand(2, 3, 4, 5))
 
 # ==============================================================================
 
