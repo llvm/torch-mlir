@@ -3795,9 +3795,12 @@ private:
                          ArrayRef<Value> tensors) const {
     auto context = getContext();
     auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
+    Value constOneFloat = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr(1.0));
     Value sum = tensors[0];
     for (unsigned i = 1; i < tensors.size(); i++) {
-      sum = rewriter.create<Torch::AtenAddOp>(loc, baseType, sum, tensors[i]);
+      sum = rewriter.create<Torch::AtenAddTensorOp>(loc, baseType, sum,
+                                                    tensors[i], constOneFloat);
     }
     return sum;
   }
@@ -3854,6 +3857,10 @@ public:
       gridDimVals.push_back(rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(i)));
     }
+    BaseTensorType resType = op.getType().cast<BaseTensorType>();
+    if (!resType.hasDtype() || !resType.getDtype().isa<mlir::FloatType>())
+      return rewriter.notifyMatchFailure(
+          op, "only support floating type input for training mode");
     int64_t N = inputSizes[0];
     int64_t C = inputSizes[1];
     int64_t iH = inputSizes[2];
@@ -3899,10 +3906,12 @@ public:
       if (alignCorners) {
         mul = rewriter.create<AtenSubOp>(
             loc, floatScalaType,
-            rewriter.create<AtenMulOp>(loc, floatScalaType, size, constPointFive),
+            rewriter.create<AtenMulOp>(loc, floatScalaType, size,
+                                       constPointFive),
             constPointFive);
       } else {
-        mul = rewriter.create<AtenMulOp>(loc, floatScalaType, size, constPointFive);
+        mul = rewriter.create<AtenMulOp>(loc, floatScalaType, size,
+                                         constPointFive);
       }
       Value ofs = rewriter.create<AtenSubOp>(
           loc, floatScalaType,
@@ -4177,12 +4186,18 @@ public:
       Value summand_ne = getSummand(ix_ne, iy_ne, w_ne);
       Value summand_sw = getSummand(ix_sw, iy_sw, w_sw);
       Value summand_se = getSummand(ix_se, iy_se, w_se);
-      result = createSumTensors(
-          rewriter, loc, {summand_nw, summand_ne, summand_sw, summand_se});
+
+      SmallVector<Value> tensors = {summand_nw, summand_ne, summand_sw,
+                                    summand_se};
+      Value sum = tensors[0];
+      for (unsigned i = 1; i < tensors.size(); i++) {
+        sum = rewriter.create<Torch::AtenAddTensorOp>(
+            loc, resType, sum, tensors[i], constOneFloat);
+      }
+      result = sum;
     }
 
     rewriter.replaceOp(op, result);
-    llvm::errs() << "I am at 4175\n";
     return success();
   }
 };
