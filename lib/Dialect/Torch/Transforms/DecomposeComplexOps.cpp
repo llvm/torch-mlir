@@ -3725,7 +3725,6 @@ public:
       return rewriter.notifyMatchFailure(
           op, "only support floating type input for training mode");
 
-    int64_t inputRank = inputType.getSizes().size();
     ArrayRef<int64_t> inputSizes = inputType.getSizes();
 
     BaseTensorType gridType = grid.getType().cast<BaseTensorType>();
@@ -3891,8 +3890,6 @@ public:
       Value cond = inBoundsCond(xs, ys);
       Value constNone = rewriter.create<ConstantNoneOp>(loc);
       Value cstFalse = rewriter.create<ConstantBoolOp>(loc, false);
-      Value c = rewriter.create<ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(1)); // TODO: handle _expand_grid
       auto int64Dtype = getDtypeIntValueForType(
           rewriter, loc,
           rewriter.getIntegerType(/*width=*/64, /*isSigned=*/true));
