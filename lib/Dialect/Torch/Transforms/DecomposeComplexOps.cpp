@@ -7484,8 +7484,8 @@ public:
                                .getWithSizesAndDtype(std::nullopt, nullptr);
       auto newIndices = rewriter.create<PrimListConstructOp>(
           loc, Torch::ListType::get(indexElemType), indices);
-      rewriter.replaceOpWithNewOp<AtenIndexTensorHackedTwinOp>(op, op.getType(),
-                                                               input, newIndices);
+      rewriter.replaceOpWithNewOp<AtenIndexTensorHackedTwinOp>(
+          op, op.getType(), input, newIndices);
       return success();
     }
 
@@ -7929,9 +7929,12 @@ public:
     addPatternIfTargetOpIsIllegal<DeomposeAtenNativeDropoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenIndexPutLikeOp<AtenIndexPutOp>>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenIndexPutLikeOp<Aten_UnsafeIndexPutHackedTwinOp>>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenIndexPutLikeOp<Aten_IndexPutImplOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenIndexPutLikeOp<AtenIndexPutOp>>(
+        patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenIndexPutLikeOp<Aten_UnsafeIndexPutHackedTwinOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenIndexPutLikeOp<Aten_IndexPutImplOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenPadOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDtypeLayoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDeviceOp>(patterns);
