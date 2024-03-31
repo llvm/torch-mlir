@@ -7384,10 +7384,11 @@ static FailureOr<Value> createNewIndex(Operation *op, PatternRewriter &rewriter,
 
   int64_t maxIndexRank = 0;
   for (auto index : oldIndices) {
-    auto indexType = index.getType().cast<BaseTensorType>();
-    if (!indexType.hasSizes()) {
+    auto indexType = index.getType().dyn_cast<BaseTensorType>();
+    if (!indexType) // None index
+      continue;
+    if (!indexType.hasSizes())
       return failure();
-    }
     int64_t indexRank = indexType.getSizes().size();
     maxIndexRank = maxIndexRank > indexRank ? maxIndexRank : indexRank;
   }
