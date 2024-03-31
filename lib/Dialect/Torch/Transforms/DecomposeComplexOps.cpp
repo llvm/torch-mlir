@@ -7541,7 +7541,8 @@ public:
       }
     }
 
-    auto newIndeicesInfo = createNewIndex(op, rewriter, newInput, indices, newToOldDimMap, indexUsed);
+    auto newIndeicesInfo = createNewIndex(op, rewriter, newInput, indices,
+                                          newToOldDimMap, indexUsed);
     if (failed(newIndeicesInfo)) {
       return rewriter.notifyMatchFailure(op, "failed to replcae `None` index");
     }
@@ -7551,8 +7552,8 @@ public:
   }
 };
 
-// The goal of this pattern is to eliminate `None` index in aten.inde_put-like ops'
-// `indices` param and transform it to aten.index_put.hacked_twin, for the
+// The goal of this pattern is to eliminate `None` index in aten.inde_put-like
+// ops' `indices` param and transform it to aten.index_put.hacked_twin, for the
 // ease of various backend.
 template <typename AtenIndexPutLikeOpT>
 class DecomposeAtenIndexPutLikeOp
