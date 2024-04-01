@@ -240,28 +240,13 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenIntBoolOp : public OpConversionPattern<AtenIntBoolOp> {
+template <typename AtenOp>
+class ConvertAtenCastOp : public OpConversionPattern<AtenOp> {
 public:
-  using OpConversionPattern::OpConversionPattern;
+  using OpConversionPattern<AtenOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenIntBoolOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Type resultType =
-        this->getTypeConverter()->convertType(op->getResult(0).getType());
-    Value result =
-        convertScalarToDtype(rewriter, op.getLoc(), adaptor.getA(), resultType);
-    rewriter.replaceOp(op, result);
-    return success();
-  }
-};
-} // namespace
-
-namespace {
-class ConvertAtenFloatScalarOp : public OpConversionPattern<AtenFloatScalarOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenFloatScalarOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenOp op,
+                  typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Type resultType =
         this->getTypeConverter()->convertType(op->getResult(0).getType());
@@ -454,11 +439,9 @@ public:
     target.addIllegalOp<Torch::ConstantIntOp>();
     patterns.add<ConvertTorchConstantIntOp>(typeConverter, context);
 
-    target.addIllegalOp<AtenFloatScalarOp>();
-    patterns.add<ConvertAtenFloatScalarOp>(typeConverter, context);
-
-    target.addIllegalOp<AtenIntBoolOp>();
-    patterns.add<ConvertAtenIntBoolOp>(typeConverter, context);
+    target.addIllegalOp<AtenIntBoolOp, AtenFloatScalarOp>();
+    patterns.add<ConvertAtenCastOp<AtenIntBoolOp>>(typeConverter, context);
+    patterns.add<ConvertAtenCastOp<AtenFloatScalarOp>>(typeConverter, context);
 
     target.addIllegalOp<AtenAddOp>();
     patterns.add<ConvertAtenAddOp>(typeConverter, context);
