@@ -43,6 +43,8 @@ static int64_t onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx) {
     switch (dtypeIntOnnx) {
     case 1:
       return 6; // float
+    case 2:
+      return 0; // uint8
     case 3:
       return 1; // int8
     case 6:
@@ -1425,8 +1427,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         if (!resultType.hasDtype())
           return rewriter.notifyMatchFailure(binder.op,
                                              "requires known result dtype");
-
-        if (scaleTy.getSizes().size() == 0) {
+        if (scaleTy.getSizes().size() == 0 ||
+            (scaleTy.getSizes().size() == 1 && scaleTy.getSizes()[0] == 1)) {
           Type qTy = operandTy.getDtype();
 
           if (qTy.isUnsignedInteger(8)) {
@@ -1455,7 +1457,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return success();
         }
 
-        return failure();
+        return rewriter.notifyMatchFailure(binder.op,
+                                           "unimplemented: non-scalar scale");
       });
   patterns.onOp("Div", 7,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
