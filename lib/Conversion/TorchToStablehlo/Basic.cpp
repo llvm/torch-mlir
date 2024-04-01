@@ -445,9 +445,6 @@ public:
       return rewriter.notifyMatchFailure(
           op, "only support constant str rounding mode");
 
-    TensorType defaultIntToFloatType =
-        outType.cloneWith(outType.getShape(), rewriter.getF64Type());
-
     // if trunc and int, do nothing
     if (roundingMode == "trunc" && outElemTy.isa<mlir::FloatType>()) {
       // "trunc" - rounds the results of the division towards zero. Equivalent
@@ -462,7 +459,9 @@ public:
       // floor division in Python (the // operator)
       if (outElemTy.isa<mlir::FloatType>())
         result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
-      else {
+      else if (outElemTy.isSignedInteger()) {
+        TensorType defaultIntToFloatType =
+            outType.cloneWith(outType.getShape(), rewriter.getF64Type());
         lhs =
             hlo::promoteType(rewriter, op.getLoc(), lhs, defaultIntToFloatType);
         rhs =
