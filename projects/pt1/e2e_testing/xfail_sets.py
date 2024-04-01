@@ -2064,9 +2064,17 @@ ONNX_XFAIL_SET = {
     "ElementwiseToDtypeI64ToUI8Module_basic",
 
     # Failure - torch.aten.view lower
-    "ViewSizeDimFollowedByExpandedOnesModule_basic",
-    "ViewSizeDimLedAndFollowedByExpandedOnesModule_basic",
-    "ViewSizeDimLedByExpandedOnesModule_basic",
+    "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
+    "IndexTensorDyanmicInputNonContiguousWithNoneModule_basic",
+    "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
+    "IndexTensorMultiInputContiguousCenter_basic",
+    "IndexTensorMultiInputNonContiguousMultipleStaticDims_basic",
+    "IndexTensorMultiInputNonContiguous_basic",
+    "IndexTensorMultiInputOneDim_basic",
+    "IndexTensorMultiInputThreeIndexers_basic",
+    "IndexTensorMultiInput_basic",
+    "IndexTensorMultiInputContiguousOneDimDynamic_basic",
+    "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
 
     # Failure - torch.aten.mm lower (mixed signedness of qtypes)
     "QuantizedMLP_basic",
@@ -2129,19 +2137,5 @@ ONNX_XFAIL_SET = {
 ONNX_CRASHING_SET = { 
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
-
-    # WIP for supporting reshape:
-    "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
-    "IndexTensorDyanmicInputNonContiguousWithNoneModule_basic",
-    "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
-    "IndexTensorMultiInputContiguousCenter_basic",
-    "IndexTensorMultiInputNonContiguousMultipleStaticDims_basic",
-    "IndexTensorMultiInputNonContiguous_basic",
-    "IndexTensorMultiInputOneDim_basic",
-    "IndexTensorMultiInputThreeIndexers_basic",
-    "IndexTensorMultiInput_basic",
-    "IndexTensorMultiInputContiguousOneDimDynamic_basic",
-    "IndexTensorMultiInputNonContiguousDynamic_basic",
-    "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
 }
 
