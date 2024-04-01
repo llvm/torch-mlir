@@ -315,3 +315,14 @@ func.func @torch.aten.Bool.int(%arg0: !torch.int) -> !torch.bool {
   %0 = torch.aten.Bool.int %arg0 : !torch.int -> !torch.bool
   return %0 : !torch.bool
 }
+
+// CHECK-LABEL:   func.func @torch.aten.Int.bool(
+// CHECK-SAME:                            %[[ARG:.*]]: !torch.bool) -> !torch.int {
+// CHECK:           %[[ARG_I1:.*]] = torch_c.to_i1 %[[ARG]]
+// CHECK:           %[[EXTUI:.*]] = arith.extui %[[ARG_I1]] : i1 to i64
+// CHECK:           %[[OUT:.*]] = torch_c.from_i64 %[[EXTUI]]
+// CHECK:           return %[[OUT]] : !torch.int
+func.func @torch.aten.Int.bool(%arg0: !torch.bool) -> !torch.int {
+  %0 = torch.aten.Int.bool %arg0 : !torch.bool -> !torch.int
+  return %0 : !torch.int
+}
