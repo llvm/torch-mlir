@@ -358,7 +358,8 @@ class InputInfo:
     input_spec: TypingInputSpec
     node: Node
     ir_type: IrType
-    mutable_producer_node_name: Optional[str]
+    mutable_producer_node_name: Optional[str] = None
+    store_producer_node: Optional[str] = None
 
 
 class FxImporterHooks:
@@ -386,6 +387,22 @@ class FxImporterHooks:
         the default.
         """
         return None
+
+    def store_produced_value(
+        self,
+        gni: "GraphNodeImporter",
+        py_value: Any,
+        produced_ir_value: Any,
+        info: InputInfo,
+    ):
+        """Given a load/store semantic mutatation, issues the store.
+
+        This style is used for buffer and parameter updates, which are assumed to be
+        non-SSA updates that are otherwise in the value-tensor domain.
+        """
+        raise NotImplementedError(
+            f"Store of a mutation to {info} is not supported (from {produced_ir_value})"
+        )
 
 
 class FxImporter:
@@ -596,7 +613,11 @@ class FxImporter:
             elif input_spec.kind == InputKind.BUFFER and isinstance(
                 arg, TensorArgument
             ):
-                # Remember buffer binding.
+                # Remember buffer binding. Unlike user input mutations, buffers
+                # are assumed to be represented with load/store semantics based
+                # on a symbolic or other non-SSA association. As such, they
+                # are not modeled with mutable IR but will trigger an output
+                # store hook when the final value is produced.
                 value = prog.state_dict.get(input_spec.target)
                 assert (
                     not input_spec.persistent or value is not None
@@ -605,9 +626,7 @@ class FxImporter:
                 mutable_producer_node_name = mutable_buffer_target_producers.get(
                     input_spec.target
                 )
-                node_ir_type = self._cc.node_val_to_type(
-                    node, mutable=bool(mutable_producer_node_name)
-                )
+                node_ir_type = self._cc.node_val_to_type(node, mutable=False)
                 buffer_bindings[node] = (
                     value,
                     InputInfo(
@@ -615,7 +634,7 @@ class FxImporter:
                         input_spec,
                         node=node,
                         ir_type=node_ir_type,
-                        mutable_producer_node_name=mutable_producer_node_name,
+                        store_producer_node=mutable_producer_node_name,
                     ),
                 )
             else:
@@ -1136,17 +1155,17 @@ class GraphNodeImporter:
         self.bind_node_value(node, _on_access)
 
         if info.mutable_producer_node_name is not None:
+            raise NotImplementedError("NYI: Mutable SSA buffer updates")
+
+        if info.store_producer_node is not None:
 
             def on_produced(value: Value):
-                mutable_buffer_value = self.resolve_node_value(node)
                 with loc, InsertionPoint(self._b):
-                    Operation.create(
-                        "torch.overwrite.tensor.contents",
-                        results=[],
-                        operands=[value, mutable_buffer_value],
+                    self.fx_importer._hooks.store_produced_value(
+                        self, buffer_value, value, info
                     )
 
-            self._on_node_produced[info.mutable_producer_node_name] = on_produced
+            self._on_node_produced[info.store_producer_node] = on_produced
 
     def return_node_values(self, loc, nodes: List[Node]):
         with loc, InsertionPoint(self._b):
