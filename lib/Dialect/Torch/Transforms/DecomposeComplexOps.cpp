@@ -664,6 +664,12 @@ public:
     Value dim = op.getDim();
     Value self = op.getSelf();
 
+    auto resultTy = op.getType().cast<BaseTensorType>();
+    if (!resultTy.hasSizes() || !resultTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "expected result type to have sizes and dtype");
+    }
+
     // convert `start` to non-negative: start += int(start < 0) * dimSize
     Value zero =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
@@ -685,7 +691,6 @@ public:
         op.getSelf(), dim, start, startPlusOne, /*step=*/one);
 
     auto sliceTy = cast<BaseTensorType>(slice.getType());
-    auto resultTy = cast<BaseTensorType>(op.getResult().getType());
     if (sliceTy.getSizes().size() == resultTy.getSizes().size()) {
       rewriter.replaceOp(op, slice);
       return success();
