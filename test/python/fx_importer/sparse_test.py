@@ -56,7 +56,6 @@ def sparse_jit(f, *args, **kwargs):
     xargs = []
     for a in args:
         if a.layout is torch.sparse_coo:
-            xargs.append(a.values().numpy())
             # Construct the additional position array required by MLIR with data
             # array([0, nnz]).
             xargs.append(torch.tensor([0, a._nnz()], dtype=a.indices().dtype).numpy())
@@ -64,14 +63,15 @@ def sparse_jit(f, *args, **kwargs):
             # MLIR SoA COO representation.
             for idx in a.indices():
                 xargs.append(idx.numpy())
-        elif a.layout is torch.sparse_csr or a.layout is torch.sparse_bsr:
             xargs.append(a.values().numpy())
+        elif a.layout is torch.sparse_csr or a.layout is torch.sparse_bsr:
             xargs.append(a.crow_indices().numpy())
             xargs.append(a.col_indices().numpy())
-        elif a.layout is torch.sparse_csc or a.layout is torch.sparse_bsc:
             xargs.append(a.values().numpy())
+        elif a.layout is torch.sparse_csc or a.layout is torch.sparse_bsc:
             xargs.append(a.ccol_indices().numpy())
             xargs.append(a.row_indices().numpy())
+            xargs.append(a.values().numpy())
         else:
             xargs.append(a.numpy())
     # Invoke.
@@ -211,21 +211,20 @@ def test_sparse_SpMM():
 # CHECK:         return %[[R]] : !torch.vtensor<[8,4,2],f32>
 # CHECK:       }
 #
-# CHECK:        torch.sparse
-# CHECK:        tensor(crow_indices=tensor([ 0,  4,  8, 12, 16, 20, 24, 28, 32]),
-# CHECK:        col_indices=tensor([0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1,
-# CHECK:                            2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3]),
-# CHECK:        values=tensor({{\[}}[ -1.,  -2.],
-# CHECK:                            [ -3.,  -4.],
-#                                   ...
-# CHECK:                            [-63., -64.]{{\]}}), size=(8, 4, 2), nnz=32,
-# CHECK:                       layout=torch.sparse_csr)
-# CHECK:        torch.mlir
-# CHECK:        {{\[\[}}[ -1.  -2.]
-# CHECK:                [ -3.  -4.]
-#                       ...
-# CHECK:                [-61. -62.]
-# CHECK:                [-63. -64.]{{\]\]}}
+# CHECK: torch.sparse
+# CHECK: tensor(crow_indices=tensor([ 0,  4,  8, 12, 16, 20, 24, 28, 32]),
+# CHECK: col_indices=tensor([0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1,
+# CHECK:                     2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3]),
+# CHECK: values=tensor({{\[}}[ -1.,  -2.],
+#                            ...
+# CHECK:                     [-63., -64.]{{\]}}), size=(8, 4, 2), nnz=32,
+# CHECK: layout=torch.sparse_csr)
+# CHECK: torch.mlir
+# CHECK: {{\[\[}}[ -1.  -2.]
+# CHECK:         [ -3.  -4.]
+#                ...
+# CHECK:         [-61. -62.]
+# CHECK:         [-63. -64.]{{\]\]}}
 #
 def test_sparse_eltwise():
     class EltNet(torch.nn.Module):
@@ -256,6 +255,55 @@ def test_sparse_eltwise():
     #  (1) since we do not propagate sparsity into elt-wise, MLIR returns dense result
     #  (2) for dense_dim=0, this will need a dense(batched) property
     sparse_input = dense_input.to_sparse_csr(dense_dim=1)
+    res1 = net(sparse_input)
+    res2 = sparse_jit(net, sparse_input)
+    print("torch.sparse")
+    print(res1)
+    print("torch.mlir")
+    print(res2)
+
+
+@run
+# CHECK-LABEL: test_sparse_coo3
+# CHECK:       #[[$COO3:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : compressed(nonunique), d1 : singleton(nonunique, soa), d2 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
+# CHECK:       func.func @main(
+# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[10,20,30],f64,#sparse>) -> !torch.vtensor<[10,20,30],f64,#sparse> {
+# CHECK:         %[[R:.*]] = torch.aten.relu %[[A]] : !torch.vtensor<[10,20,30],f64,#sparse> -> !torch.vtensor<[10,20,30],f64,#sparse>
+# CHECK:         return %[[R]] : !torch.vtensor<[10,20,30],f64,#sparse>
+# CHECK:       }
+#
+# CHECK: torch.sparse
+# CHECK: tensor(indices=tensor([[ 0,  1,  1,  4,  9,  9],
+# CHECK:                        [ 0,  1,  1,  5, 19, 19],
+# CHECK:                        [ 0,  1,  3,  6, 28, 29]]),
+# CHECK: values=tensor([   0.,    0.,    1.,    2.,    3., 1000.]),
+# CHECK: size=(10, 20, 30), nnz=6, dtype=torch.float64, layout=torch.sparse_coo)
+# CHECK: torch.mlir
+# CHECK: tensor(indices=tensor([[ 0,  1,  1,  4,  9,  9],
+# CHECK:                        [ 0,  1,  1,  5, 19, 19],
+# CHECK:                        [ 0,  1,  3,  6, 28, 29]]),
+# CHECK: values=tensor([   0.,    0.,    1.,    2.,    3., 1000.]),
+#
+def test_sparse_coo3():
+    class COO3Net(torch.nn.Module):
+        def __init__(self):
+            super(COO3Net, self).__init__()
+            self.relu = nn.ReLU()
+
+        def forward(self, x):
+            return self.relu(x)
+
+    net = COO3Net()
+
+    # Direct 3-dim COO construction.
+    idx = torch.tensor([[0, 1, 1, 4, 9, 9], [0, 1, 1, 5, 19, 19], [0, 1, 3, 6, 28, 29]])
+    val = torch.tensor([-1000.0, -1.0, 1.0, 2.0, 3.0, 1000.0], dtype=torch.float64)
+    sparse_input = torch.sparse_coo_tensor(idx, val, size=[10, 20, 30])
+
+    m = export_and_import(net, sparse_input)
+    print(m)
+
+    # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
     res1 = net(sparse_input)
     res2 = sparse_jit(net, sparse_input)
     print("torch.sparse")
