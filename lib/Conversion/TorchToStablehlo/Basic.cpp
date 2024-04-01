@@ -459,7 +459,7 @@ public:
       // floor division in Python (the // operator)
       if (outElemTy.isa<mlir::FloatType>())
         result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
-      else if (outElemTy.isSignedInteger()) {
+      else if (!outElemTy.isUnsignedInteger()) {
         TensorType defaultIntToFloatType =
             outType.cloneWith(outType.getShape(), rewriter.getF64Type());
         lhs =

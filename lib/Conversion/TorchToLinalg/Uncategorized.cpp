@@ -813,7 +813,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       // floor division in Python (the // operator)
       if (dtype.isa<mlir::FloatType>())
         return b.create<math::FloorOp>(loc, div);
-      else if (dtype.isSignedInteger()) {
+      else if (!dtype.isUnsignedInteger()) {
         Type defaultIntToFloatType = b.getF64Type();
         lhs = convertScalarToDtype(b, loc, lhs, defaultIntToFloatType);
         rhs = convertScalarToDtype(b, loc, rhs, defaultIntToFloatType);
