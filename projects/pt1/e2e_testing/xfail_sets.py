@@ -29,6 +29,9 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
 
+    #           torch._dynamo.exc.Unsupported: TorchDynamo purposely graph breaks on RNN, GRU, LSTMs
+    "LSTMModule_basic",
+
     # torch._dynamo.exc.Unsupported: Tensor.item
     "CumsumModule_basic",
 
