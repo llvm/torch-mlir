@@ -147,6 +147,7 @@ TORCHDYNAMO_XFAIL_SET = {
     'AtenFloatScalarModule_basic',
     'AtenIntBoolOpModule_basic',
     'QuantizedMLP_basic',
+    'QuantizedSingleLayer_basic',
     'ScalarImplicitFloatModule_basic',
     'ScalarImplicitIntModule_basic',
     # END tests failing due to: torch._dynamo.exc.Unsupported: data dependent operator: aten._local_scalar_dense.default
@@ -1403,6 +1404,7 @@ LTC_XFAIL_SET = {
     "NeFloatIntModule_basic",
     "NeIntModule_basic",
     "QuantizedMLP_basic",
+    "QuantizedSingleLayer_basic",
     "ScalarImplicitFloatModule_basic",
     "ScalarImplicitIntModule_basic",
     "SliceEndSleStartModule_basic",
@@ -1915,11 +1917,6 @@ ONNX_XFAIL_SET = {
     "AvgPool2dIntModule_basic",
     "AvgPool2dStaticModule_basic",
 
-    # Failure - onnx_lowering: onnx.Cast
-    #"BucketizeTensorOutInt32RightModule_basic",
-    #"ElementwiseToDtypeI64ToUI8Module_basic",
-    #"QuantizedMLP_basic",
-
     # Failure - onnx_lowering: onnx.Clip
     "NormalizeModule_basic",
 
@@ -2058,11 +2055,19 @@ ONNX_XFAIL_SET = {
 
     # Failure - incorrect dtype
     "ReduceMaxAlongDimUnsignedInt_basic",
+    "ElementwiseToDtypeI64ToUI8Module_basic",
 
     # Failure - torch.aten.view lower
     "ViewSizeDimFollowedByExpandedOnesModule_basic",
     "ViewSizeDimLedAndFollowedByExpandedOnesModule_basic",
     "ViewSizeDimLedByExpandedOnesModule_basic",
+
+    # Failure - torch.aten.mm lower (mixed signedness of qtypes)
+    "QuantizedMLP_basic",
+    "QuantizedSingleLayer_basic",
+
+    # Failure - torch.aten.squeeze lower
+    "BucketizeTensorOutInt32RightModule_basic", # unsupported by backend contract: tensor with unknown rank
 
     # Failure - unknown
     "BucketizeTensorFloatModule_basic",

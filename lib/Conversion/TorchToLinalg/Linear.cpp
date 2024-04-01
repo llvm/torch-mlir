@@ -97,7 +97,7 @@ public:
     getZeroPoint(op.getSelf(), lhsZeroPoint);
     getZeroPoint(op.getMat2(), rhsZeroPoint);
 
-    if (static_cast<bool>(lhsZeroPoint) != static_cast<bool>(lhsZeroPoint)) {
+    if (static_cast<bool>(lhsZeroPoint) != static_cast<bool>(rhsZeroPoint)) {
       return rewriter.notifyMatchFailure(
           op, "unsupported: aten.mm with mixed quantization");
     }
