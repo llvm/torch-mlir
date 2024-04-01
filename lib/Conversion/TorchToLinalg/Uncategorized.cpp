@@ -781,8 +781,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       div = b.create<arith::DivFOp>(loc, lhs, rhs);
     else {
       if (dtype.isUnsignedInteger())
-        return b.create<arith::DivUIOp>(loc, lhs, rhs);
-      return b.create<arith::DivSIOp>(loc, lhs, rhs);
+        div = b.create<arith::DivUIOp>(loc, lhs, rhs);
+      else
+        div = b.create<arith::DivSIOp>(loc, lhs, rhs);
     }
 
     if (divTensorMode.getRoundingMode().getType().isa<Torch::NoneType>())
@@ -794,15 +795,18 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       divTensorMode.emitError("only support constant str rounding mode");
       return nullptr;
     }
-    if (roundingMode == "trunc" && dtype.isa<mlir::FloatType>()) {
+    if (roundingMode == "trunc") {
       // "trunc" - rounds the results of the division towards zero. Equivalent
       // to C-style integer division.
-      Value ceil = b.create<math::CeilOp>(loc, div);
-      Value floor = b.create<math::FloorOp>(loc, div);
-      Value cstZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
-      Value pred =
-          b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT, div, cstZero);
-      return b.create<arith::SelectOp>(loc, pred, ceil, floor);
+      if (dtype.isa<mlir::FloatType>()) {
+        Value ceil = b.create<math::CeilOp>(loc, div);
+        Value floor = b.create<math::FloorOp>(loc, div);
+        Value cstZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
+        Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
+                                             div, cstZero);
+        return b.create<arith::SelectOp>(loc, pred, ceil, floor);
+      } else
+        return div;
     }
     if (roundingMode == "floor") {
       // "floor" - rounds the results of the division down. Equivalent to
@@ -814,8 +818,11 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         lhs = convertScalarToDtype(b, loc, lhs, defaultIntToFloatType);
         rhs = convertScalarToDtype(b, loc, rhs, defaultIntToFloatType);
         div = b.create<arith::DivFOp>(loc, lhs, rhs);
-        div = b.create<math::FloorOp>(loc, div);
-        div = convertScalarToDtype(b, loc, div, dtype);
+        Value floor = b.create<math::FloorOp>(loc, div);
+        Value convert = convertScalarToDtype(b, loc, div, dtype);
+        return convert;
+      } else {
+        return div;
       }
     }
     divTensorMode.emitError("invalid rounding mode");
