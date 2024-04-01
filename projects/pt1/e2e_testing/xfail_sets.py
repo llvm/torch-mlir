@@ -1316,6 +1316,11 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
     "TorchPrimLoopForLikeTensorArgModule_basic",
+    "ViewSizeDimFollowedByCollapsedOnesModule_basic",
+    "ViewSizeDimFollowedByExpandedOnesModule_basic",
+    "ViewSizeDimLedAndFollowedByCollapsedOnesModule_basic",
+    "ViewSizeDimLedByCollapsedOnesModule_basic",
+    "ViewSizeFromOtherTensor_basic",
 }) - {
 ### Test failing in make_fx_tosa but not in tosa
 
@@ -1348,6 +1353,18 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     # failed to legalize operation 'torch.operator'
     "ElementwisePreluModule_basic",
     "ElementwisePreluStaticModule_basic", 
+
+    # Shape Related failures
+    "ReshapeExpandModule_basic",
+    "UnsafeViewCollapseModule_basic",
+    "UnsafeViewDynamicExpandModule_basic",
+    "ViewCollapseModule_basic",
+    "ViewDynamicExpandCollapseModule_basic",
+    "ViewDynamicExpandModule_basic",
+    "ViewExpandDynamicDimModule_basic",
+    "ViewNoChange1dModule_basic",
+    "ViewNoChange2dModule_basic",
+    "ViewNoChange3dModule_basic",
 }
 
 LTC_CRASHING_SET = {
