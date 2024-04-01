@@ -926,6 +926,7 @@ class ContextCache:
             tensor_meta = node.meta.get("tensor_meta")
             val = node.meta.get("val")
             sparsity = node.meta.get("sparsity", None)
+<<<<<<< HEAD
             if tensor_meta is not None:
                 assert isinstance(tensor_meta, TensorMetadata)
                 # Quantized tensor meta data is not preserved in our lowering,
@@ -952,11 +953,51 @@ class ContextCache:
             raise NotImplementedError(
                 f"FIXME: Unsupported placeholder node (this often indicates that a necessary) "
                 f"fx preprocessing pass was not run): {node.meta}"
+=======
+            return self.value_info_to_type(
+                val, tensor_meta=tensor_meta, sparsity=sparsity, mutable=mutable
+>>>>>>> 1cdae6bc68d40bfdc8cb5142168900fc20d61c51
             )
         except KeyError as e:
             raise RuntimeError(
                 f"FIXME: Illegal access to torch.fx.Node.meta: {e} ({node.meta.keys()} : {node.meta})"
             )
+
+    def value_info_to_type(
+        self,
+        val,
+        *,
+        tensor_meta: Optional[TensorMetadata] = None,
+        sparsity=None,
+        mutable: bool = False,
+    ):
+        if tensor_meta is not None:
+            assert isinstance(tensor_meta, TensorMetadata)
+            # Quantized tensor meta data is not preserved in our lowering,
+            # so throw error instead of silently doing wrong thing.
+            if tensor_meta.is_quantized:
+                raise NotImplementedError(
+                    f"Quantized tensor meta data is not supported."
+                )
+            else:
+                return self.tensor_metadata_to_type(
+                    tensor_meta, sparsity=sparsity, mutable=mutable
+                )
+        elif val is not None:
+            # some nodes with symbolic inputs pass a 'val' attribute rather than
+            # tensor_meta
+            if isinstance(val, TorchFakeTensor):
+                return self.get_vtensor_type(
+                    val.size(), val.dtype, sparsity=sparsity, mutable=mutable
+                )
+        else:
+            t = SCALAR_TYPE_TO_TORCH_MLIR_TYPE.get(type(val))
+            if t is not None:
+                return IrType.parse(t, self._c)
+        raise NotImplementedError(
+            f"Could not deduce type from value info: "
+            f"tensor_meta={tensor_meta}, val={val}, sparsity={sparsity}"
+        )
 
     def tensor_metadata_to_type(
         self,
@@ -1636,7 +1677,7 @@ class GraphNodeImporter:
             # redirect to it for generic object access.
             result_types = []
             for v in node.meta["val"]:
-                result_types.append(self._cc.tensor_metadata_to_type(v))
+                result_types.append(self._cc.value_info_to_type(v))
             result_types = tuple(result_types)
         return result_types
 

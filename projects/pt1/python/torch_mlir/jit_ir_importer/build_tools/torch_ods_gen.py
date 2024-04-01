@@ -60,7 +60,13 @@ TORCH_NON_VALUE_TYPE_TO_ODS_TYPE = {
 }
 
 
-def get_ods_type(type: str, non_value: bool):
+def get_ods_type(type: str, non_value: bool, *, is_result: bool = False):
+    # In torch signatures, it is legal to return None for a Tensor, so we
+    # silently upgrade Tensor results to Tensor?. I'm not sure this is written
+    # anywhere, but Torch does use it sometimes internally. As an example,
+    # the first return of a convolution_backwards may be returned as None.
+    if is_result and type == "Tensor":
+        type = "Tensor?"
     # TODO: Increase precision on dict type modeling.
     if type.startswith("Dict("):
       type = "Dict"
@@ -158,7 +164,7 @@ def raw_emit_op(operator: JitOperator,
                 p_td("Variadic<AnyTorchType>:$results")
             else:
                 p_td(",\n".join([
-                    f"""{get_ods_type(ret["type"], is_non_value_op)}:${ret["name"] or generic_result_name(e)}"""
+                    f"""{get_ods_type(ret["type"], is_non_value_op, is_result=True)}:${ret["name"] or generic_result_name(e)}"""
                     for e, ret in enumerate(operator.returns)
                 ]))
         p_td(");")
@@ -679,7 +685,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::IntImplicit : (Tensor) -> (int)", has_canonicalizer=True)
     emit("aten::FloatImplicit : (Tensor) -> (float)", has_canonicalizer=True)
     emit("aten::tensor.float : (float, int?, Device?, bool) -> (Tensor)")
-    emit("aten::Int.Tensor : (Tensor) -> (int)", has_folder=True)
+    emit("aten::Int.Tensor : (Tensor) -> (int)", has_canonicalizer=True)
     emit("aten::Float.Tensor : (Tensor) -> (float)", has_folder=True)
     emit_with_mutating_variants("aten::dropout : (Tensor, float, bool) -> (Tensor)")
     emit("aten::native_dropout : (Tensor, float, bool?) -> (Tensor, Tensor)")

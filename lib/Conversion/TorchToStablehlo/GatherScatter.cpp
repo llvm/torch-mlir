@@ -194,6 +194,86 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
 }
 } // namespace
 
+namespace {
+// A helper function used to generate stablehlo's ScatterIndices or
+// GatherIndices from torch's indices, usually appear in torch ops, like
+// aten.index.Tensor or aten.input_put A usage example is as follow: Input: [[1,
+// 2, 3],
+//         [4, 5, 6],
+//         [7, 8, 9]]
+// Indices[0]: [[0, 0, 0],
+//              [2, 2, 0]]
+// Indices[1]: [[2],
+//              [1]]
+// Step 1: broadcast indices tensors
+// Indices[0]: [[0, 0, 0],
+//              [2, 2, 0]]
+// Indices[1]: [[2, 2, 2],
+//              [1, 1, 1]]
+// Step 2: concat index tensors at a unsqueezed -1 dimension.
+// Indices: [[[0, 2], [0, 2], [0, 2]],
+//           [[2, 1], [2, 1], [0, 1]]]
+FailureOr<Value> broadcastAndConcatIndices(Operation *op,
+                                           ConversionPatternRewriter &rewriter,
+                                           SmallVector<Value> indexTensors,
+                                           llvm::ArrayRef<int64_t> inputShape,
+                                           int &maxIndexRank) {
+  // Step 1: broadcast indices tensors
+  SmallVector<int64_t> indicesShape;
+  SmallVector<int64_t> expandShape;
+  SmallVector<int64_t> concatShape;
+  // concat index tensor into to indices tensor for concat
+  for (size_t i = 0; i < indexTensors.size(); i++) {
+    auto indexTensor = indexTensors[i];
+    auto indexTensorType = indexTensor.getType().cast<RankedTensorType>();
+    for (int64_t size : makeShapeTorchCompatible(indexTensorType.getShape())) {
+      if (size == kUnknownSize)
+        return failure();
+    }
+    maxIndexRank = std::max(maxIndexRank, (int)indexTensorType.getRank());
+  }
+
+  SmallVector<int64_t> refinedInputShape = makeShapeTorchCompatible(inputShape);
+  for (int64_t size : refinedInputShape) {
+    if (size == kUnknownSize) {
+      return failure();
+    }
+  }
+  for (int i = 0; i < maxIndexRank; i++) {
+    indicesShape.push_back(refinedInputShape[i]);
+    expandShape.push_back(refinedInputShape[i]);
+    concatShape.push_back(refinedInputShape[i]);
+  }
+  expandShape.push_back(1);
+  concatShape.push_back(indexTensors.size());
+
+  SmallVector<Value> broadcastedIndices;
+  Type indexElemTy =
+      indexTensors[0].getType().cast<RankedTensorType>().getElementType();
+  RankedTensorType bcastIndexType =
+      RankedTensorType::get(indicesShape, indexElemTy);
+  for (auto indexTensor : indexTensors) {
+    Value bcastVal =
+        hlo::promoteAndBroadcast(rewriter, indexTensor, bcastIndexType);
+    RankedTensorType reshapeType =
+        RankedTensorType::get(expandShape, indexElemTy);
+    bcastVal = rewriter.create<stablehlo::ReshapeOp>(op->getLoc(), reshapeType,
+                                                     bcastVal);
+    broadcastedIndices.push_back(bcastVal);
+  }
+
+  // Step 2: concat index tensors at a unsqueezed -1 dimension.
+  Value finalIndexTensor = broadcastedIndices[0];
+  if (broadcastedIndices.size() > 1) {
+    RankedTensorType concatTy = RankedTensorType::get(concatShape, indexElemTy);
+    finalIndexTensor = rewriter.create<stablehlo::ConcatenateOp>(
+        op->getLoc(), concatTy, ValueRange(broadcastedIndices),
+        concatShape.size() - 1);
+  }
+  return finalIndexTensor;
+}
+} // namespace
+
 // Ref:
 // https://pytorch.org/docs/stable/generated/torch.nn.functional.embedding.html
 // padding_idx (int, optional)
@@ -559,174 +639,160 @@ LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
   return success();
 }
 
-// AtenScatterSrcOp
-template <>
-LogicalResult ConvertAtenOp<AtenScatterSrcOp>::matchAndRewrite(
-    AtenScatterSrcOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  Location loc = op->getLoc();
-  Value input = adaptor.getSelf();
-  Value index = adaptor.getIndex();
-  Value src = adaptor.getSrc();
-  auto inputType = input.getType().cast<RankedTensorType>();
-  auto indexType = index.getType().cast<RankedTensorType>();
-  auto srcType = src.getType().cast<RankedTensorType>();
-  auto indexElemType = indexType.getElementType();
+template <typename AtenOpT, int reduceType>
+class ConvertAtenScatterOp : public ConvertAtenOp<AtenOpT> {
+public:
+  using ConvertAtenOp<AtenOpT>::ConvertAtenOp;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    Value input = adaptor.getSelf();
+    Value index = adaptor.getIndex();
+    Value src = adaptor.getSrc();
+    auto inputType = input.getType().cast<RankedTensorType>();
+    auto indexType = index.getType().cast<RankedTensorType>();
+    auto srcType = src.getType().cast<RankedTensorType>();
+    auto indexElemType = indexType.getElementType();
 
-  if (indexType.getRank() != inputType.getRank() ||
-      inputType.getRank() != srcType.getRank()) {
-    return op.emitError(
-        "`index`, `input` and `src` param should have the same rank");
-  }
-  int64_t dim;
-  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim))) {
-    return rewriter.notifyMatchFailure(
-        op, "only constant int `dim` param supported");
-  }
-  dim = toPositiveDim(dim, inputType.getRank());
-  if (!isValidDim(dim, inputType.getRank())) {
-    return rewriter.notifyMatchFailure(op, "invalid `dim` param detected");
-  }
-
-  auto options = getOptions();
-
-  auto indexShapeInfo =
-      hlo::getDimSizesOfTensor(rewriter, op, index, options.dimSizeIndexBits);
-  if (failed(indexShapeInfo)) {
-    return rewriter.notifyMatchFailure(
-        op, "failed to get dim sizes of `index` param");
-  }
-  auto intType = rewriter.getIntegerType(options.dimSizeIndexBits);
-
-  // slice src tensor to have the same shape bound of index tensor in the
-  // leading dimensions. PyTorch has guaranteed that src tensor size will not be
-  // smaller than that of index tensor. REF:
-  // https://pytorch.org/docs/stable/generated/torch.Tensor.scatter_.html#torch.Tensor.scatter_
-  auto zero = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getIntegerAttr(intType, 0));
-  auto one = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getIntegerAttr(intType, 1));
-  SmallVector<Value> sliceIndicies(srcType.getRank(), zero);
-  SmallVector<Value> sliceStrides(srcType.getRank(), one);
-
-  auto sliceIndiciesValue =
-      rewriter.create<tensor::FromElementsOp>(loc, sliceIndicies);
-  auto sliceStridesValue =
-      rewriter.create<tensor::FromElementsOp>(loc, sliceStrides);
-  auto sliceLimitIndiciesValue =
-      rewriter.create<tensor::FromElementsOp>(loc, *indexShapeInfo);
-
-  auto newSrcType =
-      RankedTensorType::get(indexType.getShape(), srcType.getElementType());
-  src = rewriter.create<stablehlo::RealDynamicSliceOp>(
-      loc, newSrcType, src, sliceIndiciesValue, sliceLimitIndiciesValue,
-      sliceStridesValue);
-
-  // generate scatter indicies for stablehlo::Scatter op.
-  auto toConcatIndexShapeValueVec = *indexShapeInfo;
-  toConcatIndexShapeValueVec.push_back(one);
-  auto toConcatIndexShape =
-      rewriter.create<tensor::FromElementsOp>(loc, toConcatIndexShapeValueVec);
-
-  auto indexShape = indexType.getShape();
-  SmallVector<int64_t> toConcatIndexShapeVec(indexShape.begin(),
-                                             indexShape.end());
-  toConcatIndexShapeVec.push_back(1);
-  RankedTensorType toConcatIndexType =
-      RankedTensorType::get(toConcatIndexShapeVec, indexElemType);
-
-  SmallVector<Value> toConcat;
-  for (int64_t i = 0; i < inputType.getRank(); ++i) {
-    if (i == dim) {
-      toConcat.push_back(rewriter.create<stablehlo::DynamicReshapeOp>(
-          loc, toConcatIndexType, index, toConcatIndexShape));
-    } else {
-      toConcat.push_back(rewriter.create<stablehlo::DynamicIotaOp>(
-          loc, toConcatIndexType, toConcatIndexShape,
-          rewriter.getI64IntegerAttr(i)));
+    if (indexType.getRank() != inputType.getRank() ||
+        inputType.getRank() != srcType.getRank()) {
+      return op.emitError(
+          "`index`, `input` and `src` param should have the same rank");
     }
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim))) {
+      return rewriter.notifyMatchFailure(
+          op, "only constant int `dim` param supported");
+    }
+    dim = toPositiveDim(dim, inputType.getRank());
+    if (!isValidDim(dim, inputType.getRank())) {
+      return rewriter.notifyMatchFailure(op, "invalid `dim` param detected");
+    }
+
+    auto options = this->getOptions();
+
+    auto indexShapeInfo =
+        hlo::getDimSizesOfTensor(rewriter, op, index, options.dimSizeIndexBits);
+    if (failed(indexShapeInfo)) {
+      return rewriter.notifyMatchFailure(
+          op, "failed to get dim sizes of `index` param");
+    }
+    auto intType = rewriter.getIntegerType(options.dimSizeIndexBits);
+
+    // slice src tensor to have the same shape bound of index tensor in the
+    // leading dimensions. PyTorch has guaranteed that src tensor size will not
+    // be smaller than that of index tensor. REF:
+    // https://pytorch.org/docs/stable/generated/torch.Tensor.scatter_.html#torch.Tensor.scatter_
+    auto zero = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIntegerAttr(intType, 0));
+    auto one = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIntegerAttr(intType, 1));
+    SmallVector<Value> sliceIndicies(srcType.getRank(), zero);
+    SmallVector<Value> sliceStrides(srcType.getRank(), one);
+
+    auto sliceIndiciesValue =
+        rewriter.create<tensor::FromElementsOp>(loc, sliceIndicies);
+    auto sliceStridesValue =
+        rewriter.create<tensor::FromElementsOp>(loc, sliceStrides);
+    auto sliceLimitIndiciesValue =
+        rewriter.create<tensor::FromElementsOp>(loc, *indexShapeInfo);
+
+    auto newSrcType =
+        RankedTensorType::get(indexType.getShape(), srcType.getElementType());
+    src = rewriter.create<stablehlo::RealDynamicSliceOp>(
+        loc, newSrcType, src, sliceIndiciesValue, sliceLimitIndiciesValue,
+        sliceStridesValue);
+
+    // generate scatter indicies for stablehlo::Scatter op.
+    auto toConcatIndexShapeValueVec = *indexShapeInfo;
+    toConcatIndexShapeValueVec.push_back(one);
+    auto toConcatIndexShape = rewriter.create<tensor::FromElementsOp>(
+        loc, toConcatIndexShapeValueVec);
+
+    auto indexShape = indexType.getShape();
+    SmallVector<int64_t> toConcatIndexShapeVec(indexShape.begin(),
+                                               indexShape.end());
+    toConcatIndexShapeVec.push_back(1);
+    RankedTensorType toConcatIndexType =
+        RankedTensorType::get(toConcatIndexShapeVec, indexElemType);
+
+    SmallVector<Value> toConcat;
+    for (int64_t i = 0; i < inputType.getRank(); ++i) {
+      if (i == dim) {
+        toConcat.push_back(rewriter.create<stablehlo::DynamicReshapeOp>(
+            loc, toConcatIndexType, index, toConcatIndexShape));
+      } else {
+        toConcat.push_back(rewriter.create<stablehlo::DynamicIotaOp>(
+            loc, toConcatIndexType, toConcatIndexShape,
+            rewriter.getI64IntegerAttr(i)));
+      }
+    }
+
+    auto scatterIndicies = rewriter.create<stablehlo::ConcatenateOp>(
+        loc, toConcat, static_cast<uint64_t>(inputType.getRank()));
+    SmallVector<int64_t> sliceSizes(inputType.getRank(), 1);
+
+    // generate ScatterDimensionNumbers for stablehlo::Scatter op.
+    int64_t indexVecDim = inputType.getRank();
+    SmallVector<int64_t> scatterDimOperandDimMap;
+    SmallVector<int64_t> insertedWindowDims;
+    for (int64_t i = 0; i < inputType.getRank(); ++i) {
+      scatterDimOperandDimMap.push_back(i);
+      insertedWindowDims.push_back(i);
+    }
+    auto scatterDimensionNumbers = stablehlo::ScatterDimensionNumbersAttr::get(
+        rewriter.getContext(),
+        /*updateWindowDims=*/{},
+        /*insertedWindowDims=*/insertedWindowDims,
+        /*scatterDimsToOperandDim=*/scatterDimOperandDimMap,
+        /*indexVectorDim=*/indexVecDim);
+
+    auto stablehloScatterOp = rewriter.create<stablehlo::ScatterOp>(
+        loc, inputType, input, scatterIndicies, src, scatterDimensionNumbers,
+        false, false);
+
+    // config update computation function: just return the element from src.
+    Block &block = stablehloScatterOp.getUpdateComputation().emplaceBlock();
+    // add block arguments
+    auto blockArgumentType =
+        RankedTensorType::get({}, inputType.getElementType());
+    block.addArgument(blockArgumentType, loc);
+    block.addArgument(blockArgumentType, loc);
+
+    auto *lhsArg = block.args_begin();
+    auto *rhsArg = std::next(lhsArg);
+
+    {
+      OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToStart(&block);
+      if (reduceType == 0) {
+        rewriter.create<stablehlo::ReturnOp>(loc, *rhsArg);
+      } else if (reduceType == 1) {
+        Value res = rewriter.create<stablehlo::AddOp>(loc, blockArgumentType,
+                                                      *lhsArg, *rhsArg);
+        rewriter.create<stablehlo::ReturnOp>(loc, res);
+      }
+    }
+
+    rewriter.replaceOp(op, stablehloScatterOp.getResults());
+    return success();
   }
-
-  auto scatterIndicies = rewriter.create<stablehlo::ConcatenateOp>(
-      loc, toConcat, static_cast<uint64_t>(inputType.getRank()));
-  SmallVector<int64_t> sliceSizes(inputType.getRank(), 1);
-
-  // generate ScatterDimensionNumbers for stablehlo::Scatter op.
-  int64_t indexVecDim = inputType.getRank();
-  SmallVector<int64_t> scatterDimOperandDimMap;
-  SmallVector<int64_t> insertedWindowDims;
-  for (int64_t i = 0; i < inputType.getRank(); ++i) {
-    scatterDimOperandDimMap.push_back(i);
-    insertedWindowDims.push_back(i);
-  }
-  auto scatterDimensionNumbers = stablehlo::ScatterDimensionNumbersAttr::get(
-      rewriter.getContext(),
-      /*updateWindowDims=*/{},
-      /*insertedWindowDims=*/insertedWindowDims,
-      /*scatterDimsToOperandDim=*/scatterDimOperandDimMap,
-      /*indexVectorDim=*/indexVecDim);
-
-  auto stablehloScatterOp = rewriter.create<stablehlo::ScatterOp>(
-      loc, inputType, input, scatterIndicies, src, scatterDimensionNumbers,
-      false, false);
-
-  // config update computation function: just return the element from src.
-  Block &block = stablehloScatterOp.getUpdateComputation().emplaceBlock();
-  // add block arguments
-  auto blockArgumentType =
-      RankedTensorType::get({}, inputType.getElementType());
-  block.addArgument(blockArgumentType, loc);
-  block.addArgument(blockArgumentType, loc);
-
-  auto *lhsArg = block.args_begin();
-  auto *rhsArg = std::next(lhsArg);
-
-  {
-    OpBuilder::InsertionGuard guard(rewriter);
-    rewriter.setInsertionPointToStart(&block);
-    rewriter.create<stablehlo::ReturnOp>(loc, *rhsArg);
-  }
-
-  rewriter.replaceOp(op, stablehloScatterOp.getResults());
-  return success();
-}
+};
 
 // AtenIndexTensorOp
-// Convert AtenIndexTensorOp to StableHlo::GatherOp
-// Step 1: broadcast indices to the same shape
-// Step 2: reshape broadcasted indices to have extra last dimension and concat
-// Step 3: Create StableHlo::GatherOp with input tensor and indices
-//
-// Example:
-// Input: [[1, 2, 3],
-//         [4, 5, 6],
-//         [7, 8, 9]]
-// Indices[0]: [[0, 0, 0],
-//              [2, 2, 0]]
-// Indices[1]: [[2],
-//              [1]]
-// Step 1:
-// Indices[0]: [[0, 0, 0],
-//              [2, 2, 0]]
-// Indices[1]: [[2, 2, 2],
-//              [1, 1, 1]]
-// Step 2:
-// Indices: [[[0, 2], [0, 2], [0, 2]],
-//           [[2, 1], [2, 1], [0, 1]]]
-// Step 3:
-// Output: [[3, 3, 3],
-//          [8, 8, 2]]
+// Convert to StableHlo::GatherOp.
 template <>
 LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
     AtenIndexTensorHackedTwinOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Location loc = op->getLoc();
   Value input = adaptor.getSelf();
-  auto inputTensorType = input.getType().dyn_cast<RankedTensorType>();
-  // Check input is a tensor type.
-  if (!inputTensorType)
-    return rewriter.notifyMatchFailure(
-        op, "Only tensor types input are currently supported");
+  auto inputTensorType = input.getType().cast<RankedTensorType>();
+  auto outType =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+  auto outShape = outType.getShape();
   Value indexList = op.getIndices();
   SmallVector<Value> indicesTorchType;
   if (!getListConstructElements(indexList, indicesTorchType))
@@ -736,71 +802,17 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
   auto indexTensors = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
                                              indicesTorchType);
 
-  // Step 1: broadcast indices tensors
-  int maxRank = -1;
-  SmallVector<int64_t> indicesShape;
-  SmallVector<int64_t> expandShape;
-  SmallVector<int64_t> concatShape;
-  // concat index tensor into to indices tensor for concat
-  for (size_t i = 0; i < indexTensors.size(); i++) {
-    auto indexTensor = indexTensors[i];
-    auto indexTensorType = indexTensor.getType().cast<RankedTensorType>();
-    for (int64_t size : makeShapeTorchCompatible(indexTensorType.getShape())) {
-      if (size == kUnknownSize)
-        return rewriter.notifyMatchFailure(op, "Dynamic index support TBD");
-    }
-    maxRank = std::max(maxRank, (int)indexTensorType.getRank());
+  int maxIndexRank = -1;
+  auto gatherIndicesInfo = broadcastAndConcatIndices(op, rewriter, indexTensors,
+                                                     outShape, maxIndexRank);
+  if (failed(gatherIndicesInfo)) {
+    return rewriter.notifyMatchFailure(
+        op, "failed to generate broadcasted indices");
   }
+  auto gatherIndices = *gatherIndicesInfo;
 
-  RankedTensorType resultType =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
-  SmallVector<int64_t> refinedResultShape =
-      makeShapeTorchCompatible(resultType.getShape());
-  for (int64_t size : refinedResultShape) {
-    if (size == kUnknownSize)
-      return rewriter.notifyMatchFailure(op, "Dynamic index support TBD");
-  }
-  for (int i = 0; i < maxRank; i++) {
-    indicesShape.push_back(refinedResultShape[i]);
-    expandShape.push_back(refinedResultShape[i]);
-    concatShape.push_back(refinedResultShape[i]);
-  }
-  if (indexTensors.size() > 1) {
-    expandShape.push_back(1);
-    concatShape.push_back(indexTensors.size());
-  }
-
-  SmallVector<Value> broadcastedIndices;
-  Type indexElemTy =
-      indexTensors[0].getType().cast<RankedTensorType>().getElementType();
-  RankedTensorType bcastIndexType =
-      RankedTensorType::get(indicesShape, indexElemTy);
-  for (auto indexTensor : indexTensors) {
-    Value bcastVal =
-        hlo::promoteAndBroadcast(rewriter, indexTensor, bcastIndexType);
-    if (indexTensors.size() > 1) {
-      RankedTensorType reshapeType =
-          RankedTensorType::get(expandShape, indexElemTy);
-      bcastVal =
-          rewriter.create<stablehlo::ReshapeOp>(loc, reshapeType, bcastVal);
-    }
-    broadcastedIndices.push_back(bcastVal);
-  }
-
-  // Step 2: concat index tensors
-  Value finalIndexTensor = broadcastedIndices[0];
-  if (broadcastedIndices.size() > 1) {
-    RankedTensorType concatTy = RankedTensorType::get(concatShape, indexElemTy);
-    finalIndexTensor = rewriter.create<stablehlo::ConcatenateOp>(
-        loc, concatTy, ValueRange(broadcastedIndices), concatShape.size() - 1);
-  }
-
-  // Step 3: create stablehlo::GatherOp
-  RankedTensorType finalIndexTy =
-      finalIndexTensor.getType().cast<RankedTensorType>();
-  int64_t indicesRank = finalIndexTy.getRank();
-  int64_t numIndicesDim = broadcastedIndices.size();
-  int64_t indexVecDim = numIndicesDim > 1 ? indicesRank - 1 : indicesRank;
+  int64_t numIndicesDim = indexTensors.size();
+  int64_t indexVecDim = maxIndexRank;
 
   SmallVector<int64_t> offsetDims;
   SmallVector<int64_t> collapsedDims;
@@ -810,11 +822,7 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
     startIndexMap.push_back(i);
   }
   for (int64_t i = numIndicesDim; i < inputTensorType.getRank(); i++) {
-    if (numIndicesDim > 1) {
-      offsetDims.push_back(i + indicesRank - 1 - numIndicesDim);
-    } else {
-      offsetDims.push_back(i + indicesRank - numIndicesDim);
-    }
+    offsetDims.push_back(i + maxIndexRank - numIndicesDim);
   }
   auto dimsAttr = stablehlo::GatherDimensionNumbersAttr::get(
       rewriter.getContext(),
@@ -834,8 +842,97 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
   }
 
   rewriter.replaceOpWithNewOp<stablehlo::GatherOp>(
-      op, resultType, input, finalIndexTensor, dimsAttr,
+      op, outType, input, gatherIndices, dimsAttr,
       rewriter.getDenseI64ArrayAttr(sliceSizes));
+  return success();
+}
+
+// AtenIndexPutHackedTwinOP
+// Convert to stablehlo::ScatterOp
+template <>
+LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
+    AtenIndexPutHackedTwinOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Location loc = op->getLoc();
+  Value input = adaptor.getSelf();
+  Value values = adaptor.getValues();
+  auto outType =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+  auto inputType = input.getType().cast<RankedTensorType>();
+  int64_t inputRank = inputType.getRank();
+  auto valuesType = values.getType().cast<RankedTensorType>();
+  auto valuesShape = valuesType.getShape();
+  bool accumulate;
+  if (!matchPattern(op.getAccumulate(), m_TorchConstantBool(&accumulate))) {
+    return rewriter.notifyMatchFailure(op,
+                                       "accumulate should be a constant bool");
+  }
+  Value indexList = op.getIndices();
+  SmallVector<Value> indicesTorchType;
+  if (!getListConstructElements(indexList, indicesTorchType))
+    return op.emitError(
+        "unimplemented: the tensor list is not from list construct");
+
+  auto indexTensors = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
+                                             indicesTorchType);
+
+  int maxIndexRank = -1;
+  auto scatterIndicesInfo = broadcastAndConcatIndices(
+      op, rewriter, indexTensors, valuesShape, maxIndexRank);
+  if (failed(scatterIndicesInfo)) {
+    return rewriter.notifyMatchFailure(
+        op, "failed to generate broadcasted indices");
+  }
+  auto scatterIndices = *scatterIndicesInfo;
+
+  // create stablehlo::ScatterOp
+  int64_t indexVecDim = maxIndexRank;
+  SmallVector<int64_t> scatterDimOperandDimMap;
+  SmallVector<int64_t> insertedWindowDims;
+  SmallVector<int64_t> updateWindowDims;
+  for (int64_t i = 0; i < maxIndexRank; ++i) {
+    scatterDimOperandDimMap.push_back(i);
+    insertedWindowDims.push_back(i);
+  }
+  for (int64_t i = maxIndexRank; i < inputRank; ++i) {
+    updateWindowDims.push_back(i);
+  }
+  llvm::outs() << "maxIndexRank: " << maxIndexRank << "\n";
+  auto scatterDimensionNumbers = stablehlo::ScatterDimensionNumbersAttr::get(
+      rewriter.getContext(),
+      /*updateWindowDims=*/updateWindowDims,
+      /*insertedWindowDims=*/insertedWindowDims,
+      /*scatterDimsToOperandDim=*/scatterDimOperandDimMap,
+      /*indexVectorDim=*/indexVecDim);
+
+  auto stablehloScatterOp = rewriter.create<stablehlo::ScatterOp>(
+      loc, outType, input, scatterIndices, values, scatterDimensionNumbers,
+      false, false);
+
+  // configure update computation function.
+  Block &block = stablehloScatterOp.getUpdateComputation().emplaceBlock();
+  // add block arguments
+  auto blockArgumentType =
+      RankedTensorType::get({}, inputType.getElementType());
+  block.addArgument(blockArgumentType, loc);
+  block.addArgument(blockArgumentType, loc);
+
+  auto *lhsArg = block.args_begin();
+  auto *rhsArg = std::next(lhsArg);
+
+  {
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(&block);
+    if (!accumulate) {
+      rewriter.create<stablehlo::ReturnOp>(loc, *rhsArg);
+    } else {
+      Value out = rewriter.create<stablehlo::AddOp>(loc, blockArgumentType,
+                                                    *lhsArg, *rhsArg);
+      rewriter.create<stablehlo::ReturnOp>(loc, out);
+    }
+  }
+
+  rewriter.replaceOp(op, stablehloScatterOp.getResults());
   return success();
 }
 
@@ -854,6 +951,14 @@ void mlir::torch::torch_to_stablehlo::
   INSERT_ATENOP_PATTERN(AtenGatherOp);
   INSERT_ATENOP_PATTERN(AtenSliceScatterOp);
   INSERT_ATENOP_PATTERN(AtenIndexTensorHackedTwinOp);
-  INSERT_ATENOP_PATTERN(AtenScatterSrcOp);
+  INSERT_ATENOP_PATTERN(AtenIndexPutHackedTwinOp);
 #undef INSERT_ATENOP_PATTERN
+
+#define INSERT_ATEN_SCATTER_PATTERN(AtenOp, reduceType)                        \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenScatterOp<AtenOp, reduceType>>(typeConverter,        \
+                                                         context, options)
+  INSERT_ATEN_SCATTER_PATTERN(AtenScatterSrcOp, 0); // 0 for None reduce op
+  INSERT_ATEN_SCATTER_PATTERN(AtenScatterAddOp, 1); // 1 for Add reduce op
+#undef INSERT_ATEN_SCATTER_PATTERN
 }
