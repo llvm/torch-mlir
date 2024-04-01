@@ -497,6 +497,8 @@ STABLEHLO_PASS_SET = {
     "ElementwiseCosModule_basic",
     "ElementwiseDivRoundingModeFloorStaticModule_basic",
     "ElementwiseDivRoundingModeTruncStaticModule_basic",
+    "ElementwiseDivIntRoundingModeFloorStaticModule_basic",
+    "ElementwiseDivIntRoundingModeTruncStaticModule_basic",
     "ElementwiseErfModule_basic",
     "ElementwiseExpModule_basic",
     "ElementwiseFloorIntModule_basic",
