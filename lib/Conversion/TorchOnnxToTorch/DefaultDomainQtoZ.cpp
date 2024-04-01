@@ -1757,7 +1757,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             isZero =
                 rewriter.create<Torch::AtenIntBoolOp>(binder.getLoc(), isZero);
 
-            int64_t dataRank = dataSizes.size();  
+            int64_t dataRank = dataSizes.size();
             if (i < dataRank) {
               auto torchIntTy = rewriter.getType<Torch::IntType>();
               auto int64Ty = rewriter.getIntegerType(64, true);
