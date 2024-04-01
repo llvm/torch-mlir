@@ -68,6 +68,8 @@ TORCHDYNAMO_XFAIL_SET = {
     # error: unsupported by backend contract: tensor with unknown rank
     # note: see current operation: %1 = "torch.tensor_static_info_cast"(%arg0) : (!torch.vtensor<[5,4,3,2,1],f32>) -> !torch.vtensor<*,f32>
     "ElementwisePreluModule_basic",
+    # error: torch._dynamo.exc.BackendCompilerFailed: backend='compiler_fn' raised: AssertionError: Unregistered operation: torch.aten._prelu_kernel
+    "ElementwisePreluStaticModule_basic",
 
     #ERROR: value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=-1.336e-32, max=+0.9152, mean=+0.4837) is not close to golden value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=+0.02233, max=+0.9152, mean=+0.4777)
     "UpSampleNearest2dDynamicFactor_basic",
@@ -467,6 +469,8 @@ STABLEHLO_PASS_SET = {
     "EinsumStaticContractRhsModule_basic",
     "EinsumStaticFourDimensionModule_basic",
     "EinsumStaticModule_basic",
+    "EinsumStaticWithEllipsisSlicingModule_basic",
+    "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
     "ElementwiseAbsFloatModule_basic",
     "ElementwiseAbsIntModule_basic",
     "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
@@ -508,6 +512,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseNeIntTensorStaticModule_basic",
     "ElementwiseNegModule_basic",
     "ElementwiseOrTensorStaticShapeModule_basic",
+    "ElementwisePreluStaticModule_basic",
     "ElementwisePowTensorBroadcastStaticModule_basic",
     "ElementwisePowTensorStaticModule_basic",
     "ElementwiseReciprocalModule_basic",
@@ -954,6 +959,8 @@ TOSA_PASS_SET = {
     "EinsumStaticContractRhsModule_basic",
     "EinsumStaticFourDimensionModule_basic",
     "EinsumStaticModule_basic",
+    "EinsumStaticWithEllipsisSlicingModule_basic",
+    "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
     "ElementwiseAbsFloatModule_basic",
     "ElementwiseAbsIntModule_basic",
     "ElementwiseAddModule_basic",
@@ -1060,6 +1067,8 @@ TOSA_PASS_SET = {
     "ElementwiseOrTensorModule_basic",
     "ElementwiseOrTensorStaticShapeModule_basic",
     "ElementwisePowModule_basic",
+    "ElementwisePreluModule_basic",
+    "ElementwisePreluStaticModule_basic",
     "ElementwiseReciprocalModule_basic",
     "ElementwiseRelu6Module_basic",
     "ElementwiseReluModule_basic",
@@ -1329,6 +1338,10 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "Conv2dWithPaddingModule_basic",
 
     "AtenInstanceNormModule_basic",
+    
+    # failed to legalize operation 'torch.operator'
+    "ElementwisePreluModule_basic",
+    "ElementwisePreluStaticModule_basic", 
 }
 
 LTC_CRASHING_SET = {
@@ -1481,8 +1494,6 @@ ONNX_XFAIL_SET = {
     "PermuteNegativeIndexModule_basic",
 
     # Failure - incorrect numerics
-    "AdaptiveAvgPool1dUnitOutputSizeDynamicModule_basic",
-    "AdaptiveAvgPool2dUnitOutputSizeDynamicModule_basic",
     "ElementwiseAtan2TensorIntModule_basic",
     "ElementwiseLog10IntModule_basic",
     "ElementwiseLog2IntModule_basic",
@@ -1492,7 +1503,6 @@ ONNX_XFAIL_SET = {
     "HardsigmoidModule_basic",
     "HardsigmoidRandomModule_basic",
     "PixelShuffleModuleStaticRank4Float32_basic",
-    "ResNet18Module_basic",
     "SliceCopyEndGreaterThanDimSize_Module_basic",
     "SliceCopyNegative_Module_basic",
     "SliceCopyNonZeroDim_Module_basic",
@@ -1923,11 +1933,8 @@ ONNX_XFAIL_SET = {
     "EinsumStaticContractRhsModule_basic",
     "EinsumStaticFourDimensionModule_basic",
     "EinsumStaticModule_basic",
-
-    # Failure - onnx_lowering: onnx.HardSwish
-    "HardswishModule_basic",
-    "HardswishRandomModule_basic",
-    "MobilenetV3Module_basic",
+    "EinsumStaticWithEllipsisSlicingModule_basic",
+    "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
 
     # Failure - onnx_lowering: onnx.MaxPool
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
@@ -2043,10 +2050,6 @@ ONNX_XFAIL_SET = {
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
 
-    # Failure - onnx_lowering: onnx.Softplus
-    "ElementwiseMishModule_basic",
-    "SoftplusModule_basic",
-
     # Failure - onnx_lowering: onnx.Squeeze
     "SqueezeModule_allUnitDim",
     "SqueezeModule_broadcast",
@@ -2059,35 +2062,12 @@ ONNX_XFAIL_SET = {
     "SortTensorSpecificDimension_basic",
     "SortTensor_basic",
 
-    # Failure - onnx_lowering: onnx.Trilu
-    "AtenTrilModule_basic",
-    "AtenTrilWithNegDiagonalModule_basic",
-    "AtenTrilWithPosDiagonalModule_basic",
-    "AtenTriuModule_basic",
-    "AtenTriuWithNegDiagonalModule_basic",
-    "AtenTriuWithPosDiagonalModule_basic",
-    "TriuBroadcastModule_basic",
-    "TriuModule_basic",
-
     # Failure - incorrect dtype
     "ReduceMaxAlongDimUnsignedInt_basic",
 
     # Failure - torch.aten.view lower
-    "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
-    "IndexTensorDyanmicInputNonContiguousWithNoneModule_basic",
-    "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
-    "IndexTensorMultiInputContiguousCenter_basic",
-    "IndexTensorMultiInputNonContiguousMultipleStaticDims_basic",
-    "IndexTensorMultiInputNonContiguous_basic",
-    "IndexTensorMultiInputOneDim_basic",
-    "IndexTensorMultiInputThreeIndexers_basic",
-    "IndexTensorMultiInput_basic",
-    "ViewFlattenAndExpandModule_basic",
-    "ViewSizeDimFollowedByCollapsedOnesModule_basic",
     "ViewSizeDimFollowedByExpandedOnesModule_basic",
-    "ViewSizeDimLedAndFollowedByCollapsedOnesModule_basic",
     "ViewSizeDimLedAndFollowedByExpandedOnesModule_basic",
-    "ViewSizeDimLedByCollapsedOnesModule_basic",
     "ViewSizeDimLedByExpandedOnesModule_basic",
 
     # Failure - unknown
@@ -2109,6 +2089,7 @@ ONNX_XFAIL_SET = {
     "ElementwiseExpIntModule_basic",
     "ElementwiseLogIntModule_basic",
     "ElementwisePreluModule_basic",
+    "ElementwisePreluStaticModule_basic",
     "ElementwiseSigmoidIntModule_basic",
     "ElementwiseSinIntModule_basic",
     "ElementwiseTanIntModule_basic",
@@ -2124,9 +2105,6 @@ ONNX_XFAIL_SET = {
     "IndexTensorHackedTwinModule_basic",
     "IndexTensorModule3dInput_basic",
     "IndexTensorModule_basic",
-    "IndexTensorMultiInputContiguousOneDimDynamic_basic",
-    "IndexTensorMultiInputNonContiguousDynamic_basic",
-    "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
     "IndexTensorSelectDimModule_basic",
     "MaskedFillTensorFloatValueModule_basic",
     "ReduceAllDimEmpty_basic",
@@ -2143,5 +2121,19 @@ ONNX_XFAIL_SET = {
 ONNX_CRASHING_SET = { 
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
+
+    # WIP for supporting reshape:
+    "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
+    "IndexTensorDyanmicInputNonContiguousWithNoneModule_basic",
+    "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
+    "IndexTensorMultiInputContiguousCenter_basic",
+    "IndexTensorMultiInputNonContiguousMultipleStaticDims_basic",
+    "IndexTensorMultiInputNonContiguous_basic",
+    "IndexTensorMultiInputOneDim_basic",
+    "IndexTensorMultiInputThreeIndexers_basic",
+    "IndexTensorMultiInput_basic",
+    "IndexTensorMultiInputContiguousOneDimDynamic_basic",
+    "IndexTensorMultiInputNonContiguousDynamic_basic",
+    "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
 }
 

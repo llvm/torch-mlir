@@ -1720,18 +1720,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 rewriter.create<Torch::AtenEqIntOp>(binder.getLoc(), dim, zero);
             isZero =
                 rewriter.create<Torch::AtenIntBoolOp>(binder.getLoc(), isZero);
-            Value adjustment;
+            Value adjustment = zero;
             int64_t inputDimsSize = dataSizes.size();
             if (i < inputDimsSize) {
               adjustment = rewriter.create<Torch::ConstantIntOp>(
                   binder.getLoc(), rewriter.getType<Torch::IntType>(),
                   rewriter.getIntegerAttr(rewriter.getIntegerType(64),
                                           dataSizes[i]));
-            }
-            // Will never have a 0 in the shape tensor input at an index out of
-            // bounds of original input dims Therefore, no need to adjust
-            else {
-              adjustment = zero;
             }
             Value finalOffset = rewriter.create<Torch::AtenMulIntOp>(
                 binder.getLoc(), isZero, adjustment);
@@ -2097,6 +2092,69 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
                   rewriter.replaceOpWithNewOp<Torch::AtenSignOp>(
                       binder.op, resultType, operand);
+                  return success();
+                });
+  patterns.onOp(
+      "Softplus", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value input;
+        if (binder.tensorOperand(input) ||
+            binder.tensorResultType(resultType)) {
+          return failure();
+        }
+        // out = ln(exp(x) + 1)
+        Value exp = rewriter.create<Torch::AtenExpOp>(binder.getLoc(),
+                                                      resultType, input);
+        rewriter.replaceOpWithNewOp<Torch::AtenLog1pOp>(binder.op, resultType,
+                                                        exp);
+        return success();
+      });
+  patterns.onOp(
+      "Trilu", 14, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value input;
+        int64_t upper;
+        if (binder.tensorOperandAtIndex(input, 0) ||
+            binder.s64IntegerAttr(upper, "upper", 1) ||
+            binder.tensorResultType(resultType)) {
+          return failure();
+        }
+
+        Value diagonal;
+        if (binder.tensorOperandAtIndex(diagonal, 1)) {
+          diagonal = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        } else {
+          diagonal = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), diagonal);
+        }
+
+        if (upper) {
+          rewriter.replaceOpWithNewOp<Torch::AtenTriuOp>(binder.op, resultType,
+                                                         input, diagonal);
+          return success();
+        }
+        rewriter.replaceOpWithNewOp<Torch::AtenTrilOp>(binder.op, resultType,
+                                                       input, diagonal);
+        return success();
+      });
+  patterns.onOp("ThresholdedRelu", 10,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value input;
+                  float alpha;
+                  if (binder.tensorOperand(input) ||
+                      binder.f32FloatAttr(alpha, "alpha", 1.0)) {
+                    return failure();
+                  }
+                  Value cstAlpha = rewriter.create<Torch::ConstantFloatOp>(
+                      binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+                      rewriter.getFloatAttr(rewriter.getF64Type(), alpha));
+                  Value value = rewriter.create<Torch::ConstantFloatOp>(
+                      binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+                      rewriter.getFloatAttr(rewriter.getF64Type(), 0.0));
+                  rewriter.replaceOpWithNewOp<Torch::AtenThresholdOp>(
+                      binder.op, resultType, input, cstAlpha, value);
                   return success();
                 });
 }

@@ -1117,9 +1117,17 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value cstOne = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(1));
         for (unsigned i = 2; i < inputRank; i++) {
-          int64_t kernelSize = inputShape[i] - resultShape[i] + 1;
-          cstKernel.push_back(rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(kernelSize)));
+          if (inputShape[i] == Torch::kUnknownSize) {
+            Value dim = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(i));
+            Value inputDimSize = rewriter.create<Torch::AtenSizeIntOp>(
+                binder.getLoc(), operand, dim);
+            cstKernel.push_back(inputDimSize);
+          } else {
+            int64_t kernelSize = inputShape[i] - resultShape[i] + 1;
+            cstKernel.push_back(rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(kernelSize)));
+          }
           cstPadding.push_back(cstZero);
           cstStrides.push_back(cstOne);
         }
@@ -1499,6 +1507,30 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
                   rewriter.replaceOpWithNewOp<Torch::AtenRemainderTensorOp>(
                       binder.op, resultType, self, other);
+                  return success();
+                });
+  patterns.onOp("Mish", 18,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value input;
+                  if (binder.tensorOperand(input) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenMishOp>(
+                      binder.op, resultType, input);
+                  return success();
+                });
+  patterns.onOp("HardSwish", 14,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value input;
+                  if (binder.tensorOperand(input) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOpWithNewOp<Torch::AtenHardswishOp>(
+                      binder.op, resultType, input);
                   return success();
                 });
 }
