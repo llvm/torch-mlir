@@ -2847,7 +2847,7 @@ class ElementwiseDivIntRoundingModeFloorStaticModule(torch.nn.Module):
 @register_test_case(
     module_factory=lambda: ElementwiseDivIntRoundingModeFloorStaticModule())
 def ElementwiseDivIntRoundingModeFloorStaticModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint((3, 4), low=-10, high=10).type(torch.int32), tu.randint((3, 4), low=1, high=10).type(torch.int64))
+    module.forward(tu.randint(3, 4, low=-10, high=10).type(torch.int32), tu.randint(3, 4, low=1, high=10).type(torch.int64))
 
 
 # ==============================================================================
