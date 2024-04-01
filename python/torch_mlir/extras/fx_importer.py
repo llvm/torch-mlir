@@ -898,7 +898,7 @@ class ContextCache:
             val = node.meta.get("val")
             sparsity = node.meta.get("sparsity", None)
             return self.value_info_to_type(
-                val, tensor_meta=tensor_meta, sparsity=sparsity, mutable=mutable
+                val, tensor_meta=tensor_meta, mutable=mutable
             )
         except KeyError as e:
             raise RuntimeError(
@@ -910,7 +910,6 @@ class ContextCache:
         val,
         *,
         tensor_meta: Optional[TensorMetadata] = None,
-        sparsity=None,
         mutable: bool = False,
     ):
         if tensor_meta is not None:
@@ -923,14 +922,14 @@ class ContextCache:
                 )
             else:
                 return self.tensor_metadata_to_type(
-                    tensor_meta, sparsity=sparsity, mutable=mutable
+                    tensor_meta, val=val, mutable=mutable
                 )
         elif val is not None:
             # some nodes with symbolic inputs pass a 'val' attribute rather than
             # tensor_meta
             if isinstance(val, TorchFakeTensor):
                 return self.get_vtensor_type(
-                    val.size(), val.dtype, sparsity=sparsity, mutable=mutable
+                    val.size(), val.dtype, val=val, mutable=mutable
                 )
         else:
             t = SCALAR_TYPE_TO_TORCH_MLIR_TYPE.get(type(val))
