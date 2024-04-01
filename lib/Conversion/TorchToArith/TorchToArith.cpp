@@ -443,9 +443,6 @@ public:
     patterns.add<ConvertAtenCastOp<AtenIntBoolOp>>(typeConverter, context);
     patterns.add<ConvertAtenCastOp<AtenFloatScalarOp>>(typeConverter, context);
 
-    target.addIllegalOp<AtenIntBoolOp>();
-    patterns.add<ConvertAtenIntBoolOp>(typeConverter, context);
-
     target.addIllegalOp<AtenAddOp>();
     patterns.add<ConvertAtenAddOp>(typeConverter, context);
 
