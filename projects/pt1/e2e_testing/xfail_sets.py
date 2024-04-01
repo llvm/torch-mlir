@@ -495,6 +495,8 @@ STABLEHLO_PASS_SET = {
     "ElementwiseCloneContiguousModule_basic",
     "ElementwiseCloneModule_basic",
     "ElementwiseCosModule_basic",
+    "ElementwiseDivRoundingModeFloorStaticModule_basic",
+    "ElementwiseDivRoundingModeTruncStaticModule_basic",
     "ElementwiseErfModule_basic",
     "ElementwiseExpModule_basic",
     "ElementwiseFloorIntModule_basic",
