@@ -1908,18 +1908,8 @@ ONNX_XFAIL_SET = {
     "LinalgNormModule_basic",
 
     # Failure - onnx_lowering: onnx.AveragePool
-    "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
-    "AdaptiveAvgPool1dStaticEvenMultiple_basic",
-    "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
-    "AvgPool1dFloatModule_basic",
-    "AvgPool1dIntModule_basic",
-    "AvgPool1dStaticModule_basic",
-    "AvgPool2dCeilModeTrueModule_basic",
     "AvgPool2dDivisorOverrideModule_basic",
-    "AvgPool2dFloatModule_basic",
-    "AvgPool2dIntModule_basic",
-    "AvgPool2dStaticModule_basic",
 
     # Failure - onnx_lowering: onnx.Cast
     "BucketizeTensorOutInt32RightModule_basic",
