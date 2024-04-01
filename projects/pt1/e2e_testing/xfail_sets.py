@@ -1877,7 +1877,7 @@ ONNX_XFAIL_SET = {
     "_SoftmaxModule_basic",
 
     # Failure - onnx_import
-    #"DiagonalModule_basic",
+    "DiagonalModule_basic",
     "DiagonalModule_nonsquare",
     "DiagonalModule_transposed",
     "DiagonalModule_with_dims",

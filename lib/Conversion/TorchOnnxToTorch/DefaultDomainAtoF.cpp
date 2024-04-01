@@ -1426,18 +1426,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         if (!resultType.hasDtype())
           return rewriter.notifyMatchFailure(binder.op,
                                              "requires known result dtype");
-        if (scaleTy.getSizes().size() == 1 && scaleTy.getSizes()[0] == 1) {
-          // try to squeeze scale
-          FailureOr<Value> scalarScale = Torch::squeezeTensor(
-              rewriter, binder.op, binder.getLoc(), 0, scale);
-          if (failed(scalarScale)) {
-            return rewriter.notifyMatchFailure(binder.op,
-                                               "failed to rank-0-ize scale");
-          }
-          scale = *scalarScale;
-          scaleTy = scale.getType().dyn_cast<Torch::ValueTensorType>();
-        }
-        if (scaleTy.getSizes().size() == 0) {
+        if (scaleTy.getSizes().size() == 0 ||
+            (scaleTy.getSizes().size() == 1 && scaleTy.getSizes()[0] == 1)) {
           Type qTy = operandTy.getDtype();
 
           if (qTy.isUnsignedInteger(8)) {
