@@ -819,7 +819,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         rhs = convertScalarToDtype(b, loc, rhs, defaultIntToFloatType);
         div = b.create<arith::DivFOp>(loc, lhs, rhs);
         Value floor = b.create<math::FloorOp>(loc, div);
-        Value convert = convertScalarToDtype(b, loc, div, dtype);
+        Value convert = convertScalarToDtype(b, loc, floor, dtype);
         return convert;
       } else {
         return div;
