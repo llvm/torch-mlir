@@ -328,7 +328,7 @@ def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
         )
 
     if batch_dim > 0:
-        batch = ",".join(f"d{d}:dense" for d in range(batch_dim))
+        batch = ",".join(f"d{d}:batch" for d in range(batch_dim))
         lvls = f"{batch},{lvls}"
 
     if dense_dim > 0:
