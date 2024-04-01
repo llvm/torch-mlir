@@ -242,6 +242,10 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: Exception: Unsupported: missing default value for argument 0 in schema for aten.div.Tensor_mode
     "ElementwiseDivRoundingModeFloorModule_basic",
     "ElementwiseDivRoundingModeTruncModule_basic",
+    "ElementwiseDivRoundingModeFloorStaticModule_basic",
+    "ElementwiseDivRoundingModeTruncStaticModule_basic",
+    "ElementwiseDivIntRoundingModeFloorStaticModule_basic",
+    "ElementwiseDivIntRoundingModeTruncStaticModule_basic",
     "AdaptiveAvgPool1dStaticLargerOutput_basic",
     "AdaptiveAvgPool1dGeneralDynamic_basic",
     "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
