@@ -213,10 +213,11 @@ namespace {
 // Step 2: concat index tensors at a unsqueezed -1 dimension.
 // Indices: [[[0, 2], [0, 2], [0, 2]],
 //           [[2, 1], [2, 1], [0, 1]]]
-FailureOr<Value> broadcastAndConcatIndices(
-    Operation *op, ConversionPatternRewriter &rewriter,
-    SmallVector<Value> indexTensors, llvm::ArrayRef<int64_t> inputShape,
-    int &maxIndexRank) {
+FailureOr<Value> broadcastAndConcatIndices(Operation *op,
+                                           ConversionPatternRewriter &rewriter,
+                                           SmallVector<Value> indexTensors,
+                                           llvm::ArrayRef<int64_t> inputShape,
+                                           int &maxIndexRank) {
   // Step 1: broadcast indices tensors
   SmallVector<int64_t> indicesShape;
   SmallVector<int64_t> expandShape;
@@ -643,8 +644,9 @@ class ConvertAtenScatterOp : public ConvertAtenOp<AtenOpT> {
 public:
   using ConvertAtenOp<AtenOpT>::ConvertAtenOp;
   using OpAdaptor = typename AtenOpT::Adaptor;
-  LogicalResult matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                                ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
     Value input = adaptor.getSelf();
     Value index = adaptor.getIndex();
@@ -769,7 +771,7 @@ public:
         rewriter.create<stablehlo::ReturnOp>(loc, *rhsArg);
       } else if (reduceType == 1) {
         Value res = rewriter.create<stablehlo::AddOp>(loc, blockArgumentType,
-                                                     *lhsArg, *rhsArg);
+                                                      *lhsArg, *rhsArg);
         rewriter.create<stablehlo::ReturnOp>(loc, res);
       }
     }
@@ -788,7 +790,8 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
   Location loc = op->getLoc();
   Value input = adaptor.getSelf();
   auto inputTensorType = input.getType().cast<RankedTensorType>();
-  auto outType = getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+  auto outType =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
   auto outShape = outType.getShape();
   Value indexList = op.getIndices();
   SmallVector<Value> indicesTorchType;
@@ -798,11 +801,13 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
 
   auto indexTensors = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
                                              indicesTorchType);
-  
+
   int maxIndexRank = -1;
-  auto gatherIndicesInfo = broadcastAndConcatIndices(op, rewriter, indexTensors, outShape, maxIndexRank);
+  auto gatherIndicesInfo = broadcastAndConcatIndices(op, rewriter, indexTensors,
+                                                     outShape, maxIndexRank);
   if (failed(gatherIndicesInfo)) {
-    return rewriter.notifyMatchFailure(op, "failed to generate broadcasted indices");
+    return rewriter.notifyMatchFailure(
+        op, "failed to generate broadcasted indices");
   }
   auto gatherIndices = *gatherIndicesInfo;
 
@@ -855,14 +860,16 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
   Location loc = op->getLoc();
   Value input = adaptor.getSelf();
   Value values = adaptor.getValues();
-  auto outType = getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+  auto outType =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
   auto inputType = input.getType().cast<RankedTensorType>();
   int64_t inputRank = inputType.getRank();
   auto valuesType = values.getType().cast<RankedTensorType>();
   auto valuesShape = valuesType.getShape();
   bool accumulate;
   if (!matchPattern(op.getAccumulate(), m_TorchConstantBool(&accumulate))) {
-    return rewriter.notifyMatchFailure(op, "accumulate should be a constant bool");
+    return rewriter.notifyMatchFailure(op,
+                                       "accumulate should be a constant bool");
   }
   Value indexList = op.getIndices();
   SmallVector<Value> indicesTorchType;
@@ -874,12 +881,14 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
                                              indicesTorchType);
 
   int maxIndexRank = -1;
-  auto scatterIndicesInfo = broadcastAndConcatIndices(op, rewriter, indexTensors, valuesShape, maxIndexRank);
+  auto scatterIndicesInfo = broadcastAndConcatIndices(
+      op, rewriter, indexTensors, valuesShape, maxIndexRank);
   if (failed(scatterIndicesInfo)) {
-    return rewriter.notifyMatchFailure(op, "failed to generate broadcasted indices");
+    return rewriter.notifyMatchFailure(
+        op, "failed to generate broadcasted indices");
   }
   auto scatterIndices = *scatterIndicesInfo;
-  
+
   // create stablehlo::ScatterOp
   int64_t indexVecDim = maxIndexRank;
   SmallVector<int64_t> scatterDimOperandDimMap;
