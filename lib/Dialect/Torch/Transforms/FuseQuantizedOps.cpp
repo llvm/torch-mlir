@@ -72,8 +72,6 @@ public:
         if (auto dequant =
                 transOperands[0].getDefiningOp<AtenDequantizeSelfOp>()) {
           dequantOperand = dequant.getOperand();
-          dequant.dump();
-          dequantOperand.dump();
           if (auto quant =
                   dequantOperand
                       .getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
@@ -82,7 +80,6 @@ public:
                              .getType()
                              .cast<ValueTensorType>()
                              .getOptionalDtype();
-            operands[i].dump();
             auto torchQType =
                 quant.getType().cast<ValueTensorType>().getOptionalDtype();
             auto transQTy =
