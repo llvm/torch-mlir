@@ -814,7 +814,6 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
   // create stablehlo::GatherOp
   RankedTensorType gatherIndicesType =
       gatherIndices.getType().cast<RankedTensorType>();
-  int64_t indicesRank = gatherIndicesType.getRank();
   int64_t numIndicesDim = indexTensors.size();
   int64_t indexVecDim = maxIndexRank;
 
