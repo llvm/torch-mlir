@@ -1704,7 +1704,6 @@ TOSA_PASS_SET = {
     "HardswishModule_basic",
     "HardswishRandomModule_basic",
     "HardtanhBackward_basic",
-    "IndexPutImpl2DNoneIndexStaticModule_basic",
     "IndexTensorMultiIndexStaticModule_basic",
     "IndexTensorStaticModule_basic",
     "IscloseStaticModuleTrue_basic",

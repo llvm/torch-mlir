@@ -7323,10 +7323,8 @@ public:
 // Torch ops related to indexing tensors, e.g., AtenIndexTensor, AtenIndexPut.
 namespace {
 
-// TODO: It might be better to use aten.view op instead of mulitple
-// aten.unsqueeze. But currently, torch-to-linalg pass has limited support for
-// view on dynamic shapes, such as [?] -> [?,1,1,1]. Using aten.view op will
-// cause relevant e2e tests fail.
+// unsqueeze is more easily optimized than a generic view, and we prefer to
+// enjoy ops with more structure than less in compositions.
 static FailureOr<Value> unsqueezeTensorAtTrailingDim(Operation *op,
                                                      PatternRewriter &rewriter,
                                                      Value input, int count) {
@@ -7367,11 +7365,11 @@ static Value createIndexToReplaceNone(Operation *op, PatternRewriter &rewriter,
   return v;
 }
 
-static FailureOr<Value> createNewIndex(Operation *op, PatternRewriter &rewriter,
-                                       Value input,
-                                       llvm::ArrayRef<Value> oldIndices,
-                                       llvm::ArrayRef<int64_t> newToOldDimMap,
-                                       llvm::ArrayRef<bool> oldIndexUsed) {
+static FailureOr<Value> createNewIndices(Operation *op,
+                                         PatternRewriter &rewriter, Value input,
+                                         llvm::ArrayRef<Value> oldIndices,
+                                         llvm::ArrayRef<int64_t> newToOldDimMap,
+                                         llvm::ArrayRef<bool> oldIndexUsed) {
   Location loc = op->getLoc();
   MLIRContext *context = op->getContext();
 
@@ -7542,8 +7540,8 @@ public:
       }
     }
 
-    auto newIndeicesInfo = createNewIndex(op, rewriter, newInput, indices,
-                                          newToOldDimMap, indexUsed);
+    auto newIndeicesInfo = createNewIndices(op, rewriter, newInput, indices,
+                                            newToOldDimMap, indexUsed);
     if (failed(newIndeicesInfo)) {
       return rewriter.notifyMatchFailure(op, "failed to replcae `None` index");
     }
@@ -7624,8 +7622,8 @@ public:
       newToOldDimMap.emplace_back(i);
     }
 
-    auto newIndicesInfo =
-        createNewIndex(op, rewriter, input, indices, newToOldDimMap, indexUsed);
+    auto newIndicesInfo = createNewIndices(op, rewriter, input, indices,
+                                           newToOldDimMap, indexUsed);
     if (failed(newIndicesInfo)) {
       return rewriter.notifyMatchFailure(op, "failed to replace `None` index");
     }
