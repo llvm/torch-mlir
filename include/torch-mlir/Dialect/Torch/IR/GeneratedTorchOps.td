@@ -3616,6 +3616,7 @@ def Torch_AtenAddScalarOp : Torch_Op<"aten.add.Scalar", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
 
@@ -3666,6 +3667,7 @@ def Torch_AtenSubScalarOp : Torch_Op<"aten.sub.Scalar", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
 
@@ -3715,6 +3717,7 @@ def Torch_AtenMulScalarOp : Torch_Op<"aten.mul.Scalar", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
 
@@ -11065,6 +11068,7 @@ def Torch_AtenWhereScalarOp : Torch_Op<"aten.where.Scalar", [
     }
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenWhereScalarOtherOp : Torch_Op<"aten.where.ScalarOther", [
