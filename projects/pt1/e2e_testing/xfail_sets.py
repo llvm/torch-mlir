@@ -1277,6 +1277,7 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "UnsafeViewDynamicExpandModule_basic",
     "ViewCollapseModule_basic",
     "ViewDynamicExpandCollapseModule_basic",
+    "ViewDynamicExpandCollapseWithParallelUnknownDimModule_basic",
     "ViewDynamicExpandModule_basic",
     "ViewExpandDynamicDimModule_basic",
     "ViewNoChange1dModule_basic",
