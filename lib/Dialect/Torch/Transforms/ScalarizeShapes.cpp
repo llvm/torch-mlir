@@ -454,7 +454,7 @@ public:
     return failure();
   }
 };
-}; // namespace
+} // namespace
 
 namespace {
 class FoldAtenWhereSelf : public OpRewritePattern<AtenWhereSelfOp> {
