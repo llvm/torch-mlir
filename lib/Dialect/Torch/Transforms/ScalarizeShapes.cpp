@@ -536,7 +536,7 @@ public:
     return failure();
   }
 };
-}; // namespace
+} // namespace
 namespace {
 template <typename T> class RemoveUnusedPattern : public OpRewritePattern<T> {
 public:
