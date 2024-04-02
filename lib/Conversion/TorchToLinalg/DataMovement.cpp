@@ -821,29 +821,43 @@ public:
     SmallVector<int64_t> yIndicesResult({0});
     size_t nextXIndex = 1;
     size_t nextYIndex = 1;
-    if (xTotalSize == kUnknownSize)
-      xTotalSize *= xMultiplier;
-    if (yTotalSize == kUnknownSize)
-      yTotalSize *= yMultiplier;
+    bool xHasUnknownSize = false;
+    bool yHasUnknownSize = false;
+    if (xTotalSize == kUnknownSize) {
+      xHasUnknownSize = true;
+      xTotalSize = xMultiplier;
+    }
+    if (yTotalSize == kUnknownSize) {
+      yHasUnknownSize = true;
+      yTotalSize = yMultiplier;
+    }
 
-    while (xTotalSize != yTotalSize) {
-      if (xTotalSize < 0 && yTotalSize < 0) {
-        xTotalSize = -xTotalSize;
-        yTotalSize = -yTotalSize;
-      }
-      if (yTotalSize < 0 || (xTotalSize > 0 && xTotalSize < yTotalSize)) {
+    while (xTotalSize != yTotalSize || xHasUnknownSize != yHasUnknownSize) {
+      if ((!xHasUnknownSize && yHasUnknownSize) || xTotalSize < yTotalSize) {
         if (nextXIndex == xDims.size())
           return failure();
-        if (xDims[nextXIndex] == kUnknownSize)
+        if (xDims[nextXIndex] == kUnknownSize) {
+          // No support for more than one unknown dim.
+          if (xHasUnknownSize)
+            return failure();
           xTotalSize *= xMultiplier;
-        xTotalSize *= xDims[nextXIndex];
+          xHasUnknownSize = true;
+        } else {
+          xTotalSize *= xDims[nextXIndex];
+        }
         xIndicesResult.push_back(nextXIndex++);
       } else {
         if (nextYIndex == yDims.size())
           return failure();
-        if (yDims[nextYIndex] == kUnknownSize)
+        if (yDims[nextYIndex] == kUnknownSize) {
+          // No support for more than one unknown dim.
+          if (yHasUnknownSize)
+            return failure();
           yTotalSize *= yMultiplier;
-        yTotalSize *= yDims[nextYIndex];
+          yHasUnknownSize = true;
+        } else {
+          yTotalSize *= yDims[nextYIndex];
+        }
         yIndicesResult.push_back(nextYIndex++);
       }
     }
@@ -913,15 +927,13 @@ public:
   static std::pair<int64_t, int64_t>
   getMultiplier(SmallVector<int64_t> inputShape,
                 SmallVector<int64_t> outputShape) {
-    int64_t inputMultiplier = 1;
-    int64_t outputMultiplier = 1;
     int64_t totalInputElements = std::abs(productReduce(inputShape));
     int64_t totalOutputElements = std::abs(productReduce(outputShape));
     APInt GCD = llvm::APIntOps::GreatestCommonDivisor(
         APInt(64, totalInputElements), APInt(64, totalOutputElements));
     int64_t gcd = *(GCD.getRawData());
-    inputMultiplier = totalOutputElements / gcd;
-    outputMultiplier = totalInputElements / gcd;
+    int64_t inputMultiplier = totalOutputElements / gcd;
+    int64_t outputMultiplier = totalInputElements / gcd;
     return std::make_pair(inputMultiplier, outputMultiplier);
   }
 

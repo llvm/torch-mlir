@@ -1853,6 +1853,7 @@ ONNX_XFAIL_SET = {
     "ViewCollapseModule_basic",
     "ViewDynamicExpandCollapseModule_basic",
     "ViewDynamicExpandCollapseWithAtenIntModule_basic",
+    "ViewDynamicExpandCollapseWithParallelUnknownDimModule_basic",
     "ViewDynamicExpandModule_basic",
     "ViewDynamicExpandWithAtenSizeIntModule_basic",
     "ViewExpandDynamicDimModule_basic",
