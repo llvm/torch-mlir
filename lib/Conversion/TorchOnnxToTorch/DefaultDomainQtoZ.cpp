@@ -923,19 +923,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           if (axesList.empty()) {
             Torch::BaseTensorType axesType =
                 axesVal.getType().cast<Torch::BaseTensorType>();
-            SmallVector<Value> dimList;
-            SmallVector<int64_t> selectSizes{1};
-            auto selType = rewriter.getType<Torch::ValueTensorType>(
-                selectSizes, axesType.getOptionalDtype());
             auto axesTy = dyn_cast<Torch::ValueTensorType>(axesVal.getType());
             auto axesShape = axesTy.getSizes();
-
             if (axesShape.size() != 1 || axesShape[0] == Torch::kUnknownSize)
               return failure();
 
             Value zero = rewriter.create<Torch::ConstantIntOp>(
                 binder.getLoc(), rewriter.getType<Torch::IntType>(),
                 rewriter.getI64IntegerAttr(0));
+            SmallVector<int64_t> selectSizes{1};
+            auto selType = rewriter.getType<Torch::ValueTensorType>(
+                selectSizes, axesType.getOptionalDtype());
             int64_t numAxes = axesShape[0];
             for (int64_t i = 0; i < numAxes; ++i) {
               Value iv = rewriter.create<Torch::ConstantIntOp>(
