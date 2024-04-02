@@ -1075,10 +1075,7 @@ public:
           op, "desired size list length mismatches with the result type rank");
     }
 
-    for (auto pair : checkDimPairs) {
-      // Check that dynamic shapes for reshape evaluate to the correct sizes:
-      auto inputDim = std::get<0>(pair);
-      auto outputDim = std::get<1>(pair);
+    for (auto [inputDim, outputDim] : checkDimPairs) {
       checkDimEqualHelper(rewriter, loc, inputSize[inputDim],
                           outputSizeInt[outputDim]);
     }
