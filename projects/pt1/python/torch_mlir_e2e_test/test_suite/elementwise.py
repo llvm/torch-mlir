@@ -2808,7 +2808,7 @@ class ElementwiseDivRoundingModeFloorStaticModule(torch.nn.Module):
 def ElementwiseDivRoundingModeFloorStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4), tu.rand(3, 4).type(torch.float64))
 
-class ElementwiseDivIntRoundingModeTruncStaticModule(torch.nn.Module):
+class ElementwiseDivRoundingModeTruncIntStaticModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -2824,12 +2824,12 @@ class ElementwiseDivIntRoundingModeTruncStaticModule(torch.nn.Module):
 
 
 @register_test_case(
-    module_factory=lambda: ElementwiseDivIntRoundingModeTruncStaticModule())
-def ElementwiseDivIntRoundingModeTruncStaticModule_basic(module, tu: TestUtils):
+    module_factory=lambda: ElementwiseDivRoundingModeTruncIntStaticModule())
+def ElementwiseDivRoundingModeTruncIntStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-10, high=10).type(torch.int32), tu.randint(3, 4, low=1, high=10).type(torch.int64))
 
 
-class ElementwiseDivIntRoundingModeFloorStaticModule(torch.nn.Module):
+class ElementwiseDivRoundingModeFloorIntStaticModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -2845,8 +2845,8 @@ class ElementwiseDivIntRoundingModeFloorStaticModule(torch.nn.Module):
 
 
 @register_test_case(
-    module_factory=lambda: ElementwiseDivIntRoundingModeFloorStaticModule())
-def ElementwiseDivIntRoundingModeFloorStaticModule_basic(module, tu: TestUtils):
+    module_factory=lambda: ElementwiseDivRoundingModeFloorIntStaticModule())
+def ElementwiseDivRoundingModeFloorIntStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-10, high=10).type(torch.int32), tu.randint(3, 4, low=1, high=10).type(torch.int64))
 
 
