@@ -160,7 +160,6 @@ def sparse_jit(f, *args, **kwargs):
     xargs = []
     for a in args:
         if a.layout is torch.sparse_coo:
-            xargs.append(a.values().numpy())
             # Construct the additional position array required by MLIR with data
             # array([0, nnz]).
             xargs.append(torch.tensor([0, a._nnz()], dtype=a.indices().dtype).numpy())
@@ -168,14 +167,15 @@ def sparse_jit(f, *args, **kwargs):
             # MLIR SoA COO representation.
             for idx in a.indices():
                 xargs.append(idx.numpy())
-        elif a.layout is torch.sparse_csr or a.layout is torch.sparse_bsr:
             xargs.append(a.values().numpy())
+        elif a.layout is torch.sparse_csr or a.layout is torch.sparse_bsr:
             xargs.append(a.crow_indices().numpy())
             xargs.append(a.col_indices().numpy())
-        elif a.layout is torch.sparse_csc or a.layout is torch.sparse_bsc:
             xargs.append(a.values().numpy())
+        elif a.layout is torch.sparse_csc or a.layout is torch.sparse_bsc:
             xargs.append(a.ccol_indices().numpy())
             xargs.append(a.row_indices().numpy())
+            xargs.append(a.values().numpy())
         else:
             xargs.append(a.numpy())
     # Invoke.
@@ -302,7 +302,7 @@ def test_sparse_SpMM():
 
 @run
 # CHECK-LABEL: test_sparse_eltwise
-# CHECK:       #[[$BCSR:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : dense, d1 : dense, d2 : compressed), posWidth = 64, crdWidth = 64 }>
+# CHECK:       #[[$BCSR:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : batch, d1 : dense, d2 : compressed), posWidth = 64, crdWidth = 64 }>
 # CHECK:       func.func @main(
 # CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[8,4,2],f32,#[[$BCSR]]>) -> !torch.vtensor<[8,4,2],f32> {
 # CHECK:         %[[R:.*]] = torch.aten.neg %arg0 : !torch.vtensor<[8,4,2],f32,#[[$BCSR]]> -> !torch.vtensor<[8,4,2],f32>
@@ -331,6 +331,12 @@ def test_sparse_SpMM():
 # CHECK:                [-61. -62.]
 # CHECK:                [-63. -64.]{{\]\]}}
 #
+# CHECK:        torch.mlir.batch
+# CHECK:        {{\[\[}}[ -1.  -2.]
+# CHECK:                [ -3.  -4.]
+#                       ...
+# CHECK:                [-61. -62.]
+# CHECK:                [-63. -64.]{{\]\]}}
 def test_sparse_eltwise():
     class EltNet(torch.nn.Module):
         def __init__(self):
@@ -345,8 +351,8 @@ def test_sparse_eltwise():
     )
 
     # This yields a **batched** CSR.
-    sparse_input = dense_input.to_sparse_csr(dense_dim=0)
-    m = export_and_import(net, sparse_input)
+    batch_input = dense_input.to_sparse_csr(dense_dim=0)
+    m = export_and_import(net, batch_input)
     print(m)
 
     # This yields a plain CSR with dense **sub**tensor
@@ -358,11 +364,12 @@ def test_sparse_eltwise():
     #
     # TODO: note several issues that need to be fixed
     #  (1) since we do not propagate sparsity into elt-wise, MLIR returns dense result
-    #  (2) for dense_dim=0, this will need a dense(batched) property
-    sparse_input = dense_input.to_sparse_csr(dense_dim=1)
     res1 = net(sparse_input)
     res2 = sparse_jit(net, sparse_input)
+    res3 = sparse_jit(net, batch_input)
     print("torch.sparse")
     print(res1)
     print("torch.mlir")
     print(res2)
+    print("torch.mlir.batch")
+    print(res3)

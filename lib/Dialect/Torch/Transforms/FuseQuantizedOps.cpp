@@ -54,6 +54,68 @@ public:
   }
 };
 
+template <typename SrcOp>
+class QuantizeTransposedOperands : public OpRewritePattern<SrcOp> {
+public:
+  using OpRewritePattern<SrcOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SrcOp op,
+                                PatternRewriter &rewriter) const override {
+
+    llvm::SmallVector<Value> operands(op->getOperands());
+    unsigned numOperands = operands.size();
+    bool dequanted = false;
+    for (unsigned i = 0; i < numOperands; i++) {
+      if (auto trans = operands[i].getDefiningOp<AtenTransposeIntOp>()) {
+        auto transOperands = trans.getOperands();
+        Value dequantOperand;
+        if (auto dequant =
+                transOperands[0].getDefiningOp<AtenDequantizeSelfOp>()) {
+          dequantOperand = dequant.getOperand();
+          if (auto quant =
+                  dequantOperand
+                      .getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
+            auto quantOperands = quant.getOperands();
+            auto qType = quantOperands[0]
+                             .getType()
+                             .cast<ValueTensorType>()
+                             .getOptionalDtype();
+            auto torchQType =
+                quant.getType().cast<ValueTensorType>().getOptionalDtype();
+            auto transQTy =
+                rewriter.getType<ValueTensorType>(trans.getResult()
+                                                      .getType()
+                                                      .cast<ValueTensorType>()
+                                                      .getOptionalSizes(),
+                                                  qType);
+            auto newQuantTy =
+                rewriter.getType<ValueTensorType>(trans.getResult()
+                                                      .getType()
+                                                      .cast<ValueTensorType>()
+                                                      .getOptionalSizes(),
+                                                  torchQType);
+            Value newTrans = rewriter.create<AtenTransposeIntOp>(
+                op.getLoc(), transQTy, quantOperands[0], transOperands[1],
+                transOperands[2]);
+            Value newQuant =
+                rewriter.create<Aten_MakePerTensorQuantizedTensorOp>(
+                    op.getLoc(), newQuantTy, newTrans, quantOperands[1],
+                    quantOperands[2]);
+            operands[i] = newQuant;
+            dequanted = true;
+          }
+        }
+      }
+    }
+    if (!dequanted) {
+      return rewriter.notifyMatchFailure(
+          op, "no dequantized transpose inputs found.");
+    }
+    rewriter.replaceOpWithNewOp<SrcOp>(op, op.getType(), operands);
+    return success();
+  }
+};
+
 template <typename SrcOp> class QuantizeBias : public OpRewritePattern<SrcOp> {
 public:
   using OpRewritePattern<SrcOp>::OpRewritePattern;
@@ -217,13 +279,15 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
-    patterns
-        .insert<RemoveUnused<AtenDequantizeSelfOp>,
-                RemoveUnused<AtenDequantizeTensorOp>,
-                RemoveUnused<AtenQuantizePerTensorOp>,
-                QuantizeOperands<AtenConvolutionOp>, QuantizeOperands<AtenMmOp>,
-                QuantizeAccumulator<AtenMmOp>, QuantizeBias<AtenConvolutionOp>>(
-            context);
+    patterns.insert<
+        RemoveUnused<AtenDequantizeSelfOp>,
+        RemoveUnused<AtenDequantizeTensorOp>,
+        RemoveUnused<AtenQuantizePerTensorOp>,
+        RemoveUnused<Aten_MakePerTensorQuantizedTensorOp>,
+        RemoveUnused<AtenTransposeIntOp>, QuantizeOperands<AtenConvolutionOp>,
+        QuantizeOperands<AtenMmOp>, QuantizeTransposedOperands<AtenMmOp>,
+        QuantizeAccumulator<AtenMmOp>, QuantizeBias<AtenConvolutionOp>>(
+        context);
 
     GreedyRewriteConfig config;
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),

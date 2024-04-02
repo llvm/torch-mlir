@@ -240,11 +240,13 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenFloatScalarOp : public OpConversionPattern<AtenFloatScalarOp> {
+template <typename AtenOp>
+class ConvertAtenCastOp : public OpConversionPattern<AtenOp> {
 public:
-  using OpConversionPattern::OpConversionPattern;
+  using OpConversionPattern<AtenOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenFloatScalarOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenOp op,
+                  typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Type resultType =
         this->getTypeConverter()->convertType(op->getResult(0).getType());
@@ -391,7 +393,8 @@ public:
     patterns.add<ConvertAtenDimOp>(typeConverter, context);
     target.addIllegalOp<RuntimeAssertOp>();
     patterns.add<ConvertRuntimeAssertOp>(typeConverter, context);
-    target.addIllegalOp<AtenNeIntOp, AtenEqIntOp, AtenGtIntOp, AtenGeIntOp>();
+    target.addIllegalOp<AtenNeIntOp, AtenEqIntOp, AtenGtIntOp, AtenGeIntOp,
+                        AtenLtIntOp, AtenLeIntOp>();
     patterns
         .add<ConvertAtenIntComparisonOp<AtenNeIntOp, arith::CmpIPredicate::ne>>(
             typeConverter, context);
@@ -402,7 +405,13 @@ public:
         ConvertAtenIntComparisonOp<AtenGtIntOp, arith::CmpIPredicate::sgt>>(
         typeConverter, context);
     patterns.add<
+        ConvertAtenIntComparisonOp<AtenLtIntOp, arith::CmpIPredicate::slt>>(
+        typeConverter, context);
+    patterns.add<
         ConvertAtenIntComparisonOp<AtenGeIntOp, arith::CmpIPredicate::sge>>(
+        typeConverter, context);
+    patterns.add<
+        ConvertAtenIntComparisonOp<AtenLeIntOp, arith::CmpIPredicate::sle>>(
         typeConverter, context);
     target.addIllegalOp<AtenGeFloatOp, AtenGeFloatIntOp, AtenNeFloatIntOp,
                         AtenGtFloatIntOp>();
@@ -430,8 +439,9 @@ public:
     target.addIllegalOp<Torch::ConstantIntOp>();
     patterns.add<ConvertTorchConstantIntOp>(typeConverter, context);
 
-    target.addIllegalOp<AtenFloatScalarOp>();
-    patterns.add<ConvertAtenFloatScalarOp>(typeConverter, context);
+    target.addIllegalOp<AtenIntBoolOp, AtenFloatScalarOp>();
+    patterns.add<ConvertAtenCastOp<AtenIntBoolOp>>(typeConverter, context);
+    patterns.add<ConvertAtenCastOp<AtenFloatScalarOp>>(typeConverter, context);
 
     target.addIllegalOp<AtenAddOp>();
     patterns.add<ConvertAtenAddOp>(typeConverter, context);

@@ -235,6 +235,17 @@ def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "func::FuncOp"> {
   }];
 }
 
+def ScalarizeShapes : Pass<"torch-scalarize-shapes", "func::FuncOp"> {
+  let summary = "Takes common shape computation operations and scalarizes them.";
+  let constructor = "mlir::torch::Torch::createScalarizeShapesPass()";
+  let description = [{
+    Scalarizes shape computations to better propagate static shapes. As some
+    shape operation happen on tensors a single dynamic dimension can prevent
+    propagating static shapes. Scalarization prevents these dynamic
+    dimensions from blocking the statically computable operations.
+  }];
+}
+
 def RecomposeComplexOps : Pass<"torch-recompose-complex-ops", "func::FuncOp"> {
   let summary = "Recompose torch operations that have been decomposed by TorchScript";
   let constructor = "mlir::torch::Torch::createRecomposeComplexOpsPass()";
