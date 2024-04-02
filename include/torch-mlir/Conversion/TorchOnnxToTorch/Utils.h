@@ -20,6 +20,8 @@ Value createConstantIntList(OpBinder binder,
 
 Type getQTorchTypeFromTorchIntType(Type ty);
 
+bool areAllElementsDistinct(SmallVector<int64_t> array);
+
 } // namespace mlir::torch::onnx_c
 
 #endif // TORCHMLIR_CONVERSION_TORCHONNXTOTORCH_UTILS_H
