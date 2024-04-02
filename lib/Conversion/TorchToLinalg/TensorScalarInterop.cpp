@@ -187,7 +187,7 @@ public:
         convertScalarToDtype(rewriter, loc, elemVal, outElementType);
     Value zeroDTensor =
         createInitTensor(rewriter, loc, {}, outElementType, elemValProm);
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, zeroDTensor);
+    rewriter.replaceOp(op, zeroDTensor);
     return success();
   }
 };
