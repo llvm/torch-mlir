@@ -1347,7 +1347,10 @@ OpFoldResult AtenAddScalarOp::fold(FoldAdaptor adaptor) {
 
   auto intFold = [](llvm::ArrayRef<APInt> inputs) {
     assert(inputs.size() == 3);
-    return inputs[0] + (inputs[1] * inputs[2]);
+    int64_t bits = inputs[0].getBitWidth();
+    APInt other(bits, inputs[1].getLimitedValue());
+    APInt alpha(bits, inputs[2].getLimitedValue());
+    return inputs[0] + (other * alpha);
   };
 
   return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
@@ -1395,7 +1398,10 @@ OpFoldResult AtenSubScalarOp::fold(FoldAdaptor adaptor) {
 
   auto intFold = [](llvm::ArrayRef<APInt> inputs) {
     assert(inputs.size() == 3);
-    return inputs[0] - (inputs[1] * inputs[2]);
+    int64_t bits = inputs[0].getBitWidth();
+    APInt other(bits, inputs[1].getLimitedValue());
+    APInt alpha(bits, inputs[2].getLimitedValue());
+    return inputs[0] - (other * alpha);
   };
 
   return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
@@ -1429,7 +1435,9 @@ OpFoldResult AtenMulTensorOp::fold(FoldAdaptor adaptor) {
 
   auto intFold = [](llvm::ArrayRef<APInt> inputs) {
     assert(inputs.size() == 2);
-    return inputs[0] * inputs[1];
+    int64_t bits = inputs[0].getBitWidth();
+    APInt other(bits, inputs[1].getLimitedValue());
+    return inputs[0] * other;
   };
 
   return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
@@ -1632,7 +1640,10 @@ OpFoldResult AtenLeScalarOp::fold(FoldAdaptor adaptor) {
   auto fpFold = [](double lhs, double rhs) -> bool { return lhs <= rhs; };
 
   auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
-    return unsign ? lhs.ule(rhs) : lhs.sle(rhs);
+    int64_t bits = std::max(lhs.getBitWidth(), rhs.getBitWidth());
+    APInt lhsWiden(bits, lhs.getLimitedValue());
+    APInt rhsWiden(bits, rhs.getLimitedValue());
+    return unsign ? lhsWiden.ule(rhsWiden) : lhsWiden.sle(rhsWiden);
   };
 
   return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
@@ -1650,7 +1661,10 @@ OpFoldResult AtenLtScalarOp::fold(FoldAdaptor adaptor) {
   auto fpFold = [](double lhs, double rhs) -> bool { return lhs < rhs; };
 
   auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
-    return unsign ? lhs.ult(rhs) : lhs.slt(rhs);
+    int64_t bits = std::max(lhs.getBitWidth(), rhs.getBitWidth());
+    APInt lhsWiden(bits, lhs.getLimitedValue());
+    APInt rhsWiden(bits, rhs.getLimitedValue());
+    return unsign ? lhsWiden.ult(rhsWiden) : lhsWiden.slt(rhsWiden);
   };
 
   return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
@@ -1668,7 +1682,10 @@ OpFoldResult AtenGtScalarOp::fold(FoldAdaptor adaptor) {
   auto fpFold = [](double lhs, double rhs) -> bool { return lhs > rhs; };
 
   auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
-    return unsign ? lhs.ugt(rhs) : lhs.sgt(rhs);
+    int64_t bits = std::max(lhs.getBitWidth(), rhs.getBitWidth());
+    APInt lhsWiden(bits, lhs.getLimitedValue());
+    APInt rhsWiden(bits, rhs.getLimitedValue());
+    return unsign ? lhsWiden.ugt(rhsWiden) : lhsWiden.sgt(rhsWiden);
   };
 
   return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
@@ -1686,7 +1703,10 @@ OpFoldResult AtenGeScalarOp::fold(FoldAdaptor adaptor) {
   auto fpFold = [](double lhs, double rhs) -> bool { return lhs >= rhs; };
 
   auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
-    return unsign ? lhs.uge(rhs) : lhs.sge(rhs);
+    int64_t bits = std::max(lhs.getBitWidth(), rhs.getBitWidth());
+    APInt lhsWiden(bits, lhs.getLimitedValue());
+    APInt rhsWiden(bits, rhs.getLimitedValue());
+    return unsign ? lhsWiden.uge(rhsWiden) : lhsWiden.sge(rhsWiden);
   };
 
   return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
@@ -1704,7 +1724,10 @@ OpFoldResult AtenEqScalarOp::fold(FoldAdaptor adaptor) {
   auto fpFold = [](double lhs, double rhs) -> bool { return lhs == rhs; };
 
   auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
-    return lhs.eq(rhs);
+    int64_t bits = std::max(lhs.getBitWidth(), rhs.getBitWidth());
+    APInt lhsWiden(bits, lhs.getLimitedValue());
+    APInt rhsWiden(bits, rhs.getLimitedValue());
+    return lhsWiden.eq(rhsWiden);
   };
 
   return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
@@ -1722,7 +1745,10 @@ OpFoldResult AtenNeScalarOp::fold(FoldAdaptor adaptor) {
   auto fpFold = [](double lhs, double rhs) -> bool { return lhs != rhs; };
 
   auto intFold = [](APInt lhs, APInt rhs, bool unsign) -> bool {
-    return lhs.ne(rhs);
+    int64_t bits = std::max(lhs.getBitWidth(), rhs.getBitWidth());
+    APInt lhsWiden(bits, lhs.getLimitedValue());
+    APInt rhsWiden(bits, rhs.getLimitedValue());
+    return lhsWiden.ne(rhsWiden);
   };
 
   return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
