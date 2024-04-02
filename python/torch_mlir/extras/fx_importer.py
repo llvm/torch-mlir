@@ -962,9 +962,12 @@ class ContextCache:
                 return self.get_vtensor_type(
                     val.size(), val.dtype, sparsity=sparsity, mutable=mutable
                 )
-            t = SCALAR_TYPE_TO_TORCH_MLIR_TYPE.get(type(val))
-            if t is not None:
-                return IrType.parse(t, self._c)
+
+        # Note that None is a valid scalar here, so it is important that this
+        # is always checked as the last fallback.
+        t = SCALAR_TYPE_TO_TORCH_MLIR_TYPE.get(type(val))
+        if t is not None:
+            return IrType.parse(t, self._c)
 
         raise NotImplementedError(
             f"Could not deduce type from value info: "
