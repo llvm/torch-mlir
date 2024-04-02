@@ -142,6 +142,9 @@ void TorchConversion::createTorchBackendToStablehloBackendPipeline(
   // Lowering Chlo ops to Stablehlo
   pm.addNestedPass<func::FuncOp>(
       stablehlo::createChloLegalizeToStablehloPass());
+  // Canonicalize Stablehlo dynamic ops to static ops
+  pm.addNestedPass<func::FuncOp>(
+      stablehlo::createStablehloCanonicalizeDynamismPass());
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
 
   // Lowering remained ops to Arith
