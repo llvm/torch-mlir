@@ -25,10 +25,10 @@ Value createActivationByName(ImplicitLocOpBuilder &b, StringRef name,
  * Each bias vector should have shape [4 * hidden_size].
  */
 struct LstmWeights {
-  Value W_i, W_o, W_f, W_c;     ///< W_ weight matrices
-  Value R_i, R_o, R_f, R_c;     ///< R_ weight matrices
-  Value Wb_i, Wb_o, Wb_f, Wb_c; ///< W_ bias vectors
-  Value Rb_i, Rb_o, Rb_f, Rb_c; ///< R_ bias vectors
+  Value W_i, W_o, W_f, W_c;
+  Value R_i, R_o, R_f, R_c;
+  Value Wb_i, Wb_o, Wb_f, Wb_c;
+  Value Rb_i, Rb_o, Rb_f, Rb_c;
 };
 struct LstmActivations {
   std::string f;
