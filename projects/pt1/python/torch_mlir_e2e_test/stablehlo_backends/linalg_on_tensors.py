@@ -18,7 +18,8 @@ __all__ = [
 # The pipeline of func.func passes that lower the STABLEHLO backend contract to the
 # Linalg-on-Tensors backend contract accepted by RefBackend.
 STABLEHLO_TO_LINALG_FUNC_PIPELINE = ",".join([
-    "stablehlo-legalize-to-linalg"
+    "stablehlo-legalize-to-linalg",
+    "canonicalize"
 ])
 
 

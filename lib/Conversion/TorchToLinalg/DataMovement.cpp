@@ -852,7 +852,6 @@ public:
     Location loc = op.getLoc();
     Value input = adaptor.getSelf();
     auto inputType = input.getType().cast<RankedTensorType>();
-    SmallVector<Value> inputSize = getTensorSizes(rewriter, loc, input);
     int64_t inputRank = inputType.getRank();
     const TypeConverter *typeConverter = getTypeConverter();
     auto resultType =
@@ -892,12 +891,6 @@ public:
         }) > 1) {
       return rewriter.notifyMatchFailure(
           op, "at most one element in size list is allowed to be -1");
-    }
-    SmallVector<Value> outputSizeInt = getTypeConvertedValues(
-        rewriter, loc, typeConverter, outputSizeTorchInt);
-    if (resultRank != (int64_t)outputSizeInt.size()) {
-      return rewriter.notifyMatchFailure(
-          op, "desired size list length mismatches with the result type rank");
     }
 
     auto [inputShape, outputShape] =
@@ -975,6 +968,7 @@ public:
     // For more information, see description of helper functions used in the
     // `if-else` cases inside the while loop.
     int64_t inputDim = 0, outputDim = 0;
+    SmallVector<std::pair<int64_t, int64_t>> checkDimPairs;
     for (auto [nextUnchangedInput, nextUnchangedOutput] : unchangedDims) {
       // Used for ensuring that we don't have an ambiguous expansion
       bool assumedDynamicDimNotSplit = false;
@@ -1021,11 +1015,10 @@ public:
           /// input and output dimensions in the slice statically
           /// known to have the same number of elements.
         } else if (inputShapeSlice[0] == kUnknownSize) {
-          // If the input is dynamic, assume it is not split
-          checkDimEqualHelper(rewriter, loc, inputSize[inputDim],
-                              outputSizeInt[outputDim]);
-          // If output dimension is not dynamic, improve static information of
-          // input
+          // Defer the dynamic shape check to avoid DialectConversion assertion:
+          checkDimPairs.push_back(
+              std::pair<int64_t, int64_t>(inputDim, outputDim));
+
           inputShape[inputDim] = outputShape[outputDim];
           inputSliceIndices.push_back(0);
           outputSliceIndices.push_back(0);
@@ -1071,6 +1064,20 @@ public:
         }
         outputAssociations.back().push_back(outputDim++);
       }
+    }
+
+    SmallVector<Value> inputSize = getTensorSizes(rewriter, loc, input);
+
+    SmallVector<Value> outputSizeInt = getTypeConvertedValues(
+        rewriter, loc, typeConverter, outputSizeTorchInt);
+    if (resultRank != (int64_t)outputSizeInt.size()) {
+      return rewriter.notifyMatchFailure(
+          op, "desired size list length mismatches with the result type rank");
+    }
+
+    for (auto [inputDim, outputDim] : checkDimPairs) {
+      checkDimEqualHelper(rewriter, loc, inputSize[inputDim],
+                          outputSizeInt[outputDim]);
     }
 
     auto cast = [&](Location loc, Type t, Value v) -> Value {

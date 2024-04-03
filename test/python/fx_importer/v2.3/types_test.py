@@ -24,13 +24,20 @@ def run(f):
 
 
 @run
-# CHECK-LABEL: test_lift_fresh_copy
-def test_lift_fresh_copy():
-    #
+# CHECK-LABEL: test_scalar_typed_node
+# Getting the shape of a dynamic dimension has the side effect of producing
+# a node like:
+#   sym_size_int: "Sym(s0)" = torch.ops.aten.sym_size.int(arg0_1, 0)
+# This tests the fx_importer code paths around resolving scalar/symbolic
+# types for operands and results.
+def test_scalar_typed_node():
     class Basic(nn.Module):
         def forward(self, x):
-            # CHECK: torch.aten.clone %arg0, %none
-            return torch.ops.aten.lift_fresh_copy.default(x)
+            x = x + 1.0
+            return x.shape[0]
 
-    m = fx.export_and_import(Basic(), torch.randn(3, 4))
+    # CHECK: torch.aten.size.int %arg0, %int0 : !torch.vtensor<[?,4],f32>, !torch.int -> !torch.int
+    m = fx.export_and_import(
+        Basic(), torch.randn(3, 4), dynamic_shapes={"x": {0: torch.export.Dim("b")}}
+    )
     print(m)

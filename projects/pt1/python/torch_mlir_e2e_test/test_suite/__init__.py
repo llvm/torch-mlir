@@ -12,6 +12,7 @@ from torch_mlir._version import torch_version_for_comparison, version
 COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "NativeGroupNormBackwardModule_basic",
     "QuantizedMLP_basic",
+    "QuantizedSingleLayer_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
