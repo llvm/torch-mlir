@@ -11,6 +11,11 @@
 #define TORCHMLIR_CONVERSION_TORCHONNXTOTORCH_UTILS_H
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+
+using namespace mlir;
+using namespace mlir::torch::Torch;
 
 namespace mlir::torch::onnx_c {
 
@@ -19,6 +24,9 @@ Value createConstantIntList(OpBinder binder,
                             SmallVector<int64_t> cstInput);
 
 Type getQTorchTypeFromTorchIntType(Type ty);
+
+LogicalResult OnnxLstmExpander(OpBinder binder,
+                               ConversionPatternRewriter &rewriter);
 
 } // namespace mlir::torch::onnx_c
 

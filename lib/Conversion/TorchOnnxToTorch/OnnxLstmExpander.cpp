@@ -1,4 +1,3 @@
-#include "torch-mlir/Conversion/TorchOnnxToTorch/OnnxLstmExpander.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -8,15 +7,13 @@ namespace mlir::torch::onnx_c {
 
 Value createActivationByName(ConversionPatternRewriter &rewriter, Location loc,
                              StringRef name, Value input) {
-  if (name == "Sigmoid") {
+  if (name == "Sigmoid")
     return rewriter.create<Torch::AtenSigmoidOp>(loc, input.getType(), input);
-  } else if (name == "Tanh") {
+  if (name == "Tanh")
     return rewriter.create<Torch::AtenTanhOp>(loc, input.getType(), input);
-  } else if (name == "Relu") {
+  if (name == "Relu")
     return rewriter.create<Torch::AtenReluOp>(loc, input.getType(), input);
-  } else {
-    llvm_unreachable("Unsupported activation function");
-  }
+  llvm_unreachable("Unsupported activation function");
 }
 
 std::pair<Value, Value>
