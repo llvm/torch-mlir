@@ -15,11 +15,20 @@ Value createActivationByName(ImplicitLocOpBuilder &b, StringRef name,
     return b.create<Torch::AtenReluOp>(input.getType(), input);
   llvm_unreachable("Unsupported activation function");
 }
+
+/**
+ * @struct LstmWeights
+ * @brief A structure to hold LSTM weights.
+ *
+ * Each W_ weight matrix should have shape [hidden_size, input_size].
+ * Each R_ weight matrix should have shape [hidden_size, hidden_size].
+ * Each bias vector should have shape [4 * hidden_size].
+ */
 struct LstmWeights {
-  Value W_i, W_o, W_f, W_c;
-  Value R_i, R_o, R_f, R_c;
-  Value Wb_i, Wb_o, Wb_f, Wb_c;
-  Value Rb_i, Rb_o, Rb_f, Rb_c;
+  Value W_i, W_o, W_f, W_c;     ///< W_ weight matrices
+  Value R_i, R_o, R_f, R_c;     ///< R_ weight matrices
+  Value Wb_i, Wb_o, Wb_f, Wb_c; ///< W_ bias vectors
+  Value Rb_i, Rb_o, Rb_f, Rb_c; ///< R_ bias vectors
 };
 struct LstmActivations {
   std::string f;
@@ -31,31 +40,21 @@ struct LstmCellState {
   Value H;
   Value C;
 };
-/*
-This function represents a Long Short-Term Memory (LSTM) cell operation.
-
-Parameters:
-- ImplicitLocOpBuilder& b: A builder for constructing operations.
-- Value Xt: The input sequence. It has a shape of [batch_size, input_size].
-- Value H_prev: The previous hidden state. It has a shape of [batch_size,
-hidden_size].
-- Value C_prev: The previous cell state. It has a shape of [batch_size,
-hidden_size].
-- Value weights.W_i, weights.W_o, weights.W_f, weights.W_c: The weight matrices
-for input, output, forget, and cell gates. Each has a shape of [hidden_size,
-input_size].
-- Value weights.Wb_i, weights.Wb_o, weights.Wb_f, weights.Wb_c: The bias vectors
-for input, output, forget, and cell gates. Each has a shape of [hidden_size].
-- Value weights.R_i, weights.R_o, weights.R_f, weights.R_c: The recurrent weight
-matrices for input, output, forget, and cell gates. Each has a shape of
-[hidden_size, hidden_size].
-- Value weights.Rb_i, weights.Rb_o, weights.Rb_f, weights.Rb_c: The recurrent
-bias vectors for input, output, forget, and cell gates. Each has a shape of
-[hidden_size].
-- SmallVector<std::string> activations: A vector of activation functions to be
-used in the LSTM cell. The function returns a LstmCellState object representing
-the state of the LSTM cell after the operation.
-*/
+/**
+ * @brief This function represents a Long Short-Term Memory (LSTM) cell
+ * operation.
+ *
+ * @param b A builder for constructing operations.
+ * @param Xt The input sequence. It has a shape of [batch_size, input_size].
+ * @param H_prev The previous hidden state. It has a shape of [batch_size,
+ * hidden_size].
+ * @param C_prev The previous cell state. It has a shape of [batch_size,
+ * hidden_size].
+ * @param weights The weights for the LSTM cell. See @ref LstmWeights for shapes
+ * @param activations The activation functions for the LSTM cell. Members f,g,h
+ * correspond to f,g,h in https://onnx.ai/onnx/operators/onnx__LSTM.html
+ * @return The state of the LSTM cell after the operation.
+ */
 LstmCellState lstm_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
                         Value C_prev, LstmWeights weights,
                         LstmActivations activations) {
@@ -110,6 +109,18 @@ struct LstmLayerOutput {
   Value Y_c;
 };
 
+/**
+ * @brief This function implements the LSTM (Long Short-Term Memory) layer
+ * operation.
+ *
+ * The core computation is performed in a loop that iterates over the sequence
+ * length. In each iteration, it selects the corresponding input, computes the
+ * new hidden state and cell state using the lstm_cell function, and updates the
+ * output tensor.
+ *
+ * @return A struct containing the hidden state historty, final hidden state,
+ * and final cell state.
+ */
 LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
                            Value initial_c, LstmWeights weights,
                            LstmActivations activations) {
@@ -214,10 +225,23 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
                          .Y_c = loop.getResult(2)};
 }
 
+/**
+ * @brief Expands an ONNX LSTM operation into torch ops.
+ *
+ * This function primarily handles the binding of operands and slicing of the
+ * weight matrix. The majority of the lowering process is managed in the
+ * lstm_layer and lstm_cell. For the shapes and meanings of the inputs, refer to
+ * the ONNX LSTM documentation at:
+ * https://onnx.ai/onnx/operators/onnx__LSTM.html
+ * The variable names are also consistent with the aforementioned documentation.
+ *
+ * @param binder The OpBinder object used for binding operands.
+ * @param rewriter The ConversionPatternRewriter object used for rewriting
+ * patterns.
+ * @return LogicalResult indicating the success or failure of the operation.
+ */
 LogicalResult OnnxLstmExpander(OpBinder binder,
                                ConversionPatternRewriter &rewriter) {
-  // For shapes and meanings of the inputs, see
-  // https://onnx.ai/onnx/operators/onnx__LSTM.html
   Location loc = binder.getLoc();
   mlir::ImplicitLocOpBuilder b(loc, rewriter);
 
