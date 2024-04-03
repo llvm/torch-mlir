@@ -2096,8 +2096,6 @@ ONNX_XFAIL_SET = {
     "ElementwiseErfIntModule_basic",
     "ElementwiseExpIntModule_basic",
     "ElementwiseLogIntModule_basic",
-    "ElementwisePreluModule_basic",
-    "ElementwisePreluStaticModule_basic",
     "ElementwiseSigmoidIntModule_basic",
     "ElementwiseSinIntModule_basic",
     "ElementwiseTanIntModule_basic",
@@ -2129,6 +2127,9 @@ ONNX_XFAIL_SET = {
 ONNX_CRASHING_SET = { 
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
+
+    # Unique broadcasting issue with prelu assuming dynamic dim in weight == inputDim[1]
+    "ElementwisePreluModule_basic",
 
     # WIP for supporting reshape:
     "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
