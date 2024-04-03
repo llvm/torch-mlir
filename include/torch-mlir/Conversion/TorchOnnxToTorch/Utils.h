@@ -13,6 +13,7 @@
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include <mlir/IR/ImplicitLocOpBuilder.h>
 
 using namespace mlir;
 using namespace mlir::torch::Torch;
