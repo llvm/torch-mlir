@@ -633,7 +633,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           }
           SmallVector<int64_t> tempSizes(outSizes.begin(),
                                          outSizes.begin() + i + 1);
-          for (int64_t k = j; j < inRank; j++) {
+          for (int64_t k = j; k < inRank; k++) {
             tempSizes.push_back(inSizes[k]);
           }
           auto tempType = rewriter.getType<Torch::ValueTensorType>(
