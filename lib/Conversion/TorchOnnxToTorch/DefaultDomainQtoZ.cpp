@@ -1702,19 +1702,32 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 rewriter.create<Torch::AtenEqIntOp>(binder.getLoc(), dim, zero);
             isZero =
                 rewriter.create<Torch::AtenIntBoolOp>(binder.getLoc(), isZero);
-            Value adjustment = zero;
-            int64_t inputDimsSize = dataSizes.size();
-            if (i < inputDimsSize) {
-              adjustment = rewriter.create<Torch::ConstantIntOp>(
+
+            int64_t dataRank = dataSizes.size();
+            if (i < dataRank) {
+              auto torchIntTy = rewriter.getType<Torch::IntType>();
+              auto int64Ty = rewriter.getIntegerType(64, true);
+              auto dimTy = rewriter.getType<Torch::ValueTensorType>(
+                  ArrayRef<int64_t>(), int64Ty);
+              auto boolTy = rewriter.getType<Torch::ValueTensorType>(
+                  ArrayRef<int64_t>(), rewriter.getI1Type());
+              Value iv = rewriter.create<Torch::ConstantIntOp>(
+                  binder.getLoc(), rewriter.getI64IntegerAttr(i));
+              Value inDim = rewriter.create<Torch::AtenSizeIntOp>(
+                  binder.getLoc(), torchIntTy, data, iv);
+              isZero = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+                  binder.getLoc(), boolTy, isZero);
+              inDim = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+                  binder.getLoc(), dimTy, inDim);
+              dim = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+                  binder.getLoc(), dimTy, dim);
+              Value finalDim = rewriter.create<Torch::AtenWhereSelfOp>(
+                  binder.getLoc(), dimTy, isZero, inDim, dim);
+              dim = rewriter.create<Torch::AtenItemOp>(
                   binder.getLoc(), rewriter.getType<Torch::IntType>(),
-                  rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                          dataSizes[i]));
+                  finalDim);
             }
-            Value finalOffset = rewriter.create<Torch::AtenMulIntOp>(
-                binder.getLoc(), isZero, adjustment);
-            Value finalDim = rewriter.create<Torch::AtenAddIntOp>(
-                binder.getLoc(), dim, finalOffset);
-            dimList.push_back(finalDim);
+            dimList.push_back(dim);
           }
           Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
               binder.getLoc(),

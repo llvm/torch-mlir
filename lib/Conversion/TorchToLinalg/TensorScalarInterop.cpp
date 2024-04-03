@@ -178,13 +178,16 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    Value a = adaptor.getA();
-    Value outTensor =
-        rewriter
-            .create<tensor::EmptyOp>(loc, ArrayRef<OpFoldResult>{}, a.getType())
-            ->getResult(0);
-    rewriter.replaceOpWithNewOp<linalg::FillOp>(op, a, outTensor);
-
+    RankedTensorType resultType = getTypeConverter()
+                                      ->convertType(op->getResult(0).getType())
+                                      .cast<RankedTensorType>();
+    Type outElementType = resultType.getElementType();
+    Value elemVal = adaptor.getA();
+    Value elemValProm =
+        convertScalarToDtype(rewriter, loc, elemVal, outElementType);
+    Value zeroDTensor =
+        createInitTensor(rewriter, loc, {}, outElementType, elemValProm);
+    rewriter.replaceOp(op, zeroDTensor);
     return success();
   }
 };
