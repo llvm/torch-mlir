@@ -2120,20 +2120,20 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         return success();
       });
   patterns.onOp(
-      "Topk", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "TopK", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType Values_type, Indices_type;
-        Value X, K;
+        Value input, kValue;
         int64_t axis;
         bool largest, sorted;
-        if (binder.tensorOperandAtIndex(X, 0) ||
-            binder.tensorOperandAtIndex(K, 1) ||
+        if (binder.tensorOperandAtIndex(input, 0) ||
+            binder.tensorOperandAtIndex(kValue, 1) ||
             binder.s64IntegerAttr(axis, "axis", -1) ||
             binder.s64BoolAttr(largest, "largest", true) ||
             binder.s64BoolAttr(sorted, "sorted", true) ||
             binder.tensorResultTypeAtIndex(Values_type, 0) ||
             binder.tensorResultTypeAtIndex(Indices_type, 1))
           return failure();
-        std::optional<unsigned> maybeRank = Torch::getTensorRank(X);
+        std::optional<unsigned> maybeRank = Torch::getTensorRank(input);
         if (!maybeRank)
           return rewriter.notifyMatchFailure(binder.op,
                                              "Unimplemented: unranked tensor");
@@ -2145,9 +2145,11 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), largest);
         Value cstSorted =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), sorted);
+        Value kValueInt = rewriter.create<Torch::AtenItemOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(), kValue);
         rewriter.replaceOpWithNewOp<Torch::AtenTopkOp>(
-            binder.op, Values_type, Indices_type, X, K, cstAxis, cstLargest,
-            cstSorted);
+            binder.op, Values_type, Indices_type, input, kValueInt, cstAxis,
+            cstLargest, cstSorted);
         return success();
       });
   patterns.onOp("Sign", 9,
