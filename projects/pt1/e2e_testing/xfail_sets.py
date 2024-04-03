@@ -2080,14 +2080,7 @@ ONNX_XFAIL_SET = {
     "QuantizedMLP_basic",
     "QuantizedSingleLayer_basic",
 
-    # Failure - torch.aten.squeeze lower
-    "BucketizeTensorOutInt32RightModule_basic", # unsupported by backend contract: tensor with unknown rank
-
     # Failure - unknown
-    "BucketizeTensorFloatModule_basic",
-    "BucketizeTensorModule_basic",
-    "BucketizeTensorStaticFloatModule_basic",
-    "BucketizeTensorStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "CopyWithDifferentDTypesAndSizesModule_basic",
     "CopyWithDifferentDTypesModule_basic",
@@ -2104,17 +2097,16 @@ ONNX_XFAIL_SET = {
     "ElementwiseErfIntModule_basic",
     "ElementwiseExpIntModule_basic",
     "ElementwiseLogIntModule_basic",
+    "ElementwisePreluModule_basic",
     "ElementwiseSigmoidIntModule_basic",
     "ElementwiseSinIntModule_basic",
     "ElementwiseTanIntModule_basic",
     "ElementwiseUnaryIntModule_basic",
-    "ElementwiseUnsqueezeNegDimsModule_basic",
     "EmbeddingModuleF16_basic",
     "EmbeddingModuleI32_basic",
     "EmbeddingModuleI64_basic",
     "FlattenDynamicModule_basic",
     "GluStaticModule_basic",
-    "GroupNormModule_basic",
     "IndexTensorHackedTwinModule3dInput_basic",
     "IndexTensorHackedTwinModule_basic",
     "IndexTensorModule3dInput_basic",
@@ -2125,8 +2117,6 @@ ONNX_XFAIL_SET = {
     "ReduceAllDimFloat_basic",
     "ReduceAllDimInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
-    "TensorsStackNegativeDimModule_basic",
-    "TensorsStackPromoteDTypeModule_basic",
 
     # Failure - "RuntimeError: linalg.cross: inputs dimension 1 must have length 3. Got 1 and 1"
     "AtenLinalgCrossDynamic_basic"
@@ -2136,7 +2126,7 @@ ONNX_CRASHING_SET = {
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
 
-    # Unique broadcasting issue with prelu assuming dynamic dim in weight == inputDim[1]
+    # unique broadcasting conflict
     "ElementwisePreluModule_basic",
 }
 
