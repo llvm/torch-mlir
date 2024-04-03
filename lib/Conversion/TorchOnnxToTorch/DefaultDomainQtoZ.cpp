@@ -7,7 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/IR/DialectResourceBlobManager.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -810,26 +809,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             }
           }
         } else {
-          auto constOp = axes.getDefiningOp<Torch::OperatorOp>();
-          if (!constOp || !constOp.getName().equals("onnx.Constant"))
-            return failure();
-          DenseResourceElementsAttr attr =
-              constOp->getAttr("torch.onnx.value")
-                  .dyn_cast_or_null<DenseResourceElementsAttr>();
-          // Bytes are stored in little endian order. Big endian support will
-          // require swizzling.
-          if (!Endian::little) {
-            binder.op->emitError(
-                "unimplemented: importing on big endian systems");
-            return failure();
-          }
+          SmallVector<int64_t> unsqueezeDimsInts;
+          if (!matchPattern(axes,
+                            Torch::m_OnnxListOfConstantInts(unsqueezeDimsInts)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "only support constant int axes values");
 
-          auto ty = cast<ShapedType>(attr.getType());
-          ElementsAttr denseAttr;
-          auto ptr = attr.getRawHandle().getBlob()->getData();
-          denseAttr = DenseElementsAttr::getFromRawBuffer(ty, ptr);
-          for (auto axis : denseAttr.getValues<llvm::APInt>()) {
-            int64_t dim = axis.getSExtValue();
+          for (auto dim : unsqueezeDimsInts) {
             unsqueezeDims.push_back(dim < 0 ? dim + resultRank : dim);
           }
           // If we don't sort, unsqueezing first on 4 and then on 0 would fail

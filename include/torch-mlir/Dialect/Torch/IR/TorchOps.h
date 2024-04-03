@@ -12,6 +12,7 @@
 
 #include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/DialectResourceBlobManager.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
@@ -142,7 +143,7 @@ m_TorchConstantBool(bool *bind_value) {
 }
 
 namespace detail {
-/// Matches the constant integers stored in a `torch.ListConstruct`.
+/// Matches the constant integers stored in a `torch.prim.ListConstruct`.
 struct torch_list_of_constant_ints_op_binder {
   SmallVectorImpl<int64_t> &bind_values;
 
@@ -265,6 +266,41 @@ struct torch_tensor_size_int_op_binder {
 inline detail::torch_tensor_size_int_op_binder
 m_TorchTensorSizeInt(Value tensor, int64_t *dim) {
   return detail::torch_tensor_size_int_op_binder(tensor, dim);
+}
+
+namespace detail {
+/// Matches the constant integers stored in a `onnx.Constant`.
+struct onnx_list_of_constant_ints_op_binder {
+  SmallVectorImpl<int64_t> &bind_values;
+
+  /// Creates a matcher instance that binds the value to bvs if match succeeds.
+  onnx_list_of_constant_ints_op_binder(SmallVectorImpl<int64_t> &bvs)
+      : bind_values(bvs) {}
+
+  bool match(Operation *op) {
+    auto constOp = dyn_cast<Torch::OperatorOp>(op);
+    if (!constOp || !constOp.getName().equals("onnx.Constant"))
+      return false;
+
+    DenseResourceElementsAttr attr =
+        constOp->getAttr("torch.onnx.value")
+            .dyn_cast_or_null<DenseResourceElementsAttr>();
+    auto ty = cast<ShapedType>(attr.getType());
+    ElementsAttr denseAttr;
+    auto ptr = attr.getRawHandle().getBlob()->getData();
+    denseAttr = DenseElementsAttr::getFromRawBuffer(ty, ptr);
+    for (auto axis : denseAttr.getValues<llvm::APInt>()) {
+      bind_values.push_back(axis.getSExtValue());
+    }
+    return true;
+  }
+};
+} // namespace detail
+
+/// Matches the constant integers stored in a `onnx.Constant`.
+inline detail::onnx_list_of_constant_ints_op_binder
+m_OnnxListOfConstantInts(SmallVectorImpl<int64_t> &bind_values) {
+  return detail::onnx_list_of_constant_ints_op_binder(bind_values);
 }
 
 /// Create code to copy `tensor` to type `newType`.
