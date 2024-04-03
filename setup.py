@@ -49,7 +49,7 @@ def check_env_flag(name: str, default=None) -> bool:
 PACKAGE_VERSION = os.environ.get("TORCH_MLIR_PYTHON_PACKAGE_VERSION") or "0.0.1"
 
 # If true, enable LTC build by default
-TORCH_MLIR_ENABLE_LTC_DEFAULT = True
+TORCH_MLIR_ENABLE_LTC_DEFAULT = False
 TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS = check_env_flag(
     'TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS', False)
 LLVM_INSTALL_DIR = os.getenv('LLVM_INSTALL_DIR', None)
@@ -88,6 +88,10 @@ class CMakeBuild(build_py):
             f"-DMLIR_ENABLE_BINDINGS_PYTHON=ON",
             f"-DLLVM_TARGETS_TO_BUILD=host",
             f"-DLLVM_ENABLE_ZSTD=OFF",
+            f"-DCMAKE_C_COMPILER=clang",
+            f"-DCMAKE_CXX_COMPILER=clang++",
+            f"-DCMAKE_C_COMPILER_LAUNCHER=ccache",
+            f"-DCMAKE_CXX_COMPILER_LAUNCHER=ccache",
             # Optimization options for building wheels.
             f"-DCMAKE_VISIBILITY_INLINES_HIDDEN=ON",
             f"-DCMAKE_C_VISIBILITY_PRESET=hidden",
