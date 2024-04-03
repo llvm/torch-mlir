@@ -1983,7 +1983,6 @@ ONNX_XFAIL_SET = {
     "ReduceL2NormComplexModule_basic",
 
     # Failure - onnx_lowering: onnx.ReduceL3
-    "ReduceL3NormAllDimsModule_basic",
     "ReduceL3NormKeepDimModule_basic",
     "ReduceL3NormKeepDimComplexModule_basic",
 
@@ -1997,15 +1996,6 @@ ONNX_XFAIL_SET = {
     "ReduceProdDimIntFloatModule_basic",
     "StdCorrectionLargeInputModule_basic",
     "VarCorrectionLargeInputModule_basic",
-
-    # Failure - onnx_lowering: onnx.ReduceSum
-    "MseLossSumReductionWithDifferentElemTypeModule_basic",
-    "ReduceSumDtypeFloatModule_basic",
-    "ReduceSumDtypeIntModule_basic",
-    "ReduceSumElementTypeBoolModule_basic",
-    "ReduceSumFloatModule_basic",
-    "ReduceSumSignedIntModule_basic",
-    "ReduceSumUnsignedIntModule_basic",
 
     # Failure - onnx_lowering: onnx.Resize
     "UpSampleNearest2dDynamicSize_basic",
