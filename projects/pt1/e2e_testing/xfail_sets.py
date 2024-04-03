@@ -1995,13 +1995,6 @@ ONNX_XFAIL_SET = {
     "SqueezeModule_broadcast",
     "SqueezeModule_static",
 
-    # Failure - onnx_lowering: onnx.TopK
-    "SortTensorDescending_basic",
-    "SortTensorInteger_basic",
-    "SortTensorNegativeDimension_basic",
-    "SortTensorSpecificDimension_basic",
-    "SortTensor_basic",
-
     # Failure - incorrect dtype
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
