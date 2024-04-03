@@ -140,48 +140,48 @@ std::tuple<Value, Value, Value> lstm_layer( // returns Y, Y_h, Y_c
   Value HSizeX4 = b.create<Torch::ConstantIntOp>(
       intType, b.getI64IntegerAttr(4 * hidden_size));
 
-  Torch::ValueTensorType GateWeightsTypeIH = b.getType<Torch::ValueTensorType>(
+  Torch::ValueTensorType gateWeightsTypeIH = b.getType<Torch::ValueTensorType>(
       llvm::SmallVector<int64_t>{hidden_size, input_size},
       W.getType().cast<Torch::ValueTensorType>().getDtype());
-  Value W_i = b.create<Torch::AtenSliceTensorOp>(GateWeightsTypeIH, W, cstZero,
+  Value W_i = b.create<Torch::AtenSliceTensorOp>(gateWeightsTypeIH, W, cstZero,
                                                  cstZero, HSizeX1, cstOne);
-  Value W_o = b.create<Torch::AtenSliceTensorOp>(GateWeightsTypeIH, W, cstZero,
+  Value W_o = b.create<Torch::AtenSliceTensorOp>(gateWeightsTypeIH, W, cstZero,
                                                  HSizeX1, HSizeX2, cstOne);
-  Value W_f = b.create<Torch::AtenSliceTensorOp>(GateWeightsTypeIH, W, cstZero,
+  Value W_f = b.create<Torch::AtenSliceTensorOp>(gateWeightsTypeIH, W, cstZero,
                                                  HSizeX2, HSizeX3, cstOne);
-  Value W_c = b.create<Torch::AtenSliceTensorOp>(GateWeightsTypeIH, W, cstZero,
+  Value W_c = b.create<Torch::AtenSliceTensorOp>(gateWeightsTypeIH, W, cstZero,
                                                  HSizeX3, HSizeX4, cstOne);
 
-  Torch::ValueTensorType GateWeightsTypeHH = b.getType<Torch::ValueTensorType>(
+  Torch::ValueTensorType gateWeightsTypeHH = b.getType<Torch::ValueTensorType>(
       llvm::SmallVector<int64_t>{hidden_size, hidden_size},
       R.getType().cast<Torch::ValueTensorType>().getDtype());
-  Value R_i = b.create<Torch::AtenSliceTensorOp>(GateWeightsTypeHH, R, cstZero,
+  Value R_i = b.create<Torch::AtenSliceTensorOp>(gateWeightsTypeHH, R, cstZero,
                                                  cstZero, HSizeX1, cstOne);
-  Value R_o = b.create<Torch::AtenSliceTensorOp>(GateWeightsTypeHH, R, cstZero,
+  Value R_o = b.create<Torch::AtenSliceTensorOp>(gateWeightsTypeHH, R, cstZero,
                                                  HSizeX1, HSizeX2, cstOne);
-  Value R_f = b.create<Torch::AtenSliceTensorOp>(GateWeightsTypeHH, R, cstZero,
+  Value R_f = b.create<Torch::AtenSliceTensorOp>(gateWeightsTypeHH, R, cstZero,
                                                  HSizeX2, HSizeX3, cstOne);
-  Value R_c = b.create<Torch::AtenSliceTensorOp>(GateWeightsTypeHH, R, cstZero,
+  Value R_c = b.create<Torch::AtenSliceTensorOp>(gateWeightsTypeHH, R, cstZero,
                                                  HSizeX3, HSizeX4, cstOne);
 
-  Torch::ValueTensorType GateBiasType = b.getType<Torch::ValueTensorType>(
+  Torch::ValueTensorType gateBiasType = b.getType<Torch::ValueTensorType>(
       llvm::SmallVector<int64_t>{hidden_size},
       Wb.getType().cast<Torch::ValueTensorType>().getDtype());
-  Value Wb_i = b.create<Torch::AtenSliceTensorOp>(GateBiasType, Wb, cstZero,
+  Value Wb_i = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Wb, cstZero,
                                                   cstZero, HSizeX1, cstOne);
-  Value Wb_o = b.create<Torch::AtenSliceTensorOp>(GateBiasType, Wb, cstZero,
+  Value Wb_o = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Wb, cstZero,
                                                   HSizeX1, HSizeX2, cstOne);
-  Value Wb_f = b.create<Torch::AtenSliceTensorOp>(GateBiasType, Wb, cstZero,
+  Value Wb_f = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Wb, cstZero,
                                                   HSizeX2, HSizeX3, cstOne);
-  Value Wb_c = b.create<Torch::AtenSliceTensorOp>(GateBiasType, Wb, cstZero,
+  Value Wb_c = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Wb, cstZero,
                                                   HSizeX3, HSizeX4, cstOne);
-  Value Rb_i = b.create<Torch::AtenSliceTensorOp>(GateBiasType, Rb, cstZero,
+  Value Rb_i = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Rb, cstZero,
                                                   cstZero, HSizeX1, cstOne);
-  Value Rb_o = b.create<Torch::AtenSliceTensorOp>(GateBiasType, Rb, cstZero,
+  Value Rb_o = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Rb, cstZero,
                                                   HSizeX1, HSizeX2, cstOne);
-  Value Rb_f = b.create<Torch::AtenSliceTensorOp>(GateBiasType, Rb, cstZero,
+  Value Rb_f = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Rb, cstZero,
                                                   HSizeX2, HSizeX3, cstOne);
-  Value Rb_c = b.create<Torch::AtenSliceTensorOp>(GateBiasType, Rb, cstZero,
+  Value Rb_c = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Rb, cstZero,
                                                   HSizeX3, HSizeX4, cstOne);
 
   auto YType = b.getType<Torch::ValueTensorType>(
