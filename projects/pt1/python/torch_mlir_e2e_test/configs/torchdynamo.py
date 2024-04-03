@@ -130,7 +130,6 @@ def jit(
 
     my_backend = aot_autograd(fw_compiler=my_aot_autograd_backend,
                               decompositions=_get_decomposition_table)
-
     with torch.no_grad():
         set_model_name(model.__class__.__name__)
         torch._dynamo.reset()
@@ -138,8 +137,10 @@ def jit(
             lambda method, *inputs: method(*inputs))
         dynamo_f(lambda *inputs: model(*[x.clone() for x in inputs]),
                  *example_args)
+        print(mlir_module)
         option_string = ("{backend-legal-ops=" + ",".join(backend_legal_ops) +
                          " extra-library=" + extra_library_file_name + "}")
+        print(mlir_module)
         assert mlir_module is not None
         run_pipeline_with_repro_report(
             mlir_module,
