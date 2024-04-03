@@ -1217,7 +1217,8 @@ public:
     // Squeeze in the remaining 1s:
     for (; i < inputRank; ++i) {
       if (inputShape[i] != 1)
-        return rewriter.notifyMatchFailure(op, "non-unary dim cannot be squeezed");
+        return rewriter.notifyMatchFailure(op,
+                                           "non-unary dim cannot be squeezed");
       reassociation.back().push_back(i);
     }
 
@@ -1226,8 +1227,8 @@ public:
       return rewriter.notifyMatchFailure(
           op, "expected output size mismatches with the result type rank");
 
-    rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(
-        op, resultType, input, reassociation);
+    rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(op, resultType, input,
+                                                         reassociation);
     return success();
   }
 };
