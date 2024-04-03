@@ -1,5 +1,23 @@
 // RUN: torch-mlir-opt %s -canonicalize | FileCheck %s
 
+// CHECK-LABEL:   func.func @torch_c.from_i1() -> !torch.bool {
+// CHECK:     %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:     return %[[TRUE]] : !torch.bool
+func.func @torch_c.from_i1() -> !torch.bool {
+  %c1_i1 = arith.constant true
+  %0 = torch_c.from_i1 %c1_i1
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch_c.to_i1() -> i1 {
+// CHECK:     %[[C1_I1:.*]] = arith.constant true
+// CHECK:     return %[[C1_I1]] : i1
+func.func @torch_c.to_i1() -> i1 {
+  %bool1 = torch.constant.bool true
+  %0 = torch_c.to_i1 %bool1
+  return %0 : i1
+}
+
 // CHECK-LABEL:   func.func @torch_c.from_i64() -> !torch.int {
 // CHECK:     %[[INT5:.*]] = torch.constant.int 5
 // CHECK:     return %[[INT5]] : !torch.int

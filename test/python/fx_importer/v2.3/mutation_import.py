@@ -15,6 +15,7 @@ from torch_mlir import fx
 
 from torch_mlir.ir import (
     Operation,
+    StringAttr,
 )
 
 
@@ -110,15 +111,24 @@ class ExternalBufferHooks(fx.FxImporterHooks):
 
     def resolve_input(self, gni, value, info):
         return Operation.create(
-            "my_dialect.import_buffer", results=[info.ir_type]
+            "my_dialect.import_buffer",
+            results=[info.ir_type],
+            attributes={"name": StringAttr.get(info.input_spec.target)},
         ).result
+
+    def store_produced_value(self, gni, py_value, produced_ir_value, info):
+        Operation.create(
+            "my_dialect.store_buffer",
+            operands=[produced_ir_value],
+            attributes={"name": StringAttr.get(info.input_spec.target)},
+        )
 
 
 @run
 # CHECK-LABEL: test_mutable_buffer
-# CHECK: %[[buffer:.+]] = "my_dialect.import_buffer"() : () -> !torch.tensor<[3,4],f32>
+# CHECK: %[[buffer:.+]] = "my_dialect.import_buffer"() {name = "buffer"} : () -> !torch.vtensor<[3,4],f32>
 # CHECK: %[[mul:.+]] = torch.aten.mul.Tensor %[[buffer]], %arg0
-# CHECK: torch.overwrite.tensor.contents %[[mul]] overwrites %[[buffer]]
+# CHECK: "my_dialect.store_buffer"(%[[mul]]) {name = "buffer"} : (!torch.vtensor<[3,4],f32>) -> ()
 # CHECK: return %arg0
 def test_mutable_buffer():
     class Basic(nn.Module):
@@ -141,9 +151,9 @@ def test_mutable_buffer():
 
 
 @run
-# CHECK-LABEL: test_mutable_buffer_not_supported_from_literal
-# CHECK: ERROR: Cannot import {{.*}} as a literal because it is mutable
-def test_mutable_buffer_not_supported_from_literal():
+# CHECK-LABEL: test_mutable_buffer_not_supported_without_hooks
+# CHECK: EXPECTED ERROR: Store of a mutation to {{.*}} is not supported
+def test_mutable_buffer_not_supported_without_hooks():
     class Basic(nn.Module):
         def __init__(self):
             super().__init__()
@@ -159,5 +169,5 @@ def test_mutable_buffer_not_supported_from_literal():
             torch.randn(3, 4),
             experimental_support_mutation=True,
         )
-    except ValueError as e:
-        print("ERROR:", e)
+    except NotImplementedError as e:
+        print("EXPECTED ERROR:", str(e))

@@ -80,6 +80,7 @@ def TorchConversion_ToI1Op : TorchConversion_Op<"to_i1", [
   let assemblyFormat = [{
     $operand attr-dict
   }];
+  let hasFolder = 1;
 }
 
 def TorchConversion_FromI1Op : TorchConversion_Op<"from_i1", [
@@ -98,6 +99,7 @@ def TorchConversion_FromI1Op : TorchConversion_Op<"from_i1", [
   let assemblyFormat = [{
     $operand attr-dict
   }];
+  let hasFolder = 1;
 }
 
 def TorchConversion_ToI64Op : TorchConversion_Op<"to_i64", [
