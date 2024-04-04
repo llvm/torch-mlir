@@ -137,7 +137,6 @@ def jit(
             lambda method, *inputs: method(*inputs))
         dynamo_f(lambda *inputs: model(*[x.clone() for x in inputs]),
                  *example_args)
-        print(mlir_module)
         option_string = ("{backend-legal-ops=" + ",".join(backend_legal_ops) +
                          " extra-library=" + extra_library_file_name + "}")
         print(mlir_module)
