@@ -15,9 +15,6 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include <mlir/IR/ImplicitLocOpBuilder.h>
 
-using namespace mlir;
-using namespace mlir::torch::Torch;
-
 namespace mlir::torch::onnx_c {
 
 Value createConstantIntList(OpBinder binder,

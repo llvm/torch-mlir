@@ -3,6 +3,8 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
+using namespace mlir;
+using namespace mlir::torch::Torch;
 namespace mlir::torch::onnx_c {
 
 Value createActivationByName(ImplicitLocOpBuilder &b, StringRef name,
