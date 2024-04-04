@@ -183,12 +183,13 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
         /*insertionPoint=*/loop.getRegion().begin(),
         /*argumentTypes=*/
         TypeRange({
-            loopIndexType, // loop condition
+            loopIndexType,
             yTy,
             hTy,
             cTy,
         }),
-        /*locations=*/{loc, loc, loc, loc});
+        {loc, loc, loc, loc} // locs for the loop body arguments
+    );
 
     Value loopIndex = loopBody->getArgument(0);
     Value Y_prev = loopBody->getArgument(1);
@@ -219,10 +220,11 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
         /*shouldContinue=*/cTrue,
         /*iterArgs=*/ValueRange({Y_new, H_new, C_new}));
   }
-
-  return LstmLayerOutput{.Y = loop.getResult(0),
-                         .Y_h = loop.getResult(1),
-                         .Y_c = loop.getResult(2)};
+  LstmLayerOutput output;
+  output.Y = loop.getResult(0);
+  output.Y_h = loop.getResult(1);
+  output.Y_c = loop.getResult(2);
+  return output;
 }
 
 /**
@@ -352,8 +354,6 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
 
   auto intType = b.getType<Torch::IntType>();
 
-  // construct a list containing the shape of initial_h and initial_c
-  // this is used to check if initial_h and initial_c are provided
   Value cstNumDirections = b.create<Torch::ConstantIntOp>(
       intType, b.getI64IntegerAttr(num_directions));
   Value cstBatchSize =
@@ -366,7 +366,7 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   Value cstOne =
       b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(1));
 
-  Value HShape = b.create<Torch::PrimListConstructOp>(
+  Value hShape = b.create<Torch::PrimListConstructOp>(
       b.getType<Torch::ListType>(intType),
       ValueRange({cstNumDirections, cstBatchSize, cstHiddenSize}));
 
@@ -375,100 +375,108 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
 
   Value initial_h;
   if (binder.tensorOperandAtIndex(initial_h, 5)) {
-    initial_h = b.create<Torch::AtenZerosOp>(hTy, HShape, cstDtype, cstNone,
+    initial_h = b.create<Torch::AtenZerosOp>(hTy, hShape, cstDtype, cstNone,
                                              cstNone, cstNone);
   }
   Value initial_c;
   if (binder.tensorOperandAtIndex(initial_c, 6)) {
-    initial_c = b.create<Torch::AtenZerosOp>(hTy, HShape, cstDtype, cstNone,
+    initial_c = b.create<Torch::AtenZerosOp>(hTy, hShape, cstDtype, cstNone,
                                              cstNone, cstNone);
   }
 
   Value initial_h_forward = getDirection(0, initial_h);
   Value initial_c_forward = getDirection(0, initial_c);
 
-  // Everything hereon is for the forward direction, with the direction
-  // dimention squeezed out.
-  Value hSizeX1 =
-      b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
-  Value hSizeX2 = b.create<Torch::ConstantIntOp>(
-      intType, b.getI64IntegerAttr(2 * hidden_size));
-  Value hSizeX3 = b.create<Torch::ConstantIntOp>(
-      intType, b.getI64IntegerAttr(3 * hidden_size));
-  Value hSizeX4 = b.create<Torch::ConstantIntOp>(
-      intType, b.getI64IntegerAttr(4 * hidden_size));
-  Value hSizeX8 = b.create<Torch::ConstantIntOp>(
-      intType, b.getI64IntegerAttr(8 * hidden_size));
-
-  Torch::ValueTensorType biasType = b.getType<Torch::ValueTensorType>(
-      llvm::SmallVector<int64_t>{hidden_size * 4}, wTy.getDtype());
-
-  Value Wb = b.create<Torch::AtenSliceTensorOp>(
-      biasType,
-      /*input=*/B_forward, /*dim=*/cstZero, /*start=*/cstZero,
-      /*end=*/hSizeX4, /*step=*/cstOne);
-  Value Rb = b.create<Torch::AtenSliceTensorOp>(
-      biasType,
-      /*input=*/B_forward, /*dim=*/cstZero, /*start=*/hSizeX4,
-      /*end=*/hSizeX8, /*step=*/cstOne);
-
-  // split W, R, B into individual weight matrices
-
-  Torch::ValueTensorType gateWeightsTypeIH = b.getType<Torch::ValueTensorType>(
-      llvm::SmallVector<int64_t>{hidden_size, input_size},
-      W_forward.getType().cast<Torch::ValueTensorType>().getDtype());
-
-  LstmWeights weights;
-  weights.W_i = b.create<Torch::AtenSliceTensorOp>(
-      gateWeightsTypeIH, W_forward, cstZero, cstZero, hSizeX1, cstOne);
-  weights.W_o = b.create<Torch::AtenSliceTensorOp>(
-      gateWeightsTypeIH, W_forward, cstZero, hSizeX1, hSizeX2, cstOne);
-  weights.W_f = b.create<Torch::AtenSliceTensorOp>(
-      gateWeightsTypeIH, W_forward, cstZero, hSizeX2, hSizeX3, cstOne);
-  weights.W_c = b.create<Torch::AtenSliceTensorOp>(
-      gateWeightsTypeIH, W_forward, cstZero, hSizeX3, hSizeX4, cstOne);
-
-  Torch::ValueTensorType gateWeightsTypeHH = b.getType<Torch::ValueTensorType>(
-      llvm::SmallVector<int64_t>{hidden_size, hidden_size},
-      R_forward.getType().cast<Torch::ValueTensorType>().getDtype());
-  weights.R_i = b.create<Torch::AtenSliceTensorOp>(
-      gateWeightsTypeHH, R_forward, cstZero, cstZero, hSizeX1, cstOne);
-  weights.R_o = b.create<Torch::AtenSliceTensorOp>(
-      gateWeightsTypeHH, R_forward, cstZero, hSizeX1, hSizeX2, cstOne);
-  weights.R_f = b.create<Torch::AtenSliceTensorOp>(
-      gateWeightsTypeHH, R_forward, cstZero, hSizeX2, hSizeX3, cstOne);
-  weights.R_c = b.create<Torch::AtenSliceTensorOp>(
-      gateWeightsTypeHH, R_forward, cstZero, hSizeX3, hSizeX4, cstOne);
-
-  Torch::ValueTensorType gateBiasType = b.getType<Torch::ValueTensorType>(
-      llvm::SmallVector<int64_t>{hidden_size},
-      Wb.getType().cast<Torch::ValueTensorType>().getDtype());
-  weights.Wb_i = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Wb, cstZero,
-                                                    cstZero, hSizeX1, cstOne);
-  weights.Wb_o = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Wb, cstZero,
-                                                    hSizeX1, hSizeX2, cstOne);
-  weights.Wb_f = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Wb, cstZero,
-                                                    hSizeX2, hSizeX3, cstOne);
-  weights.Wb_c = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Wb, cstZero,
-                                                    hSizeX3, hSizeX4, cstOne);
-  weights.Rb_i = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Rb, cstZero,
-                                                    cstZero, hSizeX1, cstOne);
-  weights.Rb_o = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Rb, cstZero,
-                                                    hSizeX1, hSizeX2, cstOne);
-  weights.Rb_f = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Rb, cstZero,
-                                                    hSizeX2, hSizeX3, cstOne);
-  weights.Rb_c = b.create<Torch::AtenSliceTensorOp>(gateBiasType, Rb, cstZero,
-                                                    hSizeX3, hSizeX4, cstOne);
-
-  LstmLayerOutput lstmLayerOutput = lstm_layer(
-      b, X, initial_h_forward, initial_c_forward, weights, activations);
-
   if (num_directions != 1) {
     return rewriter.notifyMatchFailure(
         binder.op, "Unsupported num_directions. Only 1 is supported but " +
                        std::to_string(num_directions) + " is provided.");
-  } // TODO: support bidirectional LSTM by doing both directions and replacing
+    // TODO: support bidirectional LSTM by doing both directions and replacing
     // Unsqueeze with Stack
+  }
+  // Everything hereon is for the forward direction, with the direction
+  // dimention squeezed out.
+
+  LstmWeights weights; // weights and biases
+
+  auto intConst = [&](int64_t val) {
+    return b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(val));
+  };
+
+  // split B into Wb and Rb
+  Value inputWeightsEndIdx = intConst(4 * hidden_size);
+  Value recurrentWeightsStartIdx = inputWeightsEndIdx;
+  Value recurrentWeightsEndIdx = intConst(8 * hidden_size);
+  Torch::ValueTensorType biasType = b.getType<Torch::ValueTensorType>(
+      llvm::SmallVector<int64_t>{hidden_size * 4}, wTy.getDtype());
+  Value Wb = b.create<Torch::AtenSliceTensorOp>(biasType,
+                                                /*input=*/B_forward,
+                                                /*dim=*/cstZero,
+                                                /*start=*/cstZero,
+                                                /*end=*/inputWeightsEndIdx,
+                                                /*step=*/cstOne);
+  Value Rb =
+      b.create<Torch::AtenSliceTensorOp>(biasType,
+                                         /*input=*/B_forward,
+                                         /*dim=*/cstZero,
+                                         /*start=*/recurrentWeightsStartIdx,
+                                         /*end=*/recurrentWeightsEndIdx,
+                                         /*step=*/cstOne);
+
+  // gate splitting
+  Torch::ValueTensorType gateBiasType = b.getType<Torch::ValueTensorType>(
+      llvm::SmallVector<int64_t>{hidden_size},
+      Wb.getType().cast<Torch::ValueTensorType>().getDtype());
+  Torch::ValueTensorType gateWeightsTypeIH = b.getType<Torch::ValueTensorType>(
+      llvm::SmallVector<int64_t>{hidden_size, input_size},
+      W_forward.getType().cast<Torch::ValueTensorType>().getDtype());
+  Torch::ValueTensorType gateWeightsTypeHH = b.getType<Torch::ValueTensorType>(
+      llvm::SmallVector<int64_t>{hidden_size, hidden_size},
+      R_forward.getType().cast<Torch::ValueTensorType>().getDtype());
+
+  Value inputGateWeightsEndIdx = intConst(hidden_size);
+  Value outputGateWeightsEndIdx = intConst(2 * hidden_size);
+  Value forgetGateWeightsEndIdx = intConst(3 * hidden_size);
+  Value cellGateWeightsEndIdx = intConst(4 * hidden_size);
+
+  auto sliceIOFC = [&](std::function<Value(Value, Value)> slicerFunction) {
+    // slice into 4 components and return tuple
+    return std::make_tuple(
+        slicerFunction(cstZero, inputGateWeightsEndIdx),
+        slicerFunction(inputGateWeightsEndIdx, outputGateWeightsEndIdx),
+        slicerFunction(outputGateWeightsEndIdx, forgetGateWeightsEndIdx),
+        slicerFunction(forgetGateWeightsEndIdx, cellGateWeightsEndIdx));
+  };
+
+  auto sliceGateBias = [&](Value startIdx, Value endIdx) {
+    return b.create<Torch::AtenSliceTensorOp>(gateBiasType, Wb, cstZero,
+                                              startIdx, endIdx, cstOne);
+  };
+  std::tie(weights.Wb_i, weights.Wb_o, weights.Wb_f, weights.Wb_c) =
+      sliceIOFC(sliceGateBias);
+
+  auto sliceGateBiasR = [&](Value startIdx, Value endIdx) {
+    return b.create<Torch::AtenSliceTensorOp>(gateBiasType, Rb, cstZero,
+                                              startIdx, endIdx, cstOne);
+  };
+  std::tie(weights.Rb_i, weights.Rb_o, weights.Rb_f, weights.Rb_c) =
+      sliceIOFC(sliceGateBiasR);
+
+  auto sliceGateWeightsIH = [&](Value startIdx, Value endIdx) {
+    return b.create<Torch::AtenSliceTensorOp>(
+        gateWeightsTypeIH, W_forward, cstZero, startIdx, endIdx, cstOne);
+  };
+  std::tie(weights.W_i, weights.W_o, weights.W_f, weights.W_c) =
+      sliceIOFC(sliceGateWeightsIH);
+
+  auto sliceGateWeightsHH = [&](Value startIdx, Value endIdx) {
+    return b.create<Torch::AtenSliceTensorOp>(
+        gateWeightsTypeHH, R_forward, cstZero, startIdx, endIdx, cstOne);
+  };
+  std::tie(weights.R_i, weights.R_o, weights.R_f, weights.R_c) =
+      sliceIOFC(sliceGateWeightsHH);
+  LstmLayerOutput lstmLayerOutput = lstm_layer(
+      b, X, initial_h_forward, initial_c_forward, weights, activations);
 
   Torch::ValueTensorType Y_h_Y_c_unsqueezed_type =
       b.getType<Torch::ValueTensorType>(
