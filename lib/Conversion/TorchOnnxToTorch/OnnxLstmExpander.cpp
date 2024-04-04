@@ -10,11 +10,11 @@ namespace mlir::torch::onnx_c {
 Value createActivationByName(ImplicitLocOpBuilder &b, StringRef name,
                              Value input) {
   if (name == "Sigmoid")
-    return b.create<Torch::AtenSigmoidOp>(input.getType(), input);
+    return b.create<AtenSigmoidOp>(input.getType(), input);
   if (name == "Tanh")
-    return b.create<Torch::AtenTanhOp>(input.getType(), input);
+    return b.create<AtenTanhOp>(input.getType(), input);
   if (name == "Relu")
-    return b.create<Torch::AtenReluOp>(input.getType(), input);
+    return b.create<AtenReluOp>(input.getType(), input);
   llvm_unreachable("Unsupported activation function");
 }
 
@@ -61,47 +61,40 @@ LstmCellState lstm_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
                         Value C_prev, LstmWeights weights,
                         LstmActivations activations) {
 
-  auto intType = b.getType<Torch::IntType>();
-  Torch::ValueTensorType hTy = H_prev.getType().cast<Torch::ValueTensorType>();
+  auto intType = b.getType<IntType>();
+  ValueTensorType hTy = H_prev.getType().cast<ValueTensorType>();
 
-  Value cstOne =
-      b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(1));
+  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
 
   // Apply linear/matmul for each gate separately
   // names are consistent with ONNX LSTM documentation
-  Value i_x = b.create<Torch::AtenLinearOp>(hTy, Xt, weights.W_i, weights.Wb_i);
-  Value i_h =
-      b.create<Torch::AtenLinearOp>(hTy, H_prev, weights.R_i, weights.Rb_i);
-  Value i = b.create<Torch::AtenAddTensorOp>(hTy, i_x, i_h, cstOne);
+  Value i_x = b.create<AtenLinearOp>(hTy, Xt, weights.W_i, weights.Wb_i);
+  Value i_h = b.create<AtenLinearOp>(hTy, H_prev, weights.R_i, weights.Rb_i);
+  Value i = b.create<AtenAddTensorOp>(hTy, i_x, i_h, cstOne);
   Value i_act = createActivationByName(b, activations.f, i);
 
-  Value o_x = b.create<Torch::AtenLinearOp>(hTy, Xt, weights.W_o, weights.Wb_o);
-  Value o_h =
-      b.create<Torch::AtenLinearOp>(hTy, H_prev, weights.R_o, weights.Rb_o);
-  Value o = b.create<Torch::AtenAddTensorOp>(hTy, o_x, o_h, cstOne);
+  Value o_x = b.create<AtenLinearOp>(hTy, Xt, weights.W_o, weights.Wb_o);
+  Value o_h = b.create<AtenLinearOp>(hTy, H_prev, weights.R_o, weights.Rb_o);
+  Value o = b.create<AtenAddTensorOp>(hTy, o_x, o_h, cstOne);
   Value o_act = createActivationByName(b, activations.f, o);
 
-  Value f_x = b.create<Torch::AtenLinearOp>(hTy, Xt, weights.W_f, weights.Wb_f);
-  Value f_h =
-      b.create<Torch::AtenLinearOp>(hTy, H_prev, weights.R_f, weights.Rb_f);
-  Value f = b.create<Torch::AtenAddTensorOp>(hTy, f_x, f_h, cstOne);
+  Value f_x = b.create<AtenLinearOp>(hTy, Xt, weights.W_f, weights.Wb_f);
+  Value f_h = b.create<AtenLinearOp>(hTy, H_prev, weights.R_f, weights.Rb_f);
+  Value f = b.create<AtenAddTensorOp>(hTy, f_x, f_h, cstOne);
   Value f_act = createActivationByName(b, activations.f, f);
 
-  Value ct_x =
-      b.create<Torch::AtenLinearOp>(hTy, Xt, weights.W_c, weights.Wb_c);
-  Value ct_h =
-      b.create<Torch::AtenLinearOp>(hTy, H_prev, weights.R_c, weights.Rb_c);
-  Value ct = b.create<Torch::AtenAddTensorOp>(hTy, ct_x, ct_h, cstOne);
+  Value ct_x = b.create<AtenLinearOp>(hTy, Xt, weights.W_c, weights.Wb_c);
+  Value ct_h = b.create<AtenLinearOp>(hTy, H_prev, weights.R_c, weights.Rb_c);
+  Value ct = b.create<AtenAddTensorOp>(hTy, ct_x, ct_h, cstOne);
   Value ct_act = createActivationByName(b, activations.g, ct);
 
-  Value C_forget = b.create<Torch::AtenMulTensorOp>(hTy, f_act, C_prev);
-  Value C_input = b.create<Torch::AtenMulTensorOp>(hTy, i_act, ct_act);
+  Value C_forget = b.create<AtenMulTensorOp>(hTy, f_act, C_prev);
+  Value C_input = b.create<AtenMulTensorOp>(hTy, i_act, ct_act);
 
   LstmCellState newCellState;
-  newCellState.C =
-      b.create<Torch::AtenAddTensorOp>(hTy, C_forget, C_input, cstOne);
+  newCellState.C = b.create<AtenAddTensorOp>(hTy, C_forget, C_input, cstOne);
   Value C_new_act = createActivationByName(b, activations.h, newCellState.C);
-  newCellState.H = b.create<Torch::AtenMulTensorOp>(hTy, o_act, C_new_act);
+  newCellState.H = b.create<AtenMulTensorOp>(hTy, o_act, C_new_act);
   return newCellState;
 }
 
@@ -129,52 +122,49 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
 
   Location loc = b.getLoc();
 
-  auto xTy = X.getType().cast<Torch::ValueTensorType>();
-  Torch::ValueTensorType hTy =
-      initial_h.getType().cast<Torch::ValueTensorType>();
+  auto xTy = X.getType().cast<ValueTensorType>();
+  ValueTensorType hTy = initial_h.getType().cast<ValueTensorType>();
   // these names are snake_case for consistency with onnx.LSTM documentation
   int64_t seq_len = xTy.getSizes()[0];
   int64_t batch_size = xTy.getSizes()[1];
   int64_t input_size = xTy.getSizes()[2];
   int64_t hidden_size = hTy.getSizes()[1];
 
-  Torch::ValueTensorType cTy = hTy;
+  ValueTensorType cTy = hTy;
 
-  auto intType = b.getType<Torch::IntType>();
+  auto intType = b.getType<IntType>();
 
-  Value cstNone = b.create<Torch::ConstantNoneOp>();
-  Value cstZero =
-      b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(0));
-  Value cstOne =
-      b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(1));
+  Value cstNone = b.create<ConstantNoneOp>();
+  Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
+  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
   Value cstSeqLen =
-      b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(seq_len));
+      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(seq_len));
   Value cstBatchSize =
-      b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(batch_size));
+      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(batch_size));
   Value cstHiddenSize =
-      b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
+      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
 
-  auto yTy = b.getType<Torch::ValueTensorType>(
+  auto yTy = b.getType<ValueTensorType>(
       SmallVector<int64_t>{seq_len, batch_size, hidden_size}, hTy.getDtype());
 
-  auto YShapeList = b.create<Torch::PrimListConstructOp>(
-      b.getType<Torch::ListType>(intType),
+  auto YShapeList = b.create<PrimListConstructOp>(
+      b.getType<ListType>(intType),
       ValueRange({cstSeqLen, cstBatchSize, cstHiddenSize}));
 
   int hDtypeInt = (int)getScalarTypeForType(hTy.getDtype());
   Value hDtypeIntVal =
       b.create<ConstantIntOp>(loc, b.getI64IntegerAttr(hDtypeInt));
 
-  Value Y_initial = b.create<Torch::AtenZerosOp>(yTy, YShapeList, hDtypeIntVal,
-                                                 cstNone, cstNone, cstNone);
+  Value Y_initial = b.create<AtenZerosOp>(yTy, YShapeList, hDtypeIntVal,
+                                          cstNone, cstNone, cstNone);
 
   // Create a for-like PrimLoopOp.
   Value maxTripCount =
-      b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(seq_len));
-  Value cTrue = b.create<Torch::ConstantBoolOp>(true);
+      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(seq_len));
+  Value cTrue = b.create<ConstantBoolOp>(true);
 
   Type loopIndexType = intType;
-  auto loop = b.create<Torch::PrimLoopOp>(
+  auto loop = b.create<PrimLoopOp>(
       /*results=*/TypeRange({yTy, hTy, cTy}), maxTripCount,
       /*initialCondition=*/cTrue,
       /*iterArgsInit=*/ValueRange({Y_initial, initial_h, initial_c}));
@@ -198,27 +188,26 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
     Value H_prev = loopBody->getArgument(2);
     Value C_prev = loopBody->getArgument(3);
 
-    Torch::ValueTensorType xTy = X.getType().cast<Torch::ValueTensorType>();
-    Torch::ValueTensorType XtType = b.getType<Torch::ValueTensorType>(
+    ValueTensorType xTy = X.getType().cast<ValueTensorType>();
+    ValueTensorType XtType = b.getType<ValueTensorType>(
         llvm::SmallVector<int64_t>{batch_size, input_size}, xTy.getDtype());
 
-    Value Xt = b.create<Torch::AtenSelectIntOp>(XtType, X, cstZero, loopIndex);
+    Value Xt = b.create<AtenSelectIntOp>(XtType, X, cstZero, loopIndex);
 
     auto [H_new, C_new] =
         lstm_cell(b, Xt, H_prev, C_prev, weights, activations);
 
-    Type hTyUnsqueezed = b.getType<Torch::ValueTensorType>(
+    Type hTyUnsqueezed = b.getType<ValueTensorType>(
         llvm::SmallVector<int64_t>{1, batch_size, hidden_size}, hTy.getDtype());
     Value H_new_unsqueezed =
-        b.create<Torch::AtenUnsqueezeOp>(hTyUnsqueezed, H_new, cstZero);
+        b.create<AtenUnsqueezeOp>(hTyUnsqueezed, H_new, cstZero);
 
-    auto loopIndexPlusOne =
-        b.create<Torch::AtenAddIntOp>(intType, loopIndex, cstOne);
-    Value Y_new = b.create<Torch::AtenSliceScatterOp>(
-        yTy, Y_prev, H_new_unsqueezed, cstZero, loopIndex, loopIndexPlusOne,
-        cstOne);
+    auto loopIndexPlusOne = b.create<AtenAddIntOp>(intType, loopIndex, cstOne);
+    Value Y_new =
+        b.create<AtenSliceScatterOp>(yTy, Y_prev, H_new_unsqueezed, cstZero,
+                                     loopIndex, loopIndexPlusOne, cstOne);
 
-    b.create<Torch::PrimLoopConditionOp>(
+    b.create<PrimLoopConditionOp>(
         /*shouldContinue=*/cTrue,
         /*iterArgs=*/ValueRange({Y_new, H_new, C_new}));
   }
@@ -251,7 +240,7 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
 
   std::string direction;
 
-  Torch::ValueTensorType yTy, Y_hType, Y_cType;
+  ValueTensorType yTy, Y_hType, Y_cType;
   if (binder.tensorResultTypeAtIndex(yTy, 0) ||
       binder.tensorResultTypeAtIndex(Y_hType, 1) ||
       binder.tensorResultTypeAtIndex(Y_cType, 2)) {
@@ -275,11 +264,11 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
     return rewriter.notifyMatchFailure(
         binder.op, "Missing required attribute hidden_size");
 
-  Torch::ValueTensorType xTy = X.getType().cast<Torch::ValueTensorType>();
-  Torch::ValueTensorType wTy = W.getType().cast<Torch::ValueTensorType>();
+  ValueTensorType xTy = X.getType().cast<ValueTensorType>();
+  ValueTensorType wTy = W.getType().cast<ValueTensorType>();
   Value B;
   if (binder.tensorOperandAtIndex(B, 3)) {
-    B = b.create<Torch::AtenZerosOp>(W.getType(), W);
+    B = b.create<AtenZerosOp>(W.getType(), W);
   }
 
   llvm::SmallVector<std::string> activationsList;
@@ -327,63 +316,57 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   // B = [B_forward, B_reverse]
   // helper function for splitting one direction out
   auto getDirection = [&](int64_t direction, Value input) {
-    Torch::ValueTensorType inputType =
-        input.getType().cast<Torch::ValueTensorType>();
+    ValueTensorType inputType = input.getType().cast<ValueTensorType>();
     // output type is input type with dim 0 dropped
-    Torch::ValueTensorType outputType =
+    ValueTensorType outputType =
         inputType
             .getWithSizesAndDtype(
                 llvm::SmallVector<int64_t>{inputType.getSizes().drop_front()},
                 inputType.getDtype())
-            .cast<Torch::ValueTensorType>();
-    auto intType = b.getType<Torch::IntType>();
-    Value cstZero =
-        b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(0));
+            .cast<ValueTensorType>();
+    auto intType = b.getType<IntType>();
+    Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
     Value cstDirection =
-        b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(direction));
+        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(direction));
 
-    return b.create<Torch::AtenSelectIntOp>(outputType, input, cstZero,
-                                            cstDirection);
+    return b.create<AtenSelectIntOp>(outputType, input, cstZero, cstDirection);
   };
 
   Value W_forward = getDirection(0, W);
   Value R_forward = getDirection(0, R);
   Value B_forward = getDirection(0, B);
 
-  Torch::ValueTensorType hTy = b.getType<Torch::ValueTensorType>(
+  ValueTensorType hTy = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{num_directions, batch_size, hidden_size},
       xTy.getDtype());
 
-  auto intType = b.getType<Torch::IntType>();
+  auto intType = b.getType<IntType>();
 
-  Value cstNumDirections = b.create<Torch::ConstantIntOp>(
-      intType, b.getI64IntegerAttr(num_directions));
+  Value cstNumDirections =
+      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(num_directions));
   Value cstBatchSize =
-      b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(batch_size));
+      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(batch_size));
   Value cstHiddenSize =
-      b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
-  Value cstNone = b.create<Torch::ConstantNoneOp>();
-  Value cstZero =
-      b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(0));
-  Value cstOne =
-      b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(1));
+      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
+  Value cstNone = b.create<ConstantNoneOp>();
+  Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
+  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
 
-  Value hShape = b.create<Torch::PrimListConstructOp>(
-      b.getType<Torch::ListType>(intType),
+  Value hShape = b.create<PrimListConstructOp>(
+      b.getType<ListType>(intType),
       ValueRange({cstNumDirections, cstBatchSize, cstHiddenSize}));
 
-  Value cstDtype =
-      Torch::getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
+  Value cstDtype = getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
 
   Value initial_h;
   if (binder.tensorOperandAtIndex(initial_h, 5)) {
-    initial_h = b.create<Torch::AtenZerosOp>(hTy, hShape, cstDtype, cstNone,
-                                             cstNone, cstNone);
+    initial_h =
+        b.create<AtenZerosOp>(hTy, hShape, cstDtype, cstNone, cstNone, cstNone);
   }
   Value initial_c;
   if (binder.tensorOperandAtIndex(initial_c, 6)) {
-    initial_c = b.create<Torch::AtenZerosOp>(hTy, hShape, cstDtype, cstNone,
-                                             cstNone, cstNone);
+    initial_c =
+        b.create<AtenZerosOp>(hTy, hShape, cstDtype, cstNone, cstNone, cstNone);
   }
 
   Value initial_h_forward = getDirection(0, initial_h);
@@ -402,23 +385,22 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   LstmWeights weights; // weights and biases
 
   auto intConst = [&](int64_t val) {
-    return b.create<Torch::ConstantIntOp>(intType, b.getI64IntegerAttr(val));
+    return b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(val));
   };
 
   // split B into Wb and Rb
   Value inputWeightsEndIdx = intConst(4 * hidden_size);
   Value recurrentWeightsStartIdx = inputWeightsEndIdx;
   Value recurrentWeightsEndIdx = intConst(8 * hidden_size);
-  Torch::ValueTensorType biasType = b.getType<Torch::ValueTensorType>(
+  ValueTensorType biasType = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{hidden_size * 4}, wTy.getDtype());
-  Value Wb = b.create<Torch::AtenSliceTensorOp>(biasType,
-                                                /*input=*/B_forward,
-                                                /*dim=*/cstZero,
-                                                /*start=*/cstZero,
-                                                /*end=*/inputWeightsEndIdx,
-                                                /*step=*/cstOne);
-  Value Rb =
-      b.create<Torch::AtenSliceTensorOp>(biasType,
+  Value Wb = b.create<AtenSliceTensorOp>(biasType,
+                                         /*input=*/B_forward,
+                                         /*dim=*/cstZero,
+                                         /*start=*/cstZero,
+                                         /*end=*/inputWeightsEndIdx,
+                                         /*step=*/cstOne);
+  Value Rb = b.create<AtenSliceTensorOp>(biasType,
                                          /*input=*/B_forward,
                                          /*dim=*/cstZero,
                                          /*start=*/recurrentWeightsStartIdx,
@@ -426,15 +408,15 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
                                          /*step=*/cstOne);
 
   // gate splitting
-  Torch::ValueTensorType gateBiasType = b.getType<Torch::ValueTensorType>(
+  ValueTensorType gateBiasType = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{hidden_size},
-      Wb.getType().cast<Torch::ValueTensorType>().getDtype());
-  Torch::ValueTensorType gateWeightsTypeIH = b.getType<Torch::ValueTensorType>(
+      Wb.getType().cast<ValueTensorType>().getDtype());
+  ValueTensorType gateWeightsTypeIH = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{hidden_size, input_size},
-      W_forward.getType().cast<Torch::ValueTensorType>().getDtype());
-  Torch::ValueTensorType gateWeightsTypeHH = b.getType<Torch::ValueTensorType>(
+      W_forward.getType().cast<ValueTensorType>().getDtype());
+  ValueTensorType gateWeightsTypeHH = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{hidden_size, hidden_size},
-      R_forward.getType().cast<Torch::ValueTensorType>().getDtype());
+      R_forward.getType().cast<ValueTensorType>().getDtype());
 
   Value inputGateWeightsEndIdx = intConst(hidden_size);
   Value outputGateWeightsEndIdx = intConst(2 * hidden_size);
@@ -451,51 +433,48 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   };
 
   auto sliceGateBias = [&](Value startIdx, Value endIdx) {
-    return b.create<Torch::AtenSliceTensorOp>(gateBiasType, Wb, cstZero,
-                                              startIdx, endIdx, cstOne);
+    return b.create<AtenSliceTensorOp>(gateBiasType, Wb, cstZero, startIdx,
+                                       endIdx, cstOne);
   };
   std::tie(weights.Wb_i, weights.Wb_o, weights.Wb_f, weights.Wb_c) =
       sliceIOFC(sliceGateBias);
 
   auto sliceGateBiasR = [&](Value startIdx, Value endIdx) {
-    return b.create<Torch::AtenSliceTensorOp>(gateBiasType, Rb, cstZero,
-                                              startIdx, endIdx, cstOne);
+    return b.create<AtenSliceTensorOp>(gateBiasType, Rb, cstZero, startIdx,
+                                       endIdx, cstOne);
   };
   std::tie(weights.Rb_i, weights.Rb_o, weights.Rb_f, weights.Rb_c) =
       sliceIOFC(sliceGateBiasR);
 
   auto sliceGateWeightsIH = [&](Value startIdx, Value endIdx) {
-    return b.create<Torch::AtenSliceTensorOp>(
-        gateWeightsTypeIH, W_forward, cstZero, startIdx, endIdx, cstOne);
+    return b.create<AtenSliceTensorOp>(gateWeightsTypeIH, W_forward, cstZero,
+                                       startIdx, endIdx, cstOne);
   };
   std::tie(weights.W_i, weights.W_o, weights.W_f, weights.W_c) =
       sliceIOFC(sliceGateWeightsIH);
 
   auto sliceGateWeightsHH = [&](Value startIdx, Value endIdx) {
-    return b.create<Torch::AtenSliceTensorOp>(
-        gateWeightsTypeHH, R_forward, cstZero, startIdx, endIdx, cstOne);
+    return b.create<AtenSliceTensorOp>(gateWeightsTypeHH, R_forward, cstZero,
+                                       startIdx, endIdx, cstOne);
   };
   std::tie(weights.R_i, weights.R_o, weights.R_f, weights.R_c) =
       sliceIOFC(sliceGateWeightsHH);
   LstmLayerOutput lstmLayerOutput = lstm_layer(
       b, X, initial_h_forward, initial_c_forward, weights, activations);
 
-  Torch::ValueTensorType Y_h_Y_c_unsqueezed_type =
-      b.getType<Torch::ValueTensorType>(
-          llvm::SmallVector<int64_t>{num_directions, batch_size, hidden_size},
-          lstmLayerOutput.Y_h.getType()
-              .cast<Torch::ValueTensorType>()
-              .getDtype());
-  Value Y_h_unsqueezed = b.create<Torch::AtenUnsqueezeOp>(
+  ValueTensorType Y_h_Y_c_unsqueezed_type = b.getType<ValueTensorType>(
+      llvm::SmallVector<int64_t>{num_directions, batch_size, hidden_size},
+      lstmLayerOutput.Y_h.getType().cast<ValueTensorType>().getDtype());
+  Value Y_h_unsqueezed = b.create<AtenUnsqueezeOp>(
       Y_h_Y_c_unsqueezed_type, lstmLayerOutput.Y_h, cstZero);
-  Value Y_c_unsqueezed = b.create<Torch::AtenUnsqueezeOp>(
+  Value Y_c_unsqueezed = b.create<AtenUnsqueezeOp>(
       Y_h_Y_c_unsqueezed_type, lstmLayerOutput.Y_c, cstZero);
 
   // unsqueeze num_directions dim1 of Y
   // to create the onnx.LSTM output shape [seq_length, num_directions,
   // batch_size, hidden_size]
   Value Y_unsqueezed =
-      b.create<Torch::AtenUnsqueezeOp>(yTy, lstmLayerOutput.Y, cstOne);
+      b.create<AtenUnsqueezeOp>(yTy, lstmLayerOutput.Y, cstOne);
 
   rewriter.replaceOp(binder.op, mlir::ValueRange{Y_unsqueezed, Y_h_unsqueezed,
                                                  Y_c_unsqueezed});
