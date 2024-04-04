@@ -130,6 +130,7 @@ def jit(
 
     my_backend = aot_autograd(fw_compiler=my_aot_autograd_backend,
                               decompositions=_get_decomposition_table)
+
     with torch.no_grad():
         set_model_name(model.__class__.__name__)
         torch._dynamo.reset()
