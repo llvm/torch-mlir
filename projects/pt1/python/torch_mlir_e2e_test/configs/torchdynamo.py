@@ -139,7 +139,6 @@ def jit(
                  *example_args)
         option_string = ("{backend-legal-ops=" + ",".join(backend_legal_ops) +
                          " extra-library=" + extra_library_file_name + "}")
-        print(mlir_module)
         assert mlir_module is not None
         run_pipeline_with_repro_report(
             mlir_module,
