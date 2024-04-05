@@ -62,7 +62,7 @@ LstmCellState lstm_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
                         LstmActivations activations) {
 
   auto intType = b.getType<IntType>();
-  auto hTy = H_prev.getType().cast<ValueTensorType>();
+  auto hTy = cast<ValueTensorType>(H_prev.getType());
 
   Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
 
@@ -122,8 +122,8 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
 
   Location loc = b.getLoc();
 
-  auto xTy = X.getType().cast<ValueTensorType>();
-  auto hTy = initial_h.getType().cast<ValueTensorType>();
+  auto xTy = cast<ValueTensorType>(X.getType());
+  auto hTy = cast<ValueTensorType>(initial_h.getType());
   // these names are snake_case for consistency with onnx.LSTM documentation
   int64_t seq_len = xTy.getSizes()[0];
   int64_t batch_size = xTy.getSizes()[1];
@@ -185,7 +185,7 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
     Value H_prev = loopBody->getArgument(2);
     Value C_prev = loopBody->getArgument(3);
 
-    auto xTy = X.getType().cast<ValueTensorType>();
+    auto xTy = cast<ValueTensorType>(X.getType());
     auto XtType = b.getType<ValueTensorType>(
         llvm::SmallVector<int64_t>{batch_size, input_size}, xTy.getDtype());
 
@@ -285,8 +285,8 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
     return rewriter.notifyMatchFailure(
         binder.op, "Missing required attribute hidden_size");
 
-  auto xTy = X.getType().cast<ValueTensorType>();
-  auto wTy = W.getType().cast<ValueTensorType>();
+  auto xTy = cast<ValueTensorType>(X.getType());
+  auto wTy = cast<ValueTensorType>(W.getType());
   Value B;
   if (binder.tensorOperandAtIndex(B, 3)) {
     B = b.create<AtenZerosOp>(W.getType(), W);
@@ -322,8 +322,6 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
                                            direction + "' is provided.");
   int64_t num_directions = 1 + (direction == "bidirectional");
 
-
-
   auto XShape = xTy.getSizes();
   int64_t batch_size = XShape[1];
   int64_t input_size = XShape[2];
@@ -349,31 +347,30 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
 
   /**
    * @brief Splits the input tensor based on the provided direction.
-   * 
-   * This function is used to split the LSTM parameters (W, R, B) into forward and backward directions.
-   * The input tensor is expected to have the forward and backward parameters concatenated along the 0th dimension.
-   * The function returns a tensor that contains the parameters for the specified direction.
+   *
+   * This function is used to split the LSTM parameters (W, R, B) into forward
+   * and backward directions. The input tensor is expected to have the forward
+   * and backward parameters concatenated along the 0th dimension. The function
+   * returns a tensor that contains the parameters for the specified direction.
    *
    * @param direction The direction to split out. 0 for forward, 1 for backward.
    * @param input The input tensor to split.
    * @return The split tensor for the specified direction.
    */
   auto getDirection = [&](int64_t direction, Value input) {
-    auto inputType = input.getType().cast<ValueTensorType>();
+    auto inputType = cast<ValueTensorType>(input.getType());
 
     // drop 0th dimension
-    auto outputType =
-        inputType
-            .getWithSizesAndDtype(
-                llvm::SmallVector<int64_t>{inputType.getSizes().drop_front()},
-                inputType.getDtype())
-            .cast<ValueTensorType>();
+    auto outputType = cast<ValueTensorType>(inputType.getWithSizesAndDtype(
+        llvm::SmallVector<int64_t>{inputType.getSizes().drop_front()},
+        inputType.getDtype()));
 
     auto intType = b.getType<IntType>();
     Value selectDim = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
     Value cstDirection =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(direction));
-    return b.create<AtenSelectIntOp>(outputType, input, selectDim, cstDirection);
+        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(direction));
+    return b.create<AtenSelectIntOp>(outputType, input, selectDim,
+                                     cstDirection);
   };
 
   Value W_forward = getDirection(0, W);
@@ -454,13 +451,13 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   // gate splitting
   auto gateBiasType = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{hidden_size},
-      Wb.getType().cast<ValueTensorType>().getDtype());
+      cast<ValueTensorType>(Wb.getType()).getDtype());
   auto gateWeightsTypeIH = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{hidden_size, input_size},
-      W_forward.getType().cast<ValueTensorType>().getDtype());
+      cast<ValueTensorType>(W_forward.getType()).getDtype());
   auto gateWeightsTypeHH = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{hidden_size, hidden_size},
-      R_forward.getType().cast<ValueTensorType>().getDtype());
+      cast<ValueTensorType>(R_forward.getType()).getDtype());
 
   Value inputGateWeightsEndIdx = intConst(hidden_size);
   Value outputGateWeightsEndIdx = intConst(2 * hidden_size);
@@ -508,7 +505,7 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
 
   auto Y_h_Y_c_unsqueezed_type = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{num_directions, batch_size, hidden_size},
-      lstmLayerOutput.Y_h.getType().cast<ValueTensorType>().getDtype());
+      cast<ValueTensorType>(lstmLayerOutput.Y_h.getType()).getDtype());
   Value Y_h_unsqueezed = b.create<AtenUnsqueezeOp>(
       Y_h_Y_c_unsqueezed_type, lstmLayerOutput.Y_h, cstZero);
   Value Y_c_unsqueezed = b.create<AtenUnsqueezeOp>(
