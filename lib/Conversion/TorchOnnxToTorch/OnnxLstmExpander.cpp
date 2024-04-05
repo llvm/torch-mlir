@@ -62,7 +62,7 @@ LstmCellState lstm_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
                         LstmActivations activations) {
 
   auto intType = b.getType<IntType>();
-  ValueTensorType hTy = H_prev.getType().cast<ValueTensorType>();
+  auto hTy = H_prev.getType().cast<ValueTensorType>();
 
   Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
 
@@ -123,14 +123,14 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
   Location loc = b.getLoc();
 
   auto xTy = X.getType().cast<ValueTensorType>();
-  ValueTensorType hTy = initial_h.getType().cast<ValueTensorType>();
+  auto hTy = initial_h.getType().cast<ValueTensorType>();
   // these names are snake_case for consistency with onnx.LSTM documentation
   int64_t seq_len = xTy.getSizes()[0];
   int64_t batch_size = xTy.getSizes()[1];
   int64_t input_size = xTy.getSizes()[2];
   int64_t hidden_size = hTy.getSizes()[1];
 
-  ValueTensorType cTy = hTy;
+  auto cTy = hTy;
 
   auto intType = b.getType<IntType>();
 
@@ -161,35 +161,32 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
   // Create a for-like PrimLoopOp.
   Value maxTripCount =
       b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(seq_len));
-  Value cTrue = b.create<ConstantBoolOp>(true);
+  Value loopConditionTrue = b.create<ConstantBoolOp>(true);
 
   Type loopIndexType = intType;
   auto loop = b.create<PrimLoopOp>(
-      /*results=*/TypeRange({yTy, hTy, cTy}), maxTripCount,
-      /*initialCondition=*/cTrue,
-      /*iterArgsInit=*/ValueRange({Y_initial, initial_h, initial_c}));
+      TypeRange({yTy, hTy, cTy}), maxTripCount, loopConditionTrue,
+      ValueRange({Y_initial, initial_h, initial_c}));
   {
     OpBuilder::InsertionGuard guard(b);
-    Block *loopBody = b.createBlock(
-        /*parentRegion=*/&loop.getRegion(),
-        /*insertionPoint=*/loop.getRegion().begin(),
-        /*argumentTypes=*/
-        TypeRange({
-            loopIndexType,
-            yTy,
-            hTy,
-            cTy,
-        }),
-        {loc, loc, loc, loc} // locs for the loop body arguments
-    );
+    Block *loopBody =
+        b.createBlock(&loop.getRegion(), loop.getRegion().begin(),
+                      TypeRange({
+                          loopIndexType,
+                          yTy,
+                          hTy,
+                          cTy,
+                      }),
+                      {loc, loc, loc, loc} // locs for the loop body arguments
+        );
 
     Value loopIndex = loopBody->getArgument(0);
     Value Y_prev = loopBody->getArgument(1);
     Value H_prev = loopBody->getArgument(2);
     Value C_prev = loopBody->getArgument(3);
 
-    ValueTensorType xTy = X.getType().cast<ValueTensorType>();
-    ValueTensorType XtType = b.getType<ValueTensorType>(
+    auto xTy = X.getType().cast<ValueTensorType>();
+    auto XtType = b.getType<ValueTensorType>(
         llvm::SmallVector<int64_t>{batch_size, input_size}, xTy.getDtype());
 
     Value Xt = b.create<AtenSelectIntOp>(XtType, X, cstZero, loopIndex);
@@ -207,9 +204,8 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
         b.create<AtenSliceScatterOp>(yTy, Y_prev, H_new_unsqueezed, cstZero,
                                      loopIndex, loopIndexPlusOne, cstOne);
 
-    b.create<PrimLoopConditionOp>(
-        /*shouldContinue=*/cTrue,
-        /*iterArgs=*/ValueRange({Y_new, H_new, C_new}));
+    b.create<PrimLoopConditionOp>(loopConditionTrue,
+                                  ValueRange({Y_new, H_new, C_new}));
   }
   LstmLayerOutput output;
   output.Y = loop.getResult(0);
@@ -289,8 +285,8 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
     return rewriter.notifyMatchFailure(
         binder.op, "Missing required attribute hidden_size");
 
-  ValueTensorType xTy = X.getType().cast<ValueTensorType>();
-  ValueTensorType wTy = W.getType().cast<ValueTensorType>();
+  auto xTy = X.getType().cast<ValueTensorType>();
+  auto wTy = W.getType().cast<ValueTensorType>();
   Value B;
   if (binder.tensorOperandAtIndex(B, 3)) {
     B = b.create<AtenZerosOp>(W.getType(), W);
@@ -332,14 +328,24 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   int64_t batch_size = XShape[1];
   int64_t input_size = XShape[2];
   if (num_directions != wTy.getSizes()[0])
-    return rewriter.notifyMatchFailure("num_directions (" + std::to_string(num_directions) + ") does not match the first dimension of wTy (" + std::to_string(wTy.getSizes()[0]) + ")");
+    return rewriter.notifyMatchFailure(
+        binder.op, "num_directions (" + std::to_string(num_directions) +
+                       ") does not match the first dimension of wTy (" +
+                       std::to_string(wTy.getSizes()[0]) + ")");
   if (num_directions != 1)
-    return rewriter.notifyMatchFailure("num_directions (" + std::to_string(num_directions) + ") is not equal to 1");
+    return rewriter.notifyMatchFailure(
+        binder.op, "num_directions (" + std::to_string(num_directions) +
+                       ") is not equal to 1");
   if (4 * hidden_size != wTy.getSizes()[1])
-    return rewriter.notifyMatchFailure("4 times hidden_size (" + std::to_string(4 * hidden_size) + ") does not match the second dimension of wTy (" + std::to_string(wTy.getSizes()[1]) + ")");
+    return rewriter.notifyMatchFailure(
+        binder.op, "4 times hidden_size (" + std::to_string(4 * hidden_size) +
+                       ") does not match the second dimension of wTy (" +
+                       std::to_string(wTy.getSizes()[1]) + ")");
   if (wTy.getSizes()[2] != input_size)
-    return rewriter.notifyMatchFailure("The third dimension of wTy (" + std::to_string(wTy.getSizes()[2]) + ") does not match input_size (" + std::to_string(input_size) + ")");
-
+    return rewriter.notifyMatchFailure(
+        binder.op,
+        "The third dimension of wTy (" + std::to_string(wTy.getSizes()[2]) +
+            ") does not match input_size (" + std::to_string(input_size) + ")");
 
   /**
    * @brief Splits the input tensor based on the provided direction.
@@ -353,15 +359,15 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
    * @return The split tensor for the specified direction.
    */
   auto getDirection = [&](int64_t direction, Value input) {
-    ValueTensorType inputType = input.getType().cast<ValueTensorType>();
+    auto inputType = input.getType().cast<ValueTensorType>();
 
     // drop 0th dimension
-    ValueTensorType outputType =
-      inputType
-        .getWithSizesAndDtype(
-          llvm::SmallVector<int64_t>{inputType.getSizes().drop_front()},
-          inputType.getDtype())
-        .cast<ValueTensorType>();
+    auto outputType =
+        inputType
+            .getWithSizesAndDtype(
+                llvm::SmallVector<int64_t>{inputType.getSizes().drop_front()},
+                inputType.getDtype())
+            .cast<ValueTensorType>();
 
     auto intType = b.getType<IntType>();
     Value selectDim = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
@@ -374,7 +380,7 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   Value R_forward = getDirection(0, R);
   Value B_forward = getDirection(0, B);
 
-  ValueTensorType hTy = b.getType<ValueTensorType>(
+  auto hTy = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{num_directions, batch_size, hidden_size},
       xTy.getDtype());
 
@@ -430,7 +436,7 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   Value inputWeightsEndIdx = intConst(4 * hidden_size);
   Value recurrentWeightsStartIdx = inputWeightsEndIdx;
   Value recurrentWeightsEndIdx = intConst(8 * hidden_size);
-  ValueTensorType biasType = b.getType<ValueTensorType>(
+  auto biasType = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{hidden_size * 4}, wTy.getDtype());
   Value Wb = b.create<AtenSliceTensorOp>(biasType,
                                          /*input=*/B_forward,
@@ -446,13 +452,13 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
                                          /*step=*/cstOne);
 
   // gate splitting
-  ValueTensorType gateBiasType = b.getType<ValueTensorType>(
+  auto gateBiasType = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{hidden_size},
       Wb.getType().cast<ValueTensorType>().getDtype());
-  ValueTensorType gateWeightsTypeIH = b.getType<ValueTensorType>(
+  auto gateWeightsTypeIH = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{hidden_size, input_size},
       W_forward.getType().cast<ValueTensorType>().getDtype());
-  ValueTensorType gateWeightsTypeHH = b.getType<ValueTensorType>(
+  auto gateWeightsTypeHH = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{hidden_size, hidden_size},
       R_forward.getType().cast<ValueTensorType>().getDtype());
 
@@ -500,7 +506,7 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   LstmLayerOutput lstmLayerOutput = lstm_layer(
       b, X, initial_h_forward, initial_c_forward, weights, activations);
 
-  ValueTensorType Y_h_Y_c_unsqueezed_type = b.getType<ValueTensorType>(
+  auto Y_h_Y_c_unsqueezed_type = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{num_directions, batch_size, hidden_size},
       lstmLayerOutput.Y_h.getType().cast<ValueTensorType>().getDtype());
   Value Y_h_unsqueezed = b.create<AtenUnsqueezeOp>(
