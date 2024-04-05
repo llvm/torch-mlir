@@ -6,9 +6,9 @@
 // CHECK-SAME:                               %[[X:.*]]: !torch.vtensor<[15,2,4],f32>,
 // CHECK-SAME:                               %[[W:.*]]: !torch.vtensor<[1,12,4],f32>,
 // CHECK-SAME:                               %[[R:.*]]: !torch.vtensor<[1,12,3],f32>,
-// CHECK-SAME:                               %[[B:.*]]: !torch.vtensor<[1,24],f32>) -> (!torch.vtensor<[15,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>) attributes {torch.onnx_meta.ir_version = 9
-// CHECK:           %[[LOOP_RESULT:.*]]:3 = torch.prim.Loop %[[int_max_trips:.*]], %[[bool_enter_loop:.*]], init(%[[Y:.*]], %[[initial_h:.*]], %[[initial_c:.*]]) {
-// CHECK:           ^bb0(%[[loopIndex:.*]]: !torch.int, %[[Y_prev:.*]]: !torch.vtensor<[15,2,3],f32>, %[[H_prev:.*]]: !torch.vtensor<[2,3],f32>, %[[C_prev:.*]]: !torch.vtensor<[2,3],f32>):
+// CHECK-SAME:                               %[[B:.*]]: !torch.vtensor<[1,24],f32>)
+// CHECK:           %[[LOOP_RESULT:.*]]:3 = torch.prim.Loop %[[MAX_TRIPS:.*]], %[[ENTER_LOOP:.*]], init(%[[Y:.*]], %[[INITIAL_H:.*]], %[[INITIAL_C:.*]]) {
+// CHECK:           ^bb0(%[[LOOP_INDEX:.*]]: !torch.int, %[[Y_PREV:.*]]: !torch.vtensor<[15,2,3],f32>, %[[H_PREV:.*]]: !torch.vtensor<[2,3],f32>, %[[C_PREV:.*]]: !torch.vtensor<[2,3],f32>):
 // CHECK-DAG:             torch.aten.select.int
 // CHECK-DAG:             torch.aten.linear
 // CHECK-DAG:             torch.aten.sigmoid

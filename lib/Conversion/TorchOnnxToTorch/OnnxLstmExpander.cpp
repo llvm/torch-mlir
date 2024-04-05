@@ -301,35 +301,48 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
                                            direction + "' is provided.");
   int64_t num_directions = 1 + (direction == "bidirectional");
 
-  assert(num_directions == wTy.getSizes()[0]);
-  assert(num_directions == 1);
-  assert(4 * hidden_size == wTy.getSizes()[1]);
+
 
   auto XShape = xTy.getSizes();
   int64_t batch_size = XShape[1];
   int64_t input_size = XShape[2];
-  assert(wTy.getSizes()[2] == input_size);
+  if (num_directions != wTy.getSizes()[0])
+    return rewriter.notifyMatchFailure("num_directions (" + std::to_string(num_directions) + ") does not match the first dimension of wTy (" + std::to_string(wTy.getSizes()[0]) + ")");
+  if (num_directions != 1)
+    return rewriter.notifyMatchFailure("num_directions (" + std::to_string(num_directions) + ") is not equal to 1");
+  if (4 * hidden_size != wTy.getSizes()[1])
+    return rewriter.notifyMatchFailure("4 times hidden_size (" + std::to_string(4 * hidden_size) + ") does not match the second dimension of wTy (" + std::to_string(wTy.getSizes()[1]) + ")");
+  if (wTy.getSizes()[2] != input_size)
+    return rewriter.notifyMatchFailure("The third dimension of wTy (" + std::to_string(wTy.getSizes()[2]) + ") does not match input_size (" + std::to_string(input_size) + ")");
 
-  // split W, R, B into forward and back
-  // W = [W_forward, W_reverse]
-  // R = [R_forward, R_reverse]
-  // B = [B_forward, B_reverse]
-  // helper function for splitting one direction out
+
+  /**
+   * @brief Splits the input tensor based on the provided direction.
+   * 
+   * This function is used to split the LSTM parameters (W, R, B) into forward and backward directions.
+   * The input tensor is expected to have the forward and backward parameters concatenated along the 0th dimension.
+   * The function returns a tensor that contains the parameters for the specified direction.
+   *
+   * @param direction The direction to split out. 0 for forward, 1 for backward.
+   * @param input The input tensor to split.
+   * @return The split tensor for the specified direction.
+   */
   auto getDirection = [&](int64_t direction, Value input) {
     ValueTensorType inputType = input.getType().cast<ValueTensorType>();
-    // output type is input type with dim 0 dropped
-    ValueTensorType outputType =
-        inputType
-            .getWithSizesAndDtype(
-                llvm::SmallVector<int64_t>{inputType.getSizes().drop_front()},
-                inputType.getDtype())
-            .cast<ValueTensorType>();
-    auto intType = b.getType<IntType>();
-    Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
-    Value cstDirection =
-        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(direction));
 
-    return b.create<AtenSelectIntOp>(outputType, input, cstZero, cstDirection);
+    // drop 0th dimension
+    ValueTensorType outputType =
+      inputType
+        .getWithSizesAndDtype(
+          llvm::SmallVector<int64_t>{inputType.getSizes().drop_front()},
+          inputType.getDtype())
+        .cast<ValueTensorType>();
+
+    auto intType = b.getType<IntType>();
+    Value selectDim = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
+    Value cstDirection =
+      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(direction));
+    return b.create<AtenSelectIntOp>(outputType, input, selectDim, cstDirection);
   };
 
   Value W_forward = getDirection(0, W);
