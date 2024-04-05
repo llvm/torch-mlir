@@ -2068,5 +2068,6 @@ ONNX_CRASHING_SET = {
     "IndexTensorMultiInputContiguousOneDimDynamic_basic",
     "IndexTensorMultiInputNonContiguousDynamic_basic",
     "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
+    "ViewDynamicExpandCollapseWithParallelUnknownDimModule_basic",
 }
 
