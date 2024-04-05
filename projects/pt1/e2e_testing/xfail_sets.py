@@ -22,15 +22,10 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "IscloseStaticModule_basic",
     "IscloseStaticModuleTrue_basic",
     "SplitWithSizes_Module_basic",
-    # linalg torchscript failure due to aten lstm not implemented
-    "LSTMModule_basic",
 }
 
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
-
-    # torch._dynamo.exc.Unsupported: TorchDynamo purposely graph breaks on RNN, GRU, LSTMs
-    "LSTMModule_basic",
 
     # torch._dynamo.exc.Unsupported: Tensor.item
     "CumsumModule_basic",
@@ -1495,8 +1490,6 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
-    # Failure - inconsistent initialization
-    "LSTMModule_basic",
 
     # Failure - cast error
     "PermuteNegativeIndexModule_basic",

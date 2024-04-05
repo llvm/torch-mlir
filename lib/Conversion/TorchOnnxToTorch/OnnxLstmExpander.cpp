@@ -217,7 +217,6 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
   output.Y_c = loop.getResult(2);
   return output;
 }
-
 /**
  * @brief Expands an ONNX LSTM operation into torch ops.
  *
@@ -228,10 +227,36 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
  * https://onnx.ai/onnx/operators/onnx__LSTM.html
  * The variable names are also consistent with the aforementioned documentation.
  *
+ * This is not e2e tested here but is verified to work numerically downstream in
+ * SHARK-TestSuite.
+ *
+ * TODO: include this test case when the test infrastructure stops initializing
+ * weights separately for the reference and tested layers.
+ * @code{.py}
+ * class LSTMModule(torch.nn.Module):
+ *     def __init__(self):
+ *         super().__init__()
+ *         self.lstm = torch.nn.LSTM(10, 20, 1)
+ *     @export
+ *     @annotate_args([
+ *         None,
+ *         ([5, 1, 10], torch.float32, True),
+ *         ([1, 1, 20], torch.float32, True),
+ *         ([1, 1, 20], torch.float32, True),
+ *     ])
+ *     def forward(self, input, h0, c0):
+ *         return self.lstm(input, (h0, c0))
+ *
+ * @register_test_case(module_factory=LSTMModule)
+ * def LSTMModule_basic(module, tu: TestUtils):
+ *     inputs = torch.zeros(5,1,10)
+ *     h0 = torch.zeros(1,1,20)
+ *     c0 = torch.zeros(1,1,20)
+ *
+ *     output, (hn, cn) = module.forward(inputs, h0, c0)
+ * @endcode
+ *
  * @param binder The OpBinder object used for binding operands.
- * @param rewriter The ConversionPatternRewriter object used for rewriting
- * patterns.
- * @return LogicalResult indicating the success or failure of the operation.
  */
 LogicalResult OnnxLstmExpander(OpBinder binder,
                                ConversionPatternRewriter &rewriter) {
