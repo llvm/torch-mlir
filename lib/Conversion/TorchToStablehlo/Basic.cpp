@@ -445,7 +445,8 @@ public:
       return rewriter.notifyMatchFailure(
           op, "only support constant str rounding mode");
 
-    if (roundingMode == "trunc") {
+    // if trunc and int, do nothing
+    if (roundingMode == "trunc" && outElemTy.isa<mlir::FloatType>()) {
       // "trunc" - rounds the results of the division towards zero. Equivalent
       // to C-style integer division.
       auto sign = rewriter.create<stablehlo::SignOp>(loc, result);
@@ -456,7 +457,20 @@ public:
     if (roundingMode == "floor") {
       // "floor" - rounds the results of the division down. Equivalent to
       // floor division in Python (the // operator)
-      result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
+      if (outElemTy.isa<mlir::FloatType>())
+        result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
+      else if (!outElemTy.isUnsignedInteger()) {
+        TensorType defaultIntToFloatType =
+            outType.cloneWith(outType.getShape(), rewriter.getF64Type());
+        lhs =
+            hlo::promoteType(rewriter, op.getLoc(), lhs, defaultIntToFloatType);
+        rhs =
+            hlo::promoteType(rewriter, op.getLoc(), rhs, defaultIntToFloatType);
+        result = rewriter.create<ChloOpT>(loc, defaultIntToFloatType, lhs, rhs,
+                                          bcastDimensions);
+        result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
+        result = hlo::promoteType(rewriter, op.getLoc(), result, outType);
+      }
     }
     rewriter.replaceOp(op, result);
     return success();

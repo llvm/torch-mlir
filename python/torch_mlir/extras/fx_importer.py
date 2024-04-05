@@ -927,13 +927,13 @@ class ContextCache:
             tensor_meta = node.meta.get("tensor_meta")
             val = node.meta.get("val")
             sparsity = node.meta.get("sparsity", None)
-            return self.value_info_to_type(
-                val, tensor_meta=tensor_meta, sparsity=sparsity, mutable=mutable
-            )
         except KeyError as e:
             raise RuntimeError(
                 f"FIXME: Illegal access to torch.fx.Node.meta: {e} ({node.meta.keys()} : {node.meta})"
             )
+        return self.value_info_to_type(
+            val, tensor_meta=tensor_meta, sparsity=sparsity, mutable=mutable
+        )
 
     def value_info_to_type(
         self,
@@ -962,13 +962,16 @@ class ContextCache:
                 return self.get_vtensor_type(
                     val.size(), val.dtype, sparsity=sparsity, mutable=mutable
                 )
-        else:
-            t = SCALAR_TYPE_TO_TORCH_MLIR_TYPE.get(type(val))
-            if t is not None:
-                return IrType.parse(t, self._c)
+
+        # Note that None is a valid scalar here, so it is important that this
+        # is always checked as the last fallback.
+        t = SCALAR_TYPE_TO_TORCH_MLIR_TYPE.get(type(val))
+        if t is not None:
+            return IrType.parse(t, self._c)
+
         raise NotImplementedError(
             f"Could not deduce type from value info: "
-            f"tensor_meta={tensor_meta}, val={val}, sparsity={sparsity}"
+            f"tensor_meta={tensor_meta}, val={val} {type(val)}, sparsity={sparsity}"
         )
 
     def tensor_metadata_to_type(
@@ -1631,7 +1634,9 @@ class GraphNodeImporter:
         with loc:
             return cvt(arg, self, self._cc)
 
-    def _unpack_node_result_types(self, node: torch.fx.Node, schema: FunctionSchema) -> List[IrType]:
+    def _unpack_node_result_types(
+        self, node: torch.fx.Node, schema: FunctionSchema
+    ) -> List[IrType]:
         return_count = len(schema.returns)
         if return_count == 1:
             # Unary return directly maps a single meta["val"] and cannot be subscripted.

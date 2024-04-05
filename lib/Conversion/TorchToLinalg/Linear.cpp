@@ -893,7 +893,7 @@ public:
         loc, getAsOpFoldResult(outDims), accumulatorDType);
 
     Value outputTensor;
-    if (accumulatorDType != resultDTy)
+    if (accumulatorDType != resultDTy && !bias.getType().isa<Torch::NoneType>())
       bias = torch_to_linalg::convertTensorToElementType(rewriter, loc, bias,
                                                          accumulatorDType);
     if (bias.getType().isa<Torch::NoneType>()) {
