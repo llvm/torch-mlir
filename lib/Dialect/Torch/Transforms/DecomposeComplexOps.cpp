@@ -3855,12 +3855,12 @@ public:
       return rewriter.notifyMatchFailure(
           op, "padding_mode must be an integer constant");
 
-    if (interpolationMode != 0)
+    if (interpolationMode != 0 && interpolationMode != 1)
       return rewriter.notifyMatchFailure(
-          op, "only support interpolation_mode = 0 (bilinear)");
-    if (paddingMode != 0)
-      return rewriter.notifyMatchFailure(op,
-                                         "only support paddingMode = 0 (Zero)");
+          op, "only support interpolation_mode = 0 (bilinear) or 1(nearest)");
+    if (paddingMode != 0 && paddingMode != 1)
+      return rewriter.notifyMatchFailure(
+          op, "only support paddingMode = 0 (Zero) or 1(border)");
 
     bool alignCorners = false;
     if (!matchPattern(op.getAlignCorners(), m_TorchConstantBool(&alignCorners)))
@@ -3961,7 +3961,16 @@ public:
     //           coords_reflected = reflect_coordinates(coords, -1, 2 * size -
     //           1)
     //       return torch.clamp(coords_reflected, 0, size - 1)
-    auto computeCoordinates = [&](Value coords, Value size) { return coords; };
+    auto computeCoordinates = [&](Value coords, Value size) -> Value {
+      if (paddingMode == 0)
+        return coords;
+      else if (paddingMode == 1) {
+        Value upperBound = rewriter.create<AtenSubIntOp>(loc, size, constOne);
+        return rewriter.create<AtenClampOp>(loc, baseType, coords, constZero,
+                                            upperBound);
+      }
+      return coords;
+    };
 
     // def compute_source_index(coords: Tensor, size: int) -> Tensor:
     //   coords_un = unnormalize(coords, size)
@@ -4081,7 +4090,7 @@ public:
           ValueRange{NIdx, CIdx, idxY, idxX});
       Value a = rewriter.create<AtenIndexTensorOp>(loc, baseType, input,
                                                    tensorIndexList);
-      return rewriter.create<AtenMulTensorOp>(loc, baseType, a, w_);
+      return rewriter.create<AtenMulTensorOp>(loc, resType, a, w_);
     };
 
     // x = grid[..., 0]
@@ -4160,6 +4169,27 @@ public:
             loc, resType, sum, tensors[i], constOneFloat);
       }
       result = sum;
+    } else if (interpolationMode == 1) {
+      // ix = compute_source_index(x, iW)
+      // iy = compute_source_index(y, iH)
+      // ix_nearest = ix.round()
+      // iy_nearest = iy.round()
+      // return get_summand(ix_nearest, iy_nearest, 1)
+      Value ix = computeSourceIndex(x, constIW);
+      Value iy = computeSourceIndex(y, constIH);
+
+      Value ixNearest = rewriter.create<AtenRoundOp>(loc, baseType, ix);
+      Value iyNearest = rewriter.create<AtenRoundOp>(loc, baseType, iy);
+
+      auto int64Dtype = getDtypeIntValueForType(
+          rewriter, loc,
+          rewriter.getIntegerType(/*width=*/64, /*isSigned=*/true));
+      Value constOneTensor = rewriter.create<AtenOnesLikeOp>(
+          loc, baseType, ixNearest, int64Dtype, /*layout=*/constNone,
+          /*device=*/constNone, /*pin_memory=*/constNone,
+          /*memory_format=*/constNone);
+
+      result = getSummand(ixNearest, iyNearest, constOneTensor);
     }
 
     rewriter.replaceOp(op, result);
