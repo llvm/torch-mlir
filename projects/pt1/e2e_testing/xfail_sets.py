@@ -841,6 +841,54 @@ STABLEHLO_PASS_SET = {
     "UnbindIntGetItem_Module_basic",
     "UnbindIntListUnpack_Module_basic",
     "UniformStaticShapeModule_basic",
+    "ArangeStartOutViewModule_basic",
+    "ConvolutionBackwardModule2DStrided_basic",
+    "EinsumStaticContractRhsModule_basic",
+    "EinsumStaticFourDimensionModule_basic",
+    "EinsumStaticModule_basic",
+    "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
+    "EinsumStaticWithEllipsisSlicingModule_basic",
+    "FlattenStaticModule_basic",
+    "GroupNormModule_basic",
+    "GroupNormNoWeightAndBiasModule_basic",
+    "NativeGroupNormModule_basic",
+    "RepeatModule_basic",
+    "ReshapeAliasCollapseModule_basic",
+    "ReshapeAliasExpandModule_basic",
+    "ReshapeAsModule_basic",
+    "ReshapeExpandModule_basic",
+    "TileBigDimsSizeModule_basic",
+    "TileSmallDimsSizeModule_basic",
+    "UnflattenIntNegativeOneDimStaticModule_basic",
+    "UnflattenIntNegativeOneSizeStaticModule_basic",
+    "UnflattenIntStaticModule_basic",
+    "UnflattenStaticModule_basic",
+    "UniformNoCorrelationModule_basic",
+    "UnsafeViewCollapseModule_basic",
+    "UnsafeViewDynamicExpandModule_basic",
+    "UnsafeViewExpandModule_basic",
+    "ViewCollapseInferredDimModule_basic",
+    "ViewCollapseModule_basic",
+    "ViewCollapseOnesMiddleModule_basic",
+    "ViewDynamicExpandCollapseModule_basic",
+    "ViewDynamicExpandModule_basic",
+    "ViewExpandCollapseModule_basic",
+    "ViewExpandCollapseWithOnesModule_basic",
+    "ViewExpandDynamicDimModule_basic",
+    "ViewExpandInferredDimModule_basic",
+    "ViewExpandModule_basic",
+    "ViewExpandOnesBeforeAndAfterModule_basic",
+    "ViewExpandOnesMiddleModule_basic",
+    "ViewExpandOnesModule_basic",
+    "ViewNegativeStaticModule_basic",
+    "ViewNoChange1dModule_basic",
+    "ViewNoChange2dModule_basic",
+    "ViewNoChange3dModule_basic",
+    "ViewNoChangeStaticModule_basic",
+    "ViewOffsetBackwardTestStaticModule_basic",
+    "ViewOffsetTestStaticModule_basic",
+    "ViewTwoFiveThreeStaticModule_basic",
+    "ViewTwoToThreeStaticModule_basic",
 }
 
 STABLEHLO_CRASHING_SET =  {
@@ -1987,7 +2035,6 @@ ONNX_XFAIL_SET = {
     "ReduceL2NormComplexModule_basic",
 
     # Failure - onnx_lowering: onnx.ReduceL3
-    "ReduceL3NormAllDimsModule_basic",
     "ReduceL3NormKeepDimModule_basic",
     "ReduceL3NormKeepDimComplexModule_basic",
 
@@ -2001,15 +2048,6 @@ ONNX_XFAIL_SET = {
     "ReduceProdDimIntFloatModule_basic",
     "StdCorrectionLargeInputModule_basic",
     "VarCorrectionLargeInputModule_basic",
-
-    # Failure - onnx_lowering: onnx.ReduceSum
-    "MseLossSumReductionWithDifferentElemTypeModule_basic",
-    "ReduceSumDtypeFloatModule_basic",
-    "ReduceSumDtypeIntModule_basic",
-    "ReduceSumElementTypeBoolModule_basic",
-    "ReduceSumFloatModule_basic",
-    "ReduceSumSignedIntModule_basic",
-    "ReduceSumUnsignedIntModule_basic",
 
     # Failure - onnx_lowering: onnx.Resize
     "UpSampleNearest2dDynamicSize_basic",
@@ -2055,13 +2093,6 @@ ONNX_XFAIL_SET = {
     "SqueezeModule_allUnitDim",
     "SqueezeModule_broadcast",
     "SqueezeModule_static",
-
-    # Failure - onnx_lowering: onnx.TopK
-    "SortTensorDescending_basic",
-    "SortTensorInteger_basic",
-    "SortTensorNegativeDimension_basic",
-    "SortTensorSpecificDimension_basic",
-    "SortTensor_basic",
 
     # Failure - incorrect dtype
     "ReduceMaxAlongDimUnsignedInt_basic",

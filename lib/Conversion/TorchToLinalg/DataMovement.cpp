@@ -1173,18 +1173,26 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
-    Location loc = op.getLoc();
     Value input = adaptor.getSelf();
     auto inputType = input.getType().cast<RankedTensorType>();
+    auto inputShape = inputType.getShape();
     int64_t inputRank = inputType.getRank();
+
     const TypeConverter *typeConverter = getTypeConverter();
     auto resultType =
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+    auto resultShape = resultType.getShape();
     int64_t resultRank = resultType.getRank();
 
     if (inputRank == 0) {
       return rewriter.notifyMatchFailure(
           op, "zero input rank should have been handled by the folder");
+    }
+
+    // No change in rank so we just cast to the output type:
+    if (inputRank == resultRank) {
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, input);
+      return success();
     }
 
     // In case the operand tensor type is statically shaped with all dimensions
@@ -1196,63 +1204,31 @@ public:
       return success();
     }
 
-    // All the static size-1 dimensions at the beginning(going from higher to
-    // lower dimensions) will be collapsed into the first dynamic or first non
-    // size-1 static dimension. All the other static size-1 dimensions will be
-    // collapsed into its previous dynamic or non size-1 static dimension.
     SmallVector<ReassociationIndices> reassociation(resultRank);
-    bool isSqueezed = false;
-    int64_t headOnesCount = 0;
-    while (headOnesCount < inputRank &&
-           inputType.getDimSize(headOnesCount) == 1) {
-      isSqueezed = true;
-      reassociation[0].push_back(headOnesCount++);
-    }
+    // First dimensions are guaranteed to match to eachother:
+    int64_t i = 0;
+    int64_t j = 0;
 
-    Value one = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
-    int64_t j = -1;
-    bool elideDynamicBroadcastDimCheck =
-        isAssumingStrictSymbolicShapes(rewriter);
-    for (auto i : llvm::seq<int64_t>(headOnesCount, inputRank)) {
-      if (inputType.isDynamicDim(i)) {
-        if (!elideDynamicBroadcastDimCheck) {
-          // Make sure that size-1 dynamic dimension does not exist.
-          Value dimSize = getDimOp(rewriter, loc, input, i);
-          Value dimSizeNotOne = rewriter.create<arith::CmpIOp>(
-              loc, arith::CmpIPredicate::ne, dimSize, one);
-          rewriter.create<cf::AssertOp>(
-              loc, dimSizeNotOne,
-              rewriter.getStringAttr(
-                  "unimplemented: size 1 dynamic dimension is not supported"));
-        }
-        ++j;
-      } else if (inputType.getDimSize(i) != 1) {
-        ++j;
-      } else {
-        // `isSqueezed` checks if the operand tensor type contains at least one
-        // unit dimension.
-        isSqueezed = true;
-      }
-      if (j == resultRank)
-        break;
+    for (i = 0; i < inputRank && j < resultRank; i++) {
       reassociation[j].push_back(i);
+      j = inputShape[i] == resultShape[j] ? j + 1 : j;
     }
 
-    // Make sure that result type rank is compatible with the squeezed size.
-    if (j != resultRank - 1)
+    // Squeeze in the remaining 1s:
+    for (; i < inputRank; ++i) {
+      if (inputShape[i] != 1)
+        return rewriter.notifyMatchFailure(op,
+                                           "non-unary dim cannot be squeezed");
+      reassociation.back().push_back(i);
+    }
+
+    // Make sure that result type rank is compatible with the squeezed size:
+    if (j != resultRank)
       return rewriter.notifyMatchFailure(
           op, "expected output size mismatches with the result type rank");
 
-    if (isSqueezed) {
-      rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(
-          op, resultType, input, reassociation);
-
-    } else {
-      // If the operand tensor type does not have any unit dimension,
-      // `aten.squeeze` will behave as an identity operation.
-      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, input);
-    }
+    rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(op, resultType, input,
+                                                         reassociation);
     return success();
   }
 };
