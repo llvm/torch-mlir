@@ -893,6 +893,7 @@ STABLEHLO_PASS_SET = {
     "ViewOffsetTestStaticModule_basic",
     "ViewTwoFiveThreeStaticModule_basic",
     "ViewTwoToThreeStaticModule_basic",
+    "ElementwiseLog1pModule_basic",
 }
 
 STABLEHLO_CRASHING_SET =  {

@@ -1784,6 +1784,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   patterns.add<ConvertAtenUnaryFPOnlyOp<AtenOp, StablehloOp>>(typeConverter,   \
                                                               context)
   INSERT_UNARY_FPONLY_PATTERN(AtenLogOp, stablehlo::LogOp);
+  INSERT_UNARY_FPONLY_PATTERN(AtenLog1pOp, stablehlo::Log1pOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenExpOp, stablehlo::ExpOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenSqrtOp, stablehlo::SqrtOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenRsqrtOp, stablehlo::RsqrtOp);
