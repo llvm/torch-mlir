@@ -5634,10 +5634,11 @@ class DecomposeAtenAdaptiveAvgPool2dOp
               loc, inputHW[i], outputShapeSizesTorchInt[i]);
           Value cond =
               rewriter.create<AtenEqIntOp>(loc, remainder, constantZero);
-          rewriter.create<RuntimeAssertOp>(loc, cond,
-                                           "unimplemented: only support cases "
-                                           "where input and output size are "
-                                           "equal for non-unit output size");
+          rewriter.create<RuntimeAssertOp>(
+              loc, cond,
+              "unimplemented: only support cases "
+              "input size is an integer multiple of "
+              "output size");
         }
         Value stride = rewriter.create<AtenFloordivIntOp>(
             loc, inputHW[i], outputShapeSizesTorchInt[i]);
