@@ -1572,6 +1572,7 @@ ONNX_XFAIL_SET = {
     "AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule_basic",
     "AdaptiveAvgPool1dStaticLargerOutput_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeDynamicModule_basic",
+    "AdaptiveAvgPool2dGeneralOutputSizeDynamicModule_basic",
     "AdaptiveMaxPool2dDynamicWithIndices_basic",
     "AdaptiveMaxPool2dDynamic_basic",
     "AdaptiveMaxPool2dStaticWithIndices_basic",

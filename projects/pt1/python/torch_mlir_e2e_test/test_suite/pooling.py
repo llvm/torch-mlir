@@ -69,10 +69,12 @@ class AdaptiveAvgPool2dGeneralOutputSizeDynamicModule(torch.nn.Module):
     def forward(self, x):
         return self.aap2d(x)
 
+
 @register_test_case(
     module_factory=lambda: AdaptiveAvgPool2dGeneralOutputSizeDynamicModule())
 def AdaptiveAvgPool2dGeneralOutputSizeDynamicModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 512, 28, 28))
+
 
 class AdaptiveAvgPool2dGeneralOutputSizeStaticModule(torch.nn.Module):
     
@@ -88,10 +90,12 @@ class AdaptiveAvgPool2dGeneralOutputSizeStaticModule(torch.nn.Module):
     def forward(self, x):
         return self.aap2d(x)
 
+
 @register_test_case(
     module_factory=lambda: AdaptiveAvgPool2dGeneralOutputSizeStaticModule())
 def AdaptiveAvgPool2dGeneralOutputSizeStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 512, 14, 14))
+
 
 class AdaptiveAvgPool2dUnitOutputSizeStaticModule(torch.nn.Module):
 
