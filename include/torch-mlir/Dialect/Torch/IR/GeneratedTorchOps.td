@@ -10355,7 +10355,7 @@ def Torch_AtenRepeatInterleaveSelfIntOp : Torch_Op<"aten.repeat_interleave.self_
     AnyTorchOptionalIntType:$output_size
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    AnyTorchOptionalTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
