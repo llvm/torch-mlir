@@ -5632,7 +5632,8 @@ class DecomposeAtenAdaptiveAvgPool2dOp
         if (!isAssumingStrictSymbolicShapes(rewriter)) {
           Value remainder = rewriter.create<AtenRemainderIntOp>(
               loc, inputHW[i], outputShapeSizesTorchInt[i]);
-          Value cond = rewriter.create<AtenEqIntOp>(loc, remainder, constantZero);
+          Value cond =
+              rewriter.create<AtenEqIntOp>(loc, remainder, constantZero);
           rewriter.create<RuntimeAssertOp>(loc, cond,
                                            "unimplemented: only support cases "
                                            "where input and output size are "
