@@ -1569,6 +1569,7 @@ ONNX_XFAIL_SET = {
     "ViewSizeFromOtherTensor_basic",
 
     # Failure - onnx_export
+    "ElementwiseSgnModule_basic",
     "AdaptiveAvgPool1dGeneralDynamic_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule_basic",
     "AdaptiveAvgPool1dStaticLargerOutput_basic",
