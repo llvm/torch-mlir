@@ -5616,6 +5616,7 @@ class DecomposeAtenAdaptiveAvgPool2dOp
     Value constantTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
     Value constantNone = rewriter.create<Torch::ConstantNoneOp>(loc);
     SmallVector<Value, 2> kernelSize;
+    SmallVector<Value, 2> strides;
 
     for (unsigned i = 0; i < inputHW.size(); i++) {
       if (unitOutputSize) {
@@ -5626,19 +5627,26 @@ class DecomposeAtenAdaptiveAvgPool2dOp
                                  : rewriter.create<Torch::ConstantIntOp>(
                                        loc, rewriter.getI64IntegerAttr(
                                                 inputShape[rank - 2 + i])));
+        strides.push_back(constantOne);
       } else {
         if (!isAssumingStrictSymbolicShapes(rewriter)) {
-          Value cond = rewriter.create<AtenEqIntOp>(
+          Value remainder = rewriter.create<AtenRemainderIntOp>(
               loc, inputHW[i], outputShapeSizesTorchInt[i]);
+          Value cond = rewriter.create<AtenEqIntOp>(loc, remainder, constantZero);
           rewriter.create<RuntimeAssertOp>(loc, cond,
                                            "unimplemented: only support cases "
                                            "where input and output size are "
                                            "equal for non-unit output size");
         }
+        Value stride = rewriter.create<AtenFloordivIntOp>(
+            loc, inputHW[i], outputShapeSizesTorchInt[i]);
         Value outMinusOne = rewriter.create<AtenSubIntOp>(
             loc, outputShapeSizesTorchInt[i], constantOne);
-        kernelSize.push_back(
-            rewriter.create<AtenSubIntOp>(loc, inputHW[i], outMinusOne));
+        Value kernelSizeValue = rewriter.create<AtenSubIntOp>(
+            loc, inputHW[i],
+            rewriter.create<AtenMulIntOp>(loc, outMinusOne, stride));
+        kernelSize.push_back(kernelSizeValue);
+        strides.push_back(stride);
       }
     }
 
@@ -5650,8 +5658,7 @@ class DecomposeAtenAdaptiveAvgPool2dOp
     // size is same as the input size. Therfore, keeping the stride as one for
     // the latter case as well for the ease of implementation.
     Value strideList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)),
-        ValueRange{constantOne, constantOne});
+        loc, Torch::ListType::get(Torch::IntType::get(context)), strides);
     Value paddingSizeList = rewriter.create<PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(context)),
         ValueRange{constantZero, constantZero});

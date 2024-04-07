@@ -373,6 +373,7 @@ STABLEHLO_PASS_SET = {
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dUnitOutputSizeStaticModule_basic",
+    "AdaptiveAvgPool2dGeneralOutputSizeStaticModule_basic",
     "AddIntModule_basic",
     "AliasModule_basic",
     "AllBoolFalseModule_basic",
@@ -898,6 +899,7 @@ STABLEHLO_CRASHING_SET =  {
 TOSA_PASS_SET = {
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dUnitOutputSizeStaticModule_basic",
+    "AdaptiveAvgPool2dGeneralOutputSizeStaticModule_basic",
     "AddCDivModule_basic",
     "AddCDiv_Module_basic",
     "AddCMulModule_basic",
