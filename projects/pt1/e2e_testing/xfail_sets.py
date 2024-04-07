@@ -888,6 +888,7 @@ STABLEHLO_PASS_SET = {
     "ViewTwoFiveThreeStaticModule_basic",
     "ViewTwoToThreeStaticModule_basic",
     "ElementwiseLog1pModule_basic",
+    "ElementwiseSgnModule_basic",
 }
 
 STABLEHLO_CRASHING_SET =  {
@@ -897,6 +898,7 @@ STABLEHLO_CRASHING_SET =  {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "ElementwiseSgnModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dUnitOutputSizeStaticModule_basic",
     "AddCDivModule_basic",

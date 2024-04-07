@@ -1794,6 +1794,26 @@ OpFoldResult AtenRoundOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenSgnOp
+//===----------------------------------------------------------------------===//
+void AtenSgnOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                            MLIRContext *context) {
+  patterns.add(+[](AtenSgnOp op, PatternRewriter &rewriter) {
+    auto selfTy = op.getSelf().getType().cast<BaseTensorType>();
+    if (!selfTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "expected self type to have dtype");
+    }
+
+    if (!selfTy.getDtype().isa<ComplexType>()) {
+      rewriter.replaceOpWithNewOp<AtenSignOp>(op, op.getType(), op.getSelf());
+      return success();
+    }
+    return failure();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenMulScalarOp
 //===----------------------------------------------------------------------===//
 void AtenMulScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
