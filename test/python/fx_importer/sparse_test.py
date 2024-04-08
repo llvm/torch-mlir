@@ -274,12 +274,23 @@ def test_sparse_eltwise():
 # CHECK-LABEL: test_sparse_coo3
 # CHECK:       #[[$COO3:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : compressed(nonunique), d1 : singleton(nonunique, soa), d2 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
 # CHECK:       func.func @main(
-# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[10,20,30],f64,#sparse>) -> !torch.vtensor<[10,20,30],f64> {
-# CHECK:         %[[R:.*]] = torch.aten.relu %[[A]] : !torch.vtensor<[10,20,30],f64,#sparse> -> !torch.vtensor<[10,20,30],f64>
-# CHECK:         return %[[R]] : !torch.vtensor<[10,20,30],f64>
+# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[10,20,30],f64,#sparse>) -> !torch.vtensor<[10,20,30],f64,#sparse> {
+# CHECK:         %[[R:.*]] = torch.aten.relu %[[A]] : !torch.vtensor<[10,20,30],f64,#sparse> -> !torch.vtensor<[10,20,30],f64,#sparse>
+# CHECK:         return %[[R]] : !torch.vtensor<[10,20,30],f64,#sparse>
 # CHECK:       }
 #
-# TODO: make sure sparsity propagates through relu into the output and test actual JIT output
+# CHECK: torch.sparse
+# CHECK: tensor(indices=tensor([[ 0,  1,  1,  4,  9,  9],
+# CHECK:                        [ 0,  1,  1,  5, 19, 19],
+# CHECK:                        [ 0,  1,  3,  6, 28, 29]]),
+# CHECK: values=tensor([   0.,    0.,    1.,    2.,    3., 1000.]),
+# CHECK: size=(10, 20, 30), nnz=6, dtype=torch.float64, layout=torch.sparse_coo)
+# CHECK: torch.mlir
+# CHECK: tensor(indices=tensor([[ 0,  1,  1,  4,  9,  9],
+# CHECK:                        [ 0,  1,  1,  5, 19, 19],
+# CHECK:                        [ 0,  1,  3,  6, 28, 29]]),
+# CHECK: values=tensor([   0.,    0.,    1.,    2.,    3., 1000.]),
+# CHECK: size=(10, 20, 30), nnz=6, dtype=torch.float64, layout=torch.sparse_coo)
 #
 def test_sparse_coo3():
     class COO3Net(torch.nn.Module):
@@ -299,3 +310,11 @@ def test_sparse_coo3():
 
     m = export_and_import(net, sparse_input)
     print(m)
+
+    # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
+    res1 = net(sparse_input)
+    res2 = sparse_jit(net, sparse_input)
+    print("torch.sparse")
+    print(res1)
+    print("torch.mlir")
+    print(res2)
