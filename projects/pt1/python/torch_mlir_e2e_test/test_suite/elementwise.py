@@ -418,7 +418,7 @@ class ElementwiseWhereScalarModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseWhereScalarModule())
 def ElementwiseWhereScalarModule_basic(module, tu: TestUtils):
-    module.forward(torch.tensor([[[torch.nan, 1.0, 0.0]]]))
+    module.forward(tu.rand(3, 4, 5))
 
 
 # ==============================================================================
