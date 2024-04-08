@@ -1480,11 +1480,14 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       zp = b.create<arith::TruncIOp>(loc, outIntTy, zp);
     }
 
-    value = b.create<arith::SubIOp>(loc, value, zp);
-
     if (torch_to_linalg::isUnsignedTorchType(qtensorTy)) {
+      // for unsigned types, integer subtraction by the zero point is still
+      // likely to overflow. Do floating point subtraction instead.
       value = b.create<arith::UIToFPOp>(loc, outFpTy, value);
+      zp = b.create<arith::UIToFPOp>(loc, outFpTy, zp);
+      value = b.create<arith::SubFOp>(loc, value, zp);
     } else {
+      value = b.create<arith::SubIOp>(loc, value, zp);
       value = b.create<arith::SIToFPOp>(loc, outFpTy, value);
     }
 
