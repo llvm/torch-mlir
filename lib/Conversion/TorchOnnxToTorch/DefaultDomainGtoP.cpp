@@ -195,6 +195,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, operand);
                   return success();
                 });
+  patterns.onOp("LSTM", 1, onnx_c::OnnxLstmExpander);
   patterns.onOp(
       "LogSoftmax", 13,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {

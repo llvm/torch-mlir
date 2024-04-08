@@ -1545,6 +1545,7 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+
     # Failure - cast error
     "PermuteNegativeIndexModule_basic",
 
@@ -2171,4 +2172,3 @@ ONNX_CRASHING_SET = {
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
 }
-

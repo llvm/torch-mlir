@@ -5083,3 +5083,4 @@ class CloneModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: CloneModule())
 def CloneModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 5))
+
