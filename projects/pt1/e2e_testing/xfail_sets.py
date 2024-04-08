@@ -944,6 +944,7 @@ TOSA_PASS_SET = {
     "AtenRoundIntModule_basic",
     "AtenInstanceNormModule_basic",
     "AtenToDeviceModule_basic",
+    "Aten_CastFloatModule_basic",
     "BaddbmmBroadcast1DInputModule_basic",
     "BaddbmmBroadcast2DInputModule_basic",
     "BaddbmmDynamicModule_basic",
