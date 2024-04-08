@@ -535,6 +535,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::logsumexp : (Tensor, int[], bool) -> (Tensor)")
     emit("aten::mean.dim : (Tensor, int[]?, bool, int?) -> (Tensor)")
     emit("aten::__and__.Tensor : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::__and__.Scalar : (Tensor, Scalar) -> (Tensor)")
     emit("aten::__or__.Tensor : (Tensor, Tensor) -> (Tensor)",  has_canonicalizer=True)
     emit("aten::_softmax : (Tensor, int, bool) -> (Tensor)")
     emit("aten::mean : (Tensor, int?) -> (Tensor)")

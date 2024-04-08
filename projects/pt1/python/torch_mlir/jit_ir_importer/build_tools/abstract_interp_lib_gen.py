@@ -475,6 +475,9 @@ def aten〇div〇Scalar〡shape(self: List[int], other: float) -> List[int]:
 def aten〇remainder〇Scalar〡shape(self: List[int], other: float) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇__and__〇Scalar〡shape(self: List[int], other: float) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇remainder〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -2993,6 +2996,15 @@ def aten〇fft_fft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = 
 def aten〇rsub〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float, complex], alpha: Union[int, float, complex] = 1) -> int:
     self_rank, self_dtype = self_rank_dtype
     return promote_dtypes([self_rank, None], [self_dtype, get_dtype_of_scalar(other)])
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0.0) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0))
+def aten〇__and__〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float, complex]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, None]
+    dtypes = [self_dtype, get_dtype_of_scalar(other)]
+    return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(_check_two_tensor_op())
 def aten〇__and__〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
