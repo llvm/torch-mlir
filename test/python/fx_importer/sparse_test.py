@@ -384,7 +384,7 @@ def test_sparse_eltwise():
 # CHECK:         return %[[R]] : !torch.vtensor<[10,20,30],f64>
 # CHECK:       }
 #
-# TODO: make sure sparsity propates through relu into the output and test actual JIT output
+# TODO: make sure sparsity propagates through relu into the output and test actual JIT output
 #
 def test_sparse_coo3():
     class COO3Net(torch.nn.Module):
