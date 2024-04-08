@@ -43,6 +43,8 @@ static int64_t onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx) {
     switch (dtypeIntOnnx) {
     case 1:
       return 6; // float
+    case 2:
+      return 0; // uint8
     case 3:
       return 1; // int8
     case 6:
@@ -1425,8 +1427,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         if (!resultType.hasDtype())
           return rewriter.notifyMatchFailure(binder.op,
                                              "requires known result dtype");
-
-        if (scaleTy.getSizes().size() == 0) {
+        if (scaleTy.getSizes().size() == 0 ||
+            (scaleTy.getSizes().size() == 1 && scaleTy.getSizes()[0] == 1)) {
           Type qTy = operandTy.getDtype();
 
           if (qTy.isUnsignedInteger(8)) {
@@ -1455,7 +1457,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return success();
         }
 
-        return failure();
+        return rewriter.notifyMatchFailure(binder.op,
+                                           "unimplemented: non-scalar scale");
       });
   patterns.onOp("Div", 7,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
@@ -1946,6 +1949,32 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         rewriter.replaceOpWithNewOp<Torch::AtenFullOp>(
             binder.op, resultType, dimValueList, splatvalue, /*dtype=*/noneVal,
             /*layout=*/noneVal, /*device=*/noneVal, /*pin_memory=*/noneVal);
+        return success();
+      });
+  patterns.onOp(
+      "Einsum", 12, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        SmallVector<Value> tensors;
+        std::string equation;
+        if (binder.tensorOperands(tensors, binder.op->getNumOperands()) ||
+            binder.customOpNameStringAttr(equation, "equation") ||
+            binder.tensorResultType(resultType))
+          return failure();
+        Type listElemType =
+            tensors[0]
+                .getType()
+                .cast<Torch::BaseTensorType>()
+                .getWithSizesAndDtype(/*optionalSizes=*/std::nullopt,
+                                      /*optionalDtype=*/nullptr);
+        Type listType = Torch::ListType::get(listElemType);
+        Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.op->getLoc(), listType, tensors);
+        Value cstEquation = rewriter.create<Torch::ConstantStrOp>(
+            binder.getLoc(), rewriter.getType<Torch::StringType>(),
+            rewriter.getStringAttr(equation));
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        rewriter.replaceOpWithNewOp<Torch::AtenEinsumOp>(
+            binder.op, resultType, cstEquation, tensorList, /*path=*/cstNone);
         return success();
       });
 }

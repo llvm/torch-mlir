@@ -2382,15 +2382,15 @@ public:
     Location loc = op.getLoc();
     Value input = op.getSelf();
     Value weight = op.getWeight();
-    auto resType = op.getType().cast<BaseTensorType>();
-    auto baseType =
-        ValueTensorType::getWithLeastStaticInformation(op.getContext());
+    auto resType = op.getType().cast<ValueTensorType>();
+    auto boolTensorType = rewriter.getType<ValueTensorType>(
+        resType.getOptionalSizes(), rewriter.getI1Type());
     Value zero =
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
     Value inputMulWeight =
-        rewriter.create<AtenMulTensorOp>(loc, baseType, input, weight);
+        rewriter.create<AtenMulTensorOp>(loc, resType, input, weight);
     Value lessThanZero =
-        rewriter.create<AtenLtScalarOp>(loc, baseType, input, zero);
+        rewriter.create<AtenLtScalarOp>(loc, boolTensorType, input, zero);
     Value preluOutput = rewriter.create<AtenWhereSelfOp>(
         loc, resType, lessThanZero, inputMulWeight, input);
 
@@ -6971,46 +6971,54 @@ public:
 } // namespace
 
 namespace {
-// Decompose `aten.sign` op into comparisons and aten.where.
-class DecomposeAtenSignOp : public OpRewritePattern<AtenSignOp> {
+// Decompose `aten.sgn` op into comparisons and aten.where.
+class DecomposeAtenSgnOp : public OpRewritePattern<AtenSgnOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenSignOp op,
+  LogicalResult matchAndRewrite(AtenSgnOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    auto outType = op.getType().dyn_cast<BaseTensorType>();
-    if (!outType)
-      return rewriter.notifyMatchFailure(
-          op, "Only tensor types input are currently supported");
+    auto outType = op.getType().cast<BaseTensorType>();
+    if (!outType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "expected result type to have dtype");
+    }
+    // TODO: support complex type in future.
+    if (outType.getDtype().isa<mlir::ComplexType>()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "doesn't support complex type now");
+    }
 
     auto zero =
-        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
     auto one =
-        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
     auto minusOne =
-        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(-1.0));
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
 
     auto compTy = outType.getWithSizesAndDtype(outType.getOptionalSizes(),
                                                rewriter.getI1Type());
 
     auto greater =
         rewriter.create<AtenGtScalarOp>(loc, compTy, op.getSelf(), zero);
-    auto greaterEqual =
-        rewriter.create<AtenGeScalarOp>(loc, compTy, op.getSelf(), zero);
+    auto less =
+        rewriter.create<AtenLtScalarOp>(loc, compTy, op.getSelf(), zero);
 
     // Pseudo code:
-    // if (in >= 0)
-    //   if (in > 0)
+    // if (in > 0)
     //     return 1
-    //   else
-    //     return 0
-    // else
+    // else if (in < 0)
     //   return -1
+    // else
+    //   return 0
+    // note: return 0 if nan/0.0/-0.0
+    //       return 1 if inf
+    //       return -1 if -inf
     auto selectGreater =
         rewriter.create<AtenWhereScalarOp>(loc, outType, greater, one, zero);
 
-    rewriter.replaceOpWithNewOp<AtenWhereScalarOtherOp>(
-        op, outType, greaterEqual, selectGreater, minusOne);
+    rewriter.replaceOpWithNewOp<AtenWhereScalarSelfOp>(op, outType, less,
+                                                       minusOne, selectGreater);
     return success();
   }
 };
@@ -7606,7 +7614,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenTopkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScalarTensor>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScatterValueOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenSignOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSgnOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTypeAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTileOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeAsOp>(patterns);

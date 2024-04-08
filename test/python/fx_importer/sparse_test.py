@@ -198,7 +198,7 @@ def test_sparse_SpMM():
 
 @run
 # CHECK-LABEL: test_sparse_eltwise
-# CHECK:       #[[$BCSR:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : dense, d1 : dense, d2 : compressed), posWidth = 64, crdWidth = 64 }>
+# CHECK:       #[[$BCSR:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : batch, d1 : dense, d2 : compressed), posWidth = 64, crdWidth = 64 }>
 # CHECK:       func.func @main(
 # CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[8,4,2],f32,#[[$BCSR]]>) -> !torch.vtensor<[8,4,2],f32> {
 # CHECK:         %[[R:.*]] = torch.aten.neg %arg0 : !torch.vtensor<[8,4,2],f32,#[[$BCSR]]> -> !torch.vtensor<[8,4,2],f32>
@@ -226,6 +226,12 @@ def test_sparse_SpMM():
 # CHECK:         [-61. -62.]
 # CHECK:         [-63. -64.]{{\]\]}}
 #
+# CHECK:        torch.mlir.batch
+# CHECK:        {{\[\[}}[ -1.  -2.]
+# CHECK:                [ -3.  -4.]
+#                       ...
+# CHECK:                [-61. -62.]
+# CHECK:                [-63. -64.]{{\]\]}}
 def test_sparse_eltwise():
     class EltNet(torch.nn.Module):
         def __init__(self):
@@ -240,8 +246,8 @@ def test_sparse_eltwise():
     )
 
     # This yields a **batched** CSR.
-    sparse_input = dense_input.to_sparse_csr(dense_dim=0)
-    m = export_and_import(net, sparse_input)
+    batch_input = dense_input.to_sparse_csr(dense_dim=0)
+    m = export_and_import(net, batch_input)
     print(m)
 
     # This yields a plain CSR with dense **sub**tensor
@@ -253,60 +259,12 @@ def test_sparse_eltwise():
     #
     # TODO: note several issues that need to be fixed
     #  (1) since we do not propagate sparsity into elt-wise, MLIR returns dense result
-    #  (2) for dense_dim=0, this will need a dense(batched) property
-    sparse_input = dense_input.to_sparse_csr(dense_dim=1)
     res1 = net(sparse_input)
     res2 = sparse_jit(net, sparse_input)
+    res3 = sparse_jit(net, batch_input)
     print("torch.sparse")
     print(res1)
     print("torch.mlir")
     print(res2)
-
-
-@run
-# CHECK-LABEL: test_sparse_coo3
-# CHECK:       #[[$COO3:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : compressed(nonunique), d1 : singleton(nonunique, soa), d2 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
-# CHECK:       func.func @main(
-# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[10,20,30],f64,#sparse>) -> !torch.vtensor<[10,20,30],f64,#sparse> {
-# CHECK:         %[[R:.*]] = torch.aten.relu %[[A]] : !torch.vtensor<[10,20,30],f64,#sparse> -> !torch.vtensor<[10,20,30],f64,#sparse>
-# CHECK:         return %[[R]] : !torch.vtensor<[10,20,30],f64,#sparse>
-# CHECK:       }
-#
-# CHECK: torch.sparse
-# CHECK: tensor(indices=tensor([[ 0,  1,  1,  4,  9,  9],
-# CHECK:                        [ 0,  1,  1,  5, 19, 19],
-# CHECK:                        [ 0,  1,  3,  6, 28, 29]]),
-# CHECK: values=tensor([   0.,    0.,    1.,    2.,    3., 1000.]),
-# CHECK: size=(10, 20, 30), nnz=6, dtype=torch.float64, layout=torch.sparse_coo)
-# CHECK: torch.mlir
-# CHECK: tensor(indices=tensor([[ 0,  1,  1,  4,  9,  9],
-# CHECK:                        [ 0,  1,  1,  5, 19, 19],
-# CHECK:                        [ 0,  1,  3,  6, 28, 29]]),
-# CHECK: values=tensor([   0.,    0.,    1.,    2.,    3., 1000.]),
-#
-def test_sparse_coo3():
-    class COO3Net(torch.nn.Module):
-        def __init__(self):
-            super(COO3Net, self).__init__()
-            self.relu = nn.ReLU()
-
-        def forward(self, x):
-            return self.relu(x)
-
-    net = COO3Net()
-
-    # Direct 3-dim COO construction.
-    idx = torch.tensor([[0, 1, 1, 4, 9, 9], [0, 1, 1, 5, 19, 19], [0, 1, 3, 6, 28, 29]])
-    val = torch.tensor([-1000.0, -1.0, 1.0, 2.0, 3.0, 1000.0], dtype=torch.float64)
-    sparse_input = torch.sparse_coo_tensor(idx, val, size=[10, 20, 30])
-
-    m = export_and_import(net, sparse_input)
-    print(m)
-
-    # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
-    res1 = net(sparse_input)
-    res2 = sparse_jit(net, sparse_input)
-    print("torch.sparse")
-    print(res1)
-    print("torch.mlir")
-    print(res2)
+    print("torch.mlir.batch")
+    print(res3)

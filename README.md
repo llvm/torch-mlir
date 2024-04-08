@@ -52,9 +52,9 @@ Meeting links can be found [here](https://discourse.llvm.org/t/new-community-mee
 
 ## Install torch-mlir snapshot
 
-At the time of writing, we release pre-built snapshots of torch-mlir for Python 3.11.
+At the time of writing, we release [pre-built snapshots of torch-mlir](https://github.com/llvm/torch-mlir-release) for Python 3.11 and Python 3.10.
 
-If you have Python 3.11, the following commands initialize a virtual environment.
+If you have supported Python version, the following commands initialize a virtual environment.
 ```shell
 python3.11 -m venv mlir_venv
 source mlir_venv/bin/activate
@@ -70,8 +70,8 @@ python -m pip install --upgrade pip
 Then, we can install torch-mlir with the corresponding torch and torchvision nightlies.
 ```
 pip install --pre torch-mlir torchvision \
-  -f https://llvm.github.io/torch-mlir/package-index/ \
   --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+pip install torch-mlir -f https://github.com/llvm/torch-mlir-release/releases/expanded_assets/dev-wheels
 ```
 
 ## Demos

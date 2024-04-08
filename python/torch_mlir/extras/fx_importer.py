@@ -27,6 +27,7 @@ from typing import (
     Tuple,
     TYPE_CHECKING,
     Union,
+    Iterable,
 )
 import weakref
 
@@ -349,7 +350,8 @@ class InputInfo:
     input_spec: TypingInputSpec
     node: Node
     ir_type: IrType
-    mutable_producer_node_name: Optional[str]
+    mutable_producer_node_name: Optional[str] = None
+    store_producer_node: Optional[str] = None
 
 
 class FxImporterHooks:
@@ -377,6 +379,22 @@ class FxImporterHooks:
         the default.
         """
         return None
+
+    def store_produced_value(
+        self,
+        gni: "GraphNodeImporter",
+        py_value: Any,
+        produced_ir_value: Any,
+        info: InputInfo,
+    ):
+        """Given a load/store semantic mutatation, issues the store.
+
+        This style is used for buffer and parameter updates, which are assumed to be
+        non-SSA updates that are otherwise in the value-tensor domain.
+        """
+        raise NotImplementedError(
+            f"Store of a mutation to {info} is not supported (from {produced_ir_value})"
+        )
 
 
 class FxImporter:
@@ -587,7 +605,11 @@ class FxImporter:
             elif input_spec.kind == InputKind.BUFFER and isinstance(
                 arg, TensorArgument
             ):
-                # Remember buffer binding.
+                # Remember buffer binding. Unlike user input mutations, buffers
+                # are assumed to be represented with load/store semantics based
+                # on a symbolic or other non-SSA association. As such, they
+                # are not modeled with mutable IR but will trigger an output
+                # store hook when the final value is produced.
                 value = prog.state_dict.get(input_spec.target)
                 assert (
                     not input_spec.persistent or value is not None
@@ -596,9 +618,7 @@ class FxImporter:
                 mutable_producer_node_name = mutable_buffer_target_producers.get(
                     input_spec.target
                 )
-                node_ir_type = self._cc.node_val_to_type(
-                    node, mutable=bool(mutable_producer_node_name)
-                )
+                node_ir_type = self._cc.node_val_to_type(node, mutable=False)
                 buffer_bindings[node] = (
                     value,
                     InputInfo(
@@ -606,7 +626,7 @@ class FxImporter:
                         input_spec,
                         node=node,
                         ir_type=node_ir_type,
-                        mutable_producer_node_name=mutable_producer_node_name,
+                        store_producer_node=mutable_producer_node_name,
                     ),
                 )
             else:
@@ -896,14 +916,13 @@ class ContextCache:
         try:
             tensor_meta = node.meta.get("tensor_meta")
             val = node.meta.get("val")
-            sparsity = node.meta.get("sparsity", None)
-            return self.value_info_to_type(
-                val, tensor_meta=tensor_meta, mutable=mutable
-            )
         except KeyError as e:
             raise RuntimeError(
                 f"FIXME: Illegal access to torch.fx.Node.meta: {e} ({node.meta.keys()} : {node.meta})"
             )
+        return self.value_info_to_type(
+            val, tensor_meta=tensor_meta, mutable=mutable
+        )
 
     def value_info_to_type(
         self,
@@ -931,13 +950,16 @@ class ContextCache:
                 return self.get_vtensor_type(
                     val.size(), val.dtype, val=val, mutable=mutable
                 )
-        else:
-            t = SCALAR_TYPE_TO_TORCH_MLIR_TYPE.get(type(val))
-            if t is not None:
-                return IrType.parse(t, self._c)
+
+        # Note that None is a valid scalar here, so it is important that this
+        # is always checked as the last fallback.
+        t = SCALAR_TYPE_TO_TORCH_MLIR_TYPE.get(type(val))
+        if t is not None:
+            return IrType.parse(t, self._c)
+
         raise NotImplementedError(
             f"Could not deduce type from value info: "
-            f"tensor_meta={tensor_meta}, val={val}, sparsity={sparsity}"
+            f"tensor_meta={tensor_meta}, val={val} {type(val)}, sparsity={sparsity}"
         )
 
     def tensor_metadata_to_type(
@@ -1125,17 +1147,17 @@ class GraphNodeImporter:
         self.bind_node_value(node, _on_access)
 
         if info.mutable_producer_node_name is not None:
+            raise NotImplementedError("NYI: Mutable SSA buffer updates")
+
+        if info.store_producer_node is not None:
 
             def on_produced(value: Value):
-                mutable_buffer_value = self.resolve_node_value(node)
                 with loc, InsertionPoint(self._b):
-                    Operation.create(
-                        "torch.overwrite.tensor.contents",
-                        results=[],
-                        operands=[value, mutable_buffer_value],
+                    self.fx_importer._hooks.store_produced_value(
+                        self, buffer_value, value, info
                     )
 
-            self._on_node_produced[info.mutable_producer_node_name] = on_produced
+            self._on_node_produced[info.store_producer_node] = on_produced
 
     def return_node_values(self, loc, nodes: List[Node]):
         with loc, InsertionPoint(self._b):
@@ -1143,7 +1165,7 @@ class GraphNodeImporter:
             func_dialect.ReturnOp(operands, loc=loc)
 
     def import_nodes(
-        self, nodes: Sequence[Node], *, skip_placeholders_outputs: bool = False
+        self, nodes: Iterable[Node], *, skip_placeholders_outputs: bool = False
     ):
         with InsertionPoint(self._b):
             loc = Location.unknown()
@@ -1236,7 +1258,7 @@ class GraphNodeImporter:
                 (arg.meta["val"].node.pytype if isinstance(arg, Node) else type(arg))
                 for arg in node.args
             ]
-            is_int = [item == int for item in arg_types]
+            is_int = [item is int for item in arg_types]
             if all(is_int):
                 op_overload = "int"
             elif any(is_int):
@@ -1516,7 +1538,7 @@ class GraphNodeImporter:
         ).result
 
     def _import_list_argument(
-        self, loc: Location, arg: NodeArgument, expected_jit_type
+        self, loc: Location, arg: Sequence[NodeArgument], expected_jit_type
     ) -> Value:
         assert (
             isinstance(expected_jit_type, torch.ListType)
@@ -1524,7 +1546,7 @@ class GraphNodeImporter:
                 isinstance(expected_jit_type, torch.OptionalType)
                 and isinstance(expected_jit_type.getElementType(), torch.ListType)
             )
-            or isinstance(expected_jit_type, NoneType)
+            or (expected_jit_type is None)
         ), f"Unexpected jit type as list argument: {arg} of type {expected_jit_type}"
 
         # parse list type
@@ -1600,7 +1622,9 @@ class GraphNodeImporter:
         with loc:
             return cvt(arg, self, self._cc)
 
-    def _unpack_node_result_types(self, node: torch.fx.Node, schema: FunctionSchema):
+    def _unpack_node_result_types(
+        self, node: torch.fx.Node, schema: FunctionSchema
+    ) -> List[IrType]:
         return_count = len(schema.returns)
         if return_count == 1:
             # Unary return directly maps a single meta["val"] and cannot be subscripted.
@@ -1619,7 +1643,6 @@ class GraphNodeImporter:
             result_types = []
             for v in node.meta["val"]:
                 result_types.append(self._cc.value_info_to_type(v))
-            result_types = tuple(result_types)
         return result_types
 
 

@@ -191,6 +191,25 @@ struct OpBinder {
     return failure();
   }
 
+  ParseResult stringArrayAttr(llvm::SmallVector<std::string> &values,
+                              StringRef nameSuffix) {
+    SmallString<64> name("torch.onnx.");
+    name.append(nameSuffix);
+    auto attr = op->getAttr(name);
+    if (!attr)
+      return success();
+    if (auto arrayAttr = dyn_cast<ArrayAttr>(attr)) {
+      for (auto element : arrayAttr) {
+        StringAttr stringAttr = element.dyn_cast<StringAttr>();
+        if (!stringAttr)
+          return failure();
+        values.push_back(stringAttr.getValue().str());
+      }
+      return success();
+    }
+    return failure();
+  }
+
   ParseResult denseElementsAttr(ElementsAttr elementsattr,
                                 StringRef nameSuffix) {
     SmallString<64> name("torch.onnx.");
