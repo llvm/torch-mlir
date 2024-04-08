@@ -445,7 +445,8 @@ public:
       return rewriter.notifyMatchFailure(
           op, "only support constant str rounding mode");
 
-    if (roundingMode == "trunc") {
+    // if trunc and int, do nothing
+    if (roundingMode == "trunc" && outElemTy.isa<mlir::FloatType>()) {
       // "trunc" - rounds the results of the division towards zero. Equivalent
       // to C-style integer division.
       auto sign = rewriter.create<stablehlo::SignOp>(loc, result);
@@ -456,7 +457,20 @@ public:
     if (roundingMode == "floor") {
       // "floor" - rounds the results of the division down. Equivalent to
       // floor division in Python (the // operator)
-      result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
+      if (outElemTy.isa<mlir::FloatType>())
+        result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
+      else if (!outElemTy.isUnsignedInteger()) {
+        TensorType defaultIntToFloatType =
+            outType.cloneWith(outType.getShape(), rewriter.getF64Type());
+        lhs =
+            hlo::promoteType(rewriter, op.getLoc(), lhs, defaultIntToFloatType);
+        rhs =
+            hlo::promoteType(rewriter, op.getLoc(), rhs, defaultIntToFloatType);
+        result = rewriter.create<ChloOpT>(loc, defaultIntToFloatType, lhs, rhs,
+                                          bcastDimensions);
+        result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
+        result = hlo::promoteType(rewriter, op.getLoc(), result, outType);
+      }
     }
     rewriter.replaceOp(op, result);
     return success();
@@ -563,13 +577,24 @@ public:
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    Value lhs = adaptor.getSelf();
+    Value rhs = adaptor.getOther();
+
+    RankedTensorType lhsTy = lhs.getType().dyn_cast<RankedTensorType>();
+    RankedTensorType rhsTy = rhs.getType().dyn_cast<RankedTensorType>();
+
+    if (!lhsTy)
+      return op.emitError("lhs must be a ranked tensor type");
+
     TensorType outType = OpConversionPattern<AtenOpT>::getTypeConverter()
                              ->convertType(op.getType())
                              .template cast<TensorType>();
-    Value lhs =
-        hlo::promoteType(rewriter, op.getLoc(), adaptor.getSelf(), outType);
-    Value rhs =
-        hlo::promoteType(rewriter, op.getLoc(), adaptor.getOther(), outType);
+    Type outElemTy = outType.getElementType();
+    lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outType);
+    if (!rhsTy) {
+      rhs = hlo::scalarToStablehloTensor(rewriter, op, rhs, outElemTy);
+    }
+    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outType);
 
     DenseI64ArrayAttr bcastDimensions;
     rewriter.replaceOpWithNewOp<ChloOpT>(op, outType, lhs, rhs,
@@ -1770,6 +1795,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   patterns.add<ConvertAtenUnaryFPOnlyOp<AtenOp, StablehloOp>>(typeConverter,   \
                                                               context)
   INSERT_UNARY_FPONLY_PATTERN(AtenLogOp, stablehlo::LogOp);
+  INSERT_UNARY_FPONLY_PATTERN(AtenLog1pOp, stablehlo::Log1pOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenExpOp, stablehlo::ExpOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenSqrtOp, stablehlo::SqrtOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenRsqrtOp, stablehlo::RsqrtOp);
@@ -1846,6 +1872,8 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_BINARY_LOGICAL_PATTERN(AtenLogicalOrOp, chlo::BroadcastOrOp);
   INSERT_BINARY_LOGICAL_PATTERN(AtenLogicalAndOp, chlo::BroadcastAndOp);
   INSERT_BINARY_LOGICAL_PATTERN(AtenLogicalXorOp, chlo::BroadcastXorOp);
+  INSERT_BINARY_LOGICAL_PATTERN(AtenBitwiseAndScalarOp, chlo::BroadcastAndOp);
+
 #undef INSERT_BINARY_LOGICAL_PATTERN
 
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \

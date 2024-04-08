@@ -47,3 +47,15 @@ Type mlir::torch::onnx_c::getQTorchTypeFromTorchIntType(Type ty) {
     return nullptr;
   return Torch::ValueTensorType::get(ctx, tty.getOptionalSizes(), dty);
 }
+
+bool mlir::torch::onnx_c::areAllElementsDistinct(SmallVector<int64_t> array) {
+  int n = array.size();
+  llvm::SetVector<int64_t> set;
+  for (int i = 0; i < n; i++) {
+    set.insert(array[i]);
+  }
+
+  // If all elements are distinct, then the size of set should be same
+  // as array's size.
+  return (set.size() == array.size());
+}

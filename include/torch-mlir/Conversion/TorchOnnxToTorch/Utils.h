@@ -26,6 +26,8 @@ Type getQTorchTypeFromTorchIntType(Type ty);
 LogicalResult OnnxLstmExpander(OpBinder binder,
                                ConversionPatternRewriter &rewriter);
 
+bool areAllElementsDistinct(SmallVector<int64_t> array);
+
 } // namespace mlir::torch::onnx_c
 
 #endif // TORCHMLIR_CONVERSION_TORCHONNXTOTORCH_UTILS_H

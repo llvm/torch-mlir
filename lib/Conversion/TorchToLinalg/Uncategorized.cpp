@@ -774,13 +774,17 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(divTensorMode.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    if (!dtype.isa<mlir::FloatType>()) {
-      divTensorMode.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
-    Value div = b.create<arith::DivFOp>(loc, lhs, rhs);
+    Value div;
+    if (dtype.isa<mlir::FloatType>())
+      div = b.create<arith::DivFOp>(loc, lhs, rhs);
+    else {
+      if (dtype.isUnsignedInteger())
+        div = b.create<arith::DivUIOp>(loc, lhs, rhs);
+      else
+        div = b.create<arith::DivSIOp>(loc, lhs, rhs);
+    }
 
     if (divTensorMode.getRoundingMode().getType().isa<Torch::NoneType>())
       return div;
@@ -794,17 +798,32 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     if (roundingMode == "trunc") {
       // "trunc" - rounds the results of the division towards zero. Equivalent
       // to C-style integer division.
-      Value ceil = b.create<math::CeilOp>(loc, div);
-      Value floor = b.create<math::FloorOp>(loc, div);
-      Value cstZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
-      Value pred =
-          b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT, div, cstZero);
-      return b.create<arith::SelectOp>(loc, pred, ceil, floor);
+      if (dtype.isa<mlir::FloatType>()) {
+        Value ceil = b.create<math::CeilOp>(loc, div);
+        Value floor = b.create<math::FloorOp>(loc, div);
+        Value cstZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
+        Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
+                                             div, cstZero);
+        return b.create<arith::SelectOp>(loc, pred, ceil, floor);
+      } else
+        return div;
     }
     if (roundingMode == "floor") {
       // "floor" - rounds the results of the division down. Equivalent to
       // floor division in Python (the // operator)
-      return b.create<math::FloorOp>(loc, div);
+      if (dtype.isa<mlir::FloatType>())
+        return b.create<math::FloorOp>(loc, div);
+      else if (!dtype.isUnsignedInteger()) {
+        Type defaultIntToFloatType = b.getF64Type();
+        lhs = convertScalarToDtype(b, loc, lhs, defaultIntToFloatType);
+        rhs = convertScalarToDtype(b, loc, rhs, defaultIntToFloatType);
+        div = b.create<arith::DivFOp>(loc, lhs, rhs);
+        Value floor = b.create<math::FloorOp>(loc, div);
+        Value convert = convertScalarToDtype(b, loc, floor, dtype);
+        return convert;
+      } else {
+        return div;
+      }
     }
     divTensorMode.emitError("invalid rounding mode");
     return nullptr;

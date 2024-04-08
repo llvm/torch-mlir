@@ -1027,6 +1027,24 @@ def ReduceL1NormWithDTypeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5).to(torch.float32))
 
 # ==============================================================================
+    
+class ReduceL1NormComplexModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.cfloat, True),
+    ])
+    def forward(self, a):
+        return torch.linalg.vector_norm(a, dim=0, ord=1)
+
+@register_test_case(module_factory=lambda: ReduceL1NormComplexModule())
+def ReduceL1NormComplexModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.cfloat))
+
+# ==============================================================================
 
 class ReduceL2NormModule(torch.nn.Module):
     def __init__(self):
@@ -1043,6 +1061,24 @@ class ReduceL2NormModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReduceL2NormModule())
 def ReduceL2NormModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+    
+class ReduceL2NormComplexModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.cdouble, True),
+    ])
+    def forward(self, a):
+        return torch.linalg.vector_norm(a, dim=0)
+
+@register_test_case(module_factory=lambda: ReduceL2NormComplexModule())
+def ReduceL2NormComplexModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.cdouble))
 
 # ==============================================================================
 
@@ -1099,6 +1135,24 @@ def ReduceL3NormKeepDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
 # ==============================================================================
+    
+class ReduceL3NormKeepDimComplexModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.complex128, True),
+    ])
+    def forward(self, a):
+        return torch.linalg.vector_norm(a, keepdim=True, ord=3)
+
+@register_test_case(module_factory=lambda: ReduceL3NormKeepDimComplexModule())
+def ReduceL3NormKeepDimComplexModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.complex128))
+
+# ==============================================================================
 
 class NormScalarModule(torch.nn.Module):
     def __init__(self) -> None:
@@ -1116,6 +1170,25 @@ class NormScalarModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: NormScalarModule())
 def NormScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+    
+class NormScalarComplexModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.p = 3.0
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.complex64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.norm(a, self.p)
+
+@register_test_case(module_factory=lambda: NormScalarComplexModule())
+def NormScalarComplexModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.complex64))
 
 # ==============================================================================
 
@@ -1156,6 +1229,26 @@ def NormScalarOptDimKeepDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
 # ==============================================================================
+    
+class NormScalarOptDimKeepDimComplexModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.p = 3.0
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.cfloat, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.norm(a, self.p, dim=[0, 1], keepdim=True)
+
+@register_test_case(module_factory=lambda: NormScalarOptDimKeepDimComplexModule())
+def NormScalarOptDimKeepDimComplexModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.cfloat))
+
+# ==============================================================================
+
 class ReduceFrobeniusNormModule(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
@@ -1189,6 +1282,24 @@ class ReduceFrobeniusNormKeepDimModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReduceFrobeniusNormKeepDimModule())
 def ReduceFrobeniusNormKeepDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+    
+class ReduceFrobeniusNormComplexModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.cdouble, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.frobenius_norm(a, dim=[0, 1], keepdim=False)
+
+@register_test_case(module_factory=lambda: ReduceFrobeniusNormComplexModule())
+def ReduceFrobeniusNormComplexModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.cdouble))
 
 # ==============================================================================
 
@@ -1227,6 +1338,24 @@ def LinalgVectorNormKeepDimModule_basic(module, tu: TestUtils):
     module.forward(torch.rand(3, 4, 5))
 
 # ==============================================================================
+    
+class LinalgVectorNormComplexModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.complex128, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.linalg_vector_norm(a, ord=3.0, dim=[0, 1], keepdim=False)
+
+@register_test_case(module_factory=lambda: LinalgVectorNormComplexModule())
+def LinalgVectorNormComplexModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(3, 4, 5).to(torch.complex128))
+
+# ==============================================================================
 
 class LinalgNormModule(torch.nn.Module):
     def __init__(self) -> None:
@@ -1261,6 +1390,24 @@ class LinalgNormKeepDimModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: LinalgNormKeepDimModule())
 def LinalgNormKeepDimModule_basic(module, tu: TestUtils):
     module.forward(torch.rand(3, 4, 5))
+
+# ==============================================================================
+    
+class LinalgNormKeepDimComplexModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.complex64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.linalg_norm(a, ord=None, dim=[0], keepdim=True)
+
+@register_test_case(module_factory=lambda: LinalgNormKeepDimComplexModule())
+def LinalgNormKeepDimComplexModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(3, 4, 5).to(torch.complex64))
 
 # ==============================================================================
 
