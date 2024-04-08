@@ -5561,8 +5561,6 @@ namespace {
 // kernelW = inW - [(outW - 1) * strideW] = strideW
 // paddingH = 0, paddingW = 0
 //
-// For the special case, when the output size is one for all dimensions,
-// the kernel size is same as the input size.
 class DecomposeAtenAdaptiveAvgPool2dOp
     : public OpRewritePattern<AtenAdaptiveAvgPool2dOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -5594,21 +5592,7 @@ class DecomposeAtenAdaptiveAvgPool2dOp
 
     // TODO: Add support for cases other than:
     // inH % outH != 0 or inW % outW != 0
-    bool unitOutputSize = true;
-    for (Value outShape : outputShapeSizesTorchInt) {
-      int64_t outShapeInt;
-      if (!matchPattern(outShape, m_TorchConstantInt(&outShapeInt))) {
-        return rewriter.notifyMatchFailure(
-            op, "output size is expected to be a constant");
-      }
-      if (outShapeInt != 1) {
-        unitOutputSize = false;
-        break;
-      }
-    }
 
-    Value constantOne = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(1));
     Value constantZero = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(0));
     Value constantFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
@@ -5618,33 +5602,20 @@ class DecomposeAtenAdaptiveAvgPool2dOp
     SmallVector<Value, 2> strides;
 
     for (unsigned i = 0; i < inputHW.size(); i++) {
-      if (unitOutputSize) {
-        BaseTensorType inputTensorType = input.getType().cast<BaseTensorType>();
-        ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
-        kernelSize.push_back(inputShape[rank - 2 + i] == kUnknownSize
-                                 ? inputHW[i]
-                                 : rewriter.create<Torch::ConstantIntOp>(
-                                       loc, rewriter.getI64IntegerAttr(
-                                                inputShape[rank - 2 + i])));
-        strides.push_back(constantOne);
-      } else {
-        if (!isAssumingStrictSymbolicShapes(rewriter)) {
-          Value remainder = rewriter.create<AtenRemainderIntOp>(
-              loc, inputHW[i], outputShapeSizesTorchInt[i]);
-          Value cond =
-              rewriter.create<AtenEqIntOp>(loc, remainder, constantZero);
-          rewriter.create<RuntimeAssertOp>(
-              loc, cond,
-              "unimplemented: only support cases "
-              "input size is an integer multiple of "
-              "output size");
-        }
-        Value stride = rewriter.create<AtenFloordivIntOp>(
+      if (!isAssumingStrictSymbolicShapes(rewriter)) {
+        Value remainder = rewriter.create<AtenRemainderIntOp>(
             loc, inputHW[i], outputShapeSizesTorchInt[i]);
-        Value kernelSizeValue = stride;
-        kernelSize.push_back(kernelSizeValue);
-        strides.push_back(stride);
+        Value cond = rewriter.create<AtenEqIntOp>(loc, remainder, constantZero);
+        rewriter.create<RuntimeAssertOp>(loc, cond,
+                                         "unimplemented: only support cases "
+                                         "input size is an integer multiple of "
+                                         "output size");
       }
+      Value stride = rewriter.create<AtenFloordivIntOp>(
+          loc, inputHW[i], outputShapeSizesTorchInt[i]);
+      Value kernelSizeValue = stride;
+      kernelSize.push_back(kernelSizeValue);
+      strides.push_back(stride);
     }
 
     Value kernelSizeList = rewriter.create<PrimListConstructOp>(
