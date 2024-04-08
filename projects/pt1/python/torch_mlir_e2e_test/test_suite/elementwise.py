@@ -3040,7 +3040,7 @@ class ElementwiseAndscalarModule(torch.nn.Module):
 
 
 @register_test_case(module_factory=lambda: ElementwiseAndscalarModule())
-def ElementwiseAndScalarModulerModule_basic(module, tu: TestUtils):
+def ElementwiseAndScalarModule_basic(module, tu: TestUtils):
     module.forward(
         tu.randint(3, 4, low=-10, high=10).to(torch.int32))
 
