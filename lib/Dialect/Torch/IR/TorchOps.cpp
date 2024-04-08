@@ -1794,6 +1794,17 @@ OpFoldResult AtenRoundOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenSignOp
+//===----------------------------------------------------------------------===//
+void AtenSignOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                             MLIRContext *context) {
+  patterns.add(+[](AtenSignOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenSgnOp>(op, op.getType(), op.getSelf());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenMulScalarOp
 //===----------------------------------------------------------------------===//
 void AtenMulScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
