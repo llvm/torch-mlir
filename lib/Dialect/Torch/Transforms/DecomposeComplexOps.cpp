@@ -5557,8 +5557,8 @@ namespace {
 // output size the kernelSize, stride and padding is calculated as follows:
 // strideH = inH // outH
 // strideW = inH // outH
-// kernelH = inH - [(outH - 1) * strideH]
-// kernelW = inW - [(outW - 1) * strideW]
+// kernelH = inH - [(outH - 1) * strideH] = strideH
+// kernelW = inW - [(outW - 1) * strideW] = strideW
 // paddingH = 0, paddingW = 0
 //
 // For the special case, when the output size is one for all dimensions,
@@ -5593,8 +5593,7 @@ class DecomposeAtenAdaptiveAvgPool2dOp
     getListConstructElements(outputShape, outputShapeSizesTorchInt);
 
     // TODO: Add support for cases other than:
-    // 1.) inH == outH and inW == outW.
-    // 2.) outH == outW == 1
+    // inH % outH != 0 or inW % outW != 0
     bool unitOutputSize = true;
     for (Value outShape : outputShapeSizesTorchInt) {
       int64_t outShapeInt;
@@ -5642,11 +5641,7 @@ class DecomposeAtenAdaptiveAvgPool2dOp
         }
         Value stride = rewriter.create<AtenFloordivIntOp>(
             loc, inputHW[i], outputShapeSizesTorchInt[i]);
-        Value outMinusOne = rewriter.create<AtenSubIntOp>(
-            loc, outputShapeSizesTorchInt[i], constantOne);
-        Value kernelSizeValue = rewriter.create<AtenSubIntOp>(
-            loc, inputHW[i],
-            rewriter.create<AtenMulIntOp>(loc, outMinusOne, stride));
+        Value kernelSizeValue = stride;
         kernelSize.push_back(kernelSizeValue);
         strides.push_back(stride);
       }
@@ -5654,11 +5649,6 @@ class DecomposeAtenAdaptiveAvgPool2dOp
 
     Value kernelSizeList = rewriter.create<PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(context)), kernelSize);
-    // Currently we only support cases where input size is equal to the output
-    // size or unit output size. For the former case, stride is always equal to
-    // one and for the latter the stride value doesn't matter, since the kernel
-    // size is same as the input size. Therfore, keeping the stride as one for
-    // the latter case as well for the ease of implementation.
     Value strideList = rewriter.create<PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(context)), strides);
     Value paddingSizeList = rewriter.create<PrimListConstructOp>(
