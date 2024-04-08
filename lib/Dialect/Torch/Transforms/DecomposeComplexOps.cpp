@@ -7017,8 +7017,8 @@ public:
     auto selectGreater =
         rewriter.create<AtenWhereScalarOp>(loc, outType, greater, one, zero);
 
-    rewriter.replaceOpWithNewOp<AtenWhereScalarSelfOp>(
-        op, outType, less, minusOne, selectGreater);
+    rewriter.replaceOpWithNewOp<AtenWhereScalarSelfOp>(op, outType, less,
+                                                       minusOne, selectGreater);
     return success();
   }
 };
