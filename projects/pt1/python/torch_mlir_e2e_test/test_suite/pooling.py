@@ -55,11 +55,11 @@ def AdaptiveAvgPool2dNonUnitOutputSizeDynamicModule_basic(
     module.forward(tu.rand(1, 512, 7, 7))
 
 
-class AdaptiveAvgPool2dGeneralOutputSizeDynamicModule(torch.nn.Module):
+class AdaptiveAvgPool2dOutputSizeDivisibleByInputDynamicModule(torch.nn.Module):
     
     def __init__(self):
         super().__init__()
-        self.aap2d = torch.nn.AdaptiveAvgPool2d((7, 7)) 
+        self.aap2d = torch.nn.AdaptiveAvgPool2d((5, 7)) 
     
     @export
     @annotate_args([
@@ -71,30 +71,30 @@ class AdaptiveAvgPool2dGeneralOutputSizeDynamicModule(torch.nn.Module):
 
 
 @register_test_case(
-    module_factory=lambda: AdaptiveAvgPool2dGeneralOutputSizeDynamicModule())
-def AdaptiveAvgPool2dGeneralOutputSizeDynamicModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 512, 28, 28))
+    module_factory=lambda: AdaptiveAvgPool2dOutputSizeDivisibleByInputDynamicModule())
+def AdaptiveAvgPool2dOutputSizeDivisibleByInputDynamicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 512, 15, 28))
 
 
-class AdaptiveAvgPool2dGeneralOutputSizeStaticModule(torch.nn.Module):
+class AdaptiveAvgPool2dOutputSizeDivisibleByInputStaticModule(torch.nn.Module):
     
     def __init__(self):
         super().__init__()
-        self.aap2d = torch.nn.AdaptiveAvgPool2d((7, 7)) 
+        self.aap2d = torch.nn.AdaptiveAvgPool2d((3, 7)) 
     
     @export
     @annotate_args([
         None,
-        ([1, 512, 14, 14], torch.float32, True),
+        ([1, 512, 15, 14], torch.float32, True),
     ])
     def forward(self, x):
         return self.aap2d(x)
 
 
 @register_test_case(
-    module_factory=lambda: AdaptiveAvgPool2dGeneralOutputSizeStaticModule())
-def AdaptiveAvgPool2dGeneralOutputSizeStaticModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 512, 14, 14))
+    module_factory=lambda: AdaptiveAvgPool2dOutputSizeDivisibleByInputStaticModule())
+def AdaptiveAvgPool2dOutputSizeDivisibleByInputStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 512, 15, 14))
 
 
 class AdaptiveAvgPool2dUnitOutputSizeStaticModule(torch.nn.Module):
