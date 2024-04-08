@@ -144,7 +144,8 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
       b.getType<ListType>(intType),
       ValueRange({cstSeqLen, cstBatchSize, cstHiddenSize}));
 
-  int64_t hDtypeInt = cast<int64_t>(getScalarTypeForType(hTy.getDtype()));
+  int64_t hDtypeInt =
+      static_cast<int64_t>(getScalarTypeForType(hTy.getDtype()));
   Value hDtypeIntVal =
       b.create<ConstantIntOp>(loc, b.getI64IntegerAttr(hDtypeInt));
 
@@ -298,9 +299,9 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
     activations.h = activationsList[2];
   } else if (activationsList.size() != 0) {
     return rewriter.notifyMatchFailure(
-               binder.op, "activations must be empty have 3 elements, but " +
-                              std::to_string(activationsList.size())) +
-           " are provided.";
+        binder.op, "activations must be empty have 3 elements, but " +
+                       std::to_string(activationsList.size()) +
+                       " are provided.");
   }
 
   if (!binder.customOpNameStringAttr(direction, "direction", "forward") &&

@@ -10,10 +10,10 @@
 #ifndef TORCHMLIR_CONVERSION_TORCHONNXTOTORCH_UTILS_H
 #define TORCHMLIR_CONVERSION_TORCHONNXTOTORCH_UTILS_H
 
+#include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include <mlir/IR/ImplicitLocOpBuilder.h>
 
 namespace mlir::torch::onnx_c {
 
