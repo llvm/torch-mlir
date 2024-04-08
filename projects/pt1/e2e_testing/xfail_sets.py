@@ -2169,6 +2169,10 @@ ONNX_XFAIL_SET = {
     "AtenLinalgCrossDynamic_basic"
 }
 
+#TODO: remove once 2.3.0 is stable
+if torch_version_for_comparison() < version.parse('2.3.0.dev'):
+    ONNX_XFAIL_SET.add("RepeatInterleaveSelfIntNoDimModule_basic")
+
 ONNX_CRASHING_SET = { 
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
