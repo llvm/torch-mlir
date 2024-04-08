@@ -412,6 +412,7 @@ STABLEHLO_PASS_SET = {
     "AtenRoundIntModule_basic",
     "AtenSubFloatModule_basic",
     "AtenToDeviceModule_basic",
+    "Aten_CastFloatModule_basic",
     "AvgPool1dStaticModule_basic",
     "AvgPool2dStaticModule_basic",
     "BaddbmmBroadcast1DInputModule_basic",
