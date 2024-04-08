@@ -2009,7 +2009,7 @@ class ElementwiseSignIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseSignIntModule())
 def ElementwiseSignIntModule_basic(module, tu: TestUtils):
-    module.forward(tu.tensor([[-2, 0, 2]]))
+    module.forward(tu.randint(3, 4, low=-100, high=100))
 
 
 # ==============================================================================
