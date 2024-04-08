@@ -577,13 +577,24 @@ public:
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    Value lhs = adaptor.getSelf();
+    Value rhs = adaptor.getOther();
+
+    RankedTensorType lhsTy = lhs.getType().dyn_cast<RankedTensorType>();
+    RankedTensorType rhsTy = rhs.getType().dyn_cast<RankedTensorType>();
+
+    if (!lhsTy)
+      return op.emitError("lhs must be a ranked tensor type");
+
     TensorType outType = OpConversionPattern<AtenOpT>::getTypeConverter()
                              ->convertType(op.getType())
                              .template cast<TensorType>();
-    Value lhs =
-        hlo::promoteType(rewriter, op.getLoc(), adaptor.getSelf(), outType);
-    Value rhs =
-        hlo::promoteType(rewriter, op.getLoc(), adaptor.getOther(), outType);
+    Type outElemTy = outType.getElementType();
+    lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outType);
+    if (!rhsTy) {
+      rhs = hlo::scalarToStablehloTensor(rewriter, op, rhs, outElemTy);
+    }
+    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outType);
 
     DenseI64ArrayAttr bcastDimensions;
     rewriter.replaceOpWithNewOp<ChloOpT>(op, outType, lhs, rhs,
@@ -1861,6 +1872,8 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_BINARY_LOGICAL_PATTERN(AtenLogicalOrOp, chlo::BroadcastOrOp);
   INSERT_BINARY_LOGICAL_PATTERN(AtenLogicalAndOp, chlo::BroadcastAndOp);
   INSERT_BINARY_LOGICAL_PATTERN(AtenLogicalXorOp, chlo::BroadcastXorOp);
+  INSERT_BINARY_LOGICAL_PATTERN(AtenBitwiseAndScalarOp, chlo::BroadcastAndOp);
+
 #undef INSERT_BINARY_LOGICAL_PATTERN
 
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \

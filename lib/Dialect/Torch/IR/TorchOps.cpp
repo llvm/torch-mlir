@@ -1873,6 +1873,18 @@ void Aten__Or__TensorOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// Aten__And__ScalarOp
+//===----------------------------------------------------------------------===//
+void Aten__And__ScalarOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](Aten__And__ScalarOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenBitwiseAndScalarOp>(
+        op, op.getType(), op.getSelf(), op.getOther());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenScalarImplicitOp
 //===----------------------------------------------------------------------===//
 void AtenScalarImplicitOp::getCanonicalizationPatterns(

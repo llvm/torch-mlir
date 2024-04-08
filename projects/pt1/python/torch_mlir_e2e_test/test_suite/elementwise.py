@@ -3070,6 +3070,51 @@ def ElementwiseOrTensorStaticShapeModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAndscalarModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.__and__(x, 12)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAndscalarModule())
+def ElementwiseAndScalarModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=-10, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseAndScalarStaticShapeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.int32, True)
+    ])
+    def forward(self, x):
+        return torch.ops.aten.__and__(x, 12)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAndScalarStaticShapeModule())
+def ElementwiseAndScalarStaticShapeModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=-10, high=10).to(torch.int32))
+
+# ==============================================================================
+
+
 class ElementwiseBitwiseXorModule(torch.nn.Module):
 
     def __init__(self):
