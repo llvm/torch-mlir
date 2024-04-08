@@ -1614,6 +1614,8 @@ ONNX_XFAIL_SET = {
     "DivIntModule_basic",
     "ElementwiseAcoshIntModule_basic",
     "ElementwiseAcoshModule_basic",
+    "ElementwiseAndScalarModulerModule_basic",
+    "ElementwiseAndScalarStaticShapeModule_basic",
     "ElementwiseAsinhIntModule_basic",
     "ElementwiseAsinhModule_basic",
     "ElementwiseAtanhIntModule_basic",
