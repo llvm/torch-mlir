@@ -1977,13 +1977,6 @@ ONNX_XFAIL_SET = {
     # Failure - onnx_lowering: onnx.Clip
     "NormalizeModule_basic",
 
-    # Failure - onnx_lowering: onnx.Einsum
-    "EinsumStaticContractRhsModule_basic",
-    "EinsumStaticFourDimensionModule_basic",
-    "EinsumStaticModule_basic",
-    "EinsumStaticWithEllipsisSlicingModule_basic",
-    "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
-
     # Failure - onnx_lowering: onnx.MaxPool
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
     "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
