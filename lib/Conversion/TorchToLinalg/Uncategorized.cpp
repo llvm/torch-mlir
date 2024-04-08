@@ -1599,12 +1599,12 @@ public:
              AtenAddScalarOp, AtenThresholdOp, AtenThresholdBackwardOp,
              AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp,
              AtenNeScalarOp, AtenNegOp, AtenMaskedFillTensorOp, AtenLogicalOrOp,
-             AtenLogicalAndOp, AtenLogicalXorOp, AtenLogicalNotOp,
-             Aten__And__ScalarOp, AtenIsinfOp, AtenTriuOp, AtenTrilOp,
-             AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
-             AtenAtanOp, AtenAcosOp, AtenAtanhOp, AtenAcoshOp, AtenAsinOp,
-             AtenAsinhOp, AtenRealOp, AtenImagOp, AtenDequantizeSelfOp,
-             AtenDequantizeTensorOp, AtenQuantizePerTensorOp>(op))
+             AtenLogicalAndOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp,
+             AtenTriuOp, AtenTrilOp, AtenBitwiseNotOp, AtenRoundOp,
+             AtenFillScalarOp, AtenFillTensorOp, AtenAtanOp, AtenAcosOp,
+             AtenAtanhOp, AtenAcoshOp, AtenAsinOp, AtenAsinhOp, AtenRealOp,
+             AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
+             AtenQuantizePerTensorOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
