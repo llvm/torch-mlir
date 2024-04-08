@@ -18,14 +18,12 @@ Value createActivationByName(ImplicitLocOpBuilder &b, StringRef name,
   llvm_unreachable("Unsupported activation function");
 }
 
-/**
- * @struct LstmWeights
- * @brief A structure to hold LSTM weights.
- *
- * Each W_ weight matrix should have shape [hidden_size, input_size].
- * Each R_ weight matrix should have shape [hidden_size, hidden_size].
- * Each bias vector should have shape [4 * hidden_size].
- */
+// @struct LstmWeights
+// @brief A structure to hold LSTM weights.
+//
+// Each W_ weight matrix should have shape [hidden_size, input_size].
+// Each R_ weight matrix should have shape [hidden_size, hidden_size].
+// Each bias vector should have shape [4 * hidden_size].
 struct LstmWeights {
   Value W_i, W_o, W_f, W_c;
   Value R_i, R_o, R_f, R_c;
@@ -42,21 +40,18 @@ struct LstmCellState {
   Value H;
   Value C;
 };
-/**
- * @brief This function represents a Long Short-Term Memory (LSTM) cell
- * operation.
- *
- * @param b A builder for constructing operations.
- * @param Xt The input sequence. It has a shape of [batch_size, input_size].
- * @param H_prev The previous hidden state. It has a shape of [batch_size,
- * hidden_size].
- * @param C_prev The previous cell state. It has a shape of [batch_size,
- * hidden_size].
- * @param weights The weights for the LSTM cell. See @ref LstmWeights for shapes
- * @param activations The activation functions for the LSTM cell. Members f,g,h
- * correspond to f,g,h in https://onnx.ai/onnx/operators/onnx__LSTM.html
- * @return The state of the LSTM cell after the operation.
- */
+// This function represents a Long Short-Term Memory (LSTM) cell operation.
+//
+// @param b A builder for constructing operations.
+// @param Xt The input sequence. It has a shape of [batch_size, input_size].
+// @param H_prev The previous hidden state. It has a shape of [batch_size,
+// hidden_size].
+// @param C_prev The previous cell state. It has a shape of [batch_size,
+// hidden_size].
+// @param weights The weights for the LSTM cell. See @ref LstmWeights for shapes
+// @param activations The activation functions for the LSTM cell. Members f,g,h
+// correspond to f,g,h in https://onnx.ai/onnx/operators/onnx__LSTM.html
+// @return The state of the LSTM cell after the operation.
 LstmCellState lstm_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
                         Value C_prev, LstmWeights weights,
                         LstmActivations activations) {
@@ -104,18 +99,16 @@ struct LstmLayerOutput {
   Value Y_c;
 };
 
-/**
- * @brief This function implements the LSTM (Long Short-Term Memory) layer
- * operation.
- *
- * The core computation is performed in a loop that iterates over the sequence
- * length. In each iteration, it selects the corresponding input, computes the
- * new hidden state and cell state using the lstm_cell function, and updates the
- * output tensor.
- *
- * @return A struct containing the hidden state historty, final hidden state,
- * and final cell state.
- */
+// @brief This function implements the LSTM (Long Short-Term Memory) layer
+// operation.
+//
+// The core computation is performed in a loop that iterates over the sequence
+// length. In each iteration, it selects the corresponding input, computes the
+// new hidden state and cell state using the lstm_cell function, and updates the
+// output tensor.
+//
+// @return A struct containing the hidden state history, final hidden state,
+// and final cell state.
 LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
                            Value initial_c, LstmWeights weights,
                            LstmActivations activations) {
@@ -151,7 +144,7 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
       b.getType<ListType>(intType),
       ValueRange({cstSeqLen, cstBatchSize, cstHiddenSize}));
 
-  int hDtypeInt = (int)getScalarTypeForType(hTy.getDtype());
+  int64_t hDtypeInt = cast<int64_t>(getScalarTypeForType(hTy.getDtype()));
   Value hDtypeIntVal =
       b.create<ConstantIntOp>(loc, b.getI64IntegerAttr(hDtypeInt));
 
@@ -213,47 +206,45 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
   output.Y_c = loop.getResult(2);
   return output;
 }
-/**
- * @brief Expands an ONNX LSTM operation into torch ops.
- *
- * This function primarily handles the binding of operands and slicing of the
- * weight matrix. The majority of the lowering process is managed in the
- * lstm_layer and lstm_cell. For the shapes and meanings of the inputs, refer to
- * the ONNX LSTM documentation at:
- * https://onnx.ai/onnx/operators/onnx__LSTM.html
- * The variable names are also consistent with the aforementioned documentation.
- *
- * This is not e2e tested here but is verified to work numerically downstream in
- * SHARK-TestSuite.
- *
- * TODO: include this test case when the test infrastructure stops initializing
- * weights separately for the reference and tested layers.
- * @code{.py}
- * class LSTMModule(torch.nn.Module):
- *     def __init__(self):
- *         super().__init__()
- *         self.lstm = torch.nn.LSTM(10, 20, 1)
- *     @export
- *     @annotate_args([
- *         None,
- *         ([5, 1, 10], torch.float32, True),
- *         ([1, 1, 20], torch.float32, True),
- *         ([1, 1, 20], torch.float32, True),
- *     ])
- *     def forward(self, input, h0, c0):
- *         return self.lstm(input, (h0, c0))
- *
- * @register_test_case(module_factory=LSTMModule)
- * def LSTMModule_basic(module, tu: TestUtils):
- *     inputs = torch.zeros(5,1,10)
- *     h0 = torch.zeros(1,1,20)
- *     c0 = torch.zeros(1,1,20)
- *
- *     output, (hn, cn) = module.forward(inputs, h0, c0)
- * @endcode
- *
- * @param binder The OpBinder object used for binding operands.
- */
+// @brief Expands an ONNX LSTM operation into torch ops.
+//
+// This function primarily handles the binding of operands and slicing of the
+// weight matrix. The majority of the lowering process is managed in the
+// lstm_layer and lstm_cell. For the shapes and meanings of the inputs, refer to
+// the ONNX LSTM documentation at:
+// https://onnx.ai/onnx/operators/onnx__LSTM.html
+// The variable names are also consistent with the aforementioned documentation.
+//
+// This is not e2e tested here but is verified to work numerically downstream in
+// SHARK-TestSuite.
+//
+// TODO: include this test case when the test infrastructure stops initializing
+// weights separately for the reference and tested layers.
+// @code{.py}
+// class LSTMModule(torch.nn.Module):
+//     def __init__(self):
+//         super().__init__()
+//         self.lstm = torch.nn.LSTM(10, 20, 1)
+//     @export
+//     @annotate_args([
+//         None,
+//         ([5, 1, 10], torch.float32, True),
+//         ([1, 1, 20], torch.float32, True),
+//         ([1, 1, 20], torch.float32, True),
+//     ])
+//     def forward(self, input, h0, c0):
+//         return self.lstm(input, (h0, c0))
+//
+// @register_test_case(module_factory=LSTMModule)
+// def LSTMModule_basic(module, tu: TestUtils):
+//     inputs = torch.zeros(5,1,10)
+//     h0 = torch.zeros(1,1,20)
+//     c0 = torch.zeros(1,1,20)
+//
+//     output, (hn, cn) = module.forward(inputs, h0, c0)
+// @endcode
+//
+// @param binder The OpBinder object used for binding operands.
 LogicalResult OnnxLstmExpander(OpBinder binder,
                                ConversionPatternRewriter &rewriter) {
   Location loc = binder.getLoc();
@@ -298,20 +289,18 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
         binder.op, "Missing required attribute; activations");
 
   LstmActivations activations;
-  if (activationsList.size() != 3 && activationsList.size() != 0)
-    return rewriter.notifyMatchFailure(
-        binder.op, "Either empty or 3 activations are supported but " +
-                       std::to_string(activationsList.size()) +
-                       " are provided.");
-
+  activations.f = "Sigmoid";
+  activations.g = "Tanh";
+  activations.h = "Tanh";
   if (activationsList.size() == 3) {
     activations.f = activationsList[0];
     activations.g = activationsList[1];
     activations.h = activationsList[2];
-  } else {
-    activations.f = "Sigmoid";
-    activations.g = "Tanh";
-    activations.h = "Tanh";
+  } else if (activationsList.size() != 0) {
+    return rewriter.notifyMatchFailure(
+               binder.op, "activations must be empty have 3 elements, but " +
+                              std::to_string(activationsList.size())) +
+           " are provided.";
   }
 
   if (!binder.customOpNameStringAttr(direction, "direction", "forward") &&

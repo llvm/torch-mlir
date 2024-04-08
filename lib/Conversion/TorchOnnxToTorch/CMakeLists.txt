@@ -2,11 +2,11 @@ add_mlir_conversion_library(TorchMLIRTorchOnnxToTorch
     DefaultDomainAtoF.cpp
     DefaultDomainGtoP.cpp
     DefaultDomainQtoZ.cpp
+    OnnxLstmExpander.cpp
     Passes.cpp
     Patterns.cpp
     TorchOnnxToTorch.cpp
     Utils.cpp
-    OnnxLstmExpander.cpp
 
     ADDITIONAL_HEADER_DIRS
     ${PROJECT_SOURCE_DIR}/include/torch-mlir/Conversion/TorchOnnxToTorch
