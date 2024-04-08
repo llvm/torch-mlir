@@ -501,6 +501,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseNeIntTensorStaticModule_basic",
     "ElementwiseNegModule_basic",
     "ElementwiseOrTensorStaticShapeModule_basic",
+    "ElementwiseAndScalarStaticShapeModule_basic",
     "ElementwisePowTensorBroadcastStaticModule_basic",
     "ElementwisePowTensorStaticModule_basic",
     "ElementwisePreluStaticModule_basic",
@@ -840,6 +841,57 @@ STABLEHLO_PASS_SET = {
     "UnbindIntGetItem_Module_basic",
     "UnbindIntListUnpack_Module_basic",
     "UniformStaticShapeModule_basic",
+    "ArangeStartOutViewModule_basic",
+    "ConvolutionBackwardModule2DStrided_basic",
+    "EinsumStaticContractRhsModule_basic",
+    "EinsumStaticFourDimensionModule_basic",
+    "EinsumStaticModule_basic",
+    "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
+    "EinsumStaticWithEllipsisSlicingModule_basic",
+    "FlattenStaticModule_basic",
+    "GroupNormModule_basic",
+    "GroupNormNoWeightAndBiasModule_basic",
+    "NativeGroupNormModule_basic",
+    "RepeatModule_basic",
+    "ReshapeAliasCollapseModule_basic",
+    "ReshapeAliasExpandModule_basic",
+    "ReshapeAsModule_basic",
+    "ReshapeExpandModule_basic",
+    "TileBigDimsSizeModule_basic",
+    "TileSmallDimsSizeModule_basic",
+    "UnflattenIntNegativeOneDimStaticModule_basic",
+    "UnflattenIntNegativeOneSizeStaticModule_basic",
+    "UnflattenIntStaticModule_basic",
+    "UnflattenStaticModule_basic",
+    "UniformNoCorrelationModule_basic",
+    "UnsafeViewCollapseModule_basic",
+    "UnsafeViewDynamicExpandModule_basic",
+    "UnsafeViewExpandModule_basic",
+    "ViewCollapseInferredDimModule_basic",
+    "ViewCollapseModule_basic",
+    "ViewCollapseOnesMiddleModule_basic",
+    "ViewDynamicExpandCollapseModule_basic",
+    "ViewDynamicExpandModule_basic",
+    "ViewExpandCollapseModule_basic",
+    "ViewExpandCollapseWithOnesModule_basic",
+    "ViewExpandDynamicDimModule_basic",
+    "ViewExpandInferredDimModule_basic",
+    "ViewExpandModule_basic",
+    "ViewExpandOnesBeforeAndAfterModule_basic",
+    "ViewExpandOnesMiddleModule_basic",
+    "ViewExpandOnesModule_basic",
+    "ViewNegativeStaticModule_basic",
+    "ViewNoChange1dModule_basic",
+    "ViewNoChange2dModule_basic",
+    "ViewNoChange3dModule_basic",
+    "ViewNoChangeStaticModule_basic",
+    "ViewOffsetBackwardTestStaticModule_basic",
+    "ViewOffsetTestStaticModule_basic",
+    "ViewTwoFiveThreeStaticModule_basic",
+    "ViewTwoToThreeStaticModule_basic",
+    "ElementwiseLog1pModule_basic",
+    "ElementwiseSgnModule_basic",
+    "ElementwiseSignIntModule_basic",
 }
 
 STABLEHLO_CRASHING_SET =  {
@@ -849,6 +901,8 @@ STABLEHLO_CRASHING_SET =  {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "ElementwiseSgnModule_basic",
+    "ElementwiseSignIntModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dUnitOutputSizeStaticModule_basic",
     "AddCDivModule_basic",
@@ -1492,6 +1546,7 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+
     # Failure - cast error
     "PermuteNegativeIndexModule_basic",
 
@@ -1519,6 +1574,7 @@ ONNX_XFAIL_SET = {
     "ViewSizeFromOtherTensor_basic",
 
     # Failure - onnx_export
+    "ElementwiseSgnModule_basic",
     "AdaptiveAvgPool1dGeneralDynamic_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule_basic",
     "AdaptiveAvgPool1dStaticLargerOutput_basic",
@@ -1614,6 +1670,8 @@ ONNX_XFAIL_SET = {
     "DivIntModule_basic",
     "ElementwiseAcoshIntModule_basic",
     "ElementwiseAcoshModule_basic",
+    "ElementwiseAndScalarModule_basic",
+    "ElementwiseAndScalarStaticShapeModule_basic",
     "ElementwiseAsinhIntModule_basic",
     "ElementwiseAsinhModule_basic",
     "ElementwiseAtanhIntModule_basic",
@@ -1921,13 +1979,6 @@ ONNX_XFAIL_SET = {
     # Failure - onnx_lowering: onnx.Clip
     "NormalizeModule_basic",
 
-    # Failure - onnx_lowering: onnx.Einsum
-    "EinsumStaticContractRhsModule_basic",
-    "EinsumStaticFourDimensionModule_basic",
-    "EinsumStaticModule_basic",
-    "EinsumStaticWithEllipsisSlicingModule_basic",
-    "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
-
     # Failure - onnx_lowering: onnx.MaxPool
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
     "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
@@ -2122,4 +2173,3 @@ ONNX_CRASHING_SET = {
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
 }
-

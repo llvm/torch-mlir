@@ -1951,4 +1951,30 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             /*layout=*/noneVal, /*device=*/noneVal, /*pin_memory=*/noneVal);
         return success();
       });
+  patterns.onOp(
+      "Einsum", 12, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        SmallVector<Value> tensors;
+        std::string equation;
+        if (binder.tensorOperands(tensors, binder.op->getNumOperands()) ||
+            binder.customOpNameStringAttr(equation, "equation") ||
+            binder.tensorResultType(resultType))
+          return failure();
+        Type listElemType =
+            tensors[0]
+                .getType()
+                .cast<Torch::BaseTensorType>()
+                .getWithSizesAndDtype(/*optionalSizes=*/std::nullopt,
+                                      /*optionalDtype=*/nullptr);
+        Type listType = Torch::ListType::get(listElemType);
+        Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.op->getLoc(), listType, tensors);
+        Value cstEquation = rewriter.create<Torch::ConstantStrOp>(
+            binder.getLoc(), rewriter.getType<Torch::StringType>(),
+            rewriter.getStringAttr(equation));
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        rewriter.replaceOpWithNewOp<Torch::AtenEinsumOp>(
+            binder.op, resultType, cstEquation, tensorList, /*path=*/cstNone);
+        return success();
+      });
 }

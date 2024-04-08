@@ -1794,6 +1794,17 @@ OpFoldResult AtenRoundOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenSignOp
+//===----------------------------------------------------------------------===//
+void AtenSignOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                             MLIRContext *context) {
+  patterns.add(+[](AtenSignOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenSgnOp>(op, op.getType(), op.getSelf());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenMulScalarOp
 //===----------------------------------------------------------------------===//
 void AtenMulScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
@@ -1856,6 +1867,18 @@ void Aten__Or__TensorOp::getCanonicalizationPatterns(
     RewritePatternSet &patterns, MLIRContext *context) {
   patterns.add(+[](Aten__Or__TensorOp op, PatternRewriter &rewriter) {
     rewriter.replaceOpWithNewOp<AtenBitwiseOrTensorOp>(
+        op, op.getType(), op.getSelf(), op.getOther());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// Aten__And__ScalarOp
+//===----------------------------------------------------------------------===//
+void Aten__And__ScalarOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](Aten__And__ScalarOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenBitwiseAndScalarOp>(
         op, op.getType(), op.getSelf(), op.getOther());
     return success();
   });

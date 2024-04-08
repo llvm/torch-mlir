@@ -1986,6 +1986,51 @@ class ElementwiseSignModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseSignModule())
 def ElementwiseSignModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[-2.0, 0.0, 1.1, 2.0],
+                                 [6.0, -0.0, torch.inf, -torch.inf]]))
+
+
+# ==============================================================================
+
+
+class ElementwiseSignIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.sign(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSignIntModule())
+def ElementwiseSignIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-100, high=100))
+
+
+# ==============================================================================
+
+
+class ElementwiseSgnModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.sgn(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSgnModule())
+def ElementwiseSgnModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
 
@@ -3021,6 +3066,51 @@ def ElementwiseOrTensorStaticShapeModule_basic(module, tu: TestUtils):
         tu.randint(3, 4, low=-10, high=10).to(torch.int32),
         tu.randint(4, low=-10, high=10))
 
+
+# ==============================================================================
+
+
+class ElementwiseAndscalarModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.__and__(x, 12)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAndscalarModule())
+def ElementwiseAndScalarModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=-10, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseAndScalarStaticShapeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.int32, True)
+    ])
+    def forward(self, x):
+        return torch.ops.aten.__and__(x, 12)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAndScalarStaticShapeModule())
+def ElementwiseAndScalarStaticShapeModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=-10, high=10).to(torch.int32))
 
 # ==============================================================================
 
