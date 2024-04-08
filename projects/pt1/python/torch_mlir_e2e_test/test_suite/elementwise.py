@@ -3036,7 +3036,7 @@ class ElementwiseAndscalarModule(torch.nn.Module):
         ([-1, -1], torch.int32, True),
     ])
     def forward(self, x):
-        return torch.ops.aten.__and__(x, 1)
+        return torch.ops.aten.__and__(x, 12)
 
 
 @register_test_case(module_factory=lambda: ElementwiseAndscalarModule())
@@ -3059,7 +3059,7 @@ class ElementwiseAndScalarStaticShapeModule(torch.nn.Module):
         ([3, 4], torch.int32, True)
     ])
     def forward(self, x):
-        return torch.ops.aten.__and__(x, 1)
+        return torch.ops.aten.__and__(x, 12)
 
 
 @register_test_case(module_factory=lambda: ElementwiseAndScalarStaticShapeModule())
