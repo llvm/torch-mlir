@@ -7577,6 +7577,7 @@ def Torch_Aten__And__ScalarOp : Torch_Op<"aten.__and__.Scalar", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_Aten__Or__TensorOp : Torch_Op<"aten.__or__.Tensor", [
