@@ -2001,7 +2001,7 @@ class ElementwiseSignIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.int64, True),
+        ([3, 4], torch.int64, True),
     ])
     def forward(self, a):
         return torch.ops.aten.sign(a)
