@@ -103,15 +103,18 @@ public:
     }
 
     if (lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
-      return rewriter.notifyMatchFailure(
-          op, "unsupported: aten.mm with different input element types");
+      if (!lhsZeroPoint) {
+        return rewriter.notifyMatchFailure(
+            op, "unsupported: aten.mm with different input element types");
+      }
+      if (!lhsTorchType.getDtype().isa<Torch::QInt8Type, Torch::QUInt8Type>() ||
+          !rhsTorchType.getDtype().isa<Torch::QInt8Type, Torch::QUInt8Type>()) {
+        return rewriter.notifyMatchFailure(
+            op, "unsupported: mismatching quantized types with bitwidth != 8");
+      }
     }
 
     bool isUnsigned = torch_to_linalg::isUnsignedTorchType(lhsTorchType);
-    if (lhsZeroPoint && isUnsigned) {
-      return rewriter.notifyMatchFailure(
-          op, "unsupported: unsigned quantized matmul not supported");
-    }
 
     Value lhsDim0 = rewriter.create<tensor::DimOp>(loc, lhs, 0);
     Value rhsDim1 = rewriter.create<tensor::DimOp>(loc, rhs, 1);
@@ -139,7 +142,9 @@ public:
         rewriter, loc, ValueRange{lhsDim0, rhsDim1}, elementType);
 
     Value matmul;
-    if (lhsZeroPoint && !isUnsigned) {
+    if (lhsZeroPoint) {
+      // if isUnsigned, quantized_matmul will still sign-extend to the
+      // accumulator type.
       lhsZeroPoint = typeConverter->materializeTargetConversion(
           rewriter, loc,
           getTypeConverter()->convertType(lhsZeroPoint.getType()),

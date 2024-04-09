@@ -1442,7 +1442,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     auto value = payloadArgs[0];
     auto valueTy = value.getType();
     auto qtensor = op->getOperand(0);
-    auto qtensorTy = qtensor.getType().cast<ValueTensorType>().getDtype();
 
     Value zp, scale;
     if (auto makeQTensor =

@@ -2113,7 +2113,6 @@ ONNX_XFAIL_SET = {
 
     # Failure - torch.aten.mm lower (mixed signedness of qtypes)
     "QuantizedMLP_basic",
-    "QuantizedSingleLayer_basic",
 
     # Failure - torch.aten.squeeze lower
     "BucketizeTensorOutInt32RightModule_basic", # unsupported by backend contract: tensor with unknown rank
