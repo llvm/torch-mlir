@@ -434,6 +434,8 @@ function clean_build() {
 }
 
 function build_torch_mlir() {
+  # Disable LTC build for releases to avoid linker issues
+  export TORCH_MLIR_ENABLE_LTC=0
   local torch_version="$1"
   case $torch_version in
     nightly)
