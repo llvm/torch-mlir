@@ -243,9 +243,11 @@ def emit_op(operator: JitOperator,
 
 def emit_ops(emitter_td: TextEmitter, registry: Registry):
     def emit(key, **kwargs):
+        registry.assert_key_in_registry(key)
         emit_op(registry[key], emitter_td, **kwargs)
 
     def emit_with_mutating_variants(key, **kwargs):
+        registry.assert_key_in_registry(key)
         operator = registry[key]
         emit_op(operator, emitter_td, **kwargs)
         ns, unqual, overload = operator.triple
