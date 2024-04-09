@@ -5599,29 +5599,24 @@ class DecomposeAtenAdaptiveAvgPool2dOp
     Value constantTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
     Value constantNone = rewriter.create<Torch::ConstantNoneOp>(loc);
     SmallVector<Value, 2> kernelSize;
-    SmallVector<Value, 2> strides;
 
     for (unsigned i = 0; i < inputHW.size(); i++) {
-      if (!isAssumingStrictSymbolicShapes(rewriter)) {
-        Value remainder = rewriter.create<AtenRemainderIntOp>(
-            loc, inputHW[i], outputShapeSizesTorchInt[i]);
-        Value cond = rewriter.create<AtenEqIntOp>(loc, remainder, constantZero);
-        rewriter.create<RuntimeAssertOp>(loc, cond,
-                                         "unimplemented: only support cases "
-                                         "input size is an integer multiple of "
-                                         "output size");
-      }
+      Value remainder = rewriter.create<AtenRemainderIntOp>(
+          loc, inputHW[i], outputShapeSizesTorchInt[i]);
+      Value cond = rewriter.create<AtenEqIntOp>(loc, remainder, constantZero);
+      rewriter.create<RuntimeAssertOp>(loc, cond,
+                                       "unimplemented: only support cases "
+                                       "input size is an integer multiple of "
+                                       "output size");
       Value stride = rewriter.create<AtenFloordivIntOp>(
           loc, inputHW[i], outputShapeSizesTorchInt[i]);
       Value kernelSizeValue = stride;
       kernelSize.push_back(kernelSizeValue);
-      strides.push_back(stride);
     }
 
     Value kernelSizeList = rewriter.create<PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(context)), kernelSize);
-    Value strideList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)), strides);
+    Value strideList = kernelSizeList;
     Value paddingSizeList = rewriter.create<PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(context)),
         ValueRange{constantZero, constantZero});
