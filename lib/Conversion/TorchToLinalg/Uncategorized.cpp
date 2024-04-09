@@ -1465,11 +1465,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     auto outIntTy = b.getIntegerType(outBw);
 
     if (valueTy != outIntTy) {
-      if (torch_to_linalg::isUnsignedTorchType(qtensorTy)) {
-        value = b.create<arith::ExtUIOp>(loc, outIntTy, value);
-      } else {
-        value = b.create<arith::ExtSIOp>(loc, outIntTy, value);
-      }
+      // whether signed or unsigned, sign extend so that subtraction by zero
+      // point doesn't overflow
+      value = b.create<arith::ExtSIOp>(loc, outIntTy, value);
     }
 
     zp = converter->materializeTargetConversion(
@@ -1480,16 +1478,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       zp = b.create<arith::TruncIOp>(loc, outIntTy, zp);
     }
 
-    if (torch_to_linalg::isUnsignedTorchType(qtensorTy)) {
-      // for unsigned types, integer subtraction by the zero point is still
-      // likely to overflow. Do floating point subtraction instead.
-      value = b.create<arith::UIToFPOp>(loc, outFpTy, value);
-      zp = b.create<arith::UIToFPOp>(loc, outFpTy, zp);
-      value = b.create<arith::SubFOp>(loc, value, zp);
-    } else {
-      value = b.create<arith::SubIOp>(loc, value, zp);
-      value = b.create<arith::SIToFPOp>(loc, outFpTy, value);
-    }
+    value = b.create<arith::SubIOp>(loc, value, zp);
+    value = b.create<arith::SIToFPOp>(loc, outFpTy, value);
 
     scale = converter->materializeTargetConversion(
         b, loc, converter->convertType(scale.getType()), scale);
