@@ -117,7 +117,7 @@ TorchMlirBackendImpl::GetComputationDataFromNode(const Node *node) const {
 
 at::Tensor TorchMlirBackendImpl::MakeTensorFromComputationData(
     const BackendDataPtr data,
-    c10::optional<at::ScalarType> logical_scalar_type) const {
+    std::optional<at::ScalarType> logical_scalar_type) const {
   PRINT_FUNCTION();
 
   TorchMlirBackendData *torch_mlir_data =
