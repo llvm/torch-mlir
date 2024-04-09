@@ -211,27 +211,26 @@ def test_sparse_SpMM():
 # CHECK:         return %[[R]] : !torch.vtensor<[8,4,2],f32>
 # CHECK:       }
 #
-# CHECK: torch.sparse
-# CHECK: tensor(crow_indices=tensor([ 0,  4,  8, 12, 16, 20, 24, 28, 32]),
-# CHECK: col_indices=tensor([0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1,
-# CHECK:                     2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3]),
-# CHECK: values=tensor({{\[}}[ -1.,  -2.],
-#                            ...
-# CHECK:                     [-63., -64.]{{\]}}), size=(8, 4, 2), nnz=32,
-# CHECK: layout=torch.sparse_csr)
-# CHECK: torch.mlir
-# CHECK: {{\[\[}}[ -1.  -2.]
-# CHECK:         [ -3.  -4.]
-#                ...
-# CHECK:         [-61. -62.]
-# CHECK:         [-63. -64.]{{\]\]}}
-#
-# CHECK:        torch.mlir.batch
-# CHECK:        {{\[\[}}[ -1.  -2.]
-# CHECK:                [ -3.  -4.]
-#                       ...
-# CHECK:                [-61. -62.]
-# CHECK:                [-63. -64.]{{\]\]}}
+# CHECK:       torch.sparse
+# CHECK:       tensor(crow_indices=tensor([ 0,  4,  8, 12, 16, 20, 24, 28, 32]),
+# CHECK:       col_indices=tensor([0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1,
+# CHECK:                           2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3]),
+# CHECK:       values=tensor({{\[}}[ -1.,  -2.],
+#                                  ...
+# CHECK:                           [-63., -64.]{{\]}}), size=(8, 4, 2), nnz=32,
+# CHECK:       layout=torch.sparse_csr)
+# CHECK:       torch.mlir
+# CHECK:       {{\[\[}}[ -1.  -2.]
+# CHECK:               [ -3.  -4.]
+#                      ...
+# CHECK:               [-61. -62.]
+# CHECK:               [-63. -64.]{{\]\]}}
+# CHECK:       torch.mlir.batch
+# CHECK:       {{\[\[}}[ -1.  -2.]
+# CHECK:               [ -3.  -4.]
+#                      ...
+# CHECK:               [-61. -62.]
+# CHECK:               [-63. -64.]{{\]\]}}
 def test_sparse_eltwise():
     class EltNet(torch.nn.Module):
         def __init__(self):
