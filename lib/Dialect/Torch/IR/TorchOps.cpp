@@ -940,6 +940,27 @@ void AtenToOtherOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// Aten_CastFloatOp
+//===----------------------------------------------------------------------===//
+
+void Aten_CastFloatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                   MLIRContext *context) {
+  // `aten.cast_float` -> `aten.to.dtype`
+  patterns.add(+[](Aten_CastFloatOp op, PatternRewriter &rewriter) {
+    auto self = op.getSelf();
+    auto loc = op.getLoc();
+    Value constNone = rewriter.create<ConstantNoneOp>(loc);
+    Value f32Type = rewriter.create<ConstantIntOp>(
+        loc, (int)torch_upstream::ScalarType::Float);
+    Value constFalse = rewriter.create<ConstantBoolOp>(loc, false);
+    rewriter.replaceOpWithNewOp<AtenToDtypeOp>(op, op.getType(), self, f32Type,
+                                               op.getNonBlocking(), constFalse,
+                                               constNone);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenViewOp
 //===----------------------------------------------------------------------===//
 

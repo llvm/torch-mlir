@@ -1,3 +1,4 @@
+
 # Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -9,6 +10,7 @@ from typing import Dict, List, Tuple, Union, Callable
 
 import io
 import itertools
+import difflib
 
 from .utils import TextEmitter
 
@@ -407,6 +409,18 @@ class Registry:
         """Looks up a JitOperator by its unique "triple"."""
         return self.by_triple[key]
 
+    def assert_key_in_registry(self, key: str):
+        if key in self.by_unique_key:
+            return
+        print(
+            f'ERROR: Op does not match any Torch ops in Registry\nGiven op:\n\t"{key}"'
+        )
+        matches = difflib.get_close_matches(key, self.by_unique_key.keys(), n=5)
+        if len(matches):
+            print("Possible matches:")
+            print("\n".join(f'\t"{match}"' for match in matches))
+        exit(1)
+
 
 # A Dict[str, _] mapping attribute names to:
 #   - str (e.g. {'name': 'dim'} )
@@ -420,3 +434,4 @@ SIGLIST_TYPE = List[SIG_ATTR_TYPE]
 #   - Tuple[str] (e.g. {'name': ('aten::size', 'int')} )
 #   - SIGLIST_TYPE (e.g. {'arguments': [...], 'returns': [...]} )
 OP_INFO_DICT = Dict[str, Union[bool, Tuple[str], SIGLIST_TYPE]]
+
