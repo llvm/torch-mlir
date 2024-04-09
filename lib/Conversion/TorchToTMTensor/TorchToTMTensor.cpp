@@ -782,7 +782,8 @@ public:
     llvm::SmallVector<Value> valuesDims;
     int vDim = 0;
 
-    if (optionalIndicesCount + valuesType.getSizes().size() > inputType.getSizes().size()) {
+    if (optionalIndicesCount + valuesType.getSizes().size() >
+        inputType.getSizes().size()) {
       valuesShape.push_back(valuesType.getSizes().front());
       valuesDims.push_back(
           rewriter.create<Torch::AtenSizeIntOp>(loc, values, zero));
