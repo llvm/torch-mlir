@@ -102,17 +102,13 @@ public:
           op, "unsupported: aten.mm with mixed quantization");
     }
 
-    if (!lhsZeroPoint) {
-      if (lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
+    if (lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
+      if (!lhsZeroPoint) {
         return rewriter.notifyMatchFailure(
             op, "unsupported: aten.mm with different input element types");
       }
-    } else {
-      if (!lhsTorchType.getDtype().isa<Torch::QInt8Type, Torch::QUInt8Type>() ||
-          !rhsTorchType.getDtype().isa<Torch::QInt8Type, Torch::QUInt8Type>()) {
-        return rewriter.notifyMatchFailure(
-            op, "unsupported: quantized types with bitwidth != 8");
-      }
+      // Allows quantized types to mismatch since they will be cast to the same
+      // type.
     }
 
     bool isUnsigned = torch_to_linalg::isUnsignedTorchType(lhsTorchType);
@@ -160,25 +156,31 @@ public:
 
       // for uint8 types, we shift down by 128 so that we can faithfully
       // represent the quantization with signed i8 types.
-      auto signShift = [&](Value &arg, Value &zp, bool isUnsignedType) {
+      auto signShift = [&](Value &arg, Value &zp, bool isUnsignedType,
+                           int64_t numBits) {
         if (!isUnsignedType)
           return;
-        Value c128 = rewriter.create<arith::ConstantIntOp>(loc, 128, 32);
-        zp = rewriter.create<arith::SubIOp>(loc, zp, c128);
-        c128 = rewriter.create<arith::ConstantIntOp>(loc, -128, 8);
+        int64_t minSI = -std::pow(2, numBits - 1);
+        Value minSIValue =
+            rewriter.create<arith::ConstantIntOp>(loc, minSI, 32);
+        zp = rewriter.create<arith::AddIOp>(loc, zp, minSIValue);
+        minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, numBits);
         arg = torch_to_linalg::createElementwiseLinalgGeneric(
             rewriter, loc, ValueRange{arg},
             arg.getType().cast<TensorType>().getElementType(),
             [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
-              Value result =
-                  rewriter.create<arith::AddIOp>(loc, payloadArgs[0], c128);
+              Value result = rewriter.create<arith::AddIOp>(loc, payloadArgs[0],
+                                                            minSIValue);
               b.create<linalg::YieldOp>(loc, result);
             });
         return;
       };
 
-      signShift(lhs, lhsZeroPoint, isUnsigned);
-      signShift(rhs, rhsZeroPoint, isUnsignedR);
+      int64_t numBits =
+          lhsType.getElementType().cast<mlir::IntegerType>().getWidth();
+      signShift(lhs, lhsZeroPoint, isUnsigned, numBits);
+      numBits = rhsType.getElementType().cast<mlir::IntegerType>().getWidth();
+      signShift(rhs, rhsZeroPoint, isUnsignedR, numBits);
 
       matmul =
           rewriter
