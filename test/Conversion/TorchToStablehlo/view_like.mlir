@@ -308,15 +308,13 @@ func.func @torch.aten.slice.none.static$slice_like(%arg0: !torch.vtensor<[4,65,2
 // CHECK:         %[[T1:.*]] = torch.prim.ListConstruct %[[INT]]-1, %[[INT]]224 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:         %[[T2:.*]] = torch_c.to_i64 %[[INT]]-1
 // CHECK:         %[[T3:.*]] = torch_c.to_i64 %[[INT224]]
-// CHECK:         %[[C1_I64:.*]] = arith.constant 1 : i64
-// CHECK:         %[[T4:.*]] = arith.muli %[[C1_I64]], %[[T2]] : i64
-// CHECK:         %[[T5:.*]] = arith.muli %[[T4]], %[[T3]] : i64
-// CHECK:         %[[T6:.*]] = arith.index_cast %[[T5]] : i64 to index
+// CHECK:         %[[T4:.*]] = shape.shape_of %[[T0]] : tensor<?x?x?x?xf32> -> tensor<4xindex>
+// CHECK:         %[[T5:.*]] = shape.num_elements %[[T4]] : tensor<4xindex> -> index
 // CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[T2]], %[[T3]] : tensor<2xi64>
-// CHECK:         %[[T7:.*]] = stablehlo.compute_reshape_shape %[[T6]], %[[FROM_ELEMENTS]] : (index, tensor<2xi64>) -> tensor<2xi64>
-// CHECK:         %[[T8:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[T7]] : (tensor<?x?x?x?xf32>, tensor<2xi64>) -> tensor<?x224xf32>
-// CHECK:         %[[T9:.*]] = torch_c.from_builtin_tensor %[[T8]] : tensor<?x224xf32> -> !torch.vtensor<[?,224],f32>
-// CHECK:         return %[[T9]] : !torch.vtensor<[?,224],f32>
+// CHECK:         %[[T6:.*]] = stablehlo.compute_reshape_shape %[[T5]], %[[FROM_ELEMENTS]] : (index, tensor<2xi64>) -> tensor<2xi64>
+// CHECK:         %[[T7:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[T6]] : (tensor<?x?x?x?xf32>, tensor<2xi64>) -> tensor<?x224xf32>
+// CHECK:         %[[T8:.*]] = torch_c.from_builtin_tensor %[[T7]] : tensor<?x224xf32> -> !torch.vtensor<[?,224],f32>
+// CHECK:         return %[[T8]] : !torch.vtensor<[?,224],f32>
 func.func @torch.aten.view$basic(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,224],f32> {
   %int-1 = torch.constant.int -1
   %int224 = torch.constant.int 224
@@ -339,17 +337,13 @@ func.func @torch.aten.view$basic(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch
 // CHECK:         %[[T3:.*]] = torch_c.to_i64 %[[INT120]]
 // CHECK:         %[[T4:.*]] = torch_c.to_i64 %[[INT4]]
 // CHECK:         %[[T5:.*]] = torch_c.to_i64 %[[INT64]]
-// CHECK:         %[[C1_I64:.*]] = arith.constant 1 : i64
-// CHECK:         %[[T6:.*]] = arith.muli %[[C1_I64]], %[[T2]] : i64
-// CHECK:         %[[T7:.*]] = arith.muli %[[T6]], %[[T3]] : i64
-// CHECK:         %[[T8:.*]] = arith.muli %[[T7]], %[[T4]] : i64
-// CHECK:         %[[T9:.*]] = arith.muli %[[T8]], %[[T5]] : i64
-// CHECK:         %[[T10:.*]] = arith.index_cast %[[T9]] : i64 to index
+// CHECK:         %[[T6:.*]] = shape.shape_of %[[T0]] : tensor<?x?x?x?x?xf32> -> tensor<5xindex>
+// CHECK:         %[[T7:.*]] = shape.num_elements %[[T6]] : tensor<5xindex> -> index
 // CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[T2]], %[[T3]], %[[T4]], %[[T5]] : tensor<4xi64>
-// CHECK:         %[[T11:.*]] = stablehlo.compute_reshape_shape %[[T10]], %[[FROM_ELEMENTS]] : (index, tensor<4xi64>) -> tensor<4xi64>
-// CHECK:         %[[T12:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[T11]] : (tensor<?x?x?x?x?xf32>, tensor<4xi64>) -> tensor<?x120x4x64xf32>
-// CHECK:         %[[T13:.*]] = torch_c.from_builtin_tensor %[[T12]] : tensor<?x120x4x64xf32> -> !torch.vtensor<[?,120,4,64],f32>
-// CHECK:         return %[[T13]] : !torch.vtensor<[?,120,4,64],f32>
+// CHECK:         %[[T8:.*]] = stablehlo.compute_reshape_shape %[[T7]], %[[FROM_ELEMENTS]] : (index, tensor<4xi64>) -> tensor<4xi64>
+// CHECK:         %[[T9:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[T8]] : (tensor<?x?x?x?x?xf32>, tensor<4xi64>) -> tensor<?x120x4x64xf32>
+// CHECK:         %[[T10:.*]] = torch_c.from_builtin_tensor %[[T9]] : tensor<?x120x4x64xf32> -> !torch.vtensor<[?,120,4,64],f32>
+// CHECK:         return %[[T10]] : !torch.vtensor<[?,120,4,64],f32>
 func.func @torch.aten.reshape$basic(%arg0: !torch.vtensor<[?,?,?,?,?],f32>) -> !torch.vtensor<[?,120,4,64],f32> {
   %int-1 = torch.constant.int -1
   %int120 = torch.constant.int 120
