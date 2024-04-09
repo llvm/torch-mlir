@@ -2111,9 +2111,6 @@ ONNX_XFAIL_SET = {
     "IndexTensorMultiInputContiguousOneDimDynamic_basic",
     "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
 
-    # Failure - torch.aten.mm lower (mixed signedness of qtypes)
-    "QuantizedMLP_basic",
-
     # Failure - torch.aten.squeeze lower
     "BucketizeTensorOutInt32RightModule_basic", # unsupported by backend contract: tensor with unknown rank
 

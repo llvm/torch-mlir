@@ -102,19 +102,21 @@ public:
           op, "unsupported: aten.mm with mixed quantization");
     }
 
-    if (lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
-      if (!lhsZeroPoint) {
+    if (!lhsZeroPoint) {
+      if (lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
         return rewriter.notifyMatchFailure(
             op, "unsupported: aten.mm with different input element types");
       }
+    } else {
       if (!lhsTorchType.getDtype().isa<Torch::QInt8Type, Torch::QUInt8Type>() ||
           !rhsTorchType.getDtype().isa<Torch::QInt8Type, Torch::QUInt8Type>()) {
         return rewriter.notifyMatchFailure(
-            op, "unsupported: mismatching quantized types with bitwidth != 8");
+            op, "unsupported: quantized types with bitwidth != 8");
       }
     }
 
     bool isUnsigned = torch_to_linalg::isUnsignedTorchType(lhsTorchType);
+    bool isUnsignedR = torch_to_linalg::isUnsignedTorchType(rhsTorchType);
 
     Value lhsDim0 = rewriter.create<tensor::DimOp>(loc, lhs, 0);
     Value rhsDim1 = rewriter.create<tensor::DimOp>(loc, rhs, 1);
@@ -143,8 +145,6 @@ public:
 
     Value matmul;
     if (lhsZeroPoint) {
-      // if isUnsigned, quantized_matmul will still sign-extend to the
-      // accumulator type.
       lhsZeroPoint = typeConverter->materializeTargetConversion(
           rewriter, loc,
           getTypeConverter()->convertType(lhsZeroPoint.getType()),
@@ -157,6 +157,29 @@ public:
           loc, rewriter.getI32Type(), lhsZeroPoint);
       rhsZeroPoint = rewriter.create<arith::TruncIOp>(
           loc, rewriter.getI32Type(), rhsZeroPoint);
+
+      // for uint8 types, we shift down by 128 so that we can faithfully
+      // represent the quantization with signed i8 types.
+      auto signShift = [&](Value &arg, Value &zp, bool isUnsignedType) {
+        if (!isUnsignedType)
+          return;
+        Value c128 = rewriter.create<arith::ConstantIntOp>(loc, 128, 32);
+        zp = rewriter.create<arith::SubIOp>(loc, zp, c128);
+        c128 = rewriter.create<arith::ConstantIntOp>(loc, -128, 8);
+        arg = torch_to_linalg::createElementwiseLinalgGeneric(
+            rewriter, loc, ValueRange{arg},
+            arg.getType().cast<TensorType>().getElementType(),
+            [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
+              Value result =
+                  rewriter.create<arith::AddIOp>(loc, payloadArgs[0], c128);
+              b.create<linalg::YieldOp>(loc, result);
+            });
+        return;
+      };
+
+      signShift(lhs, lhsZeroPoint, isUnsigned);
+      signShift(rhs, rhsZeroPoint, isUnsignedR);
+
       matmul =
           rewriter
               .create<linalg::QuantizedMatmulOp>(

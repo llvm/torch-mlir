@@ -1442,6 +1442,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     auto value = payloadArgs[0];
     auto valueTy = value.getType();
     auto qtensor = op->getOperand(0);
+    auto qtensorTy = qtensor.getType().cast<ValueTensorType>().getDtype();
 
     Value zp, scale;
     if (auto makeQTensor =
@@ -1464,9 +1465,11 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     auto outIntTy = b.getIntegerType(outBw);
 
     if (valueTy != outIntTy) {
-      // whether signed or unsigned, sign extend so that subtraction by zero
-      // point doesn't overflow
-      value = b.create<arith::ExtSIOp>(loc, outIntTy, value);
+      if (torch_to_linalg::isUnsignedTorchType(qtensorTy)) {
+        value = b.create<arith::ExtUIOp>(loc, outIntTy, value);
+      } else {
+        value = b.create<arith::ExtSIOp>(loc, outIntTy, value);
+      }
     }
 
     zp = converter->materializeTargetConversion(
@@ -1478,6 +1481,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
 
     value = b.create<arith::SubIOp>(loc, value, zp);
+    // treat the i32 as a signed int regardless of original signed-ness
+    // this will prevent overflow from subtraction for unsigned quantizations.
     value = b.create<arith::SIToFPOp>(loc, outFpTy, value);
 
     scale = converter->materializeTargetConversion(
