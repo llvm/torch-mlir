@@ -13,6 +13,7 @@ python="$(which python)"
 echo "Using python: $python"
 
 export CMAKE_TOOLCHAIN_FILE="$this_dir/ci/linux_default_toolchain.cmake"
+export TORCH_MLIR_ENABLE_LTC=0
 
 cd $repo_root
 
