@@ -258,7 +258,7 @@ def test_sparse_SpMM():
 # CHECK:        values=tensor({{\[}}[ -1.,  -2.],
 #                                   ...
 # CHECK:                            [-63., -64.]{{\]}}), size=(8, 4, 2), nnz=32,
-# CHECK:        layout=torch.sparse_csr)
+# CHECK:                      layout=torch.sparse_csr)
 # CHECK:        torch.mlir
 # CHECK:        {{\[\[}}[ -1.  -2.]
 # CHECK:                [ -3.  -4.]
