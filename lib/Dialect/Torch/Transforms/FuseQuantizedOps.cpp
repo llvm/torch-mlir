@@ -207,7 +207,7 @@ public:
       return failure();
 
     Type resultETy = resultTy.getDtype();
-    if (!resultETy.isa<mlir::FloatType>())
+    if (!isa<mlir::FloatType>(resultETy))
       return failure();
 
     Value lhsScale;

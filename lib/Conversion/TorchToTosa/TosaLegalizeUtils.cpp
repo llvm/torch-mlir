@@ -154,7 +154,7 @@ Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
 // Create a zero constant tensor of the desired type and shape.
 std::optional<Value> getZerosLikeTensor(PatternRewriter &rewriter,
                                         Operation *op, Type type) {
-  RankedTensorType resultType = type.dyn_cast<RankedTensorType>();
+  RankedTensorType resultType = dyn_cast<RankedTensorType>(type);
 
   if (!resultType) {
     (void)rewriter.notifyMatchFailure(op, "not ranked tensor type");
@@ -167,7 +167,7 @@ std::optional<Value> getZerosLikeTensor(PatternRewriter &rewriter,
   Attribute zeroAttr = rewriter.getZeroAttr(zeroType);
 
   return CreateOpAndInfer<tosa::ConstOp>(rewriter, op->getLoc(), zeroType,
-                                         zeroAttr.cast<ElementsAttr>())
+                                         cast<ElementsAttr>(zeroAttr))
       .getResult();
 }
 
@@ -312,7 +312,7 @@ LogicalResult tosaCastTensorToType(PatternRewriter &rewriter, Operation *op,
                                    Value src, Type destType, Value &result) {
 
   Type srcElemTy = src.getType().dyn_cast<TensorType>().getElementType();
-  Type destElemTy = destType.dyn_cast<TensorType>().getElementType();
+  Type destElemTy = dyn_cast<TensorType>(destType).getElementType();
 
   if (failed(checkValidityOfCast(srcElemTy, destElemTy)))
     return rewriter.notifyMatchFailure(
@@ -392,7 +392,7 @@ LogicalResult getAvgPool2dAccType(PatternRewriter &rewriter, Value input,
   // Tosa supports FP16 and FP32 accumulator type for FP16 input. When the time
   // FP16 is supported, the accumulator type can be selected based on trade-off
   // between performance and accuracy. Set to FP32 by default.
-  accType = inputETy.isa<FloatType>()
+  accType = isa<FloatType>(inputETy)
                 ? mlir::TypeAttr::get(rewriter.getF32Type())
                 : mlir::TypeAttr::get(rewriter.getIntegerType(32));
 

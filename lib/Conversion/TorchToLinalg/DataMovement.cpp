@@ -1881,7 +1881,7 @@ public:
 
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
     auto inputElementType = getElementTypeOrSelf(input.getType());
-    if (!inputElementType.isa<ComplexType>()) {
+    if (!isa<ComplexType>(inputElementType)) {
       return op.emitError("only ComplexType is allowed as input type");
     }
     Type elementType = resultType.getElementType();

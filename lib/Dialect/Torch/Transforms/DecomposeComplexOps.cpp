@@ -1386,7 +1386,7 @@ static Value getSoftmaxResult(OpTy op, Value self, Type resultType,
                                                   unNormalizedExp, sum);
   if (resultType != accumulatorType)
     result = convertTensorToDtype(rewriter, loc, result,
-                                  resultType.cast<BaseTensorType>().getDtype());
+                                  cast<BaseTensorType>(resultType).getDtype());
 
   return result;
 }
@@ -1405,7 +1405,7 @@ public:
           op, "expected result type to have a dtype");
     }
     Type resultTensorDtype = resultTensorType.getDtype();
-    if (!resultTensorDtype.isa<mlir::FloatType>())
+    if (!isa<mlir::FloatType>(resultTensorDtype))
       return rewriter.notifyMatchFailure(op,
                                          "Only support floating-point type");
 
@@ -1980,7 +1980,7 @@ public:
     }
 
     Type dtype = resType.getDtype();
-    if (dtype.isa<mlir::ComplexType>()) {
+    if (isa<mlir::ComplexType>(dtype)) {
       return rewriter.notifyMatchFailure(
           op, "lowering of aten.linalg_cross for complex inputs dtype is "
               "currently unimplemented");
@@ -2015,7 +2015,7 @@ public:
     Value none = rewriter.create<ConstantNoneOp>(loc);
 
     // idx = torch.arange(3)
-    auto outType = opType.dyn_cast<BaseTensorType>();
+    auto outType = dyn_cast<BaseTensorType>(opType);
     auto arangeType = outType.getWithSizesAndDtype(
         llvm::ArrayRef<int64_t>(3),
         IntegerType::get(op.getContext(), 64, IntegerType::Signed));
@@ -5856,7 +5856,7 @@ static LogicalResult calculateVariance(OpTy op, PatternRewriter &rewriter,
   Value keepDim = op.getKeepdim();
   BaseTensorType inputTensorTy = self.getType().cast<BaseTensorType>();
   Type outputType = op.getType();
-  BaseTensorType outputTensorType = outputType.cast<BaseTensorType>();
+  BaseTensorType outputTensorType = cast<BaseTensorType>(outputType);
   if (!outputTensorType.hasDtype()) {
     return rewriter.notifyMatchFailure(op,
                                        "expected result type to have a dtype");
@@ -5901,7 +5901,7 @@ static LogicalResult calculateVariance(OpTy op, PatternRewriter &rewriter,
   Type meanDimResultType = inputTensorTy;
   for (unsigned i = 0; i < dimListElements.size(); i++)
     meanDimResultType = computeReductionType(
-        rewriter, op, meanDimResultType.cast<BaseTensorType>(),
+        rewriter, op, cast<BaseTensorType>(meanDimResultType),
         dimListElements[i],
         /*keepDim=*/true);
 
@@ -6197,7 +6197,7 @@ public:
 
     Location loc = op.getLoc();
     Type resultType = op.getType();
-    BaseTensorType resultTensorType = resultType.cast<BaseTensorType>();
+    BaseTensorType resultTensorType = cast<BaseTensorType>(resultType);
     if (!resultTensorType.hasDtype()) {
       return rewriter.notifyMatchFailure(
           op, "expected result type to have a dtype");
