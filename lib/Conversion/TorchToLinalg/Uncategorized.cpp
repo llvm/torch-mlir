@@ -1481,12 +1481,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
 
     value = b.create<arith::SubIOp>(loc, value, zp);
-
-    if (torch_to_linalg::isUnsignedTorchType(qtensorTy)) {
-      value = b.create<arith::UIToFPOp>(loc, outFpTy, value);
-    } else {
-      value = b.create<arith::SIToFPOp>(loc, outFpTy, value);
-    }
+    // treat the i32 as a signed int regardless of original signed-ness
+    // this will prevent overflow from subtraction for unsigned quantizations.
+    value = b.create<arith::SIToFPOp>(loc, outFpTy, value);
 
     scale = converter->materializeTargetConversion(
         b, loc, converter->convertType(scale.getType()), scale);

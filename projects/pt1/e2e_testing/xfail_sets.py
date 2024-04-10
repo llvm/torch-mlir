@@ -150,6 +150,7 @@ TORCHDYNAMO_XFAIL_SET = {
     'AtenIntBoolOpModule_basic',
     'QuantizedMLP_basic',
     'QuantizedSingleLayer_basic',
+    'QuantizedNoLayer_basic',
     'ScalarImplicitFloatModule_basic',
     'ScalarImplicitIntModule_basic',
     # END tests failing due to: torch._dynamo.exc.Unsupported: data dependent operator: aten._local_scalar_dense.default
@@ -2111,10 +2112,6 @@ ONNX_XFAIL_SET = {
     "IndexTensorMultiInput_basic",
     "IndexTensorMultiInputContiguousOneDimDynamic_basic",
     "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
-
-    # Failure - torch.aten.mm lower (mixed signedness of qtypes)
-    "QuantizedMLP_basic",
-    "QuantizedSingleLayer_basic",
 
     # Failure - torch.aten.squeeze lower
     "BucketizeTensorOutInt32RightModule_basic", # unsupported by backend contract: tensor with unknown rank
