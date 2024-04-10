@@ -1794,23 +1794,15 @@ func.func @test_einsum_transpose(%arg0: !torch.vtensor<[3,4],f64>) -> !torch.vte
 
 // -----
 
-// CHECK-LABEL: func.func @test_eyelike
-func.func @test_eyelike(%arg0: !torch.vtensor<[3,3],f32>) -> !torch.vtensor<[3,3], f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 9 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK: %[[NONE:.*]] = torch.constant.none
-  // CHECK: %[[INT3:.*]] = torch.constant.int 3
-  // CHECK: %[[ATEN_EYE:.*]] = torch.aten.eye %[[INT3]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,3],f32>
-  %0 = torch.operator "onnx.EyeLike"(%arg0) : (!torch.vtensor<[3,3],f32>) -> !torch.vtensor<[3,3],f32>
-  return %0 : !torch.vtensor<[3,3],f32>
-}
-
-// -----
-
 // CHECK-LABEL: func.func @test_eyelike_m
 func.func @test_eyelike_m(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4], f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 9 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT0:.*]] = torch.constant.int 0
+  // CHECK: %[[INT1:.*]] = torch.constant.int 1
+  // CHECK: %[[DIM0:.*]] = torch.aten.size.int %arg0, %[[INT0]] : !torch.vtensor<[3,4],f32>, !torch.int -> !torch.int
+  // CHECK: %[[DIM1:.*]] = torch.aten.size.int %arg0, %[[INT1]] : !torch.vtensor<[3,4],f32>, !torch.int -> !torch.int
   // CHECK: %[[NONE:.*]] = torch.constant.none
-  // CHECK: %[[INT3:.*]] = torch.constant.int 3
-  // CHECK: %[[INT4:.*]] = torch.constant.int 4
-  // CHECK: %[[ATEN_EYE_M:.*]] = torch.aten.eye.m %[[INT3]], %[[INT4]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.int, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,4],f32>
+  // CHECK: %[[DTYPE:.*]] = torch.constant.int 6
+  // CHECK: torch.aten.eye.m %[[DIM0]], %[[DIM1]], %[[DTYPE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.int, !torch.int, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,4],f32>
   %0 = torch.operator "onnx.EyeLike"(%arg0) : (!torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
   return %0 : !torch.vtensor<[3,4],f32>
 }
@@ -1819,46 +1811,53 @@ func.func @test_eyelike_m(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3
 
 // CHECK-LABEL: func.func @test_eyelike_int
 func.func @test_eyelike_int(%arg0: !torch.vtensor<[3,3],f32>) -> !torch.vtensor<[3,3], si64> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 9 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT0:.*]] = torch.constant.int 0
+  // CHECK: %[[INT1:.*]] = torch.constant.int 1
+  // CHECK: %[[DIM0:.*]] = torch.aten.size.int %arg0, %[[INT0]] : !torch.vtensor<[3,3],f32>, !torch.int -> !torch.int
+  // CHECK: %[[DIM1:.*]] = torch.aten.size.int %arg0, %[[INT1]] : !torch.vtensor<[3,3],f32>, !torch.int -> !torch.int
   // CHECK: %[[NONE:.*]] = torch.constant.none
-  // CHECK: %[[INT4:.*]] = torch.constant.int 4
-  // CHECK: %[[INT3:.*]] = torch.constant.int 3
-  // CHECK: %[[ATEN_EYE:.*]] = torch.aten.eye %[[INT3]], %[[INT4]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.int, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,3],si64>
+  // CHECK: %[[DTYPE:.*]] = torch.constant.int 4
+  // CHECK: torch.aten.eye.m %[[DIM0]], %[[DIM1]], %[[DTYPE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.int, !torch.int, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,3],si64>
   %0 = torch.operator "onnx.EyeLike"(%arg0) {torch.onnx.dtype = 7 : si64} : (!torch.vtensor<[3,3],f32>) -> !torch.vtensor<[3,3],si64>
   return %0 : !torch.vtensor<[3,3],si64>
 }
 
 // -----
 
-// CHECK-LABEL: func.func @test_eyelike_upper_diagonal
-func.func @test_eyelike_upper_diagonal(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4], f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 9 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK: %[[NONE:.*]] = torch.constant.none
+// CHECK-LABEL: func.func @test_eyelike_diagonal
+func.func @test_eyelike_diagonal(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4], f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 9 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT0:.*]] = torch.constant.int 0
   // CHECK: %[[INT1:.*]] = torch.constant.int 1
-  // CHECK: %[[INT3:.*]] = torch.constant.int 3
-  // CHECK: %[[ATEN_EYE:.*]] = torch.aten.eye %[[INT3]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,3],f32>
-  // CHECK: %[[INT3_0:.*]] = torch.constant.int 3
-  // CHECK: %[[INT1_0:.*]] = torch.constant.int 1
-  // CHECK: %[[ZEROS_SHAPE:.*]] = torch.prim.ListConstruct %[[INT3_0]], %[[INT1_0]] : (!torch.int, !torch.int) -> !torch.list<int>
-  // CHECK: %[[ATEN_ZEROS:.*]] = torch.aten.zeros %[[ZEROS_SHAPE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,1],f32>
-  // CHECK: %[[TENSORS_LIST:.*]] = torch.prim.ListConstruct %[[ATEN_ZEROS]], %[[ATEN_EYE]] : (!torch.vtensor<[3,1],f32>, !torch.vtensor<[3,3],f32>) -> !torch.list<vtensor>
-  // CHECK: %[[ATEN_CAT:.*]] = torch.aten.cat %[[TENSORS_LIST]], %[[INT1]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[3,4],f32>
+  // CHECK: %[[DIM0:.*]] = torch.aten.size.int %arg0, %[[INT0]] : !torch.vtensor<[3,4],f32>, !torch.int -> !torch.int
+  // CHECK: %[[DIM1:.*]] = torch.aten.size.int %arg0, %[[INT1]] : !torch.vtensor<[3,4],f32>, !torch.int -> !torch.int
+  // CHECK: %[[NONE:.*]] = torch.constant.none
+  // CHECK: %[[DTYPE:.*]] = torch.constant.int 6
+  // CHECK: %[[DIAG:.*]] = torch.constant.int 1
+  // CHECK: %[[NEW_DIM:.*]] = torch.aten.sub.int %[[DIM1]], %[[DIAG]] : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[EYE:.*]] = torch.aten.eye.m %[[DIM0]], %[[NEW_DIM]], %[[DTYPE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.int, !torch.int, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,3],f32>
+  // CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[DIM0]], %[[DIM1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[ZEROS:.*]] = torch.aten.zeros %[[SHAPE]], %[[DTYPE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,4],f32>
+  // CHECK: torch.aten.slice_scatter %[[ZEROS]], %[[EYE]], %[[INT1]], %[[DIAG]], %[[DIM1]], %[[INT1]] : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
   %0 = torch.operator "onnx.EyeLike"(%arg0) {torch.onnx.k = 1 : si64} : (!torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
   return %0 : !torch.vtensor<[3,4],f32>
 }
 
 // -----
 
-// CHECK-LABEL: func.func @test_eyelike_lower_diagonal
-func.func @test_eyelike_lower_diagonal(%arg0: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[4,3], f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 9 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK: %[[NONE:.*]] = torch.constant.none
+// CHECK-LABEL: func.func @test_eyelike_dynamic
+func.func @test_eyelike_dynamic(%arg0: !torch.vtensor<[3,?],f32>) -> !torch.vtensor<[3,?], f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 9 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: %[[INT0:.*]] = torch.constant.int 0
-  // CHECK: %[[INT3:.*]] = torch.constant.int 3
-  // CHECK: %[[ATEN_EYE:.*]] = torch.aten.eye %[[INT3]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,3],f32>
   // CHECK: %[[INT1:.*]] = torch.constant.int 1
-  // CHECK: %[[INT3_0:.*]] = torch.constant.int 3
-  // CHECK: %[[ZEROS_SHAPE:.*]] = torch.prim.ListConstruct %[[INT1]], %[[INT3_0]] : (!torch.int, !torch.int) -> !torch.list<int>
-  // CHECK: %[[ATEN_ZEROS:.*]] = torch.aten.zeros %[[ZEROS_SHAPE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[1,3],f32>
-  // CHECK: %[[TENSORS_LIST:.*]] = torch.prim.ListConstruct %[[ATEN_ZEROS]], %[[ATEN_EYE]] : (!torch.vtensor<[1,3],f32>, !torch.vtensor<[3,3],f32>) -> !torch.list<vtensor>
-  // CHECK: %[[ATEN_CAT:.*]] = torch.aten.cat %[[TENSORS_LIST]], %[[INT0]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[4,3],f32>
-  %0 = torch.operator "onnx.EyeLike"(%arg0) {torch.onnx.k = -1 : si64} : (!torch.vtensor<[4,3],f32>) -> !torch.vtensor<[4,3],f32>
-  return %0 : !torch.vtensor<[4,3],f32>
+  // CHECK: %[[DIM0:.*]] = torch.aten.size.int %arg0, %[[INT0]] : !torch.vtensor<[3,?],f32>, !torch.int -> !torch.int
+  // CHECK: %[[DIM1:.*]] = torch.aten.size.int %arg0, %[[INT1]] : !torch.vtensor<[3,?],f32>, !torch.int -> !torch.int
+  // CHECK: %[[NONE:.*]] = torch.constant.none
+  // CHECK: %[[DTYPE:.*]] = torch.constant.int 6
+  // CHECK: %[[DIAG:.*]] = torch.constant.int 1
+  // CHECK: %[[NEW_DIM:.*]] = torch.aten.sub.int %[[DIM0]], %[[DIAG]] : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[EYE:.*]] = torch.aten.eye.m %[[NEW_DIM]], %[[DIM1]], %[[DTYPE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.int, !torch.int, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,?],f32>
+  // CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[DIM0]], %[[DIM1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[ZEROS:.*]] = torch.aten.zeros %[[SHAPE]], %[[DTYPE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,?],f32>
+  // CHECK: torch.aten.slice_scatter %[[ZEROS]], %[[EYE]], %[[INT0]], %[[DIAG]], %[[DIM0]], %[[INT1]] : !torch.vtensor<[3,?],f32>, !torch.vtensor<[2,?],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,?],f32>
+  %0 = torch.operator "onnx.EyeLike"(%arg0) {torch.onnx.k = -1 : si64} : (!torch.vtensor<[3,?],f32>) -> !torch.vtensor<[3,?],f32>
+  return %0 : !torch.vtensor<[3,?],f32>
 }
