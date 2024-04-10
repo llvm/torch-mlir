@@ -2755,7 +2755,9 @@ def aten〇t〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 @check_dtype_function(_check_tensors_with_the_same_dtype(1, tensor_device="meta", device=torch.device("meta")))
 def aten〇to〇prim_Device〡dtype(self_rank_dtype: Tuple[int, int], device: Optional[device], dtype: Optional[int] = None, non_blocking: bool = False, copy: bool = False) -> int:
     self_rank, self_dtype = self_rank_dtype
-    return self_dtype
+    if dtype is None:
+        return self_dtype
+    return dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3)], dim0=0, dim1=1))
 def aten〇transpose〇int〡dtype(self_rank_dtype: Tuple[int, int], dim0: int, dim1: int) -> int:
