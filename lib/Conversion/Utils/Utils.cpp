@@ -203,8 +203,8 @@ Value getConstant(OpBuilder &b, Location loc, int64_t val, Type elemType) {
   if (isa<mlir::IndexType>(elemType))
     attr = b.getIndexAttr(val);
   if (isa<mlir::IntegerType>(elemType))
-    attr = b.getIntegerAttr(
-        elemType, APInt(cast<IntegerType>(elemType).getWidth(), val));
+    attr = b.getIntegerAttr(elemType,
+                            APInt(cast<IntegerType>(elemType).getWidth(), val));
   if (!attr)
     return nullptr;
   return b.create<arith::ConstantOp>(loc, elemType, attr);

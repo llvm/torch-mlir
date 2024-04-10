@@ -42,8 +42,7 @@ Value mlir::torch::Torch::adjustStaticInformation(OpBuilder &builder,
 
   // If the type is a tensor, then adjust the static information.
   if ((isa<ValueTensorType>(type) && isa<ValueTensorType>(desiredType)) ||
-      (isa<NonValueTensorType>(type) &&
-       isa<NonValueTensorType>(desiredType))) {
+      (isa<NonValueTensorType>(type) && isa<NonValueTensorType>(desiredType))) {
     Value adjusted = builder.create<TensorStaticInfoCastOp>(value.getLoc(),
                                                             desiredType, value);
     return adjusted;
@@ -4635,8 +4634,7 @@ LogicalResult GlobalSlotModuleInitializerOp::verify() {
              << symName;
   }
   auto lessThanByStringValue = [](Attribute lhs, Attribute rhs) {
-    return cast<StringAttr>(lhs).getValue() <
-           cast<StringAttr>(rhs).getValue();
+    return cast<StringAttr>(lhs).getValue() < cast<StringAttr>(rhs).getValue();
   };
   auto known = llvm::to_vector(knownGlobalSlots);
   llvm::sort(known, lessThanByStringValue);

@@ -761,8 +761,7 @@ public:
     SmallVector<Value> outDims{inBatch, weightBatch};
     Value paddedInput;
     if (transposed) {
-      if (!isa<mlir::FloatType>(inputDTy) ||
-          !isa<mlir::FloatType>(weightDTy) ||
+      if (!isa<mlir::FloatType>(inputDTy) || !isa<mlir::FloatType>(weightDTy) ||
           !isa<mlir::FloatType>(resultDTy))
         return rewriter.notifyMatchFailure(
             op, "transpose does not support non-fp type yet");

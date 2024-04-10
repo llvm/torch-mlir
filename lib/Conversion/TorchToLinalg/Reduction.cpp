@@ -123,12 +123,11 @@ public:
     Value fillValue;
     if (isa<mlir::FloatType>(inElementType)) {
       fillValue = rewriter.create<arith::ConstantOp>(
-          loc,
-          rewriter.getFloatAttr(
-              inElementType,
-              APFloat::getInf(
-                  cast<mlir::FloatType>(inElementType).getFloatSemantics(),
-                  /*Negative=*/isMax)));
+          loc, rewriter.getFloatAttr(
+                   inElementType,
+                   APFloat::getInf(
+                       cast<mlir::FloatType>(inElementType).getFloatSemantics(),
+                       /*Negative=*/isMax)));
     } else if (!isUnsigned) {
       auto width = cast<mlir::IntegerType>(inElementType).getWidth();
       auto init = isMax ? APSInt::getSignedMinValue(width)

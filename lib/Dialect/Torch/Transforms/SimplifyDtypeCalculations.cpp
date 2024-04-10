@@ -53,8 +53,9 @@ static LogicalResult refineDtypeCalculateResult(DtypeCalculateOp op,
           op, "Failed to convert `dtypeScalarType` to a builtin type");
     }
     impliedTypeFromDtype =
-        cast<BaseTensorType>(originalResultType).getWithSizesAndDtype(
-            originalResultType.getOptionalSizes(), *builtinType);
+        cast<BaseTensorType>(originalResultType)
+            .getWithSizesAndDtype(originalResultType.getOptionalSizes(),
+                                  *builtinType);
   } else {
     return rewriter.notifyMatchFailure(op,
                                        "Unimplemented: Expected result type to "

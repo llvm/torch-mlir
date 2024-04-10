@@ -100,10 +100,12 @@ void TorchDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.cpp.inc"
+
       >();
   addTypes<
 #define GET_TYPEDEF_LIST
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.cpp.inc"
+
       >();
   addInterfaces<TorchInlinerInterface>();
 }
@@ -159,8 +161,7 @@ Operation *TorchDialect::materializeConstant(OpBuilder &builder,
   }
 
   if (isa<Torch::BoolType>(type)) {
-    return builder.create<Torch::ConstantBoolOp>(loc,
-                                                 cast<IntegerAttr>(value));
+    return builder.create<Torch::ConstantBoolOp>(loc, cast<IntegerAttr>(value));
   }
 
   if (isa<Torch::NoneType>(type))

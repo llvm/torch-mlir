@@ -69,8 +69,7 @@ Operation *TorchConversionDialect::materializeConstant(OpBuilder &builder,
     return builder.create<Torch::ConstantFloatOp>(loc, cast<FloatAttr>(value));
 
   if (isa<Torch::BoolType>(type)) {
-    return builder.create<Torch::ConstantBoolOp>(loc,
-                                                 cast<IntegerAttr>(value));
+    return builder.create<Torch::ConstantBoolOp>(loc, cast<IntegerAttr>(value));
   }
 
   return arith::ConstantOp::materialize(builder, value, type, loc);

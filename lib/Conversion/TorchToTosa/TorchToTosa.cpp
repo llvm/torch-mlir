@@ -442,8 +442,7 @@ public:
       rhsTensor = rhsType ? rhs : rhsAsTensor;
     }
 
-    if (isa<mlir::FloatType>(outElemTy) ||
-        isa<mlir::IntegerType>(outElemTy)) {
+    if (isa<mlir::FloatType>(outElemTy) || isa<mlir::IntegerType>(outElemTy)) {
       auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
                          ->convertType(op.getType())
                          .template cast<TensorType>();
