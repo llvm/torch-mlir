@@ -4816,7 +4816,7 @@ public:
     return success();
   }
 };
-}  // namespace
+} // namespace
 
 namespace {
 // Decompose constant tensor full like ops.

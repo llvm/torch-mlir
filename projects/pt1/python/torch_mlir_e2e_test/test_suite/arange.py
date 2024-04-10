@@ -391,7 +391,7 @@ class PrimsIotaModule(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return torch.ops.prims.iota(77, start=0, step=1, dtype=torch.int64, device=torch.device('cpu'),
+        return torch.ops.prims.iota(77, start=0, step=1, dtype=torch.int64, device='cpu',
                                     requires_grad=False)
 
 @register_test_case(module_factory=lambda: PrimsIotaModule())

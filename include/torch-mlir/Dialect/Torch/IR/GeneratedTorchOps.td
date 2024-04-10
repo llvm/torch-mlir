@@ -15924,7 +15924,7 @@ def Torch_PrimsIotaOp : Torch_Op<"prims.iota", [
     Torch_BoolType:$requires_grad
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    AnyTorchOptionalTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{

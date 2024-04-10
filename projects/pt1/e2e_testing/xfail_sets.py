@@ -2685,6 +2685,9 @@ ONNX_XFAIL_SET = {
     "SqueezeModule_allUnitDim",
     "SqueezeModule_broadcast",
     "SqueezeModule_static",
+
+    # RuntimeError: unsupported input type: Device
+    "PrimsIotaModule_basic",
     
     # Failure - unknown
     "BernoulliModule_basic",
