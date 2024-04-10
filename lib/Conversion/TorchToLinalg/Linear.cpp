@@ -173,7 +173,6 @@ public:
                                                             minSIValue);
               b.create<linalg::YieldOp>(loc, result);
             });
-        return;
       };
 
       int64_t numBits =
