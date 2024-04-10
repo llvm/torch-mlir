@@ -5451,6 +5451,33 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.to.prim_Device` op into `aten.to.dtype` op.
+class DecomposeAtenToPrimDeviceOp
+    : public OpRewritePattern<AtenToPrimDeviceOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenToPrimDeviceOp op,
+                                PatternRewriter &rewriter) const override {
+
+    // Device information isn't relevant to torch-mlir, so we can drop that info
+    // here.
+    auto loc = op.getLoc();
+    Value constNone = rewriter.create<ConstantNoneOp>(loc);
+
+    Value dtype = op.getDtype();
+    if (dtype.getType().template isa<Torch::NoneType>()) {
+      dtype = rewriter.create<Torch::PrimDtypeOp>(loc, op.getSelf());
+    }
+    rewriter.replaceOpWithNewOp<AtenToDtypeOp>(op, op.getType(), op.getSelf(),
+                                               dtype, op.getNonBlocking(),
+                                               op.getCopy(), constNone);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.to.device` op into `aten.to.dtype` op.
 class DecomposeAtenToDeviceOp : public OpRewritePattern<AtenToDeviceOp> {
 public:
@@ -7559,6 +7586,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenPadOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDtypeLayoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDeviceOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenToPrimDeviceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);
