@@ -3087,6 +3087,9 @@ void PrimListUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     if (!listConstruct)
       return failure();
 
+    if (op->getNumResults() != listConstruct.getElements().size())
+      return failure();
+
     rewriter.replaceOp(op, listConstruct.getElements());
     return success();
   });
