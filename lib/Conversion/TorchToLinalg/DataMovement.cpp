@@ -1121,8 +1121,10 @@ public:
           assumedDynamicDimNotSplit = true;
         } else if (inputShapeSlice[0] == kUnknownSize) {
           // Defer the dynamic shape check to avoid DialectConversion assertion:
-          checkDimPairs.push_back(
-              std::pair<int64_t, int64_t>(inputDim, outputDim));
+          if (outputShapeSlice[0] != kUnknownSize) {
+            checkDimPairs.push_back(
+                std::pair<int64_t, int64_t>(inputDim, outputDim));
+          }
 
           inputShape[inputDim] = outputShape[outputDim];
           inputSliceIndices.push_back(0);
