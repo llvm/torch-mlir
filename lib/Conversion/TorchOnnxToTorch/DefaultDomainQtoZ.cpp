@@ -771,11 +771,12 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return failure();
 
         // create an intermediate dummy result type with same shape as operand
-        auto dummyResultType =
-            operand.getType().dyn_cast<Torch::ValueTensorType>();
-        Value data = rewriter.create<Torch::AtenAbsOp>(
-            binder.getLoc(), dummyResultType, operand);
+        auto operandType = operand.getType().dyn_cast<Torch::ValueTensorType>();
+        Value data = rewriter.create<Torch::AtenAbsOp>(binder.getLoc(),
+                                                       operandType, operand);
 
+        // The code till the end is identical to ReduceSum Conversion Op below,
+        // as ReduceL1 is equivalent to ReduceSum(Abs(Operand)).
         SmallVector<Value> axesList;
         Value axesVal;
         if (!binder.tensorOperandAtIndex(axesVal, 1)) {
@@ -859,8 +860,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           }
         }
 
+        // Do not include absolute value in the noop
         if (axesList.empty() && noop_with_empty_axes) {
-          rewriter.replaceOp(binder.op, data);
+          rewriter.replaceOp(binder.op, operand);
           return success();
         }
 
