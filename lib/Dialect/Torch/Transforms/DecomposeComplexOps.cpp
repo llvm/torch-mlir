@@ -808,7 +808,7 @@ public:
     // Get width of the concat operands along the concat dimension.
     SmallVector<int64_t> elementWidths;
     elementWidths.resize(elements.size());
-    llvm::transform(elements, elementWidths.begin(), [](Value element) {
+    llvm::transform(elements, elementWidths.begin(), [dimInt](Value element) {
       auto sizes =
           element.getType().dyn_cast<BaseTensorType>().getOptionalSizes();
       if (!sizes.has_value())
