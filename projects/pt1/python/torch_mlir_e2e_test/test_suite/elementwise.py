@@ -4195,6 +4195,7 @@ def ElementwiseAtenLogicalNotOpPromoteModule_basic(module, tu: TestUtils):
 
 
 class ElementwiseAtenFloorDivideModule(torch.nn.Module):
+class ElementwiseAtenFloorDivideTensorNegativeModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -4209,8 +4210,28 @@ class ElementwiseAtenFloorDivideModule(torch.nn.Module):
         return torch.ops.aten.floor_divide(x, y)
 
 
-@register_test_case(module_factory=lambda: ElementwiseAtenFloorDivideModule())
-def ElementwiseAtenFloorDivideModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: ElementwiseAtenFloorDivideTensorNegativeModule())
+def ElementwiseAtenFloorDivideTensorNegativeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 3, low= -1, high=0), tu.rand(4, 3, low= 0, high=1))
+
+
+class ElementwiseAtenFloorDivideTensorPositiveModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.floor_divide(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAtenFloorDivideTensorPositiveModule())
+def ElementwiseAtenFloorDivideTensorPositiveModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 3), tu.rand(4, 3))
 
 
