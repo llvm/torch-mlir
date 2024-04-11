@@ -315,7 +315,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "AtenMatmulQMixedSigni8_basic",
     "AtenMatmulQint8MV_basic",
     "AtenMatmulQint8_basic",
-
     "Conv2dQInt8Module_basic",
 
     # Dynamo not supporting conv_tbc

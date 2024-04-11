@@ -54,7 +54,6 @@ static inline ScalarType promoteTypes(ScalarType a, ScalarType b) {
   }
 
   if (isQIntType(a) || isQIntType(b)) {
-    return ScalarType::Undefined;
     assert(false && "promoteTypes with quantized numbers is not handled yet; "
                     "figure out what the correct rules should be");
   }
