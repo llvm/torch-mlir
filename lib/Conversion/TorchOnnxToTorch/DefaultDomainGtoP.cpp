@@ -314,10 +314,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         auto lhsTy = dyn_cast<Torch::ValueTensorType>(lhs.getType());
         auto rhsTy = dyn_cast<Torch::ValueTensorType>(rhs.getType());
 
-        if (lhsTy.getSizes().size() != 2 || rhsTy.getSizes().size() != 2) {
-          return rewriter.notifyMatchFailure(binder.op, "NYI: arg rank != 2.");
-        }
-
         if (binder.tensorOperandAtIndex(lhsZp, 2)) {
           lhsZp = rewriter.create<Torch::ConstantIntOp>(
               binder.getLoc(), rewriter.getType<Torch::IntType>(),
@@ -370,8 +366,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         rhs = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
             binder.getLoc(), rhsQTy, rhs, scale, rhsZp);
 
-        rewriter.replaceOpWithNewOp<Torch::AtenMmOp>(binder.op, resultType, lhs,
-                                                     rhs);
+        rewriter.replaceOpWithNewOp<Torch::AtenMatmulOp>(binder.op, resultType,
+                                                         lhs, rhs);
         return success();
       });
   patterns.onOp("Mul", 7,

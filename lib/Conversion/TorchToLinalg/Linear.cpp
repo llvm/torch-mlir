@@ -36,6 +36,26 @@ static void getZeroPoint(Value value, Value &zeropoint) {
   }
 }
 
+// for uint8 types, we shift down by 128 so that we can faithfully
+// represent the quantization with signed i8 types.
+static void signShift(PatternRewriter &rewriter, Location loc, Value &arg,
+                      Value &zp, bool isUnsignedType, int64_t numBits) {
+  if (!isUnsignedType)
+    return;
+  int64_t minSI = -std::pow(2, numBits - 1);
+  Value minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, 32);
+  zp = rewriter.create<arith::AddIOp>(loc, zp, minSIValue);
+  minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, numBits);
+  arg = torch_to_linalg::createElementwiseLinalgGeneric(
+      rewriter, loc, ValueRange{arg},
+      arg.getType().cast<TensorType>().getElementType(),
+      [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
+        Value result =
+            rewriter.create<arith::AddIOp>(loc, payloadArgs[0], minSIValue);
+        b.create<linalg::YieldOp>(loc, result);
+      });
+}
+
 static Value transposeValue(Location loc, Value value, ArrayRef<int64_t> perms,
                             PatternRewriter &rewriter) {
   auto valueTy = value.getType().cast<RankedTensorType>();
@@ -154,32 +174,12 @@ public:
       rhsZeroPoint = rewriter.create<arith::TruncIOp>(
           loc, rewriter.getI32Type(), rhsZeroPoint);
 
-      // for uint8 types, we shift down by 128 so that we can faithfully
-      // represent the quantization with signed i8 types.
-      auto signShift = [&](Value &arg, Value &zp, bool isUnsignedType,
-                           int64_t numBits) {
-        if (!isUnsignedType)
-          return;
-        int64_t minSI = -std::pow(2, numBits - 1);
-        Value minSIValue =
-            rewriter.create<arith::ConstantIntOp>(loc, minSI, 32);
-        zp = rewriter.create<arith::AddIOp>(loc, zp, minSIValue);
-        minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, numBits);
-        arg = torch_to_linalg::createElementwiseLinalgGeneric(
-            rewriter, loc, ValueRange{arg},
-            arg.getType().cast<TensorType>().getElementType(),
-            [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
-              Value result = rewriter.create<arith::AddIOp>(loc, payloadArgs[0],
-                                                            minSIValue);
-              b.create<linalg::YieldOp>(loc, result);
-            });
-      };
-
+      // change uint8 quantization -> int8 quantization
       int64_t numBits =
           lhsType.getElementType().cast<mlir::IntegerType>().getWidth();
-      signShift(lhs, lhsZeroPoint, isUnsigned, numBits);
+      signShift(rewriter, loc, lhs, lhsZeroPoint, isUnsigned, numBits);
       numBits = rhsType.getElementType().cast<mlir::IntegerType>().getWidth();
-      signShift(rhs, rhsZeroPoint, isUnsignedR, numBits);
+      signShift(rewriter, loc, rhs, rhsZeroPoint, isUnsignedR, numBits);
 
       matmul =
           rewriter
@@ -302,9 +302,33 @@ public:
     auto lhsType = lhs.getType().cast<RankedTensorType>();
     auto rhsType = rhs.getType().cast<RankedTensorType>();
 
+    auto lhsTorchType = op.getSelf().getType().cast<ValueTensorType>();
+    auto rhsTorchType = op.getOther().getType().cast<ValueTensorType>();
+
     // Get the rank of both matrix.
     unsigned lhsRank = lhsType.getRank();
     unsigned rhsRank = rhsType.getRank();
+
+    Value lhsZeroPoint, rhsZeroPoint;
+    getZeroPoint(op.getSelf(), lhsZeroPoint);
+    getZeroPoint(op.getOther(), rhsZeroPoint);
+
+    if (static_cast<bool>(lhsZeroPoint) != static_cast<bool>(rhsZeroPoint)) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: aten.matmul with mixed quantization");
+    }
+
+    if (lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
+      if (!lhsZeroPoint) {
+        return rewriter.notifyMatchFailure(
+            op, "unsupported: aten.Matmul with different input element types");
+      }
+      // Allows quantized types to mismatch since they will be cast to the same
+      // type.
+    }
+
+    bool isUnsigned = torch_to_linalg::isUnsignedTorchType(lhsTorchType);
+    bool isUnsignedR = torch_to_linalg::isUnsignedTorchType(rhsTorchType);
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
     auto resultType = newResultType.cast<RankedTensorType>();
@@ -366,7 +390,7 @@ public:
       return success();
     }
 
-    // Fourth Case: Vec-Vec Multiplication.
+    // Fourth Case: Mat-Mat Multiplication.
     if (lhsRank == 2 && rhsRank == 2) {
       Value lhsDim0 = getDimOp(rewriter, loc, lhs, 0);
       Value lhsDim1 = getDimOp(rewriter, loc, lhs, 1);
@@ -519,13 +543,47 @@ public:
             loc, rewriter.getZeroAttr(elementType));
         Value zeroTensor =
             rewriter.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
+        Value batchMatMul;
 
-        Value batchMatMul =
-            rewriter
-                .create<linalg::BatchMatmulOp>(
-                    loc, zeroTensor.getType(),
-                    ValueRange{collapsedLhs, collapsedRhs}, zeroTensor)
-                .getResult(0);
+        if (lhsZeroPoint) {
+          lhsZeroPoint = typeConverter->materializeTargetConversion(
+              rewriter, loc,
+              getTypeConverter()->convertType(lhsZeroPoint.getType()),
+              lhsZeroPoint);
+          rhsZeroPoint = typeConverter->materializeTargetConversion(
+              rewriter, loc,
+              getTypeConverter()->convertType(rhsZeroPoint.getType()),
+              rhsZeroPoint);
+          lhsZeroPoint = rewriter.create<arith::TruncIOp>(
+              loc, rewriter.getI32Type(), lhsZeroPoint);
+          rhsZeroPoint = rewriter.create<arith::TruncIOp>(
+              loc, rewriter.getI32Type(), rhsZeroPoint);
+
+          // change uint8 quantization -> int8 quantization
+          int64_t numBits =
+              lhsType.getElementType().cast<mlir::IntegerType>().getWidth();
+          signShift(rewriter, loc, collapsedLhs, lhsZeroPoint, isUnsigned,
+                    numBits);
+          numBits =
+              rhsType.getElementType().cast<mlir::IntegerType>().getWidth();
+          signShift(rewriter, loc, collapsedRhs, rhsZeroPoint, isUnsignedR,
+                    numBits);
+
+          batchMatMul = rewriter
+                            .create<linalg::QuantizedBatchMatmulOp>(
+                                loc, zeroTensor.getType(),
+                                ValueRange{collapsedLhs, collapsedRhs,
+                                           lhsZeroPoint, rhsZeroPoint},
+                                zeroTensor)
+                            .getResult(0);
+        } else {
+          batchMatMul =
+              rewriter
+                  .create<linalg::BatchMatmulOp>(
+                      loc, zeroTensor.getType(),
+                      ValueRange{collapsedLhs, collapsedRhs}, zeroTensor)
+                  .getResult(0);
+        }
         Value expandResult = rewriter.create<tensor::ExpandShapeOp>(
             loc, resultType, batchMatMul, reassociation);
         rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType,
