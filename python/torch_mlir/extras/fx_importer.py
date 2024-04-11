@@ -1420,6 +1420,13 @@ class GraphNodeImporter:
                 for key_node in node.users:
                     if key_node.target == torch.ops.aten.baddbmm.default:
                         node.target = target = torch.ops.aten.zeros.default
+        elif target == torch.ops.aten.full.default or target == torch.ops.aten.fill.Scalar:
+            # TODO: Essentially, it is because the py_type (e.g. bool)
+            #  and schema type (e.g. torch.number) do not match,
+            #  but how to convert them may depend on the op,
+            #  perhaps it can be implemented automatically, perhaps not.
+            if node.args[1] in {True, False}:
+                node.args = tuple([int(v) if i == 1 else v for i, v in enumerate(node.args)])
 
         schema = target._schema
         assert isinstance(schema, FunctionSchema)
