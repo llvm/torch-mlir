@@ -657,6 +657,7 @@ STABLEHLO_PASS_SET = {
     "PermuteModule_basic",
     "PermuteNegativeIndexModule_basic",
     "PowIntFloatModule_basic",
+    "PrimListUnpackNumMismatchModule_basic",
     "PrimMaxIntModule_basic",
     "PrimMinIntDynamicModule_basic",
     "PrimMinIntModule_basic",
@@ -1216,6 +1217,7 @@ TOSA_PASS_SET = {
     "Permute0RankModule_basic",
     "PermuteModule_basic",
     "PermuteNegativeIndexModule_basic",
+    "PrimListUnpackNumMismatchModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
     "PrimsSqueezeModule_basic",
     "PrimsViewOfModule_basic",
@@ -1391,6 +1393,7 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "ElementwisePreluStaticModule_basic", 
 
     # Shape Related failures
+    "PrimListUnpackNumMismatchModule_basic",
     "ReshapeExpandModule_basic",
     "UnsafeViewCollapseModule_basic",
     "UnsafeViewDynamicExpandModule_basic",
