@@ -4036,8 +4036,8 @@ OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
     if (sz == Torch::kUnknownSize || sz < 0)
       return nullptr;
 
-  ShapedType shapedty =
-      mlir::RankedTensorType::get(sizes, resultTensorType.getDtype());
+  ShapedType shapedty = mlir::RankedTensorType::get(
+      resultTensorType.getSizes(), resultTensorType.getDtype());
 
   auto elementType = shapedty.getElementType();
   if (elementType.isa<IntegerType>()) {

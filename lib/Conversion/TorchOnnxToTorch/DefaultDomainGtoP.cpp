@@ -311,6 +311,13 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType))
           return failure();
 
+        auto lhsTy = dyn_cast<Torch::ValueTensorType>(lhs.getType());
+        auto rhsTy = dyn_cast<Torch::ValueTensorType>(rhs.getType());
+
+        if (lhsTy.getSizes().size() != 2 || rhsTy.getSizes().size() != 2) {
+          return rewriter.notifyMatchFailure(binder.op, "NYI: arg rank != 2.");
+        }
+
         if (binder.tensorOperandAtIndex(lhsZp, 2)) {
           lhsZp = rewriter.create<Torch::ConstantIntOp>(
               binder.getLoc(), rewriter.getType<Torch::IntType>(),
@@ -322,9 +329,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.getLoc(), rewriter.getType<Torch::IntType>(),
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
         }
-
-        auto lhsTy = dyn_cast<Torch::ValueTensorType>(lhs.getType());
-        auto rhsTy = dyn_cast<Torch::ValueTensorType>(rhs.getType());
 
         if (auto zpTy = dyn_cast<Torch::ValueTensorType>(lhsZp.getType())) {
           for (auto dim : zpTy.getSizes())
