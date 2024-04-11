@@ -1981,5 +1981,4 @@ TENSOR_SCALAR_OP_CONVERTER = {
     "torch.aten.div.Tensor": "torch.aten.div.Scalar",
     "torch.aten.add.Tensor": "torch.aten.add.Scalar",
     "torch.aten.sub.Tensor": "torch.aten.sub.Scalar",
-    "torch.aten.floor_divide": "torch.aten.floor_divide.Scalar",
 }

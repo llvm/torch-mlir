@@ -769,6 +769,66 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     div.emitError("unimplemented: non-floating point and non-integer dtype");
     return nullptr;
   }
+  if (auto divScalarMode = dyn_cast<AtenDivScalarModeOp>(op)) {
+    AtenDivScalarModeOp::Adaptor adaptor(operands);
+    Type dtype = converter->convertType(divScalarMode.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value rhs = convertScalarToDtype(b, loc, operands[1], dtype);
+    Value quotient;
+    if (dtype.isa<mlir::FloatType>()) {
+      quotient = b.create<arith::DivFOp>(loc, lhs, rhs);
+    } else if (dtype.isUnsignedInteger()) {
+      quotient = b.create<arith::DivUIOp>(loc, lhs, rhs);
+    } else if (dtype.isSignedInteger()) {
+      quotient = b.create<arith::DivSIOp>(loc, lhs, rhs);
+    } else {
+      divScalarMode.emitError("unsupported dtype");
+      return nullptr;
+    }
+
+    if (divScalarMode.getRoundingMode().getType().isa<Torch::NoneType>())
+      return quotient;
+
+    std::string roundingMode;
+    if (!matchPattern(divScalarMode.getRoundingMode(),
+                      m_TorchConstantStr(roundingMode))) {
+      divScalarMode.emitError("only support constant str rounding mode");
+      return nullptr;
+    }
+    if (roundingMode == "trunc") {
+      // "trunc" - rounds the results of the division towards zero. Equivalent
+      // to C-style integer division.
+      if (!dtype.isa<mlir::FloatType>())
+        return quotient;
+
+      // float
+      Value ceil = b.create<math::CeilOp>(loc, quotient);
+      Value floor = b.create<math::FloorOp>(loc, quotient);
+      Value cstZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
+      Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
+                                           quotient, cstZero);
+      return b.create<arith::SelectOp>(loc, pred, ceil, floor);
+    }
+    if (roundingMode == "floor") {
+      // "floor" - rounds the results of the division down. Equivalent to
+      // floor division in Python (the // operator)
+      if (dtype.isa<mlir::FloatType>())
+        return b.create<math::FloorOp>(loc, quotient);
+      if (!dtype.isUnsignedInteger()) {
+        Type defaultIntToFloatType = b.getF64Type();
+        lhs = convertScalarToDtype(b, loc, lhs, defaultIntToFloatType);
+        rhs = convertScalarToDtype(b, loc, rhs, defaultIntToFloatType);
+        quotient = b.create<arith::DivFOp>(loc, lhs, rhs);
+        Value floor = b.create<math::FloorOp>(loc, quotient);
+        Value convert = convertScalarToDtype(b, loc, floor, dtype);
+        return convert;
+      }
+      return quotient;
+    }
+  }
+
   if (auto divTensorMode = dyn_cast<AtenDivTensorModeOp>(op)) {
     AtenDivTensorModeOp::Adaptor adaptor(operands);
     Type dtype = converter->convertType(divTensorMode.getType())
@@ -1582,12 +1642,13 @@ public:
     if (!isa<AtenTanOp, AtenTanhOp, AtenSinhOp, AtenCoshOp, AtenReluOp,
              AtenPreluOp, AtenGeluOp, AtenGeluBackwardOp, AtenAddTensorOp,
              AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp,
-             AtenSubTensorOp, AtenAtan2Op, AtenLerpTensorOp, AtenSigmoidOp,
-             AtenExpOp, AtenExpm1Op, AtenMinimumOp, AtenMaximumOp,
-             AtenToDtypeOp, AtenClampOp, AtenClampTensorOp, AtenRsubScalarOp,
-             AtenMulScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp, AtenFloorOp,
-             AtenPowScalarOp, AtenPowTensorScalarOp, AtenPowTensorTensorOp,
-             AtenLog2Op, AtenLog10Op, AtenLog1pOp, AtenRsqrtOp, AtenDivScalarOp,
+             AtenDivScalarModeOp, AtenSubTensorOp, AtenAtan2Op,
+             AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenExpm1Op,
+             AtenMinimumOp, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
+             AtenClampTensorOp, AtenRsubScalarOp, AtenMulScalarOp, AtenLogOp,
+             AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenPowScalarOp,
+             AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op,
+             AtenLog10Op, AtenLog1pOp, AtenRsqrtOp, AtenDivScalarOp,
              AtenRemainderScalarOp, AtenRemainderTensorOp, AtenFmodTensorOp,
              AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
              AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
@@ -2620,25 +2681,25 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenTanOp, AtenTanhOp, AtenSinhOp, AtenCoshOp, AtenAtanhOp, AtenAcoshOp,
       AtenAsinOp, AtenAsinhOp, AtenReluOp, AtenGeluOp, AtenGeluBackwardOp,
       AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp,
-      AtenSubTensorOp, AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp,
-      AtenAtan2Op, AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenClampTensorOp,
-      AtenRsubScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp, AtenFloorOp,
-      AtenCeilOp, AtenPreluOp, AtenPowScalarOp, AtenPowTensorScalarOp,
-      AtenPowTensorTensorOp, AtenLog2Op, AtenLog10Op, AtenLog1pOp, AtenRsqrtOp,
-      AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
-      AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp, AtenBitwiseXorTensorOp,
-      AtenBitwiseLeftShiftTensorOp, AtenBitwiseRightShiftTensorOp,
-      AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp,
-      AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp, AtenGeTensorOp,
-      AtenEqTensorOp, AtenNeTensorOp, AtenLtTensorOp, AtenLeTensorOp,
-      AtenThresholdOp, AtenThresholdBackwardOp, AtenHardtanhBackwardOp,
-      AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillTensorOp,
-      AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp, AtenAcosOp,
-      AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp, AtenTrilOp,
-      AtenRemainderScalarOp, AtenFmodTensorOp, AtenRemainderTensorOp,
-      AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
-      AtenRealOp, AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
-      AtenQuantizePerTensorOp>();
+      AtenDivScalarModeOp, AtenSubTensorOp, AtenLerpTensorOp, AtenSigmoidOp,
+      AtenMinimumOp, AtenAtan2Op, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
+      AtenClampTensorOp, AtenRsubScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp,
+      AtenFloorOp, AtenCeilOp, AtenPreluOp, AtenPowScalarOp,
+      AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op, AtenLog10Op,
+      AtenLog1pOp, AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp,
+      AtenBitwiseAndTensorOp, AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
+      AtenBitwiseXorTensorOp, AtenBitwiseLeftShiftTensorOp,
+      AtenBitwiseRightShiftTensorOp, AtenGtScalarOp, AtenGeScalarOp,
+      AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp,
+      AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp,
+      AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
+      AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
+      AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp,
+      AtenAcosOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
+      AtenTrilOp, AtenRemainderScalarOp, AtenFmodTensorOp,
+      AtenRemainderTensorOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
+      AtenFillTensorOp, AtenRealOp, AtenImagOp, AtenDequantizeSelfOp,
+      AtenDequantizeTensorOp, AtenQuantizePerTensorOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);

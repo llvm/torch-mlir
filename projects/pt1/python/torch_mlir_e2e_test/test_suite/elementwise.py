@@ -4194,6 +4194,47 @@ def ElementwiseAtenLogicalNotOpPromoteModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAtenFloorDivideScalarModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.floor_divide(x, 0.14)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAtenFloorDivideScalarModule())
+def ElementwiseAtenFloorDivideScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 3))
+
+
+class ElementwiseAtenFloorDivideScalarNegativeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.floor_divide(x, 0.14)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAtenFloorDivideScalarNegativeModule())
+def ElementwiseAtenFloorDivideScalarNegativeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 3, low=-10.0, high=10.0))
+    
+
+# ==============================================================================
+
+
 class ElementwiseAtenFloorDivideTensorNegativeModule(torch.nn.Module):
 
     def __init__(self):

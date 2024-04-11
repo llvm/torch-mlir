@@ -5845,6 +5845,22 @@ class DecomposeAtenFloorDivideOp : public OpRewritePattern<AtenFloorDivideOp> {
 } // namespace
 
 namespace {
+class DecomposeAtenFloorDivideScalarOp
+    : public OpRewritePattern<AtenFloorDivideScalarOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFloorDivideScalarOp op,
+                                PatternRewriter &rewriter) const override {
+    Value cstStrFloor =
+        rewriter.create<Torch::ConstantStrOp>(op.getLoc(), "floor");
+    rewriter.replaceOpWithNewOp<AtenDivScalarModeOp>(
+        op, op.getType(), op.getSelf(), op.getOther(),
+        /*roundingMode=*/cstStrFloor);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.numpyT` op into `aten.permute` op.
 class DecomposeAtenNumpyTOp : public OpRewritePattern<AtenNumpyTOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -7595,6 +7611,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenCosineSimilarityOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNumpyTOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectScatterOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarDimOp>(patterns);

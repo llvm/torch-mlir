@@ -483,6 +483,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenClampMaxOp>();
   target.addIllegalOp<AtenBaddbmmOp>();
   target.addIllegalOp<AtenFloorDivideOp>();
+  target.addIllegalOp<AtenFloorDivideScalarOp>();
   target.addIllegalOp<AtenNumpyTOp>();
   target.addIllegalOp<AtenSelectScatterOp>();
   target.addIllegalOp<AtenVarDimOp>();
