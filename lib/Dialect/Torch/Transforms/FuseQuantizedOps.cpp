@@ -285,9 +285,11 @@ public:
         RemoveUnused<AtenQuantizePerTensorOp>,
         RemoveUnused<Aten_MakePerTensorQuantizedTensorOp>,
         RemoveUnused<AtenTransposeIntOp>, QuantizeOperands<AtenConvolutionOp>,
-        QuantizeOperands<AtenMmOp>, QuantizeTransposedOperands<AtenMmOp>,
-        QuantizeAccumulator<AtenMmOp>, QuantizeBias<AtenConvolutionOp>>(
-        context);
+        QuantizeOperands<AtenMatmulOp>,
+        QuantizeTransposedOperands<AtenMatmulOp>,
+        QuantizeAccumulator<AtenMatmulOp>, QuantizeOperands<AtenMmOp>,
+        QuantizeTransposedOperands<AtenMmOp>, QuantizeAccumulator<AtenMmOp>,
+        QuantizeBias<AtenConvolutionOp>>(context);
 
     GreedyRewriteConfig config;
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),

@@ -425,11 +425,20 @@ public:
 
       Value zeroTensor = createZeroInitTensor(
           rewriter, loc, ValueRange{lhsDim0, rhsDim1}, elementType);
-      Value matmul =
-          rewriter
-              .create<linalg::MatmulOp>(loc, zeroTensor.getType(),
-                                        ValueRange{lhs, rhs}, zeroTensor)
-              .getResult(0);
+      Value matmul;
+      if (lhsZeroPoint) {
+        matmul = rewriter
+                     .create<linalg::QuantizedMatmulOp>(
+                         loc, zeroTensor.getType(),
+                         ValueRange{lhs, rhs, lhsZeroPoint, rhsZeroPoint},
+                         zeroTensor)
+                     .getResult(0);
+      } else {
+        matmul = rewriter
+                     .create<linalg::MatmulOp>(loc, zeroTensor.getType(),
+                                               ValueRange{lhs, rhs}, zeroTensor)
+                     .getResult(0);
+      }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
       return success();
     }
