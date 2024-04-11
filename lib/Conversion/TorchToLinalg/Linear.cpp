@@ -131,7 +131,7 @@ public:
     auto resultTy = op.getType().cast<ValueTensorType>();
     auto resultDTy = resultTy.toBuiltinTensor().getElementType();
     Type newResultType = getTypeConverter()->convertType(op.getType());
-    Type elementType = newResultType.cast<TensorType>().getElementType();
+    Type elementType = cast<TensorType>(newResultType).getElementType();
     auto accumulatorDType = getDefaultAccType(rewriter, resultDTy);
     if (accumulatorDType != resultDTy) {
       elementType = accumulatorDType;
@@ -201,7 +201,7 @@ public:
 
     if (accumulatorDType != resultDTy) {
       Type resultElementType =
-          newResultType.cast<RankedTensorType>().getElementType();
+          cast<RankedTensorType>(newResultType).getElementType();
       matmul = torch_to_linalg::convertTensorToElementType(
           rewriter, loc, matmul, resultElementType);
     }
@@ -307,7 +307,7 @@ public:
     unsigned rhsRank = rhsType.getRank();
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
-    auto resultType = newResultType.cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(newResultType);
     Type elementType = resultType.getElementType();
 
     // The different cases of torch_matmul op is mentioned here:
@@ -600,9 +600,9 @@ public:
     RankedTensorType rhsType = rhs.getType().cast<RankedTensorType>();
     Type newResultType = getTypeConverter()->convertType(op.getType());
     Type resultElementType =
-        newResultType.cast<RankedTensorType>().getElementType();
-    Type lhsElementType = lhsType.cast<RankedTensorType>().getElementType();
-    Type rhsElementType = rhsType.cast<RankedTensorType>().getElementType();
+        cast<RankedTensorType>(newResultType).getElementType();
+    Type lhsElementType = cast<RankedTensorType>(lhsType).getElementType();
+    Type rhsElementType = cast<RankedTensorType>(rhsType).getElementType();
 
     if (lhsType.getRank() != 3 || rhsType.getRank() != 3) {
       return rewriter.notifyMatchFailure(
@@ -712,9 +712,9 @@ public:
     auto weightDTy = weight.getType().cast<RankedTensorType>().getElementType();
     auto resultDTy = resultTy.toBuiltinTensor().getElementType();
 
-    if (!inputDTy.isa<mlir::FloatType, mlir::IntegerType>() ||
-        !weightDTy.isa<mlir::FloatType, mlir::IntegerType>() ||
-        !resultDTy.isa<mlir::FloatType, mlir::IntegerType>())
+    if (!isa<mlir::FloatType, mlir::IntegerType>(inputDTy) ||
+        !isa<mlir::FloatType, mlir::IntegerType>(weightDTy) ||
+        !isa<mlir::FloatType, mlir::IntegerType>(resultDTy))
       return op.emitError("unimplemented: non-fp not-int type");
     size_t inRank = input.getType().cast<RankedTensorType>().getRank();
     size_t numSpatialDims = inRank - 2;
@@ -790,9 +790,8 @@ public:
     SmallVector<Value> outDims{inBatch, weightBatch};
     Value paddedInput;
     if (transposed) {
-      if (!inputDTy.isa<mlir::FloatType>() ||
-          !weightDTy.isa<mlir::FloatType>() ||
-          !resultDTy.isa<mlir::FloatType>())
+      if (!isa<mlir::FloatType>(inputDTy) || !isa<mlir::FloatType>(weightDTy) ||
+          !isa<mlir::FloatType>(resultDTy))
         return rewriter.notifyMatchFailure(
             op, "transpose does not support non-fp type yet");
 
@@ -927,10 +926,10 @@ public:
                                                          accumulatorDType);
     if (bias.getType().isa<Torch::NoneType>()) {
       Value c0;
-      if (accumulatorDType.isa<mlir::FloatType>()) {
+      if (isa<mlir::FloatType>(accumulatorDType)) {
         c0 = rewriter.create<arith::ConstantOp>(
             loc, FloatAttr::get(accumulatorDType, 0.0));
-      } else if (accumulatorDType.isa<mlir::IntegerType>()) {
+      } else if (isa<mlir::IntegerType>(accumulatorDType)) {
         c0 = rewriter.create<arith::ConstantOp>(
             loc, IntegerAttr::get(accumulatorDType, 0));
       }
@@ -1021,7 +1020,7 @@ public:
       Type newResultType = getTypeConverter()->convertType(op.getType());
       if (accumulatorDType != resultDTy) {
         Type resultElementType =
-            newResultType.cast<RankedTensorType>().getElementType();
+            cast<RankedTensorType>(newResultType).getElementType();
         conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
                                                            resultElementType);
       }
@@ -1081,7 +1080,7 @@ public:
       Type newResultType = getTypeConverter()->convertType(op.getType());
       if (accumulatorDType != resultDTy) {
         Type resultElementType =
-            newResultType.cast<RankedTensorType>().getElementType();
+            cast<RankedTensorType>(newResultType).getElementType();
         conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
                                                            resultElementType);
       }
@@ -1125,7 +1124,7 @@ public:
       Type newResultType = getTypeConverter()->convertType(op.getType());
       if (accumulatorDType != resultDTy) {
         Type resultElementType =
-            newResultType.cast<RankedTensorType>().getElementType();
+            cast<RankedTensorType>(newResultType).getElementType();
         conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
                                                            resultElementType);
       }
@@ -1203,7 +1202,7 @@ public:
     Type newResultType = getTypeConverter()->convertType(op.getType());
     if (accumulatorDType != resultDTy) {
       Type resultElementType =
-          newResultType.cast<RankedTensorType>().getElementType();
+          cast<RankedTensorType>(newResultType).getElementType();
       conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
                                                          resultElementType);
     }

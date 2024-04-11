@@ -42,11 +42,11 @@ static Value getConstantLike(OpBuilder &b, Location loc, T constant,
                              Value val) {
   Type ty = getElementTypeOrSelf(val.getType());
   auto getAttr = [&]() -> Attribute {
-    if (ty.isa<mlir::IntegerType>())
+    if (isa<mlir::IntegerType>(ty))
       return b.getIntegerAttr(ty, constant);
-    if (ty.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(ty))
       return b.getFloatAttr(ty, constant);
-    if (auto complexTy = ty.dyn_cast<mlir::ComplexType>())
+    if (auto complexTy = dyn_cast<mlir::ComplexType>(ty))
       return complex::NumberAttr::get(complexTy, constant, 0);
     llvm_unreachable("unhandled element type");
   };
@@ -105,17 +105,17 @@ bool skipMultiplyAlpha(Value alphaValue) {
 static FailureOr<Value> getMaxValueOfDtype(Operation *op, Type elementType,
                                            PatternRewriter &rewriter) {
   auto constType = RankedTensorType::get({}, elementType);
-  if (elementType.isa<mlir::FloatType>()) {
+  if (isa<mlir::FloatType>(elementType)) {
     auto constAttr = SplatElementsAttr::get(
         constType,
-        APFloat::getInf(elementType.cast<mlir::FloatType>().getFloatSemantics(),
+        APFloat::getInf(cast<mlir::FloatType>(elementType).getFloatSemantics(),
                         /*negative=*/false));
     return rewriter
         .create<stablehlo::ConstantOp>(op->getLoc(), constType, constAttr)
         .getResult();
   }
-  if (elementType.isa<mlir::IntegerType>()) {
-    auto integerType = elementType.cast<mlir::IntegerType>();
+  if (isa<mlir::IntegerType>(elementType)) {
+    auto integerType = cast<mlir::IntegerType>(elementType);
     DenseElementsAttr constAttr;
     if (integerType.isUnsigned()) {
       constAttr = SplatElementsAttr::get(
@@ -134,17 +134,17 @@ static FailureOr<Value> getMaxValueOfDtype(Operation *op, Type elementType,
 static FailureOr<Value> getMinValueOfDtype(Operation *op, Type elementType,
                                            PatternRewriter &rewriter) {
   auto constType = RankedTensorType::get({}, elementType);
-  if (elementType.isa<mlir::FloatType>()) {
+  if (isa<mlir::FloatType>(elementType)) {
     auto constAttr = SplatElementsAttr::get(
         constType,
-        APFloat::getInf(elementType.cast<mlir::FloatType>().getFloatSemantics(),
+        APFloat::getInf(cast<mlir::FloatType>(elementType).getFloatSemantics(),
                         /*negative=*/true));
     return rewriter
         .create<stablehlo::ConstantOp>(op->getLoc(), constType, constAttr)
         .getResult();
   }
-  if (elementType.isa<mlir::IntegerType>()) {
-    auto integerType = elementType.cast<mlir::IntegerType>();
+  if (isa<mlir::IntegerType>(elementType)) {
+    auto integerType = cast<mlir::IntegerType>(elementType);
     DenseElementsAttr constAttr;
     if (integerType.isUnsigned()) {
       constAttr = SplatElementsAttr::get(
@@ -446,7 +446,7 @@ public:
           op, "only support constant str rounding mode");
 
     // if trunc and int, do nothing
-    if (roundingMode == "trunc" && outElemTy.isa<mlir::FloatType>()) {
+    if (roundingMode == "trunc" && isa<mlir::FloatType>(outElemTy)) {
       // "trunc" - rounds the results of the division towards zero. Equivalent
       // to C-style integer division.
       auto sign = rewriter.create<stablehlo::SignOp>(loc, result);
@@ -457,7 +457,7 @@ public:
     if (roundingMode == "floor") {
       // "floor" - rounds the results of the division down. Equivalent to
       // floor division in Python (the // operator)
-      if (outElemTy.isa<mlir::FloatType>())
+      if (isa<mlir::FloatType>(outElemTy))
         result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
       else if (!outElemTy.isUnsignedInteger()) {
         TensorType defaultIntToFloatType =
@@ -518,10 +518,10 @@ public:
     chlo::ComparisonTypeAttr compareTypeAttr;
     chlo::ComparisonDirectionAttr compareDirectionAttr;
 
-    if (lhsElemTy.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(lhsElemTy)) {
       compareTypeAttr = chlo::ComparisonTypeAttr::get(
           op->getContext(), chlo::ComparisonType::FLOAT);
-    } else if (lhsElemTy.isa<mlir::IntegerType>()) {
+    } else if (isa<mlir::IntegerType>(lhsElemTy)) {
       compareTypeAttr = chlo::ComparisonTypeAttr::get(
           op->getContext(), chlo::ComparisonType::SIGNED);
     }
@@ -985,14 +985,14 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
   auto lhsTy = lhs.getType().cast<RankedTensorType>();
   auto lhsElemTy = lhsTy.getElementType();
 
-  if (!lhsElemTy.isa<mlir::FloatType>()) {
+  if (!isa<mlir::FloatType>(lhsElemTy)) {
     return op->emitError("only float tensor in relu op is supported");
   }
 
   Value zeroTensor;
   zeroTensor = getConstantLike(
       rewriter, op->getLoc(),
-      APFloat::getZero(lhsElemTy.cast<mlir::FloatType>().getFloatSemantics(),
+      APFloat::getZero(cast<mlir::FloatType>(lhsElemTy).getFloatSemantics(),
                        false),
       lhs);
   rewriter.replaceOpWithNewOp<stablehlo::MaxOp>(op, lhs, zeroTensor);
@@ -1160,7 +1160,7 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
               rewriter.getI64IntegerAttr(feature_index));
       output = hlo::promoteType(rewriter, op.getLoc(),
                                 batchNormTrainingResult.getResult(0),
-                                outputTy.cast<TensorType>());
+                                cast<TensorType>(outputTy));
     } else {
       auto batchNormTrainingResult =
           rewriter.create<stablehlo::BatchNormTrainingOp>(
@@ -1204,7 +1204,7 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
           runningVar, rewriter.getF32FloatAttr(eps),
           rewriter.getI64IntegerAttr(feature_index));
       output = hlo::promoteType(rewriter, op.getLoc(), bnResult,
-                                outputTy.cast<TensorType>());
+                                cast<TensorType>(outputTy));
     } else {
       output = rewriter.create<stablehlo::BatchNormInferenceOp>(
           op.getLoc(), inputCasted.getType(), inputCasted, weight, bias,
@@ -1478,7 +1478,7 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
                      ->convertType(op.getType())
                      .cast<RankedTensorType>();
   auto dtype = outType.getElementType();
-  if (!dtype.isa<mlir::IntegerType>() && !dtype.isa<mlir::FloatType>()) {
+  if (!isa<mlir::IntegerType>(dtype) && !isa<mlir::FloatType>(dtype)) {
     return rewriter.notifyMatchFailure(
         op, "unimplemented: only int or float dtype supported");
   }
@@ -1607,7 +1607,7 @@ LogicalResult ConvertAtenOp<AtenUniformOp>::matchAndRewrite(
   auto shape_tensor = rewriter.create<stablehlo::ConstantOp>(
       loc, rewriter.getI64TensorAttr(elements));
   auto outTy = getTypeConverter()->convertType(op.getType());
-  auto outElemTy = outTy.cast<RankedTensorType>().getElementType();
+  auto outElemTy = cast<RankedTensorType>(outTy).getElementType();
   Value from =
       hlo::scalarToStablehloTensor(rewriter, op, adaptor.getFrom(), outElemTy);
   Value to =
