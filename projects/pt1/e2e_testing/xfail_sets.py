@@ -2035,7 +2035,6 @@ ONNX_XFAIL_SET = {
     "RandModule_basic",
 
     # Failure - onnx_lowering: onnx.ReduceL1
-    "ReduceL1NormModule_basic",
     "ReduceL1NormWithDTypeModule_basic",
     "ReduceL1NormComplexModule_basic",
 
