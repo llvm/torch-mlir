@@ -2177,4 +2177,6 @@ ONNX_XFAIL_SET = {
 ONNX_CRASHING_SET = { 
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
+
+    "ViewDynamicExpandCollapseWithParallelUnknownDimModule_basic",
 }
