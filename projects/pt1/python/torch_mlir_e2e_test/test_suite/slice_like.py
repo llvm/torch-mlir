@@ -675,6 +675,33 @@ def SliceCopyNonZeroDim_Module_basic(module, tu: TestUtils):
 
 
 # ==============================================================================
+class PrimListUnpackNumMismatchModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()   
+
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 4, 3, 2, 1], torch.float32, True),
+    ])
+    def forward(self, x):
+        if len(x.shape) == 5:
+            b0, t, c0, h0, w0 = x.shape
+            b, c, h, w = torch.mul(b0, t), c0, h0, w0
+        else:
+            b1, c1, h1, w1 = x.shape
+            b, c, h, w = b1, c1, h1, w1
+        res = torch.reshape(x, [b, c, h, w])
+        return res
+
+
+@register_test_case(module_factory=lambda: PrimListUnpackNumMismatchModule())
+def PrimListUnpackNumMismatchModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 3, 2, 1))
+
+
+# ==============================================================================
 
 
 class UnbindIntListUnpack_Module(torch.nn.Module):
