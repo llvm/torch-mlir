@@ -311,6 +311,11 @@ TORCHDYNAMO_XFAIL_SET = {
     "AtenMmQuint8_basic",
     "AtenMmQint8_basic",
     "AtenMmQMixedSigni8_basic",
+    "AtenMatmulQMixedSigni8Transpose_basic",
+    "AtenMatmulQMixedSigni8_basic",
+    "AtenMatmulQint8MV_basic",
+    "AtenMatmulQint8_basic",
+
     "Conv2dQInt8Module_basic",
 
     # Dynamo not supporting conv_tbc
@@ -1624,6 +1629,10 @@ ONNX_XFAIL_SET = {
     "AtenMmQint8_basic",
     "AtenMmQuint8_basic",
     "AtenMmQMixedSigni8_basic",
+    "AtenMatmulQMixedSigni8Transpose_basic",
+    "AtenMatmulQMixedSigni8_basic",
+    "AtenMatmulQint8MV_basic",
+    "AtenMatmulQint8_basic",
     "AtenRealView128Module_basic",
     "AtenRealView64Module_basic",
     "AtenSubFloatModule_basic",
