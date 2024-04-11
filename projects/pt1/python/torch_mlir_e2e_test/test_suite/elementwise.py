@@ -4194,7 +4194,6 @@ def ElementwiseAtenLogicalNotOpPromoteModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class ElementwiseAtenFloorDivideModule(torch.nn.Module):
 class ElementwiseAtenFloorDivideTensorNegativeModule(torch.nn.Module):
 
     def __init__(self):
