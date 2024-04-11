@@ -1492,15 +1492,17 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
 
   // Get length of the 1-d output tensor
   Value subOut = rewriter.create<stablehlo::SubtractOp>(loc, end, start);
-  Value divOut = rewriter.create<stablehlo::DivOp>(loc, subOut, step);
-
-  Value resultLength = rewriter.create<stablehlo::ReshapeOp>(
-      loc, RankedTensorType::get({1}, dtype), divOut);
-  if (dtype.isa<mlir::FloatType>()) {
-    resultLength = rewriter.create<stablehlo::CeilOp>(loc, resultLength);
-    resultLength = rewriter.create<stablehlo::ConvertOp>(
-        loc, RankedTensorType::get({1}, rewriter.getI64Type()), resultLength);
-  }
+  // promote div to f64
+  Type divType = RankedTensorType::get({}, rewriter.getF64Type());
+  Value divOut = rewriter.create<stablehlo::DivOp>(
+      loc, rewriter.create<stablehlo::ConvertOp>(loc, divType, subOut),
+      rewriter.create<stablehlo::ConvertOp>(loc, divType, step));
+  // ceil to i64
+  Value resultLength = rewriter.create<stablehlo::ConvertOp>(
+      loc, RankedTensorType::get({}, rewriter.getI64Type()),
+      rewriter.create<stablehlo::CeilOp>(loc, divOut));
+  resultLength = rewriter.create<stablehlo::ReshapeOp>(
+      loc, RankedTensorType::get({1}, rewriter.getI64Type()), resultLength);
 
   Value window =
       rewriter.create<stablehlo::DynamicIotaOp>(loc, outType, resultLength, 0);
