@@ -15,6 +15,9 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 def get_quant_model_input():
     return 2 * torch.rand((1, 16)) - 1
 
+def get_batched_quant_model_input():
+    return 2 * torch.rand((1, 2, 16)) - 1
+
 class QuantizedNoLayer(nn.Module):
     def __init__(self):
         super().__init__()
@@ -82,6 +85,42 @@ def get_quantized_single_layer():
 @register_test_case(module_factory=get_quantized_single_layer)
 def QuantizedSingleLayer_basic(module, tu: TestUtils):
     module.forward(get_quant_model_input())
+
+class QuantizedBatchedInputSingleLayer(nn.Module):
+    def __init__(self):
+        super().__init__()
+        torch.random.manual_seed(0)
+        self.layers = nn.Sequential(
+            nn.Linear(16, 8),
+        )
+        self.quantize = torch.quantization.QuantStub()
+        self.dequantize = torch.quantization.DeQuantStub()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 2, 16], torch.float32, True),
+    ])
+    def forward(self, x):
+        x = self.quantize(x)
+        x = self.layers(x)
+        x = self.dequantize(x)
+        return x
+
+def get_batched_quantized_single_layer():
+    model = QuantizedBatchedInputSingleLayer()
+    model.eval()
+    model.qconfig = torch.quantization.default_qconfig
+    torch.quantization.prepare(model, inplace=True)
+    torch.manual_seed(0)
+    for _ in range(32):
+        model(get_batched_quant_model_input())
+    torch.quantization.convert(model, inplace=True)
+    return model
+
+@register_test_case(module_factory=get_batched_quantized_single_layer)
+def QuantizedBatchedInputSingleLayer_basic(module, tu: TestUtils):
+    module.forward(get_batched_quant_model_input())
 
 class QuantizedMLP(nn.Module):
     def __init__(self):

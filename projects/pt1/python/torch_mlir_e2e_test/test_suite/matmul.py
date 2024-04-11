@@ -266,7 +266,7 @@ def AtenMmIntTypes_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-class AtenMmQuint8(torch.nn.Module):
+class AtenMmQint8(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -278,20 +278,71 @@ class AtenMmQuint8(torch.nn.Module):
         ([4, 3], torch.int8, True),
     ])
     def forward(self, x, y):
-        qx = torch._make_per_tensor_quantized_tensor(x, 0.1, 8)
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.0215, -25)
         qx = torch.dequantize(qx)
-        qy = torch._make_per_tensor_quantized_tensor(y, 0.1, 8)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.0176, 18)
+        qy = torch.dequantize(qy)
+        qz =  torch.mm(qx, qy)
+        return qz
+
+@register_test_case(module_factory=lambda: AtenMmQint8())
+def AtenMmQint8_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-128, high=127).to(torch.int8),
+                   tu.randint(4, 3, low=-128, high=127).to(torch.int8))
+    
+# ==============================================================================
+
+class AtenMmQuint8(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.uint8, True),
+        ([4, 3], torch.uint8, True),
+    ])
+    def forward(self, x, y):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.199, 65)
+        qx = torch.dequantize(qx)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.0215, 160)
         qy = torch.dequantize(qy)
         qz =  torch.mm(qx, qy)
         return qz
 
 @register_test_case(module_factory=lambda: AtenMmQuint8())
 def AtenMmQuint8_basic(module, tu: TestUtils):
-    module.forward(tu.randint(3, 4, low=-128, high=127).to(torch.int8),
-                   tu.randint(4, 3, low=-128, high=127).to(torch.int8))
+    module.forward(tu.randint(3, 4, low=0, high=255).to(torch.uint8),
+                   tu.randint(4, 3, low=0, high=255).to(torch.uint8))
     
 # ==============================================================================
 
+class AtenMmQMixedSigni8(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.int8, True),
+        ([4, 3], torch.uint8, True),
+    ])
+    def forward(self, x, y):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.03, -66)
+        qx = torch.dequantize(qx)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.025, 160)
+        qy = torch.dequantize(qy)
+        qz =  torch.mm(qx, qy)
+        return qz
+
+@register_test_case(module_factory=lambda: AtenMmQMixedSigni8())
+def AtenMmQMixedSigni8_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-128, high=127).to(torch.int8),
+                   tu.randint(4, 3, low=0, high=255).to(torch.uint8))
+    
+# ==============================================================================
 class AtenLinalgCrossInt(torch.nn.Module):
 
     @export
