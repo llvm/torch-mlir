@@ -309,6 +309,8 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseQuantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorUIntModule_basic",
     "AtenMmQuint8_basic",
+    "AtenMmQint8_basic",
+    "AtenMmQMixedSigni8_basic",
     "Conv2dQInt8Module_basic",
 
     # Dynamo not supporting conv_tbc
@@ -1619,7 +1621,9 @@ ONNX_XFAIL_SET = {
     "AtenIntTensorCharDtypeModule_basic",
     "AtenItemFpOpModule_basic",
     "AtenItemIntOpModule_basic",
+    "AtenMmQint8_basic",
     "AtenMmQuint8_basic",
+    "AtenMmQMixedSigni8_basic",
     "AtenRealView128Module_basic",
     "AtenRealView64Module_basic",
     "AtenSubFloatModule_basic",
