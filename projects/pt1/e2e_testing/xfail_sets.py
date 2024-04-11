@@ -1388,6 +1388,7 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "ElementwisePreluStaticModule_basic", 
 
     # Shape Related failures
+    "PrimListUnpackNumMismatchModule_basic",
     "ReshapeExpandModule_basic",
     "UnsafeViewCollapseModule_basic",
     "UnsafeViewDynamicExpandModule_basic",
