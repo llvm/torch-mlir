@@ -778,12 +778,18 @@ public:
         loc, rewriter.getI64IntegerAttr(0));
     Value one = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(1));
-    llvm::SmallVector<int64_t> valuesShape{valuesType.getSizes().front()};
+    llvm::SmallVector<int64_t> valuesShape;
     llvm::SmallVector<Value> valuesDims;
-    valuesDims.push_back(
-        rewriter.create<Torch::AtenSizeIntOp>(loc, values, zero));
+    int vDim = 0;
 
-    int vDim = 1;
+    if (optionalIndicesCount + valuesType.getSizes().size() >
+        inputType.getSizes().size()) {
+      valuesShape.push_back(valuesType.getSizes().front());
+      valuesDims.push_back(
+          rewriter.create<Torch::AtenSizeIntOp>(loc, values, zero));
+      vDim++;
+    }
+
     for (int i = 0, s = inputType.getSizes().size(); i < s; ++i) {
       if (i < optionalIndicesCount &&
           !isa<Torch::NoneType>(optionalIndicesList[i].getType())) {

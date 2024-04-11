@@ -1731,6 +1731,7 @@ ONNX_XFAIL_SET = {
     "HardtanhBackward_basic",
     "IndexPutImpl1DFloatAccumulateModule_basic",
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
+    "IndexPutImpl2DImplicitModule_basic",
     "IndexPutImpl1DIntAccumulateModule_basic",
     "IndexPutImpl1DIntNonAccumulateModule_basic",
     "IndexPutImpl2DFloatAccumulateModule_basic",
