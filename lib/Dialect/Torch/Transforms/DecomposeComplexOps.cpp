@@ -819,8 +819,9 @@ public:
     });
 
     // Get the selected item directly from the concat operand.
-    Value replace;
-    for (int64_t sum = 0, i = 0; i < elements.size(); ++i) {
+    Value replace = op.getResult();
+    int64_t sum = 0;
+    for (unsigned i = 0; i < elements.size(); ++i) {
       // Unsupported unknown dim size
       if (elementWidths[i] == kUnknownSize)
         return failure();
