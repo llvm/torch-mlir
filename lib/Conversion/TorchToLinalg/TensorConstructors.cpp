@@ -100,7 +100,7 @@ public:
     }
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
-    Type elementType = newResultType.cast<RankedTensorType>().getElementType();
+    Type elementType = cast<RankedTensorType>(newResultType).getElementType();
     Value castedValue =
         convertScalarToDtype(rewriter, loc, adaptor.getValue(), elementType);
 
@@ -553,7 +553,7 @@ public:
     // The size of the result is calculated as follows:
     //          ceil((end - start)/step)
     Value resultShape;
-    if (dtype.isa<mlir::IntegerType>()) {
+    if (isa<mlir::IntegerType>(dtype)) {
       Value subOut = rewriter.create<arith::SubIOp>(loc, end, start);
       resultShape = rewriter.create<arith::CeilDivSIOp>(loc, subOut, step);
     } else {
@@ -585,7 +585,7 @@ public:
                   index = castIndexToInt64(b, loc, index);
                   index = convertScalarToDtype(b, loc, index, dtype);
                   Value mulOut, result;
-                  if (dtype.isa<mlir::FloatType>()) {
+                  if (isa<mlir::FloatType>(dtype)) {
                     mulOut = b.create<arith::MulFOp>(loc, step, index);
                     result = b.create<arith::AddFOp>(loc, start, mulOut);
                   } else {

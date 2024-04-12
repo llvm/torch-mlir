@@ -98,7 +98,7 @@ static LogicalResult refineShapeCalculateResult(ShapeCalculateOp op,
 
   auto originalResultType = result.getType().cast<BaseTensorType>();
   auto impliedTypesFromShape =
-      originalResultType.cast<BaseTensorType>()
+      cast<BaseTensorType>(originalResultType)
           .getWithSizesAndDtype(ArrayRef(sizes),
                                 originalResultType.getOptionalDtype())
           .cast<BaseTensorType>();

@@ -119,7 +119,7 @@ tosa::DivOp createBinaryOpAndCast<DivOp>(PatternRewriter &rewriter,
                                          Value lhs, Value rhs) {
   auto lhsElemTy = lhs.getType().cast<TensorType>().getElementType();
   auto rhsElemTy = rhs.getType().cast<TensorType>().getElementType();
-  if (lhsElemTy.isa<mlir::FloatType>() || rhsElemTy.isa<mlir::FloatType>()) {
+  if (isa<mlir::FloatType>(lhsElemTy) || isa<mlir::FloatType>(rhsElemTy)) {
     (void)rewriter.notifyMatchFailure(op,
                                       "tosa.div only supports integer type");
   }
@@ -213,7 +213,7 @@ std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
 std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter, Operation *op,
                                        Type outType, Value paramsValue,
                                        Value indicesValue) {
-  auto resultType = outType.dyn_cast<ShapedType>();
+  auto resultType = dyn_cast<ShapedType>(outType);
   auto paramsType = paramsValue.getType().dyn_cast<RankedTensorType>();
   auto indicesType = indicesValue.getType().dyn_cast<RankedTensorType>();
 
@@ -419,7 +419,7 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
                                         Operation *op, Type outType,
                                         Value paramsValue, Value indicesValue,
                                         Value fillValues) {
-  auto resultType = outType.dyn_cast<ShapedType>();
+  auto resultType = dyn_cast<ShapedType>(outType);
   auto paramsType = paramsValue.getType().dyn_cast<RankedTensorType>();
   auto indicesType = indicesValue.getType().dyn_cast<RankedTensorType>();
   auto fillValuesType = fillValues.getType().dyn_cast<RankedTensorType>();
@@ -981,7 +981,7 @@ convertLinalgVectorNormOp(PatternRewriter &rewriter, Operation *op,
     return std::nullopt;
 
   Type elemType = output_type.getElementType();
-  if (!elemType.isa<mlir::FloatType>()) {
+  if (!isa<mlir::FloatType>(elemType)) {
     op->emitOpError("Only floating-point datatype legalization supported for "
                     "AtenLinalgVectorNorm op");
     return std::nullopt;

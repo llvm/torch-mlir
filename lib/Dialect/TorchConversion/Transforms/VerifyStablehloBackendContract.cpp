@@ -33,7 +33,7 @@ class VerifyStablehloBackendContractPass
     converter.addConversion([](Type type) -> Type {
       auto elemTy = type;
       if (isa<TensorType>(type))
-        elemTy = type.cast<TensorType>().getElementType();
+        elemTy = cast<TensorType>(type).getElementType();
       if (BaseMemRefType::isValidElementType(elemTy))
         return type;
       return nullptr;

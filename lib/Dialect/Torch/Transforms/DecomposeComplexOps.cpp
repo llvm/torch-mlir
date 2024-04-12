@@ -1386,7 +1386,7 @@ static Value getSoftmaxResult(OpTy op, Value self, Type resultType,
                                                   unNormalizedExp, sum);
   if (resultType != accumulatorType)
     result = convertTensorToDtype(rewriter, loc, result,
-                                  resultType.cast<BaseTensorType>().getDtype());
+                                  cast<BaseTensorType>(resultType).getDtype());
 
   return result;
 }
@@ -1405,7 +1405,7 @@ public:
           op, "expected result type to have a dtype");
     }
     Type resultTensorDtype = resultTensorType.getDtype();
-    if (!resultTensorDtype.isa<mlir::FloatType>())
+    if (!isa<mlir::FloatType>(resultTensorDtype))
       return rewriter.notifyMatchFailure(op,
                                          "Only support floating-point type");
 
@@ -1980,7 +1980,7 @@ public:
     }
 
     Type dtype = resType.getDtype();
-    if (dtype.isa<mlir::ComplexType>()) {
+    if (isa<mlir::ComplexType>(dtype)) {
       return rewriter.notifyMatchFailure(
           op, "lowering of aten.linalg_cross for complex inputs dtype is "
               "currently unimplemented");
@@ -2015,7 +2015,7 @@ public:
     Value none = rewriter.create<ConstantNoneOp>(loc);
 
     // idx = torch.arange(3)
-    auto outType = opType.dyn_cast<BaseTensorType>();
+    auto outType = dyn_cast<BaseTensorType>(opType);
     auto arangeType = outType.getWithSizesAndDtype(
         llvm::ArrayRef<int64_t>(3),
         IntegerType::get(op.getContext(), 64, IntegerType::Signed));
@@ -5451,6 +5451,33 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.to.prim_Device` op into `aten.to.dtype` op.
+class DecomposeAtenToPrimDeviceOp
+    : public OpRewritePattern<AtenToPrimDeviceOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenToPrimDeviceOp op,
+                                PatternRewriter &rewriter) const override {
+
+    // Device information isn't relevant to torch-mlir, so we can drop that info
+    // here.
+    auto loc = op.getLoc();
+    Value constNone = rewriter.create<ConstantNoneOp>(loc);
+
+    Value dtype = op.getDtype();
+    if (dtype.getType().template isa<Torch::NoneType>()) {
+      dtype = rewriter.create<Torch::PrimDtypeOp>(loc, op.getSelf());
+    }
+    rewriter.replaceOpWithNewOp<AtenToDtypeOp>(op, op.getType(), op.getSelf(),
+                                               dtype, op.getNonBlocking(),
+                                               op.getCopy(), constNone);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.to.device` op into `aten.to.dtype` op.
 class DecomposeAtenToDeviceOp : public OpRewritePattern<AtenToDeviceOp> {
 public:
@@ -5557,12 +5584,10 @@ namespace {
 // output size the kernelSize, stride and padding is calculated as follows:
 // strideH = inH // outH
 // strideW = inH // outH
-// kernelH = inH - [(outH - 1) * strideH]
-// kernelW = inW - [(outW - 1) * strideW]
+// kernelH = inH - [(outH - 1) * strideH] = strideH
+// kernelW = inW - [(outW - 1) * strideW] = strideW
 // paddingH = 0, paddingW = 0
 //
-// For the special case, when the output size is one for all dimensions,
-// the kernel size is same as the input size.
 class DecomposeAtenAdaptiveAvgPool2dOp
     : public OpRewritePattern<AtenAdaptiveAvgPool2dOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -5593,23 +5618,8 @@ class DecomposeAtenAdaptiveAvgPool2dOp
     getListConstructElements(outputShape, outputShapeSizesTorchInt);
 
     // TODO: Add support for cases other than:
-    // 1.) inH == outH and inW == outW.
-    // 2.) outH == outW == 1
-    bool unitOutputSize = true;
-    for (Value outShape : outputShapeSizesTorchInt) {
-      int64_t outShapeInt;
-      if (!matchPattern(outShape, m_TorchConstantInt(&outShapeInt))) {
-        return rewriter.notifyMatchFailure(
-            op, "output size is expected to be a constant");
-      }
-      if (outShapeInt != 1) {
-        unitOutputSize = false;
-        break;
-      }
-    }
+    // inH % outH != 0 or inW % outW != 0
 
-    Value constantOne = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(1));
     Value constantZero = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(0));
     Value constantFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
@@ -5618,40 +5628,22 @@ class DecomposeAtenAdaptiveAvgPool2dOp
     SmallVector<Value, 2> kernelSize;
 
     for (unsigned i = 0; i < inputHW.size(); i++) {
-      if (unitOutputSize) {
-        BaseTensorType inputTensorType = input.getType().cast<BaseTensorType>();
-        ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
-        kernelSize.push_back(inputShape[rank - 2 + i] == kUnknownSize
-                                 ? inputHW[i]
-                                 : rewriter.create<Torch::ConstantIntOp>(
-                                       loc, rewriter.getI64IntegerAttr(
-                                                inputShape[rank - 2 + i])));
-      } else {
-        if (!isAssumingStrictSymbolicShapes(rewriter)) {
-          Value cond = rewriter.create<AtenEqIntOp>(
-              loc, inputHW[i], outputShapeSizesTorchInt[i]);
-          rewriter.create<RuntimeAssertOp>(loc, cond,
-                                           "unimplemented: only support cases "
-                                           "where input and output size are "
-                                           "equal for non-unit output size");
-        }
-        Value outMinusOne = rewriter.create<AtenSubIntOp>(
-            loc, outputShapeSizesTorchInt[i], constantOne);
-        kernelSize.push_back(
-            rewriter.create<AtenSubIntOp>(loc, inputHW[i], outMinusOne));
-      }
+      Value remainder = rewriter.create<AtenRemainderIntOp>(
+          loc, inputHW[i], outputShapeSizesTorchInt[i]);
+      Value cond = rewriter.create<AtenEqIntOp>(loc, remainder, constantZero);
+      rewriter.create<RuntimeAssertOp>(loc, cond,
+                                       "unimplemented: only support cases "
+                                       "input size is an integer multiple of "
+                                       "output size");
+      Value stride = rewriter.create<AtenFloordivIntOp>(
+          loc, inputHW[i], outputShapeSizesTorchInt[i]);
+      Value kernelSizeValue = stride;
+      kernelSize.push_back(kernelSizeValue);
     }
 
     Value kernelSizeList = rewriter.create<PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(context)), kernelSize);
-    // Currently we only support cases where input size is equal to the output
-    // size or unit output size. For the former case, stride is always equal to
-    // one and for the latter the stride value doesn't matter, since the kernel
-    // size is same as the input size. Therfore, keeping the stride as one for
-    // the latter case as well for the ease of implementation.
-    Value strideList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)),
-        ValueRange{constantOne, constantOne});
+    Value strideList = kernelSizeList;
     Value paddingSizeList = rewriter.create<PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(context)),
         ValueRange{constantZero, constantZero});
@@ -5856,7 +5848,7 @@ static LogicalResult calculateVariance(OpTy op, PatternRewriter &rewriter,
   Value keepDim = op.getKeepdim();
   BaseTensorType inputTensorTy = self.getType().cast<BaseTensorType>();
   Type outputType = op.getType();
-  BaseTensorType outputTensorType = outputType.cast<BaseTensorType>();
+  BaseTensorType outputTensorType = cast<BaseTensorType>(outputType);
   if (!outputTensorType.hasDtype()) {
     return rewriter.notifyMatchFailure(op,
                                        "expected result type to have a dtype");
@@ -5901,7 +5893,7 @@ static LogicalResult calculateVariance(OpTy op, PatternRewriter &rewriter,
   Type meanDimResultType = inputTensorTy;
   for (unsigned i = 0; i < dimListElements.size(); i++)
     meanDimResultType = computeReductionType(
-        rewriter, op, meanDimResultType.cast<BaseTensorType>(),
+        rewriter, op, cast<BaseTensorType>(meanDimResultType),
         dimListElements[i],
         /*keepDim=*/true);
 
@@ -6197,7 +6189,7 @@ public:
 
     Location loc = op.getLoc();
     Type resultType = op.getType();
-    BaseTensorType resultTensorType = resultType.cast<BaseTensorType>();
+    BaseTensorType resultTensorType = cast<BaseTensorType>(resultType);
     if (!resultTensorType.hasDtype()) {
       return rewriter.notifyMatchFailure(
           op, "expected result type to have a dtype");
@@ -7559,6 +7551,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenPadOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDtypeLayoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDeviceOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenToPrimDeviceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);

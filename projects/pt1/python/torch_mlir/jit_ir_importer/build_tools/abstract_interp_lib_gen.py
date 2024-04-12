@@ -391,6 +391,9 @@ def aten〇to〇device〡shape(self: List[int], device: device, dtype: int, non_
 def aten〇to〇other〡shape(self: List[int], other: List[int], non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇_cast_Float〡shape(self: List[int], non_blocking: bool = False) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇type_as〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -2752,7 +2755,9 @@ def aten〇t〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 @check_dtype_function(_check_tensors_with_the_same_dtype(1, tensor_device="meta", device=torch.device("meta")))
 def aten〇to〇prim_Device〡dtype(self_rank_dtype: Tuple[int, int], device: Optional[device], dtype: Optional[int] = None, non_blocking: bool = False, copy: bool = False) -> int:
     self_rank, self_dtype = self_rank_dtype
-    return self_dtype
+    if dtype is None:
+        return self_dtype
+    return dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3)], dim0=0, dim1=1))
 def aten〇transpose〇int〡dtype(self_rank_dtype: Tuple[int, int], dim0: int, dim1: int) -> int:
@@ -4324,6 +4329,9 @@ def aten〇to〇device〡dtype(self_rank_dtype: Tuple[int, int], device: device,
 def aten〇to〇other〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int], non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> int:
     other_rank, other_dtype = other_rank_dtype
     return other_dtype
+
+def aten〇_cast_Float〡dtype(self_rank_dtype: Tuple[int, int], non_blocking: bool = False) -> int:
+    return torch.float32
 
 @check_dtype_function(_check_two_tensor_op())
 def aten〇type_as〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
