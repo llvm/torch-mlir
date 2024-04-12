@@ -813,7 +813,7 @@ public:
           element.getType().dyn_cast<BaseTensorType>().getOptionalSizes();
       if (!sizes.has_value())
         return kUnknownSize;
-      if (sizes.value().size() <= dimInt)
+      if (sizes.value().size() <= (unsigned)dimInt)
         return kUnknownSize;
       return sizes.value()[dimInt];
     });
