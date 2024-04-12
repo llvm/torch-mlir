@@ -27,7 +27,6 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include <iostream>
 #include <numeric>
 
 using namespace mlir;
@@ -432,48 +431,56 @@ public:
     Value result =
         rewriter.create<ChloOpT>(loc, outType, lhs, rhs, bcastDimensions);
 
-    if (!isa<AtenDivTensorModeOp>(op)) {
+    if (!isa<AtenDivTensorModeOp>(op) && !isa<AtenDivScalarModeOp>(op)) {
       rewriter.replaceOp(op, result);
       return success();
     }
 
-    AtenDivTensorModeOp divTensorModeOp =
-        llvm::dyn_cast<AtenDivTensorModeOp>(op.getOperation());
-    std::string roundingMode;
-    if (!matchPattern(divTensorModeOp.getRoundingMode(),
-                      m_TorchConstantStr(roundingMode)))
-      return rewriter.notifyMatchFailure(
-          op, "only support constant str rounding mode");
-
-    // if trunc and int, do nothing
-    if (roundingMode == "trunc" && outElemTy.isa<mlir::FloatType>()) {
-      // "trunc" - rounds the results of the division towards zero. Equivalent
-      // to C-style integer division.
-      auto sign = rewriter.create<stablehlo::SignOp>(loc, result);
-      auto abs = rewriter.create<stablehlo::AbsOp>(loc, result);
-      auto floor = rewriter.create<stablehlo::FloorOp>(loc, abs);
-      result = rewriter.create<stablehlo::MulOp>(loc, sign, floor).getResult();
-    }
-    if (roundingMode == "floor") {
-      // "floor" - rounds the results of the division down. Equivalent to
-      // floor division in Python (the // operator)
-      if (outElemTy.isa<mlir::FloatType>())
-        result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
-      else if (!outElemTy.isUnsignedInteger()) {
-        TensorType defaultIntToFloatType =
-            outType.cloneWith(outType.getShape(), rewriter.getF64Type());
-        lhs =
-            hlo::promoteType(rewriter, op.getLoc(), lhs, defaultIntToFloatType);
-        rhs =
-            hlo::promoteType(rewriter, op.getLoc(), rhs, defaultIntToFloatType);
-        result = rewriter.create<ChloOpT>(loc, defaultIntToFloatType, lhs, rhs,
-                                          bcastDimensions);
-        result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
-        result = hlo::promoteType(rewriter, op.getLoc(), result, outType);
+    auto rewriteDivFloor = [&](auto &op) {
+      std::string roundingMode;
+      if (!matchPattern(op.getRoundingMode(), m_TorchConstantStr(roundingMode)))
+        return rewriter.notifyMatchFailure(
+            op, "only support constant str rounding mode");
+      // if trunc and int, do nothing
+      if (roundingMode == "trunc" && outElemTy.isa<mlir::FloatType>()) {
+        // "trunc" - rounds the results of the division towards zero. Equivalent
+        // to C-style integer division.
+        auto sign = rewriter.create<stablehlo::SignOp>(loc, result);
+        auto abs = rewriter.create<stablehlo::AbsOp>(loc, result);
+        auto floor = rewriter.create<stablehlo::FloorOp>(loc, abs);
+        result =
+            rewriter.create<stablehlo::MulOp>(loc, sign, floor).getResult();
       }
+      if (roundingMode == "floor") {
+        // "floor" - rounds the results of the division down. Equivalent to
+        // floor division in Python (the // operator)
+        if (outElemTy.isa<mlir::FloatType>())
+          result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
+        else if (!outElemTy.isUnsignedInteger()) {
+          TensorType defaultIntToFloatType =
+              outType.cloneWith(outType.getShape(), rewriter.getF64Type());
+          lhs = hlo::promoteType(rewriter, op.getLoc(), lhs,
+                                 defaultIntToFloatType);
+          rhs = hlo::promoteType(rewriter, op.getLoc(), rhs,
+                                 defaultIntToFloatType);
+          result = rewriter.create<ChloOpT>(loc, defaultIntToFloatType, lhs,
+                                            rhs, bcastDimensions);
+          result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
+          result = hlo::promoteType(rewriter, op.getLoc(), result, outType);
+        }
+      }
+      rewriter.replaceOp(op, result);
+      return success();
+    };
+    if (auto divTensorModeTensorOp =
+            llvm::dyn_cast<AtenDivTensorModeOp>(op.getOperation())) {
+      return rewriteDivFloor(divTensorModeTensorOp);
     }
-    rewriter.replaceOp(op, result);
-    return success();
+    if (auto divTensorModeScalarOp =
+            llvm::dyn_cast<AtenDivScalarModeOp>(op.getOperation())) {
+      return rewriteDivFloor(divTensorModeScalarOp);
+    }
+    return failure();
   }
 };
 } // namespace
@@ -1843,6 +1850,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_BINARY_MULDIV_PATTERN(AtenDivTensorOp, chlo::BroadcastDivOp);
   INSERT_BINARY_MULDIV_PATTERN(AtenDivTensorModeOp, chlo::BroadcastDivOp);
   INSERT_BINARY_MULDIV_PATTERN(AtenDivScalarOp, chlo::BroadcastDivOp);
+  INSERT_BINARY_MULDIV_PATTERN(AtenDivScalarModeOp, chlo::BroadcastDivOp);
   INSERT_BINARY_MULDIV_PATTERN(AtenRemainderScalarOp, chlo::BroadcastRemOp);
 #undef INSERT_BINARY_MULDIV_PATTERN
 
