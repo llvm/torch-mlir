@@ -781,11 +781,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       quotient = b.create<arith::DivFOp>(loc, lhs, rhs);
     } else if (dtype.isUnsignedInteger()) {
       quotient = b.create<arith::DivUIOp>(loc, lhs, rhs);
-    } else if (dtype.isSignedInteger()) {
-      quotient = b.create<arith::DivSIOp>(loc, lhs, rhs);
     } else {
-      divScalarMode.emitError("unsupported dtype");
-      return nullptr;
+      quotient = b.create<arith::DivSIOp>(loc, lhs, rhs);
     }
 
     if (divScalarMode.getRoundingMode().getType().isa<Torch::NoneType>())
@@ -865,8 +862,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
                                              div, cstZero);
         return b.create<arith::SelectOp>(loc, pred, ceil, floor);
-      } else
-        return div;
+      }
+      return div;
     }
     if (roundingMode == "floor") {
       // "floor" - rounds the results of the division down. Equivalent to
