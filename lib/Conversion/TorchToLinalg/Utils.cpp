@@ -554,7 +554,7 @@ FailureOr<Type> torch_to_linalg::getBackendTypeForScalarType(
   }
   Type type = *maybeType;
   // The linalg-on-tensors backend currently expects integers to be signless.
-  if (auto intType = type.dyn_cast<IntegerType>()) {
+  if (auto intType = dyn_cast<IntegerType>(type)) {
     type = IntegerType::get(context, intType.getWidth(), IntegerType::Signless);
   }
   return type;

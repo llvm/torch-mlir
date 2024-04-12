@@ -38,7 +38,7 @@ shapeFunctionArgsBuilder(OpBuilder &b, Location loc,
            Type desiredType) -> Value {
           // The shape library functions have tensor operands replaced with
           // `!torch.list<int>` types for the shape. Get the sizes.
-          auto desiredListType = desiredType.dyn_cast<Torch::ListType>();
+          auto desiredListType = dyn_cast<Torch::ListType>(desiredType);
           if (!desiredListType)
             return operand;
           if (operand.getType().isa<Torch::BaseTensorType>() &&

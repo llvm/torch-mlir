@@ -381,6 +381,7 @@ STABLEHLO_PASS_SET = {
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dUnitOutputSizeStaticModule_basic",
+    "AdaptiveAvgPool2dOutputSizeDivisibleByInputStaticModule_basic",
     "AddIntModule_basic",
     "AliasModule_basic",
     "AllBoolFalseModule_basic",
@@ -663,6 +664,7 @@ STABLEHLO_PASS_SET = {
     "PermuteModule_basic",
     "PermuteNegativeIndexModule_basic",
     "PowIntFloatModule_basic",
+    "PrimListUnpackNumMismatchModule_basic",
     "PrimMaxIntModule_basic",
     "PrimMinIntDynamicModule_basic",
     "PrimMinIntModule_basic",
@@ -913,6 +915,7 @@ TOSA_PASS_SET = {
     "ElementwiseSignIntModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dUnitOutputSizeStaticModule_basic",
+    "AdaptiveAvgPool2dOutputSizeDivisibleByInputStaticModule_basic",
     "AddCDivModule_basic",
     "AddCDiv_Module_basic",
     "AddCMulModule_basic",
@@ -1221,6 +1224,7 @@ TOSA_PASS_SET = {
     "Permute0RankModule_basic",
     "PermuteModule_basic",
     "PermuteNegativeIndexModule_basic",
+    "PrimListUnpackNumMismatchModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
     "PrimsSqueezeModule_basic",
     "PrimsViewOfModule_basic",
@@ -1396,6 +1400,7 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "ElementwisePreluStaticModule_basic", 
 
     # Shape Related failures
+    "PrimListUnpackNumMismatchModule_basic",
     "ReshapeExpandModule_basic",
     "UnsafeViewCollapseModule_basic",
     "UnsafeViewDynamicExpandModule_basic",
@@ -1589,6 +1594,7 @@ ONNX_XFAIL_SET = {
     "AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule_basic",
     "AdaptiveAvgPool1dStaticLargerOutput_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeDynamicModule_basic",
+    "AdaptiveAvgPool2dOutputSizeDivisibleByInputDynamicModule_basic",
     "AdaptiveMaxPool2dDynamicWithIndices_basic",
     "AdaptiveMaxPool2dDynamic_basic",
     "AdaptiveMaxPool2dStaticWithIndices_basic",
@@ -1739,6 +1745,7 @@ ONNX_XFAIL_SET = {
     "HardtanhBackward_basic",
     "IndexPutImpl1DFloatAccumulateModule_basic",
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
+    "IndexPutImpl2DImplicitModule_basic",
     "IndexPutImpl1DIntAccumulateModule_basic",
     "IndexPutImpl1DIntNonAccumulateModule_basic",
     "IndexPutImpl2DFloatAccumulateModule_basic",
@@ -2184,4 +2191,6 @@ ONNX_XFAIL_SET = {
 ONNX_CRASHING_SET = { 
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
+
+    "ViewDynamicExpandCollapseWithParallelUnknownDimModule_basic",
 }

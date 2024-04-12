@@ -10,6 +10,7 @@ from typing import Any, Callable, Optional, Tuple, Dict
 import torch
 import torch.export
 import torch.nn as nn
+import numpy as np
 
 from torch_mlir.extras.fx_importer import FxImporter
 from torch_mlir.extras.fx_importer import SparsityMeta
@@ -153,16 +154,15 @@ def sparse_jit(f, *args, **kwargs):
     invoker = backend.load(compiled)
     # Prepare input parameters. Sparse input tensors are split into
     # their composite tensors. All PyTorch tensors are converted
-    # to their backing numpy arrays.
-    #
-    # TODO: sparse output tensors
-    #
+    # to their backing numpy arrays. Note that the output consists
+    # of numpy arrays as well, which can trivially be reconstructed
+    # into PyTorch tensors (dense and sparse).
     xargs = []
     for a in args:
         if a.layout is torch.sparse_coo:
             # Construct the additional position array required by MLIR with data
-            # array([0, nnz]).
-            xargs.append(torch.tensor([0, a._nnz()], dtype=a._indices().dtype).numpy())
+            # array([0, nnz]). The COO format always uses int64 indices.
+            xargs.append(np.array([0, a._nnz()], dtype=np.int64))
             # Transform a tensor<ndim x nnz> into [tensor<nnz> x ndim] to conform
             # MLIR SoA COO representation.
             for idx in a._indices():
@@ -203,6 +203,7 @@ def run(f):
 # CHECK:              values=tensor([-1000.,    -1.,     1.,  1000.]),
 # CHECK:              size=(10, 20), nnz=4, dtype=torch.float64, layout=torch.sparse_coo)
 # CHECK:       torch.mlir
+# CHECK:       (array([0, 4]), array([0, 1, 2, 9]), array([ 0,  1, 10, 19]), array([-1000.,    -1.,     1.,  1000.]))
 #
 def test_sparse_id():
     class IdNet(torch.nn.Module):
@@ -220,13 +221,12 @@ def test_sparse_id():
     print(m)
 
     # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
-    # TODO: make output work
     res1 = net(sparse_input)
-    # res2 = sparse_jit(net, sparse_input)
+    res2 = sparse_jit(net, sparse_input)
     print("torch.sparse")
     print(res1)
     print("torch.mlir")
-    # print(res2)
+    print(res2)
 
 
 @run

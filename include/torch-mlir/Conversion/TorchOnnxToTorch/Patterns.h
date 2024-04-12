@@ -178,7 +178,7 @@ struct OpBinder {
     }
     if (auto arrayAttr = dyn_cast<ArrayAttr>(attr)) {
       for (auto element : arrayAttr) {
-        auto integerAttr = element.dyn_cast<IntegerAttr>();
+        auto integerAttr = dyn_cast<IntegerAttr>(element);
         if (!integerAttr)
           return failure();
         IntegerType t = cast<IntegerType>(integerAttr.getType());
@@ -200,7 +200,7 @@ struct OpBinder {
       return success();
     if (auto arrayAttr = dyn_cast<ArrayAttr>(attr)) {
       for (auto element : arrayAttr) {
-        StringAttr stringAttr = element.dyn_cast<StringAttr>();
+        StringAttr stringAttr = dyn_cast<StringAttr>(element);
         if (!stringAttr)
           return failure();
         values.push_back(stringAttr.getValue().str());
