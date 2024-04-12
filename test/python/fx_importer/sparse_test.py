@@ -155,7 +155,7 @@ def sparse_jit(f, *args, **kwargs):
     # Prepare input parameters. Sparse input tensors are split into
     # their composite tensors. All PyTorch tensors are converted
     # to their backing numpy arrays. Note that the output consists
-    # of numpy arrays as well, which can trivially reconstructed
+    # of numpy arrays as well, which can trivially be reconstructed
     # into PyTorch tensors (dense and sparse).
     xargs = []
     for a in args:
