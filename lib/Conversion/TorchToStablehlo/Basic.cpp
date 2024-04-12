@@ -450,7 +450,6 @@ public:
         auto floor = rewriter.create<stablehlo::FloorOp>(loc, abs);
         result =
             rewriter.create<stablehlo::MulOp>(loc, sign, floor).getResult();
-
       }
       if (roundingMode == "floor") {
         // "floor" - rounds the results of the division down. Equivalent to
