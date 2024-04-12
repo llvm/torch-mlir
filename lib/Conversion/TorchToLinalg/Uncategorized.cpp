@@ -35,16 +35,16 @@ using namespace mlir::torch::Torch;
 template <typename elementType> static bool hasElementType(Value tensor) {
   auto tensorType = tensor.getType().cast<RankedTensorType>();
   Type tensorElementType = tensorType.getElementType();
-  return tensorElementType.isa<elementType>();
+  return isa<elementType>(tensorElementType);
 }
 
 template <arith::CmpFPredicate fpred, arith::CmpIPredicate iupred,
           arith::CmpIPredicate ispred>
 static Value createComparisonTemplate(OpBuilder &b, Location loc, Type type,
                                       Value lhs, Value rhs) {
-  if (type.isa<mlir::FloatType>())
+  if (isa<mlir::FloatType>(type))
     return b.create<arith::CmpFOp>(loc, fpred, lhs, rhs);
-  if (IntegerType intType = type.dyn_cast<mlir::IntegerType>()) {
+  if (IntegerType intType = dyn_cast<mlir::IntegerType>(type)) {
     if (intType.isUnsigned())
       return b.create<arith::CmpIOp>(loc, iupred, lhs, rhs);
     if (intType.isSigned())
@@ -319,7 +319,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(bitwiseAndScalar.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    if (!dtype.isa<mlir::IntegerType>()) {
+    if (!isa<mlir::IntegerType>(dtype)) {
       bitwiseAndScalar.emitError(
           "bitwise_and.Scalar does not support non-integer input dtype.");
       return nullptr;
@@ -371,7 +371,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(bitwiseRightShiftTensor.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    if (!dtype.isa<mlir::IntegerType>()) {
+    if (!isa<mlir::IntegerType>(dtype)) {
       bitwiseRightShiftTensor.emitError(
           "Bitwise_Right_Shift op does not support non-integer input dtype.");
       return nullptr;
@@ -385,7 +385,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(bitwiseLeftShiftTensor.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    if (!dtype.isa<mlir::IntegerType>()) {
+    if (!isa<mlir::IntegerType>(dtype)) {
       bitwiseLeftShiftTensor.emitError(
           "Bitwise_Left_Shift op does not support non-integer input dtype.");
       return nullptr;
@@ -623,7 +623,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), dtype,
                                        /*srcOriginalDtype=*/std::nullopt,
                                        /*dstOriginalDtype=*/resultElementType);
-    if (dtype.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(dtype)) {
       Value scaled = b.create<arith::MulFOp>(loc, rhs, alpha);
       return b.create<arith::AddFOp>(loc, lhs, scaled);
     } else {
@@ -647,7 +647,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                                        /*srcOriginalDtype=*/std::nullopt,
                                        /*dstOriginalDtype=*/resultElementType,
                                        /*originalScalar=*/sub.getAlpha());
-    if (dtype.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(dtype)) {
       Value scaled = b.create<arith::MulFOp>(loc, rhs, alpha);
       return b.create<arith::SubFOp>(loc, lhs, scaled);
     } else {
@@ -664,10 +664,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value alpha = convertScalarToDtype(
         b, loc, operands[2], dtype, /*srcOriginalDtype=*/operands[2].getType(),
         /*dstOriginalDtype=*/dtype);
-    if (dtype.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(dtype)) {
       Value mult = b.create<arith::MulFOp>(loc, other, alpha);
       return b.create<arith::SubFOp>(loc, self, mult);
-    } else if (dtype.isa<mlir::IntegerType>()) {
+    } else if (isa<mlir::IntegerType>(dtype)) {
       Value mult = b.create<arith::MulIOp>(loc, other, alpha);
       return b.create<arith::SubIOp>(loc, self, mult);
     }
@@ -690,10 +690,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value alpha = convertScalarToDtype(b, loc, operands[2], dtype,
                                        /*srcOriginalDtype=*/std::nullopt,
                                        /*dstOriginalDtype=*/resultElementType);
-    if (dtype.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(dtype)) {
       Value mult = b.create<arith::MulFOp>(loc, other, alpha);
       return b.create<arith::AddFOp>(loc, self, mult);
-    } else if (dtype.isa<mlir::IntegerType>()) {
+    } else if (isa<mlir::IntegerType>(dtype)) {
       Value mult = b.create<arith::MulIOp>(loc, other, alpha);
       return b.create<arith::AddIOp>(loc, self, mult);
     }
@@ -708,9 +708,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
-    if (dtype.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(dtype)) {
       return b.create<arith::MulFOp>(loc, lhs, rhs);
-    } else if (dtype.isa<mlir::ComplexType>()) {
+    } else if (isa<mlir::ComplexType>(dtype)) {
       return b.create<complex::MulOp>(loc, lhs, rhs);
     } else {
       return b.create<arith::MulIOp>(loc, lhs, rhs);
@@ -720,7 +720,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(atan2.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    if (!dtype.isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(dtype)) {
       atan2.emitError("Atan2 requires floating point result type");
       return nullptr;
     }
@@ -759,9 +759,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
-    if (dtype.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(dtype))
       return b.create<arith::DivFOp>(loc, lhs, rhs);
-    else if (dtype.isa<mlir::IntegerType>()) {
+    else if (isa<mlir::IntegerType>(dtype)) {
       if (dtype.isUnsignedInteger())
         return b.create<arith::DivUIOp>(loc, lhs, rhs);
       return b.create<arith::DivSIOp>(loc, lhs, rhs);
@@ -834,7 +834,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
     Value div;
-    if (dtype.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(dtype))
       div = b.create<arith::DivFOp>(loc, lhs, rhs);
     else {
       if (dtype.isUnsignedInteger())
@@ -855,7 +855,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     if (roundingMode == "trunc") {
       // "trunc" - rounds the results of the division towards zero. Equivalent
       // to C-style integer division.
-      if (dtype.isa<mlir::FloatType>()) {
+      if (isa<mlir::FloatType>(dtype)) {
         Value ceil = b.create<math::CeilOp>(loc, div);
         Value floor = b.create<math::FloorOp>(loc, div);
         Value cstZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
@@ -868,7 +868,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     if (roundingMode == "floor") {
       // "floor" - rounds the results of the division down. Equivalent to
       // floor division in Python (the // operator)
-      if (dtype.isa<mlir::FloatType>())
+      if (isa<mlir::FloatType>(dtype))
         return b.create<math::FloorOp>(loc, div);
       else if (!dtype.isUnsignedInteger()) {
         Type defaultIntToFloatType = b.getF64Type();
@@ -888,7 +888,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 
   if (auto pow = dyn_cast<AtenPowScalarOp>(op)) {
     Type dtype = pow.getType().cast<ValueTensorType>().getDtype();
-    if (!dtype.isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(dtype)) {
       pow.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -914,7 +914,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(pow.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    if (!dtype.isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(dtype)) {
       pow.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -927,7 +927,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(imag.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    if (!dtype.isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(dtype)) {
       imag.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -939,7 +939,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(real.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    if (!dtype.isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(dtype)) {
       real.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -955,10 +955,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value otherPromoted =
         convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
 
-    if (dtype.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(dtype))
       return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
                                      payloadArgs[0], otherPromoted);
-    if (IntegerType intType = dtype.dyn_cast<mlir::IntegerType>()) {
+    if (IntegerType intType = dyn_cast<mlir::IntegerType>(dtype)) {
       if (!operands[1].getType().isa<mlir::IntegerType>()) {
         // TODO: Promote tensor args from integer to float.
         gtScalar.emitError(
@@ -985,10 +985,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value otherPromoted =
         convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
 
-    if (dtype.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(dtype))
       return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGE,
                                      payloadArgs[0], otherPromoted);
-    if (IntegerType intType = dtype.dyn_cast<mlir::IntegerType>()) {
+    if (IntegerType intType = dyn_cast<mlir::IntegerType>(dtype)) {
       if (!operands[1].getType().isa<mlir::IntegerType>()) {
         // TODO: Promote tensor args from integer to float.
         geScalar.emitError(
@@ -1012,7 +1012,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value otherPromoted =
         convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
 
-    if (dtype.isa<mlir::IntegerType>()) {
+    if (isa<mlir::IntegerType>(dtype)) {
       if (!operands[1].getType().isa<mlir::IntegerType>()) {
         // TODO: Promote tensor operand from integer to float.
         eqScalar.emitError(
@@ -1028,7 +1028,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value otherPromoted =
         convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
 
-    if (dtype.isa<mlir::IntegerType>()) {
+    if (isa<mlir::IntegerType>(dtype)) {
       if (!operands[1].getType().isa<mlir::IntegerType>()) {
         // TODO: Promote tensor operand from integer to float.
         neScalar.emitError(
@@ -1046,10 +1046,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 
     // TODO:  Both tensor and scalar variants of `aten.gt` and `aten.lt` share
     // a lot of code that can be refactored.
-    if (dtype.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(dtype))
       return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
                                      payloadArgs[0], otherPromoted);
-    if (IntegerType intType = dtype.dyn_cast<mlir::IntegerType>()) {
+    if (IntegerType intType = dyn_cast<mlir::IntegerType>(dtype)) {
       if (!operands[1].getType().isa<mlir::IntegerType>()) {
         // TODO: Promote tensor operand from integer to float.
         ltScalar.emitError(
@@ -1074,10 +1074,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 
     // TODO: The `AtenLeScalarOp` and `AtenLtScalarOp` share a lot of code
     // that can be refactored.
-    if (dtype.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(dtype))
       return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULE,
                                      payloadArgs[0], otherPromoted);
-    if (IntegerType intType = dtype.dyn_cast<mlir::IntegerType>()) {
+    if (IntegerType intType = dyn_cast<mlir::IntegerType>(dtype)) {
       if (!operands[1].getType().isa<mlir::IntegerType>()) {
         // TODO: Promote tensor operand from integer to float.
         leScalar.emitError(
@@ -1153,14 +1153,14 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(clamp.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    if (!dtype.isa<mlir::FloatType, mlir::IntegerType>()) {
+    if (!isa<mlir::FloatType, mlir::IntegerType>(dtype)) {
       clamp.emitError("unimplement type for clamp");
       return nullptr;
     }
 
     Type dstOriginalDtype = clamp.getType().cast<BaseTensorType>().getDtype();
     bool isUnsigned = isa<QUInt8Type>(dstOriginalDtype);
-    if (auto intTy = dstOriginalDtype.dyn_cast<IntegerType>()) {
+    if (auto intTy = dyn_cast<IntegerType>(dstOriginalDtype)) {
       isUnsigned = intTy.isUnsigned();
     }
     auto cmpSelect = [&](Value input, Value clamp, bool getMax) -> Value {
@@ -1169,11 +1169,11 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                                    /*dstOriginalDtype=*/dstOriginalDtype);
 
       Value pred;
-      if (dtype.isa<mlir::FloatType>()) {
+      if (isa<mlir::FloatType>(dtype)) {
         auto cmp =
             getMax ? arith::CmpFPredicate::UGT : arith::CmpFPredicate::ULT;
         pred = b.create<arith::CmpFOp>(loc, cmp, input, clamp);
-      } else if (dtype.isa<mlir::IntegerType>()) {
+      } else if (isa<mlir::IntegerType>(dtype)) {
         auto cmp =
             isUnsigned ? arith::CmpIPredicate::ult : arith::CmpIPredicate::slt;
         if (getMax)
@@ -1208,10 +1208,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       isMinNone = false;
       auto minPromoted = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
       Value pred;
-      if (dtype.isa<mlir::FloatType>()) {
+      if (isa<mlir::FloatType>(dtype)) {
         pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT, result,
                                        minPromoted);
-      } else if (dtype.isa<mlir::IntegerType>()) {
+      } else if (isa<mlir::IntegerType>(dtype)) {
         pred = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, result,
                                        minPromoted);
       } else {
@@ -1226,10 +1226,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       max = isMinNone ? payloadArgs[1] : payloadArgs[2];
       auto maxPromoted = convertScalarToDtype(b, loc, max, dtype);
       Value pred;
-      if (dtype.isa<mlir::FloatType>()) {
+      if (isa<mlir::FloatType>(dtype)) {
         pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT, result,
                                        maxPromoted);
-      } else if (dtype.isa<mlir::IntegerType>()) {
+      } else if (isa<mlir::IntegerType>(dtype)) {
         pred = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, result,
                                        maxPromoted);
       } else {
@@ -1251,10 +1251,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value alpha = convertScalarToDtype(
         b, loc, operands[2], dtype, /*srcOriginalDtype=*/operands[2].getType(),
         /*dstOriginalDtype=*/dtype);
-    if (dtype.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(dtype)) {
       Value mult = b.create<arith::MulFOp>(loc, self, alpha);
       return b.create<arith::SubFOp>(loc, other, mult);
-    } else if (dtype.isa<mlir::IntegerType>()) {
+    } else if (isa<mlir::IntegerType>(dtype)) {
       Value mult = b.create<arith::MulIOp>(loc, self, alpha);
       return b.create<arith::SubIOp>(loc, other, mult);
     }
@@ -1268,9 +1268,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, operands[1], dtype);
-    if (dtype.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(dtype))
       return b.create<arith::MulFOp>(loc, lhs, rhs);
-    if (dtype.isa<mlir::IntegerType>())
+    if (isa<mlir::IntegerType>(dtype))
       return b.create<arith::MulIOp>(loc, lhs, rhs);
     mulScalar.emitError("unimplemented: Only integer/float dtype supported");
     return nullptr;
@@ -1303,7 +1303,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(divScalar.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    if (!dtype.isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(dtype)) {
       divScalar.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -1320,9 +1320,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value other = convertScalarToDtype(b, loc, operands[1], newResultType);
     Value result;
 
-    if (newResultType.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(newResultType)) {
       result = b.create<arith::RemFOp>(loc, self, other);
-    } else if (newResultType.isa<mlir::IntegerType>()) {
+    } else if (isa<mlir::IntegerType>(newResultType)) {
       result = b.create<arith::RemSIOp>(loc, self, other);
     } else {
       remScalar.emitError(
@@ -1340,9 +1340,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value other = convertScalarToDtype(b, loc, payloadArgs[1], newResultType);
     Value result;
 
-    if (newResultType.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(newResultType)) {
       result = b.create<arith::RemFOp>(loc, self, other);
-    } else if (newResultType.isa<mlir::IntegerType>()) {
+    } else if (isa<mlir::IntegerType>(newResultType)) {
       result = b.create<arith::RemSIOp>(loc, self, other);
     } else {
       remTensor.emitError(
@@ -1360,12 +1360,12 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value other = convertScalarToDtype(b, loc, payloadArgs[1], newResultType);
     Value result;
 
-    if (newResultType.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(newResultType)) {
       Value n = b.create<arith::DivFOp>(loc, self, other);
       n = b.create<math::TruncOp>(loc, n);
       Value n_y = b.create<arith::MulFOp>(loc, n, other);
       result = b.create<arith::SubFOp>(loc, self, n_y);
-    } else if (newResultType.isa<mlir::IntegerType>()) {
+    } else if (isa<mlir::IntegerType>(newResultType)) {
       Value n = b.create<arith::DivSIOp>(loc, self, other);
       Value n_y = b.create<arith::MulIOp>(loc, n, other);
       result = b.create<arith::SubIOp>(loc, self, n_y);
@@ -1406,7 +1406,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value value = convertScalarToDtype(b, loc, adaptor.getValue(), dtype);
 
     Value predicate;
-    if (dtype.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(dtype))
       predicate = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULE, self,
                                           threshold);
     else
@@ -1429,7 +1429,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value constantZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
 
     Value predicate;
-    if (dtype.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(dtype))
       predicate = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULE, self,
                                           threshold);
     else
@@ -1483,7 +1483,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type elementType = converter->convertType(bitwiseNot.getType())
                            .cast<RankedTensorType>()
                            .getElementType();
-    if (elementType.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(elementType)) {
       bitwiseNot.emitError("Bitwise_Not does not support floating point dtype");
       return nullptr;
     }
@@ -1538,12 +1538,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
 
     value = b.create<arith::SubIOp>(loc, value, zp);
-
-    if (torch_to_linalg::isUnsignedTorchType(qtensorTy)) {
-      value = b.create<arith::UIToFPOp>(loc, outFpTy, value);
-    } else {
-      value = b.create<arith::SIToFPOp>(loc, outFpTy, value);
-    }
+    // treat the i32 as a signed int regardless of original signed-ness
+    // this will prevent overflow from subtraction for unsigned quantizations.
+    value = b.create<arith::SIToFPOp>(loc, outFpTy, value);
 
     scale = converter->materializeTargetConversion(
         b, loc, converter->convertType(scale.getType()), scale);
@@ -2314,7 +2311,7 @@ public:
     auto inputType = input.getType().cast<RankedTensorType>();
     auto inputElementType = inputType.getElementType();
 
-    if (!inputElementType.isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(inputElementType)) {
       op.emitError("Logit does not support non-floating point type");
       return failure();
     }

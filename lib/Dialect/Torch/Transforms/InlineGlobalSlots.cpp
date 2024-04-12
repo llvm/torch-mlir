@@ -183,13 +183,13 @@ LogicalResult InlineGlobalSlotsAnalysis::initialize(Operation *top) {
 }
 
 LogicalResult InlineGlobalSlotsAnalysis::visit(ProgramPoint point) {
-  if (Value value = point.dyn_cast<Value>()) {
+  if (Value value = dyn_cast<Value>(point)) {
     bool isSafe = isValueSafeTransferFunction(value);
     auto *state = getOrCreate<InlineGlobalSlotsAnalysisState>(value);
     propagateIfChanged(state, state->setSafe(isSafe));
 
     // Handle GlobalSlotGetOp's.
-    if (auto opResult = value.dyn_cast<OpResult>()) {
+    if (auto opResult = dyn_cast<OpResult>(value)) {
       if (auto globalSlotGet =
               dyn_cast<Torch::GlobalSlotGetOp>(opResult.getOwner())) {
         auto *flatSymbolRefPoint = getProgramPoint<FlatSymbolRefProgramPoint>(
@@ -205,7 +205,7 @@ LogicalResult InlineGlobalSlotsAnalysis::visit(ProgramPoint point) {
 
     return success();
   }
-  if (auto *genericProgramPoint = point.dyn_cast<GenericProgramPoint *>()) {
+  if (auto *genericProgramPoint = dyn_cast<GenericProgramPoint *>(point)) {
     if (auto *flatSymbolRefPoint =
             dyn_cast<FlatSymbolRefProgramPoint>(genericProgramPoint)) {
       if (initializeGlobalSlotsOp) {
@@ -396,7 +396,7 @@ class InlineGlobalSlotsPass
     // This could be left to SymbolDCE but it's not hard to do here.
     for (FlatSymbolRefAttr symName :
          llvm::map_range(safeToInline, [](Attribute attr) {
-           return attr.cast<FlatSymbolRefAttr>();
+           return cast<FlatSymbolRefAttr>(attr);
          })) {
       auto globalSlot =
           symbolTable.lookup<Torch::GlobalSlotOp>(symName.getValue());

@@ -1287,7 +1287,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.getLoc(), axisScalar, finalOffset);
 
         Torch::BaseTensorType resultTensorType =
-            resultType.cast<Torch::BaseTensorType>();
+            cast<Torch::BaseTensorType>(resultType);
         if (!resultTensorType.hasDtype()) {
           return rewriter.notifyMatchFailure(
               binder.op, "expected result type to have a dtype");
@@ -1899,7 +1899,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
         // If its a dense resource attr we need to convert to a dense type:
         if (DenseResourceElementsAttr rattr =
-                attr.dyn_cast_or_null<DenseResourceElementsAttr>()) {
+                dyn_cast_or_null<DenseResourceElementsAttr>(attr)) {
           // Bytes are stored in little endian order. Big endian support will
           // require swizzling.
           if (!Endian::little) {
@@ -1916,7 +1916,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
         Attribute splattr;
         if (isa<SplatElementsAttr>(attr)) {
-          auto denseAttr = attr.cast<DenseElementsAttr>();
+          auto denseAttr = cast<DenseElementsAttr>(attr);
           splattr = denseAttr.getSplatValue<Attribute>();
         }
 

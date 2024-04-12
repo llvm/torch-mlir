@@ -272,9 +272,9 @@ public:
         convertScalarToDtype(rewriter, loc, adaptor.getA(), resultType);
     Value operandB =
         convertScalarToDtype(rewriter, loc, adaptor.getB(), resultType);
-    if (resultType.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(resultType)) {
       rewriter.replaceOpWithNewOp<arith::AddFOp>(op, operandA, operandB);
-    } else if (resultType.isa<mlir::IntegerType>()) {
+    } else if (isa<mlir::IntegerType>(resultType)) {
       rewriter.replaceOpWithNewOp<arith::AddIOp>(op, operandA, operandB);
     } else {
       return rewriter.notifyMatchFailure(

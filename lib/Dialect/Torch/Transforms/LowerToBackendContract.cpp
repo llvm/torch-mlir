@@ -46,14 +46,14 @@ static LogicalResult checkType(Operation *op, Type type,
   // can statically pattern match and eliminate from the program.
   // For example, a tensor operand might be optional, and the backend
   // will pattern-match statically whether it is passed as a tensor or None.
-  if (type.isa<Torch::NoneType, Torch::StringType>())
+  if (isa<Torch::NoneType, Torch::StringType>(type))
     return success();
 
   // We blanket prohibit non-value-semantic tensors.
   // All of our backends are currently based on value-semantic tensors, so
   // we consider it our responsibility to lower all non-value-semantic tensors
   // to value-semantic tensors.
-  if (type.isa<NonValueTensorType>()) {
+  if (isa<NonValueTensorType>(type)) {
     if (actuallyEmitDiagnostics) {
       return op
           ->emitError("unsupported by backend contract: non-value tensor type")
@@ -84,7 +84,7 @@ static LogicalResult checkType(Operation *op, Type type,
   // have an sufficiently rich system for representing PyTorch type promotion
   // rules. So we consider it our responsibility to ensure that all dtypes are
   // statically known.
-  if (auto tensorType = type.dyn_cast<ValueTensorType>()) {
+  if (auto tensorType = dyn_cast<ValueTensorType>(type)) {
     if (!tensorType.hasSizes()) {
       if (actuallyEmitDiagnostics) {
         return op
@@ -115,7 +115,7 @@ static LogicalResult checkType(Operation *op, Type type,
   // Optional types are also in the category of types which we don't expect
   // backends to dynamically compute with, but they can be pattern matched
   // in many cases that are practically necessary.
-  if (auto optionalType = type.dyn_cast<OptionalType>()) {
+  if (auto optionalType = dyn_cast<OptionalType>(type)) {
     // TODO: Be stricter about tensor types.
     // See comment below for ListType.
     if (optionalType.getContainedType().isa<ValueTensorType>())
@@ -127,7 +127,7 @@ static LogicalResult checkType(Operation *op, Type type,
   // backends to dynamically compute with, but they can be pattern matched
   // in many cases that are practically necessary. For example, the
   // strides of a convolution op are represented as a list.
-  if (auto listType = type.dyn_cast<ListType>()) {
+  if (auto listType = dyn_cast<ListType>(type)) {
     // TODO: Be stricter about tensor types.
     // For the moment, there are cases (such as for torch.cat) where we end
     // up with `!torch.list<vtensor>` which doesn't have shape or dtype in
@@ -141,7 +141,7 @@ static LogicalResult checkType(Operation *op, Type type,
   // Tuple types are also in the category of types which we don't expect
   // backends to dynamically compute with, but they can be pattern matched
   // in many cases that are practically necessary.
-  if (auto tupleType = type.dyn_cast<Torch::TupleType>()) {
+  if (auto tupleType = dyn_cast<Torch::TupleType>(type)) {
     for (auto containedType : tupleType.getContainedTypes()) {
       if (failed(checkType(op, containedType, actuallyEmitDiagnostics)))
         return failure();

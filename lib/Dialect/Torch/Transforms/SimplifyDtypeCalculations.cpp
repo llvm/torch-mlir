@@ -53,8 +53,9 @@ static LogicalResult refineDtypeCalculateResult(DtypeCalculateOp op,
           op, "Failed to convert `dtypeScalarType` to a builtin type");
     }
     impliedTypeFromDtype =
-        originalResultType.cast<BaseTensorType>().getWithSizesAndDtype(
-            originalResultType.getOptionalSizes(), *builtinType);
+        cast<BaseTensorType>(originalResultType)
+            .getWithSizesAndDtype(originalResultType.getOptionalSizes(),
+                                  *builtinType);
   } else {
     return rewriter.notifyMatchFailure(op,
                                        "Unimplemented: Expected result type to "
@@ -179,7 +180,7 @@ public:
     }
     Type inputType = getBuiltInTypeForTorchScalar(op.getA().getType());
     auto impliedTypeFromInputType =
-        originalResultType.cast<BaseTensorType>()
+        cast<BaseTensorType>(originalResultType)
             .getWithSizesAndDtype(originalResultType.getOptionalSizes(),
                                   inputType)
             .cast<BaseTensorType>();

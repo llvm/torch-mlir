@@ -130,7 +130,7 @@ public:
     RankedTensorType resultType = self.getType().cast<RankedTensorType>();
     Type elemTy = resultType.getElementType();
 
-    if (!elemTy.isa<mlir::FloatType>())
+    if (!isa<mlir::FloatType>(elemTy))
       return rewriter.notifyMatchFailure(op, "This op only support float type");
 
     if (!generator.getType().isa<Torch::NoneType>())

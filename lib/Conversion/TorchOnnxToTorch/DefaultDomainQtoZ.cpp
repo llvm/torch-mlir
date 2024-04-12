@@ -1366,7 +1366,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // set the splitted axis to variable shape
         llvm::SmallVector<int64_t> intermediateShape(result0Ty.getSizes());
         for (auto result : binder.op->getResultTypes()) {
-          int64_t d = result.cast<Torch::ValueTensorType>().getSizes()[dim];
+          int64_t d = cast<Torch::ValueTensorType>(result).getSizes()[dim];
           intermediateShape[dim] = d == intermediateShape[dim] ? d : -1;
         }
 
@@ -1437,7 +1437,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         llvm::SmallVector<int64_t> intermediateShape(result0Ty.getSizes());
         for (auto result : binder.op->getResultTypes()) {
-          int64_t d = result.cast<Torch::ValueTensorType>().getSizes()[dim];
+          int64_t d = cast<Torch::ValueTensorType>(result).getSizes()[dim];
           intermediateShape[dim] = d == intermediateShape[dim] ? d : -1;
         }
 
