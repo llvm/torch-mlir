@@ -95,7 +95,7 @@ public:
 
     // get outputs
     Type newResultType = getTypeConverter()->convertType(op.getType(0));
-    auto resultType = newResultType.cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(newResultType);
     if (!resultType) {
       return failure();
     }

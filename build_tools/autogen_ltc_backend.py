@@ -123,12 +123,12 @@ class GenTorchMlirLTC:
         self.generated_path.mkdir(parents=True, exist_ok=True)
 
         # Create symlink to match doc structure
-        generated_path = self.backend_path.joinpath("generated").resolve()
-        if not generated_path.exists():
-            generated_path.symlink_to(
-                os.path.relpath(self.generated_path, generated_path.parent),
-                target_is_directory=True,
-            )
+        generated_path = self.backend_path.joinpath("generated")
+        generated_path.unlink(missing_ok=True)
+        generated_path.symlink_to(
+            os.path.relpath(self.generated_path, generated_path.parent),
+            target_is_directory=True,
+        )
 
         self.tensor_class = "torch::lazy::LazyTensor"
 
@@ -350,7 +350,15 @@ class GenTorchMlirLTC:
         def extract_signatures(text):
             signatures = set()
             for name, args in sig_re.findall(text):
+                # Remove all whitespace from signature
                 signature = re.sub(r"\s+", "", f"{name}({args})")
+                # Ignore optional's namespace
+                signature = re.sub(r":*\w*:*optional", "optional", signature)
+                # Remove const type qualifier
+                signature = re.sub(r"const", "", signature)
+                # Remove type reference
+                signature = re.sub(r"&", "", signature)
+
                 global_signatures[signature] = (name, args)
                 signatures.add(signature)
             return signatures

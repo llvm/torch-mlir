@@ -49,7 +49,7 @@ allocateBuffersForResults(Location loc, TMTensorOp tmtensorOp,
     size_t resultIndex = en.index();
     Type resultType = en.value();
 
-    auto tensorType = resultType.dyn_cast<RankedTensorType>();
+    auto tensorType = dyn_cast<RankedTensorType>(resultType);
     if (tensorType == nullptr) {
       tmtensorOp.emitOpError()
           << "tensor to buffer conversion expects ranked tensor results";

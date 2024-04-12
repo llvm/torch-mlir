@@ -70,8 +70,8 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
     return torch_upstream::ScalarType::QInt8;
   if (type.isa<QInt32Type>())
     return torch_upstream::ScalarType::QInt32;
-  if (type.isa<ComplexType>()) {
-    mlir::Type complexElemType = type.cast<ComplexType>().getElementType();
+  if (isa<ComplexType>(type)) {
+    mlir::Type complexElemType = cast<ComplexType>(type).getElementType();
     if (complexElemType.isF16())
       return torch_upstream::ScalarType::ComplexHalf;
     if (complexElemType.isF32())
@@ -84,9 +84,9 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
 Type Torch::getTypeForTorchType(
     MLIRContext *context, Type type,
     mlir::IntegerType::SignednessSemantics signedness) {
-  if (type.isa<Torch::IntType>())
+  if (isa<Torch::IntType>(type))
     return IntegerType::get(context, 64, signedness);
-  if (type.isa<Torch::FloatType>())
+  if (isa<Torch::FloatType>(type))
     return Float64Type::get(context);
   llvm::report_fatal_error("unhandled type for getTypeForTorchType");
 }
@@ -150,14 +150,14 @@ Torch::getTorchTypeForScalarType(MLIRContext *context,
 
 Type Torch::getDefaultDtypeForTorchScalar(Type type) {
   MLIRContext *context = type.getContext();
-  if (type.isa<Torch::FloatType>()) {
+  if (isa<Torch::FloatType>(type)) {
     // For now, use float32 which is the initial default dtype returned by
     // `torch.get_default_dtype`.
     return Float32Type::get(context);
   }
-  if (type.isa<Torch::IntType>())
+  if (isa<Torch::IntType>(type))
     return IntegerType::get(context, 64, IntegerType::Signed);
-  if (type.isa<Torch::BoolType>())
+  if (isa<Torch::BoolType>(type))
     return IntegerType::get(context, 1);
   llvm_unreachable(
       "getDefaultDtypeForTorchScalar called on an unsupported type");
@@ -165,11 +165,11 @@ Type Torch::getDefaultDtypeForTorchScalar(Type type) {
 
 Type Torch::getBuiltInTypeForTorchScalar(Type type) {
   MLIRContext *context = type.getContext();
-  if (type.isa<Torch::FloatType>())
+  if (isa<Torch::FloatType>(type))
     return Float64Type::get(context);
-  if (type.isa<Torch::IntType>())
+  if (isa<Torch::IntType>(type))
     return IntegerType::get(context, 64, IntegerType::Signed);
-  if (type.isa<Torch::BoolType>())
+  if (isa<Torch::BoolType>(type))
     return IntegerType::get(context, 1);
   llvm_unreachable(
       "getBuiltInTypeForTorchScalar called on an unsupported type");
