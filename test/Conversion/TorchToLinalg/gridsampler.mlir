@@ -58,3 +58,34 @@ func.func @grid_sampler2(%arg0: !torch.vtensor<[?,?,?,?],f32>, %arg1: !torch.vte
   %4 = torch.aten.grid_sampler %arg0, %arg1, %int0, %int1, %true : !torch.vtensor<[?,?,?,?],f32>, !torch.vtensor<[?,?,?,?],f32>, !torch.int, !torch.int, !torch.bool -> !torch.vtensor<[?,?,?,?],f32>
   return %4 : !torch.vtensor<[?,?,?,?],f32>
 }
+
+// -----
+
+// -----
+
+// CHECK-LABEL: func @grid_sampler3
+// CHECK: #map
+// CHECK-DAG:  %[[X15:.*]] = arith.mulf %[[X13:.*]], %[[X8:.*]] : f32
+// CHECK-DAG:  %[[X16:.*]] = arith.mulf %[[X14:.*]], %[[X9:.*]] : f32
+// CHECK-DAG:  %[[X40:.*]] = arith.mulf %[[EXTRACTED:.*]], %[[X39:.*]] : f32
+// CHECK-DAG:  %[[X41:.*]] = arith.mulf %[[X31:.*]], %[[X37:.*]] : f32
+// CHECK-DAG:  %[[X42:.*]] = arith.addf %[[X40:.*]], %[[X41]] : f32
+// CHECK-DAG:   %[[X43:.*]] = arith.subf %[[CST_1:.*]], %[[X37]] : f32
+// CHECK-DAG:   %[[X45:.*]] = arith.mulf %[[X34:.*]], %[[X37]] : f32
+// CHECK-DAG:   %[[X46:.*]] = arith.addf %[[X44:.*]], %[[X45]] : f32
+// CHECK-DAG:   %[[X47:.*]] = arith.subf %[[CST_1]], %[[X38:.*]] : f32
+// CHECK-DAG:   %[[X48:.*]] = arith.mulf %[[X42]], %[[XX47:.*]] : f32
+// CHECK-DAG:   %[[X49:.*]] = arith.mulf %[[X46]], %[[XX38:.*]] : f32
+// CHECK-DAG:   %[[X50:.*]] = arith.addf %[[X48]], %[[X49]] : f32
+// CHECK-DAG:   linalg.yield %[[X50]] : f32
+// CHECK: } -> tensor<?x?x?x?xf32>
+// CHECK: %[[X12:.*]] = torch_c.from_builtin_tensor %[[X11:.*]] : tensor<?x?x?x?xf32> -> !torch.vtensor<[?,?,?,?],f32>
+// CHECK: return %[[X12]] : !torch.vtensor<[?,?,?,?],f32>
+func.func @grid_sampler3(%arg0: !torch.vtensor<[?,?,?,?],f32>, %arg1: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,?,?],f32> {
+  %true = torch.constant.bool 1
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 0
+  %4 = torch.aten.grid_sampler %arg0, %arg1, %int0, %int1, %true : !torch.vtensor<[?,?,?,?],f32>, !torch.vtensor<[?,?,?,?],f32>, !torch.int, !torch.int, !torch.bool -> !torch.vtensor<[?,?,?,?],f32>
+  return %4 : !torch.vtensor<[?,?,?,?],f32>
+}
+

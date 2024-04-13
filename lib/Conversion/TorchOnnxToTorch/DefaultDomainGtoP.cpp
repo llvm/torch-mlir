@@ -140,9 +140,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (binder.s64IntegerAttr(align, "align_corners", 0))
           return rewriter.notifyMatchFailure(binder.op,
                                              "align_corners bind failure");
-        if (align != 1)
-          return rewriter.notifyMatchFailure(
-              binder.op, "currently only align_corners = 1 supported");
+        //if (align != 1)
+        //  return rewriter.notifyMatchFailure(
+        //      binder.op, "currently only align_corners = 1 supported");
 
         Value interpolationMode = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
@@ -150,9 +150,18 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value paddingMode = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
-        Value alignCorners = rewriter.create<Torch::ConstantBoolOp>(
+
+        Value alignCorners; 
+        if (align == 1)
+          alignCorners = rewriter.create<Torch::ConstantBoolOp>(
             binder.getLoc(), rewriter.getType<Torch::BoolType>(),
             rewriter.getBoolAttr(false));
+
+        if (align == 0)
+          alignCorners = rewriter.create<Torch::ConstantBoolOp>(
+            binder.getLoc(), rewriter.getType<Torch::BoolType>(),
+            rewriter.getBoolAttr(true));
+
 
         rewriter.replaceOpWithNewOp<Torch::AtenGridSamplerOp>(
             binder.op, resultType, input, grid, interpolationMode, paddingMode,

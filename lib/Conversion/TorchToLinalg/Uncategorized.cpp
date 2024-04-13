@@ -2543,6 +2543,10 @@ public:
       resultSize.push_back(rewriter.create<tensor::DimOp>(loc, grid, 1));
     if (resultType.isDynamicDim(3))
       resultSize.push_back(rewriter.create<tensor::DimOp>(loc, grid, 2));
+
+    Value alignCorners = adaptor.getAlignCorners();  // no idea 
+
+
     Value resultFinal =
         rewriter.create<tensor::EmptyOp>(loc, resultType, resultSize);
     auto sGrid = rewriter.create<linalg::GenericOp>(
@@ -2551,10 +2555,32 @@ public:
         [&](OpBuilder &b, Location loc, ValueRange args) {
           Value gr0 = args[1];
           Value gr1 = args[0];
+
+
+          Value gr0Half = b.create<arith::DivFOp>(loc, gr0, twoFloat);
+          Value gr1Half = b.create<arith::DivFOp>(loc, gr1, twoFloat);
+          
+          Value gr0HalfSelect =
+              b.create<arith::SelectOp>(loc, alignCorners, gr0Half, zeroFloat);
+
+          Value gr1HalfSelect =
+              b.create<arith::SelectOp>(loc, alignCorners, gr1Half, zeroFloat);
+
+
+
           Value gplus0 = b.create<arith::AddFOp>(loc, gr0, oneFloat);
           Value gplus1 = b.create<arith::AddFOp>(loc, gr1, oneFloat);
-          Value result0 = b.create<arith::MulFOp>(loc, gplus0, innerDim0e);
-          Value result1 = b.create<arith::MulFOp>(loc, gplus1, innerDim1e);
+          Value gPlusMul0 = b.create<arith::MulFOp>(loc, gplus0, innerDim0e);
+          Value gPlusMul1 = b.create<arith::MulFOp>(loc, gplus1, innerDim1e);
+
+          // add another gr0 / 2 to the result for the align corner mode 
+
+
+          Value result0 =  b.create<arith::AddFOp>(loc, gPlusMul0, gr0HalfSelect);
+          Value result1 =  b.create<arith::AddFOp>(loc, gPlusMul1, gr1HalfSelect);
+          
+
+
           Value lower0 = b.create<arith::FPToSIOp>(loc, int64type, result0);
           Value lower1 = b.create<arith::FPToSIOp>(loc, int64type, result1);
           Value oneInt =
