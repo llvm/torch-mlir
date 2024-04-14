@@ -4257,7 +4257,25 @@ class Aten_CastFloatModule(torch.nn.Module):
 def Aten_CastFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(2, 4))
 
+
+class Aten_CastLongModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 4], torch.float32, True),
+    ])
+
+    def forward(self, val):
+        return torch.ops.aten._cast_Long(val)
     
+@register_test_case(module_factory=lambda: Aten_CastLongModule())
+def Aten_CastLongModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4))
+
+
 # ==============================================================================
 
 class UpSampleNearest2dBackward(torch.nn.Module):

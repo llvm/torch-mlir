@@ -394,6 +394,9 @@ def aten〇to〇other〡shape(self: List[int], other: List[int], non_blocking: b
 def aten〇_cast_Float〡shape(self: List[int], non_blocking: bool = False) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇_cast_Long〡shape(self: List[int], non_blocking: bool = False) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇type_as〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -4332,6 +4335,9 @@ def aten〇to〇other〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype
 
 def aten〇_cast_Float〡dtype(self_rank_dtype: Tuple[int, int], non_blocking: bool = False) -> int:
     return torch.float32
+
+def aten〇_cast_Long〡dtype(self_rank_dtype: Tuple[int, int], non_blocking: bool = False) -> int:
+    return torch.int64
 
 @check_dtype_function(_check_two_tensor_op())
 def aten〇type_as〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:

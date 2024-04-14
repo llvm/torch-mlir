@@ -10997,6 +10997,31 @@ def Torch_Aten_CastFloatOp : Torch_Op<"aten._cast_Float", [
   let hasCanonicalizer = 1;
 }
 
+def Torch_Aten_CastLongOp : Torch_Op<"aten._cast_Long", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_cast_Long : (Tensor, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_BoolType:$non_blocking
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_CastLongOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void Aten_CastLongOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasCanonicalizer = 1;
+}
+
 def Torch_AtenTypeAsOp : Torch_Op<"aten.type_as", [
     AllowsTypeRefinement,
     HasValueSemantics,
