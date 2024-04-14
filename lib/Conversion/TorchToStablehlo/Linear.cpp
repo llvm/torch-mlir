@@ -183,7 +183,7 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
   SmallVector<int64_t> lhsBroadcastDims;
   SmallVector<int64_t> rhsBroadcastDims;
   SmallVector<int64_t> newBatchShape;
-  for (size_t i = 0; i < resultRank - 2; i++) {
+  for (int64_t i = 0; i < resultRank - 2; i++) {
     if (lhsShape[i] != rhsShape[i]) {
       if (lhsShape[i] == 1) {
         lhsBroadcastDims.push_back(i);
