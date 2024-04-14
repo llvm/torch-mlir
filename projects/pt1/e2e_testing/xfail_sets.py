@@ -2497,7 +2497,12 @@ ONNX_XFAIL_SET = {
     "TensorsStackPromoteDTypeModule_basic",
 
     # Failure - "RuntimeError: linalg.cross: inputs dimension 1 must have length 3. Got 1 and 1"
-    "AtenLinalgCrossDynamic_basic"
+    "AtenLinalgCrossDynamic_basic",
+
+    # Failure - value not close to golden value (op is incorrectly truncating) 
+    "ElementwiseAtenFloorDivideTensorNegativeModule_basic",
+    "ElementwiseAtenFloorDivideScalarNegativeModule_basic",
+
 }
 
 ONNX_CRASHING_SET = { 
