@@ -181,15 +181,12 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
   rhsShape = rhs.getType().cast<RankedTensorType>().getShape();
 
   // check shape compatibility, check if we should broadcast
-
-  // first, we should got a new shape. Check from (0, shape - 2)
+  // first, we should got a new batch shape. Check from (0, nBatchDims)
   SmallVector<int64_t> lhsBroadcastDims;
   SmallVector<int64_t> rhsBroadcastDims;
   SmallVector<int64_t> newBatchShape;
 
   for (int64_t i = 0; i < nBatchDims; i++) {
-    llvm::errs() << "lhsShape[i] == " << lhsShape[i] << "\n";
-    llvm::errs() << "rhsShape[i] == " << rhsShape[i] << "\n";
     if (lhsShape[i] != rhsShape[i]) {
       if (lhsShape[i] == 1) {
         lhsBroadcastDims.push_back(i);
@@ -198,7 +195,7 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
         rhsBroadcastDims.push_back(i);
         newBatchShape.push_back(lhsShape[i]);
       } else {
-        assert(false && "shape mismatch");
+        assert(false && "shape mismatch in matmul op");
       }
     } else {
       newBatchShape.push_back(lhsShape[i]);
