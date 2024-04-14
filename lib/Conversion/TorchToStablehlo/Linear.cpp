@@ -134,6 +134,7 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
 
   auto lhsRank = lhsRankTy.getRank();
   auto rhsRank = rhsRankTy.getRank();
+  int64_t nBatchDims = std::max(lhsRank - 2, rhsRank - 2);
 
   // The non-matrix (i.e. batch) dimensions are broadcasted (and thus must be
   // broadcastable).
@@ -170,20 +171,25 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
                              broadcastDims);
   }
 
+  if (lhsRank <= 2 || rhsRank <= 2) {
+    inpLhs = lhs;
+    inpRhs = rhs;
+    return;
+  }
+
   lhsShape = lhs.getType().cast<RankedTensorType>().getShape();
   rhsShape = rhs.getType().cast<RankedTensorType>().getShape();
-  assert(lhsShape.size() == rhsShape.size());
-
-  int64_t resultRank = lhsShape.size();
 
   // check shape compatibility, check if we should broadcast
 
   // first, we should got a new shape. Check from (0, shape - 2)
-  // TODO: add dot 1dx1d, 1dx2d, 2dx1d
   SmallVector<int64_t> lhsBroadcastDims;
   SmallVector<int64_t> rhsBroadcastDims;
   SmallVector<int64_t> newBatchShape;
-  for (int64_t i = 0; i < resultRank - 2; i++) {
+
+  for (int64_t i = 0; i < nBatchDims; i++) {
+    llvm::errs() << "lhsShape[i] == " << lhsShape[i] << "\n";
+    llvm::errs() << "rhsShape[i] == " << rhsShape[i] << "\n";
     if (lhsShape[i] != rhsShape[i]) {
       if (lhsShape[i] == 1) {
         lhsBroadcastDims.push_back(i);
@@ -199,30 +205,38 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
     }
   }
 
+  if (lhsBroadcastDims.empty() && rhsBroadcastDims.empty()) {
+    inpLhs = lhs;
+    inpRhs = rhs;
+    return;
+  }
+
   auto lhsDimSizes =
       *hlo::getDimSizesOfTensor(rewriter, op, lhs, dimSizeIndexBits);
   auto rhsDimSizes =
       *hlo::getDimSizesOfTensor(rewriter, op, rhs, dimSizeIndexBits);
 
-  broadcastDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, resultRank));
-
   if (!lhsBroadcastDims.empty()) {
     SmallVector<int64_t> lhsNewShape(newBatchShape);
-    lhsNewShape.insert(lhsNewShape.end(),
-                       lhsShape.begin() + lhsShape.size() - 2, lhsShape.end());
+    lhsNewShape.insert(lhsNewShape.end(), lhsShape.begin() + nBatchDims,
+                       lhsShape.end());
     for (auto i : lhsBroadcastDims) {
       lhsDimSizes[i] = rhsDimSizes[i];
     }
+    broadcastDims =
+        llvm::to_vector<4>(llvm::seq<int64_t>(0, lhsNewShape.size()));
     lhs = getBroadcastTensor(rewriter, op, lhs, lhsNewShape, lhsDimSizes,
                              broadcastDims);
   }
   if (!rhsBroadcastDims.empty()) {
     SmallVector<int64_t> rhsNewShape(newBatchShape);
-    rhsNewShape.insert(rhsNewShape.end(),
-                       rhsShape.begin() + rhsShape.size() - 2, rhsShape.end());
+    rhsNewShape.insert(rhsNewShape.end(), rhsShape.begin() + nBatchDims,
+                       rhsShape.end());
     for (auto i : rhsBroadcastDims) {
       rhsDimSizes[i] = lhsDimSizes[i];
     }
+    broadcastDims =
+        llvm::to_vector<4>(llvm::seq<int64_t>(0, rhsNewShape.size()));
     rhs = getBroadcastTensor(rewriter, op, rhs, rhsNewShape, rhsDimSizes,
                              broadcastDims);
   }
