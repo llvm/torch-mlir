@@ -28,6 +28,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include <numeric>
+#include <type_traits>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -437,6 +438,12 @@ public:
     }
 
     auto rewriteDivFloor = [&](auto &op) {
+      using OpType = std::decay_t<decltype(op)>;
+      static_assert(std::is_same_v<OpType, AtenDivScalarModeOp> ||
+                        std::is_same_v<OpType, AtenDivTensorModeOp>,
+                    "Invalid type for op. op must be of type "
+                    "AtenDivScalarModeOp or AtenDivTensorModeOp.");
+
       std::string roundingMode;
       if (!matchPattern(op.getRoundingMode(), m_TorchConstantStr(roundingMode)))
         return rewriter.notifyMatchFailure(
