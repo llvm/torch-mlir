@@ -244,6 +244,8 @@ TORCHDYNAMO_XFAIL_SET = {
     "ElementwiseSubScalarIntModule_basic",
 
     # ERROR: Exception: Unsupported: missing default value for argument 0 in schema for aten.div.Tensor_mode
+    "ElementwiseAtenFloorDivideScalarNegativeModule_basic",
+    "ElementwiseAtenFloorDivideScalarModule_basic",
     "ElementwiseDivTensorRoundingModeFloorModule_basic",
     "ElementwiseDivTensorRoundingModeTruncModule_basic",
     "ElementwiseDivTensorRoundingModeFloorStaticModule_basic",
