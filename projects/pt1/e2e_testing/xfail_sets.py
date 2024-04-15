@@ -24,6 +24,11 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "SplitWithSizes_Module_basic",
 }
 
+LINALG_CRASHING_SET = {
+    # Crashes due to copy to small buffer than input.
+    "SliceCopyStartGreaterThanDimSize_Module_basic",
+}
+
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
 

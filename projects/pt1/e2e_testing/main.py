@@ -32,6 +32,7 @@ from torch_mlir_e2e_test.stablehlo_backends.linalg_on_tensors import LinalgOnTen
 
 from .xfail_sets import (
     LINALG_XFAIL_SET,
+    LINALG_CRASHING_SET,
     MAKE_FX_TOSA_PASS_SET,
     STABLEHLO_PASS_SET,
     STABLEHLO_CRASHING_SET,
@@ -99,7 +100,7 @@ def main():
     if args.config == "linalg":
         config = LinalgOnTensorsBackendTestConfig(RefBackendLinalgOnTensorsBackend())
         xfail_set = LINALG_XFAIL_SET
-        crashing_set = set()
+        crashing_set = LINALG_CRASHING_SET
     elif args.config == "stablehlo":
         config = StablehloBackendTestConfig(LinalgOnTensorsStablehloBackend())
         xfail_set = all_test_unique_names - STABLEHLO_PASS_SET
