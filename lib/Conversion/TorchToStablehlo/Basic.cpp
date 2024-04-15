@@ -432,7 +432,7 @@ public:
     Value result =
         rewriter.create<ChloOpT>(loc, outType, lhs, rhs, bcastDimensions);
 
-    if (!std::is_same<AtenDivTensorModeOp, AtenOpT>() ||
+    if (!std::is_same<AtenDivTensorModeOp, AtenOpT>() &&
         !std::is_same<AtenDivScalarModeOp, AtenOpT>()) {
       rewriter.replaceOp(op, result);
       return success();
