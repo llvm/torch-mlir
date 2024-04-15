@@ -26,7 +26,6 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APSInt.h"
 #include <cassert>
-#include <iostream>
 #include <numeric>
 #include <type_traits>
 
