@@ -1901,8 +1901,6 @@ LTC_XFAIL_SET = {
 
 ONNX_XFAIL_SET = {
 
-    "QuantizedMLP_basic",
-
     # Failure - cast error
     "PermuteNegativeIndexModule_basic",
 
