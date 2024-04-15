@@ -2035,7 +2035,6 @@ ONNX_XFAIL_SET = {
     "RandModule_basic",
 
     # Failure - onnx_lowering: onnx.ReduceL1
-    "ReduceL1NormWithDTypeModule_basic",
     "ReduceL1NormComplexModule_basic",
 
     # Failure - onnx_lowering: onnx.ReduceL2
@@ -2172,6 +2171,13 @@ ONNX_XFAIL_SET = {
     # Failure - "RuntimeError: linalg.cross: inputs dimension 1 must have length 3. Got 1 and 1"
     "AtenLinalgCrossDynamic_basic"
 }
+
+if torch_version_for_comparison() >= version.parse("2.4.0.dev"):
+    ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
+        # ERROR: Found dtype (torch.float64) but expected (torch.float32)
+        "ReduceL1NormWithDTypeModule_basic",
+    }
+
 
 ONNX_CRASHING_SET = { 
     "FakeQuantizePerTensorAffineModule_basic",

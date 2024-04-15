@@ -40,14 +40,16 @@ Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
                                             rewriter.getType<T>(), ofItem);
 }
 
-// originalOperand is explicitly passed to handle the case where ReduceSum
-// was not the first operation performed on the operand, the original value of
-// which we might need for noop_with_empty_axes handling.
-LogicalResult
-reducedSumImpl(OpBinder binder, ConversionPatternRewriter &rewriter, Value data,
-               Value originalOperand, Torch::ValueTensorType resultType,
-               Value &storeResult, int64_t keepDims,
-               int64_t noop_with_empty_axes, bool isIntermediateOp) {
+// In case the ReduceSum Op was not the first operation performed on the data,
+// we provide the original operand through storeResult, which will be modified
+// if the result will be passed onto another operation, and will be used for
+// noop_with_empty_axes handling before that.
+LogicalResult reducedSumImpl(OpBinder binder,
+                             ConversionPatternRewriter &rewriter, Value data,
+                             Torch::ValueTensorType resultType,
+                             Value &storeResult, int64_t keepDims,
+                             int64_t noop_with_empty_axes,
+                             bool isIntermediateOp) {
 
   SmallVector<Value> axesList;
   Value axesVal;
@@ -133,7 +135,7 @@ reducedSumImpl(OpBinder binder, ConversionPatternRewriter &rewriter, Value data,
 
   // Do not include absolute value in the noop
   if (axesList.empty() && noop_with_empty_axes) {
-    rewriter.replaceOp(binder.op, originalOperand);
+    rewriter.replaceOp(binder.op, storeResult);
     return success();
   }
 
@@ -892,7 +894,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value data = rewriter.create<Torch::AtenAbsOp>(
             binder.getLoc(), operand.getType(), operand);
 
-        return reducedSumImpl(binder, rewriter, data, operand, resultType,
+        return reducedSumImpl(binder, rewriter, data, resultType,
                               /*storeValue=*/operand, keepDims,
                               noop_with_empty_axes, false);
       });
@@ -908,9 +910,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                             "noop_with_empty_axes", 0))
                     return failure();
 
-                  return reducedSumImpl(binder, rewriter, data, data,
-                                        resultType, /*storeValue=*/data,
-                                        keepDims, noop_with_empty_axes, false);
+                  return reducedSumImpl(binder, rewriter, data, resultType,
+                                        /*storeValue=*/data, keepDims,
+                                        noop_with_empty_axes, false);
                 });
   patterns.onOp(
       "ReduceMean", 1,
