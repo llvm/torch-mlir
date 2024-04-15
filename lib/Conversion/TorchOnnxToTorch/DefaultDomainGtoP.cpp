@@ -15,6 +15,10 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::onnx_c;
 
+// debug
+#include "llvm/Support/Debug.h"
+#define DEBUG_TYPE "torch-onnx-to-torch-patterns"
+
 // Simple rewrites for the default domain.
 // See: https://onnx.ai/onnx/operators/
 // For operators that are effectively version invariant, we register with
@@ -157,6 +161,99 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         rewriter.replaceOpWithNewOp<Torch::AtenGridSamplerOp>(
             binder.op, resultType, input, grid, interpolationMode, paddingMode,
             alignCorners);
+        return success();
+      });
+  patterns.onOp(
+      "If", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // dump op
+        llvm::dbgs() << "If Op: \n";
+        binder.op->dump();
+        llvm::dbgs() << "End of If Op\n";
+
+        // Extract the condition from the input
+        Value conditionTensor;
+        if (binder.tensorOperand(conditionTensor)) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "condition bind failure");
+        }
+
+        // condition always has a single element
+        auto conditionType =
+            conditionTensor.getType().cast<Torch::ValueTensorType>();
+        if (!conditionType || conditionType.getSizes().size() != 1) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "condition must have one single element");
+        }
+        // get item
+        auto conditionInt = rewriter.create<Torch::AtenItemOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            conditionTensor);
+        auto conditionBool = rewriter.create<Torch::AtenBoolIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::BoolType>(), conditionInt);
+
+        // bind result types
+        llvm::SmallVector<mlir::Type> resultTypes;
+        if (binder.tensorResultTypes(resultTypes)) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "result type bind failure");
+        }
+
+        // print number of result types to debug
+        llvm::dbgs() << "Number of result types: " << resultTypes.size()
+                     << "\n";
+
+        Region *thenRegion;
+        Region *elseRegion;
+        if (binder.getRegionAtIndex(thenRegion, 0) ||
+            binder.getRegionAtIndex(elseRegion, 1)) {
+          return rewriter.notifyMatchFailure(binder.op, "region bind failure");
+        }
+
+        // // dump the regions
+        // llvm::dbgs() << "Then Region: \n";
+        // thenRegion->op_begin()->dump();
+        // thenRegion->op_end()->dump(); // this causes an error
+
+        // // thenRegion->op_end()->dump();
+        // llvm::dbgs() << "Else Region: \n";
+        // elseRegion->op_begin()->dump();
+        // elseRegion->op_end()->dump(); // this causes an error
+        // llvm::dbgs() << "End of regions\n";
+
+        // Create the new Torch_PrimIfOp
+        auto primIfOp = rewriter.create<Torch::PrimIfOp>(
+            binder.getLoc(), TypeRange(resultTypes), conditionBool);
+
+        auto inlineIfCase = [&](Region &srcRegion, Region &dstRegion) {
+          rewriter.inlineRegionBefore(srcRegion, dstRegion, dstRegion.begin());
+          // unlike the lowering from PrimIfOp to ScfIfOp, we don't erase the
+          // last region here because PrimIfOp does not come with an empty block
+        };
+
+        inlineIfCase(*thenRegion, primIfOp.getThenRegion());
+
+        inlineIfCase(*elseRegion, primIfOp.getElseRegion());
+
+        auto replaceTerminator = [&](Region &region) {
+          PatternRewriter::InsertionGuard guard(rewriter);
+          Operation *terminator = region.front().getTerminator();
+          rewriter.setInsertionPoint(terminator);
+          rewriter.replaceOpWithNewOp<Torch::PrimIfYieldOp>(
+              terminator, terminator->getOperands());
+        };
+
+        replaceTerminator(primIfOp.getThenRegion());
+        replaceTerminator(primIfOp.getElseRegion());
+
+        // // Copy the regions from the original If op to the new Torch_PrimIfOp
+        // rewriter.cloneRegionBefore(*thenRegion, primIfOp.getThenRegion(),
+        // primIfOp.getThenRegion().end());
+        // rewriter.cloneRegionBefore(*elseRegion, primIfOp.getElseRegion(),
+        // primIfOp.getElseRegion().end());
+
+        // Replace the original If op with the new Torch_PrimIfOp
+        rewriter.replaceOp(binder.op, primIfOp.getResults());
+
         return success();
       });
   patterns.onOp("Less", 13,
