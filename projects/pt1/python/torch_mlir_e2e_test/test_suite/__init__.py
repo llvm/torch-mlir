@@ -13,18 +13,12 @@ COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "NativeGroupNormBackwardModule_basic",
     "QuantizedMLP_basic",
     "QuantizedSingleLayer_basic",
+    "QuantizedBatchedInputSingleLayer_basic",
+    "AtenMatmulQint8MV_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
 }
-
-# TODO: Delete once torch 2.1.0 is released
-if torch_version_for_comparison() < version.parse("2.1.0.dev"):
-    COMMON_TORCH_MLIR_LOWERING_XFAILS.update({
-        "ScaledDotProductAttentionDifferentModule_basic",
-        "ScaledDotProductAttentionSameModule_basic"
-    })
-
 
 def register_all_tests():
     """Registers all the built-in E2E tests that Torch-MLIR provides."""
