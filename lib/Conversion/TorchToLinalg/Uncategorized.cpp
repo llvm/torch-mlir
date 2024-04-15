@@ -232,7 +232,7 @@ Value createDivModePayload(OpBuilder &b, Location loc,
       dtype);
 
   Value quotient;
-  if (dtype.isa<mlir::FloatType>()) {
+  if (isa<mlir::FloatType>(dtype)) {
     quotient = b.create<arith::DivFOp>(loc, lhs, rhs);
   } else if (dtype.isUnsignedInteger()) {
     quotient = b.create<arith::DivUIOp>(loc, lhs, rhs);

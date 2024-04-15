@@ -409,9 +409,9 @@ public:
     if (!lhsType)
       return op.emitError("only Tensor types supported in StableHLO");
 
-    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                       ->convertType(op.getType())
-                       .template cast<TensorType>();
+    auto outType = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
     Type outElemTy = outType.getElementType();
     if (!outElemTy.isIntOrFloat()) {
@@ -432,7 +432,8 @@ public:
     Value result =
         rewriter.create<ChloOpT>(loc, outType, lhs, rhs, bcastDimensions);
 
-    if (!isa<AtenDivTensorModeOp, AtenDivScalarModeOp>(&op)) {
+    if (!std::is_same<AtenDivTensorModeOp, AtenOpT>() ||
+        !std::is_same<AtenDivScalarModeOp, AtenOpT>()) {
       rewriter.replaceOp(op, result);
       return success();
     }
