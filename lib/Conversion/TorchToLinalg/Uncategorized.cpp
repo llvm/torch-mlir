@@ -2543,10 +2543,7 @@ public:
       resultSize.push_back(rewriter.create<tensor::DimOp>(loc, grid, 1));
     if (resultType.isDynamicDim(3))
       resultSize.push_back(rewriter.create<tensor::DimOp>(loc, grid, 2));
-
-    Value alignCorners = adaptor.getAlignCorners();  // no idea 
-
-
+    Value alignCorners = adaptor.getAlignCorners();
     Value resultFinal =
         rewriter.create<tensor::EmptyOp>(loc, resultType, resultSize);
     auto sGrid = rewriter.create<linalg::GenericOp>(
@@ -2555,52 +2552,52 @@ public:
         [&](OpBuilder &b, Location loc, ValueRange args) {
           Value gr0 = args[1];
           Value gr1 = args[0];
-
-
           Value gr0Half = b.create<arith::DivFOp>(loc, gr0, twoFloat);
           Value gr1Half = b.create<arith::DivFOp>(loc, gr1, twoFloat);
-          
           Value gr0HalfSelect =
               b.create<arith::SelectOp>(loc, alignCorners, gr0Half, zeroFloat);
-
           Value gr1HalfSelect =
               b.create<arith::SelectOp>(loc, alignCorners, gr1Half, zeroFloat);
-
-
-
           Value gplus0 = b.create<arith::AddFOp>(loc, gr0, oneFloat);
           Value gplus1 = b.create<arith::AddFOp>(loc, gr1, oneFloat);
           Value gPlusMul0 = b.create<arith::MulFOp>(loc, gplus0, innerDim0e);
           Value gPlusMul1 = b.create<arith::MulFOp>(loc, gplus1, innerDim1e);
-
-          // add another gr0 / 2 to the result for the align corner mode 
-
-
           Value result0 =  b.create<arith::AddFOp>(loc, gPlusMul0, gr0HalfSelect);
           Value result1 =  b.create<arith::AddFOp>(loc, gPlusMul1, gr1HalfSelect);
-          
-
-
-          Value lower0 = b.create<arith::FPToSIOp>(loc, int64type, result0);
-          Value lower1 = b.create<arith::FPToSIOp>(loc, int64type, result1);
+          Value checkLowerBound0 = b.create<arith::CmpFOp>(
+              loc, arith::CmpFPredicate::OLT, result0, zeroFloat);
+          Value checkLowerBound1 = b.create<arith::CmpFOp>(
+              loc, arith::CmpFPredicate::OLT, result1, zeroFloat);
+          Value lowerOrig0 = b.create<arith::FPToSIOp>(loc, int64type, result0);
+          Value lowerOrig1 = b.create<arith::FPToSIOp>(loc, int64type, result1);
+          Value zeroInt =
+              b.create<arith::ConstantOp>(loc, b.getIntegerAttr(int64type, 0));
           Value oneInt =
               b.create<arith::ConstantOp>(loc, b.getIntegerAttr(int64type, 1));
+          Value lowerSub0 = b.create<arith::SubIOp>(loc, lowerOrig0, oneInt);
+          Value lowerSub1 = b.create<arith::SubIOp>(loc, lowerOrig1, oneInt);
+          Value lower0 = b.create<arith::SelectOp>(loc, checkLowerBound0, lowerSub0, lowerOrig0);
+          Value lower1 = b.create<arith::SelectOp>(loc, checkLowerBound1, lowerSub1, lowerOrig1);
+          Value lowerValid0 =
+              b.create<arith::SelectOp>(loc, checkLowerBound0, zeroInt  ,lower0);
+          Value lowerValid1 =
+              b.create<arith::SelectOp>(loc, checkLowerBound1, zeroInt  ,lower1);
           Value upper0 =
               b.create<arith::AddIOp>(loc, int64type, lower0, oneInt);
           Value upper1 =
               b.create<arith::AddIOp>(loc, int64type, lower1, oneInt);
-          Value notValid0 = rewriter.create<arith::CmpIOp>(
+          Value notValidUpper0 = rewriter.create<arith::CmpIOp>(
               loc, arith::CmpIPredicate::sgt, upper0, innerDim0c);
-          Value notValid1 = rewriter.create<arith::CmpIOp>(
+          Value notValidUpper1 = rewriter.create<arith::CmpIOp>(
               loc, arith::CmpIPredicate::sgt, upper1, innerDim1c);
           Value upperValid0 =
-              b.create<arith::SelectOp>(loc, notValid0, lower0, upper0);
+              b.create<arith::SelectOp>(loc, notValidUpper0, lower0, upper0);
           Value upperValid1 =
-              b.create<arith::SelectOp>(loc, notValid1, lower1, upper1);
+              b.create<arith::SelectOp>(loc, notValidUpper1, lower1, upper1);
           Value lw0 =
-              b.create<arith::IndexCastOp>(loc, b.getIndexType(), lower0);
+              b.create<arith::IndexCastOp>(loc, b.getIndexType(), lowerValid0);
           Value lw1 =
-              b.create<arith::IndexCastOp>(loc, b.getIndexType(), lower1);
+              b.create<arith::IndexCastOp>(loc, b.getIndexType(), lowerValid1);
           Value up0 =
               b.create<arith::IndexCastOp>(loc, b.getIndexType(), upperValid0);
           Value up1 =
@@ -2608,23 +2605,31 @@ public:
           Value N = b.create<linalg::IndexOp>(loc, 0);
           Value C = b.create<linalg::IndexOp>(loc, 1);
           Value result00 = lambdaExtract(b, loc, input, N, C, lw0, lw1);
+          Value result00a =
+              b.create<arith::SelectOp>(loc, checkLowerBound0, zeroFloat, result00);
+          Value result00b =
+              b.create<arith::SelectOp>(loc, checkLowerBound1, zeroFloat, result00a);
           Value result01 = lambdaExtract(b, loc, input, N, C, lw0, up1);
           Value result01a =
-              b.create<arith::SelectOp>(loc, notValid1, zeroFloat, result01);
+              b.create<arith::SelectOp>(loc, notValidUpper1, zeroFloat, result01);
+          Value result01b =
+              b.create<arith::SelectOp>(loc, checkLowerBound0, zeroFloat, result01a);
           Value result10 = lambdaExtract(b, loc, input, N, C, up0, lw1);
           Value result10a =
-              b.create<arith::SelectOp>(loc, notValid0, zeroFloat, result10);
+              b.create<arith::SelectOp>(loc, notValidUpper0, zeroFloat, result10);
+          Value result10b =
+              b.create<arith::SelectOp>(loc, checkLowerBound1, zeroFloat, result10a);
           Value result11 = lambdaExtract(b, loc, input, N, C, up0, up1);
           Value result11a =
-              b.create<arith::SelectOp>(loc, notValid0, zeroFloat, result11);
+              b.create<arith::SelectOp>(loc, notValidUpper0, zeroFloat, result11);
           Value result11b =
-              b.create<arith::SelectOp>(loc, notValid1, zeroFloat, result11a);
+              b.create<arith::SelectOp>(loc, notValidUpper1, zeroFloat, result11a);
           Value lw0a = b.create<arith::SIToFPOp>(loc, floatType, lower0);
           Value lw1a = b.create<arith::SIToFPOp>(loc, floatType, lower1);
           Value d1 = b.create<arith::SubFOp>(loc, result0, lw0a);
           Value d0 = b.create<arith::SubFOp>(loc, result1, lw1a);
-          Value resultScaled0 = lambdaInter(b, loc, result00, result01a, d0);
-          Value resultScaled1 = lambdaInter(b, loc, result10a, result11b, d0);
+          Value resultScaled0 = lambdaInter(b, loc, result00b, result01b, d0);
+          Value resultScaled1 = lambdaInter(b, loc, result10b, result11b, d0);
           Value resultScaled =
               lambdaInter(b, loc, resultScaled0, resultScaled1, d1);
           b.create<linalg::YieldOp>(loc, resultScaled);
