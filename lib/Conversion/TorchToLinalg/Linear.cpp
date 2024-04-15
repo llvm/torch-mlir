@@ -42,7 +42,7 @@ static void signShift(PatternRewriter &rewriter, Location loc, Value &arg,
                       Value &zp, bool isUnsignedType, int64_t numBits) {
   if (!isUnsignedType)
     return;
-  int64_t minSI = -std::pow(2, numBits - 1);
+  int64_t minSI = -(1 << (numBits - 1));
   Value minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, 32);
   zp = rewriter.create<arith::AddIOp>(loc, zp, minSIValue);
   minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, numBits);
@@ -302,8 +302,8 @@ public:
     auto lhsType = lhs.getType().cast<RankedTensorType>();
     auto rhsType = rhs.getType().cast<RankedTensorType>();
 
-    auto lhsTorchType = op.getSelf().getType().cast<ValueTensorType>();
-    auto rhsTorchType = op.getOther().getType().cast<ValueTensorType>();
+    auto lhsTorchType = cast<ValueTensorType>(op.getSelf().getType());
+    auto rhsTorchType = cast<ValueTensorType>(op.getOther().getType());
 
     // Get the rank of both matrix.
     unsigned lhsRank = lhsType.getRank();
@@ -321,15 +321,13 @@ public:
     bool isUnsigned = torch_to_linalg::isUnsignedTorchType(lhsTorchType);
     bool isUnsignedR = torch_to_linalg::isUnsignedTorchType(rhsTorchType);
 
-    if (!lhsZeroPoint) {
-      if (lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
-        return rewriter.notifyMatchFailure(
-            op, "unsupported: aten.matmul with different input element types");
-      }
-      // Allows quantized types to mismatch since they will be cast to the same
-      // type.
-    } else {
-      // TODO: support quantized vec-vec, vec-mat cases.
+    if (!lhsZeroPoint && lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
+      // Allows quantized types to mismatch
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: aten.matmul with different input element types");
+    }
+
+    if (lhsZeroPoint) {
       if (lhsRank < 2 || rhsRank < 2) {
         return rewriter.notifyMatchFailure(
             op, "unsupported: quantized aten.mm with vector");
