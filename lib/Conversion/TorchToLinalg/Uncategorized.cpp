@@ -25,7 +25,10 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APSInt.h"
+#include <cassert>
+#include <iostream>
 #include <numeric>
+#include <type_traits>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -211,6 +214,79 @@ createTriangularMatrix(OpBuilder &b, Location loc, ValueRange payloadArgs,
   Value zero = getConstant(b, loc, 0, elementType);
   result = b.create<arith::SelectOp>(loc, pred, scalar, zero);
   return success();
+}
+
+template <typename OpT>
+Value createDivModePayload(OpBuilder &b, Location loc,
+                           const TypeConverter *converter,
+                           ValueRange payloadArgs, OpT op,
+                           ArrayRef<Value> operands) {
+  static_assert(std::is_same_v<OpT, AtenDivTensorModeOp> ||
+                    std::is_same_v<OpT, AtenDivScalarModeOp>,
+                "template type must be a tensor/scalar div mode");
+  typename OpT::Adaptor adaptor(operands);
+  Type dtype = converter->convertType(op.getType())
+                   .template cast<RankedTensorType>()
+                   .getElementType();
+  Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+  Value rhs = convertScalarToDtype(
+      b, loc,
+      std::is_same_v<OpT, AtenDivScalarModeOp> ? operands[1] : payloadArgs[1],
+      dtype);
+
+  Value quotient;
+  if (dtype.isa<mlir::FloatType>()) {
+    quotient = b.create<arith::DivFOp>(loc, lhs, rhs);
+  } else if (dtype.isUnsignedInteger()) {
+    quotient = b.create<arith::DivUIOp>(loc, lhs, rhs);
+  } else {
+    assert(dtype.isInteger() &&
+           "dtype should be an integer (signless or signed)");
+    quotient = b.create<arith::DivSIOp>(loc, lhs, rhs);
+  }
+
+  if (op.getRoundingMode().getType().template isa<Torch::NoneType>())
+    return quotient;
+
+  std::string roundingMode;
+  if (!matchPattern(op.getRoundingMode(), m_TorchConstantStr(roundingMode))) {
+    op.emitError("only support constant str rounding mode");
+    return nullptr;
+  }
+  assert((roundingMode == "trunc" || roundingMode == "floor") &&
+         "unsupported rounding mode");
+  if (roundingMode == "trunc") {
+    // "trunc" - rounds the results of the division towards zero. Equivalent
+    // to C-style integer division.
+    if (!dtype.isa<mlir::FloatType>()) {
+      // nothing to do for integers
+      return quotient;
+    }
+
+    // float
+    Value ceil = b.create<math::CeilOp>(loc, quotient);
+    Value floor = b.create<math::FloorOp>(loc, quotient);
+    Value cstZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
+    Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
+                                         quotient, cstZero);
+    return b.create<arith::SelectOp>(loc, pred, ceil, floor);
+  }
+  if (roundingMode == "floor") {
+    // "floor" - rounds the results of the division down. Equivalent to
+    // floor division in Python (the // operator)
+    if (dtype.isa<mlir::FloatType>())
+      return b.create<math::FloorOp>(loc, quotient);
+    if (!dtype.isUnsignedInteger()) {
+      Type defaultIntToFloatType = b.getF64Type();
+      lhs = convertScalarToDtype(b, loc, lhs, defaultIntToFloatType);
+      rhs = convertScalarToDtype(b, loc, rhs, defaultIntToFloatType);
+      quotient = b.create<arith::DivFOp>(loc, lhs, rhs);
+      Value floor = b.create<math::FloorOp>(loc, quotient);
+      Value convert = convertScalarToDtype(b, loc, floor, dtype);
+      return convert;
+    }
+  }
+  return quotient;
 }
 
 static Value createLinalgPayloadCalculationForElementwiseOp(
@@ -770,122 +846,13 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return nullptr;
   }
   if (auto divScalarMode = dyn_cast<AtenDivScalarModeOp>(op)) {
-    AtenDivScalarModeOp::Adaptor adaptor(operands);
-    Type dtype = converter->convertType(divScalarMode.getType())
-                     .cast<RankedTensorType>()
-                     .getElementType();
-    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-    Value rhs = convertScalarToDtype(b, loc, operands[1], dtype);
-    Value quotient;
-    if (dtype.isa<mlir::FloatType>()) {
-      quotient = b.create<arith::DivFOp>(loc, lhs, rhs);
-    } else if (dtype.isUnsignedInteger()) {
-      quotient = b.create<arith::DivUIOp>(loc, lhs, rhs);
-    } else {
-      quotient = b.create<arith::DivSIOp>(loc, lhs, rhs);
-    }
-
-    if (divScalarMode.getRoundingMode().getType().isa<Torch::NoneType>())
-      return quotient;
-
-    std::string roundingMode;
-    if (!matchPattern(divScalarMode.getRoundingMode(),
-                      m_TorchConstantStr(roundingMode))) {
-      divScalarMode.emitError("only support constant str rounding mode");
-      return nullptr;
-    }
-    if (roundingMode == "trunc") {
-      // "trunc" - rounds the results of the division towards zero. Equivalent
-      // to C-style integer division.
-      if (!dtype.isa<mlir::FloatType>())
-        return quotient;
-
-      // float
-      Value ceil = b.create<math::CeilOp>(loc, quotient);
-      Value floor = b.create<math::FloorOp>(loc, quotient);
-      Value cstZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
-      Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
-                                           quotient, cstZero);
-      return b.create<arith::SelectOp>(loc, pred, ceil, floor);
-    }
-    if (roundingMode == "floor") {
-      // "floor" - rounds the results of the division down. Equivalent to
-      // floor division in Python (the // operator)
-      if (dtype.isa<mlir::FloatType>())
-        return b.create<math::FloorOp>(loc, quotient);
-      if (!dtype.isUnsignedInteger()) {
-        Type defaultIntToFloatType = b.getF64Type();
-        lhs = convertScalarToDtype(b, loc, lhs, defaultIntToFloatType);
-        rhs = convertScalarToDtype(b, loc, rhs, defaultIntToFloatType);
-        quotient = b.create<arith::DivFOp>(loc, lhs, rhs);
-        Value floor = b.create<math::FloorOp>(loc, quotient);
-        Value convert = convertScalarToDtype(b, loc, floor, dtype);
-        return convert;
-      }
-      return quotient;
-    }
+    return createDivModePayload(b, loc, converter, payloadArgs, divScalarMode,
+                                operands);
   }
-
   if (auto divTensorMode = dyn_cast<AtenDivTensorModeOp>(op)) {
-    AtenDivTensorModeOp::Adaptor adaptor(operands);
-    Type dtype = converter->convertType(divTensorMode.getType())
-                     .cast<RankedTensorType>()
-                     .getElementType();
-    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
-    Value div;
-    if (isa<mlir::FloatType>(dtype))
-      div = b.create<arith::DivFOp>(loc, lhs, rhs);
-    else {
-      if (dtype.isUnsignedInteger())
-        div = b.create<arith::DivUIOp>(loc, lhs, rhs);
-      else
-        div = b.create<arith::DivSIOp>(loc, lhs, rhs);
-    }
-
-    if (divTensorMode.getRoundingMode().getType().isa<Torch::NoneType>())
-      return div;
-
-    std::string roundingMode;
-    if (!matchPattern(divTensorMode.getRoundingMode(),
-                      m_TorchConstantStr(roundingMode))) {
-      divTensorMode.emitError("only support constant str rounding mode");
-      return nullptr;
-    }
-    if (roundingMode == "trunc") {
-      // "trunc" - rounds the results of the division towards zero. Equivalent
-      // to C-style integer division.
-      if (isa<mlir::FloatType>(dtype)) {
-        Value ceil = b.create<math::CeilOp>(loc, div);
-        Value floor = b.create<math::FloorOp>(loc, div);
-        Value cstZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
-        Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
-                                             div, cstZero);
-        return b.create<arith::SelectOp>(loc, pred, ceil, floor);
-      }
-      return div;
-    }
-    if (roundingMode == "floor") {
-      // "floor" - rounds the results of the division down. Equivalent to
-      // floor division in Python (the // operator)
-      if (isa<mlir::FloatType>(dtype))
-        return b.create<math::FloorOp>(loc, div);
-      else if (!dtype.isUnsignedInteger()) {
-        Type defaultIntToFloatType = b.getF64Type();
-        lhs = convertScalarToDtype(b, loc, lhs, defaultIntToFloatType);
-        rhs = convertScalarToDtype(b, loc, rhs, defaultIntToFloatType);
-        div = b.create<arith::DivFOp>(loc, lhs, rhs);
-        Value floor = b.create<math::FloorOp>(loc, div);
-        Value convert = convertScalarToDtype(b, loc, floor, dtype);
-        return convert;
-      } else {
-        return div;
-      }
-    }
-    divTensorMode.emitError("invalid rounding mode");
-    return nullptr;
+    return createDivModePayload(b, loc, converter, payloadArgs, divTensorMode,
+                                operands);
   }
-
   if (auto pow = dyn_cast<AtenPowScalarOp>(op)) {
     Type dtype = pow.getType().cast<ValueTensorType>().getDtype();
     if (!isa<mlir::FloatType>(dtype)) {
