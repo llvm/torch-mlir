@@ -25,7 +25,6 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APSInt.h"
-#include <cassert>
 #include <numeric>
 #include <type_traits>
 
@@ -224,8 +223,7 @@ Value createDivModePayload(OpBuilder &b, Location loc,
                     std::is_same_v<OpT, AtenDivScalarModeOp>,
                 "template type must be a tensor/scalar div mode");
   typename OpT::Adaptor adaptor(operands);
-  Type dtype = converter->convertType(op.getType())
-                   .template cast<RankedTensorType>()
+  Type dtype = cast<RankedTensorType>(converter->convertType(op.getType()))
                    .getElementType();
   Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
   Value rhs = convertScalarToDtype(
@@ -244,7 +242,7 @@ Value createDivModePayload(OpBuilder &b, Location loc,
     quotient = b.create<arith::DivSIOp>(loc, lhs, rhs);
   }
 
-  if (op.getRoundingMode().getType().template isa<Torch::NoneType>())
+  if (isa<Torch::NoneType>(op.getRoundingMode().getType()))
     return quotient;
 
   std::string roundingMode;
@@ -257,7 +255,7 @@ Value createDivModePayload(OpBuilder &b, Location loc,
   if (roundingMode == "trunc") {
     // "trunc" - rounds the results of the division towards zero. Equivalent
     // to C-style integer division.
-    if (!dtype.isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(dtype)) {
       // nothing to do for integers
       return quotient;
     }
@@ -273,7 +271,7 @@ Value createDivModePayload(OpBuilder &b, Location loc,
   if (roundingMode == "floor") {
     // "floor" - rounds the results of the division down. Equivalent to
     // floor division in Python (the // operator)
-    if (dtype.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(dtype))
       return b.create<math::FloorOp>(loc, quotient);
     if (!dtype.isUnsignedInteger()) {
       Type defaultIntToFloatType = b.getF64Type();

@@ -450,7 +450,7 @@ public:
     }
 
     // if trunc and int, do nothing
-    if (roundingMode == "trunc" && outElemTy.isa<mlir::FloatType>()) {
+    if (roundingMode == "trunc" && isa<mlir::FloatType>(outElemTy)) {
       // "trunc" - rounds the results of the division towards zero. Equivalent
       // to C-style integer division.
       auto sign = rewriter.create<stablehlo::SignOp>(loc, result);
@@ -461,7 +461,7 @@ public:
     if (roundingMode == "floor") {
       // "floor" - rounds the results of the division down. Equivalent to
       // floor division in Python (the // operator)
-      if (outElemTy.isa<mlir::FloatType>())
+      if (isa<mlir::FloatType>(outElemTy))
         result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
       else if (!outElemTy.isUnsignedInteger()) {
         TensorType defaultIntToFloatType =
