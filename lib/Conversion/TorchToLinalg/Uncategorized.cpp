@@ -2584,9 +2584,9 @@ public:
           Value gplus1 = b.create<arith::AddFOp>(loc, gr1, oneFloat);
           Value gPlusMul0 = b.create<arith::MulFOp>(loc, gplus0, innerDim0e);
           Value gPlusMul1 = b.create<arith::MulFOp>(loc, gplus1, innerDim1e);
-          Value result0 = 
+          Value result0 =
               b.create<arith::AddFOp>(loc, gPlusMul0, gr0HalfSelect);
-          Value result1 =  
+          Value result1 =
               b.create<arith::AddFOp>(loc, gPlusMul1, gr1HalfSelect);
           Value checkLowerBound0 = b.create<arith::CmpFOp>(
               loc, arith::CmpFPredicate::OLT, result0, zeroFloat);
@@ -2643,9 +2643,8 @@ public:
           Value result10 = lambdaExtract(b, loc, input, N, C, up0, lw1);
           Value result10a = b.create<arith::SelectOp>(loc, notValidUpper0,
                                                       zeroFloat, result10);
-          Value result10b =
-              b.create<arith::SelectOp>(loc, checkLowerBound1,
-                                        zeroFloat, result10a);
+          Value result10b = b.create<arith::SelectOp>(loc, checkLowerBound1,
+                                                      zeroFloat, result10a);
           Value result11 = lambdaExtract(b, loc, input, N, C, up0, up1);
           Value result11a = b.create<arith::SelectOp>(loc, notValidUpper0,
                                                       zeroFloat, result11);
