@@ -879,25 +879,25 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.op, resultType, operand, vAlpha, vScale, vInputScale);
         return success();
       });
-  patterns.onOp(
-      "ReduceL1", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        int64_t keepDims, noop_with_empty_axes;
-        Value operand;
-        if (binder.tensorOperandAtIndex(operand, 0) ||
-            binder.tensorResultType(resultType) ||
-            binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
-            binder.s64IntegerAttr(noop_with_empty_axes, "noop_with_empty_axes",
-                                  0))
-          return failure();
+  patterns.onOp("ReduceL1", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  int64_t keepDims, noop_with_empty_axes;
+                  Value operand;
+                  if (binder.tensorOperandAtIndex(operand, 0) ||
+                      binder.tensorResultType(resultType) ||
+                      binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
+                      binder.s64IntegerAttr(noop_with_empty_axes,
+                                            "noop_with_empty_axes", 0))
+                    return failure();
 
-        Value data = rewriter.create<Torch::AtenAbsOp>(
-            binder.getLoc(), operand.getType(), operand);
+                  Value data = rewriter.create<Torch::AtenAbsOp>(
+                      binder.getLoc(), operand.getType(), operand);
 
-        return reducedSumImpl(binder, rewriter, data, resultType,
-                              /*storeValue=*/operand, keepDims,
-                              noop_with_empty_axes, false);
-      });
+                  return reducedSumImpl(binder, rewriter, data, resultType,
+                                        /*storeValue=*/operand, keepDims,
+                                        noop_with_empty_axes, false);
+                });
   patterns.onOp("ReduceSum", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
