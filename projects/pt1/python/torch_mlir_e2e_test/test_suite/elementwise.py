@@ -1752,6 +1752,23 @@ def ElementwiseLogModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
 
+class ElementwizeLogScalarInputModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        a = torch.tensor(10)
+        return torch.log(a)
+
+@register_test_case(module_factory=lambda: ElementwizeLogScalarInputModule())
+def ElementwizeLogScalarInputModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
 # ==============================================================================
 
 

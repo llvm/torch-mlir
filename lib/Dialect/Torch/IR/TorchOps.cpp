@@ -1912,12 +1912,17 @@ void AtenScalarImplicitOp::getCanonicalizationPatterns(
   patterns.add(+[](AtenScalarImplicitOp op, PatternRewriter &rewriter) {
     Location loc = op.getLoc();
     Value a = op.getA();
-    auto outType = op.getResult().getType();
     Value scalarValue = getScalarIntValue(a, loc, rewriter);
-    if (!scalarValue)
-      return failure();
-    rewriter.replaceOpWithNewOp<Torch::DerefineOp>(op, outType, scalarValue);
-    return success();
+    if (scalarValue) {
+      rewriter.replaceOp(op, scalarValue);
+      return success();
+    }
+    scalarValue = getScalarFloatValue(a, loc, rewriter);
+    if (scalarValue) {
+      rewriter.replaceOp(op, scalarValue);
+      return success();
+    }
+    return failure();
   });
 }
 
@@ -3339,6 +3344,38 @@ void AtenCatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
         op.getLoc(), list.getType(), filtered);
     rewriter.replaceOpWithNewOp<AtenCatOp>(op, op.getType(), newlist,
                                            op.getDim());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenLogOp
+//===----------------------------------------------------------------------===//
+
+void AtenLogOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                            MLIRContext *context) {
+  patterns.add(+[](AtenLogOp op, PatternRewriter &rewriter) {
+    Location loc = op->getLoc();
+    if (op->getNumOperands() != 1) {
+      return failure();
+    }
+    Value self = getScalarIntValue(op->getOperand(0), loc, rewriter);
+    if (!self)
+      self = getScalarFloatValue(op->getOperand(0), loc, rewriter);
+    if (!self) {
+      return failure();
+    }
+    auto outType = op->getResult(0).getType();
+    double floatScalar;
+    int64_t intScalar;
+    double resultScalar;
+    if (matchPattern(self, m_TorchConstantInt(&intScalar)))
+      resultScalar = std::log(intScalar);
+    if (matchPattern(self, m_TorchConstantFloat(&floatScalar)))
+      resultScalar = std::log(floatScalar);
+    Value result = rewriter.create<ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr(resultScalar));
+    rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(op, outType, result);
     return success();
   });
 }

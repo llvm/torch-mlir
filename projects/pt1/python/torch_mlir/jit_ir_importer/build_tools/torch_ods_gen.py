@@ -268,7 +268,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::relu : (Tensor) -> (Tensor)",
             "aten::relu6 : (Tensor) -> (Tensor)",
             "aten::leaky_relu : (Tensor, Scalar) -> (Tensor)",
-            "aten::log : (Tensor) -> (Tensor)",
             "aten::selu : (Tensor) -> (Tensor)",
             "aten::sigmoid : (Tensor) -> (Tensor)",
             "aten::sinh : (Tensor) -> (Tensor)",
@@ -360,6 +359,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit_with_mutating_variants("aten::round : (Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants("aten::sign : (Tensor) -> (Tensor)", has_canonicalizer=True)
     emit_with_mutating_variants("aten::masked_fill.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
+    emit_with_mutating_variants("aten::log : (Tensor) -> (Tensor)", has_canonicalizer=True)
 
     emit_with_mutating_variants("aten::addcmul : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)")
     emit_with_mutating_variants("aten::addcdiv : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)")
