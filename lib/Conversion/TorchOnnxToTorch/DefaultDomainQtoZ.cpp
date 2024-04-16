@@ -891,6 +891,65 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                         /*storeValue=*/operand, keepDims,
                                         noop_with_empty_axes, false);
                 });
+  patterns.onOp(
+      "ReduceL2", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        int64_t keepDims, noop_with_empty_axes;
+        if (binder.tensorOperandAtIndex(operand, 0) ||
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
+            binder.s64IntegerAttr(noop_with_empty_axes, "noop_with_empty_axes",
+                                  0))
+          return failure();
+
+        // A ReduceL2 op is equivalent to the following sequence of operations:
+        // Mul(x, x) -> ReduceSum -> CastF32 -> Sqrt -> CastLike(resultType)
+        Value squareOfOperand = rewriter.create<Torch::AtenMulTensorOp>(
+            binder.getLoc(), operand.getType(), operand, operand);
+
+        auto tmp =
+            reducedSumImpl(binder, rewriter, squareOfOperand, resultType,
+                           operand, keepDims, noop_with_empty_axes, true);
+        if (mlir::failed(tmp))
+          return failure();
+
+        auto castDtypeScalar =
+            Torch::getScalarTypeForType(rewriter.getF32Type());
+
+        Value castType = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                    static_cast<int64_t>(castDtypeScalar)));
+
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value constFalse =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+
+        // Perform an AtenToDtype op on the squared sum of the operand, stored
+        // now in operand itself.
+        Value operandCast = rewriter.create<Torch::AtenToDtypeOp>(
+            binder.getLoc(), resultType, operand, castType,
+            /*non_blocking=*/constFalse, /*copy=*/constFalse,
+            /*memory_format=*/noneVal);
+
+        // Perform square root on the cast square sum.
+        Value operandSqrt = rewriter.create<Torch::AtenSqrtOp>(
+            binder.getLoc(), resultType, operandCast);
+
+        // Finally, perform an AtenToDtype op on the returned square root
+        // to align it to resultType.
+        Value finalDtype = Torch::getDtypeIntValueForType(
+            rewriter, binder.getLoc(), resultType.getDtype());
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value cstFalse =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
+            binder.op, resultType, operandSqrt, finalDtype,
+            /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+            /*memory_format=*/none);
+        return success();
+      });
   patterns.onOp("ReduceSum", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
