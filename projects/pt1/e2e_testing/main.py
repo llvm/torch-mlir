@@ -164,6 +164,9 @@ def main():
 
     # Report the test results.
     failed = report_results(results, xfail_set, args.verbose, args.config)
+    if args.config == "torchdynamo":
+        print("\033[91mWarning: the TorchScript based dynamo support is deprecated. "
+              "The config for torchdynamo is planned to be removed in the future.\033[0m")
     if args.ignore_failures:
         sys.exit(0)
     sys.exit(1 if failed else 0)
