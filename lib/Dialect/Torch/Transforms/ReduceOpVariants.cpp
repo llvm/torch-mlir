@@ -38,15 +38,15 @@ static void createOverwriteTensorContents(PatternRewriter &rewriter,
 }
 
 static Type getContainerOrTensorTypeWithValueSemantics(Type type) {
-  if (auto optionalType = type.dyn_cast<OptionalType>()) {
+  if (auto optionalType = dyn_cast<OptionalType>(type)) {
     Type newContainedType = getContainerOrTensorTypeWithValueSemantics(
         optionalType.getContainedType());
     return OptionalType::get(newContainedType);
-  } else if (auto listType = type.dyn_cast<ListType>()) {
+  } else if (auto listType = dyn_cast<ListType>(type)) {
     Type newContainedType =
         getContainerOrTensorTypeWithValueSemantics(listType.getContainedType());
     return ListType::get(newContainedType);
-  } else if (auto tensorType = type.dyn_cast<NonValueTensorType>()) {
+  } else if (auto tensorType = dyn_cast<NonValueTensorType>(type)) {
     return tensorType.getWithValueSemantics();
   } else {
     return nullptr;
@@ -92,10 +92,10 @@ public:
     SmallVector<Value> newOperands;
     for (OpOperand &opOperand : op->getOpOperands()) {
       Type operandType = opOperand.get().getType();
-      if (operandType.isa<NonValueTensorType>()) {
+      if (isa<NonValueTensorType>(operandType)) {
         opOperand.set(rewriter.create<CopyToValueTensorOp>(op->getLoc(),
                                                            opOperand.get()));
-      } else if (auto listType = operandType.dyn_cast<ListType>()) {
+      } else if (auto listType = dyn_cast<ListType>(operandType)) {
         if (!(listType.getContainedType().isa<NonValueTensorType>() ||
               listType.getContainedType().isa<OptionalType>()))
           continue;
@@ -144,7 +144,7 @@ public:
         }
         opOperand.set(rewriter.create<PrimListConstructOp>(
             op->getLoc(), newListType, newListElements));
-      } else if (auto optionalType = operandType.dyn_cast<OptionalType>()) {
+      } else if (auto optionalType = dyn_cast<OptionalType>(operandType)) {
         // TODO: A more general way to handle the optional type is to
         // introduce a `copy.to_optional_vtensor` op.
         if (!optionalType.getContainedType().isa<NonValueTensorType>())
@@ -450,7 +450,7 @@ struct ReduceOpVariantsPass
         auto hasValueSemantics = [](Type t) {
           // TODO: Make this an allowlist based on a closed torch dialect
           // type system.
-          if (auto tensorType = t.dyn_cast<NonValueTensorType>()) {
+          if (auto tensorType = dyn_cast<NonValueTensorType>(t)) {
             return false;
           }
           return true;

@@ -7,14 +7,9 @@ set(LinkedLibs
   MLIRTosaTransforms
   MLIRVectorTransforms
   TorchMLIRTorchConversionDialect
-  TorchMLIRTorchConversionToMLProgram
   TorchMLIRTorchDialect
   TorchMLIRTorchPasses
-  TorchMLIRTorchToArith
-  TorchMLIRTorchToLinalg
-  TorchMLIRTorchToSCF
-  TorchMLIRTorchToTMTensor
-  TorchMLIRTorchToTosa
+  TorchMLIRConversionPasses
   )
 
 if(TORCH_MLIR_ENABLE_STABLEHLO)

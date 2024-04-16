@@ -53,7 +53,7 @@ public:
         auto typeBoundAttr =
             func.getArgAttrOfType<TypeAttr>(type.index(), typeBoundIdent);
         Type bound = typeBoundAttr ? typeBoundAttr.getValue() : Type();
-        if (!bound.isa<ValueTensorType>())
+        if (!isa<ValueTensorType>(bound))
           return rewriter.notifyMatchFailure(
               func, "unimplemented: preserving aliasing for non-value-semantic "
                     "type bounds");
@@ -72,10 +72,10 @@ public:
 
     SmallVector<Type> newResultTypes;
     for (auto type : func.getFunctionType().getResults()) {
-      if (auto none = type.dyn_cast<Torch::NoneType>()) {
+      if (auto none = dyn_cast<Torch::NoneType>(type)) {
         continue;
       }
-      if (auto tuple = type.dyn_cast<Torch::TupleType>()) {
+      if (auto tuple = dyn_cast<Torch::TupleType>(type)) {
         llvm::append_range(newResultTypes, tuple.getContainedTypes());
         continue;
       }
@@ -133,12 +133,12 @@ public:
     int newOpResultIdx = 0;
     SmallVector<Value> newResults;
     for (auto type : call.getResultTypes()) {
-      if (type.isa<Torch::NoneType>()) {
+      if (isa<Torch::NoneType>(type)) {
         newResults.push_back(
             rewriter.create<ConstantNoneOp>(call.getLoc(), type));
         continue;
       }
-      if (type.isa<Torch::TupleType>()) {
+      if (isa<Torch::TupleType>(type)) {
         newResults.push_back(rewriter.create<PrimTupleConstructOp>(
             call.getLoc(), type, newCall.getResults()));
         continue;

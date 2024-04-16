@@ -36,6 +36,26 @@ static void getZeroPoint(Value value, Value &zeropoint) {
   }
 }
 
+// for uint8 types, we shift down by 128 so that we can faithfully
+// represent the quantization with signed i8 types.
+static void signShift(PatternRewriter &rewriter, Location loc, Value &arg,
+                      Value &zp, bool isUnsignedType, int64_t numBits) {
+  if (!isUnsignedType)
+    return;
+  int64_t minSI = -(1 << (numBits - 1));
+  Value minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, 32);
+  zp = rewriter.create<arith::AddIOp>(loc, zp, minSIValue);
+  minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, numBits);
+  arg = torch_to_linalg::createElementwiseLinalgGeneric(
+      rewriter, loc, ValueRange{arg},
+      arg.getType().cast<TensorType>().getElementType(),
+      [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
+        Value result =
+            rewriter.create<arith::AddIOp>(loc, payloadArgs[0], minSIValue);
+        b.create<linalg::YieldOp>(loc, result);
+      });
+}
+
 static Value transposeValue(Location loc, Value value, ArrayRef<int64_t> perms,
                             PatternRewriter &rewriter) {
   auto valueTy = value.getType().cast<RankedTensorType>();
@@ -103,15 +123,16 @@ public:
     }
 
     if (lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
-      return rewriter.notifyMatchFailure(
-          op, "unsupported: aten.mm with different input element types");
+      if (!lhsZeroPoint) {
+        return rewriter.notifyMatchFailure(
+            op, "unsupported: aten.mm with different input element types");
+      }
+      // Allows quantized types to mismatch since they will be cast to the same
+      // type.
     }
 
     bool isUnsigned = torch_to_linalg::isUnsignedTorchType(lhsTorchType);
-    if (lhsZeroPoint && isUnsigned) {
-      return rewriter.notifyMatchFailure(
-          op, "unsupported: unsigned quantized matmul not supported");
-    }
+    bool isUnsignedR = torch_to_linalg::isUnsignedTorchType(rhsTorchType);
 
     Value lhsDim0 = rewriter.create<tensor::DimOp>(loc, lhs, 0);
     Value rhsDim1 = rewriter.create<tensor::DimOp>(loc, rhs, 1);
@@ -130,7 +151,7 @@ public:
     auto resultTy = op.getType().cast<ValueTensorType>();
     auto resultDTy = resultTy.toBuiltinTensor().getElementType();
     Type newResultType = getTypeConverter()->convertType(op.getType());
-    Type elementType = newResultType.cast<TensorType>().getElementType();
+    Type elementType = cast<TensorType>(newResultType).getElementType();
     auto accumulatorDType = getDefaultAccType(rewriter, resultDTy);
     if (accumulatorDType != resultDTy) {
       elementType = accumulatorDType;
@@ -139,7 +160,7 @@ public:
         rewriter, loc, ValueRange{lhsDim0, rhsDim1}, elementType);
 
     Value matmul;
-    if (lhsZeroPoint && !isUnsigned) {
+    if (lhsZeroPoint) {
       lhsZeroPoint = typeConverter->materializeTargetConversion(
           rewriter, loc,
           getTypeConverter()->convertType(lhsZeroPoint.getType()),
@@ -152,6 +173,14 @@ public:
           loc, rewriter.getI32Type(), lhsZeroPoint);
       rhsZeroPoint = rewriter.create<arith::TruncIOp>(
           loc, rewriter.getI32Type(), rhsZeroPoint);
+
+      // change uint8 quantization -> int8 quantization
+      int64_t numBits =
+          lhsType.getElementType().cast<mlir::IntegerType>().getWidth();
+      signShift(rewriter, loc, lhs, lhsZeroPoint, isUnsigned, numBits);
+      numBits = rhsType.getElementType().cast<mlir::IntegerType>().getWidth();
+      signShift(rewriter, loc, rhs, rhsZeroPoint, isUnsignedR, numBits);
+
       matmul =
           rewriter
               .create<linalg::QuantizedMatmulOp>(
@@ -172,7 +201,7 @@ public:
 
     if (accumulatorDType != resultDTy) {
       Type resultElementType =
-          newResultType.cast<RankedTensorType>().getElementType();
+          cast<RankedTensorType>(newResultType).getElementType();
       matmul = torch_to_linalg::convertTensorToElementType(
           rewriter, loc, matmul, resultElementType);
     }
@@ -273,12 +302,59 @@ public:
     auto lhsType = lhs.getType().cast<RankedTensorType>();
     auto rhsType = rhs.getType().cast<RankedTensorType>();
 
+    auto lhsTorchType = cast<ValueTensorType>(op.getSelf().getType());
+    auto rhsTorchType = cast<ValueTensorType>(op.getOther().getType());
+
     // Get the rank of both matrix.
     unsigned lhsRank = lhsType.getRank();
     unsigned rhsRank = rhsType.getRank();
 
+    Value lhsZeroPoint, rhsZeroPoint;
+    getZeroPoint(op.getSelf(), lhsZeroPoint);
+    getZeroPoint(op.getOther(), rhsZeroPoint);
+
+    if (static_cast<bool>(lhsZeroPoint) != static_cast<bool>(rhsZeroPoint)) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: aten.matmul with mixed quantization");
+    }
+
+    bool isUnsigned = torch_to_linalg::isUnsignedTorchType(lhsTorchType);
+    bool isUnsignedR = torch_to_linalg::isUnsignedTorchType(rhsTorchType);
+
+    if (!lhsZeroPoint && lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
+      // Allows quantized types to mismatch
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: aten.matmul with different input element types");
+    }
+
+    if (lhsZeroPoint) {
+      if (lhsRank < 2 || rhsRank < 2) {
+        return rewriter.notifyMatchFailure(
+            op, "unsupported: quantized aten.mm with vector");
+      }
+      lhsZeroPoint = typeConverter->materializeTargetConversion(
+          rewriter, loc,
+          getTypeConverter()->convertType(lhsZeroPoint.getType()),
+          lhsZeroPoint);
+      rhsZeroPoint = typeConverter->materializeTargetConversion(
+          rewriter, loc,
+          getTypeConverter()->convertType(rhsZeroPoint.getType()),
+          rhsZeroPoint);
+      lhsZeroPoint = rewriter.create<arith::TruncIOp>(
+          loc, rewriter.getI32Type(), lhsZeroPoint);
+      rhsZeroPoint = rewriter.create<arith::TruncIOp>(
+          loc, rewriter.getI32Type(), rhsZeroPoint);
+
+      // change uint8 quantization -> int8 quantization
+      int64_t numBits =
+          lhsType.getElementType().cast<mlir::IntegerType>().getWidth();
+      signShift(rewriter, loc, lhs, lhsZeroPoint, isUnsigned, numBits);
+      numBits = rhsType.getElementType().cast<mlir::IntegerType>().getWidth();
+      signShift(rewriter, loc, rhs, rhsZeroPoint, isUnsignedR, numBits);
+    }
+
     Type newResultType = getTypeConverter()->convertType(op.getType());
-    auto resultType = newResultType.cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(newResultType);
     Type elementType = resultType.getElementType();
 
     // The different cases of torch_matmul op is mentioned here:
@@ -337,7 +413,7 @@ public:
       return success();
     }
 
-    // Fourth Case: Vec-Vec Multiplication.
+    // Fourth Case: Mat-Mat Multiplication.
     if (lhsRank == 2 && rhsRank == 2) {
       Value lhsDim0 = getDimOp(rewriter, loc, lhs, 0);
       Value lhsDim1 = getDimOp(rewriter, loc, lhs, 1);
@@ -347,11 +423,20 @@ public:
 
       Value zeroTensor = createZeroInitTensor(
           rewriter, loc, ValueRange{lhsDim0, rhsDim1}, elementType);
-      Value matmul =
-          rewriter
-              .create<linalg::MatmulOp>(loc, zeroTensor.getType(),
-                                        ValueRange{lhs, rhs}, zeroTensor)
-              .getResult(0);
+      Value matmul;
+      if (lhsZeroPoint) {
+        matmul = rewriter
+                     .create<linalg::QuantizedMatmulOp>(
+                         loc, zeroTensor.getType(),
+                         ValueRange{lhs, rhs, lhsZeroPoint, rhsZeroPoint},
+                         zeroTensor)
+                     .getResult(0);
+      } else {
+        matmul = rewriter
+                     .create<linalg::MatmulOp>(loc, zeroTensor.getType(),
+                                               ValueRange{lhs, rhs}, zeroTensor)
+                     .getResult(0);
+      }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
       return success();
     }
@@ -436,12 +521,24 @@ public:
             rewriter, loc,
             ValueRange{broadcastedBatchShape[0], lhsDim0, rhsDim1},
             elementType);
-        Value matmul =
-            rewriter
-                .create<linalg::BatchMatmulOp>(
-                    loc, zeroTensor.getType(),
-                    ValueRange{broadcastedLhs, broadcastedRhs}, zeroTensor)
-                .getResult(0);
+        Value matmul;
+        if (lhsZeroPoint) {
+          matmul = rewriter
+                       .create<linalg::QuantizedBatchMatmulOp>(
+                           loc, zeroTensor.getType(),
+                           ValueRange{broadcastedLhs, broadcastedRhs,
+                                      lhsZeroPoint, rhsZeroPoint},
+                           zeroTensor)
+                       .getResult(0);
+          rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType,
+                                                      matmul);
+          return success();
+        }
+        matmul = rewriter
+                     .create<linalg::BatchMatmulOp>(
+                         loc, zeroTensor.getType(),
+                         ValueRange{broadcastedLhs, broadcastedRhs}, zeroTensor)
+                     .getResult(0);
         rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
         return success();
       }
@@ -490,13 +587,24 @@ public:
             loc, rewriter.getZeroAttr(elementType));
         Value zeroTensor =
             rewriter.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
+        Value batchMatMul;
 
-        Value batchMatMul =
-            rewriter
-                .create<linalg::BatchMatmulOp>(
-                    loc, zeroTensor.getType(),
-                    ValueRange{collapsedLhs, collapsedRhs}, zeroTensor)
-                .getResult(0);
+        if (lhsZeroPoint) {
+          batchMatMul = rewriter
+                            .create<linalg::QuantizedBatchMatmulOp>(
+                                loc, zeroTensor.getType(),
+                                ValueRange{collapsedLhs, collapsedRhs,
+                                           lhsZeroPoint, rhsZeroPoint},
+                                zeroTensor)
+                            .getResult(0);
+        } else {
+          batchMatMul =
+              rewriter
+                  .create<linalg::BatchMatmulOp>(
+                      loc, zeroTensor.getType(),
+                      ValueRange{collapsedLhs, collapsedRhs}, zeroTensor)
+                  .getResult(0);
+        }
         Value expandResult = rewriter.create<tensor::ExpandShapeOp>(
             loc, resultType, batchMatMul, reassociation);
         rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType,
@@ -571,9 +679,9 @@ public:
     RankedTensorType rhsType = rhs.getType().cast<RankedTensorType>();
     Type newResultType = getTypeConverter()->convertType(op.getType());
     Type resultElementType =
-        newResultType.cast<RankedTensorType>().getElementType();
-    Type lhsElementType = lhsType.cast<RankedTensorType>().getElementType();
-    Type rhsElementType = rhsType.cast<RankedTensorType>().getElementType();
+        cast<RankedTensorType>(newResultType).getElementType();
+    Type lhsElementType = cast<RankedTensorType>(lhsType).getElementType();
+    Type rhsElementType = cast<RankedTensorType>(rhsType).getElementType();
 
     if (lhsType.getRank() != 3 || rhsType.getRank() != 3) {
       return rewriter.notifyMatchFailure(
@@ -683,9 +791,9 @@ public:
     auto weightDTy = weight.getType().cast<RankedTensorType>().getElementType();
     auto resultDTy = resultTy.toBuiltinTensor().getElementType();
 
-    if (!inputDTy.isa<mlir::FloatType, mlir::IntegerType>() ||
-        !weightDTy.isa<mlir::FloatType, mlir::IntegerType>() ||
-        !resultDTy.isa<mlir::FloatType, mlir::IntegerType>())
+    if (!isa<mlir::FloatType, mlir::IntegerType>(inputDTy) ||
+        !isa<mlir::FloatType, mlir::IntegerType>(weightDTy) ||
+        !isa<mlir::FloatType, mlir::IntegerType>(resultDTy))
       return op.emitError("unimplemented: non-fp not-int type");
     size_t inRank = input.getType().cast<RankedTensorType>().getRank();
     size_t numSpatialDims = inRank - 2;
@@ -761,9 +869,8 @@ public:
     SmallVector<Value> outDims{inBatch, weightBatch};
     Value paddedInput;
     if (transposed) {
-      if (!inputDTy.isa<mlir::FloatType>() ||
-          !weightDTy.isa<mlir::FloatType>() ||
-          !resultDTy.isa<mlir::FloatType>())
+      if (!isa<mlir::FloatType>(inputDTy) || !isa<mlir::FloatType>(weightDTy) ||
+          !isa<mlir::FloatType>(resultDTy))
         return rewriter.notifyMatchFailure(
             op, "transpose does not support non-fp type yet");
 
@@ -898,10 +1005,10 @@ public:
                                                          accumulatorDType);
     if (bias.getType().isa<Torch::NoneType>()) {
       Value c0;
-      if (accumulatorDType.isa<mlir::FloatType>()) {
+      if (isa<mlir::FloatType>(accumulatorDType)) {
         c0 = rewriter.create<arith::ConstantOp>(
             loc, FloatAttr::get(accumulatorDType, 0.0));
-      } else if (accumulatorDType.isa<mlir::IntegerType>()) {
+      } else if (isa<mlir::IntegerType>(accumulatorDType)) {
         c0 = rewriter.create<arith::ConstantOp>(
             loc, IntegerAttr::get(accumulatorDType, 0));
       }
@@ -992,7 +1099,7 @@ public:
       Type newResultType = getTypeConverter()->convertType(op.getType());
       if (accumulatorDType != resultDTy) {
         Type resultElementType =
-            newResultType.cast<RankedTensorType>().getElementType();
+            cast<RankedTensorType>(newResultType).getElementType();
         conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
                                                            resultElementType);
       }
@@ -1052,7 +1159,7 @@ public:
       Type newResultType = getTypeConverter()->convertType(op.getType());
       if (accumulatorDType != resultDTy) {
         Type resultElementType =
-            newResultType.cast<RankedTensorType>().getElementType();
+            cast<RankedTensorType>(newResultType).getElementType();
         conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
                                                            resultElementType);
       }
@@ -1096,7 +1203,7 @@ public:
       Type newResultType = getTypeConverter()->convertType(op.getType());
       if (accumulatorDType != resultDTy) {
         Type resultElementType =
-            newResultType.cast<RankedTensorType>().getElementType();
+            cast<RankedTensorType>(newResultType).getElementType();
         conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
                                                            resultElementType);
       }
@@ -1174,7 +1281,7 @@ public:
     Type newResultType = getTypeConverter()->convertType(op.getType());
     if (accumulatorDType != resultDTy) {
       Type resultElementType =
-          newResultType.cast<RankedTensorType>().getElementType();
+          cast<RankedTensorType>(newResultType).getElementType();
       conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
                                                          resultElementType);
     }

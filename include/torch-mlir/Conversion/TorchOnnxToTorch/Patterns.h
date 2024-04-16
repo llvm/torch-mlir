@@ -178,13 +178,32 @@ struct OpBinder {
     }
     if (auto arrayAttr = dyn_cast<ArrayAttr>(attr)) {
       for (auto element : arrayAttr) {
-        auto integerAttr = element.dyn_cast<IntegerAttr>();
+        auto integerAttr = dyn_cast<IntegerAttr>(element);
         if (!integerAttr)
           return failure();
         IntegerType t = cast<IntegerType>(integerAttr.getType());
         if (!t.isSigned() || t.getWidth() != 64)
           return failure();
         values.push_back(integerAttr.getSInt());
+      }
+      return success();
+    }
+    return failure();
+  }
+
+  ParseResult stringArrayAttr(llvm::SmallVector<std::string> &values,
+                              StringRef nameSuffix) {
+    SmallString<64> name("torch.onnx.");
+    name.append(nameSuffix);
+    auto attr = op->getAttr(name);
+    if (!attr)
+      return success();
+    if (auto arrayAttr = dyn_cast<ArrayAttr>(attr)) {
+      for (auto element : arrayAttr) {
+        StringAttr stringAttr = dyn_cast<StringAttr>(element);
+        if (!stringAttr)
+          return failure();
+        values.push_back(stringAttr.getValue().str());
       }
       return success();
     }

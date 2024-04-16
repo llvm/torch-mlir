@@ -13,6 +13,7 @@
 #include "PopulatePatterns.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
@@ -178,8 +179,7 @@ public:
     }
 
     auto loc = op.getLoc();
-    auto newRank = dimSizes.size();
-    if (newRank == 0 || rankType.getRank() == 0) {
+    if (dimSizes.size() == 0 || rankType.getRank() == 0) {
       rewriter.replaceOpWithNewOp<stablehlo::ReshapeOp>(
           op,
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -193,35 +193,9 @@ public:
       return dSize;
     });
 
-    const auto &options = ConvertAtenOp<AtenOpT>::getOptions();
-    Type intType = rewriter.getIntegerType(options.dimSizeIndexBits);
-    if (options.dimSizeIndexBits == 32) {
-      // The i64 calculation is much slower than i32 on some devices, such as
-      // Nvidia GPU. One can truncate from i64 to i32 since dimension sizes are
-      // unlikely to exceed the range of i32(4GiB)
-      std::for_each(dimSizes.begin(), dimSizes.end(), [&](Value &dSize) {
-        // dimSize: cast i64 -> i32
-        dSize = rewriter.create<arith::TruncIOp>(loc, intType, dSize);
-        return dSize;
-      });
-    }
+    Value numel = rewriter.create<shape::NumElementsOp>(
+        loc, rewriter.create<shape::ShapeOfOp>(loc, adaptor.getSelf()));
 
-    Value numel = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(intType, 1));
-    for (auto d : dimSizes) {
-      numel = rewriter.create<arith::MulIOp>(loc, numel, d);
-    }
-    numel = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(),
-                                                numel);
-
-    if (dimSizes.size() == 0) {
-      rewriter.replaceOpWithNewOp<stablehlo::ReshapeOp>(
-          op,
-          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-              op.getType()),
-          adaptor.getSelf());
-      return success();
-    }
     Value stablehloShape =
         rewriter.create<tensor::FromElementsOp>(loc, dimSizes);
     Value computedShape = rewriter.create<stablehlo::ComputeReshapeShapeOp>(

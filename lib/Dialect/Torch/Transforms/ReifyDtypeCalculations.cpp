@@ -29,7 +29,7 @@ dtypeFunctionArgsBuilder(OpBuilder &b, Location loc,
   // Turn every tensor into a tuple of (tensor_rank, tensor_dtype)
   auto dtypeArgAdjuster = [](OpBuilder &b, Location loc, Value operand,
                              Type desiredType) -> Value {
-    if (desiredType.isa<Torch::TupleType>() &&
+    if (isa<Torch::TupleType>(desiredType) &&
         operand.getType().isa<Torch::BaseTensorType>()) {
       Type intType = Torch::IntType::get(b.getContext());
       Type sizeListType = Torch::ListType::get(intType);

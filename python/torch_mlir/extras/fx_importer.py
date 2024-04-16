@@ -1495,17 +1495,41 @@ class GraphNodeImporter:
                 with loc:
                     self.bind_node_value(arg, self._import_literal(obj))
 
-            return self.resolve_node_value(arg)
+            argument_value = self.resolve_node_value(arg)
         elif isinstance(arg, torch_fx.immutable_collections.immutable_list):
-            return self._import_list_argument(loc, arg, expected_jit_type)
+            argument_value = self._import_list_argument(loc, arg, expected_jit_type)
         elif isinstance(expected_jit_type, torch.TensorType) and not isinstance(
             arg, torch.Tensor
         ):
             # promote scalars to tensor types as appropriate
-            return self._import_scalar_as_tensor(loc, arg)
+            argument_value = self._import_scalar_as_tensor(loc, arg)
         else:
             with loc:
-                return self._import_literal(arg)
+                argument_value = self._import_literal(arg)
+        return self._convert_type(loc, argument_value, expected_jit_type)
+
+    def _convert_type(self, loc: Location, val: Value, expected_jit_type):
+        """
+        When the type of 'value' and the type in the schema do not match,
+        attempt to perform automatic type conversion.
+
+        example: test/python/fx_importer/basic_test.py::test_full
+        """
+        op_name = None
+        result_type = None
+        # TODO: If additional types require conversion in the future,
+        #  consider implementing a table-driven approach.
+        if val.type == self._cc.torch_bool_type:
+            if isinstance(expected_jit_type, torch.FloatType):
+                op_name = "torch.aten.Float.bool"
+                result_type = self._cc.torch_float_type
+            elif isinstance(expected_jit_type, (torch.IntType, torch.NumberType)):
+                op_name = "torch.aten.Int.bool"
+                result_type = self._cc.torch_int_type
+        if op_name is None:
+            return val
+        with loc:
+            return Operation.create(name=op_name, results=[result_type], operands=[val]).result
 
     def _import_literal(self, py_value: Any) -> Value:
         # Apply the conversion callback.

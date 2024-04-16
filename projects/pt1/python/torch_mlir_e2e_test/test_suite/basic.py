@@ -4281,6 +4281,26 @@ def AtenToDeviceModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class Aten_CastFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 4], torch.int64, True),
+    ])
+
+    def forward(self, val):
+        return torch.ops.aten._cast_Float(val)
+    
+@register_test_case(module_factory=lambda: Aten_CastFloatModule())
+def Aten_CastFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 4))
+
+    
+# ==============================================================================
+
 class UpSampleNearest2dBackward(torch.nn.Module):
 
     def __init__(self):
@@ -5124,3 +5144,4 @@ class CloneModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: CloneModule())
 def CloneModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 5))
+

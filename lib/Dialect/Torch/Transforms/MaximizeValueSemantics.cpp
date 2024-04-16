@@ -140,7 +140,7 @@ public:
       auto returnOp = ops.returnOp.value();
       for (auto operand : llvm::enumerate(returnOp->getOperands())) {
         auto type = operand.value().getType();
-        if (!type.isa<NonValueTensorType>())
+        if (!isa<NonValueTensorType>(type))
           continue;
         originalReturnTypes[operand.index()] = type;
       }

@@ -37,14 +37,14 @@ static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
   auto constType = RankedTensorType::get({}, elementTy);
   if (isa<AtenSumOp, AtenSumDimIntListOp, AtenFrobeniusNormDimOp,
           AtenLinalgVectorNormOp>(op)) {
-    if (elementTy.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(elementTy)) {
       auto constAttr = DenseElementsAttr::get(
           constType, {APFloat::getZero(
-                         elementTy.cast<mlir::FloatType>().getFloatSemantics(),
+                         cast<mlir::FloatType>(elementTy).getFloatSemantics(),
                          /*negative=*/false)});
       return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
                                                     constAttr);
-    } else if (elementTy.isa<mlir::IntegerType>() &&
+    } else if (isa<mlir::IntegerType>(elementTy) &&
                elementTy.getIntOrFloatBitWidth() != 8) {
       auto constAttr = DenseElementsAttr::get(
           constType, {APInt::getZero(elementTy.getIntOrFloatBitWidth())});
@@ -54,14 +54,14 @@ static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
   }
 
   if (isa<AtenMaxOp, AtenMaxDimOp, AtenArgmaxOp>(op)) {
-    if (elementTy.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(elementTy)) {
       auto constAttr = DenseElementsAttr::get(
-          constType, {APFloat::getInf(
-                         elementTy.cast<mlir::FloatType>().getFloatSemantics(),
-                         /*negative=*/true)});
+          constType,
+          {APFloat::getInf(cast<mlir::FloatType>(elementTy).getFloatSemantics(),
+                           /*negative=*/true)});
       return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
                                                     constAttr);
-    } else if (elementTy.isa<mlir::IntegerType>() &&
+    } else if (isa<mlir::IntegerType>(elementTy) &&
                elementTy.getIntOrFloatBitWidth() != 8) {
       auto constAttr = DenseElementsAttr::get(
           constType,
@@ -72,14 +72,14 @@ static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
   }
 
   if (isa<AtenMinOp>(op)) {
-    if (elementTy.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(elementTy)) {
       auto constAttr = DenseElementsAttr::get(
-          constType, {APFloat::getInf(
-                         elementTy.cast<mlir::FloatType>().getFloatSemantics(),
-                         /*negative=*/false)});
+          constType,
+          {APFloat::getInf(cast<mlir::FloatType>(elementTy).getFloatSemantics(),
+                           /*negative=*/false)});
       return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
                                                     constAttr);
-    } else if (elementTy.isa<mlir::IntegerType>() &&
+    } else if (isa<mlir::IntegerType>(elementTy) &&
                elementTy.getIntOrFloatBitWidth() != 8) {
       auto constAttr = DenseElementsAttr::get(
           constType,
@@ -234,7 +234,7 @@ LogicalResult ConvertAtenReductionOp<AtenArgmaxOp>::matchAndRewrite(
         "only floating-point or integer datatype legalization supported");
   }
   // Currently, (u)int8 dtype is not supported!
-  if (inputElemTy.isa<mlir::IntegerType>() &&
+  if (isa<mlir::IntegerType>(inputElemTy) &&
       inputElemTy.getIntOrFloatBitWidth() == 8) {
     return rewriter.notifyMatchFailure(
         op, "IntegerType with bitwidth 8 unsupported in convertion from "
@@ -305,7 +305,7 @@ LogicalResult ConvertAtenReductionOp<AtenMaxDimOp>::matchAndRewrite(
         "Only floating-point or integer datatype legalization supported");
   }
   // Currently, (u)int8 dtype is not supported
-  if (inputElemTy.isa<mlir::IntegerType>() &&
+  if (isa<mlir::IntegerType>(inputElemTy) &&
       inputElemTy.getIntOrFloatBitWidth() == 8) {
     return rewriter.notifyMatchFailure(
         op, "IntegerType with bitwidth 8 unsupported in convertion from "
@@ -319,7 +319,7 @@ LogicalResult ConvertAtenReductionOp<AtenMaxDimOp>::matchAndRewrite(
                                        ->convertType(op.getResult(1).getType())
                                        .template cast<RankedTensorType>();
   Type idxElementType = idxResultType.getElementType();
-  if (!idxElementType.isa<mlir::IntegerType>()) {
+  if (!isa<mlir::IntegerType>(idxElementType)) {
     return op.emitError("Aten.max.dim needs integer-like result");
   }
 
@@ -404,7 +404,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumOp>::matchAndRewrite(
         "only floating-point or integer datatype legalization supported");
   }
   // Currently, (u)int8 dtype is not supported
-  if (inputElemTy.isa<mlir::IntegerType>() &&
+  if (isa<mlir::IntegerType>(inputElemTy) &&
       inputElemTy.getIntOrFloatBitWidth() == 8) {
     return rewriter.notifyMatchFailure(
         op, "IntegerType with bitwidth 8 unsupported in convertion from "
@@ -466,7 +466,7 @@ LogicalResult ConvertAtenReductionOp<AtenMaxOp>::matchAndRewrite(
         "only floating-point or integer datatype legalization supported");
   }
   // Currently, (u)int8 dtype is not supported
-  if (inputElemTy.isa<mlir::IntegerType>() &&
+  if (isa<mlir::IntegerType>(inputElemTy) &&
       inputElemTy.getIntOrFloatBitWidth() == 8) {
     return rewriter.notifyMatchFailure(
         op, "IntegerType with bitwidth 8 unsupported in convertion from "
@@ -529,7 +529,7 @@ LogicalResult ConvertAtenReductionOp<AtenMinOp>::matchAndRewrite(
         "only floating-point or integer datatype legalization supported");
   }
   // Currently, (u)int8 dtype is not supported
-  if (inputElemTy.isa<mlir::IntegerType>() &&
+  if (isa<mlir::IntegerType>(inputElemTy) &&
       inputElemTy.getIntOrFloatBitWidth() == 8) {
     return rewriter.notifyMatchFailure(
         op, "IntegerType with bitwidth 8 unsupported in convertion from "
@@ -603,7 +603,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
   }
 
   // Currently, (u)int8 dtype is not supported
-  if (inputElemTy.isa<mlir::IntegerType>() &&
+  if (isa<mlir::IntegerType>(inputElemTy) &&
       inputElemTy.getIntOrFloatBitWidth() == 8) {
     return rewriter.notifyMatchFailure(
         op, "IntegerType with bitwidth 8 unsupported in convertion from "
@@ -715,7 +715,7 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
   }
   auto inputRank = inputType.getRank();
   auto inputElemType = inputType.getElementType();
-  if (!inputElemType.isa<mlir::FloatType>()) {
+  if (!isa<mlir::FloatType>(inputElemType)) {
     return op.emitError(
         "only float dtype allowed in input tensor of AtenFrobeniusNormDimOp");
   }
@@ -830,7 +830,7 @@ LogicalResult ConvertAtenReductionOp<AtenLinalgVectorNormOp>::matchAndRewrite(
   auto outType =
       getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
   auto outElemType = outType.getElementType();
-  if (!outElemType.isa<mlir::FloatType>()) {
+  if (!isa<mlir::FloatType>(outElemType)) {
     return op.emitError("only float dtype allowed in AtenLinalgVectorNormOp");
   }
 
@@ -912,7 +912,7 @@ LogicalResult ConvertAtenReductionOp<AtenLinalgVectorNormOp>::matchAndRewrite(
       op->getLoc(), blockArgumentTy,
       DenseElementsAttr::get(
           blockArgumentTy,
-          APFloat(outElemType.cast<mlir::FloatType>().getFloatSemantics(), 1)));
+          APFloat(cast<mlir::FloatType>(outElemType).getFloatSemantics(), 1)));
   auto reciprocalOrd = rewriter.create<stablehlo::DivOp>(
       op->getLoc(), blockArgumentTy, constantOne, ord);
   auto output = rewriter.create<chlo::BroadcastPowOp>(

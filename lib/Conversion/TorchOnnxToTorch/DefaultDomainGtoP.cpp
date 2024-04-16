@@ -195,6 +195,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, operand);
                   return success();
                 });
+  patterns.onOp("LSTM", 1, onnx_c::OnnxLstmExpander);
   patterns.onOp(
       "LogSoftmax", 13,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
@@ -310,6 +311,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType))
           return failure();
 
+        auto lhsTy = dyn_cast<Torch::ValueTensorType>(lhs.getType());
+        auto rhsTy = dyn_cast<Torch::ValueTensorType>(rhs.getType());
+
         if (binder.tensorOperandAtIndex(lhsZp, 2)) {
           lhsZp = rewriter.create<Torch::ConstantIntOp>(
               binder.getLoc(), rewriter.getType<Torch::IntType>(),
@@ -321,9 +325,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.getLoc(), rewriter.getType<Torch::IntType>(),
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
         }
-
-        auto lhsTy = dyn_cast<Torch::ValueTensorType>(lhs.getType());
-        auto rhsTy = dyn_cast<Torch::ValueTensorType>(rhs.getType());
 
         if (auto zpTy = dyn_cast<Torch::ValueTensorType>(lhsZp.getType())) {
           for (auto dim : zpTy.getSizes())
@@ -365,8 +366,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         rhs = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
             binder.getLoc(), rhsQTy, rhs, scale, rhsZp);
 
-        rewriter.replaceOpWithNewOp<Torch::AtenMmOp>(binder.op, resultType, lhs,
-                                                     rhs);
+        rewriter.replaceOpWithNewOp<Torch::AtenMatmulOp>(binder.op, resultType,
+                                                         lhs, rhs);
         return success();
       });
   patterns.onOp("Mul", 7,

@@ -170,7 +170,7 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
   if (operandType == desiredType)
     return operand;
 
-  if (desiredType.isa<Torch::AnyType>()) {
+  if (isa<Torch::AnyType>(desiredType)) {
     // Generator's are currently passed as Any because TorchScript cannot
     // compile a function with Generator type arguments.
     // Ignoring that hack, this is a correct handling of Any type should we need
@@ -180,8 +180,8 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
 
   // The type `!torch.number` can be an `int`, `float`, or `complex`.
   // TODO: Add a new type `Torch::ComplexType` to handle the complex case.
-  if (desiredType.isa<Torch::NumberType>() &&
-      operandType.isa<Torch::IntType, Torch::FloatType>()) {
+  if (isa<Torch::NumberType>(desiredType) &&
+      isa<Torch::IntType, Torch::FloatType>(operandType)) {
     return b.create<DerefineOp>(loc, desiredType, operand).getResult();
   }
 
@@ -189,7 +189,7 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
   // `Scalar` inputs. At compile time, such inputs will usually be
   // resolved to an `int`, `float`, or `None` so we need to derefine
   // to match the library function signature.
-  if (auto unionType = desiredType.dyn_cast<Torch::UnionType>()) {
+  if (auto unionType = dyn_cast<Torch::UnionType>(desiredType)) {
     if (llvm::all_of(unionType.getContainedTypes(), [](Type containedType) {
           return containedType
               .isa<Torch::IntType, Torch::FloatType, Torch::NoneType>();
@@ -200,8 +200,8 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
   // Operands with type `!torch.none` correspond to library function inputs with
   // types like `!torch.optional<...>` or `!torch.union<..., none>`, so here the
   // type is derefined to match the expected type of the library function.
-  if (operandType.isa<Torch::NoneType>()) {
-    assert(!desiredType.isa<Torch::NoneType>() &&
+  if (isa<Torch::NoneType>(operandType)) {
+    assert(!isa<Torch::NoneType>(desiredType) &&
            "Don't expect library functions to have NoneType parameters");
     return b.create<DerefineOp>(loc, desiredType, operand).getResult();
   }
@@ -211,8 +211,8 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
   // dtype of input scalars. However, this also means we sometimes have to
   // manually turn `Scalar`s into `float`s when inserting the shape functions
   // into the IR.
-  if (operandType.isa<Torch::NumberType>() &&
-      desiredType.isa<Torch::FloatType>()) {
+  if (isa<Torch::NumberType>(operandType) &&
+      isa<Torch::FloatType>(desiredType)) {
     return b.create<AtenFloatScalarOp>(loc, desiredType, operand).getResult();
   }
 
@@ -224,8 +224,8 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
   // type).
   // A case where this happens is `!torch.optional<vtensor>` ->
   // `!torch.optional<list<int>>>`.
-  if (auto operandOptionalType = operandType.dyn_cast<Torch::OptionalType>()) {
-    if (desiredType.isa<Torch::OptionalType>()) {
+  if (auto operandOptionalType = dyn_cast<Torch::OptionalType>(operandType)) {
+    if (isa<Torch::OptionalType>(desiredType)) {
       // if optional is None:
       //     return derefine(None)
       // else:
@@ -258,7 +258,7 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
   // If the desired type is OptionalType, then recursively adjust the operand to
   // the contained type, then derefine it to `!torch.optional`. For example,
   // `!torch.vtensor -> !torch.optional<list<int>>>`.
-  if (auto desiredOptionalType = desiredType.dyn_cast<Torch::OptionalType>()) {
+  if (auto desiredOptionalType = dyn_cast<Torch::OptionalType>(desiredType)) {
     FailureOr<Value> adjusted = adjustFunctionArg(
         b, loc, operand, desiredOptionalType.getContainedType(),
         baseTransformation);
@@ -267,7 +267,7 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
     return b.create<DerefineOp>(loc, desiredType, *adjusted).getResult();
   }
 
-  if (auto desiredListType = desiredType.dyn_cast<Torch::ListType>()) {
+  if (auto desiredListType = dyn_cast<Torch::ListType>(desiredType)) {
     // Pseudocode:
     //
     // operand = ...
@@ -311,7 +311,7 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
   // The library functions use `float` where the operator
   // signature uses `Scalar` (see comments in torch_ods_gen.py for
   // explanation).
-  if (desiredType.isa<Torch::FloatType>() &&
+  if (isa<Torch::FloatType>(desiredType) &&
       operand.getType().isa<Torch::IntType>()) {
     return b.create<AtenFloatScalarOp>(loc, desiredType, operand).getResult();
   }
