@@ -56,6 +56,12 @@ static Value createComparisonTemplate(OpBuilder &b, Location loc, Type type,
   llvm_unreachable("Unhandled element type for comparison");
 }
 
+static void getZeroPoint(Value value, Value &zeropoint) {
+  if (auto make = value.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
+    zeropoint = make.getZeroPoint();
+  }
+}
+
 static Value createGreaterThan(OpBuilder &b, Location loc, Type elementalType,
                                Value lhs, Value rhs) {
   return createComparisonTemplate<arith::CmpFPredicate::OGT,
@@ -528,10 +534,29 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return convertScalarToDtype(b, loc, div, outTy, std::nullopt, outTTy);
   }
   if (auto relu = dyn_cast<AtenReluOp>(op)) {
-    if (!relu.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    Value zeroPoint;
+    getZeroPoint(relu.getSelf(), zeroPoint);
+    Value arg = payloadArgs[0];
+    auto reluTorchType = cast<ValueTensorType>(relu.getType());
+    if (zeroPoint) {
+      if (auto intType = dyn_cast<mlir::IntegerType>(arg.getType())) {
+        zeroPoint = converter->materializeTargetConversion(
+            b, loc, converter->convertType(zeroPoint.getType()), zeroPoint);
+        zeroPoint = b.create<arith::TruncIOp>(loc, arg.getType(), zeroPoint);
+        Value pred;
+        if (torch_to_linalg::isUnsignedTorchType(reluTorchType.getDtype())) {
+          pred = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ugt, arg,
+                                         zeroPoint);
+        } else {
+          pred = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, arg,
+                                         zeroPoint);
+        }
+        return b.create<arith::SelectOp>(loc, pred, arg, zeroPoint);
+      }
+      relu.emitError("unimplemented: non-integer quantized Relu.");
+      return nullptr;
+    }
+    if (!reluTorchType.getDtype().isa<mlir::FloatType>()) {
       relu.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
