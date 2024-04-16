@@ -66,6 +66,13 @@ Resources:
 3. Implement the op in `lib/Conversion/TorchOnnxToTorch/something.cpp`.
 4. Test the conversion by running `./build/bin/torch-mlir-opt -split-input-file -verify-diagnostics -convert-torch-onnx-to-torch your_mlir_file.mlir`. For more details, see https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing . Xida usually creates a separate MLIR file to test it to his satisfaction before integrating it into one of the files at `torch-mlir/test/Conversion/TorchOnnxToTorch`.
 
+#### What to do when....
+
+##### The Onnx op has a "dim" operand as a tensor
+What to do when encountering tensor dims (potentially dynamic) that cause ops to not lower in onnx:
+- prioritize testing the op end to end, using a constant op to define the dim in test cases and try to match it as a constant
+- once that is done, try to make dynamic dims lower. This is a must if a model we're working with depends on dynamicism, but optional if not. It's fine if the op lowers to torch but fails to further lower to linalg - - changes are being made to linalg lowerings to support this.
+
 Helpful examples:
 - [A Dec 2023 example where an ONNX op is implemented](https://github.com/llvm/torch-mlir/pull/2641/files#diff-b584b152020af6d2e5dbf62a08b2f25ed5afc2c299228383b9651d22d44b5af4R493)
 - [Vivek's example of ONNX op lowering](https://github.com/llvm/torch-mlir/commit/dc9ea08db5ac295b4b3f91fc776fef6a702900b9)
