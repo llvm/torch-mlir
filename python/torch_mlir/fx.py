@@ -10,6 +10,7 @@ import warnings
 import torch
 import torch.export
 import torch.nn as nn
+from torch.export import ExportedProgram
 
 from torch_mlir.extras.fx_importer import FxImporter, FxImporterHooks
 from torch_mlir import ir
@@ -18,7 +19,7 @@ from torch_mlir.extras.fx_decomp_util import get_decomposition_table
 
 
 def export_and_import(
-    f,
+    f: Union[nn.Module, ExportedProgram],
     *args,
     fx_importer: Optional[FxImporter] = None,
     dynamic_shapes: Optional[Union[Dict[str, Any], Tuple[Any]]] = None,
@@ -34,7 +35,10 @@ def export_and_import(
 
     if fx_importer is None:
         fx_importer = FxImporter(context=context, hooks=hooks)
-    prog = torch.export.export(f, args, kwargs, dynamic_shapes=dynamic_shapes)
+    if isinstance(f, ExportedProgram):
+        prog = f
+    else:
+        prog = torch.export.export(f, args, kwargs, dynamic_shapes=dynamic_shapes)
     if decomposition_table is None:
         decomposition_table = get_decomposition_table()
     if decomposition_table:
