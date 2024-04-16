@@ -2584,8 +2584,10 @@ public:
           Value gplus1 = b.create<arith::AddFOp>(loc, gr1, oneFloat);
           Value gPlusMul0 = b.create<arith::MulFOp>(loc, gplus0, innerDim0e);
           Value gPlusMul1 = b.create<arith::MulFOp>(loc, gplus1, innerDim1e);
-          Value result0 =  b.create<arith::AddFOp>(loc, gPlusMul0, gr0HalfSelect);
-          Value result1 =  b.create<arith::AddFOp>(loc, gPlusMul1, gr1HalfSelect);
+          Value result0 = 
+              b.create<arith::AddFOp>(loc, gPlusMul0, gr0HalfSelect);
+          Value result1 =  
+              b.create<arith::AddFOp>(loc, gPlusMul1, gr1HalfSelect);
           Value checkLowerBound0 = b.create<arith::CmpFOp>(
               loc, arith::CmpFPredicate::OLT, result0, zeroFloat);
           Value checkLowerBound1 = b.create<arith::CmpFOp>(
@@ -2598,12 +2600,14 @@ public:
               b.create<arith::ConstantOp>(loc, b.getIntegerAttr(int64type, 1));
           Value lowerSub0 = b.create<arith::SubIOp>(loc, lowerOrig0, oneInt);
           Value lowerSub1 = b.create<arith::SubIOp>(loc, lowerOrig1, oneInt);
-          Value lower0 = b.create<arith::SelectOp>(loc, checkLowerBound0, lowerSub0, lowerOrig0);
-          Value lower1 = b.create<arith::SelectOp>(loc, checkLowerBound1, lowerSub1, lowerOrig1);
+          Value lower0 = b.create<arith::SelectOp>(loc, checkLowerBound0,
+                                                   lowerSub0, lowerOrig0);
+          Value lower1 = b.create<arith::SelectOp>(loc, checkLowerBound1,
+                                                   lowerSub1, lowerOrig1);
           Value lowerValid0 =
-              b.create<arith::SelectOp>(loc, checkLowerBound0, zeroInt  ,lower0);
+              b.create<arith::SelectOp>(loc, checkLowerBound0, zeroInt, lower0);
           Value lowerValid1 =
-              b.create<arith::SelectOp>(loc, checkLowerBound1, zeroInt  ,lower1);
+              b.create<arith::SelectOp>(loc, checkLowerBound1, zeroInt, lower1);
           Value upper0 =
               b.create<arith::AddIOp>(loc, int64type, lower0, oneInt);
           Value upper1 =
@@ -2627,25 +2631,26 @@ public:
           Value N = b.create<linalg::IndexOp>(loc, 0);
           Value C = b.create<linalg::IndexOp>(loc, 1);
           Value result00 = lambdaExtract(b, loc, input, N, C, lw0, lw1);
-          Value result00a =
-              b.create<arith::SelectOp>(loc, checkLowerBound0, zeroFloat, result00);
-          Value result00b =
-              b.create<arith::SelectOp>(loc, checkLowerBound1, zeroFloat, result00a);
+          Value result00a = b.create<arith::SelectOp>(loc, checkLowerBound0,
+                                                      zeroFloat, result00);
+          Value result00b = b.create<arith::SelectOp>(loc, checkLowerBound1,
+                                                      zeroFloat, result00a);
           Value result01 = lambdaExtract(b, loc, input, N, C, lw0, up1);
-          Value result01a =
-              b.create<arith::SelectOp>(loc, notValidUpper1, zeroFloat, result01);
-          Value result01b =
-              b.create<arith::SelectOp>(loc, checkLowerBound0, zeroFloat, result01a);
+          Value result01a = b.create<arith::SelectOp>(loc, notValidUpper1,
+                                                      zeroFloat, result01);
+          Value result01b = b.create<arith::SelectOp>(loc, checkLowerBound0,
+                                                      zeroFloat, result01a);
           Value result10 = lambdaExtract(b, loc, input, N, C, up0, lw1);
-          Value result10a =
-              b.create<arith::SelectOp>(loc, notValidUpper0, zeroFloat, result10);
+          Value result10a = b.create<arith::SelectOp>(loc, notValidUpper0,
+                                                      zeroFloat, result10);
           Value result10b =
-              b.create<arith::SelectOp>(loc, checkLowerBound1, zeroFloat, result10a);
+              b.create<arith::SelectOp>(loc, checkLowerBound1,
+                                        zeroFloat, result10a);
           Value result11 = lambdaExtract(b, loc, input, N, C, up0, up1);
-          Value result11a =
-              b.create<arith::SelectOp>(loc, notValidUpper0, zeroFloat, result11);
-          Value result11b =
-              b.create<arith::SelectOp>(loc, notValidUpper1, zeroFloat, result11a);
+          Value result11a = b.create<arith::SelectOp>(loc, notValidUpper0,
+                                                      zeroFloat, result11);
+          Value result11b = b.create<arith::SelectOp>(loc, notValidUpper1,
+                                                      zeroFloat, result11a);
           Value lw0a = b.create<arith::SIToFPOp>(loc, floatType, lower0);
           Value lw1a = b.create<arith::SIToFPOp>(loc, floatType, lower1);
           Value d1 = b.create<arith::SubFOp>(loc, result0, lw0a);
