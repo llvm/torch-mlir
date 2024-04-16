@@ -1450,15 +1450,15 @@ class GraphNodeImporter:
         # Unroll operands from formal parameters, args and kwargs.
         operands = []
         for i, parameter in enumerate(schema.arguments):
-            if parameter.kwarg_only and parameter.name in node.kwargs:
+            if i < len(node.args):
+                operands.append(
+                    self._import_argument(loc, node.args[i], parameter.type)
+                )
+            elif parameter.name in node.kwargs:
                 operands.append(
                     self._import_argument(
                         loc, node.kwargs[parameter.name], parameter.type
                     )
-                )
-            elif i < len(node.args):
-                operands.append(
-                    self._import_argument(loc, node.args[i], parameter.type)
                 )
             else:
                 operands.append(
