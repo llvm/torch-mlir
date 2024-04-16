@@ -37,10 +37,9 @@ case $torch_version in
     # python -m e2e_testing.main --config=lazy_tensor_core -v
     # echo "::endgroup::"
 
-    # TODO: There is one failing test in this group on stable. It could
-    # be xfailed vs excluding entirely.
-    echo "::group::Run TorchDynamo e2e integration tests"
-    python -m e2e_testing.main --config=torchdynamo -v
+    # TODO: Need to verify in the stable version
+    echo "::group::Run FxImporter e2e integration tests"
+    python -m e2e_testing.main --config=fx_importer -v
     echo "::endgroup::"
     ;;
   stable)
