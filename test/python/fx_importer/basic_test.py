@@ -14,6 +14,7 @@ from torch._dynamo.backends.common import aot_autograd
 from torch._functorch.aot_autograd import make_boxed_compiler, get_aot_graph_name, set_model_name
 
 from torch_mlir import fx
+from torch_mlir.compiler_utils import run_pipeline_with_repro_report
 
 
 def run(f):
@@ -118,3 +119,24 @@ def test_stateless_fx_import():
         return torch.tanh(x)
 
     basic_forward(torch.randn(3, 4))
+
+
+@run
+# CHECK-LABEL: test_full
+# CHECK:    %2 = torch.aten.fill.Scalar %1, %int0 : !torch.vtensor<[],i1>, !torch.int -> !torch.vtensor<[],i1>
+def test_full():
+    class Basic(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self):
+            return torch.full([], False, dtype=torch.bool, layout=torch.strided, device='cpu',
+                              pin_memory=False)
+
+    m = fx.export_and_import(Basic(), func_name="test_full", enable_graph_printing=True)
+    run_pipeline_with_repro_report(
+        m,
+        f"builtin.module(torch-simplification-pipeline)",
+        "torch-simplification-pipeline",
+    )
+    print(m)

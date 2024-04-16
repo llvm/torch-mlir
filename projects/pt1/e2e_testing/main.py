@@ -22,6 +22,7 @@ from torch_mlir_e2e_test.configs import (
     TorchScriptTestConfig,
     TosaBackendTestConfig,
     TorchDynamoTestConfig,
+    FxImporterTestConfig,
 )
 
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
@@ -41,6 +42,8 @@ from .xfail_sets import (
     TORCHDYNAMO_CRASHING_SET,
     ONNX_CRASHING_SET,
     ONNX_XFAIL_SET,
+    FX_IMPORT_XFAIL_SET,
+    FX_IMPORTER_CRASHING_SET,
 )
 
 # Import tests to register them in the global registry.
@@ -48,7 +51,7 @@ from torch_mlir_e2e_test.test_suite import register_all_tests
 register_all_tests()
 
 def _get_argparse():
-    config_choices = ["native_torch", "torchscript", "linalg", "stablehlo", "make_fx_tosa", "tosa", "lazy_tensor_core", "torchdynamo", "onnx"]
+    config_choices = ["native_torch", "torchscript", "linalg", "stablehlo", "make_fx_tosa", "tosa", "lazy_tensor_core", "torchdynamo", "onnx", "fx_importer"]
     parser = argparse.ArgumentParser(description="Run torchscript e2e tests.")
     parser.add_argument("-c", "--config",
         choices=config_choices,
@@ -121,6 +124,10 @@ def main():
         config = LazyTensorCoreTestConfig()
         xfail_set = LTC_XFAIL_SET
         crashing_set = LTC_CRASHING_SET
+    elif args.config == "fx_importer":
+        config = FxImporterTestConfig(RefBackendLinalgOnTensorsBackend())
+        xfail_set = FX_IMPORT_XFAIL_SET
+        crashing_set = FX_IMPORTER_CRASHING_SET
     elif args.config == "torchdynamo":
         config = TorchDynamoTestConfig(RefBackendLinalgOnTensorsBackend())
         xfail_set = TORCHDYNAMO_XFAIL_SET
@@ -157,6 +164,9 @@ def main():
 
     # Report the test results.
     failed = report_results(results, xfail_set, args.verbose, args.config)
+    if args.config == "torchdynamo":
+        print("\033[91mWarning: the TorchScript based dynamo support is deprecated. "
+              "The config for torchdynamo is planned to be removed in the future.\033[0m")
     if args.ignore_failures:
         sys.exit(0)
     sys.exit(1 if failed else 0)

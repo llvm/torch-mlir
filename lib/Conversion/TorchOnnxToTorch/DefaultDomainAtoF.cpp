@@ -721,35 +721,20 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType))
           return failure();
 
-        // get indexs from the condition tensor
-        auto dtype = dyn_cast<Torch::ValueTensorType>(conditionTensor.getType())
-                         .getDtype();
-        auto constOp = dyn_cast<Torch::ValueTensorLiteralOp>(
-            conditionTensor.getDefiningOp());
-        auto elementsAttr =
-            dyn_cast<DenseIntElementsAttr>(constOp.getValueAttr());
-        SmallVector<APInt> apValues;
-        int64_t index = 0;
-        for (auto intAttr : elementsAttr.getValues<Attribute>()) {
-          int64_t i = dyn_cast<IntegerAttr>(intAttr).getSInt();
-          if (i)
-            apValues.push_back(APInt(dtype.getIntOrFloatBitWidth(), index));
-          index++;
-        }
-        SmallVector<int64_t> indexShape = {static_cast<long>(apValues.size())};
-        auto indexType = Torch::ValueTensorType::get(binder.op->getContext(),
-                                                     indexShape, dtype);
-        auto attr = DenseElementsAttr::get(
-            cast<ShapedType>(RankedTensorType::get(indexShape, dtype)),
-            apValues);
-        Value indexVal =
-            rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
-                constOp, indexType, attr);
-
         auto shapeSizes =
             dyn_cast<Torch::ValueTensorType>(operand.getType()).getSizes();
+        auto resultSizes = resultType.getSizes();
+
+        // flatten input tensor if using default axis
         if (axis == INT64_MAX) {
-          // flatten input tensor if using default axis
+          SmallVector<int64_t> nonzeroShape = {resultSizes[0]};
+          auto dtype =
+              dyn_cast<Torch::ValueTensorType>(conditionTensor.getType())
+                  .getDtype();
+          auto nonzeroType =
+              rewriter.getType<Torch::ValueTensorType>(nonzeroShape, dtype);
+          Value indexVal = rewriter.create<Torch::AtenNonzeroOp>(
+              binder.getLoc(), nonzeroType, conditionTensor);
           Value cstZero = rewriter.create<Torch::ConstantIntOp>(
               binder.getLoc(), rewriter.getI64IntegerAttr(0));
           Value cstNegOne = rewriter.create<Torch::ConstantIntOp>(
@@ -759,22 +744,29 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             numElements *= i;
           }
           SmallVector<int64_t> flattenShape = {numElements};
-          auto flattenType = Torch::ValueTensorType::get(
-              binder.op->getContext(), flattenShape, resultType.getDtype());
+          auto flattenType = rewriter.getType<Torch::ValueTensorType>(
+              flattenShape, resultType.getDtype());
           Value flattenTensor = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
               binder.getLoc(), flattenType, operand, cstZero, cstNegOne);
           rewriter.replaceOpWithNewOp<Torch::AtenIndexSelectOp>(
               binder.op, resultType, flattenTensor, cstZero, indexVal);
           return success();
-        } else {
-          if (axis < 0)
-            // Negative axis value means counting dimensions from the back
-            axis += shapeSizes.size();
-          Value dim = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(axis));
-          rewriter.replaceOpWithNewOp<Torch::AtenIndexSelectOp>(
-              binder.op, resultType, operand, dim, indexVal);
         }
+
+        // Negative axis value means counting dimensions from the back
+        if (axis < 0)
+          axis += shapeSizes.size();
+        SmallVector<int64_t> nonzeroShape = {resultSizes[axis]};
+        auto dtype = dyn_cast<Torch::ValueTensorType>(conditionTensor.getType())
+                         .getDtype();
+        auto nonzeroType =
+            rewriter.getType<Torch::ValueTensorType>(nonzeroShape, dtype);
+        Value indexVal = rewriter.create<Torch::AtenNonzeroOp>(
+            binder.getLoc(), nonzeroType, conditionTensor);
+        Value dimVal = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(axis));
+        rewriter.replaceOpWithNewOp<Torch::AtenIndexSelectOp>(
+            binder.op, resultType, operand, dimVal, indexVal);
         return success();
       });
   patterns.onOp(
@@ -1747,6 +1739,95 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             dimList);
         rewriter.replaceOpWithNewOp<Torch::AtenBroadcastToOp>(
             binder.op, resultType, data, dimValueList);
+        return success();
+      });
+  patterns.onOp(
+      "EyeLike", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        int64_t dtypeIntOnnx, diagonalIndex;
+        if (binder.tensorOperand(operand) ||
+            binder.s64IntegerAttr(dtypeIntOnnx, "dtype", 1) ||
+            binder.s64IntegerAttr(diagonalIndex, "k", 0) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        auto operandTy = cast<Torch::ValueTensorType>(operand.getType());
+        SmallVector<int64_t> shape(operandTy.getSizes());
+        for (unsigned i = 0; i < shape.size(); i++) {
+          if (shape[i] == ShapedType::kDynamic)
+            shape[i] = Torch::kUnknownSize;
+        }
+
+        Value cst0 = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value cst1 = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value nVal = rewriter.create<Torch::AtenSizeIntOp>(binder.getLoc(),
+                                                           operand, cst0);
+        Value mVal = rewriter.create<Torch::AtenSizeIntOp>(binder.getLoc(),
+                                                           operand, cst1);
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        int64_t dtypeIntTorch = onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
+        Value dtypeVal = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(dtypeIntTorch));
+
+        // diagonalIndex = 0 populates the main diagonal
+        // diagonalIndex > 0 populates an upper diagonal
+        // diagonalIndex < 0 populates a lower diagonal
+        if (diagonalIndex == 0) {
+          rewriter.replaceOpWithNewOp<Torch::AtenEyeMOp>(
+              binder.op, resultType, nVal, mVal, dtypeVal, noneVal, noneVal,
+              noneVal);
+          return success();
+        }
+
+        Value diagVal = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(),
+            rewriter.getI64IntegerAttr(std::abs(diagonalIndex)));
+        Value newN, newM, dimVal, startVal;
+        // get shapes of main diag eye op and zeros op
+        if (diagonalIndex > 0) {
+          newN = nVal;
+          newM = rewriter.create<Torch::AtenSubIntOp>(binder.getLoc(), mVal,
+                                                      diagVal);
+          if (shape[1] != Torch::kUnknownSize) {
+            shape[1] -= diagonalIndex;
+          }
+          dimVal = cst1;
+          startVal = mVal;
+        } else {
+          newN = rewriter.create<Torch::AtenSubIntOp>(binder.getLoc(), nVal,
+                                                      diagVal);
+          newM = mVal;
+          if (shape[0] != Torch::kUnknownSize) {
+            shape[0] += diagonalIndex;
+          }
+          dimVal = cst0;
+          startVal = nVal;
+        }
+
+        // create main diag eye op
+        auto eyeResultType = rewriter.getType<Torch::ValueTensorType>(
+            shape, resultType.getOptionalDtype());
+        Value eyeOp = rewriter.create<Torch::AtenEyeMOp>(
+            binder.getLoc(), eyeResultType, newN, newM, dtypeVal, noneVal,
+            noneVal, noneVal);
+        // create zeros op
+        SmallVector<Value> zerosShapeValues = {nVal, mVal};
+        Value zerosShapeList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            rewriter.getType<Torch::ListType>(
+                rewriter.getType<Torch::IntType>()),
+            zerosShapeValues);
+        Value zerosOp = rewriter.create<Torch::AtenZerosOp>(
+            binder.getLoc(), resultType, zerosShapeList, dtypeVal, noneVal,
+            noneVal, noneVal);
+
+        // embeds the values of the eye matrix into zeros
+        rewriter.replaceOpWithNewOp<Torch::AtenSliceScatterOp>(
+            binder.op, resultType, zerosOp, eyeOp, dimVal,
+            /*start=*/diagVal, /*end=*/startVal, /*step=*/cst1);
         return success();
       });
   patterns.onOp(

@@ -349,6 +349,15 @@ python -m pip install -r requirements.txt
 CMAKE_GENERATOR=Ninja python setup.py bdist_wheel
 ```
 
+To package a completed CMake build directory,
+you can use the `TORCH_MLIR_CMAKE_BUILD_DIR` and `TORCH_MLIR_CMAKE_ALREADY_BUILT` environment variables:
+```shell
+TORCH_MLIR_CMAKE_BUILD_DIR=build/ TORCH_MLIR_CMAKE_ALREADY_BUILT=1 python setup.py bdist_wheel
+```
+
+Note: The setup.py script is only used for building the Python packages,
+not support commands like `setup.py develop` to build the development environment.
+
 # Testing
 
 Torch-MLIR has two types of tests:

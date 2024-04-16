@@ -27,8 +27,8 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include <iostream>
 #include <numeric>
+#include <type_traits>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -409,9 +409,9 @@ public:
     if (!lhsType)
       return op.emitError("only Tensor types supported in StableHLO");
 
-    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                       ->convertType(op.getType())
-                       .template cast<TensorType>();
+    auto outType = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
     Type outElemTy = outType.getElementType();
     if (!outElemTy.isIntOrFloat()) {
@@ -432,18 +432,23 @@ public:
     Value result =
         rewriter.create<ChloOpT>(loc, outType, lhs, rhs, bcastDimensions);
 
-    if (!isa<AtenDivTensorModeOp>(op)) {
+    if (!std::is_same<AtenDivTensorModeOp, AtenOpT>() &&
+        !std::is_same<AtenDivScalarModeOp, AtenOpT>()) {
       rewriter.replaceOp(op, result);
       return success();
     }
 
-    AtenDivTensorModeOp divTensorModeOp =
-        llvm::dyn_cast<AtenDivTensorModeOp>(op.getOperation());
+    auto tensorOp = dyn_cast<AtenDivTensorModeOp>(op.getOperation());
+    auto opRoundingMode =
+        tensorOp
+            ? tensorOp.getRoundingMode()
+            : cast<AtenDivScalarModeOp>(op.getOperation()).getRoundingMode();
+
     std::string roundingMode;
-    if (!matchPattern(divTensorModeOp.getRoundingMode(),
-                      m_TorchConstantStr(roundingMode)))
+    if (!matchPattern(opRoundingMode, m_TorchConstantStr(roundingMode))) {
       return rewriter.notifyMatchFailure(
           op, "only support constant str rounding mode");
+    }
 
     // if trunc and int, do nothing
     if (roundingMode == "trunc" && isa<mlir::FloatType>(outElemTy)) {
@@ -1845,6 +1850,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_BINARY_MULDIV_PATTERN(AtenDivTensorOp, chlo::BroadcastDivOp);
   INSERT_BINARY_MULDIV_PATTERN(AtenDivTensorModeOp, chlo::BroadcastDivOp);
   INSERT_BINARY_MULDIV_PATTERN(AtenDivScalarOp, chlo::BroadcastDivOp);
+  INSERT_BINARY_MULDIV_PATTERN(AtenDivScalarModeOp, chlo::BroadcastDivOp);
   INSERT_BINARY_MULDIV_PATTERN(AtenRemainderScalarOp, chlo::BroadcastRemOp);
 #undef INSERT_BINARY_MULDIV_PATTERN
 
