@@ -4,6 +4,7 @@
 # Also available under a BSD-style license. See LICENSE.
 
 import argparse
+import logging
 import re
 import sys
 
@@ -75,6 +76,10 @@ Regular expression specifying which tests to include in this run.
                         default=False,
                         action="store_true",
                         help="report test results with additional detail")
+    parser.add_argument("--print-ir",
+                        default=False,
+                        action="store_true",
+                        help="Set logging level to DEBUG and causes the IR to be printed for each test.")
     parser.add_argument("-s", "--sequential",
                         default=False,
                         action="store_true",
@@ -92,6 +97,16 @@ which make it easier to attach a debugger or get a stack trace.""")
 
 def main():
     args = _get_argparse().parse_args()
+
+    logger = logging.getLogger("e2e_test")
+    if args.print_ir:
+        print("Setting logging level to DEBUG and enabling IR printing.")
+        print("This currently only affects the Linalg-on-Tensors and onnx configs.")
+        print("Work in progress. See https://github.com/llvm/torch-mlir/issues/3172")
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.WARNING)
+
 
     all_test_unique_names = set(
         test.unique_name for test in GLOBAL_TEST_REGISTRY)

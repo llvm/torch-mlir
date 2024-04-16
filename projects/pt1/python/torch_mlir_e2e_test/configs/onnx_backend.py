@@ -22,7 +22,8 @@ from .utils import (
 from torch_mlir.extras import onnx_importer
 from torch_mlir.dialects import torch as torch_d
 from torch_mlir.ir import Context, Module
-
+import logging
+logger = logging.getLogger("e2e_test")
 
 def import_onnx(contents):
     # Import the ONNX model proto from the file contents:
@@ -39,7 +40,7 @@ def import_onnx(contents):
     return m
 
 
-def convert_onnx(model, inputs):
+def convert_onnx(model: torch.nn.Module, inputs):
     buffer = io.BytesIO()
 
     # Process the type information so we export with the dynamic shape information
@@ -82,6 +83,9 @@ class OnnxBackendTestConfig(TestConfig):
     def compile(self, program: torch.nn.Module) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
         onnx_module = convert_onnx(program, example_args)
+        logger.debug("OnnxBackendTestConfig imported module:")
+        logger.debug(onnx_module)
+        logger.debug("End OnnxBackendTestConfig imported module")
         compiled_module = self.backend.compile(onnx_module)
         return compiled_module
 

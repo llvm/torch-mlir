@@ -143,6 +143,7 @@ class TestConfig(abc.ABC):
         """Compile the provided torch.nn.Module into a compiled artifact"""
         pass
 
+
     # Any should match result of `compile`.
 
     @abc.abstractmethod
