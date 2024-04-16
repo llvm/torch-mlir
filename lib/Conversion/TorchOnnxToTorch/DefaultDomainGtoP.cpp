@@ -148,9 +148,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
 
-        bool alignMode = false;
+        bool alignMode = true;
         if (align == 0) {
-          alignMode = true;
+          alignMode = false;
         }
         Value alignCorners = rewriter.create<Torch::ConstantBoolOp>(
             binder.getLoc(), rewriter.getType<Torch::BoolType>(),

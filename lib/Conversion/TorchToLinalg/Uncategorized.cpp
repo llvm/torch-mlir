@@ -2577,9 +2577,9 @@ public:
           Value gr0Half = b.create<arith::DivFOp>(loc, gr0, twoFloat);
           Value gr1Half = b.create<arith::DivFOp>(loc, gr1, twoFloat);
           Value gr0HalfSelect =
-              b.create<arith::SelectOp>(loc, alignCorners, gr0Half, zeroFloat);
+              b.create<arith::SelectOp>(loc, alignCorners, zeroFloat, gr0Half);
           Value gr1HalfSelect =
-              b.create<arith::SelectOp>(loc, alignCorners, gr1Half, zeroFloat);
+              b.create<arith::SelectOp>(loc, alignCorners, zeroFloat, gr1Half);
           Value gplus0 = b.create<arith::AddFOp>(loc, gr0, oneFloat);
           Value gplus1 = b.create<arith::AddFOp>(loc, gr1, oneFloat);
           Value gPlusMul0 = b.create<arith::MulFOp>(loc, gplus0, innerDim0e);
