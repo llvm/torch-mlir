@@ -327,11 +327,12 @@ public:
           op, "unsupported: aten.matmul with different input element types");
     }
 
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+    auto resultType = cast<RankedTensorType>(newResultType);
+    Type elementType = resultType.getElementType();
+
     if (lhsZeroPoint) {
-      if (lhsRank < 2 || rhsRank < 2) {
-        return rewriter.notifyMatchFailure(
-            op, "unsupported: quantized aten.mm with vector");
-      }
+      // get each zero point ready to pass to a quantized_matmul
       lhsZeroPoint = typeConverter->materializeTargetConversion(
           rewriter, loc,
           getTypeConverter()->convertType(lhsZeroPoint.getType()),
@@ -351,11 +352,61 @@ public:
       signShift(rewriter, loc, lhs, lhsZeroPoint, isUnsigned, numBits);
       numBits = rhsType.getElementType().cast<mlir::IntegerType>().getWidth();
       signShift(rewriter, loc, rhs, rhsZeroPoint, isUnsignedR, numBits);
-    }
 
-    Type newResultType = getTypeConverter()->convertType(op.getType());
-    auto resultType = cast<RankedTensorType>(newResultType);
-    Type elementType = resultType.getElementType();
+      // for quantized vec-vec, vec-mat, and mat-vec cases, lower to
+      // expand/collapse + quantized_matmul
+      bool lhsVec = (lhsRank == 1 && rhsRank <= 2);
+      bool rhsVec = (lhsRank <= 2 && rhsRank == 1);
+
+      if (lhsVec || rhsVec) {
+        SmallVector<ReassociationIndices> reassociation(1);
+        reassociation[0].push_back(0);
+        reassociation[0].push_back(1);
+
+        if (lhsVec) {
+          // unsqueeze lhs to a matrix
+          int64_t lhsDim = lhsType.getShape()[0];
+          auto lhsUnsqueezeType = RankedTensorType::get(
+              ArrayRef<int64_t>{1, lhsDim}, lhsType.getElementType());
+          lhs = rewriter.create<tensor::ExpandShapeOp>(loc, lhsUnsqueezeType,
+                                                       lhs, reassociation);
+        }
+        if (rhsVec) {
+          // unsqueeze rhs to a matrix
+          int64_t rhsDim = rhsType.getShape()[0];
+          auto rhsUnsqueezeType = RankedTensorType::get(
+              ArrayRef<int64_t>{rhsDim, 1}, rhsType.getElementType());
+          rhs = rewriter.create<tensor::ExpandShapeOp>(loc, rhsUnsqueezeType,
+                                                       rhs, reassociation);
+        }
+        // get quantized_matmul and squeeze result
+        Value lhsDim0 = getDimOp(rewriter, loc, lhs, 0);
+        Value lhsDim1 = getDimOp(rewriter, loc, lhs, 1);
+        Value rhsDim0 = getDimOp(rewriter, loc, rhs, 0);
+        Value rhsDim1 = getDimOp(rewriter, loc, rhs, 1);
+        checkDimEqualHelper(rewriter, loc, lhsDim1, rhsDim0);
+
+        Value zeroTensor = createZeroInitTensor(
+            rewriter, loc, ValueRange{lhsDim0, rhsDim1}, elementType);
+        Value matmul = rewriter
+                           .create<linalg::QuantizedMatmulOp>(
+                               loc, zeroTensor.getType(),
+                               ValueRange{lhs, rhs, lhsZeroPoint, rhsZeroPoint},
+                               zeroTensor)
+                           .getResult(0);
+        int64_t resultRank = resultType.getRank();
+        if (resultRank == 0) {
+          // in vec-vec case, need to collapse result to a scalar
+          reassociation.clear();
+        }
+        matmul = rewriter.create<tensor::CollapseShapeOp>(
+            loc, resultType, matmul, reassociation);
+        rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
+        return success();
+      }
+      // the remaining quantized cases (Mat-Mat and broadcast -> BMM) are
+      // covered in the relevant section below
+    }
 
     // The different cases of torch_matmul op is mentioned here:
     // https://pytorch.org/docs/stable/generated/torch.matmul.html
