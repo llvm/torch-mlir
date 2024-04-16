@@ -1912,17 +1912,16 @@ void AtenScalarImplicitOp::getCanonicalizationPatterns(
   patterns.add(+[](AtenScalarImplicitOp op, PatternRewriter &rewriter) {
     Location loc = op.getLoc();
     Value a = op.getA();
+    auto outType = op.getResult().getType();
     Value scalarValue = getScalarIntValue(a, loc, rewriter);
-    if (scalarValue) {
-      rewriter.replaceOp(op, scalarValue);
-      return success();
+    if (!scalarValue) {
+      scalarValue = getScalarFloatValue(a, loc, rewriter);
     }
-    scalarValue = getScalarFloatValue(a, loc, rewriter);
-    if (scalarValue) {
-      rewriter.replaceOp(op, scalarValue);
-      return success();
+    if (!scalarValue) {
+      return failure();
     }
-    return failure();
+    rewriter.replaceOpWithNewOp<Torch::DerefineOp>(op, outType, scalarValue);
+    return success();
   });
 }
 
