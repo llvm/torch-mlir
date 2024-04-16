@@ -1659,6 +1659,7 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dStaticEvenMultiple_basic",
     "CosineSimilarityModule_basic",
+    "ElementwizeLogScalarInputModule_basic",
     "NativeGroupNormBackwardModule_basic",
     "ReduceFrobeniusNormKeepDimModule_basic",
     "ReduceFrobeniusNormModule_basic",
