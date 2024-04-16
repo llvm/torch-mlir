@@ -323,6 +323,8 @@ TORCHDYNAMO_XFAIL_SET = {
     "AtenMatmulQMixedSigni8Transpose_basic",
     "AtenMatmulQMixedSigni8_basic",
     "AtenMatmulQint8MV_basic",
+    "AtenMatmulQint8VV_basic",
+    "AtenMatmulQint8VM_basic",
     "AtenMatmulQint8_basic",
     "Conv2dQInt8Module_basic",
 
@@ -1966,6 +1968,8 @@ ONNX_XFAIL_SET = {
     "AtenMatmulQMixedSigni8Transpose_basic",
     "AtenMatmulQMixedSigni8_basic",
     "AtenMatmulQint8MV_basic",
+    "AtenMatmulQint8VV_basic",
+    "AtenMatmulQint8VM_basic",
     "AtenMatmulQint8_basic",
     "AtenRealView128Module_basic",
     "AtenRealView64Module_basic",
