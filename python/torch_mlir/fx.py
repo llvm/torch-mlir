@@ -26,6 +26,7 @@ def export_and_import(
     hooks: Optional[FxImporterHooks] = None,
     decomposition_table: Optional[list] = None,
     func_name: str = "main",
+    enable_graph_printing: bool = False,
     **kwargs,
 ):
     context = ir.Context()
@@ -38,6 +39,8 @@ def export_and_import(
         decomposition_table = get_decomposition_table()
     if decomposition_table:
         prog = prog.run_decompositions(decomposition_table)
+    if enable_graph_printing:
+        prog.graph_module.print_readable()
     if experimental_support_mutation:
         if torch.__version__ < "2.3.0.dev20240207":
             warnings.warn("Mutable program import only supported on PyTorch 2.3+")
@@ -53,7 +56,10 @@ def stateless_fx_import(
     fx_importer: Optional[FxImporter] = None,
     hooks: Optional[FxImporterHooks] = None,
     model_name: str = "main",
+    enable_graph_printing: bool = False,
 ):
+    if enable_graph_printing:
+        gm.print_readable()
     context = ir.Context()
     torch_d.register_dialect(context)
     if fx_importer is None:
