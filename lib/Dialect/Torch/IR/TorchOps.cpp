@@ -1095,9 +1095,9 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
       rhs = rewriter.create<AtenMulIntOp>(loc, rhs, alpha);
   }
 
-  if (isa<AtenDivTensorModeOp>(op)) {
-    // None rounding mode
+  if (isa<AtenDivTensorModeOp, AtenDivScalarModeOp>(op)) {
     if (op->getOperand(2).getType().isa<Torch::NoneType>()) {
+      // None rounding mode
       Value quotient = rewriter.create<AtenDivOp>(loc, lhs, rhs);
       rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(op, outType,
                                                            quotient);
@@ -1854,6 +1854,16 @@ OpFoldResult AtenMulScalarOp::fold(FoldAdaptor adaptor) {
 void AtenDivTensorModeOp::getCanonicalizationPatterns(
     RewritePatternSet &patterns, MLIRContext *context) {
   patterns.add(+[](AtenDivTensorModeOp op, PatternRewriter &rewriter) {
+    return rewrite0DBinaryTensorOp(op, rewriter);
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenDivScalarModeOp
+//===----------------------------------------------------------------------===//
+void AtenDivScalarModeOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenDivScalarModeOp op, PatternRewriter &rewriter) {
     return rewrite0DBinaryTensorOp(op, rewriter);
   });
 }
@@ -4039,8 +4049,8 @@ OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
     if (sz == Torch::kUnknownSize || sz < 0)
       return nullptr;
 
-  ShapedType shapedty =
-      mlir::RankedTensorType::get(sizes, resultTensorType.getDtype());
+  ShapedType shapedty = mlir::RankedTensorType::get(
+      resultTensorType.getSizes(), resultTensorType.getDtype());
 
   auto elementType = shapedty.getElementType();
   if (isa<IntegerType>(elementType)) {
