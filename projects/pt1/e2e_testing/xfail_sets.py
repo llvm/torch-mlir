@@ -2531,7 +2531,6 @@ ONNX_XFAIL_SET = {
 
 }
 
-
 if torch_version_for_comparison() >= version.parse("2.4.0.dev"):
     ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
         # ERROR: Found dtype (torch.float64) but expected (torch.float32)
