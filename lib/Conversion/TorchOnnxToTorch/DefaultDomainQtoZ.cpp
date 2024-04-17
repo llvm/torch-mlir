@@ -1895,8 +1895,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op,
               "Expected the input and result type to have known sizes");
 
-        auto dataSize = dataTy.getSizes();
-        int64_t rank = dataSize.size();
+        int64_t rank = dataTy.getSizes().size();
         SmallVector<Value> axesList;
 
         // Previous version of the operation had the axes as an attribute:
@@ -1919,9 +1918,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             return success();
           }
 
-          // Derive the static axes from the data type and final result type.
-          // This algorithm won't work if the input shape has dupliacte dim:
-          // [2,2,2] -> [2,2], axes=1/2/3
+          // Try to derive the static axes from the data type and final result
+          // type. This algorithm won't work if the input shape has dupliacte
+          // dim: [2,2,2] -> [2,2], axes=1/2/3
           if (areAllElementsDistinct(inputShape)) {
             int resultRank = resultShape.size();
             if (!keepDims) {
@@ -1953,11 +1952,28 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               }
             }
           }
+
+          // Unable to derive the static axes by the result shape and input
+          // shape. Extract the axes values from the axes operand. This really
+          // shouldn't happen but it helps pass weird tests.
           if (axesList.empty()) {
-            return rewriter.notifyMatchFailure(
-                binder.op,
-                "Unable to derive the static axes by the result shape and "
-                "input shape. Please provide the axes as attributes.");
+            Torch::BaseTensorType axesType =
+                axes.getType().cast<Torch::BaseTensorType>();
+            auto sizes = axesType.getSizes();
+            for (int i = 0; i < sizes[0]; i++) {
+              Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
+                  binder.getLoc(), rewriter.getI64IntegerAttr(i));
+              Value zero = rewriter.create<Torch::ConstantIntOp>(
+                  binder.getLoc(), rewriter.getI64IntegerAttr(0));
+              Value extract = rewriter.create<Torch::AtenSelectIntOp>(
+                  binder.getLoc(),
+                  axesType.getWithSizesAndDtype(llvm::SmallVector<int64_t>{1},
+                                                axesType.getOptionalDtype()),
+                  axes, zero, selectIndex);
+              Value dim = rewriter.create<Torch::AtenItemOp>(
+                  binder.getLoc(), torchIntTy, extract);
+              axesList.push_back(dim);
+            }
           }
         }
 
@@ -1977,7 +1993,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             Value dimValue = rewriter.create<Torch::ConstantIntOp>(
                 binder.getLoc(), rewriter.getI64IntegerAttr(i));
             axesList.push_back(dimValue);
-            axesAttr.push_back(i);
           }
         }
 
@@ -1987,7 +2002,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value trueVal =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
-        SmallVector<int64_t> intermediateShape(dataSize);
+        SmallVector<int64_t> intermediateShape(rank, Torch::kUnknownSize);
         Value dataReduceProd = data;
         for (int i = 0, numAxes = axesList.size(); i < numAxes; i++) {
           auto axisValue = axesList[i];
@@ -2000,7 +2015,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             rewriter.replaceOp(binder.op, dataReduceProd);
             return success();
           }
-          intermediateShape[axesAttr[i]] = 1;
           Type resultTyReduceProd = dataTy.getWithSizesAndDtype(
               ArrayRef(intermediateShape), dataTy.getOptionalDtype());
           dataReduceProd = rewriter.create<Torch::AtenProdDimIntOp>(
@@ -2010,19 +2024,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         // Handle the keepDimsBool == False case:
         // Reshape the prod loop result to the final result shape.
-        SmallVector<int64_t> dataReduceProdSize(resultType.getSizes());
-        SmallVector<Value> dataReduceProdShape;
-        for (auto dim : dataReduceProdSize)
-          dataReduceProdShape.push_back(rewriter.create<Torch::ConstantIntOp>(
+        SmallVector<Value> resultShape;
+        for (auto dim : resultType.getSizes())
+          resultShape.push_back(rewriter.create<Torch::ConstantIntOp>(
               binder.getLoc(), rewriter.getI64IntegerAttr(dim)));
-        Value dataReduceProdShapeList =
-            rewriter.create<Torch::PrimListConstructOp>(
-                binder.getLoc(),
-                rewriter.getType<Torch::ListType>(
-                    rewriter.getType<Torch::IntType>()),
-                dataReduceProdShape);
+        Value resultShapeList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            rewriter.getType<Torch::ListType>(
+                rewriter.getType<Torch::IntType>()),
+            resultShape);
         rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(
-            binder.op, resultType, dataReduceProd, dataReduceProdShapeList);
+            binder.op, resultType, dataReduceProd, resultShapeList);
         return success();
       });
   patterns.onOp(
