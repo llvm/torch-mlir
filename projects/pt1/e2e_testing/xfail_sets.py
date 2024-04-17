@@ -588,6 +588,8 @@ STABLEHLO_PASS_SET = {
     "ChunkListUnpackUneven_Module_basic",
     "ChunkListUnpack_Module_basic",
     "CloneModule_basic",
+    "CollapseAllDimensionsModule_basic",
+    "CollapseStaticModule_basic",
     "ConstantBoolParameterModule_basic",
     "ContainsIntList_False",
     "ContainsIntList_True",
@@ -853,6 +855,8 @@ STABLEHLO_PASS_SET = {
     "ReduceSumFloatModule_basic",
     "ReduceSumSignedIntModule_basic",
     "ReduceSumUnsignedIntModule_basic",
+    "RepeatInterleaveSelfIntModule_basic",
+    "RepeatInterleaveSelfIntNoDimModule_basic",
     "ReturnThreeTensorFloat32_basic",
     "ReturnTwoTensorF32I64_basic",
     "RollModule_basic",
@@ -1390,6 +1394,7 @@ TOSA_PASS_SET = {
     "ReduceSumSignedIntModule_basic",
     "ReduceSumUnsignedIntModule_basic",
     "RepeatModule_basic",
+    "RepeatInterleaveSelfIntNoDimModule_basic",
     "ResNet18StaticModule_basic",
     "ReshapeAliasCollapseModule_basic",
     "ReshapeAliasExpandModule_basic",
@@ -1512,6 +1517,7 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "TensorIntModule_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
+    "RepeatInterleaveSelfIntModule_basic",
     "TorchPrimLoopForLikeTensorArgModule_basic",
     "ViewSizeDimFollowedByCollapsedOnesModule_basic",
     "ViewSizeDimFollowedByExpandedOnesModule_basic",
@@ -2350,6 +2356,12 @@ if torch_version_for_comparison() >= version.parse("2.4.0.dev"):
     ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
         # ERROR: Found dtype (torch.float64) but expected (torch.float32)
         "ReduceL1NormWithDTypeModule_basic",
+    }
+
+if torch_version_for_comparison() < version.parse('2.3.0.dev'):
+    ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
+        # ERROR: shape (torch.Size([6, 4, 5])) is not equal to golden shape (torch.Size([120]))
+        "RepeatInterleaveSelfIntNoDimModule_basic",
     }
 
 
