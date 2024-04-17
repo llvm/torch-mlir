@@ -771,6 +771,8 @@ STABLEHLO_PASS_SET = {
     "ChunkListUnpackUneven_Module_basic",
     "ChunkListUnpack_Module_basic",
     "CloneModule_basic",
+    "CollapseAllDimensionsModule_basic",
+    "CollapseStaticModule_basic",
     "ConstantBoolParameterModule_basic",
     "ContainsIntList_False",
     "ContainsIntList_True",
