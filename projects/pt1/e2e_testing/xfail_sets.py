@@ -1575,7 +1575,6 @@ TOSA_PASS_SET = {
     "ReduceSumSignedIntModule_basic",
     "ReduceSumUnsignedIntModule_basic",
     "RepeatModule_basic",
-    "RepeatInterleaveSelfIntModule_basic",
     "RepeatInterleaveSelfIntNoDimModule_basic",
     "ResNet18StaticModule_basic",
     "ReshapeAliasCollapseModule_basic",
