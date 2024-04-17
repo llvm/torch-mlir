@@ -488,8 +488,8 @@ public:
     if (indicesTy.getRank() == 0) {
       llvm::SmallVector<ReassociationIndices> reassociations;
       indicesTy = RankedTensorType::get({1}, indicesTy.getElementType());
-      indices = rewriter.create<tensor::ExpandShapeOp>(
-        loc, indicesTy, indices, reassociations);
+      indices = rewriter.create<tensor::ExpandShapeOp>(loc, indicesTy, indices,
+                                                       reassociations);
     }
 
     SmallVector<Value> resultShape = getTensorSizes(rewriter, loc, input);
