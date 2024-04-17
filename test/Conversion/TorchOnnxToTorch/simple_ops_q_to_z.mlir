@@ -1228,14 +1228,14 @@ func.func @test_reduce_prod_default_axes_keepdims_random(%arg0: !torch.vtensor<[
 // -----
 
 // CHECK-LABEL: func.func @test_reduce_prod_keepdims_random
-func.func @test_reduce_prod_keepdims_random(%arg0: !torch.vtensor<[3,2,2],f32>, %arg1: !torch.vtensor<[1],si64>) -> !torch.vtensor<[3,1,2],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64} {
+func.func @test_reduce_prod_keepdims_random(%arg0: !torch.vtensor<[3,2,4],f32>, %arg1: !torch.vtensor<[1],si64>) -> !torch.vtensor<[3,1,4],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64} {
   // CHECK: %[[INT1:.*]] = torch.constant.int 1
   // CHECK: %[[TRUE:.*]] = torch.constant.bool true
   // CHECK: %[[NONE:.*]] = torch.constant.none
-  // CHECK: %[[PROD:.*]] = torch.aten.prod.dim_int %arg0, %[[INT1]], %[[TRUE]], %[[NONE]] : !torch.vtensor<[3,2,2],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[3,1,2],f32>
-  // CHECK: return %[[PROD]] : !torch.vtensor<[3,1,2],f32>
-  %0 = torch.operator "onnx.ReduceProd"(%arg0, %arg1) {torch.onnx.keepdims = 1 : si64} : (!torch.vtensor<[3,2,2],f32>, !torch.vtensor<[1],si64>) -> !torch.vtensor<[3,1,2],f32>
-  return %0 : !torch.vtensor<[3,1,2],f32>
+  // CHECK: %[[PROD:.*]] = torch.aten.prod.dim_int %arg0, %[[INT1]], %[[TRUE]], %[[NONE]] : !torch.vtensor<[3,2,4],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[3,1,4],f32>
+  // CHECK: return %[[PROD]] : !torch.vtensor<[3,1,4],f32>
+  %0 = torch.operator "onnx.ReduceProd"(%arg0, %arg1) {torch.onnx.keepdims = 1 : si64} : (!torch.vtensor<[3,2,4],f32>, !torch.vtensor<[1],si64>) -> !torch.vtensor<[3,1,4],f32>
+  return %0 : !torch.vtensor<[3,1,4],f32>
 }
 
 // -----

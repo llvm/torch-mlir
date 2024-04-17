@@ -1876,6 +1876,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // allow one dim as input.
         Torch::ValueTensorType resultType;
         Value data;
+        Value axes;
         int64_t keepDims;
         int64_t noop_with_empty_axes;
         if (binder.tensorOperandAtIndex(data, 0) ||
@@ -1908,35 +1909,55 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           }
         }
 
-        // Derive the chosen axes from the data type and final result type
-        // Fix --convert-torch-to-linalg bug:  `dim` argument must be a
-        // constant int list or None
-        auto resultTypeSizes = resultType.getSizes();
-        int resultRank = resultTypeSizes.size();
-        if (!keepDims) {
-          // Handle the keepDimsBool == False case:
-          // [2,3,4] -> [2,4] when axes=1
-          int j = 0;
-          for (int i = 0; i < rank; i++) {
-            if (resultRank && j < resultRank &&
-                dataSize[i] == resultTypeSizes[j]) {
-              j++;
-              continue;
-            }
-            // When size at i!=j, i is one of the changing axes.
-            axesList.push_back(rewriter.create<Torch::ConstantIntOp>(
-                binder.getLoc(), torchIntTy, rewriter.getI64IntegerAttr(i)));
-            axesAttr.push_back(i);
+        if (!binder.tensorOperandAtIndex(axes, 1)) {
+          SmallVector<int64_t> inputShape{dataTy.getSizes()};
+          SmallVector<int64_t> resultShape{resultType.getSizes()};
+          // if the shapes are equal, none of the dims is reduced
+          if (llvm::equal(inputShape, resultShape)) {
+            // simply fill in the op and return
+            rewriter.replaceOp(binder.op, data);
+            return success();
           }
-        } else {
-          // Handle the keepDimsBool == True case:
-          // [2,3,4] -> [2,1,4] when axes=1
-          for (int i = 0; i < rank; i++) {
-            if (dataSize[i] != resultTypeSizes[i]) {
-              axesList.push_back(rewriter.create<Torch::ConstantIntOp>(
-                  binder.getLoc(), torchIntTy, rewriter.getI64IntegerAttr(i)));
-              axesAttr.push_back(i);
+
+          // Derive the static axes from the data type and final result type.
+          // This algorithm won't work if the input shape has dupliacte dim:
+          // [2,2,2] -> [2,2], axes=1/2/3
+          if (areAllElementsDistinct(inputShape)) {
+            int resultRank = resultShape.size();
+            if (!keepDims) {
+              // Handle the keepDimsBool == False case:
+              // [2,3,4] -> [2,4] when axes=1
+              int j = 0;
+              for (int i = 0; i < rank; i++) {
+                if (resultRank && j < resultRank &&
+                    inputShape[i] == resultShape[j]) {
+                  j++;
+                  continue;
+                }
+                // When size at i!=j, i is one of the changing axes.
+                axesList.push_back(rewriter.create<Torch::ConstantIntOp>(
+                    binder.getLoc(), torchIntTy,
+                    rewriter.getI64IntegerAttr(i)));
+                axesAttr.push_back(i);
+              }
+            } else {
+              // Handle the keepDimsBool == True case:
+              // [2,3,4] -> [2,1,4] when axes=1
+              for (int i = 0; i < rank; i++) {
+                if (inputShape[i] != resultShape[i]) {
+                  axesList.push_back(rewriter.create<Torch::ConstantIntOp>(
+                      binder.getLoc(), torchIntTy,
+                      rewriter.getI64IntegerAttr(i)));
+                  axesAttr.push_back(i);
+                }
+              }
             }
+          }
+          if (axesList.empty()) {
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "Unable to derive the static axes by the result shape and "
+                "input shape. Please provide the axes as attributes.");
           }
         }
 
@@ -1956,6 +1977,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             Value dimValue = rewriter.create<Torch::ConstantIntOp>(
                 binder.getLoc(), rewriter.getI64IntegerAttr(i));
             axesList.push_back(dimValue);
+            axesAttr.push_back(i);
           }
         }
 
