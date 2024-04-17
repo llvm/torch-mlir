@@ -61,8 +61,6 @@ func.func @grid_sampler2(%arg0: !torch.vtensor<[?,?,?,?],f32>, %arg1: !torch.vte
 
 // -----
 
-// -----
-
 // CHECK-LABEL: func @grid_sampler3
 // CHECK: #map
 // CHECK-DAG:  %[[X15:.*]] = arith.mulf %[[X13:.*]], %[[X8:.*]] : f32
