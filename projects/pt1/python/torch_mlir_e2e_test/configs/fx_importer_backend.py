@@ -8,6 +8,8 @@ from typing import Union, Optional, Sequence
 import numpy as np
 import torch
 import torch.utils._pytree as pytree
+from torch.export.graph_signature import OutputSpec, OutputKind
+from torch.export import ExportedProgram
 
 from torch_mlir import fx
 from torch_mlir.torchscript import (
@@ -37,8 +39,8 @@ def refine_result_type(_result):
 
 
 def jit(
-        model: torch.nn.Module,
-        example_args: _example_args,
+        prog: ExportedProgram,
+        func_name: str,
         output_type: Union[str, "OutputType"] = OutputType.TORCH,
         backend_legal_ops: Optional[Sequence[str]] = None,
         extra_library=None,
@@ -61,7 +63,7 @@ def jit(
     option_string = ("{backend-legal-ops=" + ",".join(backend_legal_ops) +
                      " extra-library=" + extra_library_file_name + "}")
 
-    mlir_module = fx.export_and_import(model, *example_args, func_name=model.__class__.__name__)
+    mlir_module = fx.export_and_import(prog, func_name=func_name)
     assert mlir_module is not None
     run_pipeline_with_repro_report(
         mlir_module,
@@ -90,8 +92,9 @@ class FxImporterTestConfig(TestConfig):
     def run(self, artifact: torch.nn.Module, trace: Trace) -> Trace:
         result: Trace = []
         for item in trace:
-            module = jit(artifact,
-                         item.inputs,
+            prog = torch.export.export(artifact, tuple(item.inputs))
+            module = jit(prog,
+                         func_name=artifact.__class__.__name__,
                          output_type="linalg-on-tensors")
             module = self.backend.compile(module)
             backend_module = self.backend.load(module)
@@ -107,6 +110,13 @@ class FxImporterTestConfig(TestConfig):
             outputs = getattr(backend_module,
                               artifact.__class__.__name__)(*numpy_inputs)
             output = refine_result_type(outputs)
+            if isinstance(output, (tuple, list)):
+                user_output = []
+                out_spec: OutputSpec
+                for val, out_spec in zip(output, prog.graph_signature.output_specs):
+                    if out_spec.kind == OutputKind.USER_OUTPUT:
+                        user_output.append(val)
+                output = tuple(user_output)
             result.append(
                 TraceItem(symbol=item.symbol,
                           inputs=item.inputs,
