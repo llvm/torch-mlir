@@ -470,6 +470,7 @@ public:
     Location loc = op.getLoc();
     Value input = adaptor.getSelf();
     Value indices = adaptor.getIndex();
+    auto indicesTy = cast<RankedTensorType>(indices.getType());
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
     RankedTensorType resultType = getTypeConverter()
                                       ->convertType(op->getResult(0).getType())
@@ -483,6 +484,13 @@ public:
     dimInt = toPositiveDim(dimInt, inputRank);
     if (!isValidDim(dimInt, inputRank))
       return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+
+    if (indicesTy.getRank() == 0) {
+      llvm::SmallVector<ReassociationIndices> reassociations;
+      indicesTy = RankedTensorType::get({1}, indicesTy.getElementType());
+      indices = rewriter.create<tensor::ExpandShapeOp>(
+        loc, indicesTy, indices, reassociations);
+    }
 
     SmallVector<Value> resultShape = getTensorSizes(rewriter, loc, input);
     resultShape[dimInt] = getTensorSizes(rewriter, loc, indices)[0];
