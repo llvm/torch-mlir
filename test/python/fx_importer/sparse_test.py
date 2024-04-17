@@ -154,7 +154,7 @@ def sparse_jit(f, *args, **kwargs):
     invoker = backend.load(compiled)
     xargs = []
     # Prepare the buffer parameters (assume all dense).
-    params = {**dict(f.named_buffers(remove_duplicate=False))}
+    params = dict(f.named_buffers(remove_duplicate=False))
     params_flat, params_spec = torch.utils._pytree.tree_flatten(params)
     for p in params_flat:
         xargs.append(p.numpy())
