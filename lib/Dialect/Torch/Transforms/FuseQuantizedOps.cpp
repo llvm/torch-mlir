@@ -20,6 +20,13 @@ using namespace mlir::torch::Torch;
 
 namespace {
 
+template <typename SrcOp> struct QuantInfo {
+  static constexpr unsigned operandsToQuantize[2] = {0, 1};
+};
+
+template <> struct QuantInfo<AtenReluOp> {
+  static constexpr unsigned operandsToQuantize[1] = {0};
+};
 template <typename SrcOp>
 class QuantizeOperands : public OpRewritePattern<SrcOp> {
 public:
@@ -42,7 +49,7 @@ public:
       return operand;
     };
 
-    for (unsigned i = 0; i < operands.size(); i++) {
+    for (unsigned i : QuantInfo<SrcOp>::operandsToQuantize) {
       operands[i] = f(operands[i]);
     }
 
