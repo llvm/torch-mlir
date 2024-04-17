@@ -2824,76 +2824,57 @@ public:
           op, "Unimplemented: no implementation for rankless tensor");
 
     int64_t inputRank = selfTy.getSizes().size();
-
     int64_t repeats;
     if (!matchPattern(op.getRepeats(), m_TorchConstantInt(&repeats)))
       return rewriter.notifyMatchFailure(
           op, "Unimplemented: repeats not constant int");
+
+    bool dimIsNone = false;
+    int64_t dim;
     Value dimValue = op.getDim();
-    Value repeatFlatten;
     if (dimValue.getType().isa<Torch::NoneType>()) {
-      // return input.flatten().unsqueeze(-1).tile((1, repeats)).flatten()
-      Value constZero =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
-      Value constMinusOne =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
-      Value inputFlatten = rewriter.create<AtenFlattenUsingIntsOp>(
-          loc, baseType, self, constZero, constMinusOne);
-      Value unsqueezeDim =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
-      Value inputUnsqueeze = rewriter.create<AtenUnsqueezeOp>(
-          loc, baseType, inputFlatten, unsqueezeDim);
-      Value constOne =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-      Value constRepeats = rewriter.create<ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(repeats));
-      SmallVector<Value> repeatsList = {constOne, constRepeats};
-      Value tileShape = rewriter.create<PrimListConstructOp>(
-          loc, ListType::get(IntType::get(context)), repeatsList);
-      Value inputTile =
-          rewriter.create<AtenTileOp>(loc, baseType, inputUnsqueeze, tileShape);
-      repeatFlatten = rewriter.create<AtenFlattenUsingIntsOp>(
-          loc, resType, inputTile, constZero, constMinusOne);
+      dimIsNone = true;
+      dim = inputRank - 1;
     } else {
-      int64_t dim;
       if (!matchPattern(dimValue, m_TorchConstantInt(&dim)))
         return rewriter.notifyMatchFailure(
             op, "Unimplemented: dim not constant int");
       dim = toPositiveDim(dim, inputRank);
-      // expanded_shape = list(input.shape)
-      // expanded_shape[dim] *= repeats
-      // repeat_shape = [1] * (input.dim() + 1)
-      // repeat_shape[dim + 1] = repeats
-      // input = input.unsqueeze(-1)
-      // tiled = torch.tile(input, repeat_shape)
-      // repeated = tiled.reshape(*expanded_shape)
-      // return repeated
-      SmallVector<int64_t> expandedShape(selfTy.getSizes());
-      expandedShape[dim] *= repeats;
-      SmallVector<Value> expandedShapeValueList;
-      for (int64_t s : expandedShape)
-        expandedShapeValueList.push_back(
-            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(s)));
-      Value expandedShapeList = rewriter.create<PrimListConstructOp>(
-          loc, ListType::get(IntType::get(context)), expandedShapeValueList);
-      SmallVector<int64_t> repeatShape(inputRank + 1, 1);
-      repeatShape[dim + 1] = repeats;
-      SmallVector<Value> repeatShapeValueList;
-      for (int64_t s : repeatShape)
-        repeatShapeValueList.push_back(
-            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(s)));
-      Value repeatShapeList = rewriter.create<PrimListConstructOp>(
-          loc, ListType::get(IntType::get(context)), repeatShapeValueList);
-      Value constMinusOne =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
-      Value inputUnsqueeze =
-          rewriter.create<AtenUnsqueezeOp>(loc, baseType, self, constMinusOne);
-      Value tiled = rewriter.create<AtenTileOp>(loc, baseType, inputUnsqueeze,
-                                                repeatShapeList);
-      repeatFlatten = rewriter.create<AtenReshapeOp>(loc, resType, tiled,
-                                                     expandedShapeList);
     }
-    rewriter.replaceOp(op, repeatFlatten);
+
+    dimValue =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim));
+    Value dimValuePlusOne = rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(dim + 1));
+    self = rewriter.create<AtenUnsqueezeOp>(
+        loc, baseType, self,
+        dimValuePlusOne); // unsqueeze the dim to repeat along
+
+    Value constMinusOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+    SmallVector<Value> expandShape(inputRank + 1, constMinusOne);
+    expandShape[dim + 1] = rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(repeats));
+    Value expandShapeList = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)), expandShape);
+    Value constFalse =
+        rewriter.create<ConstantBoolOp>(loc, rewriter.getBoolAttr(false));
+
+    Value expandSelf = rewriter.create<AtenExpandOp>(
+        loc, baseType, self, expandShapeList, constFalse);
+
+    Value result;
+    if (dimIsNone) {
+      Value constZero =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+      result = rewriter.create<AtenFlattenUsingIntsOp>(
+          loc, resType, expandSelf, constZero, constMinusOne);
+    } else {
+      result = rewriter.create<PrimsCollapseOp>(loc, resType, expandSelf,
+                                                dimValue, dimValuePlusOne);
+    }
+
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
