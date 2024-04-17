@@ -1420,6 +1420,16 @@ class GraphNodeImporter:
                 for key_node in node.users:
                     if key_node.target == torch.ops.aten.baddbmm.default:
                         node.target = target = torch.ops.aten.zeros.default
+        elif target == torch.ops.aten._local_scalar_dense.default:
+            input_type = node.args[0].meta["tensor_meta"].dtype
+            if input_type.is_floating_point:
+                node.target = target = torch.ops.aten.Float.Tensor
+            else:
+                node.target = target = torch.ops.aten.Int.Tensor
+            node.args = (node.args[0],)
+        elif target == torch.ops.aten._assert_async.msg:
+            # TODO: A more suitable op to replace it?
+            return
 
         schema = target._schema
         assert isinstance(schema, FunctionSchema)
