@@ -2814,7 +2814,6 @@ public:
     auto context = op.getContext();
     Value self = op.getSelf();
     auto selfTy = cast<BaseTensorType>(self.getType());
-    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
     if (!selfTy.hasSizes())
       return rewriter.notifyMatchFailure(
           op, "Unimplemented: no implementation for rankless tensor");
@@ -2846,22 +2845,37 @@ public:
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim));
     Value dimValuePlusOne = rewriter.create<ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(dim + 1));
-    self = rewriter.create<AtenUnsqueezeOp>(
-        loc, baseType, self,
-        dimValuePlusOne); // unsqueeze the dim to repeat along
+
+    auto unsqueezedInfo = unsqueezeTensor(rewriter, op, self, dimValuePlusOne);
+    if (failed(unsqueezedInfo))
+      return rewriter.notifyMatchFailure(op,
+                                         "cannot generate unsqueeze tensor op");
+    self = *unsqueezedInfo;
 
     Value constMinusOne =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
-    SmallVector<Value> expandShape(inputRank + 1, constMinusOne);
-    expandShape[dim + 1] = rewriter.create<ConstantIntOp>(
+    SmallVector<Value> expandShapeValueList(inputRank + 1, constMinusOne);
+    expandShapeValueList[dim + 1] = rewriter.create<ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(repeats));
     Value expandShapeList = rewriter.create<PrimListConstructOp>(
-        loc, ListType::get(IntType::get(context)), expandShape);
+        loc, ListType::get(IntType::get(context)), expandShapeValueList);
     Value constFalse =
         rewriter.create<ConstantBoolOp>(loc, rewriter.getBoolAttr(false));
 
+    SmallVector<int64_t> expandShape(inputRank + 1);
+    for (int i = 0; i <= dim; i++) {
+      expandShape[i] = selfTy.getSizes()[i];
+    }
+    expandShape[dim + 1] = repeats;
+    for (int i = dim + 1; i < inputRank; i++) {
+      expandShape[i + 1] = selfTy.getSizes()[i];
+    }
+
+    BaseTensorType expandTy = rewriter.getType<ValueTensorType>(
+        expandShape, selfTy.getOptionalDtype());
+
     Value expandSelf = rewriter.create<AtenExpandOp>(
-        loc, baseType, self, expandShapeList, constFalse);
+        loc, expandTy, self, expandShapeList, constFalse);
 
     Value result;
     if (dimIsNone) {
