@@ -56,10 +56,11 @@ static Value createComparisonTemplate(OpBuilder &b, Location loc, Type type,
   llvm_unreachable("Unhandled element type for comparison");
 }
 
-static void getZeroPoint(Value value, Value &zeropoint) {
+static Value getZeroPoint(Value value) {
   if (auto make = value.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
-    zeropoint = make.getZeroPoint();
+    return make.getZeroPoint();
   }
+  return nullptr;
 }
 
 static Value createGreaterThan(OpBuilder &b, Location loc, Type elementalType,
@@ -534,38 +535,33 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return convertScalarToDtype(b, loc, div, outTy, std::nullopt, outTTy);
   }
   if (auto relu = dyn_cast<AtenReluOp>(op)) {
-    Value zeroPoint;
-    getZeroPoint(relu.getSelf(), zeroPoint);
+    Value zeroPoint = getZeroPoint(relu.getSelf());
     Value arg = payloadArgs[0];
-    auto reluTorchType = cast<ValueTensorType>(relu.getType());
-    if (zeroPoint) {
-      if (auto intType = dyn_cast<mlir::IntegerType>(arg.getType())) {
-        zeroPoint = converter->materializeTargetConversion(
-            b, loc, converter->convertType(zeroPoint.getType()), zeroPoint);
-        zeroPoint = b.create<arith::TruncIOp>(loc, arg.getType(), zeroPoint);
-        Value pred;
-        if (torch_to_linalg::isUnsignedTorchType(reluTorchType.getDtype())) {
-          pred = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ugt, arg,
-                                         zeroPoint);
-        } else {
-          pred = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, arg,
-                                         zeroPoint);
-        }
-        return b.create<arith::SelectOp>(loc, pred, arg, zeroPoint);
-      }
+    auto intType = arg.getType().isa<mlir::IntegerType>();
+    if (zeroPoint && !intType) {
       relu.emitError("unimplemented: non-integer quantized Relu.");
       return nullptr;
     }
-    if (!reluTorchType.getDtype().isa<mlir::FloatType>()) {
-      relu.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
+    if (zeroPoint) {
+      zeroPoint = converter->materializeTargetConversion(
+          b, loc, converter->convertType(zeroPoint.getType()), zeroPoint);
+      zeroPoint = b.create<arith::TruncIOp>(loc, arg.getType(), zeroPoint);
+    } else {
+      zeroPoint =
+          b.create<arith::ConstantOp>(loc, b.getZeroAttr(arg.getType()));
     }
-    Type elementType = payloadArgs[0].getType();
-    Value constZero =
-        b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
-    Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
-                                         payloadArgs[0], constZero);
-    return b.create<arith::SelectOp>(loc, pred, payloadArgs[0], constZero);
+    auto reluTorchType = cast<ValueTensorType>(relu.getType());
+    Value cmp;
+    if (intType) {
+      auto pred = torch_to_linalg::isUnsignedTorchType(reluTorchType.getDtype())
+                      ? arith::CmpIPredicate::ugt
+                      : arith::CmpIPredicate::sgt;
+      cmp = b.create<arith::CmpIOp>(loc, pred, arg, zeroPoint);
+    } else {
+      cmp = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT, arg,
+                                    zeroPoint);
+    }
+    return b.create<arith::SelectOp>(loc, cmp, arg, zeroPoint);
   }
   if (auto round = dyn_cast<AtenRoundOp>(op)) {
     if (!round.getType()
