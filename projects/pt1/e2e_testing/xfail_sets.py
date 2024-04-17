@@ -443,7 +443,6 @@ FX_IMPORT_XFAIL_SET = {
     'ElementwiseQuantizePerTensorUIntModule_basic',
     'ElementwiseToDtypeI64ToUI8Module_basic',
     'EqIntModule_basic',
-    'ExponentialModule_basic',
     'FakeQuantizePerTensorAffineDynamicShapeModule_basic',
     'FakeQuantizePerTensorAffineModule_basic',
     'FakeQuantizePerTensorAffineRoundToEvenModule_basic',
