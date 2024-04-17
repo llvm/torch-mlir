@@ -2189,4 +2189,97 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.op, resultType, cstEquation, tensorList, /*path=*/cstNone);
         return success();
       });
+  patterns.onOp(
+      "BlackmanWindow", 17,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value size;
+        Torch::ValueTensorType resultType;
+        int64_t periodic, output_datatype;
+        if (binder.tensorOperandAtIndex(size, 0) ||
+            binder.s64IntegerAttr(output_datatype, "output_datatype", 1) ||
+            binder.s64IntegerAttr(periodic, "periodic", 1) ||
+            binder.tensorResultType(resultType)) {
+          return failure();
+        }
+
+        // If periodic is zero, subtract one from size before proceeding
+        if (periodic == 0) {
+          Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(1));
+          size = rewriter.create<Torch::AtenSubScalarOp>(
+              binder.getLoc(), size.getType(), size, constantOne, constantOne);
+        }
+
+        Value one = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+
+        Value scalarLimit = getItemOp<Torch::IntType>(binder, rewriter, size);
+
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value rangeArr = rewriter.create<Torch::AtenArangeStartStepOp>(
+            binder.getLoc(), resultType, zero, scalarLimit, one, none, none,
+            none, none);
+
+        // Required contants
+        const double piDouble = 2.0 * llvm::numbers::pi;
+        Value alpha = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(),
+            rewriter.getFloatAttr(rewriter.getF64Type(), 0.42));
+        Value beta = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(),
+            rewriter.getFloatAttr(rewriter.getF64Type(), 0.08));
+        Value negHalf = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(),
+            rewriter.getFloatAttr(rewriter.getF64Type(), -0.5));
+        Value twicePi = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(),
+            rewriter.getFloatAttr(rewriter.getF64Type(), piDouble));
+        Value fourPi = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(),
+            rewriter.getFloatAttr(rewriter.getF64Type(), 2.0 * piDouble));
+
+        // Calculate the window function
+        Value productTimesTwoPi = rewriter.create<Torch::AtenMulScalarOp>(
+            binder.getLoc(), resultType, rangeArr, twicePi);
+        Value productTimesFourPi = rewriter.create<Torch::AtenMulScalarOp>(
+            binder.getLoc(), resultType, rangeArr, fourPi);
+
+        Value divTimesFourPi = rewriter.create<Torch::AtenDivTensorOp>(
+            binder.getLoc(), resultType, productTimesFourPi, size);
+        Value divTimesTwoPi = rewriter.create<Torch::AtenDivTensorOp>(
+            binder.getLoc(), resultType, productTimesTwoPi, size);
+
+        Value cosFunctionInitial = rewriter.create<Torch::AtenCosOp>(
+            binder.getLoc(), resultType, divTimesTwoPi);
+        Value cosTimesNegHalf = rewriter.create<Torch::AtenMulScalarOp>(
+            binder.getLoc(), resultType, cosFunctionInitial, negHalf);
+        Value cosFunctionFinal = rewriter.create<Torch::AtenCosOp>(
+            binder.getLoc(), resultType, divTimesFourPi);
+        Value cosFinalTimesBeta = rewriter.create<Torch::AtenMulScalarOp>(
+            binder.getLoc(), resultType, cosFunctionFinal, beta);
+
+        Value constOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value valAdd = rewriter.create<Torch::AtenAddTensorOp>(
+            binder.getLoc(), resultType, cosTimesNegHalf, cosFinalTimesBeta,
+            constOne);
+        Value finalResult = rewriter.create<Torch::AtenAddScalarOp>(
+            binder.getLoc(), resultType, valAdd, alpha, constOne);
+
+        int64_t dtypeIntTorch = onnxDtypeIntToTorchDtypeInt(output_datatype);
+        Value outputDtype = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                    dtypeIntTorch));
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value cstFalse =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
+            binder.op, resultType, finalResult, outputDtype,
+            /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+            /*memory_format=*/noneVal);
+        return success();
+      });
 }
