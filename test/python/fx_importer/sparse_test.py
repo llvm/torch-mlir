@@ -154,10 +154,14 @@ def sparse_jit(f, *args, **kwargs):
     invoker = backend.load(compiled)
     xargs = []
     # Prepare the buffer parameters (assume all dense).
-    params = dict(f.named_buffers(remove_duplicate=False))
+    # TODO: the following hack works, but it seems a bit too magical
+    #       to my taste, so we need to find out what is the proper
+    #       procedure here
+    params = dict(f.named_buffers(remove_duplicate=True))
     params_flat, params_spec = torch.utils._pytree.tree_flatten(params)
     for p in params_flat:
-        xargs.append(p.numpy())
+        if len(p.shape) == 1:
+          xargs.append(p.numpy())
     # Prepare input parameters. Sparse input tensors are split into
     # their composite tensors. All PyTorch tensors are converted
     # to their backing numpy arrays. Note that the output consists
