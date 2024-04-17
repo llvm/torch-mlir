@@ -1397,6 +1397,7 @@ class GraphNodeImporter:
     def _import_torch_op_overload(
         self, loc: Location, node: torch_fx.Node, target: TorchOpOverload
     ):
+        # TODO: Convert this cascade of ifs to a table-driven
         # replace lift_fresh_copy with clone op
         if target == torch.ops.aten.lift_fresh_copy.default:
             node.target = target = torch.ops.aten.clone.default
