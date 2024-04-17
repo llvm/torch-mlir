@@ -1698,6 +1698,7 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "TensorIntModule_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
+    "RepeatInterleaveSelfIntModule_basic",
     "TorchPrimLoopForLikeTensorArgModule_basic",
     "ViewSizeDimFollowedByCollapsedOnesModule_basic",
     "ViewSizeDimFollowedByExpandedOnesModule_basic",

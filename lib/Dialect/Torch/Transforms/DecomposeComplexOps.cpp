@@ -2863,11 +2863,11 @@ public:
         rewriter.create<ConstantBoolOp>(loc, rewriter.getBoolAttr(false));
 
     SmallVector<int64_t> expandShape(inputRank + 1);
-    for (int i = 0; i <= dim; i++) {
+    for (int64_t i = 0; i <= dim; i++) {
       expandShape[i] = selfTy.getSizes()[i];
     }
     expandShape[dim + 1] = repeats;
-    for (int i = dim + 1; i < inputRank; i++) {
+    for (int64_t i = dim + 1; i < inputRank; i++) {
       expandShape[i + 1] = selfTy.getSizes()[i];
     }
 
