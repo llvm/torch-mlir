@@ -1753,7 +1753,6 @@ ONNX_XFAIL_SET = {
     "HardsigmoidModule_basic",
     "HardsigmoidRandomModule_basic",
     "PixelShuffleModuleStaticRank4Float32_basic",
-    "QuantizedMLP_basic",
     "ReflectionPad1dModule2dInput_Right",
     "ReflectionPad1dModule2dInput_basic",
     "ReflectionPad1dModule3dInput_Left",
