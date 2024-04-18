@@ -206,7 +206,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         inlineIfCase(*elseRegion, primIfOp.getElseRegion());
 
         auto replaceTerminator = [&](Region &region) {
+          PatternRewriter::InsertionGuard guard(rewriter);
           Operation *terminator = region.front().getTerminator();
+          rewriter.setInsertionPoint(terminator);
           rewriter.replaceOpWithNewOp<Torch::PrimIfYieldOp>(
               terminator, terminator->getOperands());
         };
