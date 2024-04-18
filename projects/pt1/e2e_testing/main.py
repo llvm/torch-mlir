@@ -98,15 +98,16 @@ which make it easier to attach a debugger or get a stack trace.""")
 def main():
     args = _get_argparse().parse_args()
 
-    logger = logging.getLogger("e2e_test")
+    ir_printer = logging.getLogger("ir_printer")
     if args.print_ir:
         print("WARNING: --print-ir is a work in progress feature.")
         print("print-ir: Setting logging level to DEBUG and enabling IR printing.")
         print("print-ir: This currently only affects the Linalg-on-Tensors and onnx configs.")
         print("print-ir: Work in progress. See https://github.com/llvm/torch-mlir/issues/3172")
-        logger.setLevel(logging.DEBUG)
+        ir_printer.setLevel(logging.DEBUG)
     else:
-        logger.setLevel(logging.WARNING)
+        # disable logging
+        ir_printer.setLevel(logging.CRITICAL+1)
 
 
     all_test_unique_names = set(

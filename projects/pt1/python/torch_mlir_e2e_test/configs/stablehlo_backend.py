@@ -2,6 +2,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
+import logging
+ir_printer = logging.getLogger("ir_printer")
 
 from typing import Any
 
@@ -31,7 +33,9 @@ class StablehloBackendTestConfig(TestConfig):
     def compile(self, program: torch.nn.Module) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
         module = torchscript.compile(program, example_args, output_type="stablehlo")
-
+        ir_printer.debug("StablehloBackendTestConfig compiled module:")
+        ir_printer.debug(module)
+        ir_printer.debug("End StablehloBackendTestConfig compiled module")
         return self.backend.compile(module)
 
     def run(self, artifact: Any, trace: Trace) -> Trace:
