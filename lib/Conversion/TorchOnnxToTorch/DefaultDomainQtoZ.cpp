@@ -908,19 +908,18 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value squareOfOperand = rewriter.create<Torch::AtenMulTensorOp>(
             binder.getLoc(), operand.getType(), operand, operand);
 
-        auto tmp =
+        auto reducedSum =
             reducedSumImpl(binder, rewriter, squareOfOperand, resultType,
                            operand, keepDims, noop_with_empty_axes, true);
-        if (mlir::failed(tmp))
+        if (mlir::failed(reducedSum))
           return failure();
 
         auto castDtypeScalar =
             Torch::getScalarTypeForType(rewriter.getF32Type());
 
-        Value castType = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    static_cast<int64_t>(castDtypeScalar)));
+        Value castDType = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(),
+            rewriter.getI64IntegerAttr(static_cast<int64_t>(castDtypeScalar)));
 
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         Value constFalse =
@@ -928,26 +927,28 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         // Perform an AtenToDtype op on the squared sum of the operand, stored
         // now in operand itself.
+        auto size = operand.getType()
+                        .dyn_cast<Torch::ValueTensorType>()
+                        .getOptionalSizes();
+        auto f32ResultType = rewriter.getType<Torch::ValueTensorType>(
+            size, rewriter.getF32Type());
         Value operandCast = rewriter.create<Torch::AtenToDtypeOp>(
-            binder.getLoc(), resultType, operand, castType,
+            binder.getLoc(), f32ResultType, operand, castDType,
             /*non_blocking=*/constFalse, /*copy=*/constFalse,
             /*memory_format=*/noneVal);
 
         // Perform square root on the cast square sum.
         Value operandSqrt = rewriter.create<Torch::AtenSqrtOp>(
-            binder.getLoc(), resultType, operandCast);
+            binder.getLoc(), f32ResultType, operandCast);
 
         // Finally, perform an AtenToDtype op on the returned square root
         // to align it to resultType.
-        Value finalDtype = Torch::getDtypeIntValueForType(
+        Value resultDtype = Torch::getDtypeIntValueForType(
             rewriter, binder.getLoc(), resultType.getDtype());
-        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
-        Value cstFalse =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
         rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
-            binder.op, resultType, operandSqrt, finalDtype,
-            /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
-            /*memory_format=*/none);
+            binder.op, resultType, operandSqrt, resultDtype,
+            /*non_blocking=*/constFalse, /*copy=*/constFalse,
+            /*memory_format=*/noneVal);
         return success();
       });
   patterns.onOp("ReduceSum", 1,
