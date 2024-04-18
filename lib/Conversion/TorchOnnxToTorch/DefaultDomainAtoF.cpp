@@ -2223,7 +2223,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             none, none);
 
         // Required contants
-        const double piDouble = 2.0 * llvm::numbers::pi;
+        constexpr double pi = llvm::numbers::pi;
         Value alpha = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(),
             rewriter.getFloatAttr(rewriter.getF64Type(), 0.42));
@@ -2235,10 +2235,10 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             rewriter.getFloatAttr(rewriter.getF64Type(), -0.5));
         Value twicePi = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(),
-            rewriter.getFloatAttr(rewriter.getF64Type(), piDouble));
+            rewriter.getFloatAttr(rewriter.getF64Type(), 2.0 * pi));
         Value fourPi = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(),
-            rewriter.getFloatAttr(rewriter.getF64Type(), 2.0 * piDouble));
+            rewriter.getFloatAttr(rewriter.getF64Type(), 4.0 * pi));
 
         // Calculate the window function
         Value productTimesTwoPi = rewriter.create<Torch::AtenMulScalarOp>(
