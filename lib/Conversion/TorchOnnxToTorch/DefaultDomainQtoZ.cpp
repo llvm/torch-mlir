@@ -931,7 +931,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value dataSquare = rewriter.create<Torch::AtenMulTensorOp>(
             binder.getLoc(), operand.getType(), data, data);
 
-        return reducedSumImpl(binder, rewriter, data, resultType,
+        return reducedSumImpl(binder, rewriter, dataSquare, resultType,
                               /*storeValue=*/data, keepDims,
                               noop_with_empty_axes, false);
                 });
