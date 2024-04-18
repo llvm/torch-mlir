@@ -1287,7 +1287,7 @@ public:
     SmallVector<Value> sizes;
     if (!getListConstructElements(op.getSize(), sizes))
       return op.emitError(
-          "unimplemented: the tensor list is not from list construct");
+          "unimplemented: the tensor size list is not from list construct");
 
     auto loc = op.getLoc();
     ImplicitLocOpBuilder b(loc, rewriter);
@@ -1304,53 +1304,53 @@ public:
     Value zero =
         b.create<arith::ConstantOp>(sizeTy, rewriter.getIntegerAttr(sizeTy, 0));
     Value count = zero;
-    Value knownsize = one;
+    Value knownSize = one;
     for (auto &size : sizes) {
       Value convert = typeConverter->materializeTargetConversion(rewriter, loc,
                                                                  sizeTy, size);
 
-      Value mul = b.create<arith::MulIOp>(knownsize, convert);
+      Value mul = b.create<arith::MulIOp>(knownSize, convert);
       Value add = b.create<arith::AddIOp>(count, one);
-      Value isneg =
+      Value isNeg =
           b.create<arith::CmpIOp>(arith::CmpIPredicate::slt, convert, zero);
 
-      knownsize = b.create<arith::SelectOp>(isneg, knownsize, mul);
-      count = b.create<arith::SelectOp>(isneg, add, count);
+      knownSize = b.create<arith::SelectOp>(isNeg, knownSize, mul);
+      count = b.create<arith::SelectOp>(isNeg, add, count);
       size = convert;
     }
 
     // Check we are only inferring one dimension:
-    Value countpred =
+    Value countPred =
         b.create<arith::CmpIOp>(arith::CmpIPredicate::sle, count, one);
     b.create<cf::AssertOp>(
-        loc, countpred,
+        loc, countPred,
         b.getStringAttr("must have at most one inferred (negative) dimension"));
 
     // Determine the total size of the inferred dimension and update the
     // inferred dimension:
     auto selfTy = cast<RankedTensorType>(self.getType());
-    Value totalsize = one;
+    Value totalSize = one;
     for (int i = 0, s = selfTy.getRank(); i < s; ++i) {
       Value index = b.create<arith::ConstantIndexOp>(i);
       Value dim = b.create<tensor::DimOp>(self, index);
       dim = b.create<arith::IndexCastOp>(sizeTy, dim);
-      totalsize = b.create<arith::MulIOp>(totalsize, dim);
+      totalSize = b.create<arith::MulIOp>(totalSize, dim);
     }
 
-    Value inferredsize = b.create<arith::DivSIOp>(totalsize, knownsize);
+    Value inferredSize = b.create<arith::DivSIOp>(totalSize, knownSize);
     for (auto &size : sizes) {
-      Value isneg =
+      Value isNeg =
           b.create<arith::CmpIOp>(arith::CmpIPredicate::slt, size, zero);
-      size = b.create<arith::SelectOp>(isneg, inferredsize, size);
+      size = b.create<arith::SelectOp>(isNeg, inferredSize, size);
     }
 
     auto ty = RankedTensorType::get(sizes.size(), sizes.front().getType());
-    auto elements = b.create<tensor::FromElementsOp>(ty, sizes);
+    auto outputDims = b.create<tensor::FromElementsOp>(ty, sizes);
 
     auto resultType =
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
     rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, self,
-                                                   elements);
+                                                   outputDims);
     return success();
   }
 };
