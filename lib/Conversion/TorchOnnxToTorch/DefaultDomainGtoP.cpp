@@ -204,8 +204,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         Region *thenRegion;
         Region *elseRegion;
-        if (binder.getRegionAtIndex(thenRegion, 0) ||
-            binder.getRegionAtIndex(elseRegion, 1)) {
+        // https://onnx.ai/onnx/operators/onnx__If.html
+        // specifies that the *elseRegion* comes first
+        // (what the heck!)
+        if (binder.getRegionAtIndex(elseRegion, 0) ||
+            binder.getRegionAtIndex(thenRegion, 1)) {
           return rewriter.notifyMatchFailure(binder.op, "region bind failure");
         }
 
