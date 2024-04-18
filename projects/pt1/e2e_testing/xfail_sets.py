@@ -2701,10 +2701,6 @@ ONNX_XFAIL_SET = {
     "IndexTensorMultiInputContiguousOneDimDynamic_basic",
     "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
 
-    # Failure - torch.aten.mm lower (mixed signedness of qtypes)
-    "QuantizedMLP_basic",
-    "QuantizedSingleLayer_basic",
-
     # Failure - unknown
     "BernoulliModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
@@ -2769,6 +2765,6 @@ if torch_version_for_comparison() < version.parse('2.3.0.dev'):
 ONNX_CRASHING_SET = { 
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
-
+    "ElementwisePreluModule_basic",
     "ViewDynamicExpandCollapseWithParallelUnknownDimModule_basic",
 }
