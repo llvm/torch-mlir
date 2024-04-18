@@ -25,7 +25,7 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
 }
 
 LINALG_CRASHING_SET = {
-    # Crashes due to copy to small buffer than input.
+    # Crashes due to copy to a smaller destination buffer than the source buffer.
     "SliceCopyStartGreaterThanDimSize_Module_basic",
 }
 

@@ -999,8 +999,6 @@ class ReshapeDynamicModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.reshape_alias = torch.ops.aten._reshape_alias
-
     @export
     @annotate_args([
         None,
