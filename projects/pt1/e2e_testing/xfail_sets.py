@@ -1724,12 +1724,27 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
-
     # Failure - cast error
     "PermuteNegativeIndexModule_basic",
-
+    
+    # Failure - expand multiple dynamic dims
+    "EmbeddingModuleF16_basic",
+    "EmbeddingModuleI32_basic",
+    "EmbeddingModuleI64_basic",
+    "IndexTensorHackedTwinModule3dInput_basic",
+    "IndexTensorHackedTwinModule_basic",
+    "IndexTensorModule3dInput_basic",
+    "IndexTensorModule_basic",
+    "IndexTensorMultiInputContiguousOneDimDynamic_basic",
+    "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
+    "IndexTensorSelectDimModule_basic",
+    
     # Failure - incorrect numerics
+    "AvgPool2dDivisorOverrideModule_basic",
+    "BroadcastDynamicDimModule_basic",
     "ElementwiseAtan2TensorIntModule_basic",
+    "ElementwiseAtenFloorDivideScalarNegativeModule_basic",
+    "ElementwiseAtenFloorDivideTensorNegativeModule_basic",
     "ElementwiseLog10IntModule_basic",
     "ElementwiseLog2IntModule_basic",
     "ElementwiseSeluModule_basic",
@@ -1738,43 +1753,59 @@ ONNX_XFAIL_SET = {
     "HardsigmoidModule_basic",
     "HardsigmoidRandomModule_basic",
     "PixelShuffleModuleStaticRank4Float32_basic",
+    "QuantizedMLP_basic",
+    "ReflectionPad1dModule2dInput_Right",
+    "ReflectionPad1dModule2dInput_basic",
+    "ReflectionPad1dModule3dInput_Left",
+    "ReflectionPad1dModule3dInput_basic",
+    "ReflectionPad2dModule_Bottom",
+    "ReflectionPad2dModule_Left",
+    "ReflectionPad2dModule_Right",
+    "ReflectionPad2dModule_Top",
+    "ReflectionPad2dModule_basic",
+    "ReplicationPad2dModule_basic",
+    "ReplicationPad2dModule_bottom0",
+    "ReplicationPad2dModule_left0",
+    "ReplicationPad2dModule_right0",
+    "ReplicationPad2dModule_top0",
     "SliceCopyEndGreaterThanDimSize_Module_basic",
     "SliceCopyNegative_Module_basic",
     "SliceCopyNonZeroDim_Module_basic",
     "SliceCopy_Module_basic",
+    "StdCorrectionLargeInputModule_basic",
     "TupleModule_basic",
-
+    "VarCorrectionLargeInputModule_basic",
+    
     # Failure - incorrect shape
     "ArangeStartOutDtypeModule_basic",
     "ArangeStartOutViewModule_basic",
-    "BroadcastDynamicDimModule_basic",
     "MoveDimIntNegativeIndexModule_basic",
+    "ReduceL3NormKeepDimModule_basic",
     "ViewSizeFromOtherTensor_basic",
-
+    
     # Failure - onnx_export
-    "ElementwiseSgnModule_basic",
     "AdaptiveAvgPool1dGeneralDynamic_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule_basic",
     "AdaptiveAvgPool1dStaticLargerOutput_basic",
+    "AdaptiveAvgPool2dDynamicNoBatch_basic",
+    "AdaptiveAvgPool2dDynamic_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeDynamicModule_basic",
     "AdaptiveAvgPool2dOutputSizeDivisibleByInputDynamicModule_basic",
+    "AdaptiveAvgPool3dDynamicNoBatch_basic",
+    "AdaptiveAvgPool3dDynamic_basic",
+    "AdaptiveMaxPool1dDynamicNoBatch_basic",
+    "AdaptiveMaxPool1dDynamic_basic",
+    "AdaptiveMaxPool1dStatic_basic",
+    "AdaptiveMaxPool2dDynamicNoBatch_basic",
     "AdaptiveMaxPool2dDynamicWithIndices_basic",
     "AdaptiveMaxPool2dDynamic_basic",
     "AdaptiveMaxPool2dStaticWithIndices_basic",
     "AdaptiveMaxPool2dStatic_basic",
-    "AdaptiveMaxPool3dStatic_basic",
-    "AdaptiveMaxPool3dStaticWithIndices_basic",
-    "AdaptiveMaxPool3dDynamic_basic",
-    "AdaptiveMaxPool3dDynamicWithIndices_basic",
     "AdaptiveMaxPool3dDynamicNoBatch_basic",
-    "AdaptiveMaxPool2dDynamicNoBatch_basic",
-    "AdaptiveMaxPool1dStatic_basic",
-    "AdaptiveMaxPool1dDynamic_basic",
-    "AdaptiveMaxPool1dDynamicNoBatch_basic",
-    "AdaptiveAvgPool3dDynamic_basic",
-    "AdaptiveAvgPool3dDynamicNoBatch_basic",
-    "AdaptiveAvgPool2dDynamic_basic",
-    "AdaptiveAvgPool2dDynamicNoBatch_basic",
+    "AdaptiveMaxPool3dDynamicWithIndices_basic",
+    "AdaptiveMaxPool3dDynamic_basic",
+    "AdaptiveMaxPool3dStaticWithIndices_basic",
+    "AdaptiveMaxPool3dStatic_basic",
     "AddCDivModule_basic",
     "AddIntModule_basic",
     "Add_Module_basic",
@@ -1786,6 +1817,12 @@ ONNX_XFAIL_SET = {
     "AtenComplexImagModule_basic",
     "AtenComplexRealModule_basic",
     "AtenComplexViewModule_basic",
+    "AtenDiagEmbedDefaultDiag_basic",
+    "AtenDiagEmbedDimDiag_basic",
+    "AtenDiagEmbedNegOffsetDiag_basic",
+    "AtenDiagEmbedNonDefault4DDiag_basic",
+    "AtenDiagEmbedOffsetDiag_basic",
+    "AtenDiagEmbedRevDimDiag_basic",
     "AtenEmbeddingBagStaticModule_basic",
     "AtenEmbeddingBagSumExample_basic",
     "AtenFloatScalarModule_basic",
@@ -1796,15 +1833,16 @@ ONNX_XFAIL_SET = {
     "AtenIntTensorCharDtypeModule_basic",
     "AtenItemFpOpModule_basic",
     "AtenItemIntOpModule_basic",
-    "AtenMmQint8_basic",
-    "AtenMmQuint8_basic",
-    "AtenMmQMixedSigni8_basic",
+    "AtenLinalgCrossDynamic_basic",
     "AtenMatmulQMixedSigni8Transpose_basic",
     "AtenMatmulQMixedSigni8_basic",
     "AtenMatmulQint8MV_basic",
-    "AtenMatmulQint8VV_basic",
     "AtenMatmulQint8VM_basic",
+    "AtenMatmulQint8VV_basic",
     "AtenMatmulQint8_basic",
+    "AtenMmQMixedSigni8_basic",
+    "AtenMmQint8_basic",
+    "AtenMmQuint8_basic",
     "AtenRealView128Module_basic",
     "AtenRealView64Module_basic",
     "AtenSubFloatModule_basic",
@@ -1886,16 +1924,19 @@ ONNX_XFAIL_SET = {
     "ElementwiseCoshModule_basic",
     "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
+    "ElementwiseDivTensorRoundingModeFloorIntStaticModule_basic",
+    "ElementwiseDivTensorRoundingModeTruncIntStaticModule_basic",
     "ElementwiseEluNonDefaultModule_basic",
     "ElementwiseExpm1IntModule_basic",
     "ElementwiseExpm1Module_basic",
+    "ElementwiseFmodTensor_Int_basic",
     "ElementwiseMulTensorComplexModule_basic",
     "ElementwiseOrTensorModule_basic",
     "ElementwiseOrTensorStaticShapeModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorUIntModule_basic",
     "ElementwiseRemainderTensorModule_Int_basic",
-    "ElementwiseFmodTensor_Int_basic",
+    "ElementwiseSgnModule_basic",
     "EmptyStridedModule_basic",
     "EmptyStridedSizeIntStrideModule_basic",
     "EqIntModule_basic",
@@ -1910,11 +1951,11 @@ ONNX_XFAIL_SET = {
     "HardtanhBackward_basic",
     "IndexPutImpl1DFloatAccumulateModule_basic",
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
-    "IndexPutImpl2DImplicitModule_basic",
     "IndexPutImpl1DIntAccumulateModule_basic",
     "IndexPutImpl1DIntNonAccumulateModule_basic",
     "IndexPutImpl2DFloatAccumulateModule_basic",
     "IndexPutImpl2DFloatNonAccumulateModule_basic",
+    "IndexPutImpl2DImplicitModule_basic",
     "IndexPutImpl2DIndexModule_basic",
     "IndexPutImpl2DNoneIndexStaticModule_basic",
     "IndexPutImpl3DFloatAccumulateModule_basic",
@@ -1931,6 +1972,8 @@ ONNX_XFAIL_SET = {
     "LeakyReluBackwardStaticModule_basic",
     "LenStrModule_basic",
     "LiftFreshCopyModule_basic",
+    "LinalgNormKeepDimComplexModule_basic",
+    "LinalgVectorNormComplexModule_basic",
     "LogSoftmaxBackwardModule_basic",
     "MaxPool2dCeilModeTrueModule_basic",
     "MaxPool2dModule_basic",
@@ -1990,14 +2033,11 @@ ONNX_XFAIL_SET = {
     "NllLossModule_ignore_index_out_of_bounds_basic",
     "NllLossModule_mean_basic",
     "NllLossModule_sum_basic",
-    "NormScalarModule_basic",
     "NormScalarComplexModule_basic",
+    "NormScalarModule_basic",
+    "NormScalarOptDimKeepDimComplexModule_basic",
     "NormScalarOptDimKeepDimModule_basic",
     "NormScalarOptDimModule_basic",
-    "NormScalarOptDimKeepDimComplexModule_basic",
-    "LinalgNormKeepDimComplexModule_basic",
-    "LinalgVectorNormComplexModule_basic",
-    "ReduceFrobeniusNormComplexModule_basic",
     "NormalFunctionalModule_basic",
     "NumToTensorFloatModule_basic",
     "NumToTensorIntModule_basic",
@@ -2019,6 +2059,10 @@ ONNX_XFAIL_SET = {
     "RandIntDtypeModule_basic",
     "RandIntModule_basic",
     "RandIntPinMemoryModule_basic",
+    "ReduceFrobeniusNormComplexModule_basic",
+    "ReduceL1NormComplexModule_basic",
+    "ReduceL2NormComplexModule_basic",
+    "ReduceL3NormKeepDimComplexModule_basic",
     "ReshapeAliasCollapseModule_basic",
     "ReshapeAliasExpandModule_basic",
     "ReshapeExpandModule_basic",
@@ -2132,8 +2176,11 @@ ONNX_XFAIL_SET = {
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
     "_SoftmaxModule_basic",
-
-    # Failure - onnx_import
+    
+    # Failure - onnx_lowering: onnx.AveragePool
+    "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
+    
+    # Failure - onnx_lowering: onnx.If
     "DiagonalModule_basic",
     "DiagonalModule_nonsquare",
     "DiagonalModule_transposed",
@@ -2141,12 +2188,53 @@ ONNX_XFAIL_SET = {
     "DiagonalModule_with_dims_and_offset",
     "DiagonalModule_with_negative_dims",
     "DiagonalModule_with_offset",
-    "AtenDiagEmbedDefaultDiag_basic",
-    "AtenDiagEmbedDimDiag_basic",
-    "AtenDiagEmbedOffsetDiag_basic",
-    "AtenDiagEmbedRevDimDiag_basic",
-    "AtenDiagEmbedNegOffsetDiag_basic",
-    "AtenDiagEmbedNonDefault4DDiag_basic",
+    "TileBigDimsSizeModule_basic",
+    "TileSmallDimsSizeModule_basic",
+    
+    # Failure - onnx_lowering: onnx.MaxPool
+    "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
+    "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
+    "MaxPool2dWithIndicesStaticModule_basic",
+    
+    # Failure - onnx_lowering: onnx.OneHot
+    "OneHotModule_basic",
+    
+    # Failure - onnx_lowering: onnx.RandomNormal
+    "RandnDtypeDeviceModule_basic",
+    "RandnGeneratorF64Module_basic",
+    "RandnGeneratorModule_basic",
+    "RandnModule_basic",
+    
+    # Failure - onnx_lowering: onnx.RandomNormalLike
+    "RandnLikeDtypeModule_basic",
+    "RandnLikeModule_basic",
+    
+    # Failure - onnx_lowering: onnx.RandomUniform
+    "RandIntLowDtypeModule_basic",
+    "RandIntLowModule_basic",
+    
+    # Failure - onnx_lowering: onnx.RandomUniformLike
+    "BernoulliFloatModule_basic",
+    "BernoulliPModule_basic",
+    "BernoulliTensorModule_basic",
+    "RandLikeDtypeModule_basic",
+    "RandLikeModule_basic",
+    "RandModule_basic",
+    
+    # Failure - onnx_lowering: onnx.ReduceL2
+    "LinalgNormKeepDimModule_basic",
+    "LinalgNormModule_basic",
+    "NormalizeModule_basic",
+    "ReduceL2NormModule_basic",
+    
+    # Failure - onnx_lowering: onnx.ReduceProd
+    "ReduceProdDimIntFloatModule_basic",
+    
+    # Failure - onnx_lowering: onnx.Resize
+    "UpSampleNearest2dDynamicSize_basic",
+    "UpSampleNearest2dStaticSize_basic",
+    
+    # Failure - onnx_lowering: onnx.ScatterElements
     "ScatterReduceFloatMaxModuleIncludeSelf",
     "ScatterReduceFloatMinModuleIncludeSelf",
     "ScatterReduceFloatProdModuleIncludeSelf",
@@ -2155,96 +2243,11 @@ ONNX_XFAIL_SET = {
     "ScatterReduceIntMinModuleIncludeSelf",
     "ScatterReduceIntProdModuleIncludeSelf",
     "ScatterReduceIntSumModuleIncludeSelf",
-    "TileBigDimsSizeModule_basic",
-    "TileSmallDimsSizeModule_basic",
-    "LinalgNormKeepDimModule_basic",
-    "LinalgNormModule_basic",
-
-    # Failure - onnx_lowering: onnx.AveragePool
-    "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
-    "AvgPool2dDivisorOverrideModule_basic",
-
-    # Failure - onnx_lowering: onnx.Clip
-    "NormalizeModule_basic",
-
-    # Failure - onnx_lowering: onnx.MaxPool
-    "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
-    "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
-    "MaxPool2dWithIndicesStaticModule_basic",
-
-    # Failure - onnx_lowering: onnx.OneHot
-    "OneHotModule_basic",
-
-    # Failure - onnx_lowering: onnx.Pad
-    "ReflectionPad1dModule2dInput_Right",
-    "ReflectionPad1dModule2dInput_basic",
-    "ReflectionPad1dModule3dInput_Left",
-    "ReflectionPad1dModule3dInput_basic",
-    "ReflectionPad2dModule_Bottom",
-    "ReflectionPad2dModule_Left",
-    "ReflectionPad2dModule_Right",
-    "ReflectionPad2dModule_Top",
-    "ReflectionPad2dModule_basic",
-    "ReplicationPad2dModule_basic",
-    "ReplicationPad2dModule_bottom0",
-    "ReplicationPad2dModule_left0",
-    "ReplicationPad2dModule_right0",
-    "ReplicationPad2dModule_top0",
-
-    # Failure - onnx_lowering: onnx.RandomNormal
-    "RandnDtypeDeviceModule_basic",
-    "RandnGeneratorF64Module_basic",
-    "RandnGeneratorModule_basic",
-    "RandnModule_basic",
-
-    # Failure - onnx_lowering: onnx.RandomNormalLike
-    "RandnLikeDtypeModule_basic",
-    "RandnLikeModule_basic",
-
-    # Failure - onnx_lowering: onnx.RandomUniform
-    "RandIntLowDtypeModule_basic",
-    "RandIntLowModule_basic",
-
-    # Failure - onnx_lowering: onnx.RandomUniformLike
-    "BernoulliFloatModule_basic",
-    "BernoulliPModule_basic",
-    "BernoulliTensorModule_basic",
-    "RandLikeDtypeModule_basic",
-    "RandLikeModule_basic",
-    "RandModule_basic",
-
-    # Failure - onnx_lowering: onnx.ReduceL1
-    "ReduceL1NormComplexModule_basic",
-
-    # Failure - onnx_lowering: onnx.ReduceL2
-    "ReduceL2NormModule_basic",
-    "ReduceL2NormComplexModule_basic",
-
-    # Failure - onnx_lowering: onnx.ReduceL3
-    "ReduceL3NormKeepDimModule_basic",
-    "ReduceL3NormKeepDimComplexModule_basic",
-
-
-    # Failure - onnx_lowering: onnx.ReduceProd
-    "BernoulliModule_basic",
-    "DropoutTrainModule_basic",
-    "DropoutTrainStaticShapeModule_basic",
-    "NativeDropoutTrainModule_basic",
-    "NativeDropoutTrainStaticShapeModule_basic",
-    "ReduceProdDimIntFloatModule_basic",
-    "StdCorrectionLargeInputModule_basic",
-    "VarCorrectionLargeInputModule_basic",
-
-    # Failure - onnx_lowering: onnx.Resize
-    "UpSampleNearest2dDynamicSize_basic",
-    "UpSampleNearest2dStaticSize_basic",
-
-    # Failure - onnx_lowering: onnx.ScatterElements
     "ScatterSrcModule_basic",
     "ScatterSrcStaticModule_basic",
     "ScatterValueFloatModule_basic",
     "ScatterValueIntModule_basic",
-
+    
     # Failure - onnx_lowering: onnx.ScatterND
     "IndexPut1DFloatAccumulateModule_basic",
     "IndexPut1DFloatNonAccumulateModule_basic",
@@ -2270,30 +2273,21 @@ ONNX_XFAIL_SET = {
     "IndexPutHackedTwin3DFloatNonAccumulateModule_basic",
     "IndexPutHackedTwin3DIntAccumulateModule_basic",
     "IndexPutHackedTwin3DIntNonAccumulateModule_basic",
-
+    
     # Failure - onnx_lowering: onnx.SoftmaxCrossEntropyLoss
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
-
+    
     # Failure - onnx_lowering: onnx.Squeeze
     "SqueezeModule_allUnitDim",
     "SqueezeModule_broadcast",
     "SqueezeModule_static",
-
-    # Failure - incorrect dtype
-    "ReduceMaxAlongDimUnsignedInt_basic",
-    "ElementwiseToDtypeI64ToUI8Module_basic",
-
-    # Failure - torch.aten.view lower
-    "IndexTensorMultiInputContiguousOneDimDynamic_basic",
-    "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
-
-    # Failure - torch.aten.squeeze lower
-    "BucketizeTensorOutInt32RightModule_basic", # unsupported by backend contract: tensor with unknown rank
-
+    
     # Failure - unknown
+    "BernoulliModule_basic",
     "BucketizeTensorFloatModule_basic",
     "BucketizeTensorModule_basic",
+    "BucketizeTensorOutInt32RightModule_basic",
     "BucketizeTensorStaticFloatModule_basic",
     "BucketizeTensorStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
@@ -2301,15 +2295,14 @@ ONNX_XFAIL_SET = {
     "CopyWithDifferentDTypesModule_basic",
     "CosineSimilarityStaticBroadcastModule_basic",
     "CumsumInputDtypeInt32Module_basic",
+    "DropoutTrainModule_basic",
+    "DropoutTrainStaticShapeModule_basic",
     "ElementwiseAcosIntModule_basic",
     "ElementwiseAsinIntModule_basic",
     "ElementwiseAtanTensorIntModule_basic",
     "ElementwiseCosIntModule_basic",
-    "ElementwiseDivTensorRoundingModeFloorIntStaticModule_basic",
-    "ElementwiseDivTensorRoundingModeTruncIntStaticModule_basic",
     "ElementwiseDivTensorRoundingModeTruncModule_basic",
     "ElementwiseDivTensorRoundingModeTruncStaticModule_basic",
-    "ElementwiseErfIntModule_basic",
     "ElementwiseErfIntModule_basic",
     "ElementwiseExpIntModule_basic",
     "ElementwiseLogIntModule_basic",
@@ -2318,33 +2311,21 @@ ONNX_XFAIL_SET = {
     "ElementwiseSigmoidIntModule_basic",
     "ElementwiseSinIntModule_basic",
     "ElementwiseTanIntModule_basic",
+    "ElementwiseToDtypeI64ToUI8Module_basic",
     "ElementwiseUnaryIntModule_basic",
     "ElementwiseUnsqueezeNegDimsModule_basic",
-    "EmbeddingModuleF16_basic",
-    "EmbeddingModuleI32_basic",
-    "EmbeddingModuleI64_basic",
     "GluStaticModule_basic",
     "GroupNormModule_basic",
-    "IndexTensorHackedTwinModule3dInput_basic",
-    "IndexTensorHackedTwinModule_basic",
-    "IndexTensorModule3dInput_basic",
-    "IndexTensorModule_basic",
-    "IndexTensorSelectDimModule_basic",
     "MaskedFillTensorFloatValueModule_basic",
+    "NativeDropoutTrainModule_basic",
+    "NativeDropoutTrainStaticShapeModule_basic",
     "ReduceAllDimEmpty_basic",
     "ReduceAllDimFloat_basic",
     "ReduceAllDimInt_basic",
+    "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
     "TensorsStackNegativeDimModule_basic",
     "TensorsStackPromoteDTypeModule_basic",
-
-    # Failure - "RuntimeError: linalg.cross: inputs dimension 1 must have length 3. Got 1 and 1"
-    "AtenLinalgCrossDynamic_basic",
-
-    # Failure - value not close to golden value (op is incorrectly truncating) 
-    "ElementwiseAtenFloorDivideTensorNegativeModule_basic",
-    "ElementwiseAtenFloorDivideScalarNegativeModule_basic",
-
 }
 
 if torch_version_for_comparison() >= version.parse("2.4.0.dev"):
