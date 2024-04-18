@@ -24,6 +24,11 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "SplitWithSizes_Module_basic",
 }
 
+LINALG_CRASHING_SET = {
+    # Crashes due to copy to a smaller destination buffer than the source buffer.
+    "SliceCopyStartGreaterThanDimSize_Module_basic",
+}
+
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
 
@@ -2280,15 +2285,6 @@ ONNX_XFAIL_SET = {
     "ElementwiseToDtypeI64ToUI8Module_basic",
 
     # Failure - torch.aten.view lower
-    "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
-    "IndexTensorDyanmicInputNonContiguousWithNoneModule_basic",
-    "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
-    "IndexTensorMultiInputContiguousCenter_basic",
-    "IndexTensorMultiInputNonContiguousMultipleStaticDims_basic",
-    "IndexTensorMultiInputNonContiguous_basic",
-    "IndexTensorMultiInputOneDim_basic",
-    "IndexTensorMultiInputThreeIndexers_basic",
-    "IndexTensorMultiInput_basic",
     "IndexTensorMultiInputContiguousOneDimDynamic_basic",
     "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
 
@@ -2327,7 +2323,6 @@ ONNX_XFAIL_SET = {
     "EmbeddingModuleF16_basic",
     "EmbeddingModuleI32_basic",
     "EmbeddingModuleI64_basic",
-    "FlattenDynamicModule_basic",
     "GluStaticModule_basic",
     "GroupNormModule_basic",
     "IndexTensorHackedTwinModule3dInput_basic",
