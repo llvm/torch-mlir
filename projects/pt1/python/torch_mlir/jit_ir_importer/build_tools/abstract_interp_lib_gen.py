@@ -391,6 +391,12 @@ def aten〇to〇device〡shape(self: List[int], device: device, dtype: int, non_
 def aten〇to〇other〡shape(self: List[int], other: List[int], non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇_cast_Float〡shape(self: List[int], non_blocking: bool = False) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇_cast_Long〡shape(self: List[int], non_blocking: bool = False) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇type_as〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -719,6 +725,15 @@ def aten〇repeat〡shape(self: List[int], repeats: List[int]) -> List[int]:
     for i in range(tensor_dim):
         out.append(self[i] * repeats[i + leading_rank])
     return out
+
+def aten〇repeat_interleave〇self_int〡shape(self: List[int], repeats: int, dim: Optional[int] = None, output_size: Optional[int] = None) -> List[int]:
+    if dim is None:
+        flatten_size = upstream_shape_functions.flatten(self, 0, -1)[0]
+        return [flatten_size * repeats]
+    else:
+        out = self[:dim] + [self[dim] * repeats] + self[dim + 1:]
+        return out
+
 
 @check_shape_function([
     Invocation(TensorOfShape(3, 2, 8), [2, 2]),  # dims_length < self_length
@@ -1205,6 +1220,9 @@ def aten〇div〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
 
 def aten〇div〇Tensor_mode〡shape(self: List[int], other: List[int], rounding_mode: Optional[str]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
+
+def aten〇div〇Scalar_mode〡shape(self: List[int], other: float, rounding_mode: Optional[str]) -> List[int]:
+    return upstream_shape_functions.unary(self)
 
 def aten〇floor_divide〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
@@ -2616,6 +2634,11 @@ def aten〇repeat〡dtype(self_rank_dtype: Tuple[int, int], repeats: List[int]) 
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, repeats=1))
+def aten〇repeat_interleave〇self_int〡dtype(self_rank_dtype: Tuple[int, int], repeats: int, dim: Optional[int] = None, output_size: Optional[int] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dims=[1]))
 def aten〇tile〡dtype(self_rank_dtype: Tuple[int, int], dims: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -2752,7 +2775,9 @@ def aten〇t〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 @check_dtype_function(_check_tensors_with_the_same_dtype(1, tensor_device="meta", device=torch.device("meta")))
 def aten〇to〇prim_Device〡dtype(self_rank_dtype: Tuple[int, int], device: Optional[device], dtype: Optional[int] = None, non_blocking: bool = False, copy: bool = False) -> int:
     self_rank, self_dtype = self_rank_dtype
-    return self_dtype
+    if dtype is None:
+        return self_dtype
+    return dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3)], dim0=0, dim1=1))
 def aten〇transpose〇int〡dtype(self_rank_dtype: Tuple[int, int], dim0: int, dim1: int) -> int:
@@ -3139,6 +3164,45 @@ def aten〇div〇Tensor_mode〡dtype(self_rank_dtype: Tuple[int, int], other_ran
     self_rank, self_dtype = self_rank_dtype
     ranks: List[Optional[int]] = [self_rank, other_rank]
     dtypes = [self_dtype, other_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    if is_complex_dtype(promoted_dtype) or \
+       (is_float_dtype(promoted_dtype) and promoted_dtype != torch.float32) or \
+        (rounding_mode is not None and rounding_mode == "trunc"):
+        return promoted_dtype
+    else:
+        return torch.float32
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1.0))
+def aten〇floor_divide〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float, complex]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert not is_complex_dtype(self_dtype)
+    ranks: List[Optional[int]] = [self_rank, None]
+    dtypes = [self_dtype, get_dtype_of_scalar(other)]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+
+    # _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0.0, rounding_mode=None, error_types={torch.complex64, torch.complex128}) +
+    # _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0, rounding_mode=None, error_types={torch.complex64, torch.complex128}) + 
+    # _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0.0, rounding_mode="floor", error_types={torch.complex64, torch.complex128}) +
+    # _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0, rounding_mode="floor", error_types={torch.complex64, torch.complex128}) +
+    # _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0.0, rounding_mode="trunc", error_types={torch.complex64, torch.complex128}) +
+    # _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0, rounding_mode="trunc", error_types={torch.complex64, torch.complex128}))
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0.0, rounding_mode=None) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0, rounding_mode=None) + 
+    _check_tensors_with_the_same_dtype(error_types={torch.complex64, torch.complex128}, num_of_tensors=1, other=0.0, rounding_mode="floor") +
+    _check_tensors_with_the_same_dtype(error_types={torch.complex64, torch.complex128}, num_of_tensors=1, other=0, rounding_mode="floor") +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0.0, rounding_mode="trunc") +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0, rounding_mode="trunc"))
+def aten〇div〇Scalar_mode〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float, complex], rounding_mode: Optional[str]) -> int:
+    if rounding_mode is not None and rounding_mode == "floor":
+        return  aten〇floor_divide〇Scalar〡dtype(self_rank_dtype, other)
+
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [None, self_rank]
+    dtypes = [get_dtype_of_scalar(other), self_dtype]
     promoted_dtype = promote_dtypes(ranks, dtypes)
     if is_complex_dtype(promoted_dtype) or \
        (is_float_dtype(promoted_dtype) and promoted_dtype != torch.float32) or \
@@ -3626,15 +3690,6 @@ def aten〇fmod〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dt
     dtypes = [self_dtype, other_dtype]
     return promote_dtypes(ranks, dtypes)
 
-@check_dtype_function(
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1) +
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}, other=1.0))
-def aten〇floor_divide〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float, complex]) -> int:
-    self_rank, self_dtype = self_rank_dtype
-    assert not is_complex_dtype(self_dtype)
-    ranks: List[Optional[int]] = [self_rank, None]
-    dtypes = [self_dtype, get_dtype_of_scalar(other)]
-    return promote_dtypes(ranks, dtypes)
 
 def aten〇pow〇Scalar〡dtype(self: Union[int, float, complex], exponent_rank_dtype: Tuple[int, int]) -> int:
     exponent_rank, exponent_dtype = exponent_rank_dtype
@@ -4324,6 +4379,12 @@ def aten〇to〇device〡dtype(self_rank_dtype: Tuple[int, int], device: device,
 def aten〇to〇other〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int], non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> int:
     other_rank, other_dtype = other_rank_dtype
     return other_dtype
+
+def aten〇_cast_Float〡dtype(self_rank_dtype: Tuple[int, int], non_blocking: bool = False) -> int:
+    return torch.float32
+
+def aten〇_cast_Long〡dtype(self_rank_dtype: Tuple[int, int], non_blocking: bool = False) -> int:
+    return torch.int64
 
 @check_dtype_function(_check_two_tensor_op())
 def aten〇type_as〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:

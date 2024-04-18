@@ -70,7 +70,7 @@ public:
         input.getType().template cast<RankedTensorType>();
     Type idxElementType =
         getElementTypeOrSelf(typec->convertType(idxResultType));
-    if (!idxElementType.isa<IntegerType>())
+    if (!isa<IntegerType>(idxElementType))
       return rewriter.notifyMatchFailure(
           op, opName + " to linalg.* requires integer-like result type");
 
@@ -89,8 +89,8 @@ public:
 
     Type inElementType = inputType.getElementType();
     bool isUnsigned = false;
-    if (!inElementType.isa<mlir::FloatType>()) {
-      if (inElementType.isa<mlir::IntegerType>()) {
+    if (!isa<mlir::FloatType>(inElementType)) {
+      if (isa<mlir::IntegerType>(inElementType)) {
         auto integerTy = op.getSelf()
                              .getType()
                              .template cast<BaseTensorType>()
@@ -121,22 +121,21 @@ public:
         loc, getAsOpFoldResult(resultShape), inElementType);
 
     Value fillValue;
-    if (inElementType.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(inElementType)) {
       fillValue = rewriter.create<arith::ConstantOp>(
-          loc,
-          rewriter.getFloatAttr(
-              inElementType,
-              APFloat::getInf(
-                  inElementType.cast<mlir::FloatType>().getFloatSemantics(),
-                  /*Negative=*/isMax)));
+          loc, rewriter.getFloatAttr(
+                   inElementType,
+                   APFloat::getInf(
+                       cast<mlir::FloatType>(inElementType).getFloatSemantics(),
+                       /*Negative=*/isMax)));
     } else if (!isUnsigned) {
-      auto width = inElementType.cast<mlir::IntegerType>().getWidth();
+      auto width = cast<mlir::IntegerType>(inElementType).getWidth();
       auto init = isMax ? APSInt::getSignedMinValue(width)
                         : APSInt::getSignedMaxValue(width);
       fillValue = rewriter.create<arith::ConstantOp>(
           loc, rewriter.getIntegerAttr(inElementType, init));
     } else if (isUnsigned) {
-      auto width = inElementType.cast<mlir::IntegerType>().getWidth();
+      auto width = cast<mlir::IntegerType>(inElementType).getWidth();
       auto init = isMax ? APInt::getMinValue(width) : APInt::getMaxValue(width);
       fillValue = rewriter.create<arith::ConstantOp>(
           loc, rewriter.getIntegerAttr(inElementType, init));
@@ -180,7 +179,7 @@ public:
               rewriter.create<linalg::IndexOp>(loc, dim));
 
           Value resultVal, predicate;
-          if (inElementType.isa<mlir::FloatType>()) {
+          if (isa<mlir::FloatType>(inElementType)) {
             arith::CmpFPredicate predType;
             if (isMax) {
               predType = arith::CmpFPredicate::OGT;
@@ -300,21 +299,21 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
     return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
 
   if (isa<AtenProdDimIntOp>(op)) {
-    if (elementType.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(elementType))
       return b.create<arith::ConstantOp>(loc, b.getFloatAttr(elementType, 1.0));
-    else if (elementType.isa<mlir::IntegerType>())
+    else if (isa<mlir::IntegerType>(elementType))
       return b.create<arith::ConstantOp>(loc, b.getIntegerAttr(elementType, 1));
   }
 
   if (isa<AtenMaxOp>(op)) {
-    if (elementType.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(elementType))
       return b.create<arith::ConstantOp>(
           loc, b.getFloatAttr(
                    elementType,
                    APFloat::getInf(
-                       elementType.cast<mlir::FloatType>().getFloatSemantics(),
+                       cast<mlir::FloatType>(elementType).getFloatSemantics(),
                        /*Negative=*/true)));
-    else if (elementType.isa<mlir::IntegerType>() &&
+    else if (isa<mlir::IntegerType>(elementType) &&
              elementType.getIntOrFloatBitWidth() != 8)
       return b.create<arith::ConstantOp>(
           loc, b.getIntegerAttr(elementType,
@@ -323,14 +322,14 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
   }
 
   if (isa<AtenMinOp>(op)) {
-    if (elementType.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(elementType))
       return b.create<arith::ConstantOp>(
           loc, b.getFloatAttr(
                    elementType,
                    APFloat::getInf(
-                       elementType.cast<mlir::FloatType>().getFloatSemantics(),
+                       cast<mlir::FloatType>(elementType).getFloatSemantics(),
                        /*Negative=*/false)));
-    else if (elementType.isa<mlir::IntegerType>() &&
+    else if (isa<mlir::IntegerType>(elementType) &&
              elementType.getIntOrFloatBitWidth() != 8)
       return b.create<arith::ConstantOp>(
           loc, b.getIntegerAttr(elementType,
@@ -359,25 +358,25 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     Value self =
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
-    if (resultElementType.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(resultElementType))
       return b.create<arith::AddFOp>(loc, self, result);
-    else if (resultElementType.isa<mlir::IntegerType>())
+    else if (isa<mlir::IntegerType>(resultElementType))
       return b.create<arith::AddIOp>(loc, self, result);
   } else if (isa<AtenProdDimIntOp>(op)) {
     Value self =
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
-    if (resultElementType.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(resultElementType))
       return b.create<arith::MulFOp>(loc, self, result);
-    else if (resultElementType.isa<mlir::IntegerType>())
+    else if (isa<mlir::IntegerType>(resultElementType))
       return b.create<arith::MulIOp>(loc, self, result);
   } else if (auto max = dyn_cast<AtenMaxOp>(op)) {
     Value self =
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
-    if (resultElementType.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(resultElementType))
       return b.create<arith::MaximumFOp>(loc, self, result);
-    else if (resultElementType.isa<mlir::IntegerType>()) {
+    else if (isa<mlir::IntegerType>(resultElementType)) {
       IntegerType intType = max.getSelf()
                                 .getType()
                                 .cast<BaseTensorType>()
@@ -392,9 +391,9 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     Value self =
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
-    if (resultElementType.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(resultElementType))
       return b.create<arith::MinimumFOp>(loc, self, result);
-    else if (resultElementType.isa<mlir::IntegerType>()) {
+    else if (isa<mlir::IntegerType>(resultElementType)) {
       IntegerType intType = min.getSelf()
                                 .getType()
                                 .cast<BaseTensorType>()
@@ -626,10 +625,10 @@ private:
                                ConversionPatternRewriter &rewriter) const {
     if ((isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op) ||
          isa<AtenNormScalarOp>(op)) &&
-        !elemType.isa<mlir::FloatType>())
+        !isa<mlir::FloatType>(elemType))
       return rewriter.notifyMatchFailure(
           op, "only float types are valid for vector norm ops");
-    if (isa<AtenAllDimOp>(op) && elemType.isa<mlir::IntegerType>() &&
+    if (isa<AtenAllDimOp>(op) && isa<mlir::IntegerType>(elemType) &&
         elemType.getIntOrFloatBitWidth() == 8)
       return rewriter.notifyMatchFailure(op, "uint8 is not supported");
 

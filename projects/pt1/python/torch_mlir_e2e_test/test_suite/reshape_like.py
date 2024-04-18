@@ -379,6 +379,25 @@ def ViewDynamicExpandCollapseModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ViewDynamicExpandCollapseWithParallelUnknownDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3, -1, 5], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(2, -1, 6)
+
+@register_test_case(module_factory=lambda: ViewDynamicExpandCollapseWithParallelUnknownDimModule())
+def ViewDynamicExpandCollapseWithParallelUnknownDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4, 5))
+
+# ==============================================================================
+
 class ViewDynamicExpandCollapseWithAtenIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

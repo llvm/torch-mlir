@@ -308,10 +308,8 @@ function test_in_tree() {
       echo ":::: Run Onnx e2e integration tests"
       python -m e2e_testing.main --config=onnx -v
 
-      # Dynamo is changing a lot in nightly versions, and thus the implementation
-      # tends to become incompatible to the stable version.
-      echo ":::: Run TorchDynamo e2e integration tests"
-      python -m e2e_testing.main --config=torchdynamo -v
+      echo ":::: Run FxImporter e2e integration tests"
+      python -m e2e_testing.main --config=fx_importer -v
       ;;
     stable)
       echo ":::: Test with stable torch"

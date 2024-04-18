@@ -27,9 +27,9 @@ LogicalResult verifyLinalgCompatibleTypes(Operation *op,
   // TODO: Remove this check but use a separate verification pass to verify the
   // invariants expected by later passes.
   auto isValidLinalgType = [](Type type) {
-    if (type.isa<NonValueTensorType>())
+    if (isa<NonValueTensorType>(type))
       return false;
-    auto tensor = type.dyn_cast<ValueTensorType>();
+    auto tensor = dyn_cast<ValueTensorType>(type);
     return !tensor ||
            tensor.toBuiltinTensor().dyn_cast_or_null<RankedTensorType>();
   };
@@ -43,8 +43,8 @@ LogicalResult verifyLinalgCompatibleTypes(Operation *op,
 
 LogicalResult checkNotNone(PatternRewriter &rewriter, Operation *op, Value v) {
   Type type = v.getType();
-  if (type.isa<OptionalType>() || type.isa<Torch::NoneType>() ||
-      type.isa<mlir::NoneType>())
+  if (isa<OptionalType>(type) || isa<Torch::NoneType>(type) ||
+      isa<mlir::NoneType>(type))
     return rewriter.notifyMatchFailure(op, "unimplemented None type arg");
   return success();
 }
@@ -104,7 +104,7 @@ void checkDimEqualHelper(OpBuilder &b, Location loc, Value lhsDim,
   Type lhsType = lhsDim.getType();
   Type rhsType = rhsDim.getType();
   auto checkIntOrIndex = [](Type type) {
-    assert((type.isa<IntegerType>() || type.isa<IndexType>()) &&
+    assert((isa<IntegerType>(type) || isa<IndexType>(type)) &&
            "must be either integer or index type");
   };
   checkIntOrIndex(lhsType);
@@ -198,13 +198,13 @@ Value getTensorSize(OpBuilder &b, Location loc, Value tensor) {
 // Creates a constant of type `elemType` with value `val`.
 Value getConstant(OpBuilder &b, Location loc, int64_t val, Type elemType) {
   TypedAttr attr = {};
-  if (elemType.isa<mlir::FloatType>())
+  if (isa<mlir::FloatType>(elemType))
     attr = b.getFloatAttr(elemType, val);
-  if (elemType.isa<mlir::IndexType>())
+  if (isa<mlir::IndexType>(elemType))
     attr = b.getIndexAttr(val);
-  if (elemType.isa<mlir::IntegerType>())
-    attr = b.getIntegerAttr(
-        elemType, APInt(elemType.cast<IntegerType>().getWidth(), val));
+  if (isa<mlir::IntegerType>(elemType))
+    attr = b.getIntegerAttr(elemType,
+                            APInt(cast<IntegerType>(elemType).getWidth(), val));
   if (!attr)
     return nullptr;
   return b.create<arith::ConstantOp>(loc, elemType, attr);
@@ -264,7 +264,7 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
     return scalar;
 
   auto isByteOrChar = [](Type type) {
-    if (auto integerTy = type.dyn_cast<mlir::IntegerType>()) {
+    if (auto integerTy = dyn_cast<mlir::IntegerType>(type)) {
       return integerTy.getWidth() == 8;
     }
     return false;
@@ -303,10 +303,10 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
   if (dtype.isSignlessInteger(1)) {
     Type scalarType = scalar.getType();
     Value cstZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(scalarType));
-    if (scalarType.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(scalarType)) {
       return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UNE, scalar,
                                      cstZero);
-    } else if (scalarType.isa<mlir::IntegerType>()) {
+    } else if (isa<mlir::IntegerType>(scalarType)) {
       return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, scalar,
                                      cstZero);
     } else {
@@ -317,14 +317,14 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
     }
   }
 
-  if (auto dtypeFloat = dtype.dyn_cast<mlir::FloatType>()) {
-    if (auto scalarFloat = scalarType.dyn_cast<mlir::FloatType>()) {
+  if (auto dtypeFloat = dyn_cast<mlir::FloatType>(dtype)) {
+    if (auto scalarFloat = dyn_cast<mlir::FloatType>(scalarType)) {
       if (scalarFloat.getWidth() > dtypeFloat.getWidth())
         return b.create<arith::TruncFOp>(loc, dtype, scalar);
       // Only scalarFloat width < dtypeFloat width can reach here.
       return b.create<arith::ExtFOp>(loc, dtype, scalar);
     }
-    assert(scalarType.isa<mlir::IntegerType>());
+    assert(isa<mlir::IntegerType>(scalarType));
     if (scalarType.isSignlessInteger(1) ||
         (srcOriginalDtype.has_value() && srcOriginalDtype->isUnsignedInteger()))
       return b.create<arith::UIToFPOp>(loc, dtype, scalar);
@@ -333,11 +333,11 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
     return b.create<arith::SIToFPOp>(loc, dtype, scalar);
   }
 
-  if (auto dtypeInteger = dtype.dyn_cast<mlir::IntegerType>()) {
-    if (auto scalarFloat = scalarType.dyn_cast<mlir::FloatType>())
+  if (auto dtypeInteger = dyn_cast<mlir::IntegerType>(dtype)) {
+    if (auto scalarFloat = dyn_cast<mlir::FloatType>(scalarType))
       return b.create<arith::FPToSIOp>(loc, dtype, scalar);
-    assert(scalarType.isa<mlir::IntegerType>());
-    auto scalarInteger = scalarType.cast<mlir::IntegerType>();
+    assert(isa<mlir::IntegerType>(scalarType));
+    auto scalarInteger = cast<mlir::IntegerType>(scalarType);
     if (scalarInteger.getWidth() > dtypeInteger.getWidth())
       return b.create<arith::TruncIOp>(loc, dtype, scalar);
     if (scalarType.isSignlessInteger(1) ||

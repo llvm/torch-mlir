@@ -54,11 +54,11 @@ void mlir::torch::RefBackend::registerRefBackendPasses() { ::registerPasses(); }
 //===----------------------------------------------------------------------===//
 
 static bool isArgMemRefTypeValid(Type type) {
-  if (auto memRefType = type.dyn_cast<MemRefType>()) {
+  if (auto memRefType = dyn_cast<MemRefType>(type)) {
     Type elemTy = memRefType.getElementType();
     if (elemTy.isa<Float16Type, Float32Type, Float64Type>()) {
       return true;
-    } else if (auto integerTy = elemTy.dyn_cast<IntegerType>()) {
+    } else if (auto integerTy = dyn_cast<IntegerType>(elemTy)) {
       if (integerTy.isSignlessInteger(64))
         return true;
       if (integerTy.isSignlessInteger(32))
@@ -69,7 +69,7 @@ static bool isArgMemRefTypeValid(Type type) {
         return true;
       if (integerTy.isSignlessInteger(1))
         return true;
-    } else if (auto complexTy = elemTy.dyn_cast<ComplexType>()) {
+    } else if (auto complexTy = dyn_cast<ComplexType>(elemTy)) {
       return complexTy.getElementType().isa<Float32Type, Float64Type>();
     }
   }
@@ -81,7 +81,7 @@ static void addEmitCInterfaceAttr(func::FuncOp func) {
 }
 
 static Type getAbiTypeForMemRef(Type type) {
-  return UnrankedMemRefType::get(type.cast<MemRefType>().getElementType(), 0);
+  return UnrankedMemRefType::get(cast<MemRefType>(type).getElementType(), 0);
 }
 
 // Helper function to get the type string for one return value like i32, f64,
@@ -90,12 +90,12 @@ static Type getAbiTypeForMemRef(Type type) {
 static std::string getTypeToken(Type type) {
   if (type.isSignlessInteger())
     return ("i" + Twine(type.getIntOrFloatBitWidth())).str();
-  else if (type.isa<mlir::FloatType>())
+  else if (isa<mlir::FloatType>(type))
     return ("f" + Twine(type.getIntOrFloatBitWidth())).str();
-  else if (auto complexTy = type.dyn_cast<mlir::ComplexType>())
+  else if (auto complexTy = dyn_cast<mlir::ComplexType>(type))
     return ("c" + Twine(complexTy.getElementType().getIntOrFloatBitWidth()))
         .str();
-  else if (auto memRefType = type.dyn_cast<UnrankedMemRefType>())
+  else if (auto memRefType = dyn_cast<UnrankedMemRefType>(type))
     return "mr" + getTypeToken(memRefType.getElementType());
 
   llvm_unreachable(
@@ -171,7 +171,7 @@ static LogicalResult mungeFunction(
     for (auto en : llvm::enumerate(types)) {
       Type retType = en.value();
       Value retVal = op.getOperand(en.index());
-      if (auto memrefReturnType = retType.dyn_cast<MemRefType>()) {
+      if (auto memrefReturnType = dyn_cast<MemRefType>(retType)) {
         auto elemType = memrefReturnType.getElementType();
         retType = UnrankedMemRefType::get(elemType, 0);
         // Cast to unranked memref type before sending it as a function

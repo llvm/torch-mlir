@@ -207,7 +207,7 @@ public:
       return failure();
 
     Type resultETy = resultTy.getDtype();
-    if (!resultETy.isa<mlir::FloatType>())
+    if (!isa<mlir::FloatType>(resultETy))
       return failure();
 
     Value lhsScale;
@@ -285,9 +285,11 @@ public:
         RemoveUnused<AtenQuantizePerTensorOp>,
         RemoveUnused<Aten_MakePerTensorQuantizedTensorOp>,
         RemoveUnused<AtenTransposeIntOp>, QuantizeOperands<AtenConvolutionOp>,
-        QuantizeOperands<AtenMmOp>, QuantizeTransposedOperands<AtenMmOp>,
-        QuantizeAccumulator<AtenMmOp>, QuantizeBias<AtenConvolutionOp>>(
-        context);
+        QuantizeOperands<AtenMatmulOp>,
+        QuantizeTransposedOperands<AtenMatmulOp>,
+        QuantizeAccumulator<AtenMatmulOp>, QuantizeOperands<AtenMmOp>,
+        QuantizeTransposedOperands<AtenMmOp>, QuantizeAccumulator<AtenMmOp>,
+        QuantizeBias<AtenConvolutionOp>>(context);
 
     GreedyRewriteConfig config;
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),

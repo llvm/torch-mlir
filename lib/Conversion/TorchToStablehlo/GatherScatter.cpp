@@ -34,14 +34,14 @@ static Value createInitialValueForGatherScatterOp(Operation *op,
                                                   PatternRewriter &rewriter) {
   auto elementTy = constType.getElementType();
   if (isa<AtenEmbeddingBagPaddingIdxOp>(op)) {
-    if (elementTy.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(elementTy)) {
       auto constAttr = DenseElementsAttr::get(
           constType, {APFloat::getZero(
-                         elementTy.cast<mlir::FloatType>().getFloatSemantics(),
+                         cast<mlir::FloatType>(elementTy).getFloatSemantics(),
                          /*negative=*/false)});
       return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
                                                     constAttr);
-    } else if (elementTy.isa<mlir::IntegerType>() &&
+    } else if (isa<mlir::IntegerType>(elementTy) &&
                elementTy.getIntOrFloatBitWidth() != 8) {
       auto constAttr = DenseElementsAttr::get(
           constType, {APInt::getZero(elementTy.getIntOrFloatBitWidth())});

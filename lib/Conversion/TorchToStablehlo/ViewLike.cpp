@@ -13,6 +13,7 @@
 #include "PopulatePatterns.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
@@ -178,8 +179,7 @@ public:
     }
 
     auto loc = op.getLoc();
-    auto newRank = dimSizes.size();
-    if (newRank == 0 || rankType.getRank() == 0) {
+    if (dimSizes.size() == 0 || rankType.getRank() == 0) {
       rewriter.replaceOpWithNewOp<stablehlo::ReshapeOp>(
           op,
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -193,35 +193,9 @@ public:
       return dSize;
     });
 
-    const auto &options = ConvertAtenOp<AtenOpT>::getOptions();
-    Type intType = rewriter.getIntegerType(options.dimSizeIndexBits);
-    if (options.dimSizeIndexBits == 32) {
-      // The i64 calculation is much slower than i32 on some devices, such as
-      // Nvidia GPU. One can truncate from i64 to i32 since dimension sizes are
-      // unlikely to exceed the range of i32(4GiB)
-      std::for_each(dimSizes.begin(), dimSizes.end(), [&](Value &dSize) {
-        // dimSize: cast i64 -> i32
-        dSize = rewriter.create<arith::TruncIOp>(loc, intType, dSize);
-        return dSize;
-      });
-    }
+    Value numel = rewriter.create<shape::NumElementsOp>(
+        loc, rewriter.create<shape::ShapeOfOp>(loc, adaptor.getSelf()));
 
-    Value numel = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(intType, 1));
-    for (auto d : dimSizes) {
-      numel = rewriter.create<arith::MulIOp>(loc, numel, d);
-    }
-    numel = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(),
-                                                numel);
-
-    if (dimSizes.size() == 0) {
-      rewriter.replaceOpWithNewOp<stablehlo::ReshapeOp>(
-          op,
-          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-              op.getType()),
-          adaptor.getSelf());
-      return success();
-    }
     Value stablehloShape =
         rewriter.create<tensor::FromElementsOp>(loc, dimSizes);
     Value computedShape = rewriter.create<stablehlo::ComputeReshapeShapeOp>(
@@ -419,6 +393,59 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<PrimsCollapseOp>::matchAndRewrite(
+    PrimsCollapseOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto selfType = adaptor.getA().getType().dyn_cast<TensorType>();
+  if (!selfType) {
+    return op.emitError("only tensor types are currently supported");
+  }
+
+  auto rank = selfType.getRank();
+  if (rank == 0)
+    return rewriter.notifyMatchFailure(
+        op, "the rank of tensor must be greater than 0");
+
+  int64_t start, end;
+  if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)))
+    return rewriter.notifyMatchFailure(
+        op, "only constant start is currently supported");
+  if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end)))
+    return rewriter.notifyMatchFailure(
+        op, "only constant end is currently supported");
+
+  start = toPositiveDim(start, rank);
+  end = toPositiveDim(end, rank);
+  SmallVector<int64_t, 4> dims;
+  dims.reserve(rank);
+  for (int r = 0; r < start; ++r)
+    dims.push_back(r);
+  int64_t collapsedDimSize = 1;
+  for (int r = start; r <= end; ++r) {
+    if (selfType.getShape()[r] == ShapedType::kDynamic)
+      return rewriter.notifyMatchFailure(
+          op, "the size of the dimension being collapsed is can't be unknown");
+    collapsedDimSize *= selfType.getShape()[r];
+  }
+  dims.push_back(collapsedDimSize);
+  for (int r = end + 1; r < rank; ++r)
+    dims.push_back(r);
+
+  auto newDimSizesInfo = hlo::getDimSizesOfTensor(
+      rewriter, op, adaptor.getA(), dims, options.dimSizeIndexBits);
+  if (failed(newDimSizesInfo))
+    return rewriter.notifyMatchFailure(
+        op, "failed to get dimension sizes of the input");
+  auto newDimSizes = *newDimSizesInfo;
+  auto stablehloShape =
+      rewriter.create<tensor::FromElementsOp>(op.getLoc(), newDimSizes);
+  rewriter.replaceOpWithNewOp<stablehlo::DynamicReshapeOp>(
+      op, getTypeConverter()->convertType(op.getType()), adaptor.getA(),
+      stablehloShape);
+  return success();
+}
+
 void mlir::torch::torch_to_stablehlo::populateViewLikeOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToStablehloOptions &options) {
@@ -431,6 +458,7 @@ void mlir::torch::torch_to_stablehlo::populateViewLikeOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenSqueezeOp);
   INSERT_ATENOP_PATTERN(AtenSqueezeDimOp);
   INSERT_ATENOP_PATTERN(AtenUnsqueezeOp);
+  INSERT_ATENOP_PATTERN(PrimsCollapseOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_VIEW_OP_PATTERN(AtenOp)                                         \
