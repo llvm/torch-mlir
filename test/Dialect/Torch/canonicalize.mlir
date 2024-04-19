@@ -1481,6 +1481,36 @@ func.func @torch.aten.tensor$one_elem() -> (!torch.vtensor<[1],si64>) {
   return %67 : !torch.vtensor<[1],si64>
 }
 
+// CHECK-LABEL:   func.func @torch.aten.tensor.float(
+// CHECK-NEXT: torch.vtensor.literal(dense<1.000000e+01> : tensor<f32>) : !torch.vtensor<[],f32>
+func.func @torch.aten.tensor.float() -> !torch.vtensor<[],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %float1.000000e01 = torch.constant.float 1.000000e+01
+  %67 = torch.aten.tensor.float %float1.000000e01, %none, %none, %false : !torch.float, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[],f32>
+  return %67 : !torch.vtensor<[],f32>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.tensor.int(
+// CHECK-NEXT: torch.vtensor.literal(dense<45> : tensor<si32>) : !torch.vtensor<[],si32>
+func.func @torch.aten.tensor.int() -> !torch.vtensor<[],si32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false 
+  %int45 = torch.constant.int 45
+  %67 = torch.aten.tensor.int %int45, %none, %none, %false : !torch.int, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[],si32>
+  return %67 : !torch.vtensor<[],si32>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.tensor.bool(
+// CHECK-NEXT: torch.vtensor.literal(dense<true> : tensor<i1>) : !torch.vtensor<[],i1>
+func.func @torch.aten.tensor.bool() -> !torch.vtensor<[],i1> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %67 = torch.aten.tensor.bool %true, %none, %none, %false : !torch.bool, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[],i1>
+  return %67 : !torch.vtensor<[],i1>
+}
+
 // CHECK-LABEL:   func.func @torch.aten.to.dtype$same_dtype(
 // CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<*,f32>) -> !torch.tensor<*,f32> {
 // CHECK-NEXT:      return %[[ARG]] : !torch.tensor<*,f32>
