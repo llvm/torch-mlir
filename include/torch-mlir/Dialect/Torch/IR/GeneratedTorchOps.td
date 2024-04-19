@@ -4245,7 +4245,7 @@ def Torch_AtenLogOp : Torch_Op<"aten.log", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
-  let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 def Torch_AtenLog_Op : Torch_Op<"aten.log_", [

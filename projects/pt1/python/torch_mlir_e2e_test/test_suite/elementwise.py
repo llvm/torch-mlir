@@ -1761,7 +1761,7 @@ class ElementwizeLogScalarInputModule(torch.nn.Module):
         None,
     ])
     def forward(self):
-        a = torch.tensor(10)
+        a = torch.tensor(10.0)
         return torch.log(a)
 
 @register_test_case(module_factory=lambda: ElementwizeLogScalarInputModule())

@@ -1161,6 +1161,8 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
 static bool checkSameDTypes(llvm::ArrayRef<Attribute> attrs) {
   bool allFp = true;
   bool allInt = true;
+  llvm::errs() << "checkSameDTypes\n";
+  llvm::errs() << "attrs.size() = " << attrs.size() << "\n";
 
   for (auto attr : attrs) {
     if (!attr)
@@ -1178,6 +1180,8 @@ static bool checkSameDTypes(llvm::ArrayRef<Attribute> attrs) {
     allFp &= isa<mlir::FloatType>(attrty);
     allInt &= isa<mlir::IntegerType>(attrty);
   }
+  llvm::errs() << "allFp = " << allFp << "\n";
+  llvm::errs() << "allInt = " << allInt << "\n";
 
   return allFp || allInt;
 }
@@ -1193,19 +1197,49 @@ static bool checkAllSplats(llvm::ArrayRef<Attribute> attrs) {
   return true;
 }
 
+double convertIntAttributeToDouble(Attribute attr, int64_t idx = 0) {
+  bool isUnsigned = false;
+  double result = 0;
+  if (auto dense = dyn_cast<ElementsAttr>(attr)) {
+    if (auto intty = dyn_cast<mlir::IntegerType>(dense.getElementType())) {
+      isUnsigned = intty.isUnsigned();
+      if (dense.isSplat()) {
+        if (isUnsigned)
+          return (double)dense.getSplatValue<APInt>().getZExtValue();
+        return (double)dense.getSplatValue<APInt>().getSExtValue();
+      }
+      if (isUnsigned)
+        return (double)dense.getValues<APInt>()[idx].getZExtValue();
+      return (double)dense.getValues<APInt>()[idx].getSExtValue();
+    }
+  } else if (auto intattr = dyn_cast<IntegerAttr>(attr)) {
+    isUnsigned = cast<mlir::IntegerType>(intattr.getType()).isUnsigned();
+    if (isUnsigned)
+      return (double)intattr.getValue().getZExtValue();
+    return (double)intattr.getValue().getSExtValue();
+  }
+  return 0.0;
+}
+
 llvm::SmallVector<double> getFoldValueAtIndexFp(llvm::ArrayRef<Attribute> attrs,
                                                 int64_t idx = 0) {
   llvm::SmallVector<double> splattrs;
 
   for (auto attr : attrs) {
     if (auto dense = dyn_cast<ElementsAttr>(attr)) {
-      if (dense.isSplat()) {
-        splattrs.push_back(dense.getSplatValue<APFloat>().convertToDouble());
-      } else {
-        splattrs.push_back(dense.getValues<APFloat>()[idx].convertToDouble());
+      if (dyn_cast<mlir::IntegerType>(dense.getElementType()))
+        splattrs.push_back(convertIntAttributeToDouble(dense, idx));
+      else if (dyn_cast<mlir::FloatType>(dense.getElementType())) {
+        if (dense.isSplat()) {
+          splattrs.push_back(dense.getSplatValue<APFloat>().convertToDouble());
+        } else {
+          splattrs.push_back(dense.getValues<APFloat>()[idx].convertToDouble());
+        }
       }
-    } else if (auto intattr = dyn_cast<FloatAttr>(attr)) {
-      splattrs.push_back(intattr.getValueAsDouble());
+    } else if (auto floatattr = dyn_cast<FloatAttr>(attr)) {
+      splattrs.push_back(floatattr.getValueAsDouble());
+    } else if (auto floatattr = dyn_cast<IntegerAttr>(attr)) {
+      splattrs.push_back(convertIntAttributeToDouble(floatattr));
     } else {
       return {};
     }
@@ -1254,11 +1288,13 @@ using NAryFoldIntOperator = std::function<APInt(ArrayRef<APInt>)>;
 static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
                                      NAryFoldFpOperator fpFolder,
                                      NAryFoldIntOperator intFolder) {
+  llvm::errs() << "naryFolderHelper\n";
   constexpr int64_t maxFold = 16;
   if (!checkSameDTypes(operands))
     return nullptr;
 
   auto resultTy = dyn_cast<ValueTensorType>(ty);
+  llvm::errs() << "resultTy\n";
   if (!resultTy || !resultTy.hasDtype() || !resultTy.hasSizes())
     return nullptr;
 
@@ -1267,12 +1303,15 @@ static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
 
   auto fpTy = dyn_cast<mlir::FloatType>(dty);
   auto intTy = dyn_cast<mlir::IntegerType>(dty);
+  llvm::errs() << "fpTy\n";
   if (!fpTy && !intTy)
     return nullptr;
 
   bool allSplats = checkAllSplats(operands);
   bool withinMaxFold =
       resultBTy.hasStaticShape() && resultBTy.getNumElements() <= maxFold;
+
+  llvm::errs() << "allSplats: " << allSplats << "\n";
 
   if (!allSplats && !withinMaxFold)
     return nullptr;
@@ -1302,6 +1341,7 @@ static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
     for (int i = 0, s = numValues; i < s; ++i) {
       auto inputs = getFoldValueAtIndexFp(operands, i);
       double fold = fpFolder(inputs);
+      llvm::errs() << "fold: " << fold << "\n";
 
       APFloat val(fold);
       bool unused;
@@ -3351,32 +3391,16 @@ void AtenCatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 // AtenLogOp
 //===----------------------------------------------------------------------===//
 
-void AtenLogOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
-                                            MLIRContext *context) {
-  patterns.add(+[](AtenLogOp op, PatternRewriter &rewriter) {
-    Location loc = op->getLoc();
-    if (op->getNumOperands() != 1) {
-      return failure();
-    }
-    Value self = getScalarIntValue(op->getOperand(0), loc, rewriter);
-    if (!self)
-      self = getScalarFloatValue(op->getOperand(0), loc, rewriter);
-    if (!self) {
-      return failure();
-    }
-    auto outType = op->getResult(0).getType();
-    double floatScalar;
-    int64_t intScalar;
-    double resultScalar;
-    if (matchPattern(self, m_TorchConstantInt(&intScalar)))
-      resultScalar = std::log(intScalar);
-    if (matchPattern(self, m_TorchConstantFloat(&floatScalar)))
-      resultScalar = std::log(floatScalar);
-    Value result = rewriter.create<ConstantFloatOp>(
-        loc, rewriter.getF64FloatAttr(resultScalar));
-    rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(op, outType, result);
-    return success();
-  });
+OpFoldResult AtenLogOp::fold(FoldAdaptor adaptor) {
+  auto fpFold = [](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 1);
+    return std::log(inputs[0]);
+  };
+  auto intFold = [](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 1);
+    return inputs[0];
+  };
+  return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
 }
 
 //===----------------------------------------------------------------------===//
