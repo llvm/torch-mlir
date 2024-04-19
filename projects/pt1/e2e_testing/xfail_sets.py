@@ -1052,6 +1052,7 @@ STABLEHLO_PASS_SET = {
     "TModuleRank0_basic",
     "TModuleRank1_basic",
     "TModuleRank2_basic",
+    "TensorFloatModule_basic",
     "TensorIntModule_basic",
     "TensorLiteralModule_basic",
     "TensorOpaqueLiteralModule_basic",
