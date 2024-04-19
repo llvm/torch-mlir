@@ -302,7 +302,7 @@ def report_results(results: List[TestResult],
                 results_by_outcome['XPASS'].append((result, report))
         else:
             if not report.failed:
-                logger.inf(f'PASS - "{result.unique_name}"')
+                logger.info(f'PASS - "{result.unique_name}"')
                 results_by_outcome['PASS'].append((result, report))
             else:
                 logger.info(f'FAIL - "{result.unique_name}"')
