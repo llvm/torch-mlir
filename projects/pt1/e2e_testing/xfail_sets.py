@@ -1648,6 +1648,7 @@ TOSA_PASS_SET = {
     "ElementwiseLerpScalarFloatModule_basic",
     "ElementwiseLog2Module_basic",
     "ElementwiseLogModule_basic",
+    "ElementwizeLogScalarInputModule_basic",
     "ElementwiseLtDiffWidthScalarModule_basic",
     "ElementwiseLtFloatScalarModule_basic",
     "ElementwiseLtFloatTensorModule_basic",
