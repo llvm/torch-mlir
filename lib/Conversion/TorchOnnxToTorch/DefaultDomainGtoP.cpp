@@ -140,9 +140,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (binder.s64IntegerAttr(align, "align_corners", 0))
           return rewriter.notifyMatchFailure(binder.op,
                                              "align_corners bind failure");
-        if (align != 1)
-          return rewriter.notifyMatchFailure(
-              binder.op, "currently only align_corners = 1 supported");
 
         Value interpolationMode = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
@@ -150,9 +147,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value paddingMode = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+
+        bool alignMode = align;
         Value alignCorners = rewriter.create<Torch::ConstantBoolOp>(
             binder.getLoc(), rewriter.getType<Torch::BoolType>(),
-            rewriter.getBoolAttr(false));
+            rewriter.getBoolAttr(alignMode));
 
         rewriter.replaceOpWithNewOp<Torch::AtenGridSamplerOp>(
             binder.op, resultType, input, grid, interpolationMode, paddingMode,
@@ -636,6 +635,30 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   if (binder.tensorOperand(operand) ||
                       binder.tensorResultType(resultType)) {
                     return failure();
+                  }
+
+                  auto loc = binder.getLoc();
+                  auto operandTy =
+                      cast<Torch::ValueTensorType>(operand.getType());
+                  auto eTy = operandTy.getDtype();
+
+                  if (!eTy.isInteger(1)) {
+                    auto i1ty = rewriter.getI1Type();
+                    auto ty = rewriter.getType<Torch::ValueTensorType>(
+                        operandTy.getSizes(), i1ty);
+                    auto torchqTy = Torch::getScalarTypeForType(i1ty);
+                    Value tyConst = rewriter.create<Torch::ConstantIntOp>(
+                        binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                        rewriter.getIntegerAttr(
+                            rewriter.getIntegerType(64),
+                            static_cast<int64_t>(torchqTy)));
+                    Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+                    Value cstFalse =
+                        rewriter.create<Torch::ConstantBoolOp>(loc, false);
+                    operand = rewriter.create<Torch::AtenToDtypeOp>(
+                        loc, ty, operand, tyConst,
+                        /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+                        /*memory_format=*/none);
                   }
                   rewriter.replaceOpWithNewOp<Torch::AtenBitwiseNotOp>(
                       binder.op, resultType, operand);

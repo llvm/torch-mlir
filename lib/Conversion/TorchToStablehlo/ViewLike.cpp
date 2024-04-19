@@ -393,6 +393,59 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<PrimsCollapseOp>::matchAndRewrite(
+    PrimsCollapseOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto selfType = adaptor.getA().getType().dyn_cast<TensorType>();
+  if (!selfType) {
+    return op.emitError("only tensor types are currently supported");
+  }
+
+  auto rank = selfType.getRank();
+  if (rank == 0)
+    return rewriter.notifyMatchFailure(
+        op, "the rank of tensor must be greater than 0");
+
+  int64_t start, end;
+  if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)))
+    return rewriter.notifyMatchFailure(
+        op, "only constant start is currently supported");
+  if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end)))
+    return rewriter.notifyMatchFailure(
+        op, "only constant end is currently supported");
+
+  start = toPositiveDim(start, rank);
+  end = toPositiveDim(end, rank);
+  SmallVector<int64_t, 4> dims;
+  dims.reserve(rank);
+  for (int r = 0; r < start; ++r)
+    dims.push_back(r);
+  int64_t collapsedDimSize = 1;
+  for (int r = start; r <= end; ++r) {
+    if (selfType.getShape()[r] == ShapedType::kDynamic)
+      return rewriter.notifyMatchFailure(
+          op, "the size of the dimension being collapsed is can't be unknown");
+    collapsedDimSize *= selfType.getShape()[r];
+  }
+  dims.push_back(collapsedDimSize);
+  for (int r = end + 1; r < rank; ++r)
+    dims.push_back(r);
+
+  auto newDimSizesInfo = hlo::getDimSizesOfTensor(
+      rewriter, op, adaptor.getA(), dims, options.dimSizeIndexBits);
+  if (failed(newDimSizesInfo))
+    return rewriter.notifyMatchFailure(
+        op, "failed to get dimension sizes of the input");
+  auto newDimSizes = *newDimSizesInfo;
+  auto stablehloShape =
+      rewriter.create<tensor::FromElementsOp>(op.getLoc(), newDimSizes);
+  rewriter.replaceOpWithNewOp<stablehlo::DynamicReshapeOp>(
+      op, getTypeConverter()->convertType(op.getType()), adaptor.getA(),
+      stablehloShape);
+  return success();
+}
+
 void mlir::torch::torch_to_stablehlo::populateViewLikeOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToStablehloOptions &options) {
@@ -405,6 +458,7 @@ void mlir::torch::torch_to_stablehlo::populateViewLikeOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenSqueezeOp);
   INSERT_ATENOP_PATTERN(AtenSqueezeDimOp);
   INSERT_ATENOP_PATTERN(AtenUnsqueezeOp);
+  INSERT_ATENOP_PATTERN(PrimsCollapseOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_VIEW_OP_PATTERN(AtenOp)                                         \

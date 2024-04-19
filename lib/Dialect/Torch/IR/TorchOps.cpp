@@ -3747,6 +3747,8 @@ OpFoldResult AtenTensorOp::fold(FoldAdaptor adaptor) {
   // If a torch.aten.tensor op is initialized by a list with a constant, single
   // element, fold it into a torch.vtensor.literal
   auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasSizes() || !resultTy.hasDtype())
+    return nullptr;
   Type eTy = resultTy.getDtype();
   ShapedType shapedTy = resultTy.toBuiltinTensor().clone(eTy);
 
@@ -3761,7 +3763,47 @@ OpFoldResult AtenTensorOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
-// AtenTensorOp
+// AtenTensorIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenTensorIntOp::fold(FoldAdaptor adaptor) {
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasSizes() || !resultTy.hasDtype())
+    return nullptr;
+  Type eTy = resultTy.getDtype();
+  ShapedType shapedTy = resultTy.toBuiltinTensor().clone(eTy);
+
+  int64_t data;
+  if (matchPattern(getT(), m_TorchConstantInt(&data))) {
+    Attribute attribute = IntegerAttr::get(eTy, data);
+    return DenseElementsAttr::get(shapedTy, attribute);
+  }
+
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenTensorFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenTensorFloatOp::fold(FoldAdaptor adaptor) {
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasSizes() || !resultTy.hasDtype())
+    return nullptr;
+  Type eTy = resultTy.getDtype();
+  ShapedType shapedTy = resultTy.toBuiltinTensor().clone(eTy);
+
+  double data;
+  if (matchPattern(getT(), m_TorchConstantFloat(&data))) {
+    Attribute attribute = FloatAttr::get(eTy, data);
+    return DenseElementsAttr::get(shapedTy, attribute);
+  }
+
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// Aten_ShapeAsTensorOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult Aten_ShapeAsTensorOp::fold(FoldAdaptor adaptor) {

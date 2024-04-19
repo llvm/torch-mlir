@@ -1470,6 +1470,45 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
   return success();
 }
 
+// AtenClampTensorOp
+template <>
+LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewrite(
+    AtenClampTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value input = adaptor.getSelf();
+  auto inputType = cast<RankedTensorType>(input.getType());
+  auto inputElemType = inputType.getElementType();
+  Value minValue = adaptor.getMin();
+  Value maxValue = adaptor.getMax();
+  auto minIsNotNone = checkNotNone(rewriter, op, minValue);
+  auto maxIsNotNone = checkNotNone(rewriter, op, maxValue);
+  if (failed(minIsNotNone) && failed(maxIsNotNone)) {
+    return rewriter.notifyMatchFailure(
+        op, "this op should be folded as its `min` and `max` both are none");
+  } else if (failed(minIsNotNone)) {
+    auto minInfo = getMinValueOfDtype(op, inputElemType, rewriter);
+    if (failed(minInfo)) {
+      return rewriter.notifyMatchFailure(
+          op, "failed to generate min value of dtype");
+    }
+    minValue = *minInfo;
+  } else if (failed(maxIsNotNone)) {
+    auto maxInfo = getMaxValueOfDtype(op, inputElemType, rewriter);
+    if (failed(maxInfo)) {
+      return rewriter.notifyMatchFailure(
+          op, "failed to generate max value of dtype");
+    }
+    maxValue = *maxInfo;
+  }
+  if (inputType.hasStaticShape()) {
+    minValue = hlo::promoteAndBroadcast(rewriter, minValue, inputType);
+    maxValue = hlo::promoteAndBroadcast(rewriter, maxValue, inputType);
+  }
+  rewriter.replaceOpWithNewOp<stablehlo::ClampOp>(op, minValue, input,
+                                                  maxValue);
+  return success();
+}
+
 // AtenArangeStartStepOp
 // aten.arange.start_step = range(ceil((end-start)/step)) * step + start.
 template <>
@@ -1906,6 +1945,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
 
   INSERT_ATENOP_PATTERN(AtenCatOp);
   INSERT_ATENOP_PATTERN(AtenClampOp);
+  INSERT_ATENOP_PATTERN(AtenClampTensorOp);
   INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
 
   INSERT_ATENOP_PATTERN(AtenBatchNormOp);

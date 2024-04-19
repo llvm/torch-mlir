@@ -1003,8 +1003,14 @@ public:
     // collapsed. Note this may technically not always be true.
     // TODO: think of a way better way to at least detect when this assumption
     // is violated for the cases of dynamic dimensions.
-    bool inputHasOneDynDim = llvm::count(inputShape, kUnknownSize) == 1;
-    bool outputHasOneDynDim = llvm::count(outputShape, kUnknownSize) == 1;
+    int64_t inputDynDim = llvm::count(inputShape, kUnknownSize);
+    int64_t outputDynDim = llvm::count(outputShape, kUnknownSize);
+    if (outputDynDim > 1)
+      return rewriter.notifyMatchFailure(
+          op, "Cannot support more than one output dynamic dimension");
+
+    bool inputHasOneDynDim = inputDynDim == 1;
+    bool outputHasOneDynDim = outputDynDim == 1;
     bool singleDynDimsAreEqual =
         inputHasOneDynDim && outputHasOneDynDim &&
         productReduce(inputShape) == productReduce(outputShape);
@@ -1266,6 +1272,85 @@ public:
     auto castResult = cast(loc, resultType, result);
     rewriter.replaceOp(op, castResult);
 
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class ConvertAtenViewOpToReshape : public OpConversionPattern<AtenViewOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenViewOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    SmallVector<Value> sizes;
+    if (!getListConstructElements(op.getSize(), sizes))
+      return op.emitError(
+          "unimplemented: the tensor size list is not from list construct");
+
+    auto loc = op.getLoc();
+    ImplicitLocOpBuilder b(loc, rewriter);
+    auto self = adaptor.getSelf();
+    const TypeConverter *typeConverter = getTypeConverter();
+
+    // Convert to the `linalg` types, count the number of negative values,
+    // and determine the product of non-negative values. This lets us compute
+    // the inferred dimensions sizes.
+    auto sizeTy =
+        cast<IntegerType>(typeConverter->convertType(sizes.front().getType()));
+    Value one =
+        b.create<arith::ConstantOp>(sizeTy, rewriter.getIntegerAttr(sizeTy, 1));
+    Value zero =
+        b.create<arith::ConstantOp>(sizeTy, rewriter.getIntegerAttr(sizeTy, 0));
+    Value count = zero;
+    Value knownSize = one;
+    for (auto &size : sizes) {
+      Value convert = typeConverter->materializeTargetConversion(rewriter, loc,
+                                                                 sizeTy, size);
+
+      Value mul = b.create<arith::MulIOp>(knownSize, convert);
+      Value add = b.create<arith::AddIOp>(count, one);
+      Value isNeg =
+          b.create<arith::CmpIOp>(arith::CmpIPredicate::slt, convert, zero);
+
+      knownSize = b.create<arith::SelectOp>(isNeg, knownSize, mul);
+      count = b.create<arith::SelectOp>(isNeg, add, count);
+      size = convert;
+    }
+
+    // Check we are only inferring one dimension:
+    Value countPred =
+        b.create<arith::CmpIOp>(arith::CmpIPredicate::sle, count, one);
+    b.create<cf::AssertOp>(
+        loc, countPred,
+        b.getStringAttr("must have at most one inferred (negative) dimension"));
+
+    // Determine the total size of the inferred dimension and update the
+    // inferred dimension:
+    auto selfTy = cast<RankedTensorType>(self.getType());
+    Value totalSize = one;
+    for (int i = 0, s = selfTy.getRank(); i < s; ++i) {
+      Value index = b.create<arith::ConstantIndexOp>(i);
+      Value dim = b.create<tensor::DimOp>(self, index);
+      dim = b.create<arith::IndexCastOp>(sizeTy, dim);
+      totalSize = b.create<arith::MulIOp>(totalSize, dim);
+    }
+
+    Value inferredSize = b.create<arith::DivSIOp>(totalSize, knownSize);
+    for (auto &size : sizes) {
+      Value isNeg =
+          b.create<arith::CmpIOp>(arith::CmpIPredicate::slt, size, zero);
+      size = b.create<arith::SelectOp>(isNeg, inferredSize, size);
+    }
+
+    auto ty = RankedTensorType::get(sizes.size(), sizes.front().getType());
+    auto outputDims = b.create<tensor::FromElementsOp>(ty, sizes);
+
+    auto resultType =
+        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+    rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, self,
+                                                   outputDims);
     return success();
   }
 };
@@ -2348,10 +2433,12 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   patterns.add<ConvertAtenReflectionPad2dOp>(typeConverter, context);
   target.addIllegalOp<AtenFlattenUsingIntsOp>();
   patterns.add<ConvertAtenFlattenUsingIntsOp>(typeConverter, context);
-  target.addIllegalOp<AtenViewOp>();
   patterns.add<ConvertAtenUnflattenIntOp>(typeConverter, context);
   target.addIllegalOp<AtenUnflattenIntOp>();
-  patterns.add<ConvertAtenViewOp>(typeConverter, context);
+  target.addIllegalOp<AtenViewOp>();
+  patterns.add<ConvertAtenViewOp>(typeConverter, context, /*benefit=*/200);
+  patterns.add<ConvertAtenViewOpToReshape>(typeConverter, context,
+                                           /*benefit=*/100);
   target.addIllegalOp<AtenSqueezeOp>();
   patterns.add<ConvertAtenSqueezeOp>(typeConverter, context);
   target.addIllegalOp<AtenSqueezeDimOp>();
