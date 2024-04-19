@@ -101,17 +101,11 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.s64BoolAttr(selectLastIndex, "select_last_index", false))
           return failure();
 
-        if (selectLastIndex) {
-          // TODO: Figure out how to support this case. Need to add a reverse
-          // or something.
-          return rewriter.notifyMatchFailure(
-              binder.op, "unsupported conversion: select_last_index=true");
-        }
-
         // ONNX allows negative axis.
+        auto operandSizes =
+            cast<Torch::ValueTensorType>(operand.getType()).getSizes();
         if (axis < 0)
-          axis +=
-              cast<Torch::ValueTensorType>(operand.getType()).getSizes().size();
+          axis += operandSizes.size();
 
         Value constAxis = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
@@ -119,6 +113,26 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value constKeepDims = rewriter.create<Torch::ConstantBoolOp>(
             binder.getLoc(), rewriter.getType<Torch::BoolType>(),
             rewriter.getBoolAttr(keepDims));
+
+        if (selectLastIndex) {
+          Value dims = createConstantIntList(binder, rewriter, {axis});
+          auto operandTy = dyn_cast<Torch::ValueTensorType>(operand.getType());
+          operand = rewriter.create<Torch::AtenFlipOp>(
+              binder.getLoc(), operandTy, operand, dims);
+          Value argmax = rewriter.create<Torch::AtenArgmaxOp>(
+              binder.getLoc(), resultType, operand, constAxis, constKeepDims);
+          Value offset = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(),
+              rewriter.getI64IntegerAttr(operandSizes[axis] - 1));
+          Value alpha = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(1));
+          Value sub = rewriter.create<Torch::AtenSubScalarOp>(
+              binder.getLoc(), resultType, argmax, offset, alpha);
+          rewriter.replaceOpWithNewOp<Torch::AtenAbsOp>(binder.op, resultType,
+                                                        sub);
+          return success();
+        }
+
         rewriter.replaceOpWithNewOp<Torch::AtenArgmaxOp>(
             binder.op, resultType, operand, constAxis, constKeepDims);
         return success();
