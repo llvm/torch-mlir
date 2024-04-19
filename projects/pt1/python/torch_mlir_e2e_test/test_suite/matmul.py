@@ -266,7 +266,7 @@ def AtenMmIntTypes_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-class AtenMmQuint8(torch.nn.Module):
+class AtenMmQint8(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -278,17 +278,223 @@ class AtenMmQuint8(torch.nn.Module):
         ([4, 3], torch.int8, True),
     ])
     def forward(self, x, y):
-        qx = torch._make_per_tensor_quantized_tensor(x, 0.1, 8)
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.0215, -25)
         qx = torch.dequantize(qx)
-        qy = torch._make_per_tensor_quantized_tensor(y, 0.1, 8)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.0176, 18)
+        qy = torch.dequantize(qy)
+        qz =  torch.mm(qx, qy)
+        return qz
+
+@register_test_case(module_factory=lambda: AtenMmQint8())
+def AtenMmQint8_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-128, high=127).to(torch.int8),
+                   tu.randint(4, 3, low=-128, high=127).to(torch.int8))
+    
+# ==============================================================================
+
+class AtenMmQuint8(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.uint8, True),
+        ([4, 3], torch.uint8, True),
+    ])
+    def forward(self, x, y):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.199, 65)
+        qx = torch.dequantize(qx)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.0215, 160)
         qy = torch.dequantize(qy)
         qz =  torch.mm(qx, qy)
         return qz
 
 @register_test_case(module_factory=lambda: AtenMmQuint8())
 def AtenMmQuint8_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=0, high=255).to(torch.uint8),
+                   tu.randint(4, 3, low=0, high=255).to(torch.uint8))
+    
+# ==============================================================================
+
+class AtenMmQMixedSigni8(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.int8, True),
+        ([4, 3], torch.uint8, True),
+    ])
+    def forward(self, x, y):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.03, -66)
+        qx = torch.dequantize(qx)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.025, 160)
+        qy = torch.dequantize(qy)
+        qz =  torch.mm(qx, qy)
+        return qz
+
+@register_test_case(module_factory=lambda: AtenMmQMixedSigni8())
+def AtenMmQMixedSigni8_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-128, high=127).to(torch.int8),
-                   tu.randint(4, 3, low=-128, high=127).to(torch.int8))
+                   tu.randint(4, 3, low=0, high=255).to(torch.uint8))
+    
+# ==============================================================================
+
+class AtenMatmulQint8VM(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int8, True),
+        ([-1,-1], torch.int8, True),
+    ])
+    def forward(self, x, y):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.0215, -25)
+        qx = torch.dequantize(qx)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.0176, 18)
+        qy = torch.dequantize(qy)
+        qz =  torch.matmul(qx, qy)
+        return qz
+
+@register_test_case(module_factory=lambda: AtenMatmulQint8VM())
+def AtenMatmulQint8VM_basic(module, tu: TestUtils):
+    module.forward(tu.randint(9, low=-128, high=127).to(torch.int8),
+                   tu.randint(9, 4, low=-128, high=127).to(torch.int8))
+    
+# ==============================================================================
+class AtenMatmulQint8VV(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int8, True),
+        ([-1], torch.int8, True),
+    ])
+    def forward(self, x, y):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.0215, -25)
+        qx = torch.dequantize(qx)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.0176, 18)
+        qy = torch.dequantize(qy)
+        qz =  torch.matmul(qx, qy)
+        return qz
+
+@register_test_case(module_factory=lambda: AtenMatmulQint8VV())
+def AtenMatmulQint8VV_basic(module, tu: TestUtils):
+    module.forward(tu.randint(9, low=-128, high=127).to(torch.int8),
+                   tu.randint(9, low=-128, high=127).to(torch.int8))
+    
+# ==============================================================================
+class AtenMatmulQint8MV(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int8, True),
+        ([-1], torch.int8, True),
+    ])
+    def forward(self, x, y):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.0215, -25)
+        qx = torch.dequantize(qx)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.0176, 18)
+        qy = torch.dequantize(qy)
+        qz =  torch.matmul(qx, qy)
+        return qz
+
+@register_test_case(module_factory=lambda: AtenMatmulQint8MV())
+def AtenMatmulQint8MV_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-128, high=127).to(torch.int8),
+                   tu.randint(4, low=-128, high=127).to(torch.int8))
+    
+# ==============================================================================
+class AtenMatmulQint8(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4, -1, 3, 4], torch.int8, True),
+        ([-1, 4, 3], torch.int8, True),
+    ])
+    def forward(self, x, y):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.0215, -25)
+        qx = torch.dequantize(qx)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.0176, 18)
+        qy = torch.dequantize(qy)
+        qz =  torch.matmul(qx, qy)
+        return qz
+
+@register_test_case(module_factory=lambda: AtenMatmulQint8())
+def AtenMatmulQint8_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, 7, 3, 4, low=-128, high=127).to(torch.int8),
+                   tu.randint(7, 4, 3, low=-128, high=127).to(torch.int8))
+    
+# ==============================================================================
+
+class AtenMatmulQMixedSigni8(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([7, -1, -1, -1], torch.int8, True),
+        ([-1, -1, -1], torch.uint8, True),
+    ])
+    def forward(self, x, y):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.03, -66)
+        qx = torch.dequantize(qx)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.025, 160)
+        qy = torch.dequantize(qy)
+        qz =  torch.matmul(qx, qy)
+        return qz
+
+@register_test_case(module_factory=lambda: AtenMatmulQMixedSigni8())
+def AtenMatmulQMixedSigni8_basic(module, tu: TestUtils):
+    module.forward(tu.randint(7, 2, 3, 4, low=-128, high=127).to(torch.int8),
+                   tu.randint(2, 4, 3, low=0, high=255).to(torch.uint8))
+    
+# ==============================================================================
+
+class AtenMatmulQMixedSigni8Transpose(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([7, -1, -1, -1], torch.int8, True),
+        ([-1, -1, -1], torch.uint8, True),
+    ])
+    def forward(self, x, y):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.03, -66)
+        qx = torch.dequantize(qx)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.025, 160)
+        qy = torch.dequantize(qy)
+        qy = torch.transpose(qy, 1, 2)
+        qz =  torch.matmul(qx, qy)
+        return qz
+
+@register_test_case(module_factory=lambda: AtenMatmulQMixedSigni8Transpose())
+def AtenMatmulQMixedSigni8Transpose_basic(module, tu: TestUtils):
+    module.forward(tu.randint(7, 2, 3, 4, low=-128, high=127).to(torch.int8),
+                   tu.randint(2, 6, 4, low=0, high=255).to(torch.uint8))
     
 # ==============================================================================
 

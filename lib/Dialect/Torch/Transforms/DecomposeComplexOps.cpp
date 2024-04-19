@@ -2800,6 +2800,100 @@ public:
 };
 } // namespace
 
+// decompose aten.repeat_interleave.self_int into following ops:
+// aten.flatten.using_ints, aten.unsqueeze, aten.tile, aten.reshape
+namespace {
+
+class DecomposeAtenRepeatInterleaveSelfIntOp
+    : public OpRewritePattern<AtenRepeatInterleaveSelfIntOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRepeatInterleaveSelfIntOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto context = op.getContext();
+    Value self = op.getSelf();
+    auto selfTy = cast<BaseTensorType>(self.getType());
+    if (!selfTy.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: no implementation for rankless tensor");
+    auto resType = op.getType().cast<BaseTensorType>();
+    if (!resType.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: no implementation for rankless tensor");
+
+    int64_t inputRank = selfTy.getSizes().size();
+    int64_t repeats;
+    if (!matchPattern(op.getRepeats(), m_TorchConstantInt(&repeats)))
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: repeats not constant int");
+
+    bool dimIsNone = false;
+    int64_t dim;
+    Value dimValue = op.getDim();
+    if (dimValue.getType().isa<Torch::NoneType>()) {
+      dimIsNone = true;
+      dim = inputRank - 1;
+    } else {
+      if (!matchPattern(dimValue, m_TorchConstantInt(&dim)))
+        return rewriter.notifyMatchFailure(
+            op, "Unimplemented: dim not constant int");
+      dim = toPositiveDim(dim, inputRank);
+    }
+
+    dimValue =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim));
+    Value dimValuePlusOne = rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(dim + 1));
+
+    auto unsqueezedInfo = unsqueezeTensor(rewriter, op, self, dimValuePlusOne);
+    if (failed(unsqueezedInfo))
+      return rewriter.notifyMatchFailure(op,
+                                         "cannot generate unsqueeze tensor op");
+    self = *unsqueezedInfo;
+
+    Value constMinusOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+    SmallVector<Value> expandShapeValueList(inputRank + 1, constMinusOne);
+    expandShapeValueList[dim + 1] = rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(repeats));
+    Value expandShapeList = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)), expandShapeValueList);
+    Value constFalse =
+        rewriter.create<ConstantBoolOp>(loc, rewriter.getBoolAttr(false));
+
+    SmallVector<int64_t> expandShape(inputRank + 1);
+    for (int64_t i = 0; i <= dim; i++) {
+      expandShape[i] = selfTy.getSizes()[i];
+    }
+    expandShape[dim + 1] = repeats;
+    for (int64_t i = dim + 1; i < inputRank; i++) {
+      expandShape[i + 1] = selfTy.getSizes()[i];
+    }
+
+    BaseTensorType expandTy = rewriter.getType<ValueTensorType>(
+        expandShape, selfTy.getOptionalDtype());
+
+    Value expandSelf = rewriter.create<AtenExpandOp>(
+        loc, expandTy, self, expandShapeList, constFalse);
+
+    Value result;
+    if (dimIsNone) {
+      Value constZero =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+      result = rewriter.create<AtenFlattenUsingIntsOp>(
+          loc, resType, expandSelf, constZero, constMinusOne);
+    } else {
+      result = rewriter.create<PrimsCollapseOp>(loc, resType, expandSelf,
+                                                dimValue, dimValuePlusOne);
+    }
+
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.flatten.using_ints into aten.view op.
 namespace {
 class DecomposeAtenFlattenUsingIntsOp
@@ -5800,8 +5894,24 @@ class DecomposeAtenFloorDivideOp : public OpRewritePattern<AtenFloorDivideOp> {
     // PyTorch aten.floorDivide is a misnomer because it actually rounds
     // the quotient towards zero instead of taking its floor.
     Value cstStrFloor =
-        rewriter.create<Torch::ConstantStrOp>(op.getLoc(), "trunc");
+        rewriter.create<Torch::ConstantStrOp>(op.getLoc(), "floor");
     rewriter.replaceOpWithNewOp<AtenDivTensorModeOp>(
+        op, op.getType(), op.getSelf(), op.getOther(),
+        /*roundingMode=*/cstStrFloor);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenFloorDivideScalarOp
+    : public OpRewritePattern<AtenFloorDivideScalarOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFloorDivideScalarOp op,
+                                PatternRewriter &rewriter) const override {
+    Value cstStrFloor =
+        rewriter.create<Torch::ConstantStrOp>(op.getLoc(), "floor");
+    rewriter.replaceOpWithNewOp<AtenDivScalarModeOp>(
         op, op.getType(), op.getSelf(), op.getOther(),
         /*roundingMode=*/cstStrFloor);
     return success();
@@ -7449,6 +7559,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenStackOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRollOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatInterleaveSelfIntOp>(
+        patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenExpandOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFlattenUsingIntsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenUnflattenIntOp>(patterns);
@@ -7560,6 +7672,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenCosineSimilarityOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNumpyTOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectScatterOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarDimOp>(patterns);
