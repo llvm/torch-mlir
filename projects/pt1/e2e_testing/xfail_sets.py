@@ -1964,7 +1964,7 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     "Conv2dWithPaddingModule_basic",
 
     "AtenInstanceNormModule_basic",
-
+    
     # failed to legalize operation 'torch.operator'
     "ElementwisePreluModule_basic",
     "ElementwisePreluStaticModule_basic", 
@@ -2133,7 +2133,7 @@ LTC_XFAIL_SET = {
 ONNX_XFAIL_SET = {
     # Failure - cast error
     "PermuteNegativeIndexModule_basic",
-
+    
     # Failure - expand multiple dynamic dims
     "EmbeddingModuleF16_basic",
     "EmbeddingModuleI32_basic",
@@ -2145,7 +2145,7 @@ ONNX_XFAIL_SET = {
     "IndexTensorMultiInputContiguousOneDimDynamic_basic",
     "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
     "IndexTensorSelectDimModule_basic",
-
+    
     # Failure - incorrect numerics
     "AvgPool2dDivisorOverrideModule_basic",
     "BroadcastDynamicDimModule_basic",
@@ -2181,14 +2181,14 @@ ONNX_XFAIL_SET = {
     "StdCorrectionLargeInputModule_basic",
     "TupleModule_basic",
     "VarCorrectionLargeInputModule_basic",
-
+    
     # Failure - incorrect shape
     "ArangeStartOutDtypeModule_basic",
     "ArangeStartOutViewModule_basic",
     "MoveDimIntNegativeIndexModule_basic",
     "ReduceL3NormKeepDimModule_basic",
     "ViewSizeFromOtherTensor_basic",
-
+    
     # Failure - onnx_export
     "AdaptiveAvgPool1dGeneralDynamic_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule_basic",
@@ -2582,10 +2582,10 @@ ONNX_XFAIL_SET = {
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
     "_SoftmaxModule_basic",
-
+    
     # Failure - onnx_lowering: onnx.AveragePool
     "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
-
+    
     # Failure - onnx_lowering: onnx.If
     "DiagonalModule_basic",
     "DiagonalModule_nonsquare",
@@ -2596,12 +2596,12 @@ ONNX_XFAIL_SET = {
     "DiagonalModule_with_offset",
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
-
+    
     # Failure - onnx_lowering: onnx.MaxPool
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
     "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
     "MaxPool2dWithIndicesStaticModule_basic",
-
+    
     # Failure - onnx_lowering: onnx.OneHot
     "OneHotModule_basic",
     
@@ -2623,11 +2623,11 @@ ONNX_XFAIL_SET = {
 
     # Failure - onnx_lowering: onnx.ReduceProd
     "ReduceProdDimIntFloatModule_basic",
-
+    
     # Failure - onnx_lowering: onnx.Resize
     "UpSampleNearest2dDynamicSize_basic",
     "UpSampleNearest2dStaticSize_basic",
-
+    
     # Failure - onnx_lowering: onnx.ScatterElements
     "ScatterReduceFloatMaxModuleIncludeSelf",
     "ScatterReduceFloatMinModuleIncludeSelf",
@@ -2660,7 +2660,7 @@ ONNX_XFAIL_SET = {
     "IndexPutHackedTwin3DFloatNonAccumulateModule_basic",
     "IndexPutHackedTwin3DIntAccumulateModule_basic",
     "IndexPutHackedTwin3DIntNonAccumulateModule_basic",
-
+    
     # Failure - onnx_lowering: onnx.SoftmaxCrossEntropyLoss
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
