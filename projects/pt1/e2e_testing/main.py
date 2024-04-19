@@ -43,8 +43,10 @@ from .xfail_sets import (
     TORCHDYNAMO_CRASHING_SET,
     ONNX_CRASHING_SET,
     ONNX_XFAIL_SET,
-    FX_IMPORT_XFAIL_SET,
+    FX_IMPORTER_XFAIL_SET,
     FX_IMPORTER_CRASHING_SET,
+    FX_IMPORTER_STABLEHLO_XFAIL_SET,
+    FX_IMPORTER_STABLEHLO_CRASHING_SET,
 )
 
 # Import tests to register them in the global registry.
@@ -52,7 +54,8 @@ from torch_mlir_e2e_test.test_suite import register_all_tests
 register_all_tests()
 
 def _get_argparse():
-    config_choices = ["native_torch", "torchscript", "linalg", "stablehlo", "make_fx_tosa", "tosa", "lazy_tensor_core", "torchdynamo", "onnx", "fx_importer"]
+    config_choices = ["native_torch", "torchscript", "linalg", "stablehlo", "make_fx_tosa", "tosa", "lazy_tensor_core",
+                      "torchdynamo", "onnx", "fx_importer", "fx_importer_stablehlo"]
     parser = argparse.ArgumentParser(description="Run torchscript e2e tests.")
     parser.add_argument("-c", "--config",
         choices=config_choices,
@@ -67,6 +70,8 @@ Meaning of options:
 "lazy_tensor_core": run the model through the Lazy Tensor Core frontend and execute the traced graph.
 "torchdynamo": run the model through the TorchDynamo frontend and execute the graph using Linalg-on-Tensors.
 "onnx": export to the model via onnx and reimport using the torch-onnx-to-torch path.
+"fx_importer": run the model through the fx importer frontend and execute the graph using Linalg-on-Tensors.
+"fx_importer_stablehlo": run the model through the fx importer frontend and execute the graph using Stablehlo backend.
 """)
     parser.add_argument("-f", "--filter", default=".*", help="""
 Regular expression specifying which tests to include in this run.
@@ -127,8 +132,12 @@ def main():
         crashing_set = LTC_CRASHING_SET
     elif args.config == "fx_importer":
         config = FxImporterTestConfig(RefBackendLinalgOnTensorsBackend())
-        xfail_set = FX_IMPORT_XFAIL_SET
+        xfail_set = FX_IMPORTER_XFAIL_SET
         crashing_set = FX_IMPORTER_CRASHING_SET
+    elif args.config == "fx_importer_stablehlo":
+        config = FxImporterTestConfig(LinalgOnTensorsStablehloBackend(), "stablehlo")
+        xfail_set = FX_IMPORTER_STABLEHLO_XFAIL_SET
+        crashing_set = FX_IMPORTER_STABLEHLO_CRASHING_SET
     elif args.config == "torchdynamo":
         config = TorchDynamoTestConfig(RefBackendLinalgOnTensorsBackend())
         xfail_set = TORCHDYNAMO_XFAIL_SET
