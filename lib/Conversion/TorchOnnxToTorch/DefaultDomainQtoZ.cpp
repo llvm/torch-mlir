@@ -1005,7 +1005,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
                   return reducedSumImpl(binder, rewriter, dataSquare,
                                         resultType,
-                                        /*storeValue=*/dataSquare, keepDims,
+                                        /*storeValue=*/data, keepDims,
                                         noop_with_empty_axes, false);
                 });
   patterns.onOp(
