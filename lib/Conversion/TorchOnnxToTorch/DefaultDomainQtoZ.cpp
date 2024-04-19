@@ -920,7 +920,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Torch::ValueTensorType resultType;
         Value data;
         int64_t keepDims, noop_with_empty_axes;
-        if (binder.tensorOperandAtIndex(operand, 0) ||
+        if (binder.tensorOperandAtIndex(data, 0) ||
             binder.tensorResultType(resultType) ||
             binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
             binder.s64IntegerAttr(noop_with_empty_axes, 
@@ -929,7 +929,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return failure();
 
         Value dataSquare = rewriter.create<Torch::AtenMulTensorOp>(
-            binder.getLoc(), operand.getType(), data, data);
+            binder.getLoc(), data.getType(), data, data);
 
         return reducedSumImpl(binder, rewriter, dataSquare, resultType,
                               /*storeValue=*/data, keepDims,
