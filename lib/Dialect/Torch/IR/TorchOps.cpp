@@ -1182,8 +1182,6 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
 static bool checkSameDTypes(llvm::ArrayRef<Attribute> attrs) {
   bool allFp = true;
   bool allInt = true;
-  llvm::errs() << "checkSameDTypes\n";
-  llvm::errs() << "attrs.size() = " << attrs.size() << "\n";
 
   for (auto attr : attrs) {
     if (!attr)
@@ -1201,8 +1199,6 @@ static bool checkSameDTypes(llvm::ArrayRef<Attribute> attrs) {
     allFp &= isa<mlir::FloatType>(attrty);
     allInt &= isa<mlir::IntegerType>(attrty);
   }
-  llvm::errs() << "allFp = " << allFp << "\n";
-  llvm::errs() << "allInt = " << allInt << "\n";
 
   return allFp || allInt;
 }
@@ -1309,13 +1305,11 @@ using NAryFoldIntOperator = std::function<APInt(ArrayRef<APInt>)>;
 static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
                                      NAryFoldFpOperator fpFolder,
                                      NAryFoldIntOperator intFolder) {
-  llvm::errs() << "naryFolderHelper\n";
   constexpr int64_t maxFold = 16;
   if (!checkSameDTypes(operands))
     return nullptr;
 
   auto resultTy = dyn_cast<ValueTensorType>(ty);
-  llvm::errs() << "resultTy\n";
   if (!resultTy || !resultTy.hasDtype() || !resultTy.hasSizes())
     return nullptr;
 
@@ -1324,15 +1318,12 @@ static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
 
   auto fpTy = dyn_cast<mlir::FloatType>(dty);
   auto intTy = dyn_cast<mlir::IntegerType>(dty);
-  llvm::errs() << "fpTy\n";
   if (!fpTy && !intTy)
     return nullptr;
 
   bool allSplats = checkAllSplats(operands);
   bool withinMaxFold =
       resultBTy.hasStaticShape() && resultBTy.getNumElements() <= maxFold;
-
-  llvm::errs() << "allSplats: " << allSplats << "\n";
 
   if (!allSplats && !withinMaxFold)
     return nullptr;
@@ -1362,7 +1353,6 @@ static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
     for (int i = 0, s = numValues; i < s; ++i) {
       auto inputs = getFoldValueAtIndexFp(operands, i);
       double fold = fpFolder(inputs);
-      llvm::errs() << "fold: " << fold << "\n";
 
       APFloat val(fold);
       bool unused;
