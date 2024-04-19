@@ -49,7 +49,6 @@ class LinalgOnTensorsOnnxBackend(OnnxBackend):
             imported_module,
             f"builtin.module(func.func({ONNX_TO_TORCH_FUNC_PIPELINE}))",
             "Lowering Onnx backend contract to Linalg-on-Tensors backend contract")
-        # imported_module.dump()
 
         backend_legal_ops = ['aten.flatten.using_ints','aten.adaptive_avg_pool1d', 'aten.unflatten.int']
         option_string = "{backend-legal-ops=" + ",".join(backend_legal_ops) + "}"
@@ -58,7 +57,6 @@ class LinalgOnTensorsOnnxBackend(OnnxBackend):
             f"builtin.module(torch-lower-to-backend-contract{option_string})",
             "Lowering TorchFX IR -> Torch Backend IR",
         )
-        # imported_module.dump()
 
         imported_module = _lower_mlir_module(False, OutputType.LINALG_ON_TENSORS, imported_module)
         compiled_module = self.refbackend.compile(imported_module)

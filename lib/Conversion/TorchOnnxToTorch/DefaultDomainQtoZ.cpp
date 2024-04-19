@@ -2277,10 +2277,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
   patterns.onOp(
       "RandomNormal", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        SmallString<64> name("torch.onnx.seed");
+        auto attr = binder.op->getAttr(name);
+        if (attr) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "unimplemented: support not present for seed attribute");
+        }
+
         Torch::ValueTensorType resultType;
         int64_t dtypeIntTorch, dtypeIntOnnx;
-        float mean, scale, seed;
-        // TODO: Add support for seed.
+        float mean, scale;
         SmallVector<int64_t> shape;
         if (binder.s64IntegerAttr(dtypeIntOnnx, "dtype", 1) ||
             binder.f32FloatAttr(mean, "mean", 0.0) ||
@@ -2334,10 +2341,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
   patterns.onOp(
       "RandomNormalLike", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        SmallString<64> name("torch.onnx.seed");
+        auto attr = binder.op->getAttr(name);
+        if (attr) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "unimplemented: support not present for seed attribute");
+        }
+
         Torch::ValueTensorType resultType;
         int64_t dtypeIntTorch, dtypeIntOnnx;
-        float mean, scale, seed;
-        // TODO: Add support for seed.
+        float mean, scale;
         SmallVector<int64_t> shape;
         Value input;
         if (binder.tensorOperand(input) ||
@@ -2382,10 +2396,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
   patterns.onOp(
       "RandomUniform", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        SmallString<64> name("torch.onnx.seed");
+        auto attr = binder.op->getAttr(name);
+        if (attr) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "unimplemented: support not present for seed attribute");
+        }
+
         Torch::ValueTensorType resultType;
         int64_t dtypeIntTorch, dtypeIntOnnx;
-        float high, low, seed;
-        // TODO: Add support for seed.
+        float high, low;
         SmallVector<int64_t> shape;
         if (binder.s64IntegerAttr(dtypeIntOnnx, "dtype", 1) ||
             binder.f32FloatAttr(high, "high", 1.0) ||
@@ -2439,10 +2460,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
   patterns.onOp(
       "RandomUniformLike", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        SmallString<64> name("torch.onnx.seed");
+        auto attr = binder.op->getAttr(name);
+        if (attr) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "unimplemented: support not present for seed attribute");
+        }
+
         Torch::ValueTensorType resultType;
         int64_t dtypeIntTorch, dtypeIntOnnx;
-        float high, low, seed;
-        // TODO: Add support for seed.
+        float high, low;
         SmallVector<int64_t> shape;
         Value input;
         if (binder.tensorOperand(input) ||
