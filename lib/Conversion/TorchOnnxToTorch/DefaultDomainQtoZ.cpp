@@ -478,7 +478,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                   return success();
                 });
   patterns.onOp(
-      "ScatterElements", 18,
+      "ScatterElements", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         SmallVector<Value> valList;
