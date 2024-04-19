@@ -72,14 +72,11 @@ Meaning of options:
     parser.add_argument("-f", "--filter", default=".*", help="""
 Regular expression specifying which tests to include in this run.
 """)
-    parser.add_argument("-v", "--verbose",
-                        default=False,
-                        action="store_true",
-                        help="report test results with additional detail")
-    parser.add_argument("--print-ir",
-                        default=False,
-                        action="store_true",
-                        help="Set logging level to DEBUG and causes the IR to be printed for each test.")
+    parser.add_argument("--log_level", default="WARNING", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="set the log level")
+    parser.add_argument("-d", "--debug", action="store_const", dest="log_level", const="DEBUG", help="set log level to DEBUG for detailed debug output")
+    parser.add_argument("-v", "--verbose", action="store_const", dest="log_level", const="INFO", help="set log level to INFO to report a more detailed but still user-friendly level of verbosity")
+    parser.add_argument("-q", "--quiet", action="store_const", dest="log_level", const="ERROR", help="suppress all logs except errors")
+    
     parser.add_argument("-s", "--sequential",
                         default=False,
                         action="store_true",
@@ -89,7 +86,7 @@ which make it easier to attach a debugger or get a stack trace.""")
     parser.add_argument("--crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed",
                         metavar="TEST", type=str, nargs="+",
                         help="A set of tests to not attempt to run, since they crash and cannot be XFAILed.")
-    parser.add_argument("--ignore_failures", 
+    parser.add_argument("--ignore_familures", 
                         default=False,
                         action="store_true",
                         help="return exit code 0 even if the test fails to unblock pipeline")
@@ -98,17 +95,13 @@ which make it easier to attach a debugger or get a stack trace.""")
 def main():
     args = _get_argparse().parse_args()
 
-    ir_printer = logging.getLogger("ir_printer")
-    if args.print_ir:
-        print("WARNING: --print-ir is a work in progress feature.")
-        print("print-ir: Setting logging level to DEBUG and enabling IR printing.")
-        print("print-ir: This currently only affects the Linalg-on-Tensors and onnx configs.")
-        print("print-ir: Work in progress. See https://github.com/llvm/torch-mlir/issues/3172")
-        ir_printer.setLevel(logging.DEBUG)
-    else:
-        # disable logging
-        ir_printer.setLevel(logging.CRITICAL+1)
-
+    logger = logging.getLogger() # use root logger by default. Easy to change later.
+    logger.setLevel(logging.NOTSET)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(args.log_level)
+    formatter = logging.Formatter('%(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
     all_test_unique_names = set(
         test.unique_name for test in GLOBAL_TEST_REGISTRY)
@@ -160,7 +153,7 @@ def main():
     if args.crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed is not None:
         for arg in args.crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed:
             if arg not in all_test_unique_names:
-                print(f"ERROR: --crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed argument '{arg}' is not a valid test name")
+                logger.error(f"ERROR: --crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed argument '{arg}' is not a valid test name")
                 sys.exit(1)
 
     # Find the selected tests, and emit a diagnostic if none are found.
@@ -169,21 +162,24 @@ def main():
         if re.match(args.filter, test.unique_name)
     ]
     if len(tests) == 0:
-        print(
+        logger.error(
             f"ERROR: the provided filter {args.filter!r} does not match any tests"
         )
-        print("The available tests are:")
-        for test in available_tests:
-            print(test.unique_name)
+        available_tests = [test for test in available_tests]
+
+        logger.error("The available tests are:" + "\n".join(available_tests))
         sys.exit(1)
 
     # Run the tests.
-    results = run_tests(tests, config, args.sequential, args.verbose)
+    results = run_tests(tests, config, args.sequential,
+                            verbose=logger.level >= logging.INFO)
 
     # Report the test results.
-    failed = report_results(results, xfail_set, args.verbose, args.config)
+    failed = report_results(results, xfail_set,
+                            verbose=logger.level >= logging.INFO,
+                            config=args.config)
     if args.config == "torchdynamo":
-        print("\033[91mWarning: the TorchScript based dynamo support is deprecated. "
+        logger.warning("\033[91mWarning: the TorchScript based dynamo support is deprecated. "
               "The config for torchdynamo is planned to be removed in the future.\033[0m")
     if args.ignore_failures:
         sys.exit(0)

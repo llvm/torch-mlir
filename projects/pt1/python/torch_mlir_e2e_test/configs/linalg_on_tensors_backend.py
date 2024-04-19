@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 import logging
-ir_printer = logging.getLogger("ir_printer")
+logger = logging.getLogger()
 
 from typing import Any
 
@@ -34,9 +34,7 @@ class LinalgOnTensorsBackendTestConfig(TestConfig):
         example_args = convert_annotations_to_placeholders(program.forward)
         module = torchscript.compile(
             program, example_args, output_type="linalg-on-tensors")
-        ir_printer.debug("LinalgOnTensorsBackendTestConfig compiled module:")
-        ir_printer.debug(module)
-        ir_printer.debug("End LinalgOnTensorsBackendTestConfig compiled module")
+        logger.debug(module)
         return self.backend.compile(module)
 
 

@@ -6,6 +6,9 @@
 Utilities for reporting the results of the test framework.
 """
 
+from logging import getLogger
+logger = getLogger()
+
 from typing import Any, List, Optional, Set
 
 import collections
@@ -292,17 +295,17 @@ def report_results(results: List[TestResult],
         expected_failure = result.unique_name in expected_failures
         if expected_failure:
             if report.failed:
-                print(f'XFAIL - "{result.unique_name}"')
+                logger.info(f'XFAIL - "{result.unique_name}"')
                 results_by_outcome['XFAIL'].append((result, report))
             else:
-                print(f'XPASS - "{result.unique_name}"')
+                logger.info(f'XPASS - "{result.unique_name}"')
                 results_by_outcome['XPASS'].append((result, report))
         else:
             if not report.failed:
-                print(f'PASS - "{result.unique_name}"')
+                logger.inf(f'PASS - "{result.unique_name}"')
                 results_by_outcome['PASS'].append((result, report))
             else:
-                print(f'FAIL - "{result.unique_name}"')
+                logger.info(f'FAIL - "{result.unique_name}"')
                 results_by_outcome['FAIL'].append((result, report))
 
     OUTCOME_MEANINGS = collections.OrderedDict()
@@ -329,8 +332,8 @@ def report_results(results: List[TestResult],
         for result, report in results:
             print(f'    {outcome} - "{result.unique_name}"')
             # If the test failed, print the error message.
-            if outcome == 'FAIL' and verbose:
-                print(textwrap.indent(report.error_str(), ' ' * 8))
+            if outcome == 'FAIL':
+                logger.info(textwrap.indent(report.error_str(), ' ' * 8))
 
     # Print a summary for easy scanning.
     print('\nSummary:')
