@@ -1500,6 +1500,10 @@ LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewrite(
     }
     maxValue = *maxInfo;
   }
+  if (inputType.hasStaticShape()) {
+    minValue = hlo::promoteAndBroadcast(rewriter, minValue, inputType);
+    maxValue = hlo::promoteAndBroadcast(rewriter, maxValue, inputType);
+  }
   rewriter.replaceOpWithNewOp<stablehlo::ClampOp>(op, minValue, input,
                                                   maxValue);
   return success();
