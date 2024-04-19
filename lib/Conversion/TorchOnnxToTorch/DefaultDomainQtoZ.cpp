@@ -911,15 +911,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         auto reducedSum =
             reducedSumImpl(binder, rewriter, squareOfOperand, resultType,
                            operand, keepDims, noop_with_empty_axes, true);
-        if (mlir::failed(reducedSum))
-          return failure();
-
-        auto castDtypeScalar =
-            Torch::getScalarTypeForType(rewriter.getF32Type());
+        if (failed(reducedSum))
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Failed to perform sum operation on square of operand");
 
         Value castDType = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(),
-            rewriter.getI64IntegerAttr(static_cast<int64_t>(castDtypeScalar)));
+            binder.getLoc(), rewriter.getI64IntegerAttr(/*Float32Type*/ 6));
 
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         Value constFalse =
