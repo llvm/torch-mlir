@@ -937,12 +937,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             /*non_blocking=*/constFalse, /*copy=*/constFalse,
             /*memory_format=*/noneVal);
 
-        // Perform square root on the cast square sum.
         Value operandSqrt = rewriter.create<Torch::AtenSqrtOp>(
             binder.getLoc(), f32ResultType, operandCast);
 
-        // Finally, perform an AtenToDtype op on the returned square root
-        // to align it to resultType.
         Value resultDtype = Torch::getDtypeIntValueForType(
             rewriter, binder.getLoc(), resultType.getDtype());
         rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
