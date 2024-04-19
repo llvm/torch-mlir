@@ -17,20 +17,6 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::onnx_c;
 
-class Endian {
-private:
-  static constexpr uint32_t uint32_ = 0x01020304;
-  static constexpr uint8_t magic_ = (const uint8_t &)uint32_;
-
-public:
-  static constexpr bool little = magic_ == 0x04;
-  static constexpr bool big = magic_ == 0x01;
-  static_assert(little || big, "Cannot determine endianness!");
-
-private:
-  Endian() = delete;
-};
-
 // Simple rewrites for the default domain.
 // See: https://onnx.ai/onnx/operators/
 // For operators that are effectively version invariant, we register with
@@ -682,11 +668,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         Value data = inputOperands[0];
         auto inputType = data.getType().dyn_cast<Torch::ValueTensorType>();
-        if (!inputType.hasSizes() || !resultType.hasSizes()) {
+        if (!inputType.hasSizes() || !resultType.hasSizes())
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented: expected input and result to have shapes");
-        }
 
         int64_t inputRank = inputType.getSizes().size();
         int64_t resultRank = resultType.getSizes().size();
@@ -734,8 +719,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           Value axes = inputOperands[1];
           Torch::BaseTensorType axesType =
               axes.getType().cast<Torch::BaseTensorType>();
+          SmallVector<int64_t> selectSizes{1};
           Type selectResultType = axesType.getWithSizesAndDtype(
-              llvm::ArrayRef<int64_t>{1}, axesType.getOptionalDtype());
+              selectSizes, axesType.getOptionalDtype());
           Value zero = rewriter.create<Torch::ConstantIntOp>(
               binder.getLoc(), rewriter.getType<Torch::IntType>(),
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
@@ -775,11 +761,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.tensorResultType(resultType))
           return failure();
         auto inputType = data.getType().dyn_cast<Torch::ValueTensorType>();
-        if (!inputType.hasSizes() || !resultType.hasSizes()) {
+        if (!inputType.hasSizes() || !resultType.hasSizes())
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented: expected input and result to have shapes");
-        }
 
         int64_t inputRank = inputType.getSizes().size();
         int64_t resultRank = resultType.getSizes().size();
@@ -810,14 +795,12 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           }
         } else {
           SmallVector<int64_t> unsqueezeDimsInts;
-          if (!matchPattern(axes,
-                            Torch::m_OnnxListOfConstantInts(unsqueezeDimsInts)))
+          if (!matchPattern(axes, m_OnnxListOfConstantInts(unsqueezeDimsInts)))
             return rewriter.notifyMatchFailure(
                 binder.op, "only support constant int axes values");
 
-          for (auto dim : unsqueezeDimsInts) {
+          for (auto dim : unsqueezeDimsInts)
             unsqueezeDims.push_back(dim < 0 ? dim + resultRank : dim);
-          }
           // If we don't sort, unsqueezing first on 4 and then on 0 would fail
           // for shape = {x,y,z}, and axes [4,0]
           llvm::sort(unsqueezeDims.begin(), unsqueezeDims.end());

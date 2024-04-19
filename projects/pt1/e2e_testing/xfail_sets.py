@@ -2643,12 +2643,8 @@ ONNX_XFAIL_SET = {
     # Failure - onnx_lowering: onnx.ScatterElements
     "ScatterReduceFloatMaxModuleIncludeSelf",
     "ScatterReduceFloatMinModuleIncludeSelf",
-    "ScatterReduceFloatProdModuleIncludeSelf",
-    "ScatterReduceFloatSumModuleIncludeSelf",
     "ScatterReduceIntMaxModuleIncludeSelf",
     "ScatterReduceIntMinModuleIncludeSelf",
-    "ScatterReduceIntProdModuleIncludeSelf",
-    "ScatterReduceIntSumModuleIncludeSelf",
     "ScatterValueFloatModule_basic",
     
     # Failure - onnx_lowering: onnx.ScatterND
@@ -2684,23 +2680,6 @@ ONNX_XFAIL_SET = {
     # RuntimeError: unsupported input type: Device
     "PrimsIotaModule_basic",
 
-    # Failure - incorrect dtype
-    "ReduceMaxAlongDimUnsignedInt_basic",
-    "ElementwiseToDtypeI64ToUI8Module_basic",
-
-    # Failure - torch.aten.view lower
-    "IndexTensorDyanmicInputContiguousWithNoneModule_basic",
-    "IndexTensorDyanmicInputNonContiguousWithNoneModule_basic",
-    "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
-    "IndexTensorMultiInputContiguousCenter_basic",
-    "IndexTensorMultiInputNonContiguousMultipleStaticDims_basic",
-    "IndexTensorMultiInputNonContiguous_basic",
-    "IndexTensorMultiInputOneDim_basic",
-    "IndexTensorMultiInputThreeIndexers_basic",
-    "IndexTensorMultiInput_basic",
-    "IndexTensorMultiInputContiguousOneDimDynamic_basic",
-    "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
-
     # Failure - unknown
     "BernoulliModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
@@ -2724,29 +2703,11 @@ ONNX_XFAIL_SET = {
     "ElementwiseTanIntModule_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
     "ElementwiseUnaryIntModule_basic",
-    "EmbeddingModuleF16_basic",
-    "EmbeddingModuleI32_basic",
-    "EmbeddingModuleI64_basic",
-    "FlattenDynamicModule_basic",
-    "GluStaticModule_basic",
-    "IndexTensorHackedTwinModule3dInput_basic",
-    "IndexTensorHackedTwinModule_basic",
-    "IndexTensorModule3dInput_basic",
-    "IndexTensorModule_basic",
-    "IndexTensorSelectDimModule_basic",
     "MaskedFillTensorFloatValueModule_basic",
     "NativeDropoutTrainModule_basic",
     "NativeDropoutTrainStaticShapeModule_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
-
-    # Failure - "RuntimeError: linalg.cross: inputs dimension 1 must have length 3. Got 1 and 1"
-    "AtenLinalgCrossDynamic_basic",
-
-    # Failure - value not close to golden value (op is incorrectly truncating) 
-    "ElementwiseAtenFloorDivideTensorNegativeModule_basic",
-    "ElementwiseAtenFloorDivideScalarNegativeModule_basic",
-
 }
 
 if torch_version_for_comparison() >= version.parse("2.4.0.dev"):
@@ -2767,4 +2728,8 @@ ONNX_CRASHING_SET = {
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
     "ElementwisePreluModule_basic",
     "ViewDynamicExpandCollapseWithParallelUnknownDimModule_basic",
+    "ScatterReduceFloatProdModuleIncludeSelf",
+    "ScatterReduceFloatSumModuleIncludeSelf",
+    "ScatterReduceIntProdModuleIncludeSelf",
+    "ScatterReduceIntSumModuleIncludeSelf",
 }
