@@ -3735,6 +3735,8 @@ OpFoldResult AtenTensorOp::fold(FoldAdaptor adaptor) {
 
 OpFoldResult AtenTensorIntOp::fold(FoldAdaptor adaptor) {
   auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy)
+    return nullptr;
   Type eTy = resultTy.getDtype();
   ShapedType shapedTy = resultTy.toBuiltinTensor().clone(eTy);
 
@@ -3753,6 +3755,8 @@ OpFoldResult AtenTensorIntOp::fold(FoldAdaptor adaptor) {
 
 OpFoldResult AtenTensorFloatOp::fold(FoldAdaptor adaptor) {
   auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy)
+    return nullptr;
   Type eTy = resultTy.getDtype();
   ShapedType shapedTy = resultTy.toBuiltinTensor().clone(eTy);
 
@@ -3771,6 +3775,8 @@ OpFoldResult AtenTensorFloatOp::fold(FoldAdaptor adaptor) {
 
 OpFoldResult AtenTensorBoolOp::fold(FoldAdaptor adaptor) {
   auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy)
+    return nullptr;
   Type eTy = resultTy.getDtype();
   ShapedType shapedTy = resultTy.toBuiltinTensor().clone(eTy);
 
