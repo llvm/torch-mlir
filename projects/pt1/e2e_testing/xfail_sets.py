@@ -1580,6 +1580,8 @@ TOSA_PASS_SET = {
     "TModuleRank1_basic",
     "TModuleRank2_basic",
     "TanhBackward_basic",
+    "TensorFloatModule_basic",
+    "TensorIntModule_basic",
     "TensorLiteralModule_basic",
     "TensorOpaqueLiteralModule_basic",
     "TensorsConcatNegativeDimStaticModule_basic",
