@@ -2129,6 +2129,10 @@ ONNX_XFAIL_SET = {
     "_SoftmaxModule_basic",
 
     # Failure - onnx_import
+
+    # these diagonal modules are currently failing due to dynamic shape.
+    # We are currently testing aten.diagonal using DiagonalWithStaticShapeModule instead.
+    # when the issue is fixed, please remove DiagonalWithStaticShapeModule as well as the xfails here. 
     "DiagonalModule_basic",
     "DiagonalModule_nonsquare",
     "DiagonalModule_transposed",
