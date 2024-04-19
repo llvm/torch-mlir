@@ -548,6 +548,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     if (zeroPoint) {
       int64_t zeroPointInt;
       int64_t width = intType.getWidth();
+      assert(width < 64);
       int64_t minForIntType = isUnsigned ? 0 : -(1 << (width - 1));
       int64_t maxForIntType =
           isUnsigned ? (1 << (width + 1)) - 1 : (1 << (width - 1)) - 1;
