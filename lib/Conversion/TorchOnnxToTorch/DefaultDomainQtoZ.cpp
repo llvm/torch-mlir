@@ -1414,6 +1414,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         Value one = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(1));
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(0));
 
         Value vDimSize = rewriter.create<Torch::AtenSizeIntOp>(
             loc, rewriter.getType<Torch::IntType>(), self, dimValue);
@@ -1427,8 +1429,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         llvm::SmallVector<Value> outputs;
         Value step = one;
-        Value start = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(0));
+        Value start = zero;
 
         for (int i = 0; i < numOutputs - 1; ++i) {
           Value end =
