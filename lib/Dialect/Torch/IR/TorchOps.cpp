@@ -1216,7 +1216,6 @@ static bool checkAllSplats(llvm::ArrayRef<Attribute> attrs) {
 
 double convertIntAttributeToDouble(Attribute attr, int64_t idx = 0) {
   bool isUnsigned = false;
-  double result = 0;
   if (auto dense = dyn_cast<ElementsAttr>(attr)) {
     if (auto intty = dyn_cast<mlir::IntegerType>(dense.getElementType())) {
       isUnsigned = intty.isUnsigned();
