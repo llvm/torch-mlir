@@ -3770,26 +3770,6 @@ OpFoldResult AtenTensorFloatOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
-// AtenTensorBoolOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult AtenTensorBoolOp::fold(FoldAdaptor adaptor) {
-  auto resultTy = dyn_cast<ValueTensorType>(getType());
-  if (!resultTy || !resultTy.hasSizes() || !resultTy.hasDtype())
-    return nullptr;
-  Type eTy = resultTy.getDtype();
-  ShapedType shapedTy = resultTy.toBuiltinTensor().clone(eTy);
-
-  bool data;
-  if (matchPattern(getT(), m_TorchConstantBool(&data))) {
-    Attribute attribute = BoolAttr::get(getContext(), data);
-    return DenseElementsAttr::get(shapedTy, attribute);
-  }
-
-  return nullptr;
-}
-
-//===----------------------------------------------------------------------===//
 // Aten_ShapeAsTensorOp
 //===----------------------------------------------------------------------===//
 

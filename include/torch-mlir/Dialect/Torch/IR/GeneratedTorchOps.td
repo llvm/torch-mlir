@@ -9016,7 +9016,6 @@ def Torch_AtenTensorBoolOp : Torch_Op<"aten.tensor.bool", [
       printDefaultTorchOp(printer, *this, 4, 1);
     }
   }];
-  let hasFolder = 1;
 }
 
 def Torch_AtenTensorIntOp : Torch_Op<"aten.tensor.int", [
