@@ -86,7 +86,7 @@ which make it easier to attach a debugger or get a stack trace.""")
     parser.add_argument("--crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed",
                         metavar="TEST", type=str, nargs="+",
                         help="A set of tests to not attempt to run, since they crash and cannot be XFAILed.")
-    parser.add_argument("--ignore_familures", 
+    parser.add_argument("--ignore_failures", 
                         default=False,
                         action="store_true",
                         help="return exit code 0 even if the test fails to unblock pipeline")
