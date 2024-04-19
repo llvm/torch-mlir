@@ -537,25 +537,59 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   if (auto relu = dyn_cast<AtenReluOp>(op)) {
     Value zeroPoint = getZeroPoint(relu.getSelf());
     Value arg = payloadArgs[0];
-    auto intType = arg.getType().isa<mlir::IntegerType>();
+    auto intType = arg.getType().dyn_cast<mlir::IntegerType>();
     if (zeroPoint && !intType) {
       relu.emitError("unimplemented: non-integer quantized Relu.");
       return nullptr;
     }
+    auto reluTorchType = cast<ValueTensorType>(relu.getType());
+    bool isUnsigned =
+        torch_to_linalg::isUnsignedTorchType(reluTorchType.getDtype());
     if (zeroPoint) {
+      int64_t zeroPointInt;
+      int64_t width = intType.getWidth();
+      int64_t minForIntType = isUnsigned ? 0 : -(1 << (width - 1));
+      int64_t maxForIntType =
+          isUnsigned ? (1 << (width + 1)) - 1 : (1 << (width - 1)) - 1;
+      // check for constant zero point edge-cases:
+      if (matchPattern(zeroPoint, m_TorchConstantInt(&zeroPointInt))) {
+        if (zeroPointInt > maxForIntType) {
+          // TODO: figure out how to handle this case:
+          // current impl. quantizes output like input.
+          // If zero point > maxForIntType, ordinary relu should return 0.
+          // However, 0 isn't represented in such a quantization scheme.
+          relu.emitError(
+              "unimplemented: quantized relu for zero-point > max qint");
+          return nullptr;
+        }
+        if (zeroPointInt < minForIntType)
+          return arg;
+      }
       zeroPoint = converter->materializeTargetConversion(
           b, loc, converter->convertType(zeroPoint.getType()), zeroPoint);
+      auto minForIntTypeValue = b.create<arith::ConstantOp>(
+          loc, b.getIntegerAttr(zeroPoint.getType(), minForIntType));
+      auto maxForIntTypeValue = b.create<arith::ConstantOp>(
+          loc, b.getIntegerAttr(zeroPoint.getType(), maxForIntType));
+      auto zpLtMax = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
+                                             zeroPoint, maxForIntTypeValue);
+      b.create<cf::AssertOp>(
+          loc, zpLtMax,
+          b.getStringAttr("Invalid Quantization: quantized relu with "
+                          "zero-point > max qint"));
+      auto zpLtMin = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
+                                             zeroPoint, minForIntTypeValue);
+      zeroPoint = b.create<arith::SelectOp>(loc, zpLtMin, minForIntTypeValue,
+                                            zeroPoint);
       zeroPoint = b.create<arith::TruncIOp>(loc, arg.getType(), zeroPoint);
     } else {
       zeroPoint =
           b.create<arith::ConstantOp>(loc, b.getZeroAttr(arg.getType()));
     }
-    auto reluTorchType = cast<ValueTensorType>(relu.getType());
     Value cmp;
     if (intType) {
-      auto pred = torch_to_linalg::isUnsignedTorchType(reluTorchType.getDtype())
-                      ? arith::CmpIPredicate::ugt
-                      : arith::CmpIPredicate::sgt;
+      auto pred =
+          isUnsigned ? arith::CmpIPredicate::ugt : arith::CmpIPredicate::sgt;
       cmp = b.create<arith::CmpIOp>(loc, pred, arg, zeroPoint);
     } else {
       cmp = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT, arg,
