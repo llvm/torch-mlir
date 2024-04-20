@@ -1825,18 +1825,10 @@ LogicalResult ConvertAtenOp<AtenRemainderTensorOp>::matchAndRewrite(
   Value lhs = adaptor.getSelf();
   Value rhs = adaptor.getOther();
 
-  auto lhs_type = cast<RankedTensorType>(lhs.getType());
-  auto lhs_elem_type = lhs_type.getElementType();
-  auto rhs_type = cast<RankedTensorType>(rhs.getType());
-  auto rhs_elem_type = rhs_type.getElementType();
-  if (isa<mlir::FloatType>(lhs_elem_type) &&
-      isa<mlir::IntegerType>(rhs_elem_type)) {
-    rhs = hlo::promoteType(rewriter, op->getLoc(), rhs, lhs_type);
-  } else if (isa<mlir::IntegerType>(lhs_elem_type) &&
-             isa<mlir::FloatType>(rhs_elem_type)) {
-    lhs = hlo::promoteType(rewriter, op->getLoc(), lhs, rhs_type);
-  }
-
+  auto resultType =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  lhs = hlo::promoteType(rewriter, op->getLoc(), lhs, resultType);
+  rhs = hlo::promoteType(rewriter, op->getLoc(), rhs, resultType);
   rewriter.replaceOpWithNewOp<stablehlo::RemOp>(op, lhs, rhs);
   return success();
 }
