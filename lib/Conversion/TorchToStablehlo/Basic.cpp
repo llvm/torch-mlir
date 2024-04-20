@@ -1817,6 +1817,30 @@ LogicalResult ConvertAtenOp<AtenFlipOp>::matchAndRewrite(
   return success();
 }
 
+// AtenRemainderTensorOp
+template <>
+LogicalResult ConvertAtenOp<AtenRemainderTensorOp>::matchAndRewrite(
+    AtenRemainderTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value lhs = adaptor.getSelf();
+  Value rhs = adaptor.getOther();
+
+  auto lhs_type = cast<RankedTensorType>(lhs.getType());
+  auto lhs_elem_type = lhs_type.getElementType();
+  auto rhs_type = cast<RankedTensorType>(rhs.getType());
+  auto rhs_elem_type = rhs_type.getElementType();
+  if (isa<mlir::FloatType>(lhs_elem_type) &&
+      isa<mlir::IntegerType>(rhs_elem_type)) {
+    rhs = hlo::promoteType(rewriter, op->getLoc(), rhs, lhs_type);
+  } else if (isa<mlir::IntegerType>(lhs_elem_type) &&
+             isa<mlir::FloatType>(rhs_elem_type)) {
+    lhs = hlo::promoteType(rewriter, op->getLoc(), lhs, rhs_type);
+  }
+
+  rewriter.replaceOpWithNewOp<stablehlo::RemOp>(op, lhs, rhs);
+  return success();
+}
+
 void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToStablehloOptions &options) {
@@ -1959,6 +1983,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenEmptyMemoryFormatOp);
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);
   INSERT_ATENOP_PATTERN(AtenFlipOp);
+  INSERT_ATENOP_PATTERN(AtenRemainderTensorOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, StablehloOp)                   \
