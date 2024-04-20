@@ -923,8 +923,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         if (binder.tensorOperandAtIndex(data, 0) ||
             binder.tensorResultType(resultType) ||
             binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
-            binder.s64IntegerAttr(noop_with_empty_axes, 
-                                  "noop_with_empty_axes",
+            binder.s64IntegerAttr(noop_with_empty_axes, "noop_with_empty_axes",
                                   0))
           return failure();
 
