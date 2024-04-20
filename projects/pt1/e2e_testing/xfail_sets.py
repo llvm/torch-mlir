@@ -2626,9 +2626,6 @@ ONNX_XFAIL_SET = {
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
     "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
     "MaxPool2dWithIndicesStaticModule_basic",
-    
-    # Failure - onnx_lowering: onnx.OneHot
-    "OneHotModule_basic",
 
     # Failure - onnx_lowering: onnx.ReduceProd
     "ReduceProdFloatModule_basic",
@@ -2639,29 +2636,8 @@ ONNX_XFAIL_SET = {
     "ReduceProdDtypeIntModule_basic",
     
     # ERROR: dtype (torch.float32) is not equal to golden dtype (torch.float64)
-    "RandnDtypeDeviceModule_basic",
-    "RandnGeneratorF64Module_basic",
-    "RandnGeneratorModule_basic",
-    "RandnModule_basic",
-    "RandnLikeModule_basic",
-    "BernoulliFloatModule_basic",
-    "BernoulliPModule_basic",
-    "BernoulliTensorModule_basic",
-    
-    # Failure - onnx_lowering: onnx.ReduceProd
-    "ReduceProdDimIntFloatModule_basic",
-    
-    # Failure - onnx_lowering: onnx.Resize
-    "UpSampleNearest2dDynamicSize_basic",
-    "UpSampleNearest2dStaticSize_basic",
-    
-    # Failure - onnx_lowering: onnx.ScatterElements
-    "ScatterReduceFloatMaxModuleIncludeSelf",
-    "ScatterReduceFloatMinModuleIncludeSelf",
-    "ScatterReduceIntMaxModuleIncludeSelf",
-    "ScatterReduceIntMinModuleIncludeSelf",
-    "ScatterValueFloatModule_basic",
-    
+    "ScatterValueIntModule_basic",
+
     # Failure - onnx_lowering: onnx.ScatterND
     "IndexPut1DFloatAccumulateModule_basic",
     "IndexPut1DFloatNonAccumulateModule_basic",
