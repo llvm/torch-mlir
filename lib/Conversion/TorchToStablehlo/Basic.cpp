@@ -1833,6 +1833,37 @@ LogicalResult ConvertAtenOp<AtenRemainderTensorOp>::matchAndRewrite(
   return success();
 }
 
+// AtenFmodTensorOp
+// torch.fmod(a, b) == a - a.div(b, rounding_mode="trunc") * b
+template <>
+LogicalResult ConvertAtenOp<AtenFmodTensorOp>::matchAndRewrite(
+    AtenFmodTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto loc = op->getLoc();
+  Value lhs = adaptor.getSelf();
+  Value rhs = adaptor.getOther();
+
+  auto resultType =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  lhs = hlo::promoteType(rewriter, op->getLoc(), lhs, resultType);
+  rhs = hlo::promoteType(rewriter, op->getLoc(), rhs, resultType);
+
+  stablehlo::MulOp mul;
+  auto div = rewriter.create<stablehlo::DivOp>(loc, lhs, rhs);
+  if (isa<mlir::FloatType>(resultType.getElementType())) {
+    // rounding mode is trunc
+    auto sign = rewriter.create<stablehlo::SignOp>(loc, div);
+    auto abs = rewriter.create<stablehlo::AbsOp>(loc, div);
+    auto floor = rewriter.create<stablehlo::FloorOp>(loc, abs);
+    auto trunc = rewriter.create<stablehlo::MulOp>(loc, sign, floor);
+    mul = rewriter.create<stablehlo::MulOp>(loc, trunc, rhs);
+  } else {
+    mul = rewriter.create<stablehlo::MulOp>(loc, div, rhs);
+  }
+  rewriter.replaceOpWithNewOp<stablehlo::SubtractOp>(op, lhs, mul);
+  return success();
+}
+
 void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToStablehloOptions &options) {
@@ -1976,6 +2007,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);
   INSERT_ATENOP_PATTERN(AtenFlipOp);
   INSERT_ATENOP_PATTERN(AtenRemainderTensorOp);
+  INSERT_ATENOP_PATTERN(AtenFmodTensorOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, StablehloOp)                   \
