@@ -1179,9 +1179,8 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
 // NAry folder helpers
 //===----------------------------------------------------------------------===//
 
-static bool checkSameDTypes(llvm::ArrayRef<Attribute> attrs) {
-  bool allFp = true;
-  bool allInt = true;
+static bool checkValidDTypes(llvm::ArrayRef<Attribute> attrs) {
+  bool allFpOrInt = true;
 
   for (auto attr : attrs) {
     if (!attr)
@@ -1196,11 +1195,12 @@ static bool checkSameDTypes(llvm::ArrayRef<Attribute> attrs) {
       attrty = integer.getType();
     if (auto shaped = dyn_cast_or_null<ShapedType>(attrty))
       attrty = shaped.getElementType();
-    allFp &= isa<mlir::FloatType>(attrty);
-    allInt &= isa<mlir::IntegerType>(attrty);
+    bool isFloat = isa<mlir::FloatType>(attrty);
+    bool isInt = isa<mlir::IntegerType>(attrty);
+    allFpOrInt &= isFloat || isInt;
   }
 
-  return allFp || allInt;
+  return allFpOrInt;
 }
 
 static bool checkAllSplats(llvm::ArrayRef<Attribute> attrs) {
@@ -1214,27 +1214,41 @@ static bool checkAllSplats(llvm::ArrayRef<Attribute> attrs) {
   return true;
 }
 
-double convertIntAttributeToDouble(Attribute attr, int64_t idx = 0) {
-  bool isUnsigned = false;
-  if (auto dense = dyn_cast<ElementsAttr>(attr)) {
-    if (auto intty = dyn_cast<mlir::IntegerType>(dense.getElementType())) {
-      isUnsigned = intty.isUnsigned();
+std::optional<double> convertIntegerAttributeToDouble(Attribute attr,
+                                                      int64_t idx = 0) {
+  auto convertAPInt = [](const APInt &apint, bool isUnsigned) {
+    return isUnsigned ? static_cast<double>(apint.getZExtValue())
+                      : static_cast<double>(apint.getSExtValue());
+  };
+
+  if (auto dense = attr.dyn_cast<ElementsAttr>()) {
+    if (auto intType = dense.getElementType().dyn_cast<mlir::IntegerType>()) {
+      bool isUnsigned = intType.isUnsigned();
       if (dense.isSplat()) {
-        if (isUnsigned)
-          return (double)dense.getSplatValue<APInt>().getZExtValue();
-        return (double)dense.getSplatValue<APInt>().getSExtValue();
+        return convertAPInt(dense.getSplatValue<APInt>(), isUnsigned);
       }
-      if (isUnsigned)
-        return (double)dense.getValues<APInt>()[idx].getZExtValue();
-      return (double)dense.getValues<APInt>()[idx].getSExtValue();
+      return convertAPInt(dense.getValues<APInt>()[idx], isUnsigned);
     }
-  } else if (auto intattr = dyn_cast<IntegerAttr>(attr)) {
-    isUnsigned = cast<mlir::IntegerType>(intattr.getType()).isUnsigned();
-    if (isUnsigned)
-      return (double)intattr.getValue().getZExtValue();
-    return (double)intattr.getValue().getSExtValue();
+  } else if (auto intAttr = attr.dyn_cast<IntegerAttr>()) {
+    bool isUnsigned = intAttr.getType().cast<mlir::IntegerType>().isUnsigned();
+    return convertAPInt(intAttr.getValue(), isUnsigned);
   }
-  return 0.0;
+  return std::nullopt;
+}
+
+std::optional<double> convertFloatAttributeToDouble(Attribute attr,
+                                                    int64_t idx = 0) {
+  if (auto dense = attr.dyn_cast<ElementsAttr>()) {
+    if (auto floatType = dense.getElementType().dyn_cast<mlir::FloatType>()) {
+      if (dense.isSplat()) {
+        return dense.getSplatValue<APFloat>().convertToDouble();
+      }
+      return dense.getValues<APFloat>()[idx].convertToDouble();
+    }
+  } else if (auto floatAttr = attr.dyn_cast<FloatAttr>()) {
+    return floatAttr.getValueAsDouble();
+  }
+  return std::nullopt;
 }
 
 llvm::SmallVector<double> getFoldValueAtIndexFp(llvm::ArrayRef<Attribute> attrs,
@@ -1242,25 +1256,15 @@ llvm::SmallVector<double> getFoldValueAtIndexFp(llvm::ArrayRef<Attribute> attrs,
   llvm::SmallVector<double> splattrs;
 
   for (auto attr : attrs) {
-    if (auto dense = dyn_cast<ElementsAttr>(attr)) {
-      if (dyn_cast<mlir::IntegerType>(dense.getElementType()))
-        splattrs.push_back(convertIntAttributeToDouble(dense, idx));
-      else if (dyn_cast<mlir::FloatType>(dense.getElementType())) {
-        if (dense.isSplat()) {
-          splattrs.push_back(dense.getSplatValue<APFloat>().convertToDouble());
-        } else {
-          splattrs.push_back(dense.getValues<APFloat>()[idx].convertToDouble());
-        }
-      }
-    } else if (auto floatattr = dyn_cast<FloatAttr>(attr)) {
-      splattrs.push_back(floatattr.getValueAsDouble());
-    } else if (auto floatattr = dyn_cast<IntegerAttr>(attr)) {
-      splattrs.push_back(convertIntAttributeToDouble(floatattr));
+    // the attr can be integer or float
+    if (auto floatVal = convertFloatAttributeToDouble(attr, idx)) {
+      splattrs.push_back(*floatVal);
+    } else if (auto intVal = convertIntegerAttributeToDouble(attr, idx)) {
+      splattrs.push_back(*intVal);
     } else {
       return {};
     }
   }
-
   return splattrs;
 }
 
@@ -1305,7 +1309,7 @@ static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
                                      NAryFoldFpOperator fpFolder,
                                      NAryFoldIntOperator intFolder) {
   constexpr int64_t maxFold = 16;
-  if (!checkSameDTypes(operands))
+  if (!checkValidDTypes(operands))
     return nullptr;
 
   auto resultTy = dyn_cast<ValueTensorType>(ty);
