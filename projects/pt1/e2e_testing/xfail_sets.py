@@ -2718,7 +2718,6 @@ ONNX_XFAIL_SET = {
     "ElementwiseToDtypeI64ToUI8Module_basic",
     "ElementwiseUnaryIntModule_basic",
     "ElementwiseUnsqueezeNegDimsModule_basic",
-    "GluStaticModule_basic",
     "GroupNormModule_basic",
     "MaskedFillTensorFloatValueModule_basic",
     "NativeDropoutTrainModule_basic",
