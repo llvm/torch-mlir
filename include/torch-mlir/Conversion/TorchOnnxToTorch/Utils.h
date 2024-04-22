@@ -87,7 +87,7 @@ m_OnnxListOfConstantInts(SmallVectorImpl<int64_t> &bind_values) {
   return detail::onnx_list_of_constant_ints_op_binder(bind_values);
 }
 
-int64_t onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx);
+std::optional<int64_t> onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx);
 
 } // namespace mlir::torch::onnx_c
 

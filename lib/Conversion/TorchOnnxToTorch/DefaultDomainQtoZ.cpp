@@ -2278,15 +2278,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       "RandomNormal", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         SmallString<64> name("torch.onnx.seed");
-        auto attr = binder.op->getAttr(name);
-        if (attr) {
+        auto seedAttr = binder.op->getAttr(name);
+        if (seedAttr)
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented: support not present for seed attribute");
-        }
 
         Torch::ValueTensorType resultType;
-        int64_t dtypeIntTorch, dtypeIntOnnx;
+        int64_t dtypeIntOnnx;
         float mean, scale;
         SmallVector<int64_t> shape;
         if (binder.s64IntegerAttr(dtypeIntOnnx, "dtype", 1) ||
@@ -2297,26 +2296,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return failure();
         }
 
-        dtypeIntTorch = onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
-        if (dtypeIntTorch == -1) {
+        std::optional<int64_t> dtypeIntTorch =
+            onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
+        if (!dtypeIntTorch.has_value()) {
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented support for the given dtype conversion");
         }
         Value constDtype = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    dtypeIntTorch));
+            binder.getLoc(), rewriter.getI64IntegerAttr(dtypeIntTorch.value()));
 
-        SmallVector<Value> shapeValues;
-        for (auto dim : shape)
-          shapeValues.push_back(rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(dim)));
-
-        Value shapeList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            shapeValues);
+        Value shapeList = createConstantIntList(binder, rewriter, shape);
         Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
 
         Value self = rewriter.create<Torch::AtenEmptyMemoryFormatOp>(
@@ -2342,15 +2332,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       "RandomNormalLike", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         SmallString<64> name("torch.onnx.seed");
-        auto attr = binder.op->getAttr(name);
-        if (attr) {
+        auto seedAttr = binder.op->getAttr(name);
+        if (seedAttr)
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented: support not present for seed attribute");
-        }
 
         Torch::ValueTensorType resultType;
-        int64_t dtypeIntTorch, dtypeIntOnnx;
+        int64_t dtypeIntOnnx;
         float mean, scale;
         SmallVector<int64_t> shape;
         Value input;
@@ -2362,16 +2351,15 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return failure();
         }
 
-        dtypeIntTorch = onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
-        if (dtypeIntTorch == -1) {
+        std::optional<int64_t> dtypeIntTorch =
+            onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
+        if (!dtypeIntTorch.has_value()) {
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented support for the given dtype conversion");
         }
         Value constDtype = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    dtypeIntTorch));
+            binder.getLoc(), rewriter.getI64IntegerAttr(dtypeIntTorch.value()));
 
         Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         Value cstFalse =
@@ -2397,15 +2385,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       "RandomUniform", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         SmallString<64> name("torch.onnx.seed");
-        auto attr = binder.op->getAttr(name);
-        if (attr) {
+        auto seedAttr = binder.op->getAttr(name);
+        if (seedAttr)
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented: support not present for seed attribute");
-        }
 
         Torch::ValueTensorType resultType;
-        int64_t dtypeIntTorch, dtypeIntOnnx;
+        int64_t dtypeIntOnnx;
         float high, low;
         SmallVector<int64_t> shape;
         if (binder.s64IntegerAttr(dtypeIntOnnx, "dtype", 1) ||
@@ -2416,26 +2403,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return failure();
         }
 
-        dtypeIntTorch = onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
-        if (dtypeIntTorch == -1) {
+        std::optional<int64_t> dtypeIntTorch =
+            onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
+        if (!dtypeIntTorch.has_value()) {
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented support for the given dtype conversion");
         }
         Value constDtype = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    dtypeIntTorch));
+            binder.getLoc(), rewriter.getI64IntegerAttr(dtypeIntTorch.value()));
 
-        SmallVector<Value> shapeValues;
-        for (auto dim : shape)
-          shapeValues.push_back(rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(dim)));
-
-        Value shapeList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            shapeValues);
+        Value shapeList = createConstantIntList(binder, rewriter, shape);
         Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
 
         Value self = rewriter.create<Torch::AtenEmptyMemoryFormatOp>(
@@ -2461,15 +2439,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       "RandomUniformLike", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         SmallString<64> name("torch.onnx.seed");
-        auto attr = binder.op->getAttr(name);
-        if (attr) {
+        auto seedAttr = binder.op->getAttr(name);
+        if (seedAttr)
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented: support not present for seed attribute");
-        }
 
         Torch::ValueTensorType resultType;
-        int64_t dtypeIntTorch, dtypeIntOnnx;
+        int64_t dtypeIntOnnx;
         float high, low;
         SmallVector<int64_t> shape;
         Value input;
@@ -2481,16 +2458,15 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return failure();
         }
 
-        dtypeIntTorch = onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
-        if (dtypeIntTorch == -1) {
+        std::optional<int64_t> dtypeIntTorch =
+            onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
+        if (!dtypeIntTorch.has_value()) {
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented support for the given dtype conversion");
         }
         Value constDtype = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    dtypeIntTorch));
+            binder.getLoc(), rewriter.getI64IntegerAttr(dtypeIntTorch.value()));
 
         Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         Value cstFalse =

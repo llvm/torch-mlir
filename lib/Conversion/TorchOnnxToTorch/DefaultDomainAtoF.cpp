@@ -18,20 +18,6 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::onnx_c;
 
-class Endian {
-private:
-  static constexpr uint32_t uint32_ = 0x01020304;
-  static constexpr uint8_t magic_ = (const uint8_t &)uint32_;
-
-public:
-  static constexpr bool little = magic_ == 0x04;
-  static constexpr bool big = magic_ == 0x01;
-  static_assert(little || big, "Cannot determine endianness!");
-
-private:
-  Endian() = delete;
-};
-
 static LogicalResult createTorchTransposeOp(ConversionPatternRewriter &rewriter,
                                             Location loc, Value input,
                                             int64_t dimA, int64_t dimB,
@@ -393,7 +379,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value input;
-        int64_t dtypeIntOnnx, dtypeIntTorch;
+        int64_t dtypeIntOnnx;
         if (binder.tensorOperand(input) ||
             binder.s64IntegerAttr(dtypeIntOnnx, "dtype", -1) ||
             binder.tensorResultType(resultType))
@@ -417,16 +403,15 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           rewriter.replaceOp(binder.op, bernoulli);
           return success();
         }
-        dtypeIntTorch = onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
-        if (dtypeIntTorch == -1) {
+        std::optional<int64_t> dtypeIntTorch =
+            onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
+        if (!dtypeIntTorch.has_value()) {
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented support for the given dtype conversion");
         }
         Value constDtype = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    dtypeIntTorch));
+            binder.getLoc(), rewriter.getI64IntegerAttr(dtypeIntTorch.value()));
         Value cstFalse =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
         rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
@@ -504,25 +489,21 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
       "Cast", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value operand;
-        int64_t dtypeIntOnnx, dtypeIntTorch;
+        int64_t dtypeIntOnnx;
         if (binder.tensorOperand(operand) ||
             binder.s64IntegerAttr(dtypeIntOnnx, "to") ||
             binder.tensorResultType(resultType))
           return failure();
 
-        dtypeIntTorch = onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
-        if (dtypeIntTorch == -1) {
-          auto message = llvm::formatv("unimplemented support for the given "
-                                       "dtype conversion (onnx 'type' = {0})",
-                                       dtypeIntOnnx);
-          auto y = rewriter.notifyMatchFailure(binder.op, message);
-
-          return y;
+        std::optional<int64_t> dtypeIntTorch =
+            onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
+        if (!dtypeIntTorch.has_value()) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "unimplemented support for the given dtype conversion");
         }
         Value constDtype = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    dtypeIntTorch));
+            binder.getLoc(), rewriter.getI64IntegerAttr(dtypeIntTorch.value()));
         Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         Value cstFalse =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
@@ -1733,9 +1714,15 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value mVal = rewriter.create<Torch::AtenSizeIntOp>(binder.getLoc(),
                                                            operand, cst1);
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
-        int64_t dtypeIntTorch = onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
+        std::optional<int64_t> dtypeIntTorch =
+            onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
+        if (!dtypeIntTorch.has_value()) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "unimplemented support for the given dtype conversion");
+        }
         Value dtypeVal = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(dtypeIntTorch));
+            binder.getLoc(), rewriter.getI64IntegerAttr(dtypeIntTorch.value()));
 
         // diagonalIndex = 0 populates the main diagonal
         // diagonalIndex > 0 populates an upper diagonal
