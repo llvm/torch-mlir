@@ -1059,16 +1059,6 @@ public:
   LogicalResult matchAndRewrite(AtenEyeMOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    int64_t n;
-
-    if (!matchPattern(op.getN(), m_TorchConstantInt(&n)))
-      return rewriter.notifyMatchFailure(op,
-                                         "unimplemented: n must be constant");
-    int64_t m;
-    if (!matchPattern(op.getM(), m_TorchConstantInt(&m)))
-      return rewriter.notifyMatchFailure(op,
-                                         "unimplemented: m must be constant");
-    Value none = rewriter.create<ConstantNoneOp>(loc);
     auto outType = op.getType().dyn_cast<BaseTensorType>();
     if (!outType)
       return rewriter.notifyMatchFailure(
@@ -1076,27 +1066,39 @@ public:
     if (!outType.hasDtype()) {
       return rewriter.notifyMatchFailure(op, "result should have dtype");
     }
-    if (n < 0) {
-      return rewriter.notifyMatchFailure(op, "n must be greater or equal to 0");
-    }
-    if (m < 0) {
-      return rewriter.notifyMatchFailure(op, "m must be greater or equal to 0");
-    }
-
+    Value none = rewriter.create<ConstantNoneOp>(loc);
     auto context = op.getContext();
     auto int64Dtype = getDtypeIntValueForType(
         rewriter, loc,
         rewriter.getIntegerType(/*width=*/64, /*isSigned=*/true));
     auto si64Type = IntegerType::get(context, 64, IntegerType::Signed);
-    auto arangeType = outType.getWithSizesAndDtype(llvm::ArrayRef(n), si64Type);
+
+    int64_t n;
+    Type rangeNType;
+    if (matchPattern(op.getN(), m_TorchConstantInt(&n))) {
+      rangeNType = outType.getWithSizesAndDtype(std::nullopt, si64Type);
+    } else {
+      if (n < 0)
+        return rewriter.notifyMatchFailure(op,
+                                           "n must be greater or equal to 0");
+      rangeNType = outType.getWithSizesAndDtype(llvm::ArrayRef(n), si64Type);
+    }
     Value rangeN = rewriter.create<AtenArangeOp>(
-        loc, arangeType, op.getN(), /*dtype=*/int64Dtype, /*layout=*/none,
+        loc, rangeNType, op.getN(), /*dtype=*/int64Dtype, /*layout=*/none,
         /*device=*/op.getDevice(), /*pin_memory=*/none);
 
-    auto arangeType1 =
-        outType.getWithSizesAndDtype(llvm::ArrayRef(m), si64Type);
+    int64_t m;
+    Type rangeMType;
+    if (matchPattern(op.getM(), m_TorchConstantInt(&m))) {
+      rangeMType = outType.getWithSizesAndDtype(std::nullopt, si64Type);
+    } else {
+      if (m < 0)
+        return rewriter.notifyMatchFailure(op,
+                                           "m must be greater or equal to 0");
+      rangeMType = outType.getWithSizesAndDtype(llvm::ArrayRef(m), si64Type);
+    }
     Value rangeM = rewriter.create<AtenArangeOp>(
-        loc, arangeType1, op.getM(), /*dtype=*/int64Dtype, /*layout=*/none,
+        loc, rangeMType, op.getM(), /*dtype=*/int64Dtype, /*layout=*/none,
         /*device=*/none, /*pin_memory=*/none);
 
     Value constMinusOne = rewriter.create<Torch::ConstantIntOp>(
