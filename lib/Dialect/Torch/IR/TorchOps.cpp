@@ -1222,6 +1222,8 @@ std::optional<double> convertIntegerAttributeToDouble(Attribute attr,
   };
 
   if (auto dense = attr.dyn_cast<ElementsAttr>()) {
+    if (!dense.tryGetValues<APInt>())
+      return std::nullopt;
     if (auto intType = dense.getElementType().dyn_cast<mlir::IntegerType>()) {
       bool isUnsigned = intType.isUnsigned();
       if (dense.isSplat()) {
@@ -1239,6 +1241,8 @@ std::optional<double> convertIntegerAttributeToDouble(Attribute attr,
 std::optional<double> convertFloatAttributeToDouble(Attribute attr,
                                                     int64_t idx = 0) {
   if (auto dense = attr.dyn_cast<ElementsAttr>()) {
+    if (!dense.tryGetValues<APFloat>())
+      return std::nullopt;
     if (auto floatType = dense.getElementType().dyn_cast<mlir::FloatType>()) {
       if (dense.isSplat()) {
         return dense.getSplatValue<APFloat>().convertToDouble();
@@ -1355,6 +1359,8 @@ static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
     llvm::SmallVector<APFloat> folded;
     for (int i = 0, s = numValues; i < s; ++i) {
       auto inputs = getFoldValueAtIndexFp(operands, i);
+      if (inputs.empty())
+        return nullptr;
       double fold = fpFolder(inputs);
 
       APFloat val(fold);
