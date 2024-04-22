@@ -2605,27 +2605,15 @@ ONNX_XFAIL_SET = {
     # Failure - onnx_lowering: onnx.OneHot
     "OneHotModule_basic",
     
-    # Failure - onnx_lowering: onnx.RandomNormal
+    # ERROR: dtype (torch.float32) is not equal to golden dtype (torch.float64)
     "RandnDtypeDeviceModule_basic",
     "RandnGeneratorF64Module_basic",
     "RandnGeneratorModule_basic",
     "RandnModule_basic",
-    
-    # Failure - onnx_lowering: onnx.RandomNormalLike
-    "RandnLikeDtypeModule_basic",
     "RandnLikeModule_basic",
-    
-    # Failure - onnx_lowering: onnx.RandomUniform
-    "RandIntLowDtypeModule_basic",
-    "RandIntLowModule_basic",
-    
-    # Failure - onnx_lowering: onnx.RandomUniformLike
     "BernoulliFloatModule_basic",
     "BernoulliPModule_basic",
     "BernoulliTensorModule_basic",
-    "RandLikeDtypeModule_basic",
-    "RandLikeModule_basic",
-    "RandModule_basic",
     
     # Failure - onnx_lowering: onnx.ReduceL2
     "LinalgNormKeepDimModule_basic",
