@@ -636,6 +636,30 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.tensorResultType(resultType)) {
                     return failure();
                   }
+
+                  auto loc = binder.getLoc();
+                  auto operandTy =
+                      cast<Torch::ValueTensorType>(operand.getType());
+                  auto eTy = operandTy.getDtype();
+
+                  if (!eTy.isInteger(1)) {
+                    auto i1ty = rewriter.getI1Type();
+                    auto ty = rewriter.getType<Torch::ValueTensorType>(
+                        operandTy.getSizes(), i1ty);
+                    auto torchqTy = Torch::getScalarTypeForType(i1ty);
+                    Value tyConst = rewriter.create<Torch::ConstantIntOp>(
+                        binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                        rewriter.getIntegerAttr(
+                            rewriter.getIntegerType(64),
+                            static_cast<int64_t>(torchqTy)));
+                    Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+                    Value cstFalse =
+                        rewriter.create<Torch::ConstantBoolOp>(loc, false);
+                    operand = rewriter.create<Torch::AtenToDtypeOp>(
+                        loc, ty, operand, tyConst,
+                        /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+                        /*memory_format=*/none);
+                  }
                   rewriter.replaceOpWithNewOp<Torch::AtenBitwiseNotOp>(
                       binder.op, resultType, operand);
                   return success();

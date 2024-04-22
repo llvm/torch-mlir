@@ -1817,6 +1817,53 @@ LogicalResult ConvertAtenOp<AtenFlipOp>::matchAndRewrite(
   return success();
 }
 
+// AtenRemainderTensorOp
+template <>
+LogicalResult ConvertAtenOp<AtenRemainderTensorOp>::matchAndRewrite(
+    AtenRemainderTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value lhs = adaptor.getSelf();
+  Value rhs = adaptor.getOther();
+
+  auto resultType =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  lhs = hlo::promoteType(rewriter, op->getLoc(), lhs, resultType);
+  rhs = hlo::promoteType(rewriter, op->getLoc(), rhs, resultType);
+  rewriter.replaceOpWithNewOp<stablehlo::RemOp>(op, lhs, rhs);
+  return success();
+}
+
+// AtenFmodTensorOp
+// torch.fmod(a, b) == a - a.div(b, rounding_mode="trunc") * b
+template <>
+LogicalResult ConvertAtenOp<AtenFmodTensorOp>::matchAndRewrite(
+    AtenFmodTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto loc = op->getLoc();
+  Value lhs = adaptor.getSelf();
+  Value rhs = adaptor.getOther();
+
+  auto resultType =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  lhs = hlo::promoteType(rewriter, op->getLoc(), lhs, resultType);
+  rhs = hlo::promoteType(rewriter, op->getLoc(), rhs, resultType);
+
+  stablehlo::MulOp mul;
+  auto div = rewriter.create<stablehlo::DivOp>(loc, lhs, rhs);
+  if (isa<mlir::FloatType>(resultType.getElementType())) {
+    // rounding mode is trunc
+    auto sign = rewriter.create<stablehlo::SignOp>(loc, div);
+    auto abs = rewriter.create<stablehlo::AbsOp>(loc, div);
+    auto floor = rewriter.create<stablehlo::FloorOp>(loc, abs);
+    auto trunc = rewriter.create<stablehlo::MulOp>(loc, sign, floor);
+    mul = rewriter.create<stablehlo::MulOp>(loc, trunc, rhs);
+  } else {
+    mul = rewriter.create<stablehlo::MulOp>(loc, div, rhs);
+  }
+  rewriter.replaceOpWithNewOp<stablehlo::SubtractOp>(op, lhs, mul);
+  return success();
+}
+
 void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToStablehloOptions &options) {
@@ -1834,6 +1881,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_UNARY_PATTERN(AtenLogicalNotOp, stablehlo::NotOp);
   INSERT_UNARY_PATTERN(AtenBitwiseNotOp, stablehlo::NotOp);
   INSERT_UNARY_PATTERN(AtenAbsOp, stablehlo::AbsOp);
+  INSERT_UNARY_PATTERN(AtenExpm1Op, stablehlo::Expm1Op);
 #undef INSERT_UNARY_PATTERN
 
 #define INSERT_UNARY_FPONLY_PATTERN(AtenOp, StablehloOp)                       \
@@ -1959,6 +2007,8 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenEmptyMemoryFormatOp);
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);
   INSERT_ATENOP_PATTERN(AtenFlipOp);
+  INSERT_ATENOP_PATTERN(AtenRemainderTensorOp);
+  INSERT_ATENOP_PATTERN(AtenFmodTensorOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, StablehloOp)                   \

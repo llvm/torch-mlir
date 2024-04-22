@@ -15910,6 +15910,34 @@ def Torch_PrimsViewOfOp : Torch_Op<"prims.view_of", [
   let hasFolder = 1;
 }
 
+def Torch_PrimsIotaOp : Torch_Op<"prims.iota", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `prims::iota : (int, int, int, int, Device, bool) -> (Tensor)`";
+  let arguments = (ins
+    Torch_IntType:$length,
+    Torch_IntType:$start,
+    Torch_IntType:$step,
+    Torch_IntType:$dtype,
+    Torch_DeviceType:$device,
+    Torch_BoolType:$requires_grad
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult PrimsIotaOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 6, 1);
+    }
+    void PrimsIotaOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 6, 1);
+    }
+  }];
+}
+
 def Torch_QuantizedLinearOp : Torch_Op<"quantized.linear", [
     HasValueSemantics,
     AllowsTypeRefinement,
