@@ -2643,12 +2643,8 @@ ONNX_XFAIL_SET = {
     # Failure - onnx_lowering: onnx.ScatterElements
     "ScatterReduceFloatMaxModuleIncludeSelf",
     "ScatterReduceFloatMinModuleIncludeSelf",
-    "ScatterReduceFloatProdModuleIncludeSelf",
-    "ScatterReduceFloatSumModuleIncludeSelf",
     "ScatterReduceIntMaxModuleIncludeSelf",
     "ScatterReduceIntMinModuleIncludeSelf",
-    "ScatterReduceIntProdModuleIncludeSelf",
-    "ScatterReduceIntSumModuleIncludeSelf",
     "ScatterValueFloatModule_basic",
     
     # Failure - onnx_lowering: onnx.ScatterND
@@ -2680,22 +2676,12 @@ ONNX_XFAIL_SET = {
     # Failure - onnx_lowering: onnx.SoftmaxCrossEntropyLoss
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
-    
-    # Failure - onnx_lowering: onnx.Squeeze
-    "SqueezeModule_allUnitDim",
-    "SqueezeModule_broadcast",
-    "SqueezeModule_static",
 
     # RuntimeError: unsupported input type: Device
     "PrimsIotaModule_basic",
-    
+
     # Failure - unknown
     "BernoulliModule_basic",
-    "BucketizeTensorFloatModule_basic",
-    "BucketizeTensorModule_basic",
-    "BucketizeTensorOutInt32RightModule_basic",
-    "BucketizeTensorStaticFloatModule_basic",
-    "BucketizeTensorStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "CopyWithDifferentDTypesAndSizesModule_basic",
     "CopyWithDifferentDTypesModule_basic",
@@ -2712,22 +2698,16 @@ ONNX_XFAIL_SET = {
     "ElementwiseErfIntModule_basic",
     "ElementwiseExpIntModule_basic",
     "ElementwiseLogIntModule_basic",
-    "ElementwisePreluModule_basic",
-    "ElementwisePreluStaticModule_basic",
     "ElementwiseSigmoidIntModule_basic",
     "ElementwiseSinIntModule_basic",
     "ElementwiseTanIntModule_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
     "ElementwiseUnaryIntModule_basic",
-    "ElementwiseUnsqueezeNegDimsModule_basic",
-    "GroupNormModule_basic",
     "MaskedFillTensorFloatValueModule_basic",
     "NativeDropoutTrainModule_basic",
     "NativeDropoutTrainStaticShapeModule_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
-    "TensorsStackNegativeDimModule_basic",
-    "TensorsStackPromoteDTypeModule_basic",
 }
 
 if torch_version_for_comparison() >= version.parse("2.4.0.dev"):
@@ -2746,6 +2726,10 @@ if torch_version_for_comparison() < version.parse('2.3.0.dev'):
 ONNX_CRASHING_SET = { 
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
-
+    "ElementwisePreluModule_basic",
     "ViewDynamicExpandCollapseWithParallelUnknownDimModule_basic",
+    "ScatterReduceFloatProdModuleIncludeSelf",
+    "ScatterReduceFloatSumModuleIncludeSelf",
+    "ScatterReduceIntProdModuleIncludeSelf",
+    "ScatterReduceIntSumModuleIncludeSelf",
 }
