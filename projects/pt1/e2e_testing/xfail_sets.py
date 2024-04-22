@@ -2615,12 +2615,6 @@ ONNX_XFAIL_SET = {
     "BernoulliPModule_basic",
     "BernoulliTensorModule_basic",
     
-    # Failure - onnx_lowering: onnx.ReduceL2
-    "LinalgNormKeepDimModule_basic",
-    "LinalgNormModule_basic",
-    "NormalizeModule_basic",
-    "ReduceL2NormModule_basic",
-
     # Failure - onnx_lowering: onnx.ReduceProd
     "ReduceProdDimIntFloatModule_basic",
     
