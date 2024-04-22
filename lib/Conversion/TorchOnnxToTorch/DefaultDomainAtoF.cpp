@@ -2280,11 +2280,17 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value result = rewriter.create<Torch::AtenAddTensorOp>(
             binder.getLoc(), resultType, subA1Component, a2Component, one);
 
-        int64_t dtypeIntTorch = onnxDtypeIntToTorchDtypeInt(output_datatype);
+        std::optional<int64_t> dtypeIntTorch =
+            onnxDtypeIntToTorchDtypeInt(output_datatype);
+        if (!dtypeIntTorch.has_value()) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "unimplemented support for the given dtype conversion");
+        }
         Value outputDtype = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    dtypeIntTorch));
+                                    dtypeIntTorch.value()));
 
         rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
             binder.op, resultType, result, outputDtype,
