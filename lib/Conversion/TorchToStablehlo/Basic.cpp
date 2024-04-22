@@ -1881,6 +1881,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_UNARY_PATTERN(AtenLogicalNotOp, stablehlo::NotOp);
   INSERT_UNARY_PATTERN(AtenBitwiseNotOp, stablehlo::NotOp);
   INSERT_UNARY_PATTERN(AtenAbsOp, stablehlo::AbsOp);
+  INSERT_UNARY_PATTERN(AtenExpm1Op, stablehlo::Expm1Op);
 #undef INSERT_UNARY_PATTERN
 
 #define INSERT_UNARY_FPONLY_PATTERN(AtenOp, StablehloOp)                       \
