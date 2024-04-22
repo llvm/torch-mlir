@@ -1280,6 +1280,9 @@ llvm::SmallVector<APInt> getFoldValueAtIndexInt(llvm::ArrayRef<Attribute> attrs,
   for (auto attr : attrs) {
     bool isunsigned = false;
     if (auto dense = dyn_cast<ElementsAttr>(attr)) {
+      if (!dense.tryGetValues<APInt>()) {
+        return {};
+      }
       isunsigned = dyn_cast<IntegerType>(dense.getElementType()).isUnsigned();
       if (dense.isSplat()) {
         splattrs.push_back(dense.getSplatValue<APInt>());
@@ -1377,6 +1380,8 @@ static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
     for (int i = 0, s = numValues; i < s; ++i) {
       auto inputs =
           getFoldValueAtIndexInt(operands, dty.getIntOrFloatBitWidth(), i);
+      if (inputs.empty())
+        return nullptr;
       folded.push_back(intFolder(inputs));
     }
     return DenseElementsAttr::get(resultBTy, folded);
