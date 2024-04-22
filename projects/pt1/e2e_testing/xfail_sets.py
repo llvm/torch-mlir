@@ -1228,6 +1228,7 @@ STABLEHLO_PASS_SET = {
     "PrimMinIntDynamicModule_basic",
     "PrimMinIntModule_basic",
     "PrimsConvertElementTypeModule_basic",
+    "PrimsIotaModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
@@ -1789,6 +1790,7 @@ TOSA_PASS_SET = {
     "PermuteModule_basic",
     "PermuteNegativeIndexModule_basic",
     "PrimListUnpackNumMismatchModule_basic",
+    "PrimsIotaModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
     "PrimsSqueezeModule_basic",
     "PrimsViewOfModule_basic",
@@ -2683,6 +2685,9 @@ ONNX_XFAIL_SET = {
     "SqueezeModule_allUnitDim",
     "SqueezeModule_broadcast",
     "SqueezeModule_static",
+
+    # RuntimeError: unsupported input type: Device
+    "PrimsIotaModule_basic",
     
     # Failure - unknown
     "BernoulliModule_basic",
