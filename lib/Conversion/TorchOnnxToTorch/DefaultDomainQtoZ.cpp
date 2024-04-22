@@ -31,15 +31,7 @@ using namespace mlir::torch::onnx_c;
 // thing here, so we simplify.
 
 // utilities
-//  Templatized function to get an item op of a type
 namespace {
-template <typename T>
-Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
-                Value &ofItem) {
-  return rewriter.create<Torch::AtenItemOp>(binder.getLoc(),
-                                            rewriter.getType<T>(), ofItem);
-}
-
 // In case the ReduceSum Op was not the first operation performed on the data,
 // we provide the original operand through storeResult, which will be modified
 // if the result will be passed onto another operation, and will be used for
