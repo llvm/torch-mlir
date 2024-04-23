@@ -1900,6 +1900,9 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_UNARY_FPONLY_PATTERN(AtenCeilOp, stablehlo::CeilOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenFloorOp, stablehlo::FloorOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenRoundOp, stablehlo::RoundNearestEvenOp);
+  INSERT_UNARY_FPONLY_PATTERN(AtenAsinOp, chlo::AsinOp);
+  INSERT_UNARY_FPONLY_PATTERN(AtenAcosOp, chlo::AcosOp);
+  INSERT_UNARY_FPONLY_PATTERN(AtenAtanOp, chlo::AtanOp);
 #undef INSERT_UNARY_FPONLY_PATTERN
 
 #define INSERT_CONSTANT_FILL_PATTERN(AtenOp, fillVal)                          \
