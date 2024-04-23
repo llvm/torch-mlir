@@ -2014,6 +2014,50 @@ def ElementwiseCeilModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseTruncModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 6], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.trunc(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseTruncModule())
+def ElementwiseTruncModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[-torch.inf, torch.inf, torch.nan, -2.3, 0.0, 1.5]]))
+
+
+# ==============================================================================
+
+
+class ElementwiseTruncIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.trunc(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseTruncIntModule())
+def ElementwiseTruncIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-100, high=100).to(torch.int32))
+
+
+# ==============================================================================
+
+
 class ElementwiseSignModule(torch.nn.Module):
 
     def __init__(self):

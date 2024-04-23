@@ -5887,6 +5887,31 @@ class DecomposeAtenCosineSimilarityOp
 } // namespace
 
 namespace {
+class DecomposeAtenTruncOp : public OpRewritePattern<AtenTruncOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTruncOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+
+    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!resultTy || !resultTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result must have dtype");
+    }
+
+    if (resultTy.getDtype().isa<mlir::FloatType>()) {
+      Value sign = rewriter.create<AtenSgnOp>(loc, resultTy, self);
+      Value abs = rewriter.create<AtenAbsOp>(loc, resultTy, self);
+      Value floor = rewriter.create<AtenFloorOp>(loc, resultTy, abs);
+      rewriter.replaceOpWithNewOp<AtenMulTensorOp>(op, resultTy, sign, floor);
+      return success();
+    }
+    return failure();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.baddbmm` op into `aten.bmm`, `aten.mul.Scalar`, and
 // `aten.add.Tensor` op.
 class DecomposeAtenBaddbmmOp : public OpRewritePattern<AtenBaddbmmOp> {
@@ -7700,6 +7725,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCosineSimilarityOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenTruncOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideScalarOp>(patterns);
