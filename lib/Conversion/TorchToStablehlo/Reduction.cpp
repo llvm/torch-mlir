@@ -612,11 +612,17 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
 
   SmallVector<int64_t> inputDims;
   SmallVector<int64_t> dims;
-  if (!matchPattern(op.getDim(), m_TorchListOfConstantInts(inputDims))) {
-    return rewriter.notifyMatchFailure(op, "non-int dim list unsupported");
-  }
-  if (inputDims.size() == 0) {
+
+  if (failed(checkNotNone(rewriter, op, op.getDim()))) {
     inputDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, inputTy.getRank()));
+  } else {
+    if (!matchPattern(op.getDim(), m_TorchListOfConstantInts(inputDims))) {
+      return rewriter.notifyMatchFailure(
+          op, "non-const integer `dim` is not supported");
+    }
+    if (inputDims.size() == 0) {
+      inputDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, inputTy.getRank()));
+    }
   }
 
   for (auto d : inputDims) {
