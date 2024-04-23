@@ -839,6 +839,8 @@ STABLEHLO_PASS_SET = {
     "ElementwiseLogModule_basic",
     "ElementwiseLog10Module_basic",
     "ElementwiseLog2Module_basic",
+    "ElementwiseLog10IntModule_basic",
+    "ElementwiseLog2IntModule_basic",
     "ElementwiseNanToNumModule_Basic",
     "ElementwiseNeFloatTensorStaticModule_basic",
     "ElementwiseNeIntTensorStaticModule_basic",
