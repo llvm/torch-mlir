@@ -2328,6 +2328,8 @@ ONNX_XFAIL_SET = {
     "ElementwiseBitwiseRightShiftInt8Module_basic",
     "ElementwiseBitwiseXorModule_basic",
     "ElementwiseBitwiseXorStaticShapeModule_basic",
+    "ElementwiseSinhIntModule_basic",
+    "ElementwiseSinhModule_basic",
     "ElementwiseCoshIntModule_basic",
     "ElementwiseCoshModule_basic",
     "ElementwiseDequantizePerChannelModule_basic",
