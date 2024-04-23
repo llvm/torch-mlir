@@ -217,6 +217,37 @@ public:
 };
 } // namespace
 
+// These legalizations are for unary ops with promoting to floating point
+// datatypes.
+namespace {
+template <typename AtenOpT, typename StablehloOpT>
+class ConvertAtenUnaryPromoteToFPOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value self = adaptor.getSelf();
+    auto selfTy = self.getType().cast<TensorType>();
+    if (!selfTy)
+      return op.emitError("only Tensor types supported in StableHLO");
+    auto resultTy = OpConversionPattern<AtenOpT>::getTypeConverter()
+                        ->convertType(op.getType())
+                        .template cast<TensorType>();
+
+    if (resultTy.getElementType().template isa<mlir::FloatType>()) {
+      Value src = hlo::promoteType(rewriter, op.getLoc(), self, resultTy);
+      rewriter.replaceOpWithNewOp<StablehloOpT>(op, resultTy, src);
+      return success();
+    } else {
+      return op.emitError(
+          "only result to be floating-point datatype legalization supported");
+    }
+  }
+};
+} // namespace
+
 // aten.ones & aten.zeros
 // Ref: Error checking based on the Torch to TOSA lowering
 namespace {
@@ -1888,22 +1919,28 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenUnaryFPOnlyOp<AtenOp, StablehloOp>>(typeConverter,   \
                                                               context)
-  INSERT_UNARY_FPONLY_PATTERN(AtenLogOp, stablehlo::LogOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenLog1pOp, stablehlo::Log1pOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenExpOp, stablehlo::ExpOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenSqrtOp, stablehlo::SqrtOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenRsqrtOp, stablehlo::RsqrtOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenSigmoidOp, stablehlo::LogisticOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenTanhOp, stablehlo::TanhOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenSinOp, stablehlo::SineOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenCosOp, stablehlo::CosineOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenCeilOp, stablehlo::CeilOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenFloorOp, stablehlo::FloorOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenRoundOp, stablehlo::RoundNearestEvenOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenAsinOp, chlo::AsinOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenAcosOp, chlo::AcosOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenAtanOp, chlo::AtanOp);
 #undef INSERT_UNARY_FPONLY_PATTERN
+
+#define INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenOp, StablehloOp)                \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenUnaryPromoteToFPOp<AtenOp, StablehloOp>>(            \
+      typeConverter, context)
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenLogOp, stablehlo::LogOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenLog1pOp, stablehlo::Log1pOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenExpOp, stablehlo::ExpOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSqrtOp, stablehlo::SqrtOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenRsqrtOp, stablehlo::RsqrtOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSigmoidOp, stablehlo::LogisticOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenTanhOp, stablehlo::TanhOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSinOp, stablehlo::SineOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenCosOp, stablehlo::CosineOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAsinOp, chlo::AsinOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAcosOp, chlo::AcosOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAtanOp, chlo::AtanOp);
+#undef INSERT_UNARY_PROMOTE_TO_FP_PATTERN
 
 #define INSERT_CONSTANT_FILL_PATTERN(AtenOp, fillVal)                          \
   target.addIllegalOp<AtenOp>();                                               \
