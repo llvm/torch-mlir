@@ -1801,6 +1801,8 @@ TOSA_PASS_SET = {
     "PrimsSqueezeModule_basic",
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
+    "ReduceAllBoolModule_basic",
+    "ReduceAnyBoolModule_basic",
     "ReduceSumDimIntListFloatModule_basic",
     "ReduceSumDimIntListIntModule_basic",
     "ReduceSumDimIntListKeepDimFloatModule_basic",
