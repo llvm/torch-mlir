@@ -341,8 +341,12 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
       isa<AtenNormScalarOp>(op))
     return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
 
-  if (isa<AtenAllDimOp>(op)) {
+  if (isa<AtenAllOp, AtenAllDimOp>(op)) {
     return b.create<arith::ConstantOp>(loc, b.getBoolAttr(true));
+  }
+
+  if (isa<AtenAnyOp>(op)) {
+    return b.create<arith::ConstantOp>(loc, b.getBoolAttr(false));
   }
 
   op->emitError("unimplemented lowering in createInitElementForReduceOp");
@@ -439,11 +443,16 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     auto abs = createAbsOpForNormOps(b, loc, elem, resultElementType);
     auto pow = b.create<math::PowFOp>(loc, abs, ord);
     return b.create<arith::AddFOp>(loc, pow, result);
-  } else if (isa<AtenAllDimOp>(op)) {
+  } else if (isa<AtenAllOp, AtenAllDimOp>(op)) {
     Value elem = payloadArgs[0];
     Value result = payloadArgs[1];
     Value self = convertScalarToDtype(b, loc, elem, resultElementType);
-    return b.create<arith::MulIOp>(loc, self, result);
+    return b.create<arith::AndIOp>(loc, self, result);
+  } else if (isa<AtenAnyOp>(op)) {
+    Value elem = payloadArgs[0];
+    Value result = payloadArgs[1];
+    Value self = convertScalarToDtype(b, loc, elem, resultElementType);
+    return b.create<arith::OrIOp>(loc, self, result);
   }
   op->emitError("unimplemented lowering in createLinalgPayloadForReduceOp");
   return nullptr;
@@ -510,12 +519,13 @@ private:
                          ConversionPatternRewriter &rewriter) const {
     auto opInfo = torch_to_linalg::ReductionOpInfo{false, Value{}, {}};
 
-    if (isa<AtenMaxOp, AtenMinOp, AtenSumOp, AtenNormScalarOp>(op)) {
+    if (isa<AtenAnyOp, AtenAllOp, AtenMaxOp, AtenMinOp, AtenSumOp,
+            AtenNormScalarOp>(op)) {
       opInfo.tensorOperand = operands[0];
       auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
 
-      // `AtenSumOp`, `AtenMaxOp`, and `AtenMinOp` each reduce along all the
-      // dimensions of the input tensor.
+      // `AtenAny`, `AtenAll`, `AtenSumOp`, `AtenMaxOp`, and `AtenMinOp` each
+      // reduce along all the dimensions of the input tensor.
       for (int64_t i = 0; i < inputType.getRank(); i++)
         opInfo.dimSet.insert(i);
 
@@ -714,6 +724,8 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   target.addIllegalOp<AtenMinDimOp>();
   patterns.add<ConvertAtenMinMaxDimOp<AtenMinDimOp>>(typeConverter, context);
   target.addIllegalOp<AtenSumOp>();
+  target.addIllegalOp<AtenAnyOp>();
+  target.addIllegalOp<AtenAllOp>();
   target.addIllegalOp<AtenSumDimIntListOp>();
   target.addIllegalOp<AtenProdDimIntOp>();
   target.addIllegalOp<AtenMaxOp>();
