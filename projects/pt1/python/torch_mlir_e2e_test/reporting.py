@@ -74,6 +74,10 @@ class ValueReport:
 
     def _evaluate_outcome(self):
         value, golden = self.value, self.golden_value
+        if isinstance(value, tuple) and len(value) == 1:
+            value = value[0]
+        if isinstance(golden, tuple) and len(golden) == 1:
+            golden = golden[0]
         if isinstance(golden, float):
             if not isinstance(value, float):
                 return self._record_mismatch_type_failure('float', value)

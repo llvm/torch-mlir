@@ -344,6 +344,56 @@ def AtenMmQMixedSigni8_basic(module, tu: TestUtils):
     
 # ==============================================================================
 
+class AtenMatmulQint8VM(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int8, True),
+        ([-1,-1], torch.int8, True),
+    ])
+    def forward(self, x, y):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.0215, -25)
+        qx = torch.dequantize(qx)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.0176, 18)
+        qy = torch.dequantize(qy)
+        qz =  torch.matmul(qx, qy)
+        return qz
+
+@register_test_case(module_factory=lambda: AtenMatmulQint8VM())
+def AtenMatmulQint8VM_basic(module, tu: TestUtils):
+    module.forward(tu.randint(9, low=-128, high=127).to(torch.int8),
+                   tu.randint(9, 4, low=-128, high=127).to(torch.int8))
+    
+# ==============================================================================
+class AtenMatmulQint8VV(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int8, True),
+        ([-1], torch.int8, True),
+    ])
+    def forward(self, x, y):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.0215, -25)
+        qx = torch.dequantize(qx)
+        qy = torch._make_per_tensor_quantized_tensor(y, 0.0176, 18)
+        qy = torch.dequantize(qy)
+        qz =  torch.matmul(qx, qy)
+        return qz
+
+@register_test_case(module_factory=lambda: AtenMatmulQint8VV())
+def AtenMatmulQint8VV_basic(module, tu: TestUtils):
+    module.forward(tu.randint(9, low=-128, high=127).to(torch.int8),
+                   tu.randint(9, low=-128, high=127).to(torch.int8))
+    
+# ==============================================================================
 class AtenMatmulQint8MV(torch.nn.Module):
 
     def __init__(self):
@@ -352,8 +402,8 @@ class AtenMatmulQint8MV(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([3, 4], torch.int8, True),
-        ([4], torch.int8, True),
+        ([-1, -1], torch.int8, True),
+        ([-1], torch.int8, True),
     ])
     def forward(self, x, y):
         qx = torch._make_per_tensor_quantized_tensor(x, 0.0215, -25)

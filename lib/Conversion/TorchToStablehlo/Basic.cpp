@@ -217,6 +217,37 @@ public:
 };
 } // namespace
 
+// These legalizations are for unary ops with promoting to floating point
+// datatypes.
+namespace {
+template <typename AtenOpT, typename StablehloOpT>
+class ConvertAtenUnaryPromoteToFPOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value self = adaptor.getSelf();
+    auto selfTy = self.getType().cast<TensorType>();
+    if (!selfTy)
+      return op.emitError("only Tensor types supported in StableHLO");
+    auto resultTy = OpConversionPattern<AtenOpT>::getTypeConverter()
+                        ->convertType(op.getType())
+                        .template cast<TensorType>();
+
+    if (resultTy.getElementType().template isa<mlir::FloatType>()) {
+      Value src = hlo::promoteType(rewriter, op.getLoc(), self, resultTy);
+      rewriter.replaceOpWithNewOp<StablehloOpT>(op, resultTy, src);
+      return success();
+    } else {
+      return op.emitError(
+          "only result to be floating-point datatype legalization supported");
+    }
+  }
+};
+} // namespace
+
 // aten.ones & aten.zeros
 // Ref: Error checking based on the Torch to TOSA lowering
 namespace {
@@ -1470,6 +1501,45 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
   return success();
 }
 
+// AtenClampTensorOp
+template <>
+LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewrite(
+    AtenClampTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value input = adaptor.getSelf();
+  auto inputType = cast<RankedTensorType>(input.getType());
+  auto inputElemType = inputType.getElementType();
+  Value minValue = adaptor.getMin();
+  Value maxValue = adaptor.getMax();
+  auto minIsNotNone = checkNotNone(rewriter, op, minValue);
+  auto maxIsNotNone = checkNotNone(rewriter, op, maxValue);
+  if (failed(minIsNotNone) && failed(maxIsNotNone)) {
+    return rewriter.notifyMatchFailure(
+        op, "this op should be folded as its `min` and `max` both are none");
+  } else if (failed(minIsNotNone)) {
+    auto minInfo = getMinValueOfDtype(op, inputElemType, rewriter);
+    if (failed(minInfo)) {
+      return rewriter.notifyMatchFailure(
+          op, "failed to generate min value of dtype");
+    }
+    minValue = *minInfo;
+  } else if (failed(maxIsNotNone)) {
+    auto maxInfo = getMaxValueOfDtype(op, inputElemType, rewriter);
+    if (failed(maxInfo)) {
+      return rewriter.notifyMatchFailure(
+          op, "failed to generate max value of dtype");
+    }
+    maxValue = *maxInfo;
+  }
+  if (inputType.hasStaticShape()) {
+    minValue = hlo::promoteAndBroadcast(rewriter, minValue, inputType);
+    maxValue = hlo::promoteAndBroadcast(rewriter, maxValue, inputType);
+  }
+  rewriter.replaceOpWithNewOp<stablehlo::ClampOp>(op, minValue, input,
+                                                  maxValue);
+  return success();
+}
+
 // AtenArangeStartStepOp
 // aten.arange.start_step = range(ceil((end-start)/step)) * step + start.
 template <>
@@ -1818,6 +1888,53 @@ LogicalResult ConvertAtenOp<AtenFlipOp>::matchAndRewrite(
   return success();
 }
 
+// AtenRemainderTensorOp
+template <>
+LogicalResult ConvertAtenOp<AtenRemainderTensorOp>::matchAndRewrite(
+    AtenRemainderTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value lhs = adaptor.getSelf();
+  Value rhs = adaptor.getOther();
+
+  auto resultType =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  lhs = hlo::promoteType(rewriter, op->getLoc(), lhs, resultType);
+  rhs = hlo::promoteType(rewriter, op->getLoc(), rhs, resultType);
+  rewriter.replaceOpWithNewOp<stablehlo::RemOp>(op, lhs, rhs);
+  return success();
+}
+
+// AtenFmodTensorOp
+// torch.fmod(a, b) == a - a.div(b, rounding_mode="trunc") * b
+template <>
+LogicalResult ConvertAtenOp<AtenFmodTensorOp>::matchAndRewrite(
+    AtenFmodTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto loc = op->getLoc();
+  Value lhs = adaptor.getSelf();
+  Value rhs = adaptor.getOther();
+
+  auto resultType =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  lhs = hlo::promoteType(rewriter, op->getLoc(), lhs, resultType);
+  rhs = hlo::promoteType(rewriter, op->getLoc(), rhs, resultType);
+
+  stablehlo::MulOp mul;
+  auto div = rewriter.create<stablehlo::DivOp>(loc, lhs, rhs);
+  if (isa<mlir::FloatType>(resultType.getElementType())) {
+    // rounding mode is trunc
+    auto sign = rewriter.create<stablehlo::SignOp>(loc, div);
+    auto abs = rewriter.create<stablehlo::AbsOp>(loc, div);
+    auto floor = rewriter.create<stablehlo::FloorOp>(loc, abs);
+    auto trunc = rewriter.create<stablehlo::MulOp>(loc, sign, floor);
+    mul = rewriter.create<stablehlo::MulOp>(loc, trunc, rhs);
+  } else {
+    mul = rewriter.create<stablehlo::MulOp>(loc, div, rhs);
+  }
+  rewriter.replaceOpWithNewOp<stablehlo::SubtractOp>(op, lhs, mul);
+  return success();
+}
+
 void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToStablehloOptions &options) {
@@ -1835,25 +1952,35 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_UNARY_PATTERN(AtenLogicalNotOp, stablehlo::NotOp);
   INSERT_UNARY_PATTERN(AtenBitwiseNotOp, stablehlo::NotOp);
   INSERT_UNARY_PATTERN(AtenAbsOp, stablehlo::AbsOp);
+  INSERT_UNARY_PATTERN(AtenExpm1Op, stablehlo::Expm1Op);
 #undef INSERT_UNARY_PATTERN
 
 #define INSERT_UNARY_FPONLY_PATTERN(AtenOp, StablehloOp)                       \
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenUnaryFPOnlyOp<AtenOp, StablehloOp>>(typeConverter,   \
                                                               context)
-  INSERT_UNARY_FPONLY_PATTERN(AtenLogOp, stablehlo::LogOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenLog1pOp, stablehlo::Log1pOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenExpOp, stablehlo::ExpOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenSqrtOp, stablehlo::SqrtOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenRsqrtOp, stablehlo::RsqrtOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenSigmoidOp, stablehlo::LogisticOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenTanhOp, stablehlo::TanhOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenSinOp, stablehlo::SineOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenCosOp, stablehlo::CosineOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenCeilOp, stablehlo::CeilOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenFloorOp, stablehlo::FloorOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenRoundOp, stablehlo::RoundNearestEvenOp);
 #undef INSERT_UNARY_FPONLY_PATTERN
+
+#define INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenOp, StablehloOp)                \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenUnaryPromoteToFPOp<AtenOp, StablehloOp>>(            \
+      typeConverter, context)
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenLogOp, stablehlo::LogOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenLog1pOp, stablehlo::Log1pOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenExpOp, stablehlo::ExpOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSqrtOp, stablehlo::SqrtOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenRsqrtOp, stablehlo::RsqrtOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSigmoidOp, stablehlo::LogisticOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenTanhOp, stablehlo::TanhOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSinOp, stablehlo::SineOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenCosOp, stablehlo::CosineOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAsinOp, chlo::AsinOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAcosOp, chlo::AcosOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAtanOp, chlo::AtanOp);
+#undef INSERT_UNARY_PROMOTE_TO_FP_PATTERN
 
 #define INSERT_CONSTANT_FILL_PATTERN(AtenOp, fillVal)                          \
   target.addIllegalOp<AtenOp>();                                               \
@@ -1947,6 +2074,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
 
   INSERT_ATENOP_PATTERN(AtenCatOp);
   INSERT_ATENOP_PATTERN(AtenClampOp);
+  INSERT_ATENOP_PATTERN(AtenClampTensorOp);
   INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
 
   INSERT_ATENOP_PATTERN(AtenBatchNormOp);
@@ -1960,6 +2088,8 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenEmptyMemoryFormatOp);
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);
   INSERT_ATENOP_PATTERN(AtenFlipOp);
+  INSERT_ATENOP_PATTERN(AtenRemainderTensorOp);
+  INSERT_ATENOP_PATTERN(AtenFmodTensorOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, StablehloOp)                   \

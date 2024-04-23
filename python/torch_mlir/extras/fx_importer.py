@@ -1397,6 +1397,7 @@ class GraphNodeImporter:
     def _import_torch_op_overload(
         self, loc: Location, node: torch_fx.Node, target: TorchOpOverload
     ):
+        # TODO: Convert this cascade of ifs to a table-driven
         # replace lift_fresh_copy with clone op
         if target == torch.ops.aten.lift_fresh_copy.default:
             node.target = target = torch.ops.aten.clone.default
@@ -1420,6 +1421,16 @@ class GraphNodeImporter:
                 for key_node in node.users:
                     if key_node.target == torch.ops.aten.baddbmm.default:
                         node.target = target = torch.ops.aten.zeros.default
+        elif target == torch.ops.aten._local_scalar_dense.default:
+            input_type = node.args[0].meta["tensor_meta"].dtype
+            if input_type.is_floating_point:
+                node.target = target = torch.ops.aten.Float.Tensor
+            else:
+                node.target = target = torch.ops.aten.Int.Tensor
+            node.args = (node.args[0],)
+        elif target == torch.ops.aten._assert_async.msg:
+            # TODO: A more suitable op to replace it?
+            return
 
         schema = target._schema
         assert isinstance(schema, FunctionSchema)
@@ -1450,15 +1461,15 @@ class GraphNodeImporter:
         # Unroll operands from formal parameters, args and kwargs.
         operands = []
         for i, parameter in enumerate(schema.arguments):
-            if parameter.kwarg_only and parameter.name in node.kwargs:
+            if i < len(node.args):
+                operands.append(
+                    self._import_argument(loc, node.args[i], parameter.type)
+                )
+            elif parameter.name in node.kwargs:
                 operands.append(
                     self._import_argument(
                         loc, node.kwargs[parameter.name], parameter.type
                     )
-                )
-            elif i < len(node.args):
-                operands.append(
-                    self._import_argument(loc, node.args[i], parameter.type)
                 )
             else:
                 operands.append(

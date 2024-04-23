@@ -960,6 +960,27 @@ void Aten_CastFloatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// Aten_CastLongOp
+//===----------------------------------------------------------------------===//
+
+void Aten_CastLongOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  // `aten.cast_long` -> `aten.to.dtype`
+  patterns.add(+[](Aten_CastLongOp op, PatternRewriter &rewriter) {
+    auto self = op.getSelf();
+    auto loc = op.getLoc();
+    Value constNone = rewriter.create<ConstantNoneOp>(loc);
+    Value longType = rewriter.create<ConstantIntOp>(
+        loc, (int)torch_upstream::ScalarType::Long);
+    Value constFalse = rewriter.create<ConstantBoolOp>(loc, false);
+    rewriter.replaceOpWithNewOp<AtenToDtypeOp>(op, op.getType(), self, longType,
+                                               op.getNonBlocking(), constFalse,
+                                               constNone);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenViewOp
 //===----------------------------------------------------------------------===//
 
@@ -3726,6 +3747,8 @@ OpFoldResult AtenTensorOp::fold(FoldAdaptor adaptor) {
   // If a torch.aten.tensor op is initialized by a list with a constant, single
   // element, fold it into a torch.vtensor.literal
   auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasSizes() || !resultTy.hasDtype())
+    return nullptr;
   Type eTy = resultTy.getDtype();
   ShapedType shapedTy = resultTy.toBuiltinTensor().clone(eTy);
 
@@ -3740,7 +3763,47 @@ OpFoldResult AtenTensorOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
-// AtenTensorOp
+// AtenTensorIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenTensorIntOp::fold(FoldAdaptor adaptor) {
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasSizes() || !resultTy.hasDtype())
+    return nullptr;
+  Type eTy = resultTy.getDtype();
+  ShapedType shapedTy = resultTy.toBuiltinTensor().clone(eTy);
+
+  int64_t data;
+  if (matchPattern(getT(), m_TorchConstantInt(&data))) {
+    Attribute attribute = IntegerAttr::get(eTy, data);
+    return DenseElementsAttr::get(shapedTy, attribute);
+  }
+
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenTensorFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenTensorFloatOp::fold(FoldAdaptor adaptor) {
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasSizes() || !resultTy.hasDtype())
+    return nullptr;
+  Type eTy = resultTy.getDtype();
+  ShapedType shapedTy = resultTy.toBuiltinTensor().clone(eTy);
+
+  double data;
+  if (matchPattern(getT(), m_TorchConstantFloat(&data))) {
+    Attribute attribute = FloatAttr::get(eTy, data);
+    return DenseElementsAttr::get(shapedTy, attribute);
+  }
+
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// Aten_ShapeAsTensorOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult Aten_ShapeAsTensorOp::fold(FoldAdaptor adaptor) {
