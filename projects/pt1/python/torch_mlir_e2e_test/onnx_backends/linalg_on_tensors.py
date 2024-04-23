@@ -7,8 +7,7 @@
 from torch_mlir.compiler_utils import run_pipeline_with_repro_report
 from torch_mlir.ir import *
 from torch_mlir.passmanager import *
-from torch_mlir.torchscript import OutputType
-from torch_mlir.torchscript import _lower_mlir_module
+from torch_mlir.compiler_utils import OutputType, lower_mlir_module
 
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
 
@@ -58,7 +57,7 @@ class LinalgOnTensorsOnnxBackend(OnnxBackend):
             "Lowering TorchFX IR -> Torch Backend IR",
         )
 
-        imported_module = _lower_mlir_module(False, OutputType.LINALG_ON_TENSORS, imported_module)
+        imported_module = lower_mlir_module(False, OutputType.LINALG_ON_TENSORS, imported_module)
         compiled_module = self.refbackend.compile(imported_module)
         return compiled_module
 

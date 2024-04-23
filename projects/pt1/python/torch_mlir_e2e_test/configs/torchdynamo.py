@@ -16,13 +16,13 @@ from torch._functorch.aot_autograd import (
 )
 
 from torch_mlir._dynamo_fx_importer import import_fx_graph_as_func
+from torch_mlir.compiler_utils import lower_mlir_module
 from torch_mlir.dynamo import _get_decomposition_table
 from torch_mlir.torchscript import (
     _example_args,
     OutputType,
     BACKEND_LEGAL_OPS,
     run_pipeline_with_repro_report,
-    _lower_mlir_module,
     _canon_extra_library,
 )
 from torch_mlir_e2e_test.configs.utils import (
@@ -148,7 +148,7 @@ def jit(
             "Lowering TorchFX IR -> Torch Backend IR",
         )
 
-    return _lower_mlir_module(verbose, output_type, mlir_module)
+    return lower_mlir_module(verbose, output_type, mlir_module)
 
 
 class TorchDynamoTestConfig(TestConfig):
