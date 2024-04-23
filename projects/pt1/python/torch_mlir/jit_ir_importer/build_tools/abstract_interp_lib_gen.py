@@ -550,6 +550,9 @@ def aten〇max〇other〡shape(self: List[int], other: List[int]) -> List[int]:
 def aten〇sum〡shape(self: List[int], dtype: Optional[int] = None) -> List[int]:
     return []
 
+def aten〇prod〡shape(self: List[int], dtype: Optional[int] = None) -> List[int]:
+    return []
+
 def aten〇mean〡shape(self: List[int], dtype: Optional[int] = None) -> List[int]:
     return []
 
@@ -3966,6 +3969,18 @@ def aten〇arange〇start_step〡dtype(start: Union[int, float, complex], end: U
                       _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
                       _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
 def aten〇sum〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[int] = None) -> int:
+    if dtype is not None:
+        return dtype
+    self_rank, self_dtype = self_rank_dtype
+    if is_integer_dtype(self_dtype):
+        return torch.int64
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
+def aten〇prod〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[int] = None) -> int:
     if dtype is not None:
         return dtype
     self_rank, self_dtype = self_rank_dtype
