@@ -636,8 +636,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ElementwiseBitwiseRightShiftInt32Module_basic",
     "ElementwiseBitwiseRightShiftInt64Module_basic",
     "ElementwiseBitwiseRightShiftInt8Module_basic",
-    "ElementwiseCoshIntModule_basic",
-    "ElementwiseCoshModule_basic",
     "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseErfIntModule_basic",
@@ -1465,6 +1463,10 @@ STABLEHLO_PASS_SET = {
     "ElementwiseSinIntModule_basic",
     "ElementwiseSqrtIntModule_basic",
     "ElementwiseUnaryIntModule_basic",
+    "ElementwiseCoshIntModule_basic",
+    "ElementwiseCoshModule_basic",
+    "ElementwiseSinhIntModule_basic",
+    "ElementwiseSinhModule_basic",
 }
 
 STABLEHLO_CRASHING_SET =  {

@@ -63,6 +63,50 @@ def ElementwiseUnaryIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseSinhModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.sinh(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSinhModule())
+def ElementwiseSinhModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseSinhIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.sinh(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSinhIntModule())
+def ElementwiseSinhIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
 class ElementwiseCoshModule(torch.nn.Module):
 
     def __init__(self):
