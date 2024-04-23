@@ -1039,12 +1039,13 @@ LogicalResult ConvertAtenOp<AtenLog2Op>::matchAndRewrite(
   if (!inputTy) {
     return op.emitError("only ranked tensor type is supported.");
   }
+  auto outTy = getTypeConverter()->convertType(op.getType()).cast<TensorType>();
+  input = hlo::promoteType(rewriter, op.getLoc(), rhs, outTy);
 
   auto two = getConstantLike(rewriter, op.getLoc(), 2.0, input);
   auto log2Op = rewriter.create<stablehlo::LogOp>(op.getLoc(), two);
   auto logInputOp = rewriter.create<stablehlo::LogOp>(op.getLoc(), input);
 
-  auto outTy = getTypeConverter()->convertType(op.getType()).cast<TensorType>();
   rewriter.replaceOpWithNewOp<stablehlo::DivOp>(op, outTy, logInputOp, log2Op);
   return success();
 }
@@ -1060,11 +1061,13 @@ LogicalResult ConvertAtenOp<AtenLog10Op>::matchAndRewrite(
     return op.emitError("only ranked tensor type is supported.");
   }
 
+  auto outTy = getTypeConverter()->convertType(op.getType()).cast<TensorType>();
+  input = hlo::promoteType(rewriter, op.getLoc(), rhs, outTy);
+
   auto ten = getConstantLike(rewriter, op.getLoc(), 10.0, input);
   auto log10Op = rewriter.create<stablehlo::LogOp>(op.getLoc(), ten);
   auto logInputOp = rewriter.create<stablehlo::LogOp>(op.getLoc(), input);
 
-  auto outTy = getTypeConverter()->convertType(op.getType()).cast<TensorType>();
   rewriter.replaceOpWithNewOp<stablehlo::DivOp>(op, outTy, logInputOp, log10Op);
   return success();
 }
