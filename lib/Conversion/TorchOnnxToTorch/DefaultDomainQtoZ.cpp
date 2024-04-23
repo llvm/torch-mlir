@@ -1066,7 +1066,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                   0))
           return failure();
 
-        // out = Log(reduce_sum(exp(data)))
+        // out = Log(reducesum(exp(data)))
         Value castDType = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(/*Float32Type*/ 7));
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
@@ -1084,17 +1084,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         Value dataExp = rewriter.create<Torch::AtenExpOp>(
             binder.getLoc(), f64ResultType, dataCast);
-        auto reducedSum = reducedSumImpl(
+        auto reducedSumBool = reducedSumImpl(
             binder, rewriter, dataExp, f64ResultType,
-            /*storeValue=*/data, keepDims, noop_with_empty_axes, true);
+            /*storeValue=*/reducedSumExp, keepDims, noop_with_empty_axes, true);
 
-        if (failed(reducedSum))
+        if (failed(reducedSumBool))
           return rewriter.notifyMatchFailure(
               binder.op,
               "Failed to perform sum operation on square of operand");
 
-        Value finalResult = rewriter.create<Torch::AtenLog1pOp>(
-            binder.getLoc(), f64ResultType, reducedSum);
+        Value finalResult = rewriter.create<Torch::AtenLogOp>(
+            binder.getLoc(), f64ResultType, reducedSumExp);
 
         Value resultDtype = Torch::getDtypeIntValueForType(
             rewriter, binder.getLoc(), resultType.getDtype());
