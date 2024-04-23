@@ -705,6 +705,69 @@ def ElementwiseReluModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class QuantizedReluInt8(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int8, True),
+    ])
+    def forward(self, x):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.0215, -25)
+        qx = torch.dequantize(qx)
+        return torch.relu(qx)
+
+@register_test_case(module_factory=lambda: QuantizedReluInt8())
+def QuantizedReluInt8_basic(module, tu: TestUtils):
+    module.forward(tu.randint(7, 4, low=-128, high=127).to(torch.int8))
+    
+# ==============================================================================
+
+class QuantizedReluUint8(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.uint8, True),
+    ])
+    def forward(self, x):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.0215, 190)
+        qx = torch.dequantize(qx)
+        return torch.relu(qx)
+
+@register_test_case(module_factory=lambda: QuantizedReluUint8())
+def QuantizedReluUint8_basic(module, tu: TestUtils):
+    module.forward(tu.randint(7, 4, low=0, high=255).to(torch.uint8))
+    
+# ==============================================================================
+
+class QuantizedReluInt32(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, x):
+        qx = torch._make_per_tensor_quantized_tensor(x, 0.0215, 190)
+        qx = torch.dequantize(qx)
+        return torch.relu(qx)
+
+@register_test_case(module_factory=lambda: QuantizedReluInt32())
+def QuantizedReluInt32_basic(module, tu: TestUtils):
+    module.forward(tu.randint(7, 4, low=(-2**31), high=(2**31 - 1)).to(torch.int32))
+    
+# ==============================================================================
+
 
 class ElementwiseRelu6Module(torch.nn.Module):
 
