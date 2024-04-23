@@ -1520,6 +1520,38 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
+    AtenConstantPadNdOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  Location loc = op.getLoc();
+  Value self = adaptor.getSelf();
+  auto selfTy = self.getType().cast<RankedTensorType>();
+  auto selfElemTy = selfTy.getElementType();
+  int64_t rank = selfTy.getRank();
+
+  SmallVector<int64_t> padInts;
+  if (!matchPattern(op.getPad(), m_TorchListOfConstantInts(padInts)))
+    return rewriter.notifyMatchFailure(op,
+                                       "only support constant int pad ranges");
+  uint64_t padRank = padInts.size() / 2;
+  if (padRank * 2 != padInts.size())
+    return rewriter.notifyMatchFailure(op, "pad range size is not even");
+  if (rank < 0 || padRank > (uint64_t)rank)
+    return rewriter.notifyMatchFailure(op, "padding exceeds tensor rank");
+  // Add the requested padding - note op.pad() is highest dim first ordered
+  // pairs of low,high.
+  for (uint64_t i = 0; i < padRank; ++i) {
+    lowPadding[rank - i - 1] = padInts[i * 2];
+    highPadding[rank - i - 1] = padInts[i * 2 + 1];
+  }
+
+  Value constantValue = hlo::scalarToStablehloTensor(
+      rewriter, op, adaptor.getValue(), selfElemTy);
+
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
     AtenGeluBackwardOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
