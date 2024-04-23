@@ -685,7 +685,6 @@ public:
       return rewriter.notifyMatchFailure(op, "the rank of tensor should >= 2");
     }
 
-    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
     Value cstZero =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
     Value cstOne =
@@ -699,23 +698,40 @@ public:
     Value rowSize = rewriter.create<AtenSizeIntOp>(loc, input, rowDim);
     Value colSize = rewriter.create<AtenSizeIntOp>(loc, input, colDim);
 
+    auto inputSizes = inputType.getSizes();
+    SmallVector<int64_t> arangeRowShape(1, inputSizes[inputSizes.size() - 2]);
+    SmallVector<int64_t> arangeColShape(1, inputSizes[inputSizes.size() - 1]);
+    auto si64Type = IntegerType::get(context, 64, IntegerType::Signed);
+    auto arangeRowType =
+        inputType.getWithSizesAndDtype(arangeRowShape, si64Type);
+    auto arangeColType =
+        inputType.getWithSizesAndDtype(arangeColShape, si64Type);
     Value rowArange = rewriter.create<AtenArangeOp>(
-        loc, baseType, rowSize, /*dtype=*/none, /*layout=*/none,
+        loc, arangeRowType, rowSize, /*dtype=*/none, /*layout=*/none,
         /*device=*/none, /*pin_memory=*/none);
     Value colArange = rewriter.create<AtenArangeOp>(
-        loc, baseType, colSize, /*dtype=*/none, /*layout=*/none,
+        loc, arangeColType, colSize, /*dtype=*/none, /*layout=*/none,
         /*device=*/none, /*pin_memory=*/none);
 
-    Value unsqueezeRowArange =
-        rewriter.create<AtenUnsqueezeOp>(loc, baseType, rowArange, cstOne);
-    Value unsqueezeColArange =
-        rewriter.create<AtenUnsqueezeOp>(loc, baseType, colArange, cstZero);
+    arangeRowShape.push_back(1);
+    arangeColShape.insert(arangeColShape.begin(), 1);
+    auto unsqueezeRowType =
+        inputType.getWithSizesAndDtype(arangeRowShape, si64Type);
+    auto unsqueezeColType =
+        inputType.getWithSizesAndDtype(arangeColShape, si64Type);
+    Value unsqueezeRowArange = rewriter.create<AtenUnsqueezeOp>(
+        loc, unsqueezeRowType, rowArange, cstOne);
+    Value unsqueezeColArange = rewriter.create<AtenUnsqueezeOp>(
+        loc, unsqueezeColType, colArange, cstZero);
 
     Value unsqueezeRowArangePlusDiagonal = rewriter.create<AtenAddScalarOp>(
-        loc, baseType, unsqueezeRowArange, op.getDiagonal(), cstOne);
+        loc, unsqueezeRowType, unsqueezeRowArange, op.getDiagonal(), cstOne);
 
+    arangeColShape[0] = arangeRowShape[0];
+    auto geTensorType =
+        inputType.getWithSizesAndDtype(arangeColShape, rewriter.getI1Type());
     Value condTensor = rewriter.create<AtenGeTensorOp>(
-        loc, baseType, unsqueezeColArange, unsqueezeRowArangePlusDiagonal);
+        loc, geTensorType, unsqueezeColArange, unsqueezeRowArangePlusDiagonal);
 
     rewriter.replaceOpWithNewOp<AtenWhereScalarOtherOp>(
         op, op.getResult().getType(), condTensor, input, cstZero);
