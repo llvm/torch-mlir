@@ -23,14 +23,28 @@ from torch_mlir.compiler_utils import (
 )
 
 
-def _simplify_lowering(torch_mod, output_type, verbose):
+def _simplify_lowering(verbose, output_type, torch_mod, backend_legal_ops=None,
+                       extra_library_file_name=None):
+    # TODO: pass backend_legal_ops/extra_library_file_name by caller
+    if backend_legal_ops is None:
+        backend_legal_ops = []
+    if extra_library_file_name is None:
+        extra_library_file_name = ""
+    option_string = ("{backend-legal-ops=" + ",".join(backend_legal_ops) +
+                     " extra-library=" + extra_library_file_name + "}")
     run_pipeline_with_repro_report(
         torch_mod,
         f"builtin.module(torch-simplification-pipeline)",
         "Simplification pipeline for torch dialect",
         enable_ir_printing=verbose,
     )
-    return lower_mlir_module(verbose, torch_mod, output_type)
+    run_pipeline_with_repro_report(
+        torch_mod,
+        f"builtin.module(torch-function-to-torch-backend-pipeline{option_string})",
+        "Lowering TorchFX IR -> Torch Backend IR",
+        enable_ir_printing=verbose,
+    )
+    return lower_mlir_module(verbose, output_type, torch_mod)
 
 
 def export_and_import(
@@ -74,7 +88,7 @@ def export_and_import(
             print(fx_importer.module)
         return fx_importer.module
     else:
-        return _simplify_lowering(fx_importer.module, output_type, verbose)
+        return _simplify_lowering(verbose, output_type, fx_importer.module)
 
 
 def stateless_fx_import(
@@ -98,4 +112,4 @@ def stateless_fx_import(
             print(fx_importer.module)
         return fx_importer.module
     else:
-        return _simplify_lowering(fx_importer.module, output_type, verbose)
+        return _simplify_lowering(verbose, output_type, fx_importer.module)

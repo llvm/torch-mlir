@@ -79,6 +79,7 @@ def test_user_input_mutate():
         torch.randn(3, 4),
         torch.randn(3, 4),
         experimental_support_mutation=True,
+        output_type="raw",
     )
     print(m)
     m.operation.verify()
@@ -99,7 +100,10 @@ def test_frozen_buffer():
             return x * self.buffer
 
     m = fx.export_and_import(
-        Basic(), torch.randn(3, 4), experimental_support_mutation=True
+        Basic(),
+        torch.randn(3, 4),
+        experimental_support_mutation=True,
+        output_type="raw",
     )
     print(m)
     m.operation.verify()
@@ -145,6 +149,7 @@ def test_mutable_buffer():
         torch.randn(3, 4),
         experimental_support_mutation=True,
         hooks=ExternalBufferHooks(),
+        output_type="raw",
     )
     print(m)
     m.operation.verify()
@@ -168,6 +173,7 @@ def test_mutable_buffer_not_supported_without_hooks():
             Basic(),
             torch.randn(3, 4),
             experimental_support_mutation=True,
+            output_type="raw",
         )
     except NotImplementedError as e:
         print("EXPECTED ERROR:", str(e))

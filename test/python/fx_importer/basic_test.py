@@ -133,7 +133,7 @@ def test_full():
             return torch.full([], False, dtype=torch.bool, layout=torch.strided, device='cpu',
                               pin_memory=False)
 
-    m = fx.export_and_import(Basic(), func_name="test_full", enable_graph_printing=True)
+    m = fx.export_and_import(Basic(), func_name="test_full")
     run_pipeline_with_repro_report(
         m,
         f"builtin.module(torch-simplification-pipeline)",

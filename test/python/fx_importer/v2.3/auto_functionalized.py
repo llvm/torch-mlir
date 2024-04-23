@@ -58,6 +58,7 @@ def test_auto_functionalized_hop():
         # assert (
         # AssertionError: Current active mode <torch._subclasses.functional_tensor.FunctionalTensorMode object at 0x7a1106504fd0> not registered
         decomposition_table=[],
+        output_type="raw",
     )
     # CHECK: %[[TIED:.*]] = torch.operator "torch.torch_mlir_test.inplace_modify"({{.*}}) : (!torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
     # CHECK: torch.aten.mul.Tensor %[[TIED]], %[[TIED]]
@@ -85,6 +86,7 @@ def test_auto_functionalized_one_ret():
         # assert (
         # AssertionError: Current active mode <torch._subclasses.functional_tensor.FunctionalTensorMode object at 0x7a1106504fd0> not registered
         decomposition_table=[],
+        output_type="raw",
     )
     # CHECK: %[[TIED:.*]]:2 = torch.operator "torch.torch_mlir_test.inplace_modify_calc"(%0) : (!torch.vtensor<[3,4],f32>) -> (!torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32>)
     # CHECK: torch.aten.mul.Tensor %[[TIED]]#1, %[[TIED]]#0

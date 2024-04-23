@@ -45,7 +45,7 @@ def test_lift_fresh_copy():
             # CHECK: torch.aten.clone %arg0, %none
             return torch.ops.aten.lift_fresh_copy.default(x)
 
-    m = fx.export_and_import(Basic(), torch.randn(3, 4))
+    m = fx.export_and_import(Basic(), torch.randn(3, 4), output_type="raw")
     print(m)
 
 
@@ -70,5 +70,5 @@ def test_multi_return():
             # CHECK: return %[[NONE]], %[[RES]]#1, %[[RES]]#2
             return torch.ops.torch_mlir_test.multi_return(x)
 
-    m = fx.export_and_import(Basic(), torch.randn(3, 4))
+    m = fx.export_and_import(Basic(), torch.randn(3, 4), output_type="raw")
     print(m)
