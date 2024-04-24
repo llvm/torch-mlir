@@ -1476,6 +1476,8 @@ STABLEHLO_CRASHING_SET =  {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "ElementwiseTruncModule_basic",
+    "ElementwiseTruncIntModule_basic",
     "ElementwiseSgnModule_basic",
     "ElementwiseSignIntModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
