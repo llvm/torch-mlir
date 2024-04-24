@@ -1017,7 +1017,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         // out = Log(reducesum(exp(data)))
         Value castDType = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(/*Float32Type*/ 7));
+            binder.getLoc(), rewriter.getI64IntegerAttr(/*Float64Type*/ 7));
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         Value constFalse =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
@@ -1025,7 +1025,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                         .dyn_cast<Torch::ValueTensorType>()
                         .getOptionalSizes();
         auto f64ResultType = rewriter.getType<Torch::ValueTensorType>(
-            size, rewriter.getF32Type());
+            size, rewriter.getF64Type());
         Value dataCast = rewriter.create<Torch::AtenToDtypeOp>(
             binder.getLoc(), f64ResultType, data, castDType,
             /*non_blocking=*/constFalse, /*copy=*/constFalse,
