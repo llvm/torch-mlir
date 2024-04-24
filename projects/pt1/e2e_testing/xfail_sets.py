@@ -1479,6 +1479,8 @@ STABLEHLO_PASS_SET = {
     "ElementwiseCoshModule_basic",
     "ElementwiseSinhIntModule_basic",
     "ElementwiseSinhModule_basic",
+    "ElementwiseTruncIntModule_basic",
+    "ElementwiseTruncModule_basic",
 }
 
 STABLEHLO_CRASHING_SET =  {
@@ -1488,6 +1490,8 @@ STABLEHLO_CRASHING_SET =  {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "ElementwiseTruncModule_basic",
+    "ElementwiseTruncIntModule_basic",
     "ElementwiseSgnModule_basic",
     "ElementwiseSignIntModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
@@ -2344,6 +2348,8 @@ ONNX_XFAIL_SET = {
     "ElementwiseSinhModule_basic",
     "ElementwiseCoshIntModule_basic",
     "ElementwiseCoshModule_basic",
+    "ElementwiseTruncIntModule_basic",
+    "ElementwiseTruncModule_basic",
     "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseDivTensorRoundingModeFloorIntStaticModule_basic",
