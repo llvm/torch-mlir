@@ -5900,7 +5900,7 @@ class DecomposeAtenTruncOp : public OpRewritePattern<AtenTruncOp> {
       return rewriter.notifyMatchFailure(op, "result must have dtype");
     }
 
-    if (resultTy.getDtype().isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(resultTy.getDtype())) {
       Value sign = rewriter.create<AtenSgnOp>(loc, resultTy, self);
       Value abs = rewriter.create<AtenAbsOp>(loc, resultTy, self);
       Value floor = rewriter.create<AtenFloorOp>(loc, resultTy, abs);
