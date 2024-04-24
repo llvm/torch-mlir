@@ -298,7 +298,7 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
   if (isa<AtenSumOp, AtenSumDimIntListOp>(op))
     return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
 
-  if (isa<AtenProdDimIntOp>(op)) {
+  if (isa<AtenProdOp, AtenProdDimIntOp>(op)) {
     if (isa<mlir::FloatType>(elementType))
       return b.create<arith::ConstantOp>(loc, b.getFloatAttr(elementType, 1.0));
     else if (isa<mlir::IntegerType>(elementType))
@@ -362,7 +362,7 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
       return b.create<arith::AddFOp>(loc, self, result);
     else if (isa<mlir::IntegerType>(resultElementType))
       return b.create<arith::AddIOp>(loc, self, result);
-  } else if (isa<AtenProdDimIntOp>(op)) {
+  } else if (isa<AtenProdOp, AtenProdDimIntOp>(op)) {
     Value self =
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
@@ -510,12 +510,13 @@ private:
                          ConversionPatternRewriter &rewriter) const {
     auto opInfo = torch_to_linalg::ReductionOpInfo{false, Value{}, {}};
 
-    if (isa<AtenMaxOp, AtenMinOp, AtenSumOp, AtenNormScalarOp>(op)) {
+    if (isa<AtenMaxOp, AtenMinOp, AtenSumOp, AtenProdOp, AtenNormScalarOp>(
+            op)) {
       opInfo.tensorOperand = operands[0];
       auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
 
-      // `AtenSumOp`, `AtenMaxOp`, and `AtenMinOp` each reduce along all the
-      // dimensions of the input tensor.
+      // `AtenSumOp`, `AtenProdOp`, `AtenMaxOp`, and `AtenMinOp` each reduce
+      // along all the dimensions of the input tensor.
       for (int64_t i = 0; i < inputType.getRank(); i++)
         opInfo.dimSet.insert(i);
 
@@ -715,6 +716,7 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   patterns.add<ConvertAtenMinMaxDimOp<AtenMinDimOp>>(typeConverter, context);
   target.addIllegalOp<AtenSumOp>();
   target.addIllegalOp<AtenSumDimIntListOp>();
+  target.addIllegalOp<AtenProdOp>();
   target.addIllegalOp<AtenProdDimIntOp>();
   target.addIllegalOp<AtenMaxOp>();
   target.addIllegalOp<AtenMinOp>();

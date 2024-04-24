@@ -82,9 +82,10 @@ def jit(
 class FxImporterTestConfig(TestConfig):
     """TestConfig that runs the torch.nn.Module with Fx Importer"""
 
-    def __init__(self, backend):
+    def __init__(self, backend, output_type="linalg-on-tensors"):
         super().__init__()
-        self.backend = backend
+        self._backend = backend
+        self._output_type = output_type
 
     def compile(self, program: torch.nn.Module) -> torch.nn.Module:
         return program
@@ -95,9 +96,9 @@ class FxImporterTestConfig(TestConfig):
             prog = torch.export.export(artifact, tuple(item.inputs))
             module = jit(prog,
                          func_name=artifact.__class__.__name__,
-                         output_type="linalg-on-tensors")
-            module = self.backend.compile(module)
-            backend_module = self.backend.load(module)
+                         output_type=self._output_type)
+            module = self._backend.compile(module)
+            backend_module = self._backend.load(module)
             params = {
                 # **dict(artifact.named_parameters(remove_duplicate=False)),
                 **dict(artifact.named_buffers(remove_duplicate=False)),
