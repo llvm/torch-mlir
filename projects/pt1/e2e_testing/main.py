@@ -99,7 +99,11 @@ def main():
     logger.setLevel(logging.NOTSET)
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(args.log_level)
-    formatter = logging.Formatter('%(message)s')
+    if args.log_level != "DEBUG":
+        fmt = "%(levelname)s: %(message)s"
+    else:
+        fmt = "%(levelname)s: %(filename)s:%(lineno)d:\n%(message)s"
+    formatter = logging.Formatter(fmt)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
