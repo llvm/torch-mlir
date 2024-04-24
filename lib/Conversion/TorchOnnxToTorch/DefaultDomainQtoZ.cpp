@@ -1035,7 +1035,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.getLoc(), f64ResultType, dataCast);
         auto reducedSumBool = reducedSumImpl(
             binder, rewriter, dataExp, f64ResultType,
-            /*storeValue=*/reducedSumExp, keepDims, noop_with_empty_axes, true);
+            /*storeValue=*/data, keepDims, noop_with_empty_axes, true);
 
         if (failed(reducedSumBool))
           return rewriter.notifyMatchFailure(
@@ -1043,7 +1043,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               "Failed to perform sum operation on square of operand");
 
         Value finalResult = rewriter.create<Torch::AtenLogOp>(
-            binder.getLoc(), f64ResultType, reducedSumExp);
+            binder.getLoc(), f64ResultType, data);
 
         Value resultDtype = Torch::getDtypeIntValueForType(
             rewriter, binder.getLoc(), resultType.getDtype());
