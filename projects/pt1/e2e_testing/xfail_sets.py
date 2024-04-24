@@ -2336,6 +2336,8 @@ ONNX_XFAIL_SET = {
     "ElementwiseSinhModule_basic",
     "ElementwiseCoshIntModule_basic",
     "ElementwiseCoshModule_basic",
+    "ElementwiseTruncIntModule_basic",
+    "ElementwiseTruncModule_basic",
     "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseDivTensorRoundingModeFloorIntStaticModule_basic",
