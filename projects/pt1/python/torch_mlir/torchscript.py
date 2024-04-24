@@ -9,6 +9,7 @@ from enum import Enum
 import sys
 from io import StringIO
 import tempfile
+import os
 
 from torch._functorch.compile_utils import strip_overloads
 import torch
@@ -253,19 +254,20 @@ BACKEND_LEGAL_OPS = {
 }
 
 
-def _canon_extra_library(extra_library):
-    extra_library_file_name = ""
+def _canon_extra_library(extra_library, extra_library_file_name="custom_op_extra_library.mlir"):
     if len(extra_library) != 0:
         extra_library_dict = {}
         for library_func in extra_library:
             extra_library_dict[library_func.__name__] = library_func
         mlir_library = generate_library(extra_library_dict)
 
-        extra_library_file_name = \
-            tempfile.gettempdir() + "/custom_op_extra_library.mlir"
-        with open(extra_library_file_name, "w") as f:
+        extra_library_file = \
+            os.path.join(tempfile.gettempdir(), extra_library_file_name)
+        with open(extra_library_file, "w") as f:
             f.write(mlir_library)
-    return extra_library_file_name
+        return extra_library_file
+    else:
+        return ""
 
 
 def _lower_mlir_module(verbose, output_type, module):

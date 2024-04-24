@@ -359,6 +359,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit_with_mutating_variants("aten::floor : (Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants("aten::ceil : (Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants("aten::round : (Tensor) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::trunc : (Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants("aten::sign : (Tensor) -> (Tensor)", has_canonicalizer=True)
     emit_with_mutating_variants("aten::masked_fill.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
 
@@ -597,7 +598,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::eye.m : (int, int, int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::tensor : (t[], int?, Device?, bool) -> (Tensor)", has_folder=True)
     emit("aten::tensor.bool : (bool, int?, Device?, bool) -> (Tensor)")
-    emit("aten::tensor.int : (int, int?, Device?, bool) -> (Tensor)")
+    emit("aten::tensor.int : (int, int?, Device?, bool) -> (Tensor)", has_folder=True)
     emit("aten::scalar_tensor : (Scalar, int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::_shape_as_tensor : (Tensor) -> (Tensor)", has_folder=True)
     emit("aten::isnan : (Tensor) -> (Tensor)")
@@ -660,6 +661,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::sum : (Tensor, int?) -> (Tensor)")
     emit("aten::sum.dim_IntList : (Tensor, int[]?, bool, int?) -> (Tensor)")
     emit("aten::prod.dim_int : (Tensor, int, bool, int?) -> (Tensor)")
+    emit("aten::prod : (Tensor, int?) -> (Tensor)")
     emit("aten::max : (Tensor) -> (Tensor)")
     emit("aten::max.other : (Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
     emit("aten::max.dim : (Tensor, int, bool) -> (Tensor, Tensor)")
@@ -691,7 +693,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit_with_mutating_variants("aten::scatter_reduce.two : (Tensor, int, Tensor, Tensor, str, bool) -> (Tensor)")
     emit("aten::IntImplicit : (Tensor) -> (int)", has_canonicalizer=True)
     emit("aten::FloatImplicit : (Tensor) -> (float)", has_canonicalizer=True)
-    emit("aten::tensor.float : (float, int?, Device?, bool) -> (Tensor)")
+    emit("aten::tensor.float : (float, int?, Device?, bool) -> (Tensor)", has_folder=True)
     emit("aten::Int.Tensor : (Tensor) -> (int)", has_canonicalizer=True)
     emit("aten::Float.Tensor : (Tensor) -> (float)", has_folder=True)
     emit_with_mutating_variants("aten::dropout : (Tensor, float, bool) -> (Tensor)")
@@ -897,6 +899,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("prims::split_dim : (Tensor, int, int) -> (Tensor)")
     emit("prims::squeeze : (Tensor, int[]) -> (Tensor)")
     emit("prims::view_of : (Tensor) -> (Tensor)", has_folder=True)
+    emit("prims::iota : (int, int, int, int, Device, bool) -> (Tensor)")
 
     # ==========================================================================
     # `quantized::` namespace.

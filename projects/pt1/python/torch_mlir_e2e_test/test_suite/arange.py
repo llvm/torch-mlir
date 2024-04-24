@@ -380,3 +380,20 @@ class LinspaceTwoSizeModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: LinspaceTwoSizeModule())
 def LinspaceTwoSizeModule_basic(module, tu: TestUtils):
     module.forward()
+
+
+class PrimsIotaModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.prims.iota(77, start=0, step=1, dtype=torch.int64, device='cpu',
+                                    requires_grad=False)
+
+@register_test_case(module_factory=lambda: PrimsIotaModule())
+def PrimsIotaModule_basic(module, tu: TestUtils):
+    module.forward()

@@ -4790,6 +4790,35 @@ class DecomposeAtenArangeStartOp : public OpRewritePattern<AtenArangeStartOp> {
 } // namespace
 
 namespace {
+// The `prims.iota` op is converted to `aten.arange.startStep` op.
+class DecomposePrimsIotaOp : public OpRewritePattern<PrimsIotaOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimsIotaOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    int64_t length, start, step;
+    if (!matchPattern(op.getLength(), m_TorchConstantInt(&length)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: low must be a constant integer");
+    if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: low must be a constant integer");
+    if (!matchPattern(op.getStep(), m_TorchConstantInt(&step)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: low must be a constant integer");
+    auto endVal = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(start + length * step));
+    auto none = rewriter.create<ConstantNoneOp>(loc);
+    rewriter.replaceOpWithNewOp<AtenArangeStartStepOp>(
+        op, op.getType(), op.getStart(), endVal, op.getStep(), op.getDtype(),
+        none, op.getDevice(), none);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose constant tensor full like ops.
 template <typename OpTy, int fillVal>
 class DecomposeConstantTensorAllocLikeOp : public OpRewritePattern<OpTy> {
@@ -5853,6 +5882,32 @@ class DecomposeAtenCosineSimilarityOp
     rewriter.replaceOpWithNewOp<AtenDivTensorOp>(
         op, op.getType(), sumDotProduct, normProductClamp);
     return success();
+  }
+};
+} // namespace
+
+namespace {
+// decompose `trunc(x)` to `sign(x) * floor(abs(x))`
+class DecomposeAtenTruncOp : public OpRewritePattern<AtenTruncOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTruncOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+
+    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!resultTy || !resultTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result must have dtype");
+    }
+
+    if (isa<mlir::FloatType>(resultTy.getDtype())) {
+      Value sign = rewriter.create<AtenSgnOp>(loc, resultTy, self);
+      Value abs = rewriter.create<AtenAbsOp>(loc, resultTy, self);
+      Value floor = rewriter.create<AtenFloorOp>(loc, resultTy, abs);
+      rewriter.replaceOpWithNewOp<AtenMulTensorOp>(op, resultTy, sign, floor);
+      return success();
+    }
+    return failure();
   }
 };
 } // namespace
@@ -7605,6 +7660,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvTranspose2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeStartOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposePrimsIotaOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinspaceOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenArgMinMaxOp<AtenArgmaxOp, AtenMaxDimOp>>(patterns);
@@ -7670,6 +7726,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCosineSimilarityOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenTruncOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideScalarOp>(patterns);

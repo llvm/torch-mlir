@@ -121,6 +121,9 @@ def aten〇fake_quantize_per_tensor_affine〡shape(self: List[int], scale: float
 def aten〇sin〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇sinh〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇asin〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -240,6 +243,9 @@ def aten〇hardtanh_backward〡shape(grad_output: List[int], self: List[int], mi
     return upstream_shape_functions.unary(grad_output)
 
 def aten〇ceil〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇trunc〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇log〡shape(self: List[int]) -> List[int]:
@@ -548,6 +554,9 @@ def aten〇max〇other〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
 def aten〇sum〡shape(self: List[int], dtype: Optional[int] = None) -> List[int]:
+    return []
+
+def aten〇prod〡shape(self: List[int], dtype: Optional[int] = None) -> List[int]:
     return []
 
 def aten〇mean〡shape(self: List[int], dtype: Optional[int] = None) -> List[int]:
@@ -1319,6 +1328,12 @@ def prims〇view_of〡dtype(a_rank_dtype: Tuple[int, int]) -> int:
     _, a_dtype = a_rank_dtype
     return a_dtype
 
+def prims〇iota〡shape(length: int, start: int, step: int, dtype: int, device: device, requires_grad: bool) -> List[int]:
+    return [length]
+
+def prims〇iota〡dtype(length: int, start: int, step: int, dtype: int, device: device, requires_grad: bool) -> int:
+    return dtype
+
 def prim〇NumToTensor〇Scalar〡shape(a: float) -> List[int]:
     return []
 
@@ -2009,6 +2024,11 @@ def aten〇sin〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     return _get_dtype_of_floating_point_op(self_dtype)
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇sinh〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return _get_dtype_of_floating_point_op(self_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇asin〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
@@ -2207,6 +2227,11 @@ def aten〇cosine_similarity〡dtype(x1_rank_dtype: Tuple[int, int], x2_rank_dty
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇ceil〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇trunc〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
@@ -3960,6 +3985,18 @@ def aten〇arange〇start_step〡dtype(start: Union[int, float, complex], end: U
                       _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
                       _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
 def aten〇sum〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[int] = None) -> int:
+    if dtype is not None:
+        return dtype
+    self_rank, self_dtype = self_rank_dtype
+    if is_integer_dtype(self_dtype):
+        return torch.int64
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
+def aten〇prod〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[int] = None) -> int:
     if dtype is not None:
         return dtype
     self_rank, self_dtype = self_rank_dtype
