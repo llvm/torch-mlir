@@ -17,6 +17,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -55,7 +56,9 @@ public:
     ConversionTarget target(*context);
     target.addLegalDialect<linalg::LinalgDialect, func::FuncDialect,
                            cf::ControlFlowDialect, math::MathDialect,
-                           tensor::TensorDialect, arith::ArithDialect,
+                           sparse_tensor::SparseTensorDialect,
+                           tensor::TensorDialect,
+                           arith::ArithDialect,
                            complex::ComplexDialect>();
     target.addLegalOp<TorchConversion::GetNextSeedOp>();
 

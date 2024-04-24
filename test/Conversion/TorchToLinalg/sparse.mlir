@@ -51,11 +51,11 @@ func.func @SpMM(%arg0: !torch.vtensor<[8,16],f32,#CSR>,
 
 // CHECK: #[[$ST:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2, d3, d4) -> (d0 : compressed(nonunique), d1 : singleton(nonunique, soa), d2 : singleton(nonunique, soa), d3 : singleton(nonunique, soa), d4 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
 // CHECK-LABEL: func.func @activate(
-// CHECK-SAME:  %[[A:.*]]: !torch.vtensor<[128,64,30,30,6], f32>)
+// CHECK-SAME:  %[[A:.*]]: !torch.vtensor<[128,64,30,30,6],f32>)
 // CHECK:       %[[D:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[128,64,30,30,6],f32> -> tensor<128x64x30x30x6xf32>
-// CHECK:       %[[C:.*]] = tensor.cast %0 : tensor<128x64x30x30x6xf32> to tensor<128x64x30x30x6xf32, #[[ST]]>
-// CHECK:       %[[R:.*]] = torch_c.from_builtin_tensor %cast : tensor<128x64x30x30x6xf32, #[[ST]]>
-// CHECK:       return %[[R]] : !torch.vtensor<[128,64,30,30,6],f32,#[[ST]]>
+// CHECK:       %[[C:.*]] = sparse_tensor.convert %0 : tensor<128x64x30x30x6xf32> to tensor<128x64x30x30x6xf32, #[[$ST]]>
+// CHECK:       %[[R:.*]] = torch_c.from_builtin_tensor %[[C]] : tensor<128x64x30x30x6xf32, #[[$ST]]>
+// CHECK:       return %[[R]] : !torch.vtensor<[128,64,30,30,6],f32,#[[$ST]]>
 func.func @activate(%arg0: !torch.vtensor<[128,64,30,30,6],f32>)
                         -> !torch.vtensor<[128,64,30,30,6],f32,#sparse> {
   %none_0 = torch.constant.none

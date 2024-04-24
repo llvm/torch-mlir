@@ -20,6 +20,7 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
@@ -2440,12 +2441,11 @@ public:
       return failure();
     // Conversion is completed specified by information in the sparse tensor
     // type. Thus, we can rewrite all legalizedNames to the same construct.
-    // The construct below eventually lowers to a sparse_tensor.convert.
     RankedTensorType resultType = getTypeConverter()
                                       ->convertType(op->getResult(0).getType())
                                       .cast<RankedTensorType>();
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
-                                                adaptor.getOperands()[0]);
+    rewriter.replaceOpWithNewOp<sparse_tensor::ConvertOp>(
+        op, resultType, adaptor.getOperands()[0]);
     return success();
   }
 
