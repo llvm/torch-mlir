@@ -16,7 +16,7 @@ import torch.fx
 from torch_mlir.dynamo import _get_decomposition_table
 from torch.fx.experimental.proxy_tensor import make_fx
 
-from .compiler_utils import (
+from torch_mlir.compiler_utils import (
     OutputType,
     run_pipeline_with_repro_report,
     lower_mlir_module,

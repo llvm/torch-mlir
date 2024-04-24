@@ -20,7 +20,6 @@ declare_mlir_python_sources(TorchMLIRPythonSources.TopLevel
   SOURCES
     torchscript.py
     _dynamo_fx_importer.py
-    compiler_utils.py
     dynamo.py
     _version.py
 )
