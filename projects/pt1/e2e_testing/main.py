@@ -153,7 +153,7 @@ def main():
     if args.crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed is not None:
         for arg in args.crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed:
             if arg not in all_test_unique_names:
-                logger.error(f"ERROR: --crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed argument '{arg}' is not a valid test name")
+                logger.error(f"--crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed argument '{arg}' is not a valid test name")
                 sys.exit(1)
 
     # Find the selected tests, and emit a diagnostic if none are found.
@@ -161,13 +161,11 @@ def main():
         test for test in available_tests
         if re.match(args.filter, test.unique_name)
     ]
+    available_tests = [test.unique_name for test in available_tests]
     if len(tests) == 0:
         logger.error(
-            f"ERROR: the provided filter {args.filter!r} does not match any tests"
+            f"the provided filter {args.filter!r} does not match any tests. The available tests are:\n" + "\n\t".join(available_tests)"
         )
-        available_tests = [test for test in available_tests]
-
-        logger.error("The available tests are:" + "\n".join(available_tests))
         sys.exit(1)
 
     # Run the tests.
@@ -179,8 +177,8 @@ def main():
                             verbose=logger.level >= logging.INFO,
                             config=args.config)
     if args.config == "torchdynamo":
-        logger.warning("\033[91mWarning: the TorchScript based dynamo support is deprecated. "
-              "The config for torchdynamo is planned to be removed in the future.\033[0m")
+        logger.warning("the TorchScript based dynamo support is deprecated. "
+              "The config for torchdynamo is planned to be removed in the future.")
     if args.ignore_failures:
         sys.exit(0)
     sys.exit(1 if failed else 0)

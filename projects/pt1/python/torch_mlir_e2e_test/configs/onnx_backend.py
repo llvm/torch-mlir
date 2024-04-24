@@ -83,7 +83,7 @@ class OnnxBackendTestConfig(TestConfig):
     def compile(self, program: torch.nn.Module) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
         onnx_module = convert_onnx(program, example_args)
-        logger.debug(onnx_module)
+        logger.debug("MLIR produced by OnnxBackendTestConfig:\n" + str(onnx_module))
         compiled_module = self.backend.compile(onnx_module)
         return compiled_module
 

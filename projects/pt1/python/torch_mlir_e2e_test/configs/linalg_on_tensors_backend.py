@@ -34,7 +34,7 @@ class LinalgOnTensorsBackendTestConfig(TestConfig):
         example_args = convert_annotations_to_placeholders(program.forward)
         module = torchscript.compile(
             program, example_args, output_type="linalg-on-tensors")
-        logger.debug(module)
+        logger.debug("MLIR produced by LinalgOnTensorsBackendTestConfig:\n" + str(module))
         return self.backend.compile(module)
 
 
