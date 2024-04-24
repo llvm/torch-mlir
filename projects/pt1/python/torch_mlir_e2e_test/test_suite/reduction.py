@@ -68,7 +68,11 @@ def ReduceSumElementTypeBoolModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+<<<<<<< HEAD
 class ReduceAllFloatModule(torch.nn.Module):
+=======
+class ReduceProdFloatModule(torch.nn.Module):
+>>>>>>> upstream/main
     def __init__(self):
         super().__init__()
 
@@ -78,22 +82,35 @@ class ReduceAllFloatModule(torch.nn.Module):
         ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, a):
+<<<<<<< HEAD
         return torch.ops.aten.all(a)
     
 
 @register_test_case(module_factory=lambda: ReduceAllFloatModule())
 def ReduceAllFloatModule_basic(module, tu: TestUtils):
+=======
+        return torch.prod(a)
+
+
+@register_test_case(module_factory=lambda: ReduceProdFloatModule())
+def ReduceProdFloatModule_basic(module, tu: TestUtils):
+>>>>>>> upstream/main
     module.forward(tu.rand(3, 4, 5))
 
 # ==============================================================================
 
+<<<<<<< HEAD
 class ReduceAllIntModule(torch.nn.Module):
+=======
+class ReduceProdDtypeFloatModule(torch.nn.Module):
+>>>>>>> upstream/main
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
+<<<<<<< HEAD
         ([-1, -1, -1], torch.int32, True),
     ])
     def forward(self, a):
@@ -107,12 +124,27 @@ def ReduceAllIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
     
 class ReduceAllBoolModule(torch.nn.Module):
+=======
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, a):
+        return torch.prod(a, dtype=torch.float32)
+    
+@register_test_case(module_factory=lambda: ReduceProdDtypeFloatModule())
+def ReduceProdDtypeFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.float64))
+
+# ==============================================================================
+
+class ReduceProdElementTypeBoolModule(torch.nn.Module):
+>>>>>>> upstream/main
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
+<<<<<<< HEAD
         ([-1, -1], torch.bool, True),
     ])
     def forward(self, a):
@@ -179,6 +211,17 @@ class ReduceAnyBoolModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReduceAnyBoolModule())
 def ReduceAnyBoolModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, high=2).to(torch.bool))
+=======
+        ([-1, -1, -1], torch.bool, True),
+    ])
+    def forward(self, a):
+        return torch.prod(a)
+    
+
+@register_test_case(module_factory=lambda: ReduceProdElementTypeBoolModule())
+def ReduceProdElementTypeBoolModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, high=2).to(torch.bool))
+>>>>>>> upstream/main
 
 # ==============================================================================
 
@@ -349,6 +392,63 @@ class ReduceSumDtypeIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceSumDtypeIntModule())
 def ReduceSumDtypeIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, high=100).to(torch.int32))
+
+# ==============================================================================
+
+class ReduceProdUnsignedIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.prod(a)
+
+
+@register_test_case(module_factory=lambda: ReduceProdUnsignedIntModule())
+def ReduceProdUnsignedIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, low=0, high=100))
+
+# ==============================================================================
+
+class ReduceProdSignedIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.prod(a)
+    
+
+@register_test_case(module_factory=lambda: ReduceProdSignedIntModule())
+def ReduceProdSignedIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, low=-100, high=100))
+
+# ==============================================================================
+
+class ReduceProdDtypeIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.prod(a, dtype=torch.int64)
+
+
+@register_test_case(module_factory=lambda: ReduceProdDtypeIntModule())
+def ReduceProdDtypeIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, 5, high=100).to(torch.int32))
 
 # ==============================================================================

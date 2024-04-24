@@ -89,6 +89,21 @@ static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
     }
   }
 
+  if (isa<AtenProdOp>(op)) {
+    if (isa<mlir::FloatType>(elementTy)) {
+      APFloat one(cast<mlir::FloatType>(elementTy).getFloatSemantics(), 1);
+      auto constAttr = DenseElementsAttr::get(constType, one);
+      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
+                                                    constAttr);
+    } else if (isa<mlir::IntegerType>(elementTy) &&
+               elementTy.getIntOrFloatBitWidth() != 8) {
+      APInt one(elementTy.getIntOrFloatBitWidth(), 1);
+      auto constAttr = DenseElementsAttr::get(constType, one);
+      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
+                                                    constAttr);
+    }
+  }
+
   if (isa<AtenAllOp>(op)) {
     auto constAttr = DenseElementsAttr::get(constType, {APInt(1, 1)});
     return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
@@ -604,6 +619,79 @@ LogicalResult ConvertAtenReductionOp<AtenAnyOp>::matchAndRewrite(
 }
 } // namespace
 
+// AtenProdOp
+namespace {
+template <>
+LogicalResult ConvertAtenReductionOp<AtenProdOp>::matchAndRewrite(
+    AtenProdOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value input = adaptor.getSelf();
+  auto inputTy = input.getType().dyn_cast<RankedTensorType>();
+  auto outTy = getTypeConverter()
+                   ->convertType(op.getType())
+                   .template dyn_cast<RankedTensorType>();
+  if (!inputTy) {
+    return rewriter.notifyMatchFailure(
+        op, "only Tensor types supported in StableHLO");
+  }
+  if (inputTy.getElementType() != outTy.getElementType()) {
+    // Use output element type as computation type.
+    auto dstElemTy = outTy.getElementType();
+    input =
+        rewriter.create<stablehlo::ConvertOp>(op->getLoc(), input, dstElemTy);
+    inputTy = input.getType().dyn_cast<RankedTensorType>();
+  }
+  auto inputElemTy = inputTy.getElementType();
+  if (!inputElemTy.isIntOrFloat()) {
+    return op.emitError(
+        "only floating-point or integer datatype legalization supported");
+  }
+  // Currently, (u)int8 dtype is not supported
+  if (isa<mlir::IntegerType>(inputElemTy) &&
+      inputElemTy.getIntOrFloatBitWidth() == 8) {
+    return rewriter.notifyMatchFailure(
+        op, "IntegerType with bitwidth 8 unsupported in convertion from "
+            "AtenProdOp to StableHLO");
+  }
+
+  SmallVector<int64_t> dims;
+  for (int64_t i = 0; i < inputTy.getRank(); i++) {
+    dims.push_back(i);
+  }
+  Value initValue =
+      createInitialValueForReduceOp(op, inputTy.getElementType(), rewriter);
+  if (!initValue)
+    return failure();
+
+  llvm::sort(dims.begin(), dims.end());
+  auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
+      op.getLoc(), RankedTensorType::get({}, outTy.getElementType()), input,
+      initValue, rewriter.getDenseI64ArrayAttr(dims));
+
+  Block &block = stablehloReduceOp.getBody().emplaceBlock();
+  auto blockArgumentTy = RankedTensorType::get({}, inputTy.getElementType());
+
+  block.addArgument(blockArgumentTy, op->getLoc());
+  block.addArgument(blockArgumentTy, op->getLoc());
+
+  auto *firstArgument = block.args_begin();
+  auto secondArgument = block.args_rbegin();
+
+  {
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(&block);
+    Value mulResult = rewriter.create<stablehlo::MulOp>(
+        op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
+    rewriter.create<stablehlo::ReturnOp>(op->getLoc(), mulResult);
+  }
+
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outTy,
+                                              stablehloReduceOp.getResults());
+
+  return success();
+}
+} // namespace
+
 // AtenMaxOp
 namespace {
 template <>
@@ -768,11 +856,17 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
 
   SmallVector<int64_t> inputDims;
   SmallVector<int64_t> dims;
-  if (!matchPattern(op.getDim(), m_TorchListOfConstantInts(inputDims))) {
-    return rewriter.notifyMatchFailure(op, "non-int dim list unsupported");
-  }
-  if (inputDims.size() == 0) {
+
+  if (failed(checkNotNone(rewriter, op, op.getDim()))) {
     inputDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, inputTy.getRank()));
+  } else {
+    if (!matchPattern(op.getDim(), m_TorchListOfConstantInts(inputDims))) {
+      return rewriter.notifyMatchFailure(
+          op, "non-const integer `dim` is not supported");
+    }
+    if (inputDims.size() == 0) {
+      inputDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, inputTy.getRank()));
+    }
   }
 
   for (auto d : inputDims) {
@@ -1113,6 +1207,7 @@ void mlir::torch::torch_to_stablehlo::populateReductionOpPatternsAndLegality(
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenMaxDimOp);
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenSumDimIntListOp);
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenSumOp);
+  INSERT_ATEN_REDUCTION_OP_PATTERN(AtenProdOp);
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenAllOp);
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenAnyOp);
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenMaxOp);

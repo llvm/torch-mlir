@@ -1060,6 +1060,49 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
   return success();
 }
 
+// AtenLog2Op
+template <>
+LogicalResult ConvertAtenOp<AtenLog2Op>::matchAndRewrite(
+    AtenLog2Op op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value input = adaptor.getSelf();
+  auto inputTy = input.getType().template dyn_cast<RankedTensorType>();
+  if (!inputTy) {
+    return op.emitError("only ranked tensor type is supported.");
+  }
+  auto outTy = getTypeConverter()->convertType(op.getType()).cast<TensorType>();
+  input = hlo::promoteType(rewriter, op.getLoc(), input, outTy);
+
+  auto two = getConstantLike(rewriter, op.getLoc(), 2.0, input);
+  auto log2Op = rewriter.create<stablehlo::LogOp>(op.getLoc(), two);
+  auto logInputOp = rewriter.create<stablehlo::LogOp>(op.getLoc(), input);
+
+  rewriter.replaceOpWithNewOp<stablehlo::DivOp>(op, outTy, logInputOp, log2Op);
+  return success();
+}
+
+// AtenLog10Op
+template <>
+LogicalResult ConvertAtenOp<AtenLog10Op>::matchAndRewrite(
+    AtenLog10Op op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value input = adaptor.getSelf();
+  auto inputTy = input.getType().template dyn_cast<RankedTensorType>();
+  if (!inputTy) {
+    return op.emitError("only ranked tensor type is supported.");
+  }
+
+  auto outTy = getTypeConverter()->convertType(op.getType()).cast<TensorType>();
+  input = hlo::promoteType(rewriter, op.getLoc(), input, outTy);
+
+  auto ten = getConstantLike(rewriter, op.getLoc(), 10.0, input);
+  auto log10Op = rewriter.create<stablehlo::LogOp>(op.getLoc(), ten);
+  auto logInputOp = rewriter.create<stablehlo::LogOp>(op.getLoc(), input);
+
+  rewriter.replaceOpWithNewOp<stablehlo::DivOp>(op, outTy, logInputOp, log10Op);
+  return success();
+}
+
 // AtenErfOp
 template <>
 LogicalResult ConvertAtenOp<AtenErfOp>::matchAndRewrite(
@@ -1938,7 +1981,9 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSinOp, stablehlo::SineOp);
   INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenCosOp, stablehlo::CosineOp);
   INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAsinOp, chlo::AsinOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSinhOp, chlo::SinhOp);
   INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAcosOp, chlo::AcosOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenCoshOp, chlo::CoshOp);
   INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAtanOp, chlo::AtanOp);
 #undef INSERT_UNARY_PROMOTE_TO_FP_PATTERN
 
@@ -2028,6 +2073,8 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
 
   INSERT_ATENOP_PATTERN(AtenReluOp);
   INSERT_ATENOP_PATTERN(AtenGeluOp);
+  INSERT_ATENOP_PATTERN(AtenLog2Op);
+  INSERT_ATENOP_PATTERN(AtenLog10Op);
   INSERT_ATENOP_PATTERN(AtenErfOp);
   INSERT_ATENOP_PATTERN(AtenGeluBackwardOp);
 
