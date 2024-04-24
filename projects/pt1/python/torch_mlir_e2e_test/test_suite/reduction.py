@@ -123,6 +123,7 @@ def ReduceProdElementTypeBoolModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, 5, high=2).to(torch.bool))
 
 # ==============================================================================
+
 class ReduceAllFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
