@@ -1633,6 +1633,46 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
+    AtenConstantPadNdOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value self = adaptor.getSelf();
+  auto selfTy = self.getType().cast<RankedTensorType>();
+  auto selfElemTy = selfTy.getElementType();
+  int64_t rank = selfTy.getRank();
+
+  SmallVector<int64_t> padInts;
+  if (!matchPattern(op.getPad(), m_TorchListOfConstantInts(padInts)))
+    return rewriter.notifyMatchFailure(op,
+                                       "only support constant int pad ranges");
+  uint64_t padRank = padInts.size() / 2;
+  if (padRank * 2 != padInts.size())
+    return rewriter.notifyMatchFailure(op, "pad range size is not even");
+  if (rank < 0 || padRank > (uint64_t)rank)
+    return rewriter.notifyMatchFailure(op, "padding exceeds tensor rank");
+
+  // Initialize low/high paddings with 0 for all the dims.
+  SmallVector<int64_t> lowPadding(/*Size=*/rank, /*Value=*/0);
+  SmallVector<int64_t> highPadding(/*Size=*/rank, /*Value=*/0);
+  // Add the requested padding - note op.pad() is highest dim first ordered
+  // pairs of low,high.
+  // Add the requested padding - note op.pad() is highest dim first ordered
+  // pairs of low,high.
+  for (uint64_t i = 0; i < padRank; ++i) {
+    lowPadding[rank - i - 1] = padInts[i * 2];
+    highPadding[rank - i - 1] = padInts[i * 2 + 1];
+  }
+
+  Value constantValue = hlo::scalarToStablehloTensor(
+      rewriter, op, adaptor.getValue(), selfElemTy);
+
+  SmallVector<int64_t> interiorPadding(rank, 0);
+  rewriter.replaceOpWithNewOp<stablehlo::PadOp>(
+      op, self, constantValue, lowPadding, highPadding, interiorPadding);
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
     AtenGeluBackwardOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -2070,6 +2110,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
   INSERT_ATENOP_PATTERN(AtenScalarImplicitOp);
   INSERT_ATENOP_PATTERN(AtenContiguousOp);
+  INSERT_ATENOP_PATTERN(AtenConstantPadNdOp);
 
   INSERT_ATENOP_PATTERN(AtenReluOp);
   INSERT_ATENOP_PATTERN(AtenGeluOp);
