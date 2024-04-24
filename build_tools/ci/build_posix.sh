@@ -50,7 +50,6 @@ cmake -S "$repo_root/externals/llvm-project/llvm" -B "$build_dir" \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$repo_root" \
   -DLLVM_TARGETS_TO_BUILD=host \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-  -DTORCH_MLIR_ENABLE_LTC=ON
 echo "::endgroup::"
 
 echo "::group::Build"
