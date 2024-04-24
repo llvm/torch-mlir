@@ -118,7 +118,7 @@ static LogicalResult checkType(Operation *op, Type type,
   if (auto optionalType = dyn_cast<OptionalType>(type)) {
     // TODO: Be stricter about tensor types.
     // See comment below for ListType.
-    if (optionalType.getContainedType().isa<ValueTensorType>())
+    if (isa<ValueTensorType>(optionalType.getContainedType()))
       return success();
     return checkType(op, optionalType.getContainedType(),
                      actuallyEmitDiagnostics);
@@ -134,7 +134,7 @@ static LogicalResult checkType(Operation *op, Type type,
     // the contained type information. Somehow this slips through and works.
     // We should be stricter about this and properly infer the contained type
     // and shape.
-    if (listType.getContainedType().isa<ValueTensorType>())
+    if (isa<ValueTensorType>(listType.getContainedType()))
       return success();
     return checkType(op, listType.getContainedType(), actuallyEmitDiagnostics);
   }
@@ -535,7 +535,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   }
   target.addDynamicallyLegalOp<OperatorOp>(
       [backendLegalOpsSet](OperatorOp opOp) {
-        auto opName = opOp->getAttr("name").cast<StringAttr>().getValue();
+        auto opName = cast<StringAttr>(opOp->getAttr("name")).getValue();
         return backendLegalOpsSet.contains(opName);
       });
 }

@@ -38,7 +38,7 @@ public:
     Location loc = op->getLoc();
     Value self = adaptor.getSelf();
     Value dim = adaptor.getDim();
-    auto type = self.getType().cast<RankedTensorType>();
+    auto type = cast<RankedTensorType>(self.getType());
     Value inputRank = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI64IntegerAttr(type.getRank()));
     Value dimPositive = toPositiveDimDynamic(rewriter, loc, dim, inputRank);
@@ -87,7 +87,7 @@ public:
     SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
     int64_t inputRank = inputSizes.size();
     Type inputDtype =
-        op.getA().getType().template cast<BaseTensorType>().getDtype();
+        cast<BaseTensorType>(op.getA().getType()).getDtype();
 
     // The `input` tensor must contain exactly one element, i.e., either the
     // `input` is a zero rank tensor or all the dimensions of the `input` tensor

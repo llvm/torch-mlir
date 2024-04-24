@@ -23,7 +23,7 @@ static LogicalResult createTorchTransposeOp(ConversionPatternRewriter &rewriter,
                                             int64_t dimA, int64_t dimB,
                                             Value &transposed) {
   Type transposedType;
-  if (failed(getTransposedType(input.getType().cast<Torch::BaseTensorType>(),
+  if (failed(getTransposedType(cast<Torch::BaseTensorType>(input.getType()),
                                dimA, dimB, transposedType)))
     return failure();
   Value cstDimA = rewriter.create<Torch::ConstantIntOp>(
@@ -554,7 +554,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         // conversions which are not supported in Torch-MLIR right now.
 
         Torch::ValueTensorType targetTy =
-            target.getType().cast<Torch::ValueTensorType>();
+            cast<Torch::ValueTensorType>(target.getType());
         if (!targetTy.hasDtype()) {
           return rewriter.notifyMatchFailure(binder.op,
                                              "target tensor must have a dtype");
@@ -753,9 +753,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType))
           return failure();
         Type listElemType =
-            tensors[0]
-                .getType()
-                .cast<Torch::BaseTensorType>()
+            cast<Torch::BaseTensorType>(tensors[0].getType())
                 .getWithSizesAndDtype(/*optionalSizes=*/std::nullopt,
                                       /*optionalDtype=*/nullptr);
         Type listType = Torch::ListType::get(listElemType);
@@ -869,7 +867,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType))
           return failure();
 
-        auto weightTensorType = weight.getType().cast<Torch::ValueTensorType>();
+        auto weightTensorType = cast<Torch::ValueTensorType>(weight.getType());
         if (!weightTensorType || !weightTensorType.hasSizes()) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected weight type having sizes");
@@ -1188,7 +1186,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType))
           return failure();
 
-        auto weightTensorType = weight.getType().cast<Torch::ValueTensorType>();
+        auto weightTensorType = cast<Torch::ValueTensorType>(weight.getType());
         if (!weightTensorType || !weightTensorType.hasSizes()) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected weight type having sizes");
@@ -1427,7 +1425,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.customOpNameStringAttr(mode, "mode", "DCR") ||
             binder.tensorResultType(resultType))
           return failure();
-        auto inputTy = input.getType().dyn_cast<Torch::BaseTensorType>();
+        auto inputTy = dyn_cast<Torch::BaseTensorType>(input.getType());
         if (!inputTy || !inputTy.hasSizes()) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected input type having sizes");
@@ -1536,9 +1534,9 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value scale = operands[1];
         Value zeropoint = operands[2];
 
-        auto operandTy = operand.getType().cast<Torch::ValueTensorType>();
+        auto operandTy = cast<Torch::ValueTensorType>(operand.getType());
 
-        auto scaleTy = scale.getType().dyn_cast<Torch::ValueTensorType>();
+        auto scaleTy = dyn_cast<Torch::ValueTensorType>(scale.getType());
         if (!scaleTy || !scaleTy.hasSizes())
           return rewriter.notifyMatchFailure(binder.op, "requires known rank");
         if (!resultType.hasDtype())
@@ -1611,7 +1609,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           ratio = rewriter.create<Torch::AtenFloatImplicitOp>(loc, operands[1]);
           Value trainVal = operands[2];
           auto trainTensorType =
-              trainVal.getType().dyn_cast<Torch::BaseTensorType>();
+              dyn_cast<Torch::BaseTensorType>(trainVal.getType());
           if (!trainTensorType)
             return rewriter.notifyMatchFailure(binder.op,
                                                "train tensor must have a type");
@@ -1629,8 +1627,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
           if (auto valueTensorLiteralOp =
                   trainVal.getDefiningOp<Torch::ValueTensorLiteralOp>()) {
-            auto val = valueTensorLiteralOp.getValue()
-                           .cast<DenseElementsAttr>()
+            auto val = cast<DenseElementsAttr>(valueTensorLiteralOp.getValue())
                            .getSplatValue<bool>();
             trainingMode = rewriter.create<Torch::ConstantBoolOp>(loc, val);
           } else {
@@ -2072,7 +2069,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             dyn_cast<Torch::ValueTensorType>(shape.getType()).getSizes();
         SmallVector<Value> dimList;
         Torch::BaseTensorType shapeType =
-            shape.getType().cast<Torch::BaseTensorType>();
+            cast<Torch::BaseTensorType>(shape.getType());
         Type selectResultType = rewriter.getType<Torch::ValueTensorType>(
             ArrayRef<int64_t>({}), shapeType.getOptionalDtype());
         Value zero = rewriter.create<Torch::ConstantIntOp>(

@@ -32,7 +32,7 @@ namespace {
 Value getBroadcastTensor(PatternRewriter &rewriter, Operation *op, Value tensor,
                          ArrayRef<int64_t> shape, ArrayRef<Value> dimSizes,
                          ArrayRef<int64_t> broadcastDims) {
-  auto tensorTy = tensor.getType().dyn_cast<RankedTensorType>();
+  auto tensorTy = dyn_cast<RankedTensorType>(tensor.getType());
   auto loc = op->getLoc();
   Value stablehloShape = rewriter.create<tensor::FromElementsOp>(loc, dimSizes);
 
@@ -48,7 +48,7 @@ Value getBroadcastTensor(PatternRewriter &rewriter, Operation *op, Value tensor,
 
 Value getPermutedTensor(PatternRewriter &rewriter, Operation *op, Value input,
                         ArrayRef<int64_t> inpTransDims) {
-  auto inputTy = input.getType().dyn_cast<RankedTensorType>();
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
   auto rank = inputTy.getRank();
   auto transDims = hlo::toPositiveDims(inpTransDims, rank);
   auto inpShape = inputTy.getShape();
@@ -70,8 +70,8 @@ RankedTensorType castContractingDim(PatternRewriter &rewriter, Operation *op,
                                     int64_t lhsResultDim, int64_t rhsResultDim,
                                     int64_t lhsContractingDim,
                                     int64_t rhsContractingDim) {
-  auto lhsTy = lhs.getType().dyn_cast<RankedTensorType>();
-  auto rhsTy = rhs.getType().dyn_cast<RankedTensorType>();
+  auto lhsTy = dyn_cast<RankedTensorType>(lhs.getType());
+  auto rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
 
   auto oldLhsShape = lhsTy.getShape();
   auto oldRhsShape = rhsTy.getShape();
@@ -129,8 +129,8 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
                      size_t dimSizeIndexBits) {
   Value lhs = inpLhs;
   Value rhs = inpRhs;
-  auto lhsRankTy = inpLhs.getType().dyn_cast<RankedTensorType>();
-  auto rhsRankTy = inpRhs.getType().dyn_cast<RankedTensorType>();
+  auto lhsRankTy = dyn_cast<RankedTensorType>(inpLhs.getType());
+  auto rhsRankTy = dyn_cast<RankedTensorType>(inpRhs.getType());
 
   auto lhsRank = lhsRankTy.getRank();
   auto rhsRank = rhsRankTy.getRank();
@@ -177,8 +177,8 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
     return;
   }
 
-  lhsShape = lhs.getType().cast<RankedTensorType>().getShape();
-  rhsShape = rhs.getType().cast<RankedTensorType>().getShape();
+  lhsShape = cast<RankedTensorType>(lhs.getType()).getShape();
+  rhsShape = cast<RankedTensorType>(rhs.getType()).getShape();
 
   // check shape compatibility, check if we should broadcast
   // first, we should got a new batch shape. Check from (0, nBatchDims)
@@ -266,8 +266,8 @@ public:
   LogicalResult performMatmul(AtenOpT op, OpAdaptor adaptor,
                               ConversionPatternRewriter &rewriter, Value &lhs,
                               Value &rhs, Value &output) const {
-    auto lhsTy = lhs.getType().cast<RankedTensorType>();
-    auto rhsTy = rhs.getType().cast<RankedTensorType>();
+    auto lhsTy = cast<RankedTensorType>(lhs.getType());
+    auto rhsTy = cast<RankedTensorType>(rhs.getType());
 
     auto lhsRank = lhsTy.getRank();
     auto rhsRank = rhsTy.getRank();
@@ -370,10 +370,10 @@ public:
                                  ConversionPatternRewriter &rewriter,
                                  Value &lhs, Value &rhs) const override {
     lhs = adaptor.getSelf();
-    auto lhsTy = lhs.getType().cast<RankedTensorType>();
+    auto lhsTy = cast<RankedTensorType>(lhs.getType());
 
     rhs = adaptor.getOther();
-    auto rhsTy = rhs.getType().cast<RankedTensorType>();
+    auto rhsTy = cast<RankedTensorType>(rhs.getType());
 
     if (!lhsTy || !rhsTy)
       return op.emitError(
@@ -393,10 +393,10 @@ public:
                                  ConversionPatternRewriter &rewriter,
                                  Value &lhs, Value &rhs) const override {
     lhs = adaptor.getSelf();
-    auto lhsTy = lhs.getType().cast<RankedTensorType>();
+    auto lhsTy = cast<RankedTensorType>(lhs.getType());
 
     rhs = adaptor.getMat2();
-    auto rhsTy = rhs.getType().cast<RankedTensorType>();
+    auto rhsTy = cast<RankedTensorType>(rhs.getType());
 
     if (!lhsTy || !rhsTy)
       return op.emitError(
@@ -429,10 +429,10 @@ public:
                                  ConversionPatternRewriter &rewriter,
                                  Value &lhs, Value &rhs) const override {
     lhs = adaptor.getInput();
-    auto lhsTy = lhs.getType().cast<RankedTensorType>();
+    auto lhsTy = cast<RankedTensorType>(lhs.getType());
 
     rhs = adaptor.getWeight();
-    auto rhsTy = rhs.getType().cast<RankedTensorType>();
+    auto rhsTy = cast<RankedTensorType>(rhs.getType());
 
     if (!lhsTy || !rhsTy)
       return op.emitError(
@@ -464,16 +464,16 @@ public:
     auto biasTy = bias.getType();
 
     // StableHLO does not mandate that elementwise op tensors need to be ranked.
-    if (!biasTy.template isa<Torch::NoneType>() &&
-        !biasTy.template isa<RankedTensorType>())
+    if (!isa<Torch::NoneType>(biasTy) &&
+        !isa<RankedTensorType>(biasTy))
       return op.emitError("only ranked tensor types are supported in StableHLO "
                           "matmul for bias tensor");
 
     // weight.T
     rhs = getPermutedTensor(rewriter, op, rhs, {1, 0});
 
-    auto lhsTy = lhs.getType().cast<RankedTensorType>();
-    auto rhsTy = rhs.getType().cast<RankedTensorType>();
+    auto lhsTy = cast<RankedTensorType>(lhs.getType());
+    auto rhsTy = cast<RankedTensorType>(rhs.getType());
     auto leadingRank = std::max(lhsTy.getRank() - rhsTy.getRank(),
                                 rhsTy.getRank() - lhsTy.getRank());
 
@@ -503,7 +503,7 @@ public:
         op->getLoc(), outTy, lhs, rhs, dotDimensionNumbers, nullptr);
 
     Value matmulPlusBias = matmulOutput;
-    if (!biasTy.template isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(biasTy)) {
       // Bias addition broadcasts to the matmul output shape.
       matmulPlusBias = rewriter
                            .create<chlo::BroadcastAddOp>(
@@ -525,7 +525,7 @@ public:
 
   Value reshapeConvWeight(PatternRewriter &rewriter, Operation *op,
                           Value weight, int64_t groups) const {
-    auto weightTy = weight.getType().cast<RankedTensorType>();
+    auto weightTy = cast<RankedTensorType>(weight.getType());
     auto weightElemTy = weightTy.getElementType();
     auto rank = weightTy.getRank();
     const auto &options = getOptions();
@@ -588,8 +588,8 @@ public:
                               ArrayRef<int64_t> dilation,
                               ArrayRef<int64_t> outputPadding,
                               int64_t groups) const {
-    auto inputTy = input.getType().cast<RankedTensorType>();
-    auto weightTy = weight.getType().cast<RankedTensorType>();
+    auto inputTy = cast<RankedTensorType>(input.getType());
+    auto weightTy = cast<RankedTensorType>(weight.getType());
     auto weightShape = weightTy.getShape();
 
     auto nDims = inputTy.getRank();
@@ -727,11 +727,11 @@ public:
     Value weight = adaptor.getWeight();
 
     // The input shape is [N, C, H, W]
-    auto inputTy = input.getType().template cast<RankedTensorType>();
+    auto inputTy = cast<RankedTensorType>(input.getType());
     // The weight shape is [OC, (IC//G), KH, KW]
     // If transposed is set to true,
     // the weight shape changes to [IC, (OC//G), KH, KW]
-    auto weightTy = weight.getType().template cast<RankedTensorType>();
+    auto weightTy = cast<RankedTensorType>(weight.getType());
     auto outTy = getTypeConverter()
                      ->convertType(op.getType())
                      .template cast<RankedTensorType>();
@@ -819,11 +819,11 @@ public:
     }
 
     // Handle bias
-    if (!bias.getType().cast<RankedTensorType>()) {
+    if (!cast<RankedTensorType>(bias.getType())) {
       return op.emitError("bias provided but not a ranked tensor");
     }
 
-    auto biasTy = bias.getType().cast<RankedTensorType>();
+    auto biasTy = cast<RankedTensorType>(bias.getType());
     if (!biasTy.getElementType().isIntOrFloat()) {
       return op.emitError("only floating-point or integer datatype "
                           "legalization for bias supported");

@@ -77,7 +77,7 @@ Value TMTensor::getDimValue(OpBuilder &builder, Location loc, Value v,
 
 OpFoldResult TMTensor::getDim(OpBuilder &builder, Location loc, Value v,
                               int64_t dim) {
-  auto t = v.getType().cast<ShapedType>();
+  auto t = cast<ShapedType>(v.getType());
   if (t.isDynamicDim(dim)) {
     return getDimValue(builder, loc, v, dim);
   }
@@ -123,7 +123,7 @@ bool AttentionOp::payloadUsesValueFromOperand(OpOperand *opOperand) {
 static void matmul(OpBuilder &b, Location loc, Value lhs, ValueRange lhsSizes,
                    Value rhs, ValueRange rhsSizes, Value output,
                    ValueRange outputSizes, bool transposed = false) {
-  auto elementType = lhs.getType().cast<MemRefType>().getElementType();
+  auto elementType = cast<MemRefType>(lhs.getType()).getElementType();
   Value one = b.create<arith::ConstantIndexOp>(loc, 1);
   Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
   auto rank = outputSizes.size();
@@ -168,9 +168,9 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
   Value key = getKey();
   Value value = getValue();
   Value output = getOutput();
-  auto queryType = query.getType().cast<MemRefType>();
-  auto keyType = key.getType().cast<MemRefType>();
-  auto valueType = value.getType().cast<MemRefType>();
+  auto queryType = cast<MemRefType>(query.getType());
+  auto keyType = cast<MemRefType>(key.getType());
+  auto valueType = cast<MemRefType>(value.getType());
   auto queryRank = queryType.getRank();
   auto keyRank = keyType.getRank();
   auto valueRank = valueType.getRank();
@@ -330,12 +330,12 @@ LogicalResult ScanOp::verify() {
   if (getNumOutputs() != 2) {
     return emitOpError("expected two output operands");
   }
-  if (!input().getType().isa<ShapedType>()) {
+  if (!isa<ShapedType>(input().getType())) {
     return emitOpError("expected first input element type to be shaped");
   }
-  auto accumulatorType = accumulator().getType().cast<ShapedType>();
-  auto inputType = input().getType().cast<ShapedType>();
-  auto outputType = output().getType().cast<ShapedType>();
+  auto accumulatorType = cast<ShapedType>(accumulator().getType());
+  auto inputType = cast<ShapedType>(input().getType());
+  auto outputType = cast<ShapedType>(output().getType());
   ArrayRef<int64_t> inputShapes = inputType.getShape();
   ArrayRef<int64_t> outputShapes = outputType.getShape();
   if (accumulatorType.getElementType() != inputType.getElementType()) {
@@ -706,7 +706,7 @@ LogicalResult ScatterOp::generateScalarImplementation(OpBuilder &b,
   loadIndices.push_back(Value());
 
   // Populate with empty values.
-  auto originalTy = original().getType().cast<ShapedType>();
+  auto originalTy = cast<ShapedType>(original().getType());
   starts.resize(originalTy.getRank(), Value());
   auto updateIvs = ivs.drop_front(1);
 
@@ -797,7 +797,7 @@ LogicalResult SortOp::verify() {
   if (yieldOp.getNumOperands() != 1) {
     return op->emitOpError("should yield exactly one operand");
   }
-  auto ty = yieldOp.getOperand(0).getType().dyn_cast<IntegerType>();
+  auto ty = dyn_cast<IntegerType>(yieldOp.getOperand(0).getType());
   if (!ty || ty.getWidth() != 1) {
     return op->emitOpError("should yield i1 type");
   }

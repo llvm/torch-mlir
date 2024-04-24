@@ -144,7 +144,7 @@ Value scalarToStablehloTensor(ConversionPatternRewriter &rewriter,
 
 Value promoteType(PatternRewriter &rewriter, Location loc, Value input,
                   TensorType outType) {
-  TensorType in_type = input.getType().cast<TensorType>();
+  TensorType in_type = cast<TensorType>(input.getType());
 
   if (in_type.getElementType() != outType.getElementType()) {
     TensorType promotedType =
@@ -162,7 +162,7 @@ Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
   //   dimension, the dimension sizes must either be equal, one of them is 1, or
   //   one of them does not exist.
   Operation *op = input.getDefiningOp();
-  TensorType in_type = input.getType().dyn_cast<TensorType>();
+  TensorType in_type = dyn_cast<TensorType>(input.getType());
 
   if (in_type.getElementType() != outType.getElementType()) {
     TensorType promoted_type =
@@ -217,7 +217,7 @@ FailureOr<SmallVector<Value, 4>> getDimSizesOfTensor(PatternRewriter &rewriter,
                                                      Operation *op, Value value,
                                                      ArrayRef<int64_t> inpDims,
                                                      size_t dimSizeIndexBits) {
-  auto valueTy = value.getType().dyn_cast<RankedTensorType>();
+  auto valueTy = dyn_cast<RankedTensorType>(value.getType());
   if (!valueTy) {
     return rewriter.notifyMatchFailure(
         op, "getDimSizesOfTensor(): the input is not a ranked tensor");
@@ -240,7 +240,7 @@ FailureOr<SmallVector<Value, 4>> getDimSizesOfTensor(PatternRewriter &rewriter,
 FailureOr<SmallVector<Value, 4>> getDimSizesOfTensor(PatternRewriter &rewriter,
                                                      Operation *op, Value value,
                                                      size_t dimSizeIndexBits) {
-  auto valueTy = value.getType().dyn_cast<RankedTensorType>();
+  auto valueTy = dyn_cast<RankedTensorType>(value.getType());
   if (!valueTy) {
     return rewriter.notifyMatchFailure(
         op, "getDimSizesOfTensor(): the input is not a ranked tensor");
@@ -279,7 +279,7 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
           op, "unsqueeze dimensions must be specified in order");
 
   auto loc = op->getLoc();
-  auto rankTy = tensor.getType().dyn_cast<RankedTensorType>();
+  auto rankTy = dyn_cast<RankedTensorType>(tensor.getType());
   auto oldShape = rankTy.getShape();
   Type intType = rewriter.getIntegerType(dimSizeIndexBits);
   auto one = rewriter.create<arith::ConstantOp>(
