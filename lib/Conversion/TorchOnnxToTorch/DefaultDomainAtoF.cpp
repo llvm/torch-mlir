@@ -2195,13 +2195,13 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value size;
         Torch::ValueTensorType resultType;
         int64_t periodic, output_datatype;
-        if (binder.tensorOperandAtIndex(size, 0) ||
+        if (binder.tensorOperand(size) ||
             binder.s64IntegerAttr(output_datatype, "output_datatype", 1) ||
             binder.s64IntegerAttr(periodic, "periodic", 1) ||
             binder.tensorResultType(resultType)) {
           return failure();
         }
-        double isPeriodicFp = (double)periodic;
+        double isPeriodicFp = static_cast<double>(periodic);
         Value a0 = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(),
             rewriter.getFloatAttr(rewriter.getF64Type(), 0.42));
@@ -2229,8 +2229,15 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value float32Type = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(/*float32Type*/ 6));
 
+        // Create an f32 ValueTensorType with thse same size as size, the
+        // operand
+        auto shapeOfOperand = size.getType()
+                                  .dyn_cast<Torch::ValueTensorType>()
+                                  .getOptionalSizes();
+        auto f32ResultType = rewriter.getType<Torch::ValueTensorType>(
+            shapeOfOperand, rewriter.getF32Type());
         Value periodicSizeFloat = rewriter.create<Torch::AtenToDtypeOp>(
-            binder.getLoc(), size.getType(), size, float32Type, cstFalse,
+            binder.getLoc(), f32ResultType, size, float32Type, cstFalse,
             cstFalse, noneVal);
         Value symmetricSizeFloat = rewriter.create<Torch::AtenSubScalarOp>(
             binder.getLoc(), periodicSizeFloat.getType(), periodicSizeFloat,
@@ -2251,8 +2258,9 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.getLoc(), symmetricComponent.getType(), symmetricComponent,
             periodicComponent, one);
 
-        Value scalarLimit =
-            getItemOp<Torch::IntType>(binder, rewriter, periodicSizeFloat);
+        // Here, size can be used in the place of periodicSizeFloat, as the
+        // latter is just a float representation of the former.
+        Value scalarLimit = getItemOp<Torch::IntType>(binder, rewriter, size);
 
         Value rangeArr = rewriter.create<Torch::AtenArangeStartStepOp>(
             binder.getLoc(), resultType, zero, scalarLimit, one, noneVal,
