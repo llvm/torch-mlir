@@ -520,13 +520,12 @@ private:
     auto opInfo = torch_to_linalg::ReductionOpInfo{false, Value{}, {}};
 
     if (isa<AtenAnyOp, AtenAllOp, AtenMaxOp, AtenMinOp, AtenSumOp, AtenProdOp,
-            AtenNormScalarOp>(
-            op)) {
+            AtenNormScalarOp>(op)) {
       opInfo.tensorOperand = operands[0];
       auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
 
-      // `AtenAny`, `AtenAll`, `AtenSumOp`, `AtenProdOp`, `AtenMaxOp`, and `AtenMinOp` each
-      // reduce along all the dimensions of the input tensor.
+      // `AtenAny`, `AtenAll`, `AtenSumOp`, `AtenProdOp`, `AtenMaxOp`, and
+      // `AtenMinOp` each reduce along all the dimensions of the input tensor.
       for (int64_t i = 0; i < inputType.getRank(); i++)
         opInfo.dimSet.insert(i);
 
