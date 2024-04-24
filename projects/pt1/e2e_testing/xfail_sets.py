@@ -1467,6 +1467,8 @@ STABLEHLO_PASS_SET = {
     "ElementwiseCoshModule_basic",
     "ElementwiseSinhIntModule_basic",
     "ElementwiseSinhModule_basic",
+    "ElementwiseTruncIntModule_basic",
+    "ElementwiseTruncModule_basic",
 }
 
 STABLEHLO_CRASHING_SET =  {
