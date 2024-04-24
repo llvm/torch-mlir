@@ -1253,6 +1253,12 @@ STABLEHLO_PASS_SET = {
     "ReduceSumFloatModule_basic",
     "ReduceSumSignedIntModule_basic",
     "ReduceSumUnsignedIntModule_basic",
+    "ReduceProdFloatModule_basic",
+    "ReduceProdDtypeFloatModule_basic",
+    "ReduceProdElementTypeBoolModule_basic",
+    "ReduceProdUnsignedIntModule_basic",
+    "ReduceProdSignedIntModule_basic",
+    "ReduceProdDtypeIntModule_basic",
     "RepeatInterleaveSelfIntModule_basic",
     "RepeatInterleaveSelfIntNoDimModule_basic",
     "ReturnThreeTensorFloat32_basic",
@@ -2617,6 +2623,14 @@ ONNX_XFAIL_SET = {
     
     # Failure - onnx_lowering: onnx.OneHot
     "OneHotModule_basic",
+
+    # Failure - onnx_lowering: onnx.ReduceProd
+    "ReduceProdFloatModule_basic",
+    "ReduceProdDtypeFloatModule_basic",
+    "ReduceProdElementTypeBoolModule_basic",
+    "ReduceProdUnsignedIntModule_basic",
+    "ReduceProdSignedIntModule_basic",
+    "ReduceProdDtypeIntModule_basic",
     
     # ERROR: dtype (torch.float32) is not equal to golden dtype (torch.float64)
     "RandnDtypeDeviceModule_basic",
