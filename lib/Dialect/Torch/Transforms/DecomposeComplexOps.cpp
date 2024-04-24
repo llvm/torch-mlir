@@ -5887,6 +5887,7 @@ class DecomposeAtenCosineSimilarityOp
 } // namespace
 
 namespace {
+// decompose `trunc(x)` to `sign(x) * floor(abs(x))`
 class DecomposeAtenTruncOp : public OpRewritePattern<AtenTruncOp> {
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenTruncOp op,
