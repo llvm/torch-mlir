@@ -1266,6 +1266,72 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         return failure();
       });
   patterns.onOp(
+      "GlobalMaxPool", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        if (binder.tensorOperand(operand) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        auto inputTensorType = operand.getType().cast<Torch::ValueTensorType>();
+        if (!inputTensorType || !inputTensorType.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected input type having sizes");
+        }
+        ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
+        unsigned inputRank = inputShape.size();
+        if (!resultType || !resultType.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected result type having sizes");
+        }
+        ArrayRef<int64_t> resultShape = resultType.getSizes();
+        unsigned resultRank = resultShape.size();
+
+        SmallVector<Value> outputSize;
+        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        for (unsigned i = 2; i < resultRank; i++) {
+          if (resultShape[i] == Torch::kUnknownSize) {
+            outputSize.push_back(cstOne);
+          } else {
+            outputSize.push_back(rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(resultShape[i])));
+          }
+        }
+        Value outputSizeList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            outputSize);
+        Value outputTensor;
+        Type returnIndicesType = torch::Torch::ValueTensorType::get(
+            binder.op->getContext(), resultShape,
+            rewriter.getIntegerType(64, true));
+        if (inputRank == 3) {
+          outputTensor = rewriter
+                             .create<Torch::AtenAdaptiveMaxPool1dOp>(
+                                 binder.getLoc(), resultType, returnIndicesType,
+                                 operand, outputSizeList)
+                             .getResult(0);
+        } else if (inputRank == 4) {
+          outputTensor = rewriter
+                             .create<Torch::AtenAdaptiveMaxPool2dOp>(
+                                 binder.getLoc(), resultType, returnIndicesType,
+                                 operand, outputSizeList)
+                             .getResult(0);
+        } else if (inputRank == 5) {
+          outputTensor = rewriter
+                             .create<Torch::AtenAdaptiveMaxPool3dOp>(
+                                 binder.getLoc(), resultType, returnIndicesType,
+                                 operand, outputSizeList)
+                             .getResult(0);
+        } else {
+          return failure();
+        }
+        rewriter.replaceOp(binder.op, outputTensor);
+        return success();
+      });
+  patterns.onOp(
       "LayerNormalization", 17,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType yType, meanType, invStdDevType;
