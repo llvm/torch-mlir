@@ -974,9 +974,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                             "noop_with_empty_axes", 0))
                     return failure();
 
-                  auto reducedSumBool = reducedSumImpl(binder, rewriter, data, resultType,
-                                                      /*storeValue=*/data, keepDims, 
-                                                      noop_with_empty_axes, true);
+                  auto reducedSumBool =
+                      reducedSumImpl(binder, rewriter, data, resultType,
+                                     /*storeValue=*/data, keepDims,
+                                     noop_with_empty_axes, true);
 
                   if (failed(reducedSumBool))
                     return rewriter.notifyMatchFailure(
