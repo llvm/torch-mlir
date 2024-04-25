@@ -907,6 +907,31 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                         /*storeValue=*/data, keepDims,
                                         noop_with_empty_axes, false);
                 });
+  patterns.onOp("ReduceLogSum", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value data;
+                  int64_t keepDims, noop_with_empty_axes;
+                  if (binder.tensorOperandAtIndex(data, 0) ||
+                      binder.tensorResultType(resultType) ||
+                      binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
+                      binder.s64IntegerAttr(noop_with_empty_axes,
+                                            "noop_with_empty_axes", 0))
+                    return failure();
+
+                  auto reducedSumBool = reducedSumImpl(binder, rewriter, data, resultType,
+                                                      /*storeValue=*/data, keepDims, 
+                                                      noop_with_empty_axes, true);
+
+                  if (failed(reducedSumBool))
+                    return rewriter.notifyMatchFailure(
+                        binder.op,
+                        "Failed to perform sum operation on square of operand");
+
+                  rewriter.replaceOpWithNewOp<Torch::AtenLogOp>(
+                      binder.op, resultType, data);
+                  return success();
+                });
   patterns.onOp(
       "ReduceMean", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
