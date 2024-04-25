@@ -77,7 +77,7 @@ class VerifyLinalgOnTensorsBackendContractPass
     target.addDynamicallyLegalDialect<arith::ArithDialect>(isLegalScalarOp);
     target.addDynamicallyLegalDialect<complex::ComplexDialect>(isLegalScalarOp);
 
-    // Tensor operations should go through linalg and the (sparse) tensor dialect.
+    // Tensor operations should go through linalg and the tensor dialect.
     target.addDynamicallyLegalDialect<linalg::LinalgDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<sparse_tensor::SparseTensorDialect>(
         opHasLegalTypes);
