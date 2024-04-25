@@ -1792,6 +1792,28 @@ def ElementwiseAtan2TensorFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAtan2TensorFloatStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4, 5, 6], torch.float32, True),
+        ([4, 5, 6], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return torch.atan2(a, b)
+    
+
+@register_test_case(module_factory=lambda: ElementwiseAtan2TensorFloatStaticModule())
+def ElementwiseAtan2TensorFloatStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6), tu.rand(4, 5, 6))
+
+
+# ==============================================================================
+
 class ElementwiseAtan2TensorIntModule(torch.nn.Module):
 
     def __init__(self):
@@ -1811,6 +1833,30 @@ class ElementwiseAtan2TensorIntModule(torch.nn.Module):
 def ElementwiseAtan2TensorIntModule_basic(module, tu: TestUtils):
     module.forward(
         tu.randint(4, low=1, high=10).type(torch.int32), tu.randint(4, low=1, high=10))
+
+
+# ==============================================================================
+
+
+class ElementwiseAtan2TensorIntStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4, 5, 6], torch.int32, True),
+        ([4, 5, 6], torch.int64, True),
+    ])
+    def forward(self, a, b):
+        return torch.atan2(a, b)
+    
+
+@register_test_case(module_factory=lambda: ElementwiseAtan2TensorIntStaticModule())
+def ElementwiseAtan2TensorIntStaticModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, 5, 6, low=1, high=10).type(torch.int32), tu.randint(4, 5, 6, low=1, high=10))
 
 
 # ==============================================================================
@@ -1836,6 +1882,30 @@ def ElementwiseAtan2FloatIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(4, 4, low=1, high=10).to(torch.int32),
                    tu.rand(4, 4).double())
 
+
+# ==============================================================================
+
+
+class ElementwiseAtan2FloatIntStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4, 5, 6], torch.int32, True),
+        ([4, 5, 6], torch.float64, True),
+    ])
+    def forward(self, a, b):
+        return torch.atan2(a, b)
+    
+
+@register_test_case(module_factory=lambda: ElementwiseAtan2FloatIntStaticModule())
+def ElementwiseAtan2FloatIntStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, 5, 6, low=1, high=10).to(torch.int32),
+                   tu.rand(4, 5, 6).double())
+    
 
 # ==============================================================================
 
