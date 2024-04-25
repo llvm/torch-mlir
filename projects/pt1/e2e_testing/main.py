@@ -94,6 +94,7 @@ which make it easier to attach a debugger or get a stack trace.""")
 
 def main():
     args = _get_argparse().parse_args()
+    args.log_level = args.log_level.upper()
 
     logger = logging.getLogger() # use root logger by default. Easy to change later.
     logger.setLevel(logging.NOTSET)
