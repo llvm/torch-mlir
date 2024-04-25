@@ -1835,6 +1835,19 @@ OpFoldResult AtenRoundOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenTruncOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenTruncOp::fold(FoldAdaptor adaptor) {
+  auto resultType = getType().dyn_cast<ValueTensorType>();
+  if (resultType && resultType.hasDtype() &&
+      resultType.getDtype().isa<mlir::IntegerType>()) {
+    return getSelf();
+  }
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSignOp
 //===----------------------------------------------------------------------===//
 void AtenSignOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
