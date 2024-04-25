@@ -217,6 +217,37 @@ public:
 };
 } // namespace
 
+// These legalizations are for unary ops with promoting to floating point
+// datatypes.
+namespace {
+template <typename AtenOpT, typename StablehloOpT>
+class ConvertAtenUnaryPromoteToFPOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value self = adaptor.getSelf();
+    auto selfTy = self.getType().cast<TensorType>();
+    if (!selfTy)
+      return op.emitError("only Tensor types supported in StableHLO");
+    auto resultTy = OpConversionPattern<AtenOpT>::getTypeConverter()
+                        ->convertType(op.getType())
+                        .template cast<TensorType>();
+
+    if (resultTy.getElementType().template isa<mlir::FloatType>()) {
+      Value src = hlo::promoteType(rewriter, op.getLoc(), self, resultTy);
+      rewriter.replaceOpWithNewOp<StablehloOpT>(op, resultTy, src);
+      return success();
+    } else {
+      return op.emitError(
+          "only result to be floating-point datatype legalization supported");
+    }
+  }
+};
+} // namespace
+
 // aten.ones & aten.zeros
 // Ref: Error checking based on the Torch to TOSA lowering
 namespace {
@@ -1029,6 +1060,49 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
   return success();
 }
 
+// AtenLog2Op
+template <>
+LogicalResult ConvertAtenOp<AtenLog2Op>::matchAndRewrite(
+    AtenLog2Op op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value input = adaptor.getSelf();
+  auto inputTy = input.getType().template dyn_cast<RankedTensorType>();
+  if (!inputTy) {
+    return op.emitError("only ranked tensor type is supported.");
+  }
+  auto outTy = getTypeConverter()->convertType(op.getType()).cast<TensorType>();
+  input = hlo::promoteType(rewriter, op.getLoc(), input, outTy);
+
+  auto two = getConstantLike(rewriter, op.getLoc(), 2.0, input);
+  auto log2Op = rewriter.create<stablehlo::LogOp>(op.getLoc(), two);
+  auto logInputOp = rewriter.create<stablehlo::LogOp>(op.getLoc(), input);
+
+  rewriter.replaceOpWithNewOp<stablehlo::DivOp>(op, outTy, logInputOp, log2Op);
+  return success();
+}
+
+// AtenLog10Op
+template <>
+LogicalResult ConvertAtenOp<AtenLog10Op>::matchAndRewrite(
+    AtenLog10Op op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value input = adaptor.getSelf();
+  auto inputTy = input.getType().template dyn_cast<RankedTensorType>();
+  if (!inputTy) {
+    return op.emitError("only ranked tensor type is supported.");
+  }
+
+  auto outTy = getTypeConverter()->convertType(op.getType()).cast<TensorType>();
+  input = hlo::promoteType(rewriter, op.getLoc(), input, outTy);
+
+  auto ten = getConstantLike(rewriter, op.getLoc(), 10.0, input);
+  auto log10Op = rewriter.create<stablehlo::LogOp>(op.getLoc(), ten);
+  auto logInputOp = rewriter.create<stablehlo::LogOp>(op.getLoc(), input);
+
+  rewriter.replaceOpWithNewOp<stablehlo::DivOp>(op, outTy, logInputOp, log10Op);
+  return success();
+}
+
 // AtenErfOp
 template <>
 LogicalResult ConvertAtenOp<AtenErfOp>::matchAndRewrite(
@@ -1559,6 +1633,46 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
+    AtenConstantPadNdOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value self = adaptor.getSelf();
+  auto selfTy = self.getType().cast<RankedTensorType>();
+  auto selfElemTy = selfTy.getElementType();
+  int64_t rank = selfTy.getRank();
+
+  SmallVector<int64_t> padInts;
+  if (!matchPattern(op.getPad(), m_TorchListOfConstantInts(padInts)))
+    return rewriter.notifyMatchFailure(op,
+                                       "only support constant int pad ranges");
+  uint64_t padRank = padInts.size() / 2;
+  if (padRank * 2 != padInts.size())
+    return rewriter.notifyMatchFailure(op, "pad range size is not even");
+  if (rank < 0 || padRank > (uint64_t)rank)
+    return rewriter.notifyMatchFailure(op, "padding exceeds tensor rank");
+
+  // Initialize low/high paddings with 0 for all the dims.
+  SmallVector<int64_t> lowPadding(/*Size=*/rank, /*Value=*/0);
+  SmallVector<int64_t> highPadding(/*Size=*/rank, /*Value=*/0);
+  // Add the requested padding - note op.pad() is highest dim first ordered
+  // pairs of low,high.
+  // Add the requested padding - note op.pad() is highest dim first ordered
+  // pairs of low,high.
+  for (uint64_t i = 0; i < padRank; ++i) {
+    lowPadding[rank - i - 1] = padInts[i * 2];
+    highPadding[rank - i - 1] = padInts[i * 2 + 1];
+  }
+
+  Value constantValue = hlo::scalarToStablehloTensor(
+      rewriter, op, adaptor.getValue(), selfElemTy);
+
+  SmallVector<int64_t> interiorPadding(rank, 0);
+  rewriter.replaceOpWithNewOp<stablehlo::PadOp>(
+      op, self, constantValue, lowPadding, highPadding, interiorPadding);
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
     AtenGeluBackwardOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -1888,19 +2002,30 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenUnaryFPOnlyOp<AtenOp, StablehloOp>>(typeConverter,   \
                                                               context)
-  INSERT_UNARY_FPONLY_PATTERN(AtenLogOp, stablehlo::LogOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenLog1pOp, stablehlo::Log1pOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenExpOp, stablehlo::ExpOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenSqrtOp, stablehlo::SqrtOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenRsqrtOp, stablehlo::RsqrtOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenSigmoidOp, stablehlo::LogisticOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenTanhOp, stablehlo::TanhOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenSinOp, stablehlo::SineOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenCosOp, stablehlo::CosineOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenCeilOp, stablehlo::CeilOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenFloorOp, stablehlo::FloorOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenRoundOp, stablehlo::RoundNearestEvenOp);
 #undef INSERT_UNARY_FPONLY_PATTERN
+
+#define INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenOp, StablehloOp)                \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenUnaryPromoteToFPOp<AtenOp, StablehloOp>>(            \
+      typeConverter, context)
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenLogOp, stablehlo::LogOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenLog1pOp, stablehlo::Log1pOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenExpOp, stablehlo::ExpOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSqrtOp, stablehlo::SqrtOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenRsqrtOp, stablehlo::RsqrtOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSigmoidOp, stablehlo::LogisticOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenTanhOp, stablehlo::TanhOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSinOp, stablehlo::SineOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenCosOp, stablehlo::CosineOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAsinOp, chlo::AsinOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSinhOp, chlo::SinhOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAcosOp, chlo::AcosOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenCoshOp, chlo::CoshOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAtanOp, chlo::AtanOp);
+#undef INSERT_UNARY_PROMOTE_TO_FP_PATTERN
 
 #define INSERT_CONSTANT_FILL_PATTERN(AtenOp, fillVal)                          \
   target.addIllegalOp<AtenOp>();                                               \
@@ -1985,9 +2110,12 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
   INSERT_ATENOP_PATTERN(AtenScalarImplicitOp);
   INSERT_ATENOP_PATTERN(AtenContiguousOp);
+  INSERT_ATENOP_PATTERN(AtenConstantPadNdOp);
 
   INSERT_ATENOP_PATTERN(AtenReluOp);
   INSERT_ATENOP_PATTERN(AtenGeluOp);
+  INSERT_ATENOP_PATTERN(AtenLog2Op);
+  INSERT_ATENOP_PATTERN(AtenLog10Op);
   INSERT_ATENOP_PATTERN(AtenErfOp);
   INSERT_ATENOP_PATTERN(AtenGeluBackwardOp);
 

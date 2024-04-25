@@ -56,6 +56,13 @@ static Value createComparisonTemplate(OpBuilder &b, Location loc, Type type,
   llvm_unreachable("Unhandled element type for comparison");
 }
 
+static Value getZeroPoint(Value value) {
+  if (auto make = value.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
+    return make.getZeroPoint();
+  }
+  return nullptr;
+}
+
 static Value createGreaterThan(OpBuilder &b, Location loc, Type elementalType,
                                Value lhs, Value rhs) {
   return createComparisonTemplate<arith::CmpFPredicate::OGT,
@@ -528,19 +535,68 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return convertScalarToDtype(b, loc, div, outTy, std::nullopt, outTTy);
   }
   if (auto relu = dyn_cast<AtenReluOp>(op)) {
-    if (!relu.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
-      relu.emitError("unimplemented: non-floating point dtype");
+    Value zeroPoint = getZeroPoint(relu.getSelf());
+    Value arg = payloadArgs[0];
+    auto intType = arg.getType().dyn_cast<mlir::IntegerType>();
+    if (zeroPoint && !intType) {
+      relu.emitError("unimplemented: non-integer quantized Relu.");
       return nullptr;
     }
-    Type elementType = payloadArgs[0].getType();
-    Value constZero =
-        b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
-    Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
-                                         payloadArgs[0], constZero);
-    return b.create<arith::SelectOp>(loc, pred, payloadArgs[0], constZero);
+    auto reluTorchType = cast<ValueTensorType>(relu.getType());
+    bool isUnsigned =
+        torch_to_linalg::isUnsignedTorchType(reluTorchType.getDtype());
+    if (zeroPoint) {
+      int64_t zeroPointInt;
+      int64_t width = intType.getWidth();
+      assert(width < 64);
+      int64_t minForIntType = isUnsigned ? 0 : -(1 << (width - 1));
+      int64_t maxForIntType =
+          isUnsigned ? (1 << (width + 1)) - 1 : (1 << (width - 1)) - 1;
+      // check for constant zero point edge-cases:
+      if (matchPattern(zeroPoint, m_TorchConstantInt(&zeroPointInt))) {
+        if (zeroPointInt > maxForIntType) {
+          // TODO: figure out how to handle this case:
+          // current impl. quantizes output like input.
+          // If zero point > maxForIntType, ordinary relu should return 0.
+          // However, 0 isn't represented in such a quantization scheme.
+          relu.emitError(
+              "unimplemented: quantized relu for zero-point > max qint");
+          return nullptr;
+        }
+        if (zeroPointInt < minForIntType)
+          return arg;
+      }
+      zeroPoint = converter->materializeTargetConversion(
+          b, loc, converter->convertType(zeroPoint.getType()), zeroPoint);
+      auto minForIntTypeValue = b.create<arith::ConstantOp>(
+          loc, b.getIntegerAttr(zeroPoint.getType(), minForIntType));
+      auto maxForIntTypeValue = b.create<arith::ConstantOp>(
+          loc, b.getIntegerAttr(zeroPoint.getType(), maxForIntType));
+      auto zpLtMax = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
+                                             zeroPoint, maxForIntTypeValue);
+      b.create<cf::AssertOp>(
+          loc, zpLtMax,
+          b.getStringAttr("Invalid Quantization: quantized relu with "
+                          "zero-point > max qint"));
+      auto zpLtMin = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
+                                             zeroPoint, minForIntTypeValue);
+      zeroPoint = b.create<arith::SelectOp>(loc, zpLtMin, minForIntTypeValue,
+                                            zeroPoint);
+      zeroPoint = b.create<arith::TruncIOp>(loc, arg.getType(), zeroPoint);
+    } else {
+      zeroPoint =
+          b.create<arith::ConstantOp>(loc, b.getZeroAttr(arg.getType()));
+    }
+    Value cmp;
+    if (intType) {
+      auto pred =
+          isUnsigned ? arith::CmpIPredicate::ugt : arith::CmpIPredicate::sgt;
+      cmp = b.create<arith::CmpIOp>(loc, pred, arg, zeroPoint);
+    } else {
+      cmp = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT, arg,
+                                    zeroPoint);
+    }
+    return b.create<arith::SelectOp>(loc, cmp, arg, zeroPoint);
   }
   if (auto round = dyn_cast<AtenRoundOp>(op)) {
     if (!round.getType()
