@@ -2308,6 +2308,14 @@ func.func @torch.aten.floor$canonicalize(%arg0: !torch.vtensor<[?,?],si64>) -> !
   return %0 : !torch.vtensor<[?,?],si64>
 }
 
+// CHECK-LABEL:   func.func @torch.aten.trunc$canonicalize
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[?,?],si64>
+// CHECK-NEXT:      return %[[ARG]] : !torch.vtensor<[?,?],si64>
+func.func @torch.aten.trunc$canonicalize(%arg0: !torch.vtensor<[?,?],si64>) -> !torch.vtensor<[?,?],si64> {
+  %0 = torch.aten.trunc %arg0 : !torch.vtensor<[?,?],si64> -> !torch.vtensor<[?,?],si64>
+  return %0 : !torch.vtensor<[?,?],si64>
+}
+
 // CHECK-LABEL:   func.func @torch.aten.numel$canonicalize
 // CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[3,4],f32>
 // CHECK-NEXT:      %int12 = torch.constant.int 12
