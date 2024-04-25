@@ -124,6 +124,120 @@ def ReduceProdElementTypeBoolModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ReduceAllFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.all(a)
+
+
+@register_test_case(module_factory=lambda: ReduceAllFloatModule())
+def ReduceAllFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
+class ReduceAllIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.all(a)
+
+
+@register_test_case(module_factory=lambda: ReduceAllIntModule())
+def ReduceAllIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, high=2).to(torch.int32))
+
+# ==============================================================================
+
+class ReduceAllBoolModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.bool, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.all(a)
+
+
+@register_test_case(module_factory=lambda: ReduceAllBoolModule())
+def ReduceAllBoolModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, high=2).to(torch.bool))
+
+# ==============================================================================
+
+class ReduceAnyFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.any(a)
+
+
+@register_test_case(module_factory=lambda: ReduceAnyFloatModule())
+def ReduceAnyFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
+class ReduceAnyIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.any(a)
+
+
+@register_test_case(module_factory=lambda: ReduceAnyIntModule())
+def ReduceAnyIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, high=2).to(torch.int32))
+
+# ==============================================================================
+
+class ReduceAnyBoolModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.bool, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.any(a)
+
+
+@register_test_case(module_factory=lambda: ReduceAnyBoolModule())
+def ReduceAnyBoolModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, high=2).to(torch.bool))
+
+# ==============================================================================
+
 class ReduceSumDimIntListFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
