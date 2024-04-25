@@ -54,12 +54,10 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
-    target.addLegalDialect<linalg::LinalgDialect, func::FuncDialect,
-                           cf::ControlFlowDialect, math::MathDialect,
-                           sparse_tensor::SparseTensorDialect,
-                           tensor::TensorDialect,
-                           arith::ArithDialect,
-                           complex::ComplexDialect>();
+    target.addLegalDialect<
+        linalg::LinalgDialect, func::FuncDialect, cf::ControlFlowDialect,
+        math::MathDialect, sparse_tensor::SparseTensorDialect,
+        tensor::TensorDialect, arith::ArithDialect, complex::ComplexDialect>();
     target.addLegalOp<TorchConversion::GetNextSeedOp>();
 
     TypeConverter typeConverter;
