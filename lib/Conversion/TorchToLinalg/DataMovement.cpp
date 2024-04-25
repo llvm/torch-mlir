@@ -20,6 +20,7 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
@@ -2423,6 +2424,42 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertSparseOperatorOp : public OpConversionPattern<OperatorOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+
+  static bool isSparsePrimitive(StringRef prim) {
+    return llvm::find(legalizedNames, prim) != legalizedNames.end();
+  }
+
+  // Rewriting method.
+  LogicalResult
+  matchAndRewrite(OperatorOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (!isSparsePrimitive(op.getNameAttr()))
+      return failure();
+    // Conversion is completed specified by information in the sparse tensor
+    // type. Thus, we can rewrite all legalizedNames to the same construct.
+    RankedTensorType resultType = getTypeConverter()
+                                      ->convertType(op->getResult(0).getType())
+                                      .cast<RankedTensorType>();
+    rewriter.replaceOpWithNewOp<sparse_tensor::ConvertOp>(
+        op, resultType, adaptor.getOperands()[0]);
+    return success();
+  }
+
+private:
+  // The operators that legalize to sparse tensor conversions.
+  static SmallVector<StringRef> legalizedNames;
+};
+// Static initializer.
+SmallVector<StringRef> ConvertSparseOperatorOp::legalizedNames = {
+    "torch.aten._to_sparse", "torch.aten._to_csr", "torch.aten._to_csc",
+    "torch.aten._to_bsr",    "torch.aten._to_bsc",
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -2469,4 +2506,9 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   patterns.add<ConvertAtenDiagonalOp>(typeConverter, context);
   target.addIllegalOp<AtenDiagEmbedOp>();
   patterns.add<ConvertAtenDiagEmbedOp>(typeConverter, context);
+  // Rewrite all special sparse conversions hidden as operators.
+  target.addDynamicallyLegalOp<OperatorOp>([&](Torch::OperatorOp op) {
+    return !ConvertSparseOperatorOp::isSparsePrimitive(op.getNameAttr());
+  });
+  patterns.add<ConvertSparseOperatorOp>(typeConverter, context);
 }
