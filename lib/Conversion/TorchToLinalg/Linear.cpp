@@ -42,8 +42,9 @@ static void signShift(PatternRewriter &rewriter, Location loc, Value &arg,
                       Value &zp, bool isUnsignedType, int64_t numBits) {
   if (!isUnsignedType)
     return;
-  int64_t minSI = -(1 << (numBits - 1)); 
-  Value minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, zp.getType().cast<mlir::IntegerType>().getWidth());
+  int64_t minSI = -(1 << (numBits - 1));
+  Value minSIValue = rewriter.create<arith::ConstantIntOp>(
+      loc, minSI, zp.getType().cast<mlir::IntegerType>().getWidth());
   zp = rewriter.create<arith::AddIOp>(loc, zp, minSIValue);
   minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, numBits);
   arg = torch_to_linalg::createElementwiseLinalgGeneric(
