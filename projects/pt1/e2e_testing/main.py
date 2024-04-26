@@ -169,7 +169,7 @@ def main():
     available_tests = [test.unique_name for test in available_tests]
     if len(tests) == 0:
         logger.error(
-            f"the provided filter {args.filter!r} does not match any tests. The available tests are:\n" + "\n\t".join(available_tests)"
+            f"the provided filter {args.filter!r} does not match any tests. The available tests are:\n\t" + "\n\t".join(available_tests)
         )
         sys.exit(1)
 
