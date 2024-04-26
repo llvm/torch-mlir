@@ -20,6 +20,13 @@ using namespace mlir::torch::Torch;
 
 namespace {
 
+template <typename SrcOp> struct QuantInfo {
+  static constexpr unsigned operandsToQuantize[2] = {0, 1};
+};
+
+template <> struct QuantInfo<AtenReluOp> {
+  static constexpr unsigned operandsToQuantize[1] = {0};
+};
 template <typename SrcOp>
 class QuantizeOperands : public OpRewritePattern<SrcOp> {
 public:
@@ -42,8 +49,9 @@ public:
       return operand;
     };
 
-    operands[0] = f(operands[0]);
-    operands[1] = f(operands[1]);
+    for (unsigned i : QuantInfo<SrcOp>::operandsToQuantize) {
+      operands[i] = f(operands[i]);
+    }
 
     if (!dequanted) {
       return rewriter.notifyMatchFailure(op, "no dequantizations found");
@@ -259,6 +267,70 @@ public:
   }
 };
 
+// Use for ops which do not manipulate scale/zero point of an input.
+template <typename SrcOp>
+class QuantizeResultLikeOperand : public OpRewritePattern<SrcOp> {
+public:
+  using OpRewritePattern<SrcOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(SrcOp op,
+                                PatternRewriter &rewriter) const override {
+    llvm::SmallVector<Value> operands(op->getOperands());
+    Value input = operands[0];
+
+    auto inputType = dyn_cast_or_null<ValueTensorType>(input.getType());
+    if (!inputType || !inputType.hasDtype())
+      return failure();
+    auto qDtype = inputType.getDtype();
+
+    auto resultTy = dyn_cast_or_null<ValueTensorType>(op.getType());
+    if (!resultTy || !resultTy.hasDtype())
+      return failure();
+
+    Type resultETy = resultTy.getDtype();
+    if (!isa<mlir::FloatType>(resultETy))
+      return failure();
+
+    Value inputScale, inputZeroPoint;
+    Type definingOpInputType;
+    if (auto defining = input.template getDefiningOp<
+                        Aten_MakePerTensorQuantizedTensorOp>()) {
+      inputScale = defining.getScale();
+      inputZeroPoint = defining.getZeroPoint();
+      definingOpInputType = defining.getSelf().getType();
+    }
+
+    auto inputIntReprType =
+        dyn_cast_or_null<ValueTensorType>(definingOpInputType);
+    if (!inputScale || !inputZeroPoint || !inputIntReprType ||
+        !inputIntReprType.hasDtype())
+      return failure();
+    auto intReprDtype = inputIntReprType.getDtype();
+
+    // set SrcOp type to use quantized dtype from input
+    auto newResultTy =
+        rewriter.getType<ValueTensorType>(resultTy.getOptionalSizes(), qDtype);
+    auto newResult = rewriter.create<SrcOp>(op.getLoc(), newResultTy, operands);
+
+    // int repr to get non quantized int type result
+    auto intReprTy = rewriter.getType<ValueTensorType>(
+        resultTy.getOptionalSizes(), intReprDtype);
+    auto intRepr =
+        rewriter.create<AtenIntReprOp>(op.getLoc(), intReprTy, newResult);
+
+    // requantize so the scale and zero-point info can be attached
+    auto quantTy =
+        rewriter.getType<ValueTensorType>(resultTy.getOptionalSizes(), qDtype);
+    auto quant = rewriter.create<Aten_MakePerTensorQuantizedTensorOp>(
+        op.getLoc(), quantTy, intRepr, inputScale, inputZeroPoint);
+
+    // dequant back to original dtype
+    auto dequant =
+        rewriter.create<AtenDequantizeTensorOp>(op.getLoc(), resultTy, quant);
+    rewriter.replaceOp(op, dequant);
+    return success();
+  }
+};
+
 template <typename SrcOp> class RemoveUnused : public OpRewritePattern<SrcOp> {
 public:
   using OpRewritePattern<SrcOp>::OpRewritePattern;
@@ -285,11 +357,12 @@ public:
         RemoveUnused<AtenQuantizePerTensorOp>,
         RemoveUnused<Aten_MakePerTensorQuantizedTensorOp>,
         RemoveUnused<AtenTransposeIntOp>, QuantizeOperands<AtenConvolutionOp>,
-        QuantizeOperands<AtenMatmulOp>,
+        QuantizeOperands<AtenMatmulOp>, QuantizeOperands<AtenReluOp>,
         QuantizeTransposedOperands<AtenMatmulOp>,
         QuantizeAccumulator<AtenMatmulOp>, QuantizeOperands<AtenMmOp>,
         QuantizeTransposedOperands<AtenMmOp>, QuantizeAccumulator<AtenMmOp>,
-        QuantizeBias<AtenConvolutionOp>>(context);
+        QuantizeResultLikeOperand<AtenReluOp>, QuantizeBias<AtenConvolutionOp>>(
+        context);
 
     GreedyRewriteConfig config;
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),

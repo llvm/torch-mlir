@@ -124,11 +124,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(binder.op,
                                              "gridShape[3] expected to be 2");
         std::string mode;
-        if (binder.customOpNameStringAttr(mode, "mode", "bilinear"))
+        if (binder.customOpNameStringAttr(mode, "mode", "linear"))
           return rewriter.notifyMatchFailure(binder.op, "mode bind failure");
-        if (mode != "bilinear")
+        if (mode != "linear" && mode != "bilinear")
           return rewriter.notifyMatchFailure(
-              binder.op, "currently only mode : bilinear supported");
+              binder.op, "currently only mode : linear supported");
         std::string padding;
         if (binder.customOpNameStringAttr(padding, "padding_mode", "zeros"))
           return rewriter.notifyMatchFailure(binder.op,
@@ -1319,9 +1319,18 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                                              "expect 1-d pad tensor");
 
         int64_t padsSize = padsShape[0];
-        if (padsSize == Torch::kUnknownSize)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "pad length is unknown");
+        if (padsSize == Torch::kUnknownSize) {
+          // As per onnx.Pad documentation, padSize = 2*num_data_axes
+          // (if axes param not passed). Need to be updated when adding
+          // support for `axes` param.
+          auto dataOpTy = data.getType().cast<Torch::ValueTensorType>();
+          TensorType dataTensor = dataOpTy.toBuiltinTensor();
+          if (!dataTensor || !dataTensor.hasRank())
+            return rewriter.notifyMatchFailure(
+                binder.op, "pad length unknown and data operand unranked");
+          int64_t dataRank = dataTensor.getRank();
+          padsSize = 2 * dataRank;
+        }
 
         Value constantValue;
         if (binder.getNumOperands() >= 3) {
