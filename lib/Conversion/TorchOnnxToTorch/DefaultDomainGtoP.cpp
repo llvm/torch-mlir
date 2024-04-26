@@ -52,9 +52,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             rewriter.getF64FloatAttr(beta));
 
         // Expression: alpha * x + beta
-        Value alpha_x_plus_beta = rewriter.create<Torch::AtenAddScalarOp>(
-            binder.getLoc(), resultType, tensorOperand, constBeta,
-            /*alpha=*/constAlpha);
+        Value alphaMulX = rewriter.create<Torch::AtenMulScalarOp>(
+            binder.getLoc(), resultType, tensorOperand, constAlpha);
+        Value constOne = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr(1.0));
+        Value alphaMulXPlusBeta = rewriter.create<Torch::AtenAddScalarOp>(
+            binder.getLoc(), resultType, alphaMulX, constBeta,
+            /*alpha=*/constOne);
 
         // Expression: min(1, alpha * x + beta)
         Value constantOne = rewriter.create<Torch::ConstantIntOp>(
@@ -62,7 +67,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value oneTensor = createRank0Tensor(rewriter, binder.getLoc(),
                                             resultType, constantOne);
         Value minExpression = rewriter.create<Torch::AtenMinimumOp>(
-            binder.getLoc(), resultType, oneTensor, alpha_x_plus_beta);
+            binder.getLoc(), resultType, oneTensor, alphaMulXPlusBeta);
 
         // Expression: max(0, min(1, alpha * x + beta))
         Value constantZero = rewriter.create<Torch::ConstantIntOp>(
