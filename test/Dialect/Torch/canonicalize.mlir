@@ -2888,3 +2888,36 @@ func.func @aten_tensor_tensor_ne() -> (!torch.vtensor<[4],i1>, !torch.vtensor<[4
   %fpBool = torch.aten.ne.Scalar %fpTensor, %fpScalar : !torch.vtensor<[4],f32>, !torch.float -> !torch.vtensor<[4],i1>
   return %intBool, %uintBool, %fpBool : !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>
 }
+
+// -----
+
+// CHECK-LABEL: @aten_log$fold_splat_i1
+func.func @aten_log$fold_splat_i1() -> !torch.vtensor<[4], f32> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<0.000000e+00> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  // CHECK: return %[[RET]] : !torch.vtensor<[4],f32>
+  %cst = torch.vtensor.literal(dense<true> : tensor<4xi1>) : !torch.vtensor<[4], i1>
+  %result = torch.aten.log %cst : !torch.vtensor<[4], i1> -> !torch.vtensor<[4], f32>
+  return %result : !torch.vtensor<[4], f32>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_log$fold_splat_si32
+func.func @aten_log$fold_splat_si32() -> !torch.vtensor<[4], f32> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<1.09861231> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  // CHECK: return %[[RET]] : !torch.vtensor<[4],f32>
+  %cst = torch.vtensor.literal(dense<3> : tensor<4xsi32>) : !torch.vtensor<[4], si32>
+  %result = torch.aten.log %cst : !torch.vtensor<[4], si32> -> !torch.vtensor<[4], f32>
+  return %result : !torch.vtensor<[4], f32>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_log$fold_splat_f32
+func.func @aten_log$fold_splat_f32() -> !torch.vtensor<[4], f32> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<1.09861231> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  // CHECK: return %[[RET]] : !torch.vtensor<[4],f32>
+  %cst = torch.vtensor.literal(dense<3.0> : tensor<4xf32>) : !torch.vtensor<[4], f32>
+  %result = torch.aten.log %cst : !torch.vtensor<[4], f32> -> !torch.vtensor<[4], f32>
+  return %result : !torch.vtensor<[4], f32>
+}

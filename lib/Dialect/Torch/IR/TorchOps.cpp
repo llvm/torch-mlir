@@ -1241,16 +1241,20 @@ llvm::SmallVector<APInt> getFoldValueAtIndexInt(llvm::ArrayRef<Attribute> attrs,
   llvm::SmallVector<APInt> splattrs;
 
   for (auto attr : attrs) {
-    bool isunsigned = false;
+    // Note that i1 is neither signed nor unsigned.
+    // But we should trait i1 as unsigned, otherwise that
+    // APInt(1,1).getSExtValue() return allOnes 64-bit integer.
+    // So here only distinguish signed integer.
+    bool isSigned = false;
     if (auto dense = dyn_cast<ElementsAttr>(attr)) {
-      isunsigned = dyn_cast<IntegerType>(dense.getElementType()).isUnsigned();
+      isSigned = dyn_cast<IntegerType>(dense.getElementType()).isSigned();
       if (dense.isSplat()) {
         splattrs.push_back(dense.getSplatValue<APInt>());
       } else {
         splattrs.push_back(dense.getValues<APInt>()[idx]);
       }
     } else if (auto intattr = dyn_cast<IntegerAttr>(attr)) {
-      isunsigned = cast<IntegerType>(intattr.getType()).isUnsigned();
+      isSigned = cast<IntegerType>(intattr.getType()).isSigned();
       splattrs.push_back(intattr.getValue());
     } else {
       return {};
@@ -1258,10 +1262,10 @@ llvm::SmallVector<APInt> getFoldValueAtIndexInt(llvm::ArrayRef<Attribute> attrs,
 
     auto &apint = splattrs.back();
     if (apint.getBitWidth() < bitwidth) {
-      if (isunsigned) {
-        apint = apint.zextOrTrunc(bitwidth);
-      } else {
+      if (isSigned) {
         apint = apint.sextOrTrunc(bitwidth);
+      } else {
+        apint = apint.zextOrTrunc(bitwidth);
       }
     }
   }
@@ -1793,6 +1797,81 @@ OpFoldResult AtenNeScalarOp::fold(FoldAdaptor adaptor) {
   };
 
   return comparisonScaleFolder(self, other, resultTy, fpFold, intFold);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenLogOp
+//===----------------------------------------------------------------------===//
+
+using UnaryPromoteFpOperator = std::function<double(double)>;
+using UnaryPromoteIntOperator = std::function<double(APInt, bool)>;
+
+static OpFoldResult unaryPromoteFolder(DenseElementsAttr operand,
+                                       ValueTensorType resultTy,
+                                       UnaryPromoteFpOperator fpFolder,
+                                       UnaryPromoteIntOperator intFolder) {
+  constexpr int64_t kMaxFold = 16;
+  if (!resultTy.hasDtype() || !resultTy.hasSizes())
+    return nullptr;
+  if (!isa<mlir::FloatType>(resultTy.getDtype()))
+    return nullptr;
+
+  auto fpTy = dyn_cast<mlir::FloatType>(operand.getType().getElementType());
+  auto intTy = dyn_cast<mlir::IntegerType>(operand.getType().getElementType());
+  if (!fpTy && !intTy)
+    return nullptr;
+
+  auto resultBTy = resultTy.toBuiltinTensor().clone(resultTy.getDtype());
+  bool splat = operand.isSplat();
+  bool withinMaxFold =
+      resultBTy.hasStaticShape() && resultBTy.getNumElements() <= kMaxFold;
+  if (!splat && !withinMaxFold)
+    return nullptr;
+
+  const int64_t numValues = splat ? 1 : resultBTy.getNumElements();
+
+  llvm::SmallVector<Attribute> operands = {operand};
+  llvm::SmallVector<APFloat> folded;
+  for (int i = 0, s = numValues; i < s; ++i) {
+    double fold = 0.0;
+    if (fpTy) {
+      auto inputs = getFoldValueAtIndexFp(operands, i);
+      fold = fpFolder(inputs[0]);
+    }
+    if (intTy) {
+      auto inputs =
+          getFoldValueAtIndexInt(operands, intTy.getIntOrFloatBitWidth(), i);
+      fold = intFolder(inputs[0], intTy.isSigned());
+    }
+
+    APFloat val(fold);
+    bool unused;
+    val.convert(
+        cast<mlir::FloatType>(resultBTy.getElementType()).getFloatSemantics(),
+        APFloat::rmNearestTiesToEven, &unused);
+    folded.push_back(val);
+  }
+  return DenseElementsAttr::get(resultBTy, folded);
+}
+
+OpFoldResult AtenLogOp::fold(FoldAdaptor adaptor) {
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  auto resultType = dyn_cast<ValueTensorType>(getType());
+  if (!self || !resultType)
+    return nullptr;
+
+  // Note that i1 is neither signed nor unsigned.
+  // But we should trait i1 as unsigned, otherwise that
+  // APInt(1,1).getSExtValue() return allOnes 64-bit integer.
+  auto intFold = [](APInt a, bool isSigned) -> double {
+    if (isSigned)
+      return std::log(a.getSExtValue());
+    else
+      return std::log(a.getZExtValue());
+  };
+  auto fpFold = [](double a) -> double { return std::log(a); };
+
+  return unaryPromoteFolder(self, resultType, fpFold, intFold);
 }
 
 //===----------------------------------------------------------------------===//
