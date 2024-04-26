@@ -245,7 +245,7 @@ if _IS_TORCH_2_1_OR_EARLIER:
     }
 
     SYMBOLIC_TORCH_OPS = {
-        x[0] for x in SYMBOLIC_OP_TO_TORCH_OP
+        key[0] for key in SYMBOLIC_OP_TO_TORCH_OP
     }
 else:
     SYMBOLIC_OP_TO_TORCH_OP = {
@@ -257,7 +257,7 @@ else:
     }
 
     SYMBOLIC_TORCH_OPS = {
-        x for x in SYMBOLIC_OP_TO_TORCH_OP
+        key for key in SYMBOLIC_OP_TO_TORCH_OP
     }
 
 
