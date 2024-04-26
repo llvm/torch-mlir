@@ -12,12 +12,13 @@ from torch.export.graph_signature import OutputSpec, OutputKind
 from torch.export import ExportedProgram
 
 from torch_mlir import fx
-from torch_mlir.torchscript import (
-    _example_args,
-    OutputType,
-    BACKEND_LEGAL_OPS,
+from torch_mlir.compiler_utils import (
     run_pipeline_with_repro_report,
-    _lower_mlir_module,
+    lower_mlir_module,
+    OutputType,
+)
+from torch_mlir.torchscript import (
+    BACKEND_LEGAL_OPS,
     _canon_extra_library,
 )
 from torch_mlir_e2e_test.configs.utils import (
@@ -76,7 +77,7 @@ def jit(
         "Lowering TorchFX IR -> Torch Backend IR",
     )
 
-    return _lower_mlir_module(verbose, output_type, mlir_module)
+    return lower_mlir_module(verbose, output_type, mlir_module)
 
 
 class FxImporterTestConfig(TestConfig):
