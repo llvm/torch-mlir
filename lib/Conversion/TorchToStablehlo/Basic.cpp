@@ -1978,6 +1978,36 @@ LogicalResult ConvertAtenOp<AtenFmodTensorOp>::matchAndRewrite(
   return success();
 }
 
+// AtenBitwiseLeftShiftTensorOp
+template <>
+LogicalResult ConvertAtenOp<AtenBitwiseLeftShiftTensorOp>::matchAndRewrite(
+    AtenBitwiseLeftShiftTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value lhs = adaptor.getSelf();
+  Value rhs = adaptor.getOther();
+
+  auto resultType =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  rhs = hlo::promoteAndBroadcast(rewriter, rhs, resultType);
+  rewriter.replaceOpWithNewOp<stablehlo::ShiftLeftOp>(op, lhs, rhs);
+  return success();
+}
+
+// AtenBitwiseRightShiftTensorOp
+template <>
+LogicalResult ConvertAtenOp<AtenBitwiseRightShiftTensorOp>::matchAndRewrite(
+    AtenBitwiseRightShiftTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value lhs = adaptor.getSelf();
+  Value rhs = adaptor.getOther();
+
+  auto resultType =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  rhs = hlo::promoteAndBroadcast(rewriter, rhs, resultType);
+  rewriter.replaceOpWithNewOp<stablehlo::ShiftRightArithmeticOp>(op, lhs, rhs);
+  return success();
+}
+
 void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToStablehloOptions &options) {
@@ -2137,6 +2167,8 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenFlipOp);
   INSERT_ATENOP_PATTERN(AtenRemainderTensorOp);
   INSERT_ATENOP_PATTERN(AtenFmodTensorOp);
+  INSERT_ATENOP_PATTERN(AtenBitwiseLeftShiftTensorOp);
+  INSERT_ATENOP_PATTERN(AtenBitwiseRightShiftTensorOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, StablehloOp)                   \
