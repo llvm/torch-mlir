@@ -1075,26 +1075,31 @@ public:
 
     int64_t n = kUnknownSize;
     int64_t m = kUnknownSize;
+
     // prioritize getting shape from output shape
-    if (outType.hasSizes()) {
+    if (outType.hasSizes() && outType.getSizes().size() == 2) {
       n = outType.getSizes().front();
       m = outType.getSizes().back();
     }
     // if output shape is not available, try to get shape from input
-    if (n == kUnknownSize) {
+    if (n == kUnknownSize)
       matchPattern(op.getN(), m_TorchConstantInt(&n));
-    }
-    if (m == kUnknownSize) {
+    if (m == kUnknownSize)
       matchPattern(op.getM(), m_TorchConstantInt(&m));
-    }
-    Type rangeNType = outType.getWithSizesAndDtype(
-        n == kUnknownSize ? std::nullopt : llvm::ArrayRef(n), si64Type);
+
+    // prepare two unsqueezed ranges that are equal on and only on the diagonal
+    std::optional<llvm::SmallVector<int64_t, 1>> rangeNSize;
+    if (n != kUnknownSize)
+      rangeNSize = {n};
+    Type rangeNType = outType.getWithSizesAndDtype(rangeNSize, si64Type);
     Value rangeN = rewriter.create<AtenArangeOp>(
         loc, rangeNType, op.getN(), /*dtype=*/int64Dtype, /*layout=*/none,
         /*device=*/op.getDevice(), /*pin_memory=*/none);
 
-    Type rangeMType = outType.getWithSizesAndDtype(
-        m == kUnknownSize ? std::nullopt : llvm::ArrayRef(m), si64Type);
+    std::optional<llvm::SmallVector<int64_t, 1>> rangeMSize;
+    if (m != kUnknownSize)
+      rangeMSize = {m};
+    Type rangeMType = outType.getWithSizesAndDtype(rangeMSize, si64Type);
     Value rangeM = rewriter.create<AtenArangeOp>(
         loc, rangeMType, op.getM(), /*dtype=*/int64Dtype, /*layout=*/none,
         /*device=*/none, /*pin_memory=*/none);
