@@ -126,7 +126,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         std::string mode;
         if (binder.customOpNameStringAttr(mode, "mode", "linear"))
           return rewriter.notifyMatchFailure(binder.op, "mode bind failure");
-        if (mode != "linear")
+        if (mode != "linear" && mode != "bilinear")
           return rewriter.notifyMatchFailure(
               binder.op, "currently only mode : linear supported");
         std::string padding;
