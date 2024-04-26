@@ -966,16 +966,16 @@ LogicalResult ConvertAtenOp<AtenPowScalarOp>::matchAndRewrite(
     AtenPowScalarOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value lhs = adaptor.getSelf();
-  auto lhsType = lhs.getType().dyn_cast<TensorType>();
+  auto lhsType = dyn_cast<TensorType>(lhs.getType());
   Value rhs = adaptor.getExponent();
-  auto rhsType = rhs.getType().dyn_cast<TensorType>();
+  auto rhsType = dyn_cast<TensorType>(rhs.getType());
 
   if (!rhsType)
     return op.emitError("only Tensor types supported in StableHLO");
 
-  auto outType = OpConversionPattern<AtenPowScalarOp>::getTypeConverter()
-                     ->convertType(op.getType())
-                     .template cast<TensorType>();
+  auto outType = cast<TensorType>(
+      OpConversionPattern<AtenPowScalarOp>::getTypeConverter()->convertType(
+          op.getType()));
 
   Type outElemTy = outType.getElementType();
   if (!outElemTy.isIntOrFloat()) {
