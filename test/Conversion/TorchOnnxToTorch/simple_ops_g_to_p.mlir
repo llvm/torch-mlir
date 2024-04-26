@@ -749,7 +749,7 @@ func.func @test_globalmaxpool(%arg0: !torch.vtensor<[1,3,5,5],f32>) -> !torch.vt
   // CHECK: %[[C1_0:.*]] = torch.constant.int 1
   // CHECK: %[[C1_1:.*]] = torch.constant.int 1
   // CHECK: %[[OUTPUTSIZE:.*]] = torch.prim.ListConstruct %[[C1_0]], %[[C1_1]] : (!torch.int, !torch.int) -> !torch.list<int>
-  // CHECK: %[[RESULT0:.*]], %[[RESULT1:.*]] = torch.aten.adaptive_max_pool2d %arg0, %[[OUTPUTSIZE]] : !torch.vtensor<[1,3,5,5],f32>, !torch.list<int> -> !torch.vtensor<[1,3,1,1],f32>, !torch.vtensor<[1,3,1,1],ui64>
+  // CHECK: %[[RESULT0:.*]], %[[RESULT1:.*]] = torch.aten.adaptive_max_pool2d %arg0, %[[OUTPUTSIZE]] : !torch.vtensor<[1,3,5,5],f32>, !torch.list<int> -> !torch.vtensor<[1,3,1,1],f32>, !torch.vtensor<[1,3,1,1],si64>
   // CHECK: return %[[RESULT0:.*]] : !torch.vtensor<[1,3,1,1],f32>
   %0 = torch.operator "onnx.GlobalMaxPool"(%arg0) : (!torch.vtensor<[1,3,5,5],f32>) -> !torch.vtensor<[1,3,1,1],f32>
   return %0 : !torch.vtensor<[1,3,1,1],f32>
@@ -763,7 +763,7 @@ func.func @test_globalmaxpool_precomputed(%arg0: !torch.vtensor<[1,1,3,3],f32>) 
   // CHECK: %[[C1_0:.*]] = torch.constant.int 1
   // CHECK: %[[C1_1:.*]] = torch.constant.int 1
   // CHECK: %[[OUTPUTSIZE:.*]] = torch.prim.ListConstruct %[[C1_0]], %[[C1_1]] : (!torch.int, !torch.int) -> !torch.list<int>
-  // CHECK: %[[RESULT0:.*]], %[[RESULT1:.*]] = torch.aten.adaptive_max_pool2d %arg0, %[[OUTPUTSIZE]] : !torch.vtensor<[1,1,3,3],f32>, !torch.list<int> -> !torch.vtensor<[1,1,1,1],f32>, !torch.vtensor<[1,1,1,1],ui64>
+  // CHECK: %[[RESULT0:.*]], %[[RESULT1:.*]] = torch.aten.adaptive_max_pool2d %arg0, %[[OUTPUTSIZE]] : !torch.vtensor<[1,1,3,3],f32>, !torch.list<int> -> !torch.vtensor<[1,1,1,1],f32>, !torch.vtensor<[1,1,1,1],si64>
   // CHECK: return %[[RESULT0:.*]] : !torch.vtensor<[1,1,1,1],f32>
   %0 = torch.operator "onnx.GlobalMaxPool"(%arg0) : (!torch.vtensor<[1,1,3,3],f32>) -> !torch.vtensor<[1,1,1,1],f32>
   return %0 : !torch.vtensor<[1,1,1,1],f32>
