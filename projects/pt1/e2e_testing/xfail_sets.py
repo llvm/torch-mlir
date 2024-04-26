@@ -2181,6 +2181,7 @@ ONNX_XFAIL_SET = {
     "AvgPool2dDivisorOverrideModule_basic",
     "BroadcastDynamicDimModule_basic",
     "ElementwiseAtan2TensorIntModule_basic",
+    "ElementwiseAtan2TensorIntStaticModule_basic",
     "ElementwiseAtenFloorDivideScalarNegativeModule_basic",
     "ElementwiseAtenFloorDivideTensorNegativeModule_basic",
     "ElementwiseLog10IntModule_basic",
