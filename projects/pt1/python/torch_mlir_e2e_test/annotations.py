@@ -55,7 +55,7 @@ def annotate_args(annotations: List[Optional[ArgAnnotation]]):
     The `annotations` should be a list of the same length as the number of
     argument to the method (including `self`). Each list entry is either:
     - None, corresponding to providing the compiler with no information.
-    - A 3-tuple consisting of a shape, a dtype and a flag about value semantics,
+    - A 3-tuple consisting of a shape, a dtype and a flag of value semantics,
       such as `([2, 3, 4], torch.float32, True)`. A dimension with an unknown size
       can be indicated by using `-1` as the size. This provides the compiler a
       guarantee that the argument will always dynamically have the described
