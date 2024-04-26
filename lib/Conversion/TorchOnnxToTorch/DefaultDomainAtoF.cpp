@@ -2283,6 +2283,11 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value a2Component = rewriter.create<Torch::AtenMulScalarOp>(
             binder.getLoc(), resultType, cosTwoRangeAngular, a2);
 
+        // AtenSubScalarOp actually requires a tensor operand as the LHS, that
+        // is, operand #1. Therefore, to avoid errors, the onnx implementation
+        // has been modified. a1 has been changed to negative half, and the
+        // AtenSubScalarOp has been replaced with AtenAddScalarOp, as the add
+        // operation is commutative.
         Value subA1Component = rewriter.create<Torch::AtenAddScalarOp>(
             binder.getLoc(), resultType, a1Component, a0, one);
         Value result = rewriter.create<Torch::AtenAddTensorOp>(
