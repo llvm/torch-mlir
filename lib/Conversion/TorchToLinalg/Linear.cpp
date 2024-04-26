@@ -1000,13 +1000,13 @@ public:
         innerSize = rewriter.create<arith::MulIOp>(
             loc, innerSize, castIntToIndex(rewriter, loc, strideIntValues[i]));
         innerSize = rewriter.create<arith::AddIOp>(loc, innerSize, c1);
-        // offset = (weightDims[i] - 1) * dilation[i] - padding[i]
+
         Value offset = rewriter.create<arith::SubIOp>(loc, weightDims[i], c1);
         offset = rewriter.create<arith::MulIOp>(
             loc, offset, castIntToIndex(rewriter, loc, dilationIntValues[i]));
         offset = rewriter.create<arith::SubIOp>(
             loc, offset, castIntToIndex(rewriter, loc, paddingIntValues[i]));
-        // outer size = offset * 2 + inner size + outputPadding[i]
+
         Value outerSize = rewriter.create<arith::MulIOp>(loc, offset, c2);
         outerSize = rewriter.create<arith::AddIOp>(loc, outerSize, innerSize);
         outerSize = rewriter.create<arith::AddIOp>(

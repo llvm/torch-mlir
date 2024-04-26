@@ -335,6 +335,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "QuantizedReluInt8_basic",
     "QuantizedReluUint8_basic",
     "Conv2dQInt8Module_basic",
+    "ConvTranspose2DQInt8Module_basic",
 
     # Dynamo not supporting conv_tbc
     "ConvTbcModule_basic",
@@ -437,6 +438,7 @@ FX_IMPORTER_XFAIL_SET = {
     'Conv2dQInt8Module_basic',
     'Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier',
     'ConvTbcModule_basic',
+    "ConvTranspose2DQInt8Module_basic",
     'ConvolutionBackwardModule2DPadded_basic',
     'ConvolutionBackwardModule2DStrided_basic',
     'ConvolutionBackwardModule2D_basic',
@@ -609,6 +611,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ContainsIntList_True",
     "Conv2dQInt8Module_basic",
     "ConvTbcModule_basic",
+    "ConvTranspose2DQInt8Module_basic",
     "ConvolutionBackwardModule2DPadded_basic",
     "ConvolutionBackwardModule2DStrided_basic",
     "ConvolutionBackwardModule2D_basic",
@@ -2163,6 +2166,7 @@ LTC_XFAIL_SET = {
     "ElementwiseBitwiseAndScalarInt32Module_basic",
     "ElementwiseBitwiseAndScalarInt8Module_basic",
     "Conv2dQInt8Module_basic",
+    "ConvTranspose2DQInt8Module_basic",
 }
 
 ONNX_XFAIL_SET = {
@@ -2322,6 +2326,7 @@ ONNX_XFAIL_SET = {
     "Conv2dWithPaddingModule_basic",
     "Conv3dModule_basic",
     "ConvTbcModule_basic",
+    "ConvTranspose2DQInt8Module_basic",
     "Conv_Transpose2dModule_basic",
     "Convolution2DModule_basic",
     "Convolution2DStridedModule_basic",
