@@ -1589,11 +1589,19 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         auto indicesTy = cast<Torch::ValueTensorType>(indices.getType());
         auto valuesTy = cast<Torch::ValueTensorType>(values.getType());
+        auto depthTy = cast<Torch::ValueTensorType>(depth.getType());
 
         axis = axis < 0 ? axis + indicesTy.getSizes().size() + 1 : axis;
 
-        depth = rewriter.create<Torch::AtenItemOp>(
-            loc, rewriter.getType<Torch::IntType>(), depth);
+        bool depthIsInt = isa<IntegerType>(depthTy.getDtype());
+        Type intTy = rewriter.getType<Torch::IntType>();
+        Type floatTy = rewriter.getType<Torch::FloatType>();
+        Type depthETy = depthIsInt ? intTy : floatTy;
+        depth = rewriter.create<Torch::AtenItemOp>(loc, depthETy, depth);
+
+        if (!depthIsInt)
+          depth = rewriter.create<Torch::AtenIntScalarOp>(
+              loc, rewriter.getType<Torch::IntType>(), depth);
 
         auto selectTy = rewriter.getType<Torch::ValueTensorType>(
             llvm::SmallVector<int64_t>{1}, valuesTy.getDtype());
