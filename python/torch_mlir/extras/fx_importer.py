@@ -236,12 +236,6 @@ _IS_TORCH_2_1_OR_EARLIER = torch.__version__.split("+")[0] <= "2.1.0"
 # set and just check key existence in SYMBOLIC_OP_TO_TORCH_OP
 
 if _IS_TORCH_2_1_OR_EARLIER:
-    SYMBOLIC_TORCH_OPS = {
-        torch.ops.aten.sym_size,
-        torch.ops.aten.sym_stride,
-        torch.ops.aten.sym_numel,
-    }
-
     SYMBOLIC_OP_TO_TORCH_OP = {
         (torch.ops.aten.sym_size, 1): torch.ops.aten.size.default,
         (torch.ops.aten.sym_size, 2): torch.ops.aten.size.int,
@@ -249,19 +243,21 @@ if _IS_TORCH_2_1_OR_EARLIER:
         (torch.ops.aten.sym_stride, 2): torch.ops.aten.stride.int,
         (torch.ops.aten.sym_numel, 1): torch.ops.aten.numel.default,
     }
-else:
-    SYMBOLIC_TORCH_OPS = {
-        torch.ops.aten.sym_size.int,
-        torch.ops.aten.sym_stride.int,
-        torch.ops.aten.sym_numel.default,
-    }
 
+    SYMBOLIC_TORCH_OPS = {
+        x[0] for x in SYMBOLIC_OP_TO_TORCH_OP
+    }
+else:
     SYMBOLIC_OP_TO_TORCH_OP = {
         torch.ops.aten.sym_size.default: torch.ops.aten.size.default,
         torch.ops.aten.sym_size.int: torch.ops.aten.size.int,
         torch.ops.aten.sym_stride.default: torch.ops.aten.stride.default,
         torch.ops.aten.sym_stride.int: torch.ops.aten.stride.int,
         torch.ops.aten.sym_numel.default: torch.ops.aten.numel.default,
+    }
+
+    SYMBOLIC_TORCH_OPS = {
+        x for x in SYMBOLIC_OP_TO_TORCH_OP
     }
 
 
