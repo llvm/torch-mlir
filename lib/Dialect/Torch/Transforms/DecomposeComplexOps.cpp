@@ -1075,7 +1075,6 @@ public:
 
     int64_t n = kUnknownSize;
     int64_t m = kUnknownSize;
-
     // prioritize getting shape from output shape
     if (outType.hasSizes() && outType.getSizes().size() == 2) {
       n = outType.getSizes().front();
@@ -1088,17 +1087,13 @@ public:
       matchPattern(op.getM(), m_TorchConstantInt(&m));
 
     // prepare two unsqueezed ranges that are equal on and only on the diagonal
-    std::optional<llvm::SmallVector<int64_t, 1>> rangeNSize;
-    if (n != kUnknownSize)
-      rangeNSize = {n};
+    auto rangeNSize = llvm::SmallVector<int64_t, 1>({n});
     Type rangeNType = outType.getWithSizesAndDtype(rangeNSize, si64Type);
     Value rangeN = rewriter.create<AtenArangeOp>(
         loc, rangeNType, op.getN(), /*dtype=*/int64Dtype, /*layout=*/none,
         /*device=*/op.getDevice(), /*pin_memory=*/none);
 
-    std::optional<llvm::SmallVector<int64_t, 1>> rangeMSize;
-    if (m != kUnknownSize)
-      rangeMSize = {m};
+    auto rangeMSize = llvm::SmallVector<int64_t, 1>({m});
     Type rangeMType = outType.getWithSizesAndDtype(rangeMSize, si64Type);
     Value rangeM = rewriter.create<AtenArangeOp>(
         loc, rangeMType, op.getM(), /*dtype=*/int64Dtype, /*layout=*/none,
@@ -1114,7 +1109,6 @@ public:
     }
     Value unsqzRangeN = *unsqzTensorInfo;
 
-    // compare unsqueezed input with boundaries
     auto eqType = ValueTensorType::get(
         context, op.getType().cast<BaseTensorType>().getSizes(),
         IntegerType::get(context, 1));
