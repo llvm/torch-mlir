@@ -63,4 +63,3 @@ func.func @torch.aten.embedding$rank_two_indices(%weight: !torch.vtensor<[?,?],f
   %ret = torch.aten.embedding %weight, %indices, %int-1, %false, %false : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,1], si64>, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[?,1,?],f32>
   return %ret: !torch.vtensor<[?,1,?],f32>
 }
-

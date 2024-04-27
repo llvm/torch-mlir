@@ -189,9 +189,8 @@ Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
       do_bcast = true;
     } else {
       op->emitError("The size of tensor a (")
-          << inDim << ")"
-          << "must match the size of tensor b (" << outDim << ")"
-          << "at non-singleton dimension " << inPos;
+          << inDim << ")" << "must match the size of tensor b (" << outDim
+          << ")" << "at non-singleton dimension " << inPos;
     }
   }
   std::reverse(bcastDims.begin(), bcastDims.end());

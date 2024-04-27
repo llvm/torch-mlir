@@ -287,19 +287,19 @@ static LogicalResult checkValidityOfCast(Type src, Type dest) {
       (src.isInteger(1) && dest.isInteger(64)) ||
       (src.isInteger(1) && dest.isF32()) ||
       // f64 -> *
-      (src.isF64() && dest.isF32()) || 
+      (src.isF64() && dest.isF32()) ||
       (src.isF64() && dest.isBF16()) ||
       // f32 -> *
-      (src.isF32() && dest.isF64()) || 
+      (src.isF32() && dest.isF64()) ||
       (src.isF32() && dest.isBF16()) ||
-      (src.isF32() && dest.isF16()) || 
+      (src.isF32() && dest.isF16()) ||
       (src.isF32() && dest.isInteger(8)) ||
       (src.isF32() && dest.isInteger(64)) ||
       (src.isF32() && dest.isInteger(1)) ||
       // bf16 -> *
       (src.isBF16() && dest.isInteger(8)) ||
       (src.isBF16() && dest.isInteger(16)) ||
-      (src.isBF16() && dest.isInteger(32)) || 
+      (src.isBF16() && dest.isInteger(32)) ||
       (src.isBF16() && dest.isF32())) {
     return success();
   }

@@ -1524,7 +1524,7 @@ func.func @torch.aten.tensor.float() -> !torch.vtensor<[],f32> {
 // CHECK-NEXT: torch.vtensor.literal(dense<45> : tensor<si32>) : !torch.vtensor<[],si32>
 func.func @torch.aten.tensor.int() -> !torch.vtensor<[],si32> {
   %none = torch.constant.none
-  %false = torch.constant.bool false 
+  %false = torch.constant.bool false
   %int45 = torch.constant.int 45
   %67 = torch.aten.tensor.int %int45, %none, %none, %false : !torch.int, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[],si32>
   return %67 : !torch.vtensor<[],si32>
@@ -2091,7 +2091,7 @@ func.func @torch.aten.broadcast_to$fold(%arg0: !torch.vtensor<[3,4,2],f32>) -> !
 // -----
 
 // CHECK-LABEL:   func.func @torch.aten.broadcast_to$fold_splat
-// CHECK:                 %[[CST:.+]] = torch.vtensor.literal(dense<3.000000e+00> : tensor<3x4x2xf32>) : !torch.vtensor<[3,4,2],f32> 
+// CHECK:                 %[[CST:.+]] = torch.vtensor.literal(dense<3.000000e+00> : tensor<3x4x2xf32>) : !torch.vtensor<[3,4,2],f32>
 // CHECK:                 return %[[CST]]
 func.func @torch.aten.broadcast_to$fold_splat() -> !torch.vtensor<[3,4,2],f32> {
   %tensor = torch.vtensor.literal(dense<3.0> : tensor<1x4x1xf32>) : !torch.vtensor<[1,4,1],f32>

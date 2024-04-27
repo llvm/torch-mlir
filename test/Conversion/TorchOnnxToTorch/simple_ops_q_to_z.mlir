@@ -1842,7 +1842,7 @@ func.func @test_random_normal() -> !torch.vtensor<[10],f32> attributes {torch.on
   // CHECK-DAG:  %[[F0:.+]] = torch.constant.float 0.000000e+00
   // CHECK-DAG:  %[[F1:.+]] = torch.constant.float 1.000000e+00
   // CHECK: torch.aten.normal_functional %[[EMPTY_TENSOR]], %[[F0]], %[[F1]], %[[NONE]] : !torch.vtensor<[10],f32>, !torch.float, !torch.float, !torch.none -> !torch.vtensor<[10],f32>
-  %0 = torch.operator "onnx.RandomNormal"() {torch.onnx.dtype = 1 : si64, torch.onnx.mean = 0.000000e+00 : f32, torch.onnx.scale = 1.000000e+00 : f32, torch.onnx.shape = [10 : si64]} : () -> !torch.vtensor<[10],f32> 
+  %0 = torch.operator "onnx.RandomNormal"() {torch.onnx.dtype = 1 : si64, torch.onnx.mean = 0.000000e+00 : f32, torch.onnx.scale = 1.000000e+00 : f32, torch.onnx.shape = [10 : si64]} : () -> !torch.vtensor<[10],f32>
   return %0 : !torch.vtensor<[10],f32>
 }
 
@@ -1857,7 +1857,7 @@ func.func @test_random_normal_like(%arg0: !torch.vtensor<[10],f32>) -> !torch.vt
   // CHECK-DAG:  %[[F0:.+]] = torch.constant.float 0.000000e+00
   // CHECK-DAG:  %[[F1:.+]] = torch.constant.float 1.000000e+00
   // CHECK: torch.aten.normal_functional %[[CAST]], %[[F0]], %[[F1]], %[[NONE]] : !torch.vtensor<[10],f32>, !torch.float, !torch.float, !torch.none -> !torch.vtensor<[10],f32>
-  %0 = torch.operator "onnx.RandomNormalLike"(%arg0) {torch.onnx.dtype = 1 : si64, torch.onnx.mean = 0.000000e+00 : f32, torch.onnx.scale = 1.000000e+00 : f32} : (!torch.vtensor<[10],f32>) -> !torch.vtensor<[10],f32> 
+  %0 = torch.operator "onnx.RandomNormalLike"(%arg0) {torch.onnx.dtype = 1 : si64, torch.onnx.mean = 0.000000e+00 : f32, torch.onnx.scale = 1.000000e+00 : f32} : (!torch.vtensor<[10],f32>) -> !torch.vtensor<[10],f32>
   return %0 : !torch.vtensor<[10],f32>
 }
 
@@ -1873,7 +1873,7 @@ func.func @test_random_uniform() -> !torch.vtensor<[10],f32> attributes {torch.o
   // CHECK-DAG:  %[[F1:.+]] = torch.constant.float 1.000000e+00
   // CHECK-DAG:  %[[F0:.+]] = torch.constant.float 0.000000e+00
   // CHECK: torch.aten.uniform %[[EMPTY_TENSOR]], %[[F0]], %[[F1]], %[[NONE]] : !torch.vtensor<[10],f32>, !torch.float, !torch.float, !torch.none -> !torch.vtensor<[10],f32>
-  %0 = torch.operator "onnx.RandomUniform"() {torch.onnx.dtype = 1 : si64, torch.onnx.high = 1.000000e+00 : f32, torch.onnx.low = 0.000000e+00 : f32, torch.onnx.shape = [10 : si64]} : () -> !torch.vtensor<[10],f32> 
+  %0 = torch.operator "onnx.RandomUniform"() {torch.onnx.dtype = 1 : si64, torch.onnx.high = 1.000000e+00 : f32, torch.onnx.low = 0.000000e+00 : f32, torch.onnx.shape = [10 : si64]} : () -> !torch.vtensor<[10],f32>
   return %0 : !torch.vtensor<[10],f32>
 }
 
@@ -1888,6 +1888,6 @@ func.func @test_random_uniform_like(%arg0: !torch.vtensor<[10],f32>) -> !torch.v
   // CHECK-DAG:  %[[F0:.+]] = torch.constant.float 0.000000e+00
   // CHECK-DAG:  %[[F1:.+]] = torch.constant.float 1.000000e+00
   // CHECK: torch.aten.uniform %[[CAST]], %[[F0]], %[[F1]], %[[NONE]] : !torch.vtensor<[10],f32>, !torch.float, !torch.float, !torch.none -> !torch.vtensor<[10],f32>
-  %0 = torch.operator "onnx.RandomUniformLike"(%arg0) {torch.onnx.dtype = 1 : si64, torch.onnx.high = 1.000000e+00 : f32, torch.onnx.low = 0.000000e+00 : f32} : (!torch.vtensor<[10],f32>) -> !torch.vtensor<[10],f32> 
+  %0 = torch.operator "onnx.RandomUniformLike"(%arg0) {torch.onnx.dtype = 1 : si64, torch.onnx.high = 1.000000e+00 : f32, torch.onnx.low = 0.000000e+00 : f32} : (!torch.vtensor<[10],f32>) -> !torch.vtensor<[10],f32>
   return %0 : !torch.vtensor<[10],f32>
 }
