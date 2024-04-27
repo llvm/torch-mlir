@@ -14,9 +14,11 @@ import typing
 
 mb = ModuleBuilder()
 
+
 class BasicClass:
     def __init__(self, x: int):
         self.x = x
+
 
 # CHECK-LABEL:   func.func @__torch__.prim_CreateObject(
 # CHECK-SAME:                                      %[[ARG0:.*]]: !torch.int) -> !torch.nn.Module<"__torch__.BasicClass"> {
@@ -27,6 +29,7 @@ class BasicClass:
 @torch.jit.script
 def prim_CreateObject(i: int):
     return BasicClass(i)
+
 
 mb.module.operation.print()
 print()

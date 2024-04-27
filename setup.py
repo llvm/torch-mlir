@@ -59,9 +59,12 @@ from setuptools.command.build_py import build_py
 
 if "develop" in sys.argv:
     print("Warning: The setup.py script is only used for building the wheel package.")
-    print("For initializing the development environment,"
-          "please use the cmake commands introduced in the docs/development.md.")
+    print(
+        "For initializing the development environment,"
+        "please use the cmake commands introduced in the docs/development.md."
+    )
     sys.exit(1)
+
 
 def _check_env_flag(name: str, default=None) -> bool:
     return str(os.getenv(name, default)).upper() in ["ON", "1", "YES", "TRUE", "Y"]
@@ -87,7 +90,6 @@ MAX_JOBS = os.getenv("MAX_JOBS", str(multiprocessing.cpu_count()))
 
 # Build phase discovery is unreliable. Just tell it what phases to run.
 class CustomBuild(_build):
-
     def initialize_options(self):
         _build.initialize_options(self)
         # Make setuptools not steal the build directory name,
@@ -102,7 +104,6 @@ class CustomBuild(_build):
 
 
 class CMakeBuild(build_py):
-
     def cmake_build(self, cmake_build_dir):
         llvm_dir = str(SRC_DIR / "externals" / "llvm-project" / "llvm")
 
@@ -199,14 +200,12 @@ class CMakeBuild(build_py):
 
 
 class CMakeExtension(Extension):
-
     def __init__(self, name, sourcedir=""):
         Extension.__init__(self, name, sources=[])
         self.sourcedir = os.path.abspath(sourcedir)
 
 
 class NoopBuildExtension(build_ext):
-
     def build_extension(self, ext):
         pass
 
@@ -229,13 +228,18 @@ NAME = "torch-mlir-core"
 # If building PyTorch extensions, customize.
 if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS:
     import torch
+
     NAME = "torch-mlir"
-    INSTALL_REQUIRES.extend([
-        f"torch=={torch.__version__}".split("+", 1)[0],
-    ])
-    EXT_MODULES.extend([
-        CMakeExtension("torch_mlir._mlir_libs._jit_ir_importer"),
-    ])
+    INSTALL_REQUIRES.extend(
+        [
+            f"torch=={torch.__version__}".split("+", 1)[0],
+        ]
+    )
+    EXT_MODULES.extend(
+        [
+            CMakeExtension("torch_mlir._mlir_libs._jit_ir_importer"),
+        ]
+    )
 
 
 setup(

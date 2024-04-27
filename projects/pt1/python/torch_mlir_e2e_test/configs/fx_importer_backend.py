@@ -40,12 +40,12 @@ def refine_result_type(_result):
 
 
 def jit(
-        prog: ExportedProgram,
-        func_name: str,
-        output_type: Union[str, "OutputType"] = OutputType.TORCH,
-        backend_legal_ops: Optional[Sequence[str]] = None,
-        extra_library=None,
-        verbose: bool = False,
+    prog: ExportedProgram,
+    func_name: str,
+    output_type: Union[str, "OutputType"] = OutputType.TORCH,
+    backend_legal_ops: Optional[Sequence[str]] = None,
+    extra_library=None,
+    verbose: bool = False,
 ):
     if extra_library is None:
         extra_library = []
@@ -55,14 +55,20 @@ def jit(
     output_type = OutputType.get(output_type)
     if backend_legal_ops is not None:
         if output_type != OutputType.TORCH:
-            raise Exception("`backend_legal_ops` is only valid with the "
-                            "`torch` output type")
+            raise Exception(
+                "`backend_legal_ops` is only valid with the " "`torch` output type"
+            )
         backend_legal_ops = list(sorted(set(backend_legal_ops)))
     else:
         backend_legal_ops = BACKEND_LEGAL_OPS.get(output_type, [])
 
-    option_string = ("{backend-legal-ops=" + ",".join(backend_legal_ops) +
-                     " extra-library=" + extra_library_file_name + "}")
+    option_string = (
+        "{backend-legal-ops="
+        + ",".join(backend_legal_ops)
+        + " extra-library="
+        + extra_library_file_name
+        + "}"
+    )
 
     mlir_module = fx.export_and_import(prog, func_name=func_name)
     assert mlir_module is not None
@@ -95,9 +101,11 @@ class FxImporterTestConfig(TestConfig):
         result: Trace = []
         for item in trace:
             prog = torch.export.export(artifact, tuple(item.inputs))
-            module = jit(prog,
-                         func_name=artifact.__class__.__name__,
-                         output_type=self._output_type)
+            module = jit(
+                prog,
+                func_name=artifact.__class__.__name__,
+                output_type=self._output_type,
+            )
             module = self._backend.compile(module)
             backend_module = self._backend.load(module)
             params = {
@@ -107,10 +115,10 @@ class FxImporterTestConfig(TestConfig):
             params_flat, params_spec = pytree.tree_flatten(params)
             params_flat = list(params_flat)
             with torch.no_grad():
-                numpy_inputs = recursively_convert_to_numpy(params_flat +
-                                                            item.inputs)
-            outputs = getattr(backend_module,
-                              artifact.__class__.__name__)(*numpy_inputs)
+                numpy_inputs = recursively_convert_to_numpy(params_flat + item.inputs)
+            outputs = getattr(backend_module, artifact.__class__.__name__)(
+                *numpy_inputs
+            )
             output = refine_result_type(outputs)
             if isinstance(output, (tuple, list)):
                 user_output = []
@@ -120,7 +128,6 @@ class FxImporterTestConfig(TestConfig):
                         user_output.append(val)
                 output = tuple(user_output)
             result.append(
-                TraceItem(symbol=item.symbol,
-                          inputs=item.inputs,
-                          output=output))
+                TraceItem(symbol=item.symbol, inputs=item.inputs, output=output)
+            )
         return result

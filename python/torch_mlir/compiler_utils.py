@@ -26,17 +26,18 @@ def get_module_name_for_debug_dump(module):
 class TorchMlirCompilerError(Exception):
     pass
 
-def run_pipeline_with_repro_report(module,
-                                   pipeline: str,
-                                   description: str,
-                                   enable_ir_printing: bool = False):
+
+def run_pipeline_with_repro_report(
+    module, pipeline: str, description: str, enable_ir_printing: bool = False
+):
     """Runs `pipeline` on `module`, with a nice repro report if it fails."""
     module_name = get_module_name_for_debug_dump(module)
     original_stderr = sys.stderr
     try:
         sys.stderr = StringIO()
         asm_for_error_report = module.operation.get_asm(
-            large_elements_limit=10, enable_debug_info=True)
+            large_elements_limit=10, enable_debug_info=True
+        )
         # Lower module in place to make it ready for compiler backends.
         with module.context as ctx:
             pm = PassManager.parse(pipeline)
@@ -54,9 +55,9 @@ def run_pipeline_with_repro_report(module,
         # - if we do have have colliding filenames, writes should at least
         #   avoid being racy.
         filename = os.path.join(tempfile.gettempdir(), module_name + ".mlir")
-        with open(filename, 'w') as f:
+        with open(filename, "w") as f:
             f.write(asm_for_error_report)
-        debug_options="-mlir-print-ir-after-all -mlir-disable-threading"
+        debug_options = "-mlir-print-ir-after-all -mlir-disable-threading"
         # Put something descriptive here even if description is empty.
         description = description or f"{module_name} compile"
 
@@ -70,7 +71,7 @@ def run_pipeline_with_repro_report(module,
             $ torch-mlir-opt -pass-pipeline='{pipeline}' {filename}
             Add '{debug_options}' to get the IR dump for debugging purpose.
             """
-        trimmed_message = '\n'.join([m.lstrip() for m in message.split('\n')])
+        trimmed_message = "\n".join([m.lstrip() for m in message.split("\n")])
         raise TorchMlirCompilerError(trimmed_message) from None
     finally:
         sys.stderr = original_stderr
@@ -118,8 +119,10 @@ class OutputType(Enum):
             return spec
         spec = spec.upper().replace("-", "_")
         if spec not in OutputType.__members__:
-            raise ValueError(f"For output_type= argument, expected one of: "
-                             f"{', '.join(OutputType.__members__.keys())}")
+            raise ValueError(
+                f"For output_type= argument, expected one of: "
+                f"{', '.join(OutputType.__members__.keys())}"
+            )
         return OutputType[spec]
 
 
@@ -134,8 +137,10 @@ def lower_mlir_module(verbose, output_type, module):
 
     if output_type == OutputType.TOSA:
         run_pipeline_with_repro_report(
-            module, "builtin.module(torch-backend-to-tosa-backend-pipeline)",
-            "Lowering Torch Backend IR -> TOSA Backend IR")
+            module,
+            "builtin.module(torch-backend-to-tosa-backend-pipeline)",
+            "Lowering Torch Backend IR -> TOSA Backend IR",
+        )
         if verbose:
             print("\n====================")
             print("TOSA Backend IR")
@@ -146,7 +151,8 @@ def lower_mlir_module(verbose, output_type, module):
         run_pipeline_with_repro_report(
             module,
             "builtin.module(torch-backend-to-linalg-on-tensors-backend-pipeline)",
-            "Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR")
+            "Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR",
+        )
         if verbose:
             print("\n====================")
             print("LINALG Backend IR")
@@ -157,7 +163,8 @@ def lower_mlir_module(verbose, output_type, module):
         run_pipeline_with_repro_report(
             module,
             "builtin.module(torch-backend-to-stablehlo-backend-pipeline)",
-            "Lowering Torch Backend IR -> StableHLO Backend IR")
+            "Lowering Torch Backend IR -> StableHLO Backend IR",
+        )
         if verbose:
             print("\n====================")
             print("StableHLO Backend IR")

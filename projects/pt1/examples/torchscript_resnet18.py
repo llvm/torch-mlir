@@ -18,19 +18,18 @@ from torch_mlir_e2e_test.linalg_on_tensors_backends import refbackend
 
 def load_and_preprocess_image(url: str):
     headers = {
-        'User-Agent':
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36"
     }
-    img = Image.open(requests.get(url, headers=headers,
-                                  stream=True).raw).convert("RGB")
+    img = Image.open(requests.get(url, headers=headers, stream=True).raw).convert("RGB")
     # preprocessing pipeline
-    preprocess = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225]),
-    ])
+    preprocess = transforms.Compose(
+        [
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
     img_preprocessed = preprocess(img)
     return torch.unsqueeze(img_preprocessed, 0)
 
@@ -59,7 +58,10 @@ def predictions(torch_func, jit_func, img, labels):
     print("torch-mlir prediction")
     print(prediction)
 
-image_url = "https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg"
+
+image_url = (
+    "https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg"
+)
 
 print("load image from " + image_url, file=sys.stderr)
 img = load_and_preprocess_image(image_url)
@@ -67,7 +69,9 @@ labels = load_labels()
 
 resnet18 = models.resnet18(pretrained=True)
 resnet18.train(False)
-module = torchscript.compile(resnet18, torch.ones(1, 3, 224, 224), output_type="linalg-on-tensors")
+module = torchscript.compile(
+    resnet18, torch.ones(1, 3, 224, 224), output_type="linalg-on-tensors"
+)
 backend = refbackend.RefBackendLinalgOnTensorsBackend()
 compiled = backend.compile(module)
 jit_module = backend.load(compiled)
