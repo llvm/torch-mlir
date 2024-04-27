@@ -16,6 +16,7 @@ class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
+
 test_module = TestModule()
 recursivescriptmodule = torch.jit.script(test_module)
 # TODO: Automatically handle unpacking Python class RecursiveScriptModule into the underlying ScriptModule.

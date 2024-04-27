@@ -18,7 +18,7 @@ from .._mlir_libs._jit_ir_importer import *
 from ..dialects import torch as _unused_torch_dialect
 
 __all__ = [
-  "debug_trace_to_stderr",
-  "ModuleBuilder",
-  "ClassAnnotator",
+    "debug_trace_to_stderr",
+    "ModuleBuilder",
+    "ClassAnnotator",
 ]

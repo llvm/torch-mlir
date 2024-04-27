@@ -14,6 +14,8 @@ projects (i.e. by just providing this file on the side).
 from torch_mlir import ir
 from torch_mlir.extras import onnx_importer
 
+
 def configure_context(context):
     from torch_mlir.dialects import torch as torch_d
+
     torch_d.register_dialect(context)

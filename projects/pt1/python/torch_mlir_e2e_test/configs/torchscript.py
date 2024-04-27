@@ -13,6 +13,7 @@ from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
 
 class TorchScriptTestConfig(TestConfig):
     """TestConfig that runs the torch.nn.Module through TorchScript"""
+
     def __init__(self):
         super().__init__()
 
@@ -26,11 +27,10 @@ class TorchScriptTestConfig(TestConfig):
         result: Trace = []
         for item in trace:
             attr = artifact
-            for part in item.symbol.split('.'):
+            for part in item.symbol.split("."):
                 attr = getattr(attr, part)
             output = attr(*item.inputs)
             result.append(
-                TraceItem(symbol=item.symbol,
-                          inputs=item.inputs,
-                          output=output))
+                TraceItem(symbol=item.symbol, inputs=item.inputs, output=output)
+            )
         return result

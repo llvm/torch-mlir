@@ -22,8 +22,8 @@ import torch
 # Attribute names used for annotations.
 # These should be kept in sync with their use in
 # `torch_mlir/torchscript_annotations.py`.
-TORCH_MLIR_EXPORT_ATTR_NAME = '_torch_mlir_export'
-TORCH_MLIR_ARG_ANNOTATIONS_ATTR_NAME = '_torch_mlir_arg_annotations'
+TORCH_MLIR_EXPORT_ATTR_NAME = "_torch_mlir_export"
+TORCH_MLIR_ARG_ANNOTATIONS_ATTR_NAME = "_torch_mlir_arg_annotations"
 
 
 def export(fn):

@@ -1540,7 +1540,9 @@ class GraphNodeImporter:
         if op_name is None:
             return val
         with loc:
-            return Operation.create(name=op_name, results=[result_type], operands=[val]).result
+            return Operation.create(
+                name=op_name, results=[result_type], operands=[val]
+            ).result
 
     def _import_literal(self, py_value: Any) -> Value:
         # Apply the conversion callback.

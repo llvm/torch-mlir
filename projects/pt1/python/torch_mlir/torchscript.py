@@ -20,7 +20,7 @@ from torch.fx.experimental.proxy_tensor import make_fx
 from torch_mlir.compiler_utils import (
     run_pipeline_with_repro_report,
     OutputType,
-    lower_mlir_module
+    lower_mlir_module,
 )
 from torch_mlir.jit_ir_importer import ClassAnnotator, ImportOptions, ModuleBuilder
 from torch_mlir.jit_ir_importer.build_tools.library_generator import generate_library
@@ -105,8 +105,7 @@ class ExampleArgs:
             self, for chaining.
         """
         assert method_name not in self._example_args
-        self._example_args[method_name] = ExampleArgs._canonicalize_args(
-            example_args)
+        self._example_args[method_name] = ExampleArgs._canonicalize_args(example_args)
         return self
 
     @staticmethod
@@ -129,10 +128,12 @@ class ExampleArgs:
             example_args = [example_args]
         for arg in example_args:
             if not isinstance(arg, (TensorPlaceholder, torch.Tensor)):
-                raise Exception(f"Only Tensor's, TensorPlaceholder's, or sequences of "
-                                f"Tensor's and TensorPlaceholder's are supported as "
-                                f"example args for method inputs. "
-                                f"Got '{arg}'.")
+                raise Exception(
+                    f"Only Tensor's, TensorPlaceholder's, or sequences of "
+                    f"Tensor's and TensorPlaceholder's are supported as "
+                    f"example args for method inputs. "
+                    f"Got '{arg}'."
+                )
         return tuple(example_args)
 
     def _get_methods(self):
@@ -171,7 +172,8 @@ class ExampleArgs:
                             # "hopefully the trace works for different inputs"
                             # bucket of concerns.
                             raise Exception(
-                                "TensorPlaceholder can only be used with tracing when `ignore_traced_shapes=True`")
+                                "TensorPlaceholder can only be used with tracing when `ignore_traced_shapes=True`"
+                            )
                         # For any dynamic dimensions, replace them with "7"
                         # arbitrarily. If a user is using dynamic dimensions with
                         # tracing, they are walking on thin ice already -- assume
@@ -182,7 +184,8 @@ class ExampleArgs:
                             example_args_for_trace.append(torch.tensor(1))
                         else:
                             example_args_for_trace.append(
-                                torch.ones(*shape, dtype=arg.dtype))
+                                torch.ones(*shape, dtype=arg.dtype)
+                            )
                     else:
                         assert isinstance(arg, torch.Tensor)
                         example_args_for_trace.append(arg)
@@ -198,21 +201,33 @@ class ExampleArgs:
 # ops in the backend contract, and move these lists somewhere deeper in the
 # compiler where each backend can "own" its set of legal ops.
 BACKEND_LEGAL_OPS = {
-    OutputType.TOSA: ['aten.flatten.using_ints', 'aten.native_layer_norm', 'aten.linear'],
-    OutputType.LINALG_ON_TENSORS: ['aten.flatten.using_ints','aten.adaptive_avg_pool1d','aten.adaptive_avg_pool2d', 'aten.unflatten.int'],
+    OutputType.TOSA: [
+        "aten.flatten.using_ints",
+        "aten.native_layer_norm",
+        "aten.linear",
+    ],
+    OutputType.LINALG_ON_TENSORS: [
+        "aten.flatten.using_ints",
+        "aten.adaptive_avg_pool1d",
+        "aten.adaptive_avg_pool2d",
+        "aten.unflatten.int",
+    ],
     OutputType.STABLEHLO: [],
 }
 
 
-def _canon_extra_library(extra_library, extra_library_file_name="custom_op_extra_library.mlir"):
+def _canon_extra_library(
+    extra_library, extra_library_file_name="custom_op_extra_library.mlir"
+):
     if len(extra_library) != 0:
         extra_library_dict = {}
         for library_func in extra_library:
             extra_library_dict[library_func.__name__] = library_func
         mlir_library = generate_library(extra_library_dict)
 
-        extra_library_file = \
-            os.path.join(tempfile.gettempdir(), extra_library_file_name)
+        extra_library_file = os.path.join(
+            tempfile.gettempdir(), extra_library_file_name
+        )
         with open(extra_library_file, "w") as f:
             f.write(mlir_library)
         return extra_library_file
@@ -220,16 +235,18 @@ def _canon_extra_library(extra_library, extra_library_file_name="custom_op_extra
         return ""
 
 
-def compile(model: torch.nn.Module,
-            example_args: _example_args,
-            output_type: Union[str, "OutputType"] = OutputType.TORCH,
-            use_tracing: bool = False,
-            ignore_traced_shapes=False,
-            backend_legal_ops: Optional[Sequence[str]] = None,
-            extra_library: Iterable[Callable] = [],
-            verbose: bool = False,
-            use_make_fx: bool = False,
-            enable_ir_printing: bool = False):
+def compile(
+    model: torch.nn.Module,
+    example_args: _example_args,
+    output_type: Union[str, "OutputType"] = OutputType.TORCH,
+    use_tracing: bool = False,
+    ignore_traced_shapes=False,
+    backend_legal_ops: Optional[Sequence[str]] = None,
+    extra_library: Iterable[Callable] = [],
+    verbose: bool = False,
+    use_make_fx: bool = False,
+    enable_ir_printing: bool = False,
+):
     """Convert a PyTorch model to MLIR.
 
     Args:
@@ -283,18 +300,18 @@ def compile(model: torch.nn.Module,
     # See `BACKEND_LEGAL_OPS` for more details.
     if backend_legal_ops is not None:
         if output_type != OutputType.TORCH:
-            raise Exception("`backend_legal_ops` is only valid with the "
-                            "`torch` output type")
+            raise Exception(
+                "`backend_legal_ops` is only valid with the " "`torch` output type"
+            )
         backend_legal_ops = list(sorted(set(backend_legal_ops)))
     else:
         backend_legal_ops = BACKEND_LEGAL_OPS.get(output_type, [])
 
     if use_make_fx:
-        args = example_args._get_for_tracing(use_tracing=True, ignore_traced_shapes=True)["forward"]
-        model = make_fx(
-           model,
-           decomposition_table=_get_decomposition_table())(*args)
-
+        args = example_args._get_for_tracing(
+            use_tracing=True, ignore_traced_shapes=True
+        )["forward"]
+        model = make_fx(model, decomposition_table=_get_decomposition_table())(*args)
 
     # For FX-based models, automatically strip overloads.
     if isinstance(model, torch.fx.GraphModule):
@@ -317,12 +334,12 @@ def compile(model: torch.nn.Module,
                 raise Exception(
                     f"Model does not have exported method '{method_name}', "
                     f"requested in `example_args`. Consider adding "
-                    f"`@torch.jit.export` to the method definition.")
+                    f"`@torch.jit.export` to the method definition."
+                )
         scripted = model
     elif use_tracing:
         scripted = torch.jit.trace_module(
-            model,
-            example_args._get_for_tracing(use_tracing, ignore_traced_shapes)
+            model, example_args._get_for_tracing(use_tracing, ignore_traced_shapes)
         )
     else:
         # Make sure that all the methods that the user requested get scripted.
@@ -338,8 +355,7 @@ def compile(model: torch.nn.Module,
         annotation = [None]  # `None` is always the annotation for "self".
         for arg in example_args:
             annotation.append((arg.shape, arg.dtype, True))
-        class_annotator.annotateArgs(
-            scripted._c._type(), [method_name], annotation)
+        class_annotator.annotateArgs(scripted._c._type(), [method_name], annotation)
 
     mb = ModuleBuilder()
     import_options = ImportOptions()
@@ -350,20 +366,27 @@ def compile(model: torch.nn.Module,
         # Import the TorchScript module to MLIR
         mb.import_module(scripted._c, class_annotator, import_options)
     except Exception as e:
-        raise Exception(f"""
+        raise Exception(
+            f"""
 PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
 ### Importer C++ Exception:
 {e}
 ### Importer Diagnostics:
 {sys.stderr.getvalue()}
-""") from None
+"""
+        ) from None
     finally:
         sys.stderr = original_stderr
     if output_type == OutputType.RAW:
         return mb.module
 
-    option_string = "{backend-legal-ops=" + ",".join(backend_legal_ops) + \
-        " extra-library=" + extra_library_file_name + "}"
+    option_string = (
+        "{backend-legal-ops="
+        + ",".join(backend_legal_ops)
+        + " extra-library="
+        + extra_library_file_name
+        + "}"
+    )
     run_pipeline_with_repro_report(
         mb.module,
         f"builtin.module(torchscript-module-to-torch-backend-pipeline{option_string})",

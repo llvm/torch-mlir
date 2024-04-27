@@ -20,12 +20,14 @@ mb = ModuleBuilder()
 def optional_return(i: int) -> typing.Optional[int]:
     return i
 
+
 # CHECK-LABEL:   func.func @__torch__.optional_arg(
 # CHECK-SAME:                                      %[[ARG:.*]]: !torch.optional<int>) -> !torch.none {
 @mb.import_function
 @torch.jit.script
 def optional_arg(i: typing.Optional[int]) -> None:
     return
+
 
 # CHECK-LABEL:   func.func @__torch__.calls_optional_arg(
 # CHECK-SAME:                                       %[[ARG:.*]]: !torch.int) -> !torch.none {

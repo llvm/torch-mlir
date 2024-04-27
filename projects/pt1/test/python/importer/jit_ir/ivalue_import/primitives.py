@@ -11,11 +11,13 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.i = 3
         self.f = 42.5
+
 
 # CHECK: torch.class_type @[[CLASSTYPE:.*]] {
 # CHECK:   torch.attr "training" : !torch.bool
