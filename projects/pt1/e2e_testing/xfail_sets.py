@@ -252,12 +252,6 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: Exception: Unsupported: missing default value for argument 0 in schema for aten.div.Tensor_mode
     "ElementwiseAtenFloorDivideScalarNegativeModule_basic",
     "ElementwiseAtenFloorDivideScalarModule_basic",
-    "ElementwiseDivTensorRoundingModeFloorModule_basic",
-    "ElementwiseDivTensorRoundingModeTruncModule_basic",
-    "ElementwiseDivTensorRoundingModeFloorStaticModule_basic",
-    "ElementwiseDivTensorRoundingModeTruncStaticModule_basic",
-    "ElementwiseDivTensorRoundingModeFloorIntStaticModule_basic",
-    "ElementwiseDivTensorRoundingModeTruncIntStaticModule_basic",
     "ElementwiseDivScalarRoundingModeFloorModule_basic",
     "ElementwiseDivScalarRoundingModeTruncModule_basic",
     "ElementwiseDivScalarRoundingModeFloorStaticModule_basic",
@@ -341,8 +335,10 @@ TORCHDYNAMO_XFAIL_SET = {
     "IntImplicitModule_basic",
 
     # Others
+    "ExponentialModule_basic",
     "GridSamplerBasic1_basic",
     "GridSamplerBasic2_basic",
+    "GridSamplerBasic3_basic",
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
     "FakeQuantizePerTensorAffineRoundToEvenModule_basic",
