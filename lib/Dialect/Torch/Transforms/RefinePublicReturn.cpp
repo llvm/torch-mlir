@@ -84,7 +84,7 @@ class RefinePublicReturnPass
         }
       }
 
-      if (auto tensorType = newOperand.getType().dyn_cast<BaseTensorType>()) {
+      if (auto tensorType = dyn_cast<BaseTensorType>(newOperand.getType())) {
         newOperands.push_back(
             copyTensorToType(builder, returnOp->getLoc(),
                              tensorType.getWithValueSemantics(), newOperand));

@@ -81,12 +81,12 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dOp>::matchAndRewrite(
     AtenMaxPool2dOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
-  auto inputTy = input.getType().cast<RankedTensorType>();
+  auto inputTy = cast<RankedTensorType>(input.getType());
   auto inputElemTy = inputTy.getElementType();
 
   auto inputRank = inputTy.getRank();
   auto outTy =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
 
   if (inputRank <= 2) {
     return op.emitError(
@@ -176,14 +176,14 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
     AtenMaxPool2dWithIndicesOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
-  auto inputTy = input.getType().cast<RankedTensorType>();
+  auto inputTy = cast<RankedTensorType>(input.getType());
   auto inputElemTy = inputTy.getElementType();
   auto inputShape = inputTy.getShape();
   auto inputRank = inputTy.getRank();
   auto outValTy =
-      getTypeConverter()->convertType(op.getType(0)).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType(0)));
   auto outIdxTy =
-      getTypeConverter()->convertType(op.getType(1)).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType(1)));
 
   if (inputRank <= 2) {
     return op.emitError(
@@ -366,7 +366,7 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value input = adaptor.getSelf();
-    RankedTensorType inputTy = input.getType().cast<RankedTensorType>();
+    RankedTensorType inputTy = cast<RankedTensorType>(input.getType());
     Type inputElemTy = inputTy.getElementType();
     int64_t inputRank = inputTy.getRank();
     RankedTensorType outTy = ConvertAtenOp<AtenOpT>::getTypeConverter()
@@ -539,11 +539,11 @@ LogicalResult ConvertAtenOp<AtenCumsumOp>::matchAndRewrite(
     AtenCumsumOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
-  auto inputTy = input.getType().cast<RankedTensorType>();
+  auto inputTy = cast<RankedTensorType>(input.getType());
   auto outTy =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
   input = hlo::promoteType(rewriter, op.getLoc(), input, outTy);
-  inputTy = input.getType().cast<RankedTensorType>();
+  inputTy = cast<RankedTensorType>(input.getType());
   auto inputElemTy = inputTy.getElementType();
   auto inputRank = inputTy.getRank();
   auto inputShape = inputTy.getShape();

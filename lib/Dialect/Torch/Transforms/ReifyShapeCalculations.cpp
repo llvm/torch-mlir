@@ -41,8 +41,8 @@ shapeFunctionArgsBuilder(OpBuilder &b, Location loc,
           auto desiredListType = dyn_cast<Torch::ListType>(desiredType);
           if (!desiredListType)
             return operand;
-          if (operand.getType().isa<Torch::BaseTensorType>() &&
-              desiredListType.getContainedType().isa<Torch::IntType>()) {
+          if (isa<Torch::BaseTensorType>(operand.getType()) &&
+              isa<Torch::IntType>(desiredListType.getContainedType())) {
             return b.create<AtenSizeOp>(loc, desiredType, operand);
           }
           return operand;
