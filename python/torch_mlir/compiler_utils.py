@@ -32,8 +32,8 @@ def run_pipeline_with_repro_report(module,
                                    enable_ir_printing: bool = False):
     """Runs `pipeline` on `module`, with a nice repro report if it fails."""
     module_name = get_module_name_for_debug_dump(module)
+    original_stderr = sys.stderr
     try:
-        original_stderr = sys.stderr
         sys.stderr = StringIO()
         asm_for_error_report = module.operation.get_asm(
             large_elements_limit=10, enable_debug_info=True)
@@ -78,8 +78,12 @@ def run_pipeline_with_repro_report(module,
 
 class OutputType(Enum):
 
-    # This output type consists of `torch` dialect ops that have been converted
-    # maximally to value semantics, decomposed, and shapes have been inferred.
+    # Output torch dialect. When converting from FX, this will be immediately
+    # after the import from FX to MLIR. When converting from torchscript,
+    # this will come after some cleanup passes which attempt to de-alias,
+    # decompose and infer shapes. These should be roughly the same level of
+    # abstraction since those steps are done within PyTorch itself
+    # when coming directly from Dynamo/FX.
     TORCH = "torch"
 
     # The output type contains a mix of `linalg`-on-tensors ops, `scf`, and
