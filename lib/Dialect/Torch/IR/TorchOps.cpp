@@ -2364,11 +2364,25 @@ OpFoldResult AtenEqStrOp::fold(FoldAdaptor adaptor) {
   if (getOperand(0) == getOperand(1))
     return getI1IntegerAttr(getContext(), true);
 
-  auto aStr = getA().getDefiningOp<ConstantStrOp>();
-  auto bStr = getB().getDefiningOp<ConstantStrOp>();
-
+  auto aStr = adaptor.getA();
+  auto bStr = adaptor.getB();
   if (aStr && bStr)
     return getI1IntegerAttr(getContext(), aStr == bStr);
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenNeStrOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenNeStrOp::fold(FoldAdaptor adaptor) {
+  if (getOperand(0) == getOperand(1))
+    return getI1IntegerAttr(getContext(), false);
+
+  auto aStr = adaptor.getA();
+  auto bStr = adaptor.getB();
+  if (aStr && bStr)
+    return getI1IntegerAttr(getContext(), aStr != bStr);
   return nullptr;
 }
 
