@@ -168,8 +168,7 @@ public:
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto rankType =
-        dyn_cast<RankedTensorType>(adaptor.getSelf().getType());
+    auto rankType = dyn_cast<RankedTensorType>(adaptor.getSelf().getType());
     if (!rankType)
       return op.emitError("Only ranked tensor types are currently supported");
 

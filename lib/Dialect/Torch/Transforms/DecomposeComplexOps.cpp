@@ -785,8 +785,8 @@ public:
         rewriter.create<AtenAddIntOp>(loc, one.getType(), start, one);
     Value slice = rewriter.create<AtenSliceTensorOp>(
         loc,
-        computeReductionType(rewriter, op,
-                             cast<BaseTensorType>(self.getType()), dim,
+        computeReductionType(rewriter, op, cast<BaseTensorType>(self.getType()),
+                             dim,
                              /*keepDim=*/true),
         op.getSelf(), dim, start, startPlusOne, /*step=*/one);
 
@@ -2596,8 +2596,9 @@ public:
     }
 
     Type listElemType =
-        cast<BaseTensorType>(op.getType()).getWithSizesAndDtype(
-            /*optionalSizes=*/std::nullopt, /*optionalDtype=*/nullptr);
+        cast<BaseTensorType>(op.getType())
+            .getWithSizesAndDtype(
+                /*optionalSizes=*/std::nullopt, /*optionalDtype=*/nullptr);
     Type listType = Torch::ListType::get(listElemType);
     Value unsqueezedTensorList = rewriter.create<PrimListConstructOp>(
         op.getLoc(), listType, unsqueezedTensors);
@@ -5175,8 +5176,7 @@ class DecomposeConstantTensorNewLikeOp : public OpRewritePattern<OpTy> {
                                 PatternRewriter &rewriter) const override {
     Value dtype = op.getDtype();
     if (dtype.getType().isa<Torch::NoneType>()) {
-      BaseTensorType tensorType =
-          cast<BaseTensorType>(op.getSelf().getType());
+      BaseTensorType tensorType = cast<BaseTensorType>(op.getSelf().getType());
       if (!tensorType.hasDtype()) {
         return rewriter.notifyMatchFailure(
             op, "expected input tensor to have a dtype");

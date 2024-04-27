@@ -66,8 +66,7 @@ public:
         cast<RankedTensorType>(typec->convertType(op.getResult(0).getType()));
     auto idxResultType =
         cast<RankedTensorType>(typec->convertType(op.getResult(1).getType()));
-    RankedTensorType inputType =
-        cast<RankedTensorType>(input.getType());
+    RankedTensorType inputType = cast<RankedTensorType>(input.getType());
     Type idxElementType =
         getElementTypeOrSelf(typec->convertType(idxResultType));
     if (!isa<IntegerType>(idxElementType))
@@ -480,8 +479,7 @@ private:
 
     SmallVector<int64_t> dimList;
     int64_t dim;
-    bool isNoneOrEmptyDimList =
-        isa<Torch::NoneType>(op.getDim().getType());
+    bool isNoneOrEmptyDimList = isa<Torch::NoneType>(op.getDim().getType());
     if (matchPattern(op.getDim(), m_TorchListOfConstantInts(dimList))) {
       // Fix negative dimensions, if any, before adding to the list.
       for (int64_t dim : dimList) {

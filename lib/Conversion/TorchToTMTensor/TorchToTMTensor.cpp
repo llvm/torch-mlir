@@ -1557,8 +1557,7 @@ public:
     key = collapseBatch(key);
     value = collapseBatch(value);
 
-    SmallVector<int64_t> outSizes(
-        cast<ShapedType>(query.getType()).getShape());
+    SmallVector<int64_t> outSizes(cast<ShapedType>(query.getType()).getShape());
     SmallVector<int64_t> valueSizes(
         cast<ShapedType>(value.getType()).getShape());
     outSizes[outSizes.size() - 1] = valueSizes[valueSizes.size() - 1];

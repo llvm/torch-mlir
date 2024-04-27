@@ -173,8 +173,7 @@ static Value createCompareTensorOp(OpBuilder &b, Location loc, OpTy op,
     return nullptr;
   }
 
-  Type elementalType =
-      cast<BaseTensorType>(op.getSelf().getType()).getDtype();
+  Type elementalType = cast<BaseTensorType>(op.getSelf().getType()).getDtype();
   if constexpr (std::is_same<OpTy, AtenLtTensorOp>()) {
     return createLessThan(b, loc, elementalType, lhs, rhs);
   }

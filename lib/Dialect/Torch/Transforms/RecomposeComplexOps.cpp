@@ -130,8 +130,7 @@ public:
 
     // Create IndexPut_Op
     // Convert indexNum to indexTensor for the selectOp
-    BaseTensorType selectOutTy =
-        cast<BaseTensorType>(selectOp.getType());
+    BaseTensorType selectOutTy = cast<BaseTensorType>(selectOp.getType());
     SmallVector<int64_t> empty;
     auto dtype = getTypeForTorchType(selectOp.getContext(),
                                      selectOp.getIndex().getType());

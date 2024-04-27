@@ -464,8 +464,7 @@ public:
     auto biasTy = bias.getType();
 
     // StableHLO does not mandate that elementwise op tensors need to be ranked.
-    if (!isa<Torch::NoneType>(biasTy) &&
-        !isa<RankedTensorType>(biasTy))
+    if (!isa<Torch::NoneType>(biasTy) && !isa<RankedTensorType>(biasTy))
       return op.emitError("only ranked tensor types are supported in StableHLO "
                           "matmul for bias tensor");
 

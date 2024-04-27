@@ -44,7 +44,7 @@ setupValueTensorToBuiltinTensorConversion(ConversionTarget &target,
                                   Torch::ValueTensorType type,
                                   ValueRange inputs, Location loc) -> Value {
     assert(inputs.size() == 1);
-    assert(inputs[0]isa<TensorType>(.getType()));
+    assert(inputs[0] isa<TensorType>(.getType()));
     return builder.create<FromBuiltinTensorOp>(loc, type, inputs[0]);
   };
   typeConverter.addSourceMaterialization(sourceMaterialization);
@@ -64,13 +64,13 @@ static void setupTorchBoolToI1Conversion(ConversionTarget &target,
         if (!(type.getWidth() == 1 && type.isSignless()))
           return std::nullopt;
         assert(inputs.size() == 1);
-        assert(inputs[0]isa<Torch::BoolType>(.getType()));
+        assert(inputs[0] isa<Torch::BoolType>(.getType()));
         return builder.create<ToI1Op>(loc, inputs[0]).getResult();
       });
   auto sourceMaterialization = [](OpBuilder &builder, Torch::BoolType type,
                                   ValueRange inputs, Location loc) -> Value {
     assert(inputs.size() == 1);
-    assert(inputs[0]isa<IntegerType>(.getType()));
+    assert(inputs[0] isa<IntegerType>(.getType()));
     return builder.create<FromI1Op>(loc, inputs[0]);
   };
   typeConverter.addSourceMaterialization(sourceMaterialization);

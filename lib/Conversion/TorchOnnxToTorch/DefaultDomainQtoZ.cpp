@@ -1717,8 +1717,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         int startSize = startsTy.getDimSize(0);
 
         auto endsTorchTy = cast<Torch::ValueTensorType>(ends.getType());
-        auto endsTy =
-            dyn_cast<RankedTensorType>(endsTorchTy.toBuiltinTensor());
+        auto endsTy = dyn_cast<RankedTensorType>(endsTorchTy.toBuiltinTensor());
         int endSize = endsTy.getDimSize(0);
         auto resultTy =
             dyn_cast<RankedTensorType>(resultTorchType.toBuiltinTensor());

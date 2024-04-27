@@ -592,10 +592,9 @@ public:
     if constexpr (std::is_same<OpTy, AtenAvgPool2dOp>()) {
       Value kHtimeskW = rewriter.create<arith::MulIOp>(
           loc, kernelSizeIntValues[0], kernelSizeIntValues[1]);
-      divisor =
-          isa<Torch::NoneType>(op.getDivisorOverride().getType())
-              ? kHtimeskW
-              : adaptor.getDivisorOverride();
+      divisor = isa<Torch::NoneType>(op.getDivisorOverride().getType())
+                    ? kHtimeskW
+                    : adaptor.getDivisorOverride();
     } else {
       divisor = kernelSizeIntValues[0];
     }

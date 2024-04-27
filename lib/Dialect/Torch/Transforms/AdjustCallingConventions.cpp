@@ -207,7 +207,7 @@ static LogicalResult adjustCallingConventions(func::FuncOp func,
       [](OpBuilder &builder, Torch::BaseTensorType type, ValueRange inputs,
          Location loc) -> Value {
         assert(inputs.size() == 1);
-        assert(inputs[0]isa<BaseTensorType>(.getType()));
+        assert(inputs[0] isa<BaseTensorType>(.getType()));
         return copyTensorToType(builder, loc, type, inputs[0]);
       });
   patterns.add<AdjustCallingConventionForFunc>(typeConverter, context);

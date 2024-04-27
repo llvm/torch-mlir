@@ -304,8 +304,7 @@ public:
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto inputType =
-        dyn_cast<RankedTensorType>(adaptor.getA().getType());
+    auto inputType = dyn_cast<RankedTensorType>(adaptor.getA().getType());
     if (!inputType)
 
       op.emitError("only Tensor types supported in StableHLO");
@@ -313,8 +312,7 @@ public:
     Value input = adaptor.getA();
     SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
     int64_t inputRank = inputSizes.size();
-    Type inputDtype =
-        cast<BaseTensorType>(op.getA().getType()).getDtype();
+    Type inputDtype = cast<BaseTensorType>(op.getA().getType()).getDtype();
 
     Value constantOne =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(1));
@@ -1012,8 +1010,7 @@ LogicalResult ConvertAtenOp<AtenScalarImplicitOp>::matchAndRewrite(
     AtenScalarImplicitOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Location loc = op.getLoc();
-  Type inputDtype =
-      cast<BaseTensorType>(op.getA().getType()).getDtype();
+  Type inputDtype = cast<BaseTensorType>(op.getA().getType()).getDtype();
   Type resultType =
       this->getTypeConverter()->convertType(op->getResult(0).getType());
   auto result = rewriter.create<tensor::ExtractOp>(loc, adaptor.getA());

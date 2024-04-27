@@ -1744,8 +1744,7 @@ public:
     auto biasTy = bias.getType();
 
     // TOSA does not mandate that elementwise op tensors need to be ranked.
-    if (!isa<Torch::NoneType>(biasTy) &&
-        !isa<TensorType>(biasTy))
+    if (!isa<Torch::NoneType>(biasTy) && !isa<TensorType>(biasTy))
       return rewriter.notifyMatchFailure(
           op, "Only tensor types supported in GEMM to TOSA for bias tensor");
 
@@ -4462,8 +4461,7 @@ public:
   Value transposePoolingInputToHwc(AtenOpT op,
                                    ConversionPatternRewriter &rewriter,
                                    Value input) const {
-    auto inputRank =
-        cast<RankedTensorType>(input.getType()).getRank();
+    auto inputRank = cast<RankedTensorType>(input.getType()).getRank();
 
     SmallVector<int32_t> nchwToNhwc4DTransposeDims({0, 2, 3, 1});
     SmallVector<int32_t> chwToHwc3DTransposeDims({1, 2, 0});

@@ -86,8 +86,7 @@ public:
     Value input = adaptor.getA();
     SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
     int64_t inputRank = inputSizes.size();
-    Type inputDtype =
-        cast<BaseTensorType>(op.getA().getType()).getDtype();
+    Type inputDtype = cast<BaseTensorType>(op.getA().getType()).getDtype();
 
     // The `input` tensor must contain exactly one element, i.e., either the
     // `input` is a zero rank tensor or all the dimensions of the `input` tensor
