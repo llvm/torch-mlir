@@ -2110,16 +2110,17 @@ def ElementwiseLogitModule_basic(module, tu: TestUtils):
 
 
 class ElementwiseLogSigmoidModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
         self.m = torch.nn.LogSigmoid()
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.float32, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
     def forward(self, a):
         return self.m(a)
 

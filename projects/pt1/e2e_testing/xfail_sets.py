@@ -1937,6 +1937,7 @@ MAKE_FX_TOSA_PASS_SET = (
     # failed to legalize operation 'torch.operator'
     "ElementwisePreluModule_basic",
     "ElementwisePreluStaticModule_basic",
+    "ElementwiseLogSigmoidModule_basic",
     # Shape Related failures
     "PrimListUnpackNumMismatchModule_basic",
     "ReshapeExpandModule_basic",
