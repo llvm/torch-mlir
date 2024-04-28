@@ -973,6 +973,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::format : (...) -> (str)")
     emit("aten::join : (str, str[]) -> (str)")
     emit("aten::warn : (str, int) -> ()")
+    emit("aten::__contains__.str_list : (str[], str) -> (bool)", has_folder=True)
 
     # Type conversion ops.
     emit("aten::Float.Scalar : (Scalar) -> (float)", has_folder=True)
