@@ -1914,6 +1914,67 @@ public:
 };
 } // namespace
 
+// SoftShrink(x, lambda) function:
+// Applies a shrinkage function where:
+// - If x > lambda, returns x - lambda
+// - If x < -lambda, returns x + lambda
+// - Otherwise, returns 0
+namespace {
+class DecomposeAtenSoftshrinkOp : public OpRewritePattern<AtenSoftshrinkOp> {
+public:
+  using OpRewritePattern<AtenSoftshrinkOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSoftshrinkOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value lambdValue = op.getLambd();
+
+    auto resTy = cast<BaseTensorType>(op.getType());
+    if (!resTy.hasDtype() || !resTy.hasSizes()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "result should have dtype and size");
+    }
+
+    double lambd;
+    if (!matchPattern(lambdValue, m_TorchConstantFloat(&lambd))) {
+      return rewriter.notifyMatchFailure(
+          op, "expected lambd to be a constant float");
+    }
+
+    Value zero =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+    Value neglambd = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr(-lambd));
+    Value poslambd = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr(lambd));
+
+    Value constOneFloat =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+
+    auto boolResType =
+        resTy.getWithSizesAndDtype(resTy.getSizes(), rewriter.getI1Type());
+
+    Value posMask =
+        rewriter.create<AtenGtScalarOp>(loc, boolResType, self, poslambd);
+    Value negMask =
+        rewriter.create<AtenLtScalarOp>(loc, boolResType, self, neglambd);
+
+    Value posValue = rewriter.create<AtenSubScalarOp>(loc, resTy, self,
+                                                      poslambd, constOneFloat);
+    Value negValue = rewriter.create<AtenAddScalarOp>(loc, resTy, self,
+                                                      neglambd, constOneFloat);
+
+    Value result = rewriter.create<AtenWhereScalarOtherOp>(loc, resTy, posMask,
+                                                           posValue, zero);
+    result =
+        rewriter.create<AtenWhereSelfOp>(loc, resTy, negMask, negValue, result);
+
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.matmul into: aten.mm and aten.bmm according to ranks.
 namespace {
 class DecomposeAtenMatmulOp : public OpRewritePattern<AtenMatmulOp> {
@@ -7621,6 +7682,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_LogSoftmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSoftmaxIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSigmoidOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSoftshrinkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEmptyLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeConstantTensorAllocLikeOp<AtenOnesLikeOp, 1>>(patterns);

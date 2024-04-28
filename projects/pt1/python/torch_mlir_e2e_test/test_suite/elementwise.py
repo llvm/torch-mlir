@@ -2133,6 +2133,52 @@ def ElementwiseLogSigmoidModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseSoftshrinkModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.softshrink(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSoftshrinkModule())
+def ElementwiseSoftshrinkModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseSoftshrinkStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 5, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.softshrink(a, 2.0)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSoftshrinkStaticModule())
+def ElementwiseSoftshrinkStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6))
+
+
+# ==============================================================================
+
+
 class ElementwiseErfModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
