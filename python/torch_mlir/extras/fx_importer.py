@@ -244,9 +244,7 @@ if _IS_TORCH_2_1_OR_EARLIER:
         (torch.ops.aten.sym_numel, 1): torch.ops.aten.numel.default,
     }
 
-    SYMBOLIC_TORCH_OPS = {
-        key[0] for key in SYMBOLIC_OP_TO_TORCH_OP
-    }
+    SYMBOLIC_TORCH_OPS = {key[0] for key in SYMBOLIC_OP_TO_TORCH_OP}
 else:
     SYMBOLIC_OP_TO_TORCH_OP = {
         torch.ops.aten.sym_size.default: torch.ops.aten.size.default,
@@ -256,9 +254,7 @@ else:
         torch.ops.aten.sym_numel.default: torch.ops.aten.numel.default,
     }
 
-    SYMBOLIC_TORCH_OPS = {
-        key for key in SYMBOLIC_OP_TO_TORCH_OP
-    }
+    SYMBOLIC_TORCH_OPS = {key for key in SYMBOLIC_OP_TO_TORCH_OP}
 
 
 @dataclass(frozen=True)
@@ -1853,8 +1849,7 @@ def _emit_operation(
 
 # Opaque value to indicate something is empty. Used in cases where 'None'
 # may have a different meaning.
-class EmptyType:
-    ...
+class EmptyType: ...
 
 
 Empty = EmptyType()
