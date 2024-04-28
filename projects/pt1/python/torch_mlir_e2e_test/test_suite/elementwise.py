@@ -1016,6 +1016,52 @@ def ElementwisePreluStaticModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseCeluModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.celu(x, 0.5)
+
+
+@register_test_case(module_factory=lambda: ElementwiseCeluModule())
+def ElementwiseCeluModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, low=-1, high=1))
+
+
+# ==============================================================================
+
+
+class ElementwiseCeluStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.celu(x)
+
+
+@register_test_case(module_factory=lambda: ElementwiseCeluStaticModule())
+def ElementwiseCeluStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, low=-1, high=1))
+
+
+# ==============================================================================
+
+
 class ElementwiseGeluModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

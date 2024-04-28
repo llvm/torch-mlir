@@ -2415,6 +2415,48 @@ public:
 
 } // namespace
 
+// CELU(x)=max(0,x)+min(0,alpha∗(exp(x/alpha)−1))
+namespace {
+class DecomposeAtenCeluOp : public OpRewritePattern<AtenCeluOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenCeluOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    Value alpha = op.getAlpha();
+    auto resType = cast<BaseTensorType>(op.getType());
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+
+    Value constantZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value constantOne =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value zeroTensor = createRank0Tensor(rewriter, loc, resType, constantZero);
+    Value maxZeroX =
+        rewriter.create<AtenMaximumOp>(loc, resType, zeroTensor, input);
+    Value positiveOutput = rewriter.create<AtenAddTensorOp>(
+        loc, resType, maxZeroX, input, constantOne);
+    Value scaledInput =
+        rewriter.create<AtenDivScalarOp>(loc, resType, input, alpha);
+    Value expX = rewriter.create<AtenExpOp>(loc, resType, scaledInput);
+    Value expXM1 = rewriter.create<AtenSubScalarOp>(loc, resType, expX,
+                                                    constantOne, constantOne);
+    Value scaledExpXM1 =
+        rewriter.create<AtenMulScalarOp>(loc, resType, expXM1, alpha);
+    Value negativeOutput = rewriter.create<AtenMulTensorOp>(
+        loc, resType, scaledExpXM1, zeroTensor);
+    Value celuOutput = rewriter.create<AtenAddTensorOp>(
+        loc, resType, positiveOutput, negativeOutput, constantOne);
+
+    rewriter.replaceOp(op, celuOutput);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeAtenLerpScalarOp : public OpRewritePattern<AtenLerpScalarOp> {
 public:
@@ -7705,6 +7747,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenPreluOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenCeluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);
