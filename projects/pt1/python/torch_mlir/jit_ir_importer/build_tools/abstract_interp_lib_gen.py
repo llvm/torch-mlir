@@ -658,6 +658,24 @@ def aten〇sum〇dim_IntList〡shape(self: List[int], dim: Optional[List[int]], 
 def aten〇prod〇dim_int〡shape(self: List[int], dim: int, keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, [dim], keepdim, dtype)
 
+def aten〇channel_shuffle〡shape(self: List[int], groups: int) -> List[int]:
+
+    assert len(self) >= 3, "input must be at least rank-3 in channel_shuffle"
+
+    num_channels = self[-3]
+    height = self[-2]
+    width = self[-1]
+
+    assert num_channels % groups == 0, "number of input channels must be divisible by groups in channel_shuffle"
+
+    out = self[0:-3]
+    out.append(num_channels // groups)
+    out.append(groups)
+    out.append(height)
+    out.append(width)
+    return out
+
+
 def aten〇pixel_shuffle〡shape(self: List[int], upscale_factor: int) -> List[int]:
 
     assert len(self) >= 3, "input must be at least rank-3 in pixel_shuffle"
@@ -2144,6 +2162,11 @@ def aten〇abs〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 7)], output_size=[2]))
 def aten〇adaptive_avg_pool1d〡dtype(self_rank_dtype: Tuple[int, int], output_size: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 6, 3, 4)], groups=2))
+def aten〇channel_shuffle〡dtype(self_rank_dtype: Tuple[int, int], groups: int) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
