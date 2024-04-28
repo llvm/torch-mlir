@@ -17,6 +17,7 @@ def returns_bool():
     # CHECK-NEXT: return %[[T]]
     return True
 
+
 assert isinstance(returns_bool, torch.jit.ScriptFunction)
 mb.module.operation.print()
 print()

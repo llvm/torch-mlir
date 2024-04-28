@@ -19,6 +19,7 @@ COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "ElementwiseToDtypeI64ToUI8Module_basic",
 }
 
+
 def register_all_tests():
     """Registers all the built-in E2E tests that Torch-MLIR provides."""
     # Side-effecting import statements.

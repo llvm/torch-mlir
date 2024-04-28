@@ -282,7 +282,7 @@ function _check_file_not_changed_by() {
 
 function test_in_tree() {
   local torch_version="$1"
-  
+
   echo ":::: Test in-tree"
   cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all
 

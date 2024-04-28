@@ -78,7 +78,7 @@ public:
     Value falseVal = rewriter.create<ConstantBoolOp>(op.getLoc(), false);
 
     // Create IndexPut_Op
-    BaseTensorType tensorType = op.getType().cast<BaseTensorType>();
+    BaseTensorType tensorType = cast<BaseTensorType>(op.getType());
     Type rangeType = tensorType.getWithSizesAndDtype(
         {kUnknownSize}, tensorType.getOptionalDtype());
     Value range = rewriter.create<AtenArangeStartStepOp>(
@@ -130,8 +130,7 @@ public:
 
     // Create IndexPut_Op
     // Convert indexNum to indexTensor for the selectOp
-    BaseTensorType selectOutTy =
-        selectOp.getType().template cast<BaseTensorType>();
+    BaseTensorType selectOutTy = cast<BaseTensorType>(selectOp.getType());
     SmallVector<int64_t> empty;
     auto dtype = getTypeForTorchType(selectOp.getContext(),
                                      selectOp.getIndex().getType());
@@ -141,7 +140,7 @@ public:
         selectOp.getLoc(), emptyTensorType, selectOp.getIndex());
 
     // Create indicesVector for IndexPut_Op by TorchNone and indexTensor
-    BaseTensorType tensorType = op->getResultTypes()[0].cast<BaseTensorType>();
+    BaseTensorType tensorType = cast<BaseTensorType>(op->getResultTypes()[0]);
     SmallVector<Value> indicesVector(dim, noneVal);
     indicesVector.push_back(indexTensor);
 
