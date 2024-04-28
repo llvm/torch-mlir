@@ -1431,6 +1431,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseSinhModule_basic",
     "ElementwiseTruncIntModule_basic",
     "ElementwiseTruncModule_basic",
+    "ElementwiseLogSigmoidModule_basic",
 }
 
 STABLEHLO_CRASHING_SET = {
@@ -1440,6 +1441,7 @@ STABLEHLO_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "ElementwiseLogSigmoidModule_basic",
     "ElementwiseTruncModule_basic",
     "ElementwiseTruncIntModule_basic",
     "ElementwiseSgnModule_basic",

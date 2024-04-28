@@ -2109,6 +2109,29 @@ def ElementwiseLogitModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseLogSigmoidModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.m = torch.nn.LogSigmoid()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return self.m(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLogSigmoidModule())
+def ElementwiseLogSigmoidModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
 class ElementwiseErfModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

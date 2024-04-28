@@ -1900,6 +1900,20 @@ public:
 };
 } // namespace
 
+namespace {
+class DecomposeAtenLogSigmoidOp : public OpRewritePattern<AtenLogSigmoidOp> {
+public:
+  using OpRewritePattern<AtenLogSigmoidOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLogSigmoidOp op,
+                                PatternRewriter &rewriter) const override {
+    Value sigmoid =
+        rewriter.create<AtenSigmoidOp>(op.getLoc(), op.getType(), op.getSelf());
+    rewriter.replaceOpWithNewOp<AtenLogOp>(op, op.getType(), sigmoid);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.matmul into: aten.mm and aten.bmm according to ranks.
 namespace {
 class DecomposeAtenMatmulOp : public OpRewritePattern<AtenMatmulOp> {
@@ -7606,6 +7620,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_SoftmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_LogSoftmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSoftmaxIntOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLogSigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEmptyLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeConstantTensorAllocLikeOp<AtenOnesLikeOp, 1>>(patterns);

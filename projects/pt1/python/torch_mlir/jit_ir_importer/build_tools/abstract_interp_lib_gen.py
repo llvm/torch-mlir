@@ -251,6 +251,9 @@ def aten〇trunc〡shape(self: List[int]) -> List[int]:
 def aten〇log〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇log_sigmoid〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇mish〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -2082,6 +2085,12 @@ def aten〇log10〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 def aten〇log1p〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}))
+def aten〇log_sigmoid〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert not self_dtype == torch.bool
+    return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇logit〡dtype(self_rank_dtype: Tuple[int, int], eps: Optional[float] = None) -> int:
