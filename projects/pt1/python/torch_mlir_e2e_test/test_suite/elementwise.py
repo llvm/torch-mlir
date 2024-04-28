@@ -1051,12 +1051,13 @@ class ElementwiseRreluTrainModule(torch.nn.Module):
         ]
     )
     def forward(self, x):
-        return torch.ops.aten.rrelu(x, 0.4, 0.6, True)
+        res = torch.ops.aten.rrelu(x, 0.4, 0.6, True)
+        return torch.mean(res), torch.std(res)
 
 
 @register_test_case(module_factory=lambda: ElementwiseRreluTrainModule())
 def ElementwiseRreluTrainModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(5, 3, low=-1, high=1))
+    module.forward(tu.rand(1024, 1536))
 
 
 # ==============================================================================
@@ -1070,16 +1071,17 @@ class ElementwiseRreluTrainStaticModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([5, 3], torch.float32, True),
+            ([1024, 1536], torch.float32, True),
         ]
     )
     def forward(self, x):
-        return torch.ops.aten.rrelu(x, 0.1, 0.9, True)
+        res = torch.ops.aten.rrelu(x, 0.1, 0.9, True)
+        return torch.mean(res), torch.std(res)
 
 
 @register_test_case(module_factory=lambda: ElementwiseRreluTrainStaticModule())
 def ElementwiseRreluTrainStaticModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(5, 3, low=-1, high=1))
+    module.forward(tu.rand(1024, 1536))
 
 
 # ==============================================================================
