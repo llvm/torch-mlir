@@ -2434,11 +2434,13 @@ public:
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
     Value constantOne =
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+
+    // positiveOutput = max(0,x)
     Value zeroTensor = createRank0Tensor(rewriter, loc, resType, constantZero);
-    Value maxZeroX =
+    Value positiveOutput =
         rewriter.create<AtenMaximumOp>(loc, resType, zeroTensor, input);
-    Value positiveOutput = rewriter.create<AtenAddTensorOp>(
-        loc, resType, maxZeroX, input, constantOne);
+
+    // negativeOutput = min(0,alpha∗(exp(x/alpha)−1))
     Value scaledInput =
         rewriter.create<AtenDivScalarOp>(loc, resType, input, alpha);
     Value expX = rewriter.create<AtenExpOp>(loc, resType, scaledInput);
@@ -2446,8 +2448,8 @@ public:
                                                     constantOne, constantOne);
     Value scaledExpXM1 =
         rewriter.create<AtenMulScalarOp>(loc, resType, expXM1, alpha);
-    Value negativeOutput = rewriter.create<AtenMulTensorOp>(
-        loc, resType, scaledExpXM1, zeroTensor);
+    Value negativeOutput =
+        rewriter.create<AtenMinimumOp>(loc, resType, zeroTensor, scaledExpXM1);
     Value celuOutput = rewriter.create<AtenAddTensorOp>(
         loc, resType, positiveOutput, negativeOutput, constantOne);
 
