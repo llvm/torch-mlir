@@ -2342,14 +2342,14 @@ public:
       leadingDims.push_back(leadingDimSize);
     }
 
-    SmallVector<Value> partiallyExpandedShape = leadingDims;
-    partiallyExpandedShape.append({outC, inH, factor, inW, factor});
+    SmallVector<Value> partiallyExpandedShape0 = leadingDims;
+    partiallyExpandedShape0.append({inC, inH, outW, factor});
 
-    SmallVector<Value> prePermuteShape = leadingDims;
-    prePermuteShape.append({outC, inH, factor, inW, factor});
+    SmallVector<Value> partiallyExpandedShape1 = leadingDims;
+    partiallyExpandedShape1.append({inC, outH, factor, outW, factor});
 
     SmallVector<Value> postPermuteShape = leadingDims;
-    postPermuteShape.append({outC, factor, factor, inH, inW});
+    postPermuteShape.append({inC, factor, factor, outH, outW});
 
     SmallVector<Value> partiallyCollapsedShape = leadingDims;
     partiallyCollapsedShape.append({outC, outH, outW});
@@ -2364,9 +2364,25 @@ public:
       permutation.push_back(dimensionConstants[nLeadingDims + d]);
     }
 
-    Value permuteDimsOrder = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(op->getContext())),
-        permutation);
+    Value partiallyExpanded = rewriter.create<PrimsSplitDimOp>(
+        loc, getTypeFromShape(partiallyExpandedShape0), inValue,
+        dimensionConstants[nLeadingDims + 2], outW);
+
+    Value fullyExpanded = rewriter.create<PrimsSplitDimOp>(
+        loc, getTypeFromShape(partiallyExpandedShape1), partiallyExpanded,
+        dimensionConstants[nLeadingDims + 1], outH);
+
+    Value permuted = rewriter.create<AtenPermuteOp>(
+        loc, getTypeFromShape(postPermuteShape), fullyExpanded,
+        rewriter.create<PrimListConstructOp>(
+            loc, Torch::ListType::get(Torch::IntType::get(op->getContext())),
+            permutation));
+
+    rewriter.replaceOpWithNewOp<PrimsCollapseOp>(
+        op, op.getType(), permuted, dimensionConstants[nLeadingDims + 0],
+        dimensionConstants[nLeadingDims + 2]);
+
+    return success();
   }
 };
 } // namespace
@@ -7779,6 +7795,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgCrossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenPixelShuffleOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenPixelUnshuffleOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_LogSoftmaxBackwardDataOp>(
         patterns);

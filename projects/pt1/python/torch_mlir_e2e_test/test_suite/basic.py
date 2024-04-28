@@ -986,6 +986,24 @@ def PixelShuffleModuleSpatiallyStatic_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class PixelUnshuffleModuleStaticRank4Float32(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([3, 6, 4, 4], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_unshuffle(x, 2)
+
+
+@register_test_case(module_factory=lambda: PixelUnshuffleModuleStaticRank4Float32())
+def PixelUnshuffleModuleStaticRank4Float32_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 6, 4, 4))
+
+
+# ==============================================================================
+
+
 class TensorsConcatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
