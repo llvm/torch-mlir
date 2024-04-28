@@ -478,6 +478,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::view_as_real : (Tensor) -> (Tensor)")
     emit("aten::isclose : (Tensor, Tensor, float, float, bool) -> (Tensor)")
     emit("aten::glu : (Tensor, int) -> (Tensor)")
+    emit("aten::log_sigmoid : (Tensor) -> (Tensor)")
 
     # Ops with dynamic number of outputs
     emit("aten::unbind_copy.int : (Tensor, int) -> (Tensor[])")
