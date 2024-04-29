@@ -328,7 +328,7 @@ FailureOr<Value> collapseTensor(PatternRewriter &rewriter, Operation *op,
   int64_t newRank = rank - (collapseEndDim - collapseStartDim + 1);
 
   auto loc = op->getLoc();
-  auto rankTy = tensor.getType().dyn_cast<RankedTensorType>();
+  auto rankTy = dyn_cast<RankedTensorType>(tensor.getType());
   auto oldShape = rankTy.getShape();
   Type intType = rewriter.getIntegerType(dimSizeIndexBits);
 
@@ -373,6 +373,7 @@ FailureOr<Value> collapseTensor(PatternRewriter &rewriter, Operation *op,
       .getResult();
 }
 
+// TODO: support splitDim & outerLength to be Value
 FailureOr<Value> splitTensor(PatternRewriter &rewriter, Operation *op,
                              Value tensor, int64_t splitDim,
                              int64_t outerLength, size_t dimSizeIndexBits) {
@@ -388,7 +389,7 @@ FailureOr<Value> splitTensor(PatternRewriter &rewriter, Operation *op,
   splitDim = toPositiveDim(splitDim, rank);
 
   auto loc = op->getLoc();
-  auto rankTy = tensor.getType().dyn_cast<RankedTensorType>();
+  auto rankTy = dyn_cast<RankedTensorType>(tensor.getType());
   auto oldShape = rankTy.getShape();
   Type intType = rewriter.getIntegerType(dimSizeIndexBits);
 
