@@ -2623,9 +2623,6 @@ ONNX_XFAIL_SET = {
     "IndexPutHackedTwin3DFloatNonAccumulateModule_basic",
     "IndexPutHackedTwin3DIntAccumulateModule_basic",
     "IndexPutHackedTwin3DIntNonAccumulateModule_basic",
-    # Failure - onnx_lowering: onnx.SoftmaxCrossEntropyLoss
-    "CrossEntropyLossModule_basic",
-    "CrossEntropyLossNoReductionModule_basic",
     # RuntimeError: unsupported input type: Device
     "PrimsIotaModule_basic",
     # Failure - unknown
