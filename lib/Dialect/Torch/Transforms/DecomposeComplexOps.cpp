@@ -2101,7 +2101,7 @@ static Value getDimSize(PatternRewriter &rewriter, Value tensor, int64_t dim) {
   auto loc = tensor.getLoc();
   auto dimVal =
       rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim));
-  return rewriter.create<AtenSizeIntOp>(loc, tensor, dimVal);
+  return rewriter.createOrFold<AtenSizeIntOp>(loc, tensor, dimVal);
 }
 
 // Decompose aten.pixel_shuffle into: prims.split_dim, aten.permute, and
