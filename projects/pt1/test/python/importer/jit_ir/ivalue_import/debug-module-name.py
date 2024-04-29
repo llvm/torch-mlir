@@ -11,6 +11,7 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 # CHECK: module attributes {torch.debug_module_name = "TestModule"}
 class TestModule(torch.nn.Module):
     def __init__(self):

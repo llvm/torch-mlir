@@ -257,9 +257,9 @@ class _FXGraphImporter:
         # FakeTensor's in case of a tuple return with multiple elements.
         self._env: Dict[Tuple[torch.fx.Node, int], ir.Value] = {}
         self._module = ir.Module.create(ir.Location.unknown())
-        self._module.operation.attributes[
-            "torch.debug_module_name"
-        ] = ir.StringAttr.get(func_name)
+        self._module.operation.attributes["torch.debug_module_name"] = (
+            ir.StringAttr.get(func_name)
+        )
         function_type = _extract_function_type_from_graph(g)
         func = func_dialect.FuncOp(
             func_name,

@@ -13,6 +13,7 @@ from utils import create_script_function
 mb = ModuleBuilder()
 NT = NamedTuple("NT", [("f1", Optional[torch.Tensor]), ("f2", Optional[torch.Tensor])])
 
+
 # CHECK-LABEL:   func.func @__torch__.tuple(
 # CHECK-SAME:            %[[T0:.*]]: !torch.tensor,
 # CHECK-SAME:            %[[T1:.*]]: !torch.tensor) ->
