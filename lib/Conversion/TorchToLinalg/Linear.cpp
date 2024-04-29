@@ -798,7 +798,8 @@ public:
     auto resultTy = cast<ValueTensorType>(op.getType());
 
     Value inputZp, weightZp;
-    bool inputUnsigned, weightUnsigned = false;
+    bool inputUnsigned = false;
+    bool weightUnsigned = false;
     if (auto make = op.getInput()
                         .getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
       input = make.getSelf();
