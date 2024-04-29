@@ -15,6 +15,7 @@ import typing
 
 mb = ModuleBuilder()
 
+
 # CHECK-LABEL:   func.func @__torch__.prim_NumToTensor(
 # CHECK-SAME:                           %[[ARG:.*]]: !torch.int) -> !torch.tensor {
 # CHECK:           %[[RET:.*]] = torch.prim.NumToTensor.Scalar %[[ARG]] : !torch.int -> !torch.tensor

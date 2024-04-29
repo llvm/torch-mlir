@@ -46,7 +46,7 @@ def convert_onnx(model, inputs):
     examples = []
     input_names = []
     dynamic_tensors = {}
-    for (index, arg) in enumerate(inputs):
+    for index, arg in enumerate(inputs):
         shape = map(lambda d: d if d >= 0 else 1, arg.shape)
         shape = tuple(shape)
         examples.append(torch.zeros(size=shape, dtype=arg.dtype))
@@ -55,7 +55,7 @@ def convert_onnx(model, inputs):
         input_names.append(input_name)
 
         dynamic_dims = {}
-        for (dimindex, dim) in enumerate(arg.shape):
+        for dimindex, dim in enumerate(arg.shape):
             if dim < 0:
                 dynamic_dims[dimindex] = "dim_{}_{}".format(index, dimindex)
 

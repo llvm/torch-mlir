@@ -526,6 +526,9 @@ def aten〇elu〡shape(self: List[int], alpha: float = 1, scale: float = 1, inpu
 def aten〇prelu〡shape(self: List[int], weight: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇celu〡shape(self: List[int], alpha: float = 1.) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇selu〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -2666,6 +2669,11 @@ def aten〇prelu〡dtype(self_rank_dtype: Tuple[int, int], weight_rank_dtype: Tu
     self_rank, self_dtype = self_rank_dtype
     weight_rank, weight_dtype = weight_rank_dtype
     assert self_dtype == weight_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, alpha=1.))
+def aten〇celu〡dtype(self_rank_dtype: Tuple[int, int], alpha: Union[int, float, complex] = 1.) -> int:
+    self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}))

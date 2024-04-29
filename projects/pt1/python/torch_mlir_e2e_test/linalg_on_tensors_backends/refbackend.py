@@ -101,10 +101,12 @@ class RefBackendInvoker:
             def consume_return_funcs(*args):
                 self.result = tuple(
                     [
-                        arg
-                        if type in elemental_type_to_ctype
-                        else unranked_memref_to_numpy(
-                            arg, memref_type_to_np_dtype[type]
+                        (
+                            arg
+                            if type in elemental_type_to_ctype
+                            else unranked_memref_to_numpy(
+                                arg, memref_type_to_np_dtype[type]
+                            )
                         )
                         for arg, type in zip(args, ret_types)
                     ]

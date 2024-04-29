@@ -13,6 +13,7 @@ mb = ModuleBuilder()
 # else branch and making all defined values optional, so no special handling
 # is needed.
 
+
 # CHECK-LABEL: @__torch__.prim_If(
 # CHECK-SAME:           %[[B:.*]]: !torch.bool,
 # CHECK-SAME:           %[[I:.*]]: !torch.int) -> !torch.int {

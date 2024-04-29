@@ -847,14 +847,20 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
   patterns.onOp(
       "Selu", 6, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // y = gamma * (alpha * e^x - alpha) for x <= 0, y = gamma * x for x > 0
         Torch::ValueTensorType resultType;
         float alpha, gamma;
         Value operand;
+        // Refer https://onnx.ai/onnx/operators/onnx__Selu.html for the default
+        // alpha and gamma values.
         if (binder.tensorOperand(operand) ||
-            binder.f32FloatAttr(alpha, "alpha") ||
-            binder.f32FloatAttr(gamma, "gamma") ||
+            binder.f32FloatAttr(alpha, "alpha", 1.67326) ||
+            binder.f32FloatAttr(gamma, "gamma", 1.0507) ||
             binder.tensorResultType(resultType))
           return failure();
+
+        Torch::ValueTensorType inputType =
+            operand.getType().cast<Torch::ValueTensorType>();
 
         Value vAlpha = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
@@ -864,12 +870,31 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getFloatAttr(rewriter.getF64Type(), gamma));
 
-        Value vInputScale = rewriter.create<Torch::ConstantFloatOp>(
+        Value cstOne = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getFloatAttr(rewriter.getF64Type(), 1.0));
 
-        rewriter.replaceOpWithNewOp<Torch::AtenEluOp>(
-            binder.op, resultType, operand, vAlpha, vScale, vInputScale);
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value zeroTensor = rewriter.create<Torch::AtenZerosLikeOp>(
+            binder.getLoc(), resultType, operand, cstNone, cstNone, cstNone,
+            cstNone, cstNone);
+        Value exp = rewriter.create<Torch::AtenExpOp>(binder.getLoc(),
+                                                      resultType, operand);
+        Value expMulAlpha = rewriter.create<Torch::AtenMulScalarOp>(
+            binder.getLoc(), resultType, exp, vAlpha);
+        Value expMulAlphaSubAlpha = rewriter.create<Torch::AtenSubScalarOp>(
+            binder.getLoc(), resultType, expMulAlpha, vAlpha, cstOne);
+        Value neg = rewriter.create<Torch::AtenMulScalarOp>(
+            binder.getLoc(), resultType, expMulAlphaSubAlpha, vScale);
+        Value pos = rewriter.create<Torch::AtenMulScalarOp>(
+            binder.getLoc(), resultType, operand, vScale);
+        Type compareType = inputType.getWithSizesAndDtype(
+            inputType.getOptionalSizes(), rewriter.getI1Type());
+        Value xLessThanZero = rewriter.create<Torch::AtenLtTensorOp>(
+            binder.getLoc(), compareType, operand, zeroTensor);
+
+        rewriter.replaceOpWithNewOp<Torch::AtenWhereSelfOp>(
+            binder.op, resultType, xLessThanZero, neg, pos);
         return success();
       });
   patterns.onOp("ReduceL1", 1,
