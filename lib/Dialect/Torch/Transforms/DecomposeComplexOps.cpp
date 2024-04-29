@@ -2266,7 +2266,7 @@ public:
 
     Location loc = op.getLoc();
     Value inValue = op.getSelf();
-    auto inType = inValue.getType().cast<BaseTensorType>();
+    auto inType = cast<BaseTensorType>(inValue.getType());
     auto maybeSizes = inType.getOptionalSizes();
     if (!maybeSizes) {
       return rewriter.notifyMatchFailure(
