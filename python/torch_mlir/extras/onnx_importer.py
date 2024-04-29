@@ -156,8 +156,7 @@ class GraphInfo:
         return ""
 
 
-class OnnxImportError(Exception):
-    ...
+class OnnxImportError(Exception): ...
 
 
 class NodeImporter:
@@ -235,22 +234,22 @@ class NodeImporter:
                 else:
                     default_opset_version = opset_import.version
             if default_opset_version:
-                container_op.attributes[
-                    "torch.onnx_meta.opset_version"
-                ] = IntegerAttr.get(i64_type, default_opset_version)
+                container_op.attributes["torch.onnx_meta.opset_version"] = (
+                    IntegerAttr.get(i64_type, default_opset_version)
+                )
             if opset_versions:
-                container_op.attributes[
-                    "torch.onnx_meta.opset_versions"
-                ] = DictAttr.get(opset_versions)
+                container_op.attributes["torch.onnx_meta.opset_versions"] = (
+                    DictAttr.get(opset_versions)
+                )
             container_op.attributes["torch.onnx_meta.ir_version"] = IntegerAttr.get(
                 IntegerType.get_signed(64), m.ir_version
             )
             container_op.attributes["torch.onnx_meta.producer_name"] = StringAttr.get(
                 m.producer_name
             )
-            container_op.attributes[
-                "torch.onnx_meta.producer_version"
-            ] = StringAttr.get(m.producer_version)
+            container_op.attributes["torch.onnx_meta.producer_version"] = (
+                StringAttr.get(m.producer_version)
+            )
 
     def import_all(self, func=True):
         """Imports all nodes topologically."""
@@ -658,9 +657,11 @@ ELEM_TYPE_SPLAT_TENSOR_PROTO_CB = {
         RankedTensorType.get(shape, IntegerType.get_signed(64)),
         IntegerAttr.get(
             IntegerType.get_signed(64),
-            int.from_bytes(tp.raw_data, "little", signed=True)
-            if tp.HasField("raw_data")
-            else tp.int64_data[0],
+            (
+                int.from_bytes(tp.raw_data, "little", signed=True)
+                if tp.HasField("raw_data")
+                else tp.int64_data[0]
+            ),
         ),
     ),
     # TODO: All the rest from ELEM_TYPE_TO_IR_TYPE_CB
@@ -703,7 +704,7 @@ ELEM_TYPE_INLINE_TENSOR_PROTO_CB = {
     ),
     onnx.TensorProto.DataType.UINT64: lambda tp: DenseElementsAttr.get(
         np.asarray(tp.uint64_data, dtype=np.uint64).reshape(tp.dims), signless=False
-    )
+    ),
     # Intentionally unsupported: STRING
 }
 

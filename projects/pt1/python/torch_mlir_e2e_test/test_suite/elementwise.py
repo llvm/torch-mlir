@@ -803,9 +803,7 @@ class QuantizedReluInt32(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: QuantizedReluInt32())
 def QuantizedReluInt32_basic(module, tu: TestUtils):
-    module.forward(
-        tu.randint(7, 4, low=(-(2**31)), high=(2**31 - 1)).to(torch.int32)
-    )
+    module.forward(tu.randint(7, 4, low=(-(2**31)), high=(2**31 - 1)).to(torch.int32))
 
 
 # ==============================================================================

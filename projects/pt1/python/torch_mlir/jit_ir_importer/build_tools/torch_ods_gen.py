@@ -285,9 +285,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
                 (ns, unqual + "_", overload if not is_functional_op else "")
             ),
             emitter_td,
-            traits=["IsTrailingUnderscoreInplaceVariant"]
-            if not is_functional_op
-            else [],
+            traits=(
+                ["IsTrailingUnderscoreInplaceVariant"] if not is_functional_op else []
+            ),
         )
 
     # ==========================================================================
