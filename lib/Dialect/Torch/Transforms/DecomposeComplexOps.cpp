@@ -2074,6 +2074,96 @@ public:
 };
 } // namespace
 
+// Decompose aten.channel_shuffle into: prim.split_dim
+namespace {
+class DecomposeAtenChannelShuffleOp
+    : public OpRewritePattern<AtenChannelShuffleOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenChannelShuffleOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    Value groups = op.getGroups();
+
+    auto inputType = cast<BaseTensorType>(input.getType());
+    if (!inputType.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "expected input tensor to have known sizes");
+    }
+    auto inputShape = inputType.getSizes();
+    auto inputRank = inputShape.size();
+
+    const auto inOptionalDType = inType.getOptionalDtype();
+
+    auto getTypeFromShape = [inOptionalDType](auto &&vals) {
+      // Get a vector of integers from a vector of Values.
+      auto getIntShape = [](auto &&vals) {
+        SmallVector<int64_t> shape;
+        shape.reserve(vals.size());
+        for (auto v : vals) {
+          int64_t cst_val;
+          if (matchPattern(v, m_TorchConstantInt(&cst_val))) {
+            shape.push_back(cst_val);
+          } else {
+            shape.push_back(kUnknownSize);
+          }
+        }
+        return shape;
+      };
+
+      const auto intShape = getIntShape(vals);
+      return ValueTensorType::get(vals[0].getContext(),
+                                  llvm::ArrayRef(intShape), inOptionalDType);
+    };
+
+    auto nLeadingDims = inRank - 3;
+    // Get the size of the dimension 'i'. Note the use of 'createOrFold' instead
+    // of 'create': if the dimension size is known, then the AtenSizeIntOp is
+    // folded to a ConstantOp.
+    auto getDimSize = [&](uint64_t i) -> Value {
+      Value dim =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i));
+      return rewriter.createOrFold<AtenSizeIntOp>(loc, inValue, dim);
+    };
+
+    auto inC = getDimSize(inRank - 3);
+    auto inH = getDimSize(inRank - 2);
+    auto inW = getDimSize(inRank - 1);
+
+    auto outputC = rewriter.createOrFold<AtenFloordivIntOp>(loc, inC, groups);
+
+    auto outputH = inH;
+    auto outputW = inW;
+
+    SmallVector<Value> dimensionConstants;
+    dimensionConstants.reserve(inRank + 1);
+
+    for (unsigned i = 0; i < inRank + 1; ++i) {
+      dimensionConstants.push_back(
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i)));
+    }
+
+    SmallVector<Value> leadingDims;
+    leadingDims.reserve(nLeadingDims);
+
+    for (unsigned i = 0; i < nLeadingDims; ++i) {
+      Value leadingDimSize = rewriter.createOrFold<AtenSizeIntOp>(
+          loc, inValue, dimensionConstants[i]);
+      leadingDims.push_back(leadingDimSize);
+    }
+
+    SmallVector<Value> collapsedShape = leadingDims;
+    collapsedShape.append({outputC, groups, outputH, outputW});
+
+    auto fullyExpanded = rewriter.create<PrimsSplitDimOp>(
+        loc, getTypeFromShape(collapsedShape), input, dim, groups);
+
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.pixel_shuffle into: prims.split_dim, aten.permute, and
 // prims.collapse operations.
 //
