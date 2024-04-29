@@ -2097,7 +2097,7 @@ static ValueTensorType getTypeFromShape(Type dtype, ArrayRef<Value> vals) {
 // Get the size of the dimension 'i'. Note the use of 'createOrFold' instead
 // of 'create': if the dimension size is known, then the AtenSizeIntOp is
 // folded to a ConstantOp.
-static Value getDimSize(Value tensor, int64_t dim) {
+static Value getDimSize(PatternRewriter &rewriter, Value tensor, int64_t dim) {
   auto loc = tensor.getLoc();
   auto dimVal =
       rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim));
@@ -2152,9 +2152,9 @@ public:
     const auto inOptionalDType = inType.getOptionalDtype();
 
     auto nLeadingDims = inRank - 3;
-    auto inC = getDimSize(inValue, inRank - 3);
-    auto inH = getDimSize(inValue, inRank - 2);
-    auto inW = getDimSize(inValue, inRank - 1);
+    auto inC = getDimSize(rewriter, inValue, inRank - 3);
+    auto inH = getDimSize(rewriter, inValue, inRank - 2);
+    auto inW = getDimSize(rewriter, inValue, inRank - 1);
 
     auto factor = op.getUpscaleFactor();
 
@@ -2278,9 +2278,9 @@ public:
     const auto inOptionalDType = inType.getOptionalDtype();
 
     auto nLeadingDims = inRank - 3;
-    auto inC = getDimSize(inValue, inRank - 3);
-    auto inH = getDimSize(inValue, inRank - 2);
-    auto inW = getDimSize(inValue, inRank - 1);
+    auto inC = getDimSize(rewriter, inValue, inRank - 3);
+    auto inH = getDimSize(rewriter, inValue, inRank - 2);
+    auto inW = getDimSize(rewriter, inValue, inRank - 1);
 
     auto factor = op.getDownscaleFactor();
 
