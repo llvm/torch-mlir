@@ -9,6 +9,7 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 # CHECK: @__torch__.returns_bool
 @mb.import_function
 @torch.jit.script
