@@ -273,7 +273,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "QuantizedReluUint8_basic",
     "Conv2dQInt8Module_basic",
     "ConvTranspose2DQInt8_basic",
-
     # Dynamo not supporting conv_tbc
     "ConvTbcModule_basic",
     "FloatImplicitModule_basic",
