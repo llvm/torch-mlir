@@ -24,9 +24,7 @@ from torch_mlir.tools.import_onnx import __main__
 
 import numpy
 from onnx import numpy_helper, TensorProto
-from onnx.helper import (
-    make_model, make_node, make_graph,
-    make_tensor_value_info)
+from onnx.helper import make_model, make_node, make_graph, make_tensor_value_info
 from onnx.external_data_helper import convert_model_to_external_data
 from onnx.checker import check_model
 
@@ -46,14 +44,22 @@ def const_model() -> onnx.ModelProto:
     # Note: data_path must be relative to model_file
 
     const = make_node(
-        'Constant', [], ['c_shape'], 'const',
-        value=numpy_helper.from_array(numpy.array([4], dtype=numpy.int64)))
+        "Constant",
+        [],
+        ["c_shape"],
+        "const",
+        value=numpy_helper.from_array(numpy.array([4], dtype=numpy.int64)),
+    )
     cofshape = make_node(
-        'ConstantOfShape', ['c_shape'], ['c_out'], 'cofshape',
-        value=numpy_helper.from_array(numpy.array([1], dtype=numpy.int64)))
+        "ConstantOfShape",
+        ["c_shape"],
+        ["c_out"],
+        "cofshape",
+        value=numpy_helper.from_array(numpy.array([1], dtype=numpy.int64)),
+    )
 
-    outval = make_tensor_value_info('c_out', TensorProto.INT64, [None])
-    graph = make_graph([const, cofshape], 'constgraph', [], [outval])
+    outval = make_tensor_value_info("c_out", TensorProto.INT64, [None])
+    graph = make_graph([const, cofshape], "constgraph", [], [outval])
 
     onnx_model = make_model(graph)
     check_model(onnx_model)
@@ -65,26 +71,23 @@ def linear_model() -> onnx.ModelProto:
     k_dim = 32
     value = numpy.arange(k_dim).reshape([k_dim, 1])
     value = numpy.asarray(value, dtype=numpy.float32)
-    A = numpy_helper.from_array(value, name='A')
+    A = numpy_helper.from_array(value, name="A")
 
     value = numpy.array([0.4], dtype=numpy.float32).reshape([1, 1])
-    C = numpy_helper.from_array(value, name='C')
+    C = numpy_helper.from_array(value, name="C")
 
     # the part which does not change
-    X = make_tensor_value_info('X', TensorProto.FLOAT, [1, k_dim])
-    Y = make_tensor_value_info('Y', TensorProto.FLOAT, [None, None])
-    node1 = make_node('MatMul', ['X', 'A'], ['AX'])
-    node2 = make_node('Add', ['AX', 'C'], ['Y'])
-    graph = make_graph([node1, node2], 'lr', [X], [Y], [A, C])
+    X = make_tensor_value_info("X", TensorProto.FLOAT, [1, k_dim])
+    Y = make_tensor_value_info("Y", TensorProto.FLOAT, [None, None])
+    node1 = make_node("MatMul", ["X", "A"], ["AX"])
+    node2 = make_node("Add", ["AX", "C"], ["Y"])
+    graph = make_graph([node1, node2], "lr", [X], [Y], [A, C])
     onnx_model = make_model(graph)
     check_model(onnx_model)
     return onnx_model
 
 
-ALL_MODELS = [
-    const_model,
-    linear_model
-]
+ALL_MODELS = [const_model, linear_model]
 
 
 class CommandLineTest(unittest.TestCase):
@@ -104,8 +107,7 @@ class CommandLineTest(unittest.TestCase):
         model_file = run_path / f"{model_name}-i.onnx"
         mlir_file = run_path / f"{model_name}-i.torch.mlir"
         onnx.save(onnx_model, model_file)
-        args = __main__.parse_arguments([
-            str(model_file), "-o", str(mlir_file)])
+        args = __main__.parse_arguments([str(model_file), "-o", str(mlir_file)])
         __main__.main(args)
 
     def run_model_extern(self, onnx_model: onnx.ModelProto, model_name: str):
@@ -116,16 +118,27 @@ class CommandLineTest(unittest.TestCase):
         model_data_dir = run_path / data_dir_name
         model_data_dir.mkdir(exist_ok=True)
         convert_model_to_external_data(
-            onnx_model, all_tensors_to_one_file=True,
+            onnx_model,
+            all_tensors_to_one_file=True,
             location=data_dir_name + "/data.bin",
             size_threshold=48,
-            convert_attribute=True)
+            convert_attribute=True,
+        )
         onnx.save(onnx_model, model_file)
         temp_dir = run_path / "temp"
         temp_dir.mkdir(exist_ok=True)
-        args = __main__.parse_arguments([
-            str(model_file), "-o", str(mlir_file), "--keep-temps", "--temp-dir",
-            str(temp_dir), "--data-dir", str(run_path)])
+        args = __main__.parse_arguments(
+            [
+                str(model_file),
+                "-o",
+                str(mlir_file),
+                "--keep-temps",
+                "--temp-dir",
+                str(temp_dir),
+                "--data-dir",
+                str(run_path),
+            ]
+        )
         __main__.main(args)
 
     def test_all(self):

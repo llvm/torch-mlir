@@ -10,7 +10,7 @@ Typically, when installed from a wheel, this can be invoked as:
   torch-mlir-import-onnx some.pb
 
 Or from Python:
-  
+
   python -m torch_mlir.tools.import_onnx ...
 """
 import argparse

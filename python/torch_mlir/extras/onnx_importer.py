@@ -75,6 +75,7 @@ from ..dialects import (
     func as func_dialect,
 )
 
+
 @dataclass
 class Config:
     """Various configuration settings for the importer."""
@@ -155,8 +156,7 @@ class GraphInfo:
         return ""
 
 
-class OnnxImportError(Exception):
-    ...
+class OnnxImportError(Exception): ...
 
 
 class NodeImporter:
@@ -234,22 +234,22 @@ class NodeImporter:
                 else:
                     default_opset_version = opset_import.version
             if default_opset_version:
-                container_op.attributes[
-                    "torch.onnx_meta.opset_version"
-                ] = IntegerAttr.get(i64_type, default_opset_version)
+                container_op.attributes["torch.onnx_meta.opset_version"] = (
+                    IntegerAttr.get(i64_type, default_opset_version)
+                )
             if opset_versions:
-                container_op.attributes[
-                    "torch.onnx_meta.opset_versions"
-                ] = DictAttr.get(opset_versions)
+                container_op.attributes["torch.onnx_meta.opset_versions"] = (
+                    DictAttr.get(opset_versions)
+                )
             container_op.attributes["torch.onnx_meta.ir_version"] = IntegerAttr.get(
                 IntegerType.get_signed(64), m.ir_version
             )
             container_op.attributes["torch.onnx_meta.producer_name"] = StringAttr.get(
                 m.producer_name
             )
-            container_op.attributes[
-                "torch.onnx_meta.producer_version"
-            ] = StringAttr.get(m.producer_version)
+            container_op.attributes["torch.onnx_meta.producer_version"] = (
+                StringAttr.get(m.producer_version)
+            )
 
     def import_all(self, func=True):
         """Imports all nodes topologically."""
@@ -274,13 +274,11 @@ class NodeImporter:
             if func:
                 func_dialect.ReturnOp(outputs)
             else:
-                Operation.create(
-                    name="torch.operator_terminator",
-                    operands=outputs)
+                Operation.create(name="torch.operator_terminator", operands=outputs)
 
     def get_none(self):
-        if '' in self._nv_map:
-            return self._nv_map['']
+        if "" in self._nv_map:
+            return self._nv_map[""]
 
         with InsertionPoint(self._b), Location.name("onnx_importer.none"):
             nne = Operation.create(
@@ -289,7 +287,7 @@ class NodeImporter:
                 operands=[],
                 attributes={},
             ).results[0]
-            self._nv_map[''] = nne
+            self._nv_map[""] = nne
             return nne
 
     def import_node(self, node: onnx.NodeProto):
@@ -328,7 +326,7 @@ class NodeImporter:
                 results=output_types,
                 operands=input_values,
                 attributes=attrs,
-                regions=regions
+                regions=regions,
             )
 
             self.import_regions(node.attribute, custom_op)
@@ -375,12 +373,18 @@ class NodeImporter:
 
         for name, region in zip(sorted(attr_map.keys()), op.regions):
             attr = attr_map[name]
-            block_types = [self._cc.type_proto_to_type(input.type) for input in attr.g.input]
+            block_types = [
+                self._cc.type_proto_to_type(input.type) for input in attr.g.input
+            ]
             block_names = [input.name for input in attr.g.input]
-            region.blocks.append(*block_types, arg_locs=[op.location] * len(block_types))
+            region.blocks.append(
+                *block_types, arg_locs=[op.location] * len(block_types)
+            )
             block = region.blocks[0]
             graph_info = GraphInfo(None, attr.g)
-            imp = NodeImporter(graph_info, parent_op=op, block=block, context_cache=self._cc)
+            imp = NodeImporter(
+                graph_info, parent_op=op, block=block, context_cache=self._cc
+            )
 
             for node_name, input_value in zip(block_names, block.arguments):
                 imp._nv_map[node_name] = input_value
@@ -389,7 +393,9 @@ class NodeImporter:
 
             imp.import_all(False)
 
-    def import_initializer(self, initializer: onnx.TensorProto, extern_name: str = None) -> Value:
+    def import_initializer(
+        self, initializer: onnx.TensorProto, extern_name: str = None
+    ) -> Value:
         # If an explicitly specified name is given, use that; otherwise, pick
         # up the name from the tensor proto itself
         iname = extern_name if extern_name else initializer.name
@@ -445,6 +451,7 @@ class NodeImporter:
         self._gi.initializer_map[const_name] = value_proto.t
         return True
 
+
 class ContextCache:
     """Caches per-context lookups of various things."""
 
@@ -459,8 +466,8 @@ class ContextCache:
     def __init__(self, context: Context):
         self._c = context
         self._elem_type_map: Dict[int, IrType] = {}
-        self._list_type_map:Dict[str, IrType] = {}
-        self._optional_type_map:Dict[str, IrType] = {}
+        self._list_type_map: Dict[str, IrType] = {}
+        self._optional_type_map: Dict[str, IrType] = {}
         self._vtensor_type_map: Dict[Tuple[Tuple[Optional[int]], IrType], IrType] = {}
 
     def tensor_element_type(self, elem_type: int) -> IrType:
@@ -491,7 +498,6 @@ class ContextCache:
             self._list_type_map[key] = t
         return t
 
-
     def get_optional_type(self, element_type: IrType) -> IrType:
         key = str(element_type)
         t = self._optional_type_map.get(key)
@@ -506,7 +512,6 @@ class ContextCache:
             self._optional_type_map[key] = t
         return t
 
-
     def get_list_element_type(self, tp: onnx.TypeProto) -> IrType:
         tt = tp.tensor_type
         if tt.elem_type:
@@ -517,8 +522,7 @@ class ContextCache:
             shape_asm = ",".join("?" if d is None else str(d) for d in dims)
             return f"vtensor<[{shape_asm}],{element_type}>"
 
-        raise OnnxImportError(
-            f"Unsupport list element type")
+        raise OnnxImportError(f"Unsupport list element type")
 
     def get_optional_element_type(self, tp: onnx.TypeProto) -> IrType:
         st = tp.sequence_type
@@ -535,8 +539,7 @@ class ContextCache:
             element_type = self.get_list_element_type(st.elem_type)
             return f"list<{element_type}>"
 
-        raise OnnxImportError(
-            f"Unsupport optional element type")
+        raise OnnxImportError(f"Unsupport optional element type")
 
     def get_vtensor_type(
         self, dims: Tuple[Optional[int]], element_type: IrType
@@ -566,10 +569,7 @@ class ContextCache:
             try:
                 return RankedTensorType.get(tuple(tp.dims), element_type)
             except TypeError as e:
-                raise OnnxImportError(
-                    f"Unsupported builtin tensor type"
-                ) from e
-
+                raise OnnxImportError(f"Unsupported builtin tensor type") from e
 
     def type_proto_to_type(self, tp: onnx.TypeProto) -> IrType:
         if tp == "":
@@ -602,9 +602,9 @@ class ContextCache:
         raise OnnxImportError(f"Unsupported ONNX TypeProto: {tp}")
 
     def _sanitize_name(self, name):
-        if not name.isidentifier():  
-            name = "_" + name  
-        return re.sub("[:/]", "_", name)  
+        if not name.isidentifier():
+            name = "_" + name
+        return re.sub("[:/]", "_", name)
 
     def tensor_proto_to_attr(self, tp: onnx.TensorProto) -> Attribute:
         tensor_type = self.tensor_proto_to_builtin_type(tp)
@@ -654,9 +654,15 @@ ELEM_TYPE_SPLAT_TENSOR_PROTO_CB = {
         RankedTensorType.get(shape, F32Type.get()), FloatAttr.get_f32(tp.float_data[0])
     ),
     onnx.TensorProto.DataType.INT64: lambda tp, shape: DenseElementsAttr.get_splat(
-        RankedTensorType.get(shape, IntegerType.get_signed(64)), IntegerAttr.get(
-        IntegerType.get_signed(64), int.from_bytes(tp.raw_data, "little",
-        signed=True) if tp.HasField("raw_data") else tp.int64_data[0])
+        RankedTensorType.get(shape, IntegerType.get_signed(64)),
+        IntegerAttr.get(
+            IntegerType.get_signed(64),
+            (
+                int.from_bytes(tp.raw_data, "little", signed=True)
+                if tp.HasField("raw_data")
+                else tp.int64_data[0]
+            ),
+        ),
     ),
     # TODO: All the rest from ELEM_TYPE_TO_IR_TYPE_CB
 }
@@ -669,8 +675,12 @@ ELEM_TYPE_INLINE_TENSOR_PROTO_CB = {
         np.asarray(tp.float_data, dtype=np.float32).reshape(tp.dims), signless=False
     ),
     onnx.TensorProto.DataType.BOOL: lambda tp: DenseElementsAttr.get(
-        np.packbits(np.asarray(tp.int32_data, dtype=np.bool_).reshape(tp.dims),
-                    axis=None, bitorder="little"), signless=False
+        np.packbits(
+            np.asarray(tp.int32_data, dtype=np.bool_).reshape(tp.dims),
+            axis=None,
+            bitorder="little",
+        ),
+        signless=False,
     ),
     onnx.TensorProto.DataType.INT8: lambda tp: DenseElementsAttr.get(
         np.asarray(tp.int32_data, dtype=np.int8).reshape(tp.dims), signless=False
@@ -694,7 +704,7 @@ ELEM_TYPE_INLINE_TENSOR_PROTO_CB = {
     ),
     onnx.TensorProto.DataType.UINT64: lambda tp: DenseElementsAttr.get(
         np.asarray(tp.uint64_data, dtype=np.uint64).reshape(tp.dims), signless=False
-    )
+    ),
     # Intentionally unsupported: STRING
 }
 
@@ -758,7 +768,9 @@ ATTRIBUTE_TYPE_HANDLERS = {
 }
 
 
-def _get_attr(node: onnx.NodeProto, attr_name: str, is_required: bool = True) -> onnx.AttributeProto:
+def _get_attr(
+    node: onnx.NodeProto, attr_name: str, is_required: bool = True
+) -> onnx.AttributeProto:
     for attr in node.attribute:
         if attr.name == attr_name:
             return attr

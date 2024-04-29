@@ -89,7 +89,7 @@ public:
                              .cast<ValueTensorType>()
                              .getOptionalDtype();
             auto torchQType =
-                quant.getType().cast<ValueTensorType>().getOptionalDtype();
+                cast<ValueTensorType>(quant.getType()).getOptionalDtype();
             auto transQTy =
                 rewriter.getType<ValueTensorType>(trans.getResult()
                                                       .getType()
@@ -152,7 +152,7 @@ public:
       return failure();
 
     Value bias = operands[2];
-    auto biasTy = bias.getType().dyn_cast<ValueTensorType>();
+    auto biasTy = dyn_cast<ValueTensorType>(bias.getType());
 
     if (biasTy) {
       auto biasETy = biasTy.getOptionalDtype();

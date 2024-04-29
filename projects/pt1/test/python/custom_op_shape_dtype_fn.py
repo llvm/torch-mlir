@@ -20,18 +20,26 @@ goofy_lib = torch.library.Library("goofy", "DEF")
 goofy_lib.define("identity(Tensor t) -> Tensor")
 goofy_lib.impl("identity", identity)
 
+
 def goofy〇identity〡shape(t: List[int]) -> List[int]:
     return t
+
 
 def goofy〇identity〡dtype(t_rank_dtype: Tuple[int, int]) -> int:
     t_rank, t_dtype = t_rank_dtype
     return t_dtype
 
+
 def goofy〇identity〡has_value_semantics() -> None:
     return
 
+
 extra_library = [
-    goofy〇identity〡shape, goofy〇identity〡dtype, goofy〇identity〡has_value_semantics]
+    goofy〇identity〡shape,
+    goofy〇identity〡dtype,
+    goofy〇identity〡has_value_semantics,
+]
+
 
 class CustomOpExampleModule(torch.nn.Module):
     def __init__(self):
@@ -52,6 +60,7 @@ class CustomOpExampleModule(torch.nn.Module):
 mod = CustomOpExampleModule()
 mod.eval()
 
+
 def run():
     mod = CustomOpExampleModule()
     mod.eval()
@@ -65,6 +74,7 @@ def run():
     )
 
     print(module)
+
 
 run()
 

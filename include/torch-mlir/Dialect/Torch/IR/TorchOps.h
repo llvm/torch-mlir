@@ -240,6 +240,37 @@ m_TorchListOfConstantBools(SmallVectorImpl<bool> &bind_values) {
 }
 
 namespace detail {
+/// Matches the constant strs stored in a `torch.ListConstruct`.
+struct torch_list_of_constant_strs_op_binder {
+  SmallVectorImpl<std::string> &bind_values;
+
+  /// Creates a matcher instance that binds the value to bvs if match succeeds.
+  torch_list_of_constant_strs_op_binder(SmallVectorImpl<std::string> &bvs)
+      : bind_values(bvs) {}
+
+  bool match(Operation *op) {
+    auto listConstruct = dyn_cast<Torch::PrimListConstructOp>(op);
+    if (!listConstruct)
+      return false;
+    for (Value value : listConstruct.getElements()) {
+      std::string str;
+      if (matchPattern(value, m_TorchConstantStr(str)))
+        bind_values.push_back(str);
+      else
+        return false;
+    }
+    return true;
+  }
+};
+} // namespace detail
+
+/// Matches the constant strs stored in a `torch.prim.ListConstruct`.
+inline detail::torch_list_of_constant_strs_op_binder
+m_TorchListOfConstantStrs(SmallVectorImpl<std::string> &bind_values) {
+  return detail::torch_list_of_constant_strs_op_binder(bind_values);
+}
+
+namespace detail {
 /// Matches the expected tensor and dim from `torch.aten.size.int`.
 struct torch_tensor_size_int_op_binder {
   int64_t *dim;

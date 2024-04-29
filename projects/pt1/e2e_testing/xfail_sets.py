@@ -31,21 +31,17 @@ LINALG_CRASHING_SET = {
 
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
-
     # torch._dynamo.exc.Unsupported: Tensor.item
     "CumsumModule_basic",
-
     # TypeError: new_empty(): argument 'size' (position 1) must be tuple of ints, but found element of type NoneType at pos 0
     # RuntimeError: Failed running call_function aten.convolution_backward(...
     # https://github.com/pytorch/pytorch/issues/89629
     "ConvolutionBackwardModule2DPadded_basic",
     "ConvolutionBackwardModule2D_basic",
-
     # Size result mismatch (exposed by downstream canonicalizer
     # on incompatabile casts).
     # https://github.com/pytorch/pytorch/issues/119407
     "ConvolutionBackwardModule2DStrided_basic",
-
     # RuntimeError: Index tensor must have the same number of dimensions as self tensor
     # RuntimeError: Failed running call_function aten.nll_loss_backward(...
     # https://github.com/pytorch/pytorch/issues/89630
@@ -59,264 +55,205 @@ TORCHDYNAMO_XFAIL_SET = {
     # RuntimeError: Failed running call_function aten.uniform(...
     # https://github.com/pytorch/torchdynamo/issues/1954
     "UniformNoCorrelationModule_basic",
-
     #### Torch-MLIR internal compiler errors
-
     # These are probably due to slightly different ops being recorded by
     # torchdynamo vs. torchscript.
-
     # No upstream decompositions.
     # %6:4 = torch.operator "aten._embedding_bag_forward_only"(%1, %3, %5, %false, %int0, %false, %none, %false, %int-1) : (!torch.tensor<*,f32>, !torch.tensor<*,si64>, !torch.tensor<*,si64>, !torch.bool, !torch.int, !torch.bool, !torch.none, !torch.bool, !torch.int) -> (!torch.tensor, !torch.tensor, !torch.tensor, !torch.tensor)
     # See also: https://github.com/pytorch/torchdynamo/issues/327
     "AtenEmbeddingBagSumExample_basic",
-
     # error: unsupported by backend contract: tensor with unknown rank
     # note: see current operation: %1 = "torch.tensor_static_info_cast"(%arg0) : (!torch.vtensor<[5,4,3,2,1],f32>) -> !torch.vtensor<*,f32>
     "ElementwisePreluModule_basic",
     # error: torch._dynamo.exc.BackendCompilerFailed: backend='compiler_fn' raised: AssertionError: Unregistered operation: torch.aten._prelu_kernel
     "ElementwisePreluStaticModule_basic",
-
-    #ERROR: value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=-1.336e-32, max=+0.9152, mean=+0.4837) is not close to golden value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=+0.02233, max=+0.9152, mean=+0.4777)
+    # ERROR: value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=-1.336e-32, max=+0.9152, mean=+0.4837) is not close to golden value (Tensor with shape=[2, 3, 6, 10], dtype=torch.float32, min=+0.02233, max=+0.9152, mean=+0.4777)
     "UpSampleNearest2dDynamicFactor_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
-    #ERROR: value (-56) is not equal to golden value (200)
+    # ERROR: value (-56) is not equal to golden value (200)
     "AtenIntTensorByteDtypeModule_basic",
     # ERROR: assert isinstance(e, FakeTensor)
     "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
     # ERROR: assert isinstance(e, FakeTensor)
     "RsubInt0d_NumToTensor_Module_basic",
-
     # ERROR: RuntimeError: Found a custom (non-ATen) operator that either mutates or its inputs: prims::squeeze.. Getting these operators to work with functionalization requires some extra work. For mutable ops you need to register a corresponding out-of-place variant of the op, and you also need to register a Functionalization kernel that performs some boilerplate, telling functionalization to map from the mutable op to the out-of-place op. See a more complete example of how to do this at https://gist.github.com/bdhirsh/7dadbf6296f8f7d1abcf4c482f438aaa.
     "PrimsSqueezeModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
     "SplitDimStaticModule_basic",
     "SplitDimDynamicModule_basic",
-
     # ERROR: RuntimeError: Found a custom (non-ATen) operator that either mutates or its inputs: prims::view_of.. Getting these operators to work with functionalization requires some extra work. For mutable ops you need to register a corresponding out-of-place variant of the op, and you also need to register a Functionalization kernel that performs some boilerplate, telling functionalization to map from the mutable op to the out-of-place op. See a more complete example of how to do this at https://gist.github.com/bdhirsh/7dadbf6296f8f7d1abcf4c482f438aaa.
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
-
     # See https://github.com/llvm/torch-mlir/pull/2040 and corresponding upstream issue
     # https://github.com/pytorch/pytorch/issues/99752.
     # torch._dynamo.exc.Unsupported: call_function BuiltinVariable(bool) [TensorVariable()] {}
-    'TensorToBoolZeroRank_basic',
-    'TensorToBool_basic',
-
+    "TensorToBoolZeroRank_basic",
+    "TensorToBool_basic",
     # START tests failing due to: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(float) [TensorVariable()] {}
-    'AtenSubFloatModule_basic',
-    'AtenMulFloatModule_basic',
-    'BoolFloatFalseModule_basic',
-    'BoolFloatTrueModule_basic',
-    'CeilFloatModule_basic',
-    'DivFloatModule_basic',
-    'GeFloatIntModule_basic',
-    'GeFloatModule_basic',
-    'GtFloatIntModule_basic',
-    'NeFloatIntModule_basic',
-    'SubFloatModule_basic',
-    'MulFloatModule_basic',
-    'TensorToFloatZeroRank_basic',
-    'TensorToFloat_basic',
+    "AtenSubFloatModule_basic",
+    "AtenMulFloatModule_basic",
+    "BoolFloatFalseModule_basic",
+    "BoolFloatTrueModule_basic",
+    "CeilFloatModule_basic",
+    "DivFloatModule_basic",
+    "GeFloatIntModule_basic",
+    "GeFloatModule_basic",
+    "GtFloatIntModule_basic",
+    "NeFloatIntModule_basic",
+    "SubFloatModule_basic",
+    "MulFloatModule_basic",
+    "TensorToFloatZeroRank_basic",
+    "TensorToFloat_basic",
     # END tests failing due to: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(float) [TensorVariable()] {}
-
-
     # START tests failing due to: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
-    'AddIntModule_basic',
-    'AtenIntTensorCharDtypeModule_basic',
-    'BoolIntFalseModule_basic',
-    'BoolIntTrueModule_basic',
-    'DivIntModule_basic',
-    'EqIntModule_basic',
-    'GeIntModule_basic',
-    'GtIntModule_basic',
-    'MulIntModule_basic',
-    'NeIntModule_basic',
-    'SqrtIntModule_basic',
-    'SubIntModule_basic',
-    'TensorToIntZeroRank_basic',
-    'TensorToInt_basic',
-    'UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic',
-    'ViewCollapseDynamicWithAtenSizeIntModule_basic',
+    "AddIntModule_basic",
+    "AtenIntTensorCharDtypeModule_basic",
+    "BoolIntFalseModule_basic",
+    "BoolIntTrueModule_basic",
+    "DivIntModule_basic",
+    "EqIntModule_basic",
+    "GeIntModule_basic",
+    "GtIntModule_basic",
+    "MulIntModule_basic",
+    "NeIntModule_basic",
+    "SqrtIntModule_basic",
+    "SubIntModule_basic",
+    "TensorToIntZeroRank_basic",
+    "TensorToInt_basic",
+    "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
+    "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     # END tests failing due to: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
-
     # ERROR: torch._dynamo.exc.Unsupported: Tensor.item
-    'AtenItemIntOpModule_basic',
-    'AtenItemFpOpModule_basic',
-
+    "AtenItemIntOpModule_basic",
+    "AtenItemFpOpModule_basic",
     # ERROR: torch._dynamo.exc.Unsupported: call_method ListVariable() sort [] {'reverse': ConstantVariable(bool)}
-    'SortIntListReverse_basic',
-
+    "SortIntListReverse_basic",
     # ERROR: torch._dynamo.exc.Unsupported: call_method ListVariable() sort [] {}
-    'SortIntList_basic',
-
+    "SortIntList_basic",
     # START tests failing due to: torch._dynamo.exc.Unsupported: data dependent operator: aten._local_scalar_dense.default
-    'AtenFloatScalarModule_basic',
-    'AtenIntBoolOpModule_basic',
-    'QuantizedMLP_basic',
-    'QuantizedSingleLayer_basic',
-    'QuantizedBatchedInputSingleLayer_basic',
-    'QuantizedNoLayer_basic',
-    'ScalarImplicitFloatModule_basic',
-    'ScalarImplicitIntModule_basic',
+    "AtenFloatScalarModule_basic",
+    "AtenIntBoolOpModule_basic",
+    "QuantizedMLP_basic",
+    "QuantizedSingleLayer_basic",
+    "QuantizedBatchedInputSingleLayer_basic",
+    "QuantizedNoLayer_basic",
+    "ScalarImplicitFloatModule_basic",
+    "ScalarImplicitIntModule_basic",
     # END tests failing due to: torch._dynamo.exc.Unsupported: data dependent operator: aten._local_scalar_dense.default
-
     # START tests failing due to: torch._dynamo.exc.Unsupported: dynamic shape operator: aten.bincount.default
-    'BincountMinlengthModule_basic',
-    'BincountModule_basic',
-    'BincountStaticSizeModule_basic',
+    "BincountMinlengthModule_basic",
+    "BincountModule_basic",
+    "BincountStaticSizeModule_basic",
     # END tests failing due to: torch._dynamo.exc.Unsupported: dynamic shape operator: aten.bincount.default
-
     # ERROR: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor bool call_function aten.Bool
-    'BoolFloatConstantModule_basic',
-    'BoolIntConstantModule_basic',
-
+    "BoolFloatConstantModule_basic",
+    "BoolIntConstantModule_basic",
     # ERROR: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function aten.size
     "ViewSizeFromOtherTensor_basic",
-
     # ERROR: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor bool call_function aten.__contains__
-    'ContainsIntList_False',
-    'ContainsIntList_True',
-
+    "ContainsIntList_False",
+    "ContainsIntList_True",
     # ERROR: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor bool call_function aten.all
-    'AllBoolFalseModule_basic',
-    'AllBoolTrueModule_basic',
-
+    "AllBoolFalseModule_basic",
+    "AllBoolTrueModule_basic",
     # ERROR: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor bool call_function aten.any
-    'AnyBoolFalseModule_basic',
-    'AnyBoolTrueModule_basic',
-
+    "AnyBoolFalseModule_basic",
+    "AnyBoolTrueModule_basic",
     # ERROR: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor float call_function aten.sqrt
-    'SqrtIntConstantModule_basic',
-
+    "SqrtIntConstantModule_basic",
     # ERROR: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function aten.size
-    'BroadcastDynamicDimModule_basic',
-
+    "BroadcastDynamicDimModule_basic",
     # START tests failing due to: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function aten.Int
-    'AtenIntBoolOpConstFalseModule_basic',
-    'AtenIntBoolOpConstTrueModule_basic',
-    'IntFloatModule_basic',
-    'PowIntFloatModule_basic',
+    "AtenIntBoolOpConstFalseModule_basic",
+    "AtenIntBoolOpConstTrueModule_basic",
+    "IntFloatModule_basic",
+    "PowIntFloatModule_basic",
     # END tests failing due to: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function aten.Int
-
     # ERROR: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function aten.len
-    'LenStrModule_basic',
-
+    "LenStrModule_basic",
     # ERROR: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function aten.numel
-    'NumelModule_basic',
-    'NumelZeroRankModule_basic',
-
+    "NumelModule_basic",
+    "NumelZeroRankModule_basic",
     # ERROR: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function prim.max
-    'PrimMaxIntModule_basic',
-
+    "PrimMaxIntModule_basic",
     # ERROR: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function prim.min
-    'PrimMinIntModule_basic',
-    'PrimMinIntDynamicModule_basic',
-
+    "PrimMinIntModule_basic",
+    "PrimMinIntDynamicModule_basic",
     # START tests failing due to: empty graph in dynamo
-    'IsFloatingPointFloat_True',
-    'IsFloatingPointInt_False',
-    'TorchPrimLoopForLikeModule_basic',
-    'TorchPrimLoopWhileLikeModule_basic',
+    "IsFloatingPointFloat_True",
+    "IsFloatingPointInt_False",
+    "TorchPrimLoopForLikeModule_basic",
+    "TorchPrimLoopWhileLikeModule_basic",
     "ScalarConstantTupleModule_basic",
     # END tests failing due to: empty graph in dynamo
-
     # ERROR due to: backend never runs because of empty frame
-    'ConstantBoolParameterModule_basic',
-
+    "ConstantBoolParameterModule_basic",
     # START tests failing due to: 'torch.aten.mul.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
     "UpSampleNearest2dDynamicSize_basic",
     "UpSampleNearest2dStaticFactor_basic",
     "UpSampleNearest2dStaticSize_basic",
     "UpSampleNearest2d_basic",
     # END tests failing due to: 'torch.aten.mul.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
-
     # START tests failing due to: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
     "ElementwiseAddScalarFloatModule_basic",
     # END tests failing due to: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
-
     # ERROR: 'torch.aten.add.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.int'
     "ElementwiseAddScalar_TensorLiteralInt32_Module_basic",
     "HBC_basic",
-
     # ERROR: 'torch.aten.div.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
     "ElementwiseDivScalarModule_basic",
-
     # ERROR: 'torch.aten.div.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.int'
     "ElementwiseAtenDivIntScalarModule_basic",
-
     # ERROR: 'torch.aten.sub.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.float'
     "ElementwiseSubScalarFloatModule_basic",
     "ElementwiseSubScalarIntModule_basic",
-
     # ERROR: Exception: Unsupported: missing default value for argument 0 in schema for aten.div.Tensor_mode
     "ElementwiseAtenFloorDivideScalarNegativeModule_basic",
     "ElementwiseAtenFloorDivideScalarModule_basic",
-    "ElementwiseDivTensorRoundingModeFloorModule_basic",
-    "ElementwiseDivTensorRoundingModeTruncModule_basic",
-    "ElementwiseDivTensorRoundingModeFloorStaticModule_basic",
-    "ElementwiseDivTensorRoundingModeTruncStaticModule_basic",
-    "ElementwiseDivTensorRoundingModeFloorIntStaticModule_basic",
-    "ElementwiseDivTensorRoundingModeTruncIntStaticModule_basic",
     "ElementwiseDivScalarRoundingModeFloorModule_basic",
     "ElementwiseDivScalarRoundingModeTruncModule_basic",
     "ElementwiseDivScalarRoundingModeFloorStaticModule_basic",
     "ElementwiseDivScalarRoundingModeTruncStaticModule_basic",
     "ElementwiseDivScalarRoundingModeFloorIntStaticModule_basic",
     "ElementwiseDivScalarRoundingModeTruncIntStaticModule_basic",
+    # ERROR: 'torch.aten.mul.Tensor' op operand #1 must be Any Torch tensor type, but got '!torch.int'
     "AdaptiveAvgPool1dStaticLargerOutput_basic",
     "AdaptiveAvgPool1dGeneralDynamic_basic",
     "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
     "AdaptiveAvgPool2dDynamic_basic",
     "AdaptiveAvgPool2dDynamicNoBatch_basic",
-
     # ERROR: Exception: Unsupported op: get_attr
     "NumToTensorFloatModule_basic",
     "NumToTensorIntModule_basic",
     "TensorFloatModule_basic",
     "TensorIntModule_basic",
-
-    # ERROR: Exception: Unsupported: missing default value for argument 0 in schema for aten.randn.generator
-    "RandnGeneratorF64Module_basic",
-    "RandnGeneratorModule_basic",
-
     # START tests failing due to: complex floating point ops
     # END tests failing due to: complex floating point ops
-
     # ERROR: Exception: Unsupported: return type List[Tensor] in schema for aten.unbind.int
     "UnbindIntListUnpack_Module_basic",
     "UnbindIntGetItem_Module_basic",
-
     # ERROR: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(float) [TensorVariable()] {}
     "ScatterValueFloatModule_basic",
     # ERROR: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
     "ScatterValueIntModule_basic",
-
     # AssertionError: Unregistered operation: torch.aten._unsafe_index_put
     "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
-
     # Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR failed
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
-
     # AssertionError: Unregistered operation: torch.aten._scaled_dot_product_flash_attention_for_cpu
     "ScaledDotProductAttentionDifferentModule_basic",
-
     # AssertionError: Unregistered operation: torch.aten._embedding_bag_forward_only
     "AtenEmbeddingBagStaticModule_basic",
-
     # Lowering not present for this case
     "ElementwiseToDtypeI64ToUI8Module_basic",
-
     # torch._dynamo.exc.TorchRuntimeError: Failed running call_function <built-in method add of type object at 0x7f4f8b05a720>(*(FakeTensor(..., size=(3, 4), dtype=torch.int8), 3, 2), **{}): Tensor with dtype torch.int64 is not the expected dtype of torch.int8!
     "ElementwiseAddScalarInt8Module_basic",
-
     # ERROR: dtype (torch.int64) is not equal to golden dtype (torch.float32)
     "ThresholdBackward2dMixedModule_basic",
-
     # ERROR: shape (torch.Size([12])) is not equal to golden shape (torch.Size([3, 4]))
     "ArangeStartOutViewModule_basic",
-
     # Dynamo does not support tracing quantized tensors
     "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
@@ -335,16 +272,15 @@ TORCHDYNAMO_XFAIL_SET = {
     "QuantizedReluInt8_basic",
     "QuantizedReluUint8_basic",
     "Conv2dQInt8Module_basic",
-
     # Dynamo not supporting conv_tbc
     "ConvTbcModule_basic",
-
     "FloatImplicitModule_basic",
     "IntImplicitModule_basic",
-
     # Others
+    "ExponentialModule_basic",
     "GridSamplerBasic1_basic",
     "GridSamplerBasic2_basic",
+    "GridSamplerBasic3_basic",
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
     "FakeQuantizePerTensorAffineRoundToEvenModule_basic",
@@ -389,142 +325,141 @@ TORCHDYNAMO_CRASHING_SET = {
     "MaxPool3dModule_basic",
     "MaxPool3dStaticCeilModeTrueModule_basic",
     "MaxPool3dStaticModule_basic",
-
     # Looks like incorrect fx graph conversion
     "ElementwiseAddScalar_TensorLiteralInt32_Module_basic",
 }
 
 FX_IMPORTER_XFAIL_SET = {
-    'AllBoolFalseModule_basic',
-    'AllBoolTrueModule_basic',
-    'AnyBoolFalseModule_basic',
-    'AnyBoolTrueModule_basic',
-    'ArangeStartOutViewModule_basic',
-    'AtenEmbeddingBagStaticModule_basic',
-    'AtenEmbeddingBagSumExample_basic',
-    'AtenFloatScalarModule_basic',
-    'AtenIntBoolOpConstFalseModule_basic',
-    'AtenIntBoolOpConstTrueModule_basic',
-    'AtenIntBoolOpModule_basic',
-    'AtenItemFpOpModule_basic',
-    'AtenMatmulQMixedSigni8Transpose_basic',
-    'AtenMatmulQMixedSigni8_basic',
-    'AtenMatmulQint8MV_basic',
-    'AtenMatmulQint8_basic',
-    'AtenMatmulQint8VM_basic',
-    'AtenMatmulQint8VV_basic',
-    'AtenMmQMixedSigni8_basic',
-    'AtenMmQint8_basic',
-    'AtenMmQuint8_basic',
+    "AllBoolFalseModule_basic",
+    "AllBoolTrueModule_basic",
+    "AnyBoolFalseModule_basic",
+    "AnyBoolTrueModule_basic",
+    "ArangeStartOutViewModule_basic",
+    "AtenEmbeddingBagStaticModule_basic",
+    "AtenEmbeddingBagSumExample_basic",
+    "AtenFloatScalarModule_basic",
+    "AtenIntBoolOpConstFalseModule_basic",
+    "AtenIntBoolOpConstTrueModule_basic",
+    "AtenIntBoolOpModule_basic",
+    "AtenItemFpOpModule_basic",
+    "AtenMatmulQMixedSigni8Transpose_basic",
+    "AtenMatmulQMixedSigni8_basic",
+    "AtenMatmulQint8MV_basic",
+    "AtenMatmulQint8_basic",
+    "AtenMatmulQint8VM_basic",
+    "AtenMatmulQint8VV_basic",
+    "AtenMmQMixedSigni8_basic",
+    "AtenMmQint8_basic",
+    "AtenMmQuint8_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluInt8_basic",
     "QuantizedReluUint8_basic",
-    'AtenSubFloatModule_basic',
-    'BincountMinlengthModule_basic',
-    'BincountModule_basic',
-    'BincountStaticSizeModule_basic',
-    'BoolFloatConstantModule_basic',
-    'BoolFloatFalseModule_basic',
-    'BoolFloatTrueModule_basic',
-    'BoolIntConstantModule_basic',
-    'BoolIntFalseModule_basic',
-    'BoolIntTrueModule_basic',
-    'BroadcastDynamicDimModule_basic',
-    'CeilFloatModule_basic',
-    'ConstantBoolParameterModule_basic',
-    'ContainsIntList_False',
-    'ContainsIntList_True',
-    'Conv2dQInt8Module_basic',
-    'Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier',
-    'ConvTbcModule_basic',
-    'ConvolutionBackwardModule2DPadded_basic',
-    'ConvolutionBackwardModule2DStrided_basic',
-    'ConvolutionBackwardModule2D_basic',
-    'CumsumModule_basic',
-    'DivFloatModule_basic',
-    'DivIntModule_basic',
-    'ElementwiseAddScalar_NumToTensorFloat_Module_basic',
-    'ElementwiseDequantizePerChannelModule_basic',
-    'ElementwiseDequantizePerTensorModule_basic',
-    'ElementwiseQuantizePerTensorModule_basic',
-    'ElementwiseQuantizePerTensorUIntModule_basic',
-    'ElementwiseToDtypeI64ToUI8Module_basic',
-    'EqIntModule_basic',
-    'FakeQuantizePerTensorAffineDynamicShapeModule_basic',
-    'FakeQuantizePerTensorAffineModule_basic',
-    'FakeQuantizePerTensorAffineRoundToEvenModule_basic',
-    'FloatImplicitModule_basic',
-    'GeFloatIntModule_basic',
-    'GeFloatModule_basic',
-    'GeIntModule_basic',
-    'GtFloatIntModule_basic',
-    'GtIntModule_basic',
-    'IntFloatModule_basic',
-    'IntImplicitModule_basic',
-    'IsFloatingPointFloat_True',
-    'IsFloatingPointInt_False',
-    'LenStrModule_basic',
-    'MaxPool3dCeilModeTrueModule_basic',
-    'MaxPool3dEmptyStrideStaticModule_basic',
-    'MaxPool3dLargeDatadModule_basic',
-    'MaxPool3dModuleRandomSimple_basic',
-    'MaxPool3dModule_basic',
-    'MaxPool3dStaticCeilModeTrueModule_basic',
-    'MaxPool3dStaticModule_basic',
-    'MulFloatModule_basic',
-    'NativeGroupNormBackwardModule_basic',
-    'NeFloatIntModule_basic',
-    'NeIntModule_basic',
-    'NllLossModuleBackward1DMeanWeight_basic',
-    'NllLossModuleBackward1DMean_basic',
-    'NllLossModuleBackward1DSumWeight_basic',
-    'NllLossModuleBackward1DSum_basic',
-    'NllLossModuleBackward1DWeight_basic',
-    'NllLossModuleBackward1D_basic',
-    'NumToTensorFloatModule_basic',
-    'NumToTensorIntModule_basic',
-    'NumelModule_basic',
-    'NumelZeroRankModule_basic',
-    'PowIntFloatModule_basic',
-    'PrimMaxIntModule_basic',
-    'PrimMinIntDynamicModule_basic',
-    'PrimMinIntModule_basic',
-    'PrimsSqueezeEmptyDimensionsModule_basic',
-    'PrimsSqueezeModule_basic',
-    'PrimsViewOfModule_basic',
-    'PrimsViewOfZeroRankModule_basic',
-    'QuantizedBatchedInputSingleLayer_basic',
-    'QuantizedMLP_basic',
-    'QuantizedNoLayer_basic',
-    'QuantizedSingleLayer_basic',
-    'ReduceMaxAlongDimUnsignedInt_basic',
-    'ReduceMinAlongDimUnsignedInt_basic',
-    'RsubInt0d_NumToTensor_Module_basic',
-    'ScalarConstantTupleModule_basic',
-    'ScalarImplicitFloatModule_basic',
-    'SortIntListReverse_basic',
-    'SortIntList_basic',
-    'SplitDimDynamicModule_basic',
-    'SplitDimStaticModule_basic',
-    'SqrtIntConstantModule_basic',
-    'SqrtIntModule_basic',
-    'SubFloatModule_basic',
-    'TModuleRank0_basic',
-    'TensorToBoolZeroRank_basic',
-    'TensorToBool_basic',
-    'TensorToFloatZeroRank_basic',
-    'TensorToFloat_basic',
-    'TestMultipleTensorAndPrimitiveTypesReturn_basic',
-    'ThresholdBackward2dMixedModule_basic',
-    'TorchPrimLoopForLikeModule_basic',
-    'TorchPrimLoopWhileLikeModule_basic',
-    'UnbindIntGetItem_Module_basic',
-    'UnbindIntListUnpack_Module_basic',
-    'UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic',
-    'UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic',
-    'UpSampleNearest2dDynamicFactor_basic',
-    'ViewCollapseDynamicWithAtenSizeIntModule_basic',
-    'ViewSizeFromOtherTensor_basic',
+    "AtenSubFloatModule_basic",
+    "BincountMinlengthModule_basic",
+    "BincountModule_basic",
+    "BincountStaticSizeModule_basic",
+    "BoolFloatConstantModule_basic",
+    "BoolFloatFalseModule_basic",
+    "BoolFloatTrueModule_basic",
+    "BoolIntConstantModule_basic",
+    "BoolIntFalseModule_basic",
+    "BoolIntTrueModule_basic",
+    "BroadcastDynamicDimModule_basic",
+    "CeilFloatModule_basic",
+    "ConstantBoolParameterModule_basic",
+    "ContainsIntList_False",
+    "ContainsIntList_True",
+    "Conv2dQInt8Module_basic",
+    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
+    "ConvTbcModule_basic",
+    "ConvolutionBackwardModule2DPadded_basic",
+    "ConvolutionBackwardModule2DStrided_basic",
+    "ConvolutionBackwardModule2D_basic",
+    "CumsumModule_basic",
+    "DivFloatModule_basic",
+    "DivIntModule_basic",
+    "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
+    "ElementwiseDequantizePerChannelModule_basic",
+    "ElementwiseDequantizePerTensorModule_basic",
+    "ElementwiseQuantizePerTensorModule_basic",
+    "ElementwiseQuantizePerTensorUIntModule_basic",
+    "ElementwiseToDtypeI64ToUI8Module_basic",
+    "EqIntModule_basic",
+    "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
+    "FakeQuantizePerTensorAffineModule_basic",
+    "FakeQuantizePerTensorAffineRoundToEvenModule_basic",
+    "FloatImplicitModule_basic",
+    "GeFloatIntModule_basic",
+    "GeFloatModule_basic",
+    "GeIntModule_basic",
+    "GtFloatIntModule_basic",
+    "GtIntModule_basic",
+    "IntFloatModule_basic",
+    "IntImplicitModule_basic",
+    "IsFloatingPointFloat_True",
+    "IsFloatingPointInt_False",
+    "LenStrModule_basic",
+    "MaxPool3dCeilModeTrueModule_basic",
+    "MaxPool3dEmptyStrideStaticModule_basic",
+    "MaxPool3dLargeDatadModule_basic",
+    "MaxPool3dModuleRandomSimple_basic",
+    "MaxPool3dModule_basic",
+    "MaxPool3dStaticCeilModeTrueModule_basic",
+    "MaxPool3dStaticModule_basic",
+    "MulFloatModule_basic",
+    "NativeGroupNormBackwardModule_basic",
+    "NeFloatIntModule_basic",
+    "NeIntModule_basic",
+    "NllLossModuleBackward1DMeanWeight_basic",
+    "NllLossModuleBackward1DMean_basic",
+    "NllLossModuleBackward1DSumWeight_basic",
+    "NllLossModuleBackward1DSum_basic",
+    "NllLossModuleBackward1DWeight_basic",
+    "NllLossModuleBackward1D_basic",
+    "NumToTensorFloatModule_basic",
+    "NumToTensorIntModule_basic",
+    "NumelModule_basic",
+    "NumelZeroRankModule_basic",
+    "PowIntFloatModule_basic",
+    "PrimMaxIntModule_basic",
+    "PrimMinIntDynamicModule_basic",
+    "PrimMinIntModule_basic",
+    "PrimsSqueezeEmptyDimensionsModule_basic",
+    "PrimsSqueezeModule_basic",
+    "PrimsViewOfModule_basic",
+    "PrimsViewOfZeroRankModule_basic",
+    "QuantizedBatchedInputSingleLayer_basic",
+    "QuantizedMLP_basic",
+    "QuantizedNoLayer_basic",
+    "QuantizedSingleLayer_basic",
+    "ReduceMaxAlongDimUnsignedInt_basic",
+    "ReduceMinAlongDimUnsignedInt_basic",
+    "RsubInt0d_NumToTensor_Module_basic",
+    "ScalarConstantTupleModule_basic",
+    "ScalarImplicitFloatModule_basic",
+    "SortIntListReverse_basic",
+    "SortIntList_basic",
+    "SplitDimDynamicModule_basic",
+    "SplitDimStaticModule_basic",
+    "SqrtIntConstantModule_basic",
+    "SqrtIntModule_basic",
+    "SubFloatModule_basic",
+    "TModuleRank0_basic",
+    "TensorToBoolZeroRank_basic",
+    "TensorToBool_basic",
+    "TensorToFloatZeroRank_basic",
+    "TensorToFloat_basic",
+    "TestMultipleTensorAndPrimitiveTypesReturn_basic",
+    "ThresholdBackward2dMixedModule_basic",
+    "TorchPrimLoopForLikeModule_basic",
+    "TorchPrimLoopWhileLikeModule_basic",
+    "UnbindIntGetItem_Module_basic",
+    "UnbindIntListUnpack_Module_basic",
+    "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
+    "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
+    "UpSampleNearest2dDynamicFactor_basic",
+    "ViewCollapseDynamicWithAtenSizeIntModule_basic",
+    "ViewSizeFromOtherTensor_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = {
@@ -743,11 +678,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "NumToTensorIntModule_basic",
     "NumelModule_basic",
     "NumelZeroRankModule_basic",
-    "PixelShuffleModuleFullDynamic_basic",
-    "PixelShuffleModuleSpatiallyDynamic_basic",
-    "PixelShuffleModuleSpatiallyStatic_basic",
-    "PixelShuffleModuleStaticRank3Int64_basic",
-    "PixelShuffleModuleStaticRank4Float32_basic",
     "PowIntFloatModule_basic",
     "PrimMaxIntModule_basic",
     "PrimMinIntDynamicModule_basic",
@@ -1016,6 +946,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseBitwiseRightShiftInt64Module_basic",
     "ElementwiseBitwiseRightShiftInt8Module_basic",
     "ElementwiseCeilModule_basic",
+    "ElementwiseCeluStaticModule_basic",
     "ElementwiseClampMaxModule_basic",
     "ElementwiseClampMinModule_basic",
     "ElementwiseClampMinTensorFloatModule_basic",
@@ -1221,6 +1152,8 @@ STABLEHLO_PASS_SET = {
     "Permute0RankModule_basic",
     "PermuteModule_basic",
     "PermuteNegativeIndexModule_basic",
+    "PixelShuffleModuleStaticRank3Int64_basic",
+    "PixelShuffleModuleStaticRank4Float32_basic",
     "PowIntFloatModule_basic",
     "PrimListUnpackNumMismatchModule_basic",
     "PrimMaxIntModule_basic",
@@ -1304,6 +1237,7 @@ STABLEHLO_PASS_SET = {
     "SliceWholeTensorModule_basic",
     "SortIntListReverse_basic",
     "SortIntList_basic",
+    "SplitDimStaticModule_basic",
     "SplitTensorGetItem_Module_basic",
     "SplitTensorLastSmallerModule_basic",
     "SplitTensorListUnpackModule_basic",
@@ -1496,15 +1430,17 @@ STABLEHLO_PASS_SET = {
     "ElementwiseSinhModule_basic",
     "ElementwiseTruncIntModule_basic",
     "ElementwiseTruncModule_basic",
+    "ElementwiseLogSigmoidModule_basic",
 }
 
-STABLEHLO_CRASHING_SET =  {
+STABLEHLO_CRASHING_SET = {
     "AtenEmbeddingBagSumExample_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "ElementwiseLogSigmoidModule_basic",
     "ElementwiseTruncModule_basic",
     "ElementwiseTruncIntModule_basic",
     "ElementwiseSgnModule_basic",
@@ -1634,6 +1570,8 @@ TOSA_PASS_SET = {
     "ElementwiseBitwiseXorModule_basic",
     "ElementwiseBitwiseXorStaticShapeModule_basic",
     "ElementwiseCeilModule_basic",
+    "ElementwiseCeluModule_basic",
+    "ElementwiseCeluStaticModule_basic",
     "ElementwiseClampMaxModule_basic",
     "ElementwiseClampMinModule_basic",
     "ElementwiseClampModule_basic",
@@ -1947,43 +1885,43 @@ TOSA_PASS_SET = {
     "LinspaceModule_basic",
     "LinspaceOneSizeModule_basic",
     "LinspaceTwoSizeModule_basic",
-    "TorchPrimLoopForLikeTensorArgModule_basic"
+    "TorchPrimLoopForLikeTensorArgModule_basic",
 }
 
-MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
-### Tests additionally passing in make_fx_tosa
-    "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
-    "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
-    "AdaptiveAvgPool1dStaticEvenMultiple_basic",
-    "CosineSimilarityModule_basic",
-    "NativeGroupNormBackwardModule_basic",
-    "ReduceFrobeniusNormKeepDimModule_basic",
-    "ReduceFrobeniusNormModule_basic",
-    "SliceWholeTensorModule_basic",
-    "TensorFloatModule_basic",
-    "TensorIntModule_basic",
-    "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
-    "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
-    "RepeatInterleaveSelfIntModule_basic",
-    "TorchPrimLoopForLikeTensorArgModule_basic",
-    "ViewSizeDimFollowedByCollapsedOnesModule_basic",
-    "ViewSizeDimFollowedByExpandedOnesModule_basic",
-    "ViewSizeDimLedAndFollowedByCollapsedOnesModule_basic",
-    "ViewSizeDimLedByCollapsedOnesModule_basic",
-    "ViewSizeFromOtherTensor_basic",
-}) - {
-### Test failing in make_fx_tosa but not in tosa
-
+MAKE_FX_TOSA_PASS_SET = (
+    TOSA_PASS_SET
+    | {
+        ### Tests additionally passing in make_fx_tosa
+        "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
+        "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
+        "AdaptiveAvgPool1dStaticEvenMultiple_basic",
+        "CosineSimilarityModule_basic",
+        "NativeGroupNormBackwardModule_basic",
+        "ReduceFrobeniusNormKeepDimModule_basic",
+        "ReduceFrobeniusNormModule_basic",
+        "SliceWholeTensorModule_basic",
+        "TensorFloatModule_basic",
+        "TensorIntModule_basic",
+        "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
+        "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
+        "RepeatInterleaveSelfIntModule_basic",
+        "TorchPrimLoopForLikeTensorArgModule_basic",
+        "ViewSizeDimFollowedByCollapsedOnesModule_basic",
+        "ViewSizeDimFollowedByExpandedOnesModule_basic",
+        "ViewSizeDimLedAndFollowedByCollapsedOnesModule_basic",
+        "ViewSizeDimLedByCollapsedOnesModule_basic",
+        "ViewSizeFromOtherTensor_basic",
+    }
+) - {
+    ### Test failing in make_fx_tosa but not in tosa
     # Dynamic shape, has extra unsupported broadcast ops
     "Matmul_3d",
     "MatmulStaticBroadcast_basic",
-
     # failed to legalize operation 'torch.aten.max_pool2d_with_indices
     "MaxPool2dEmptyStrideStaticModule_basic",
     "MaxPool2dStaticCeilModeTrueModule_basic",
     "MaxPool2dStaticModule_basic",
     "ResNet18StaticModule_basic",
-
     # Unimplemented operator 'aten._index_put_impl_.hacked_twin'
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
     "IndexPutImpl1DIntNonAccumulateModule_basic",
@@ -1992,18 +1930,15 @@ MAKE_FX_TOSA_PASS_SET = (TOSA_PASS_SET | {
     # failed to legalize operation 'torch.aten.to.dtype' that was explicitly marked illegal
     "AtenEyeModuleInt2D_basic",
     "AtenEyeMModuleInt2D_basic",
-
     "Conv2dBiasNoPaddingModule_basic",
     "Conv2dNoPaddingModule_basic",
     "Conv2dWithPaddingDilationStrideModule_basic",
     "Conv2dWithPaddingModule_basic",
-
     "AtenInstanceNormModule_basic",
-    
     # failed to legalize operation 'torch.operator'
     "ElementwisePreluModule_basic",
-    "ElementwisePreluStaticModule_basic", 
-
+    "ElementwisePreluStaticModule_basic",
+    "ElementwiseLogSigmoidModule_basic",
     # Shape Related failures
     "PrimListUnpackNumMismatchModule_basic",
     "ReshapeExpandModule_basic",
@@ -2025,8 +1960,7 @@ LTC_CRASHING_SET = {
 }
 
 LTC_XFAIL_SET = {
-    "TorchPrimLoopForLikeTensorArgModule_basic"
-    "CollapseAllDimensionsModule_basic",
+    "TorchPrimLoopForLikeTensorArgModule_basic" "CollapseAllDimensionsModule_basic",
     "CollapseRank1DynamicModule_basic",
     "CollapseStaticModule_basic",
     "CollapsePartialDynamicModule_basic",
@@ -2168,7 +2102,6 @@ LTC_XFAIL_SET = {
 ONNX_XFAIL_SET = {
     # Failure - cast error
     "PermuteNegativeIndexModule_basic",
-    
     # Failure - expand multiple dynamic dims
     "EmbeddingModuleF16_basic",
     "EmbeddingModuleI32_basic",
@@ -2180,7 +2113,6 @@ ONNX_XFAIL_SET = {
     "IndexTensorMultiInputContiguousOneDimDynamic_basic",
     "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
     "IndexTensorSelectDimModule_basic",
-    
     # Failure - incorrect numerics
     "AvgPool2dDivisorOverrideModule_basic",
     "BroadcastDynamicDimModule_basic",
@@ -2190,7 +2122,6 @@ ONNX_XFAIL_SET = {
     "ElementwiseAtenFloorDivideTensorNegativeModule_basic",
     "ElementwiseLog10IntModule_basic",
     "ElementwiseLog2IntModule_basic",
-    "ElementwiseSeluModule_basic",
     "FlipModuleStaticShape_basic",
     "FlipNegativeIndexModule_basic",
     "HardsigmoidModule_basic",
@@ -2217,14 +2148,12 @@ ONNX_XFAIL_SET = {
     "StdCorrectionLargeInputModule_basic",
     "TupleModule_basic",
     "VarCorrectionLargeInputModule_basic",
-    
     # Failure - incorrect shape
     "ArangeStartOutDtypeModule_basic",
     "ArangeStartOutViewModule_basic",
     "MoveDimIntNegativeIndexModule_basic",
     "ReduceL3NormKeepDimModule_basic",
     "ViewSizeFromOtherTensor_basic",
-    
     # Failure - onnx_export
     "AdaptiveAvgPool1dGeneralDynamic_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeDynamicModule_basic",
@@ -2625,10 +2554,8 @@ ONNX_XFAIL_SET = {
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
     "_SoftmaxModule_basic",
-    
     # Failure - onnx_lowering: onnx.AveragePool
     "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
-    
     # Failure - onnx_lowering: onnx.If
     "DiagonalModule_basic",
     "DiagonalModule_nonsquare",
@@ -2639,15 +2566,10 @@ ONNX_XFAIL_SET = {
     "DiagonalModule_with_offset",
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
-    
     # Failure - onnx_lowering: onnx.MaxPool
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
     "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
     "MaxPool2dWithIndicesStaticModule_basic",
-    
-    # Failure - onnx_lowering: onnx.OneHot
-    "OneHotModule_basic",
-
     # Failure - onnx_lowering: onnx.ReduceProd
     "ReduceProdFloatModule_basic",
     "ReduceProdDtypeFloatModule_basic",
@@ -2655,7 +2577,6 @@ ONNX_XFAIL_SET = {
     "ReduceProdUnsignedIntModule_basic",
     "ReduceProdSignedIntModule_basic",
     "ReduceProdDtypeIntModule_basic",
-    
     # ERROR: dtype (torch.float32) is not equal to golden dtype (torch.float64)
     "RandnDtypeDeviceModule_basic",
     "RandnGeneratorF64Module_basic",
@@ -2665,21 +2586,17 @@ ONNX_XFAIL_SET = {
     "BernoulliFloatModule_basic",
     "BernoulliPModule_basic",
     "BernoulliTensorModule_basic",
-    
     # Failure - onnx_lowering: onnx.ReduceProd
     "ReduceProdDimIntFloatModule_basic",
-    
     # Failure - onnx_lowering: onnx.Resize
     "UpSampleNearest2dDynamicSize_basic",
     "UpSampleNearest2dStaticSize_basic",
-    
     # Failure - onnx_lowering: onnx.ScatterElements
     "ScatterReduceFloatMaxModuleIncludeSelf",
     "ScatterReduceFloatMinModuleIncludeSelf",
     "ScatterReduceIntMaxModuleIncludeSelf",
     "ScatterReduceIntMinModuleIncludeSelf",
     "ScatterValueFloatModule_basic",
-    
     # Failure - onnx_lowering: onnx.ScatterND
     "IndexPut1DFloatAccumulateModule_basic",
     "IndexPut1DFloatNonAccumulateModule_basic",
@@ -2705,14 +2622,11 @@ ONNX_XFAIL_SET = {
     "IndexPutHackedTwin3DFloatNonAccumulateModule_basic",
     "IndexPutHackedTwin3DIntAccumulateModule_basic",
     "IndexPutHackedTwin3DIntNonAccumulateModule_basic",
-    
     # Failure - onnx_lowering: onnx.SoftmaxCrossEntropyLoss
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
-
     # RuntimeError: unsupported input type: Device
     "PrimsIotaModule_basic",
-
     # Failure - unknown
     "BernoulliModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
@@ -2720,8 +2634,6 @@ ONNX_XFAIL_SET = {
     "CopyWithDifferentDTypesModule_basic",
     "CosineSimilarityStaticBroadcastModule_basic",
     "CumsumInputDtypeInt32Module_basic",
-    "DropoutTrainModule_basic",
-    "DropoutTrainStaticShapeModule_basic",
     "ElementwiseAcosIntModule_basic",
     "ElementwiseAsinIntModule_basic",
     "ElementwiseAtanTensorIntModule_basic",
@@ -2750,14 +2662,14 @@ if torch_version_for_comparison() >= version.parse("2.4.0.dev"):
         "ReduceL1NormWithDTypeModule_basic",
     }
 
-if torch_version_for_comparison() < version.parse('2.3.0.dev'):
+if torch_version_for_comparison() < version.parse("2.3.0.dev"):
     ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
         # ERROR: shape (torch.Size([6, 4, 5])) is not equal to golden shape (torch.Size([120]))
         "RepeatInterleaveSelfIntNoDimModule_basic",
     }
 
 
-ONNX_CRASHING_SET = { 
+ONNX_CRASHING_SET = {
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
     "ElementwisePreluModule_basic",

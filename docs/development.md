@@ -26,6 +26,19 @@ python -m pip install -r requirements.txt
 python -m pip install -r torchvision-requirements.txt
 ```
 
+## (Optional) Set up pre-commit
+
+This project uses [pre-commit](https://pre-commit.com/) in its CI. You can
+install it locally too in order to lint and fix your code prior to the CI
+complaining about it.
+
+```shell
+pip install pre-commit
+# You can run interactively with `pre-commit run`
+# or install hooks so it runs automatically:
+pre-commit install
+```
+
 ## CMake Build
 
 Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
