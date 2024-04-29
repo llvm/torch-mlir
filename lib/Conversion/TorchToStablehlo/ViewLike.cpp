@@ -414,34 +414,44 @@ LogicalResult ConvertAtenOp<PrimsCollapseOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "only constant end is currently supported");
 
-  start = toPositiveDim(start, rank);
-  end = toPositiveDim(end, rank);
-  SmallVector<int64_t, 4> dims;
-  dims.reserve(rank);
-  for (int r = 0; r < start; ++r)
-    dims.push_back(r);
-  int64_t collapsedDimSize = 1;
-  for (int r = start; r <= end; ++r) {
-    if (selfType.getShape()[r] == ShapedType::kDynamic)
-      return rewriter.notifyMatchFailure(
-          op, "the size of the dimension being collapsed is can't be unknown");
-    collapsedDimSize *= selfType.getShape()[r];
-  }
-  dims.push_back(collapsedDimSize);
-  for (int r = end + 1; r < rank; ++r)
-    dims.push_back(r);
+  auto collapseTensorInfo = hlo::collapseTensor(
+      rewriter, op, adaptor.getA(), start, end, options.dimSizeIndexBits);
+  if (failed(collapseTensorInfo))
+    return rewriter.notifyMatchFailure(op, "failed to create collapsed tensor");
 
-  auto newDimSizesInfo = hlo::getDimSizesOfTensor(
-      rewriter, op, adaptor.getA(), dims, options.dimSizeIndexBits);
-  if (failed(newDimSizesInfo))
+  rewriter.replaceOp(op, *collapseTensorInfo);
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<PrimsSplitDimOp>::matchAndRewrite(
+    PrimsSplitDimOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto selfType = adaptor.getA().getType().dyn_cast<TensorType>();
+  if (!selfType) {
+    return op.emitError("only tensor types are currently supported");
+  }
+
+  auto rank = selfType.getRank();
+  if (rank == 0)
     return rewriter.notifyMatchFailure(
-        op, "failed to get dimension sizes of the input");
-  auto newDimSizes = *newDimSizesInfo;
-  auto stablehloShape =
-      rewriter.create<tensor::FromElementsOp>(op.getLoc(), newDimSizes);
-  rewriter.replaceOpWithNewOp<stablehlo::DynamicReshapeOp>(
-      op, getTypeConverter()->convertType(op.getType()), adaptor.getA(),
-      stablehloShape);
+        op, "the rank of tensor must be greater than 0");
+
+  int64_t dim, outerLength;
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(
+        op, "only constant dim is currently supported");
+  if (!matchPattern(op.getOuterLength(), m_TorchConstantInt(&outerLength)))
+    return rewriter.notifyMatchFailure(
+        op, "only constant outerLength is currently supported");
+
+  auto splitTensorInfo = hlo::splitTensor(
+      rewriter, op, adaptor.getA(), dim, outerLength, options.dimSizeIndexBits);
+
+  if (failed(splitTensorInfo))
+    return rewriter.notifyMatchFailure(op, "failed to create split tensor");
+
+  rewriter.replaceOp(op, *splitTensorInfo);
   return success();
 }
 
@@ -458,6 +468,7 @@ void mlir::torch::torch_to_stablehlo::populateViewLikeOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenSqueezeDimOp);
   INSERT_ATENOP_PATTERN(AtenUnsqueezeOp);
   INSERT_ATENOP_PATTERN(PrimsCollapseOp);
+  INSERT_ATENOP_PATTERN(PrimsSplitDimOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_VIEW_OP_PATTERN(AtenOp)                                         \
