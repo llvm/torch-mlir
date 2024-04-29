@@ -1154,7 +1154,7 @@ STABLEHLO_PASS_SET = {
     "PermuteNegativeIndexModule_basic",
     "PixelShuffleModuleStaticRank3Int64_basic",
     "PixelShuffleModuleStaticRank4Float32_basic",
-    "PixelUnshuffleModuleStaticRank3Int64_basic",
+    "PixelUnshuffleModuleStaticRank3int64_basic",
     "PixelUnshuffleModuleStaticRank4Float32_basic",
     "PowIntFloatModule_basic",
     "PrimListUnpackNumMismatchModule_basic",
