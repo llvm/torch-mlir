@@ -1005,6 +1005,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseSqrtModule_basic",
     "ElementwiseTanIntModule_basic",
     "ElementwiseTanModule_basic",
+    "ElementwiseTernaryStaticShapeModule_basic",
     "ElementwiseToDtypeF32ToI64Module_basic",
     "ElementwiseToDtypeI64ToI8Module_basic",
     "ElementwiseToDtypeIdentityModule_basic",
@@ -1441,6 +1442,7 @@ STABLEHLO_CRASHING_SET = {
 # and very few tests work yet.
 TOSA_PASS_SET = {
     "ElementwiseLogSigmoidModule_basic",
+    "ElementwiseTernaryStaticShapeModule_basic",
     "ElementwiseTruncModule_basic",
     "ElementwiseTruncIntModule_basic",
     "ElementwiseSgnModule_basic",

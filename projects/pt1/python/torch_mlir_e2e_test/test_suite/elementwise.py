@@ -414,6 +414,31 @@ def ElementwiseTernaryModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseTernaryStaticShapeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 4, 3], torch.float32, True),
+            ([4, 3], torch.float32, True),
+            ([3], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b, c):
+        return torch.lerp(a, b, c)
+
+
+@register_test_case(module_factory=lambda: ElementwiseTernaryStaticShapeModule())
+def ElementwiseTernaryStaticShapeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 3), tu.rand(4, 3), tu.rand(3))
+
+
+# ==============================================================================
+
+
 class ElementwiseAtenWhereSelfModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
