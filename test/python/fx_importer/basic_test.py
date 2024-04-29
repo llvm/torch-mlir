@@ -126,7 +126,9 @@ def test_broadcast_with_dynamic_shapes():
         "y": {0: dim_0},
     }
 
-    m = fx.export_and_import(Basic(), x, y, dynamic_shapes=dynamic_shapes, func_name="test_net")
+    m = fx.export_and_import(
+        Basic(), x, y, dynamic_shapes=dynamic_shapes, func_name="test_net"
+    )
     print(m)
 
 
