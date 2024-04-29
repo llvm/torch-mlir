@@ -17,10 +17,10 @@ class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.linear = torch.nn.quantized.Linear(5, 2, dtype=torch.qint8)
-        self.linear_no_bias = torch.nn.quantized.Linear(6,
-                                                        2,
-                                                        bias_=False,
-                                                        dtype=torch.qint8)
+        self.linear_no_bias = torch.nn.quantized.Linear(
+            6, 2, bias_=False, dtype=torch.qint8
+        )
+
     # CHECK: %[[SCALE:.*]] = torch.constant.float
     # CHECK: %[[ZERO_POINT:.*]] = torch.constant.int 0
     # CHECK: %[[INT_REPR:.*]] = torch.tensor.literal({{.*}}) : !torch.tensor<[2,5],si8>

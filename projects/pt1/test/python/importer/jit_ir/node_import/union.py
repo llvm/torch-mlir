@@ -14,11 +14,13 @@ mb = ModuleBuilder()
 # CHECK-LABEL:   func.func @__torch__.f(
 # CHECK-SAME:                      %{{.*}}: !torch.union<float, int>) -> !torch.none {
 
+
 @mb.import_function
 @torch.jit.script
 def f(x: Union[int, float]):
-  return
- 
+    return
+
+
 assert isinstance(f, torch.jit.ScriptFunction)
 mb.module.operation.print()
 print()

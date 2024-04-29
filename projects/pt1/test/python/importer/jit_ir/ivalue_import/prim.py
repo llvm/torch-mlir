@@ -11,6 +11,7 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -25,12 +26,14 @@ class TestModule(torch.nn.Module):
         self.t1 = self.t2
         # CHECK: torch.prim.CallMethod %[[SELF]]["callee"] (%{{.*}}, %{{.*}})
         self.callee(self.t1, self.t2)
+
     # CHECK-LABEL:   func.func private @__torch__.TestModule.callee(
     # CHECK-SAME:         %[[SELF:.*]]: !torch.nn.Module<"{{.*}}">,
     # CHECK-SAME:         %[[X:.*]]: !torch.tensor,
     # CHECK-SAME:         %[[Y:.*]]: !torch.tensor
     def callee(self, x, y):
         pass
+
 
 test_module = TestModule()
 recursivescriptmodule = torch.jit.script(test_module)

@@ -28,6 +28,7 @@ def f(b: bool, i: int):
     else:
         return i * i
 
+
 assert isinstance(f, torch.jit.ScriptFunction)
 mb.module.operation.print()
 print()

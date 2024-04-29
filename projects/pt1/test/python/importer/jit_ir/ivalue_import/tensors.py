@@ -11,6 +11,7 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -23,14 +24,19 @@ class TestModule(torch.nn.Module):
         # Because bools turn anything that is non-zero into `True`, it is
         # important to check a series of `True`s and `False`s to make sure the
         # actual values are being imported rather than just garbage.
-        self.bool_ = torch.tensor([True, False, True, False, True, False], dtype=torch.bool)
+        self.bool_ = torch.tensor(
+            [True, False, True, False, True, False], dtype=torch.bool
+        )
         self.ones_bf16 = torch.ones(1, dtype=torch.bfloat16)
         self.ones_f16 = torch.ones(1, dtype=torch.half)
         self.ones_ui8 = torch.ones(1, dtype=torch.uint8)
         self.ones_i8 = torch.ones(1, dtype=torch.int8)
-        self.ones_qint8 =  torch.quantize_per_tensor(torch.ones(1), 1.0, 0, torch.qint8)
-        self.ones_quint8 =  torch.quantize_per_tensor(torch.ones(1), 1.0, 0, torch.quint8)
+        self.ones_qint8 = torch.quantize_per_tensor(torch.ones(1), 1.0, 0, torch.qint8)
+        self.ones_quint8 = torch.quantize_per_tensor(
+            torch.ones(1), 1.0, 0, torch.quint8
+        )
         self.arange = torch.nn.Parameter(torch.arange(3.0))
+
 
 # CHECK: %[[ARANGE:.*]] = torch.tensor.literal(dense<[0.000000e+00, 1.000000e+00, 2.000000e+00]> : tensor<3xf32>) : !torch.tensor<[3],f32>
 # CHECK: %[[ONES:.*]] = torch.tensor.literal(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor<[1],f32>

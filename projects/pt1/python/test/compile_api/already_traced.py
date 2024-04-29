@@ -8,9 +8,11 @@
 import torch
 from torch_mlir import torchscript
 
+
 class BasicModule(torch.nn.Module):
     def forward(self, x):
         return torch.ops.aten.sin(x)
+
 
 example_arg = torch.ones(2, 3)
 example_args = torchscript.ExampleArgs.get(example_arg)
@@ -23,6 +25,8 @@ print(torchscript.compile(traced, example_args))
 traced = torch.jit.trace(BasicModule(), example_arg)
 try:
     # CHECK: Model does not have exported method 'nonexistent', requested in `example_args`. Consider adding `@torch.jit.export` to the method definition.
-    torchscript.compile(traced, torchscript.ExampleArgs().add_method("nonexistent", example_arg))
+    torchscript.compile(
+        traced, torchscript.ExampleArgs().add_method("nonexistent", example_arg)
+    )
 except Exception as e:
     print(e)

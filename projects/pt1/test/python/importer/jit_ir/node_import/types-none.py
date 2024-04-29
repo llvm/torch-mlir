@@ -17,6 +17,7 @@ def returns_none():
     # CHECK-NEXT: return %[[NONE]]
     pass
 
+
 assert isinstance(returns_none, torch.jit.ScriptFunction)
 mb.module.operation.print()
 print()

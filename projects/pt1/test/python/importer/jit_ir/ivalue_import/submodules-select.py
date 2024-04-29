@@ -11,12 +11,15 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 class Submodule(torch.nn.Module):
     def __init__(self, n):
         super().__init__()
         self.n = n
+
     def forward(self):
-       return self.n
+        return self.n
+
 
 class TestModule(torch.nn.Module):
     def __init__(self):

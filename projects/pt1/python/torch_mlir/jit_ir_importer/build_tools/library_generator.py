@@ -15,23 +15,30 @@ from torch_mlir.passmanager import PassManager
 
 from .registry import Registry
 
+
 def all_integer_dtypes() -> List[int]:
     return [torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64]
+
 
 def is_integer_dtype(dtype: int) -> bool:
     return dtype in all_integer_dtypes()
 
+
 def all_complex_dtypes() -> List[int]:
     return [torch.complex64, torch.complex128]
+
 
 def is_complex_dtype(dtype: int) -> bool:
     return dtype in all_complex_dtypes()
 
+
 def all_float_dtypes() -> List[int]:
     return [torch.float16, torch.bfloat16, torch.float32, torch.float64]
 
+
 def is_float_dtype(dtype: int) -> bool:
     return dtype in all_float_dtypes()
+
 
 def get_priority_of_dtype(dtype: int) -> int:
     # If a loop is used to iterate over a list of sorted dtypes, TorchScript
@@ -64,6 +71,7 @@ def get_priority_of_dtype(dtype: int) -> int:
         return 11
     assert False, "Cannot determine priority of dtype"
 
+
 def get_dtype_of_scalar(scalar: Union[int, float, complex]) -> int:
     # This is hacky. `NumToTensor` is the only PyTorch op for scalars
     # that when `jit.script`ed converts a float scalar to a tensor
@@ -83,6 +91,7 @@ def get_dtype_of_scalar(scalar: Union[int, float, complex]) -> int:
     # op.
     return torch.ops.prim.NumToTensor(scalar).dtype
 
+
 # When we import into torch-mlir, only the calls to
 # `__torch_mlir_internal_promote_dtypes` are used to generate the
 # `torch.promote_dtypes` ops. Therefore, to avoid generating extra
@@ -97,23 +106,29 @@ def _get_scalar_with_dtype(dtype: torch.dtype) -> Union[int, float]:
     else:
         raise ValueError(f"Unhandled dtype: {dtype}")
 
+
 @torch.jit.ignore
-def _promote_scalar_tensor(scalar_dtype: torch.dtype, tensor_rank: int,
-                           tensor_dtype: torch.dtype) -> torch.dtype:
+def _promote_scalar_tensor(
+    scalar_dtype: torch.dtype, tensor_rank: int, tensor_dtype: torch.dtype
+) -> torch.dtype:
     scalar = _get_scalar_with_dtype(scalar_dtype)
     tensor = torch.rand([1] * tensor_rank).to(tensor_dtype)
     return torch.result_type(scalar, tensor)
 
+
 @torch.jit.ignore
-def _promote_tensor_tensor(lhs_rank: int, lhs_dtype: torch.dtype,
-                           rhs_rank: int, rhs_dtype: torch.dtype) -> torch.dtype:
+def _promote_tensor_tensor(
+    lhs_rank: int, lhs_dtype: torch.dtype, rhs_rank: int, rhs_dtype: torch.dtype
+) -> torch.dtype:
     lhs_tensor = torch.rand([1] * lhs_rank).to(lhs_dtype)
     rhs_tensor = torch.rand([1] * rhs_rank).to(rhs_dtype)
     return torch.result_type(lhs_tensor, rhs_tensor)
 
+
 @torch.jit.ignore
-def _promote_scalar_scalar(lhs_dtype: torch.dtype,
-                           rhs_dtype: torch.dtype) -> torch.dtype:
+def _promote_scalar_scalar(
+    lhs_dtype: torch.dtype, rhs_dtype: torch.dtype
+) -> torch.dtype:
     # When `torch.result_type` is used on two scalars, the result
     # dtype is the dtype one would expect for an op with signature
     # (Scalar, Scalar) -> (Tensor). However, once a module gets
@@ -122,15 +137,17 @@ def _promote_scalar_scalar(lhs_dtype: torch.dtype,
     # dtype, we use the tensor-tensor promotion rules.
     return _promote_tensor_tensor(0, lhs_dtype, 0, rhs_dtype)
 
-def promote_dtypes(ranks: List[Optional[int]],
-                   dtypes: List[torch.dtype]) -> torch.dtype:
-    """Apply PyTorch dtype promotion rules and return the result type.
-    """
+
+def promote_dtypes(
+    ranks: List[Optional[int]], dtypes: List[torch.dtype]
+) -> torch.dtype:
+    """Apply PyTorch dtype promotion rules and return the result type."""
     return __torch_mlir_internal_promote_dtypes(ranks, dtypes)
 
-def __torch_mlir_internal_promote_dtypes(ranks: List[Optional[int]],
-                                         dtypes: List[torch.dtype]
-                                         ) -> torch.dtype:
+
+def __torch_mlir_internal_promote_dtypes(
+    ranks: List[Optional[int]], dtypes: List[torch.dtype]
+) -> torch.dtype:
     """Apply PyTorch dtype promotion rules and return the result type.
 
     This function serves two purposes:
@@ -145,17 +162,17 @@ def __torch_mlir_internal_promote_dtypes(ranks: List[Optional[int]],
         if lhs_optional_rank is None and rhs_optional_rank is None:
             lhs_dtype = _promote_scalar_scalar(lhs_dtype, rhs_dtype)
         elif lhs_optional_rank is None and rhs_optional_rank is not None:
-            lhs_dtype = _promote_scalar_tensor(
-                lhs_dtype, rhs_optional_rank, rhs_dtype)
+            lhs_dtype = _promote_scalar_tensor(lhs_dtype, rhs_optional_rank, rhs_dtype)
             lhs_optional_rank = rhs_optional_rank
         elif lhs_optional_rank is not None and rhs_optional_rank is None:
-            lhs_dtype = _promote_scalar_tensor(
-                rhs_dtype, lhs_optional_rank, lhs_dtype)
+            lhs_dtype = _promote_scalar_tensor(rhs_dtype, lhs_optional_rank, lhs_dtype)
         elif lhs_optional_rank is not None and rhs_optional_rank is not None:
             lhs_dtype = _promote_tensor_tensor(
-                lhs_optional_rank, lhs_dtype, rhs_optional_rank, rhs_dtype)
+                lhs_optional_rank, lhs_dtype, rhs_optional_rank, rhs_dtype
+            )
             lhs_optional_rank = max(lhs_optional_rank, rhs_optional_rank)
     return lhs_dtype
+
 
 def not_present_in_registry(f):
     """Decorator for abstract interpretation functions not present in the registry.
@@ -175,6 +192,7 @@ def not_present_in_registry(f):
     f._not_present_in_registry = None
     return f
 
+
 def _verify_signature_matches_registry(f, registry: Registry):
     source = inspect.getsource(f)
     signature = None
@@ -183,7 +201,9 @@ def _verify_signature_matches_registry(f, registry: Registry):
             signature = line
             break
     assert signature is not None, f"Could not find signature for {f.__name__}"
-    assert "〡" in signature, f"Malformed signature {signature}. Signature missing the character `〡`"
+    assert (
+        "〡" in signature
+    ), f"Malformed signature {signature}. Signature missing the character `〡`"
     function_name, function_kind = f.__name__.split("〡")
     atoms = function_name.split("〇")
     if len(atoms) == 2:
@@ -203,7 +223,10 @@ def _verify_signature_matches_registry(f, registry: Registry):
     else:
         raise ValueError(f"Invalid Op signature function kind: '{function_kind}'")
     if signature != expected_signature:
-        raise ValueError(f"Signature mismatch for {f.__name__!r}: expected {expected_signature!r}, got {signature!r}")
+        raise ValueError(
+            f"Signature mismatch for {f.__name__!r}: expected {expected_signature!r}, got {signature!r}"
+        )
+
 
 def generate_library(functions: Dict[str, Any]) -> str:
     """Convert all op functions in `functions` into MLIR."""
@@ -245,11 +268,13 @@ def generate_library(functions: Dict[str, Any]) -> str:
     # the format: `__torch__.{namespace_1}.{namespace_2}...{op_name}`
     # The extra namespaces are not part of the abstract interpretation
     # function name, so here we simply drop the extra namespaces.
-    namespace = fr"(?:{name}\.)"
+    namespace = rf"(?:{name}\.)"
 
-    asm = re.sub(fr'@"__torch__\.{namespace}*({name}){circle}({name}){line}({name})"',
-                 fr'@"__torch_mlir_\3_fn.\1{circle}\2"',
-                 asm)
+    asm = re.sub(
+        rf'@"__torch__\.{namespace}*({name}){circle}({name}){line}({name})"',
+        rf'@"__torch_mlir_\3_fn.\1{circle}\2"',
+        asm,
+    )
 
     # Put the `〇` back to a regular `.`.
     asm = asm.replace(codecs.decode(circle, "unicode_escape"), ".")
