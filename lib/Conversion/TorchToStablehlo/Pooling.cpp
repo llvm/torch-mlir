@@ -663,8 +663,6 @@ void mlir::torch::torch_to_stablehlo::populatePoolingOpPatternsAndLegality(
 #define INSERT_ATEN_POOLING_PATTERN(AtenOp)                                    \
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context, options)
-  // INSERT_ATEN_POOLING_PATTERN(AtenAvgPool1dOp);
-  // INSERT_ATEN_POOLING_PATTERN(AtenMaxPool2dOp);
   INSERT_ATEN_POOLING_PATTERN(AtenMaxPool2dWithIndicesOp);
   INSERT_ATEN_POOLING_PATTERN(AtenCumsumOp);
 #undef INSERT_ATEN_POOLING_PATTERN
