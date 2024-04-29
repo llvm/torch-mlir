@@ -3,6 +3,7 @@ from torch_mlir import torchscript
 
 from transformers import BertForMaskedLM
 
+
 # Wrap the bert model to avoid multiple returns problem
 class BertTinyWrapper(torch.nn.Module):
     def __init__(self) -> None:
