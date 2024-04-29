@@ -1006,6 +1006,37 @@ def adaptive_avg_pool1d(self: List[int], out: List[int]):
 def aten〇avg_pool1d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), ceil_mode: bool = False, count_include_pad: bool = True) -> List[int]:
     return avg_pool1d(self, kernel_size, stride, padding, ceil_mode, count_include_pad)
 
+
+def max_pool1d(input: List[int], kernel_size: List[int], stride: List[int], padding: List[int], dilation: List[int], ceil_mode: bool):
+    assert len(kernel_size) == 1, "max_pool1d: kernel_size must be a single int"
+    kL = kernel_size[0]
+
+    assert len(stride) == 0 or len(stride) == 1, "max_pool1d: stride must either be omitted, or a single int"
+    dL = kL if len(stride) == 0 else stride[0]
+
+    assert len(padding) == 1, "max_pool1d: padding must be a single int"
+    padL = padding[0]
+
+    assert len(dilation) == 1, "max_pool1d: dilation must be a single int"
+    dilationL = dilation[0]
+
+    assert len(input) == 2 or len(input) == 3
+
+    nbatch = input[-3] if len(input) == 3 else 1
+    nInputPlane = input[-2]
+    inputLength = input[-1]
+
+    outputLength = upstream_shape_functions.pooling_output_shape(
+        inputLength, kL, padL, dL, dilationL, ceil_mode)
+
+    if len(input) == 2:
+        return [nInputPlane, outputLength]
+    else:
+        return [nbatch, nInputPlane, outputLength]
+    
+def aten〇max_pool1d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), dilation: List[int] = (1,), ceil_mode: bool = False) -> List[int]:
+    return max_pool1d(self, kernel_size, stride, padding, dilation, ceil_mode)
+
 def aten〇adaptive_avg_pool1d〡shape(self: List[int], output_size: List[int]) -> List[int]:
     return adaptive_avg_pool1d(self, output_size)
 

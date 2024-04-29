@@ -591,6 +591,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::native_layer_norm : (Tensor, int[], Tensor?, Tensor?, float) -> (Tensor, Tensor, Tensor)"
     )
+    emit("aten::max_pool1d : (Tensor, int[], int[], int[], int[], bool) -> (Tensor)")
     emit("aten::max_pool2d : (Tensor, int[], int[], int[], int[], bool) -> (Tensor)")
     emit(
         "aten::max_pool2d_with_indices : (Tensor, int[], int[], int[], int[], bool) -> (Tensor, Tensor)"
