@@ -21,7 +21,7 @@ endif()
 
 add_mlir_library(TorchMLIRTorchConversionPasses
   BackendTypeConversion.cpp
-  BackendTypeConversionPasses.cpp  
+  BackendTypeConversionPasses.cpp
   Passes.cpp
   ConvertCustomQuantOp.cpp
   UnpackQuantTensor.cpp

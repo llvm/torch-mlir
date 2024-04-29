@@ -30,7 +30,7 @@ dtypeFunctionArgsBuilder(OpBuilder &b, Location loc,
   auto dtypeArgAdjuster = [](OpBuilder &b, Location loc, Value operand,
                              Type desiredType) -> Value {
     if (isa<Torch::TupleType>(desiredType) &&
-        operand.getType().isa<Torch::BaseTensorType>()) {
+        isa<Torch::BaseTensorType>(operand.getType())) {
       Type intType = Torch::IntType::get(b.getContext());
       Type sizeListType = Torch::ListType::get(intType);
       Value size = b.create<AtenSizeOp>(loc, sizeListType, operand);

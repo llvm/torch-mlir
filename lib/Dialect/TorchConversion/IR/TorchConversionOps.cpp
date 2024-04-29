@@ -34,9 +34,9 @@ static bool haveSameSizeAndElementType(TensorType lhs, TensorType rhs) {
 //===----------------------------------------------------------------------===//
 
 LogicalResult ToBuiltinTensorOp::verify() {
-  auto resultType = getResult().getType().cast<TensorType>();
+  auto resultType = cast<TensorType>(getResult().getType());
   auto operandType =
-      getOperand().getType().cast<Torch::ValueTensorType>().toBuiltinTensor();
+      cast<Torch::ValueTensorType>(getOperand().getType()).toBuiltinTensor();
   if (!haveSameSizeAndElementType(resultType, operandType)) {
     return emitError()
            << "operand and result must have the same size and dtype";
@@ -49,7 +49,7 @@ LogicalResult ToBuiltinTensorOp::inferReturnTypes(
     DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto resultType =
-      operands[0].getType().cast<Torch::ValueTensorType>().toBuiltinTensor();
+      cast<Torch::ValueTensorType>(operands[0].getType()).toBuiltinTensor();
   if (!resultType)
     return failure();
   inferredReturnTypes.push_back(resultType);
@@ -62,8 +62,8 @@ LogicalResult ToBuiltinTensorOp::inferReturnTypes(
 
 LogicalResult FromBuiltinTensorOp::verify() {
   auto resultType =
-      getResult().getType().cast<Torch::ValueTensorType>().toBuiltinTensor();
-  auto operandType = getOperand().getType().cast<TensorType>();
+      cast<Torch::ValueTensorType>(getResult().getType()).toBuiltinTensor();
+  auto operandType = cast<TensorType>(getOperand().getType());
   if (!haveSameSizeAndElementType(resultType, operandType)) {
     return emitError()
            << "operand and result must have the same size and dtype";

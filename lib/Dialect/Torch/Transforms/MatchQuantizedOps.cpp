@@ -62,7 +62,7 @@ public:
           op.getLoc(), op.getOperand(0).getType(), op.getOperand(0),
           op.getOperand(3), op.getOperand(4));
 
-      auto clampTy = clamp.getType().cast<Torch::ValueTensorType>();
+      auto clampTy = cast<Torch::ValueTensorType>(clamp.getType());
       if (!clampTy.hasDtype())
         return rewriter.notifyMatchFailure(op,
                                            "dequantization has unknown dtype");

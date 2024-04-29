@@ -251,6 +251,9 @@ def aten〇trunc〡shape(self: List[int]) -> List[int]:
 def aten〇log〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇log_sigmoid〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇mish〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -521,6 +524,9 @@ def aten〇elu〡shape(self: List[int], alpha: float = 1, scale: float = 1, inpu
     return upstream_shape_functions.unary(self)
 
 def aten〇prelu〡shape(self: List[int], weight: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇celu〡shape(self: List[int], alpha: float = 1.) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇selu〡shape(self: List[int]) -> List[int]:
@@ -2083,6 +2089,12 @@ def aten〇log1p〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}))
+def aten〇log_sigmoid〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert not self_dtype == torch.bool
+    return self_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇logit〡dtype(self_rank_dtype: Tuple[int, int], eps: Optional[float] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -2641,6 +2653,11 @@ def aten〇prelu〡dtype(self_rank_dtype: Tuple[int, int], weight_rank_dtype: Tu
     self_rank, self_dtype = self_rank_dtype
     weight_rank, weight_dtype = weight_rank_dtype
     assert self_dtype == weight_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, alpha=1.))
+def aten〇celu〡dtype(self_rank_dtype: Tuple[int, int], alpha: Union[int, float, complex] = 1.) -> int:
+    self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}))

@@ -11,12 +11,14 @@ from torch_mlir.jit_ir_importer import ClassAnnotator, ImportOptions, ModuleBuil
 
 mb = ModuleBuilder()
 
+
 class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.ones_i32 = torch.ones(1, dtype=torch.int32)
-        self.ones_qint8 =  torch.quantize_per_tensor(torch.ones(1), 1.0, 0, torch.qint8)
+        self.ones_qint8 = torch.quantize_per_tensor(torch.ones(1), 1.0, 0, torch.qint8)
         self.arange = torch.nn.Parameter(torch.arange(3.0))
+
 
 # CHECK: %[[ARANGE:.*]] = torch.vtensor.literal(dense<[0.000000e+00, 1.000000e+00, 2.000000e+00]> : tensor<3xf32>) : !torch.vtensor<[3],f32>
 # CHECK: %[[ONES_I32:.*]] = torch.vtensor.literal(dense<1> : tensor<1xsi32>) : !torch.vtensor<[1],si32>

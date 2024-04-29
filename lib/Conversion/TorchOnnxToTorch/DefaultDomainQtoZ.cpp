@@ -54,7 +54,7 @@ LogicalResult reducedSumImpl(OpBinder binder,
   SmallVector<Value> axesList;
   Value axesVal;
   if (!binder.tensorOperandAtIndex(axesVal, 1)) {
-    auto inputType = data.getType().dyn_cast<Torch::ValueTensorType>();
+    auto inputType = dyn_cast<Torch::ValueTensorType>(data.getType());
     if (!inputType.hasSizes() || !resultType.hasSizes()) {
       return rewriter.notifyMatchFailure(
           binder.op, "unimplemented: expected input and result to have shapes");
@@ -97,7 +97,7 @@ LogicalResult reducedSumImpl(OpBinder binder,
     }
     if (axesList.empty()) {
       Torch::BaseTensorType axesType =
-          axesVal.getType().cast<Torch::BaseTensorType>();
+          cast<Torch::BaseTensorType>(axesVal.getType());
       auto axesTy = dyn_cast<Torch::ValueTensorType>(axesVal.getType());
       auto axesShape = axesTy.getSizes();
       if (axesShape.size() != 1 || axesShape[0] == Torch::kUnknownSize)
@@ -177,7 +177,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value scale = operands[1];
         Value zeropoint = operands[2];
 
-        auto scaleTy = scale.getType().dyn_cast<Torch::ValueTensorType>();
+        auto scaleTy = dyn_cast<Torch::ValueTensorType>(scale.getType());
         if (!scaleTy || !scaleTy.hasSizes())
           return rewriter.notifyMatchFailure(binder.op, "requires known rank");
         if (!resultType.hasDtype())
@@ -241,7 +241,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value c = operands.size() == 9 ? operands[8] : nullptr;
 
         auto check = [](Value v) {
-          auto vTy = v.getType().cast<Torch::ValueTensorType>();
+          auto vTy = cast<Torch::ValueTensorType>(v.getType());
           return llvm::all_of(vTy.getSizes(), [](int64_t d) { return d == 1; });
         };
         if (!check(aScale) || !check(aZp) || !check(bScale) || !check(bZp) ||
@@ -250,7 +250,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "not supported for non per-tensor quantization");
 
         auto extract = [&rewriter, &binder](Value v) {
-          auto vTy = v.getType().cast<Torch::ValueTensorType>();
+          auto vTy = cast<Torch::ValueTensorType>(v.getType());
           Type extractTy = rewriter.getType<Torch::FloatType>();
           if (isa<IntegerType>(vTy.getDtype()))
             extractTy = rewriter.getType<Torch::IntType>();
@@ -268,7 +268,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         auto make = [&rewriter, &binder](Value v, Value scale,
                                          Value zp) -> Value {
-          auto ty = v.getType().cast<Torch::ValueTensorType>();
+          auto ty = cast<Torch::ValueTensorType>(v.getType());
           auto newTy = getQTorchTypeFromTorchIntType(ty);
           return rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
               binder.getLoc(), newTy, v, scale, zp);
@@ -351,7 +351,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value cZp = operands[7];
 
         auto check = [](Value v) {
-          auto vTy = v.getType().cast<Torch::ValueTensorType>();
+          auto vTy = cast<Torch::ValueTensorType>(v.getType());
           for (auto dim : vTy.getSizes())
             if (dim != 1)
               return false;
@@ -368,7 +368,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 rewriter.getType<Torch::IntType>()),
             ValueRange{});
         auto extract = [&rewriter, &binder, &emptyList](Value v) {
-          auto vTy = v.getType().cast<Torch::ValueTensorType>();
+          auto vTy = cast<Torch::ValueTensorType>(v.getType());
           if (!vTy.getSizes().empty()) {
             vTy = rewriter.getType<Torch::ValueTensorType>(
                 ArrayRef<int64_t>({}), vTy.getOptionalDtype());
@@ -393,7 +393,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         auto make = [&rewriter, &binder](Value v, Value scale,
                                          Value zp) -> Value {
-          auto ty = v.getType().cast<Torch::ValueTensorType>();
+          auto ty = cast<Torch::ValueTensorType>(v.getType());
           auto newTy = getQTorchTypeFromTorchIntType(ty);
           return rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
               binder.getLoc(), newTy, v, scale, zp);
@@ -667,7 +667,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return failure();
 
         Value data = inputOperands[0];
-        auto inputType = data.getType().dyn_cast<Torch::ValueTensorType>();
+        auto inputType = dyn_cast<Torch::ValueTensorType>(data.getType());
         if (!inputType.hasSizes() || !resultType.hasSizes())
           return rewriter.notifyMatchFailure(
               binder.op,
@@ -718,7 +718,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         if (dimList.empty()) {
           Value axes = inputOperands[1];
           Torch::BaseTensorType axesType =
-              axes.getType().cast<Torch::BaseTensorType>();
+              cast<Torch::BaseTensorType>(axes.getType());
           SmallVector<int64_t> selectSizes{1};
           Type selectResultType = axesType.getWithSizesAndDtype(
               selectSizes, axesType.getOptionalDtype());
@@ -760,7 +760,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         if (binder.tensorOperands(data, axes) ||
             binder.tensorResultType(resultType))
           return failure();
-        auto inputType = data.getType().dyn_cast<Torch::ValueTensorType>();
+        auto inputType = dyn_cast<Torch::ValueTensorType>(data.getType());
         if (!inputType.hasSizes() || !resultType.hasSizes())
           return rewriter.notifyMatchFailure(
               binder.op,
@@ -847,14 +847,20 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
   patterns.onOp(
       "Selu", 6, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // y = gamma * (alpha * e^x - alpha) for x <= 0, y = gamma * x for x > 0
         Torch::ValueTensorType resultType;
         float alpha, gamma;
         Value operand;
+        // Refer https://onnx.ai/onnx/operators/onnx__Selu.html for the default
+        // alpha and gamma values.
         if (binder.tensorOperand(operand) ||
-            binder.f32FloatAttr(alpha, "alpha") ||
-            binder.f32FloatAttr(gamma, "gamma") ||
+            binder.f32FloatAttr(alpha, "alpha", 1.67326) ||
+            binder.f32FloatAttr(gamma, "gamma", 1.0507) ||
             binder.tensorResultType(resultType))
           return failure();
+
+        Torch::ValueTensorType inputType =
+            operand.getType().cast<Torch::ValueTensorType>();
 
         Value vAlpha = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
@@ -864,12 +870,31 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getFloatAttr(rewriter.getF64Type(), gamma));
 
-        Value vInputScale = rewriter.create<Torch::ConstantFloatOp>(
+        Value cstOne = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getFloatAttr(rewriter.getF64Type(), 1.0));
 
-        rewriter.replaceOpWithNewOp<Torch::AtenEluOp>(
-            binder.op, resultType, operand, vAlpha, vScale, vInputScale);
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value zeroTensor = rewriter.create<Torch::AtenZerosLikeOp>(
+            binder.getLoc(), resultType, operand, cstNone, cstNone, cstNone,
+            cstNone, cstNone);
+        Value exp = rewriter.create<Torch::AtenExpOp>(binder.getLoc(),
+                                                      resultType, operand);
+        Value expMulAlpha = rewriter.create<Torch::AtenMulScalarOp>(
+            binder.getLoc(), resultType, exp, vAlpha);
+        Value expMulAlphaSubAlpha = rewriter.create<Torch::AtenSubScalarOp>(
+            binder.getLoc(), resultType, expMulAlpha, vAlpha, cstOne);
+        Value neg = rewriter.create<Torch::AtenMulScalarOp>(
+            binder.getLoc(), resultType, expMulAlphaSubAlpha, vScale);
+        Value pos = rewriter.create<Torch::AtenMulScalarOp>(
+            binder.getLoc(), resultType, operand, vScale);
+        Type compareType = inputType.getWithSizesAndDtype(
+            inputType.getOptionalSizes(), rewriter.getI1Type());
+        Value xLessThanZero = rewriter.create<Torch::AtenLtTensorOp>(
+            binder.getLoc(), compareType, operand, zeroTensor);
+
+        rewriter.replaceOpWithNewOp<Torch::AtenWhereSelfOp>(
+            binder.op, resultType, xLessThanZero, neg, pos);
         return success();
       });
   patterns.onOp("ReduceL1", 1,
@@ -925,8 +950,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         // Perform an AtenToDtype op on the squared sum of the operand, stored
         // now in operand itself.
-        auto size = operand.getType()
-                        .dyn_cast<Torch::ValueTensorType>()
+        auto size = dyn_cast<Torch::ValueTensorType>(operand.getType())
                         .getOptionalSizes();
         auto f32ResultType = rewriter.getType<Torch::ValueTensorType>(
             size, rewriter.getF32Type());
@@ -1005,7 +1029,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         Value axesVal;
         if (!binder.tensorOperandAtIndex(axesVal, 1)) {
-          auto inputType = data.getType().dyn_cast<Torch::ValueTensorType>();
+          auto inputType = dyn_cast<Torch::ValueTensorType>(data.getType());
           if (!inputType.hasSizes() || !resultType.hasSizes()) {
             return rewriter.notifyMatchFailure(
                 binder.op,
@@ -1053,7 +1077,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
           if (axesList.empty()) {
             Torch::BaseTensorType axesType =
-                axesVal.getType().cast<Torch::BaseTensorType>();
+                cast<Torch::BaseTensorType>(axesVal.getType());
             auto axesTy = dyn_cast<Torch::ValueTensorType>(axesVal.getType());
             auto axesShape = axesTy.getSizes();
             if (axesShape.size() != 1 || axesShape[0] == Torch::kUnknownSize)
@@ -1191,7 +1215,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // Extract the axes values from the axes operand:
         if (!binder.tensorOperandAtIndex(axes, 1)) {
           Torch::BaseTensorType axesType =
-              axes.getType().cast<Torch::BaseTensorType>();
+              cast<Torch::BaseTensorType>(axes.getType());
           SmallVector<int64_t> selectSizes{1};
           Type selectResultType = axesType.getWithSizesAndDtype(
               selectSizes, axesType.getOptionalDtype());
@@ -1344,7 +1368,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // Extract the axes values from the axes operand:
         if (!binder.tensorOperandAtIndex(axes, 1)) {
           Torch::BaseTensorType axesType =
-              axes.getType().cast<Torch::BaseTensorType>();
+              cast<Torch::BaseTensorType>(axes.getType());
           SmallVector<int64_t> selectSizes{1};
           Type selectResultType = axesType.getWithSizesAndDtype(
               selectSizes, axesType.getOptionalDtype());
@@ -1467,12 +1491,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         auto loc = binder.getLoc();
         auto result0Ty =
-            binder.op->getResult(0).getType().cast<Torch::ValueTensorType>();
-        auto resultNTy = binder.op->getResults()
-                             .back()
-                             .getType()
-                             .cast<Torch::ValueTensorType>();
-        auto selfTy = self.getType().cast<Torch::ValueTensorType>();
+            cast<Torch::ValueTensorType>(binder.op->getResult(0).getType());
+        auto resultNTy = cast<Torch::ValueTensorType>(
+            binder.op->getResults().back().getType());
+        auto selfTy = cast<Torch::ValueTensorType>(self.getType());
 
         int64_t dim = axis;
         if (dim < 0)
@@ -1555,7 +1577,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "Failed to get num_outputs attribute");
 
         auto result0Ty =
-            binder.op->getResult(0).getType().cast<Torch::ValueTensorType>();
+            cast<Torch::ValueTensorType>(binder.op->getResult(0).getType());
         auto selfTy =
             cast<Torch::ValueTensorType>(binder.op->getOperand(0).getType());
 
@@ -1617,7 +1639,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         if (binder.tensorOperand(operand) ||
             binder.tensorResultType(resultType))
           return failure();
-        auto operandType = operand.getType().cast<Torch::ValueTensorType>();
+        auto operandType = cast<Torch::ValueTensorType>(operand.getType());
         TensorType tensorType = operandType.toBuiltinTensor();
         if (!tensorType || !tensorType.hasRank())
           return failure();
@@ -1705,26 +1727,25 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         }
 
         auto context = rewriter.getContext();
-        auto operandTorchTy = operand.getType().cast<Torch::ValueTensorType>();
+        auto operandTorchTy = cast<Torch::ValueTensorType>(operand.getType());
         auto operandTy =
-            operandTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+            dyn_cast<RankedTensorType>(operandTorchTy.toBuiltinTensor());
 
         if (!operandTy)
           return rewriter.notifyMatchFailure(
               binder.op,
               "Expected tensor operator argument to be a ranked tensor type");
 
-        auto startsTorchTy = starts.getType().cast<Torch::ValueTensorType>();
+        auto startsTorchTy = cast<Torch::ValueTensorType>(starts.getType());
         auto startsTy =
-            startsTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+            dyn_cast<RankedTensorType>(startsTorchTy.toBuiltinTensor());
         int startSize = startsTy.getDimSize(0);
 
-        auto endsTorchTy = ends.getType().cast<Torch::ValueTensorType>();
-        auto endsTy =
-            endsTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+        auto endsTorchTy = cast<Torch::ValueTensorType>(ends.getType());
+        auto endsTy = dyn_cast<RankedTensorType>(endsTorchTy.toBuiltinTensor());
         int endSize = endsTy.getDimSize(0);
         auto resultTy =
-            resultTorchType.toBuiltinTensor().dyn_cast<RankedTensorType>();
+            dyn_cast<RankedTensorType>(resultTorchType.toBuiltinTensor());
         if (!resultTy)
           return rewriter.notifyMatchFailure(
               binder.op, "Expected result type to be a ranked tensor type");
@@ -1768,9 +1789,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                          "and their dimensions to match");
 
         if (axes) {
-          auto axesTorchTy = axes.getType().cast<Torch::ValueTensorType>();
+          auto axesTorchTy = cast<Torch::ValueTensorType>(axes.getType());
           auto axesTy =
-              axesTorchTy.toBuiltinTensor().dyn_cast<RankedTensorType>();
+              dyn_cast<RankedTensorType>(axesTorchTy.toBuiltinTensor());
           int64_t numAxes = axesTy.getDimSize(0);
 
           if (!(axesTy && numAxes == endSize))
@@ -1792,7 +1813,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
 
         auto select = [&](Value v, Value k) -> Value {
-          auto ty = v.getType().cast<Torch::ValueTensorType>();
+          auto ty = cast<Torch::ValueTensorType>(v.getType());
           auto sel = rewriter.create<Torch::AtenIndexSelectOp>(
               loc,
               Torch::ValueTensorType::get(ty.getContext(), ArrayRef<int64_t>{1},
@@ -1872,7 +1893,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         }
 
         Torch::BaseTensorType shapeType =
-            shape.getType().cast<Torch::BaseTensorType>();
+            cast<Torch::BaseTensorType>(shape.getType());
         SmallVector<Value> dimList;
         SmallVector<int64_t> selectSizes;
         selectSizes.push_back(1);
@@ -2007,7 +2028,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // instead of using the dynamic axes at operand[1].
         if (!binder.tensorOperandAtIndex(axes, 1)) {
           Torch::BaseTensorType axesType =
-              axes.getType().cast<Torch::BaseTensorType>();
+              cast<Torch::BaseTensorType>(axes.getType());
           auto sizes = axesType.getSizes();
           for (int i = 0; i < sizes[0]; i++) {
             Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
@@ -2136,7 +2157,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // int32, int64 Assuming start, limit and delta to be same type (could
         // they be different?)
         Torch::BaseTensorType startTensorType =
-            start.getType().cast<Torch::BaseTensorType>();
+            cast<Torch::BaseTensorType>(start.getType());
         bool isFloatDType = startTensorType.getDtype().isF64() ||
                             startTensorType.getDtype().isF32();
         bool isIntDType = startTensorType.getDtype().isInteger(16) ||
@@ -2222,7 +2243,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         SmallVector<int64_t> selectSizes;
         selectSizes.push_back(1);
         Torch::BaseTensorType shapeType =
-            repeatDims.getType().cast<Torch::BaseTensorType>();
+            cast<Torch::BaseTensorType>(repeatDims.getType());
         Type selectResultType = shapeType.getWithSizesAndDtype(
             llvm::ArrayRef(selectSizes), shapeType.getOptionalDtype());
         Value zero = rewriter.create<Torch::ConstantIntOp>(

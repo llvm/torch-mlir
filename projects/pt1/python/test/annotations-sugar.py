@@ -11,17 +11,22 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 from torch_mlir.jit_ir_importer import ClassAnnotator
 from torch_mlir.jit_ir_importer.torchscript_annotations import extract_annotations
 
+
 class MmModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
+
     @export
-    @annotate_args([
-        None,
-        ([3, 4], torch.float32, False),
-        ([4, 5], torch.float32, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.float32, False),
+            ([4, 5], torch.float32, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return torch.mm(lhs, rhs)
+
 
 module = MmModule()
 annotator = ClassAnnotator()

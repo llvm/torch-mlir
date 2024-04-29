@@ -23,6 +23,7 @@ class TosaBackendTestConfig(TestConfig):
     This class handles all the common lowering that torch-mlir does before
     reaching the TOSA abstraction level.
     """
+
     def __init__(self, backend: TosaBackend, use_make_fx: bool = False):
         super().__init__()
         self.backend = backend
@@ -31,11 +32,10 @@ class TosaBackendTestConfig(TestConfig):
     def compile(self, program: torch.nn.Module) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
         module = torchscript.compile(
-            program, example_args, output_type="tosa", use_make_fx=self.use_make_fx)
+            program, example_args, output_type="tosa", use_make_fx=self.use_make_fx
+        )
 
         return self.backend.compile(module)
-
-
 
     def run(self, artifact: Any, trace: Trace) -> Trace:
         backend_module = self.backend.load(artifact)
@@ -45,7 +45,6 @@ class TosaBackendTestConfig(TestConfig):
             outputs = getattr(backend_module, item.symbol)(*numpy_inputs)
             output = recursively_convert_from_numpy(outputs)
             result.append(
-                TraceItem(symbol=item.symbol,
-                          inputs=item.inputs,
-                          output=output))
+                TraceItem(symbol=item.symbol, inputs=item.inputs, output=output)
+            )
         return result

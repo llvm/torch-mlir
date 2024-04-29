@@ -24,8 +24,7 @@ def _make_single_op_gm(node) -> torch.fx.GraphModule:
     return torch.fx.GraphModule(torch.nn.Module(), g)
 
 
-def _identity_backend(gm: torch.fx.GraphModule,
-                      example_inputs: List[torch.Tensor]):
+def _identity_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
     """A backend that just runs the given GraphModule as-is."""
     return gm
 
@@ -51,6 +50,7 @@ def _make_last_use_map(g: torch.fx.Graph) -> Dict[torch.fx.Node, List[torch.fx.N
             # Lifetime just ended, so this is the last use.
             seen.add(use)
             last_use_map[user].append(use)
+
     for node in reversed(g.nodes):
         assert not node.kwargs, "kwargs not supported yet"
         torch.fx.map_arg(node.args, lambda n: process_use(node, n))
@@ -84,9 +84,9 @@ def make_lockstep_debug_backend(golden_backend=_identity_backend):
     Returns:
         A backend that compares the wrapped backend to `golden_backend`.
     """
+
     def wrapper(user_backend):
-        def backend(gm: torch.fx.GraphModule,
-                    example_inputs: List[torch.Tensor]):
+        def backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
             # We can ignore the example_inputs since we recompile in lockstep
             # anyway. TorchDynamo should already have appropriate guards in
             # place so that this doesn't change the compilation result.
@@ -96,7 +96,9 @@ def make_lockstep_debug_backend(golden_backend=_identity_backend):
 
             def compiled(*args):
                 env = {}
-                for placeholder, arg in zip([n for n in g.nodes if n.op == "placeholder"], args):
+                for placeholder, arg in zip(
+                    [n for n in g.nodes if n.op == "placeholder"], args
+                ):
                     env[placeholder] = arg
                 # Evaluate the graph one node at a time, comparing the user and
                 # golden backends. This code currently does not support
@@ -111,7 +113,9 @@ def make_lockstep_debug_backend(golden_backend=_identity_backend):
                         continue
                     if node.op == "output":
                         return torch.fx.map_arg(node.args[0], lambda n: env[n])
-                    assert node.op == "call_function", f"call_module/call_method not supported for {node} -- perhaps call make_simple_dynamo_backend first"
+                    assert (
+                        node.op == "call_function"
+                    ), f"call_module/call_method not supported for {node} -- perhaps call make_simple_dynamo_backend first"
                     assert not node.kwargs, "kwargs not supported yet"
                     actual_args = torch.fx.map_arg(node.args, lambda n: env[n])
                     if node not in backend_artifacts:
@@ -128,7 +132,8 @@ def make_lockstep_debug_backend(golden_backend=_identity_backend):
                     assert torch.allclose(user_result, golden_result), (
                         f"User result {user_result} is not close to "
                         f"golden result {golden_result} for "
-                        f"node {node} at {node.stack_trace}")
+                        f"node {node} at {node.stack_trace}"
+                    )
                     # Clean up any tensors that are no longer needed.
                     # TODO: Find a way to test this.
                     # This was tested manually by printing the number of entries
@@ -136,6 +141,9 @@ def make_lockstep_debug_backend(golden_backend=_identity_backend):
                     for dead_node in last_use_map[node]:
                         env.pop(dead_node)
                 assert False, "not reached -- missing 'output' node"
+
             return compiled
+
         return backend
+
     return wrapper
