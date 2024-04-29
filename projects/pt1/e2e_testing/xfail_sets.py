@@ -1943,6 +1943,9 @@ MAKE_FX_TOSA_PASS_SET = (
     "ElementwisePreluModule_basic",
     "ElementwisePreluStaticModule_basic",
     "ElementwiseLogSigmoidModule_basic",
+    # failed to legalize operation 'torch.aten.rrelu_with_noise'
+    "ElementwiseRreluEvalModule_basic",
+    "ElementwiseRreluEvalStaticModule_basic",
     # Shape Related failures
     "PrimListUnpackNumMismatchModule_basic",
     "ReshapeExpandModule_basic",
