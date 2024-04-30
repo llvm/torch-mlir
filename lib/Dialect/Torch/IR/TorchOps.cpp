@@ -140,7 +140,7 @@ static Value getScalarIntValue(Value input, Location loc,
     return nullptr;
 
   Type inputDtype = inputTensorType.getOptionalDtype();
-  if (!inputDtype || !inputDtype.isInteger(64))
+  if (!inputDtype || !(inputDtype.isInteger(64) || inputDtype.isInteger(1)))
     return nullptr;
 
   std::optional<unsigned> inputRank = getTensorRank(input);
@@ -148,10 +148,19 @@ static Value getScalarIntValue(Value input, Location loc,
     return nullptr;
 
   if (auto valueTensorLiteralOp = input.getDefiningOp<ValueTensorLiteralOp>()) {
-    auto val = cast<DenseIntElementsAttr>(valueTensorLiteralOp.getValue())
-                   .getSplatValue<int64_t>();
-    return rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(val));
+    if (inputDtype.isInteger(64)) {
+      auto val = valueTensorLiteralOp.getValue()
+                     .cast<DenseIntElementsAttr>()
+                     .getSplatValue<int64_t>();
+      return rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(val));
+    } else {
+      auto val = valueTensorLiteralOp.getValue()
+                     .cast<DenseIntElementsAttr>()
+                     .getSplatValue<bool>();
+      return rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(val));
+    }
   } else if (auto primNumToTensorScalarOp =
                  input.getDefiningOp<PrimNumToTensorScalarOp>()) {
     return primNumToTensorScalarOp.getA();
@@ -2382,6 +2391,30 @@ OpFoldResult AtenNeStrOp::fold(FoldAdaptor adaptor) {
   auto bStr = adaptor.getB();
   if (aStr && bStr)
     return getI1IntegerAttr(getContext(), aStr != bStr);
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// Aten__Contains__StrListOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten__Contains__StrListOp::fold(FoldAdaptor adaptor) {
+  StringAttr item = dyn_cast<StringAttr>(adaptor.getItem());
+  if (!item)
+    return nullptr;
+
+  if (auto listConstruct = getL().getDefiningOp<Torch::PrimListConstructOp>()) {
+    if (isListPotentiallyMutated(listConstruct))
+      return nullptr;
+  }
+  llvm::SmallVector<std::string> strs;
+  if (matchPattern(getL(), m_TorchListOfConstantStrs(strs))) {
+    for (const auto &str : strs) {
+      if (item.getValue().str() == str)
+        return getI1IntegerAttr(getContext(), true);
+    }
+    return getI1IntegerAttr(getContext(), false);
+  }
   return nullptr;
 }
 

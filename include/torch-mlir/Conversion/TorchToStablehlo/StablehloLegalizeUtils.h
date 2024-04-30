@@ -69,6 +69,17 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
                                  Value tensor, ArrayRef<int64_t> inputUnsqzDims,
                                  size_t dimSizeIndexBits);
 
+// Get a tensor that collapse the specified dimensions of the input tensor
+FailureOr<Value> collapseTensor(PatternRewriter &rewriter, Operation *op,
+                                Value tensor, int64_t collapseStartDim,
+                                int64_t collapseEndDim,
+                                size_t dimSizeIndexBits);
+
+// Get a tensor that splits the specified dimensions of the input tensor
+FailureOr<Value> splitTensor(PatternRewriter &rewriter, Operation *op,
+                             Value tensor, int64_t splitDim,
+                             int64_t outerLength, size_t dimSizeIndexBits);
+
 Value getConstantOfShape(PatternRewriter &rewriter, Location loc,
                          const APFloat &constant, Value shape,
                          TensorType outType);
