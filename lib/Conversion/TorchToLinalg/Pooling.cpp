@@ -80,7 +80,7 @@ computeOutputTensor(Operation *op, ConversionPatternRewriter &rewriter,
                     SmallVectorImpl<int64_t> &dilationInts,
                     SmallVectorImpl<Value> &kernelSizeIntValues,
                     SmallVectorImpl<Value> &outTensorShape, Value initValue) {
-  Type elementType = self.getType().cast<RankedTensorType>().getElementType();
+  Type elementType = cast<RankedTensorType>(self.getType()).getElementType();
   Location loc = op->getLoc();
 
   Value N = getDimOp(rewriter, loc, self, 0);
@@ -116,7 +116,7 @@ static Value padInputTensor(Operation *op, ConversionPatternRewriter &rewriter,
   SmallVector<int64_t> lowPaddingIncludingNC = {0, 0};
   SmallVector<int64_t> highPaddingIncludingNC = {0, 0};
 
-  unsigned selfRank = self.getType().cast<RankedTensorType>().getRank();
+  unsigned selfRank = cast<RankedTensorType>(self.getType()).getRank();
   unsigned paddingIntsSize = paddingInts.size();
 
   if (paddingIntsSize == 2 * (selfRank - 2)) {
@@ -153,7 +153,7 @@ static LogicalResult createPoolingOp(
     SmallVectorImpl<int64_t> &dilationInts, Attribute initValueAttr,
     SmallVectorImpl<Value> &outTensorShape, Value &paddedInput, Value &result) {
   Location loc = op->getLoc();
-  Type elementType = self.getType().cast<RankedTensorType>().getElementType();
+  Type elementType = cast<RankedTensorType>(self.getType()).getElementType();
   if (!isa<mlir::FloatType>(elementType) && !supportNonFPInput)
     return op->emitError("unimplemented: non-floating point type");
 
@@ -214,7 +214,7 @@ private:
                                    bool ceilMode) const {
     SmallVector<Value, 5> outTensorShape;
     Value self = adaptor.getSelf();
-    Type elementType = self.getType().cast<RankedTensorType>().getElementType();
+    Type elementType = cast<RankedTensorType>(self.getType()).getElementType();
     TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
         elementType,
         APFloat::getInf(cast<mlir::FloatType>(elementType).getFloatSemantics(),
@@ -307,7 +307,7 @@ public:
 
     const TypeConverter *typeConverter = this->getTypeConverter();
     Value self = adaptor.getSelf();
-    int64_t selfRank = self.getType().cast<RankedTensorType>().getRank();
+    int64_t selfRank = cast<RankedTensorType>(self.getType()).getRank();
 
     if (selfRank != Dim + 2)
       return rewriter.notifyMatchFailure(
@@ -326,7 +326,7 @@ public:
                                                   strideInts, paddingInts)))
       return rewriter.notifyMatchFailure(op, "invalid pooling parameters");
 
-    Type elementType = self.getType().cast<RankedTensorType>().getElementType();
+    Type elementType = cast<RankedTensorType>(self.getType()).getElementType();
 
     if constexpr (Dim == 2) {
       SmallVector<Value, 4> outTensorShape;
@@ -389,7 +389,7 @@ public:
     Location loc = op->getLoc();
     const TypeConverter *typeConverter = getTypeConverter();
     Value self = adaptor.getSelf();
-    RankedTensorType selfType = self.getType().cast<RankedTensorType>();
+    RankedTensorType selfType = cast<RankedTensorType>(self.getType());
     Type elementType = selfType.getElementType();
     RankedTensorType indicesRankedTensorType =
         getTypeConverter()
@@ -552,7 +552,7 @@ public:
     Value self = adaptor.getSelf();
 
     Type inputElementType =
-        self.getType().cast<RankedTensorType>().getElementType();
+        cast<RankedTensorType>(self.getType()).getElementType();
     Type resultType = typeConverter->convertType(op.getType());
     Type resultElementType =
         cast<RankedTensorType>(resultType).getElementType();
@@ -592,10 +592,9 @@ public:
     if constexpr (std::is_same<OpTy, AtenAvgPool2dOp>()) {
       Value kHtimeskW = rewriter.create<arith::MulIOp>(
           loc, kernelSizeIntValues[0], kernelSizeIntValues[1]);
-      divisor =
-          op.getDivisorOverride().getType().template isa<Torch::NoneType>()
-              ? kHtimeskW
-              : adaptor.getDivisorOverride();
+      divisor = isa<Torch::NoneType>(op.getDivisorOverride().getType())
+                    ? kHtimeskW
+                    : adaptor.getDivisorOverride();
     } else {
       divisor = kernelSizeIntValues[0];
     }
@@ -901,7 +900,7 @@ public:
     const TypeConverter *typeConverter = this->getTypeConverter();
 
     Value input = adaptor.getSelf();
-    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+    RankedTensorType inputType = cast<RankedTensorType>(input.getType());
     const Type elementType = inputType.getElementType();
 
     // get rank of input (same as rank of output)

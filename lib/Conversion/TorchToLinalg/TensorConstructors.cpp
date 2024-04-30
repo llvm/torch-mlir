@@ -42,7 +42,7 @@ public:
       return failure();
     Location loc = op->getLoc();
     Value self = adaptor.getSelf();
-    auto type = self.getType().cast<RankedTensorType>();
+    auto type = cast<RankedTensorType>(self.getType());
     int64_t rank = type.getRank();
 
     auto primList = op.getPad().getDefiningOp<Torch::PrimListConstructOp>();
@@ -105,7 +105,7 @@ public:
         convertScalarToDtype(rewriter, loc, adaptor.getValue(), elementType);
 
     Type padType = tensor::PadOp::inferResultType(
-        self.getType().cast<RankedTensorType>(), staticLow, staticHigh);
+        cast<RankedTensorType>(self.getType()), staticLow, staticHigh);
     Value paddedInput = rewriter.create<tensor::PadOp>(
         loc, padType, self, lowPad, highPad, castedValue);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, paddedInput);
@@ -354,7 +354,7 @@ public:
 
     // The pin_memory should be either `False` or `none`.
     bool pinMemory;
-    if (!op.getPinMemory().getType().template isa<Torch::NoneType>() &&
+    if (!isa<Torch::NoneType>(op.getPinMemory().getType()) &&
         (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
          pinMemory)) {
       return rewriter.notifyMatchFailure(
@@ -376,7 +376,7 @@ public:
     auto resultType = typeConverter->convertType(op.getType())
                           .template cast<RankedTensorType>();
     Type resultElementType;
-    if (op.getDtype().getType().template isa<Torch::NoneType>()) {
+    if (isa<Torch::NoneType>(op.getDtype().getType())) {
       resultElementType = resultType.getElementType();
     } else {
       int64_t dtypeInt;
@@ -423,7 +423,7 @@ public:
 
     // The pin_memory should be either `False` or `none`.
     bool pinMemory;
-    if (!op.getPinMemory().getType().template isa<Torch::NoneType>() &&
+    if (!isa<Torch::NoneType>(op.getPinMemory().getType()) &&
         (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
          pinMemory))
       return rewriter.notifyMatchFailure(
@@ -480,7 +480,7 @@ public:
       resultSizeIndex.push_back(castIntToIndex(rewriter, loc, size));
 
     auto resultType =
-        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+        cast<RankedTensorType>(typeConverter->convertType(op.getType()));
     Type resultElementType;
     if (op.getDtype().getType().isa<Torch::NoneType>()) {
       resultElementType = getDefaultDtypeForTorchScalar(

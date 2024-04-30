@@ -26,6 +26,8 @@ print(torchscript.compile(scripted, example_args))
 scripted = torch.jit.script(BasicModule())
 try:
     # CHECK: Model does not have exported method 'nonexistent', requested in `example_args`. Consider adding `@torch.jit.export` to the method definition.
-    torchscript.compile(scripted, torchscript.ExampleArgs().add_method("nonexistent", torch.ones(2, 3)))
+    torchscript.compile(
+        scripted, torchscript.ExampleArgs().add_method("nonexistent", torch.ones(2, 3))
+    )
 except Exception as e:
     print(e)

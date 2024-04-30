@@ -2,6 +2,6 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-# Skip the following directories when overlaying 
+# Skip the following directories when overlaying
 utils/bazel
 externals

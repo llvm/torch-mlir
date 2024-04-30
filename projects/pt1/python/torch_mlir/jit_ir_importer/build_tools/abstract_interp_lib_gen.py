@@ -251,6 +251,9 @@ def aten〇trunc〡shape(self: List[int]) -> List[int]:
 def aten〇log〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇log_sigmoid〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇mish〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -521,6 +524,9 @@ def aten〇elu〡shape(self: List[int], alpha: float = 1, scale: float = 1, inpu
     return upstream_shape_functions.unary(self)
 
 def aten〇prelu〡shape(self: List[int], weight: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇celu〡shape(self: List[int], alpha: float = 1.) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇selu〡shape(self: List[int]) -> List[int]:
@@ -955,14 +961,14 @@ def avg_pool2d(input: List[int], kernel_size: List[int], stride: List[int], padd
 
 # TODO: This should be upstreamed.
 # See https://github.com/pytorch/pytorch/pull/76889 for an example.
-def avg_pool1d(input: List[int], kernel_size: List[int], stride: List[int], padding: List[int], ceil_mode: bool, count_include_pad: bool):
-  assert len(kernel_size) == 1, "avg_pool1d: kernel_size must be a single int"
+def pool1d(input: List[int], kernel_size: List[int], stride: List[int], padding: List[int], ceil_mode: bool):
+  assert len(kernel_size) == 1, "pool1d: kernel_size must be a single int"
   kL = kernel_size[0]
 
-  assert len(stride) == 0 or len(stride) == 1, "avg_pool1d: stride must either be omitted, or a single int"
+  assert len(stride) == 0 or len(stride) == 1, "pool1d: stride must either be omitted, or a single int"
   dL = kL if len(stride) == 0 else stride[0]
 
-  assert len(padding) == 1, "avg_pool1d: padding must be a single int"
+  assert len(padding) == 1, "pool1d: padding must be a single int"
   padL = padding[0]
 
   dilationL = 1
@@ -998,7 +1004,10 @@ def adaptive_avg_pool1d(self: List[int], out: List[int]):
     return shape
 
 def aten〇avg_pool1d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), ceil_mode: bool = False, count_include_pad: bool = True) -> List[int]:
-    return avg_pool1d(self, kernel_size, stride, padding, ceil_mode, count_include_pad)
+    return pool1d(self, kernel_size, stride, padding, ceil_mode)
+
+def aten〇max_pool1d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), dilation: List[int] = (1,), ceil_mode: bool = False) -> List[int]:
+    return pool1d(self, kernel_size, stride, padding, ceil_mode)
 
 def aten〇adaptive_avg_pool1d〡shape(self: List[int], output_size: List[int]) -> List[int]:
     return adaptive_avg_pool1d(self, output_size)
@@ -2083,6 +2092,12 @@ def aten〇log1p〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}))
+def aten〇log_sigmoid〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert not self_dtype == torch.bool
+    return self_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇logit〡dtype(self_rank_dtype: Tuple[int, int], eps: Optional[float] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -2641,6 +2656,11 @@ def aten〇prelu〡dtype(self_rank_dtype: Tuple[int, int], weight_rank_dtype: Tu
     self_rank, self_dtype = self_rank_dtype
     weight_rank, weight_dtype = weight_rank_dtype
     assert self_dtype == weight_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, alpha=1.))
+def aten〇celu〡dtype(self_rank_dtype: Tuple[int, int], alpha: Union[int, float, complex] = 1.) -> int:
+    self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}))

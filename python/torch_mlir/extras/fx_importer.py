@@ -236,12 +236,6 @@ _IS_TORCH_2_1_OR_EARLIER = torch.__version__.split("+")[0] <= "2.1.0"
 # set and just check key existence in SYMBOLIC_OP_TO_TORCH_OP
 
 if _IS_TORCH_2_1_OR_EARLIER:
-    SYMBOLIC_TORCH_OPS = {
-        torch.ops.aten.sym_size,
-        torch.ops.aten.sym_stride,
-        torch.ops.aten.sym_numel,
-    }
-
     SYMBOLIC_OP_TO_TORCH_OP = {
         (torch.ops.aten.sym_size, 1): torch.ops.aten.size.default,
         (torch.ops.aten.sym_size, 2): torch.ops.aten.size.int,
@@ -249,13 +243,9 @@ if _IS_TORCH_2_1_OR_EARLIER:
         (torch.ops.aten.sym_stride, 2): torch.ops.aten.stride.int,
         (torch.ops.aten.sym_numel, 1): torch.ops.aten.numel.default,
     }
-else:
-    SYMBOLIC_TORCH_OPS = {
-        torch.ops.aten.sym_size.int,
-        torch.ops.aten.sym_stride.int,
-        torch.ops.aten.sym_numel.default,
-    }
 
+    SYMBOLIC_TORCH_OPS = {key[0] for key in SYMBOLIC_OP_TO_TORCH_OP}
+else:
     SYMBOLIC_OP_TO_TORCH_OP = {
         torch.ops.aten.sym_size.default: torch.ops.aten.size.default,
         torch.ops.aten.sym_size.int: torch.ops.aten.size.int,
@@ -263,6 +253,7 @@ else:
         torch.ops.aten.sym_stride.int: torch.ops.aten.stride.int,
         torch.ops.aten.sym_numel.default: torch.ops.aten.numel.default,
     }
+    SYMBOLIC_TORCH_OPS = {key for key in SYMBOLIC_OP_TO_TORCH_OP}
 
 SPARSE_LAYOUTS = [
     torch.sparse_coo,
@@ -271,7 +262,6 @@ SPARSE_LAYOUTS = [
     torch.sparse_bsr,
     torch.sparse_bsc,
 ]
-
 
 def sparsity_encoding(t: torch.Tensor) -> str:
     """Returns sparse tensor encoding for the given sparse tensor as string."""
@@ -1528,7 +1518,9 @@ class GraphNodeImporter:
         if op_name is None:
             return val
         with loc:
-            return Operation.create(name=op_name, results=[result_type], operands=[val]).result
+            return Operation.create(
+                name=op_name, results=[result_type], operands=[val]
+            ).result
 
     def _import_literal(self, py_value: Any) -> Value:
         # Apply the conversion callback.
@@ -1843,8 +1835,7 @@ def _emit_operation(
 
 # Opaque value to indicate something is empty. Used in cases where 'None'
 # may have a different meaning.
-class EmptyType:
-    ...
+class EmptyType: ...
 
 
 Empty = EmptyType()

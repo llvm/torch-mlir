@@ -30,7 +30,7 @@ public:
   LogicalResult matchAndRewrite(PrimCallMethodOp op,
                                 PatternRewriter &rewriter) const override {
     auto classType = symbolTable.lookup<ClassTypeOp>(
-        op.getReceiver().getType().cast<NnModuleType>().getClassName());
+        cast<NnModuleType>(op.getReceiver().getType()).getClassName());
     assert(classType && "malformed module -- missing ClassTypeOp");
     func::FuncOp func;
     for (auto method : classType.getOps<MethodOp>()) {
@@ -94,7 +94,7 @@ class PrepareForGlobalizeObjectGraphPass
     ConversionTarget target(*context);
     target.addIllegalOp<PrimCallMethodOp>();
     target.addDynamicallyLegalOp<func::ConstantOp>(
-        [](func::ConstantOp op) { return !op.getType().isa<FunctionType>(); });
+        [](func::ConstantOp op) { return !isa<FunctionType>(op.getType()); });
     target.addIllegalOp<func::CallIndirectOp>();
     target.markUnknownOpDynamicallyLegal([](Operation *) { return true; });
 

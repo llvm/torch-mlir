@@ -127,7 +127,7 @@ public:
     Value from = adaptor.getFrom();
     Value to = adaptor.getTo();
     Value generator = adaptor.getGenerator();
-    RankedTensorType resultType = self.getType().cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(self.getType());
     Type elemTy = resultType.getElementType();
     Type f64Ty = rewriter.getF64Type();
 

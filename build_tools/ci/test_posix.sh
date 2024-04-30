@@ -30,7 +30,7 @@ echo "::endgroup::"
 
 case $torch_version in
   nightly)
-    # Failing with: NotImplementedError: 
+    # Failing with: NotImplementedError:
     #   Could not run 'aten::empty.memory_format' with arguments from the 'Lazy' backend.
     # As of 2024-01-07
     # echo "::group::Run Lazy Tensor Core e2e integration tests"

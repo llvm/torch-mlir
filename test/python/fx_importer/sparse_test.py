@@ -55,7 +55,7 @@ def sparse_jit(f, *args, **kwargs):
     params_flat, params_spec = torch.utils._pytree.tree_flatten(params)
     for p in params_flat:
         if len(p.shape) > 0:
-          xargs.append(p.numpy())
+            xargs.append(p.numpy())
     # Prepare input parameters. Sparse input tensors are split into
     # their composite tensors. All PyTorch tensors are converted
     # to their backing numpy arrays. Note that the output consists

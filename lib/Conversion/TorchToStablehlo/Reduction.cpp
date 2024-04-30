@@ -126,7 +126,7 @@ static std::optional<ValueRange>
 getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
             ArrayRef<Value> inputShapeVec, int64_t dim,
             size_t dimSizeIndexBits) {
-  auto inputTy = input.getType().template cast<RankedTensorType>();
+  auto inputTy = cast<RankedTensorType>(input.getType());
   if (!inputTy) {
     return std::nullopt;
   }
@@ -249,7 +249,7 @@ LogicalResult ConvertAtenReductionOp<AtenArgmaxOp>::matchAndRewrite(
     AtenArgmaxOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
-  auto inputTy = input.getType().template cast<RankedTensorType>();
+  auto inputTy = cast<RankedTensorType>(input.getType());
   if (!inputTy) {
     return rewriter.notifyMatchFailure(
         op, "only Tensor types supported in StableHLO");
@@ -321,7 +321,7 @@ LogicalResult ConvertAtenReductionOp<AtenMaxDimOp>::matchAndRewrite(
     AtenMaxDimOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
-  auto inputTy = input.getType().template dyn_cast<RankedTensorType>();
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
   if (!inputTy) {
     return rewriter.notifyMatchFailure(
         op, "only Tensor types supported in StableHLO");
@@ -410,7 +410,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumOp>::matchAndRewrite(
     AtenSumOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
-  auto inputTy = input.getType().dyn_cast<RankedTensorType>();
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
   auto outTy = getTypeConverter()
                    ->convertType(op.getType())
                    .template dyn_cast<RankedTensorType>();
@@ -423,7 +423,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumOp>::matchAndRewrite(
     auto dstElemTy = outTy.getElementType();
     input =
         rewriter.create<stablehlo::ConvertOp>(op->getLoc(), input, dstElemTy);
-    inputTy = input.getType().dyn_cast<RankedTensorType>();
+    inputTy = dyn_cast<RankedTensorType>(input.getType());
   }
   auto inputElemTy = inputTy.getElementType();
   if (!inputElemTy.isIntOrFloat()) {
@@ -626,7 +626,7 @@ LogicalResult ConvertAtenReductionOp<AtenProdOp>::matchAndRewrite(
     AtenProdOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
-  auto inputTy = input.getType().dyn_cast<RankedTensorType>();
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
   auto outTy = getTypeConverter()
                    ->convertType(op.getType())
                    .template dyn_cast<RankedTensorType>();
@@ -639,7 +639,7 @@ LogicalResult ConvertAtenReductionOp<AtenProdOp>::matchAndRewrite(
     auto dstElemTy = outTy.getElementType();
     input =
         rewriter.create<stablehlo::ConvertOp>(op->getLoc(), input, dstElemTy);
-    inputTy = input.getType().dyn_cast<RankedTensorType>();
+    inputTy = dyn_cast<RankedTensorType>(input.getType());
   }
   auto inputElemTy = inputTy.getElementType();
   if (!inputElemTy.isIntOrFloat()) {
@@ -699,7 +699,7 @@ LogicalResult ConvertAtenReductionOp<AtenMaxOp>::matchAndRewrite(
     AtenMaxOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
-  auto inputTy = input.getType().dyn_cast<RankedTensorType>();
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
   if (!inputTy) {
     return rewriter.notifyMatchFailure(
         op, "only Tensor types supported in StableHLO");
@@ -762,7 +762,7 @@ LogicalResult ConvertAtenReductionOp<AtenMinOp>::matchAndRewrite(
     AtenMinOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
-  auto inputTy = input.getType().dyn_cast<RankedTensorType>();
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
   if (!inputTy) {
     return rewriter.notifyMatchFailure(
         op, "only Tensor types supported in StableHLO");
@@ -825,7 +825,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
     AtenSumDimIntListOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
-  auto inputTy = input.getType().dyn_cast<RankedTensorType>();
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
   auto outTy = getTypeConverter()
                    ->convertType(op.getType())
                    .template dyn_cast<RankedTensorType>();
@@ -838,7 +838,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
     auto dstElemTy = outTy.getElementType();
     input =
         rewriter.create<stablehlo::ConvertOp>(op->getLoc(), input, dstElemTy);
-    inputTy = input.getType().dyn_cast<RankedTensorType>();
+    inputTy = dyn_cast<RankedTensorType>(input.getType());
   }
   auto inputElemTy = inputTy.getElementType();
   if (!inputElemTy.isIntOrFloat()) {
@@ -958,7 +958,7 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
   const TorchToStablehloOptions &options = getOptions();
 
   Value input = adaptor.getSelf();
-  auto inputType = input.getType().dyn_cast<RankedTensorType>();
+  auto inputType = dyn_cast<RankedTensorType>(input.getType());
   if (!inputType) {
     return op.emitError(
         "only ranked tensor input supported in AtenFrobeniusNormDimOp");
@@ -1070,7 +1070,7 @@ LogicalResult ConvertAtenReductionOp<AtenLinalgVectorNormOp>::matchAndRewrite(
   const TorchToStablehloOptions &options = getOptions();
 
   Value input = adaptor.getSelf();
-  auto inputType = input.getType().dyn_cast<RankedTensorType>();
+  auto inputType = dyn_cast<RankedTensorType>(input.getType());
   if (!inputType) {
     return op.emitError(
         "only ranked tensor input supported in AtenLinalgVectorNormOp");
@@ -1078,7 +1078,7 @@ LogicalResult ConvertAtenReductionOp<AtenLinalgVectorNormOp>::matchAndRewrite(
   int64_t inputRank = inputType.getRank();
 
   auto outType =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
   auto outElemType = outType.getElementType();
   if (!isa<mlir::FloatType>(outElemType)) {
     return op.emitError("only float dtype allowed in AtenLinalgVectorNormOp");

@@ -46,5 +46,6 @@ DEFAULT_DECOMPOSITIONS = [
     torch.ops.aten._unsafe_index.Tensor,
 ]
 
+
 def get_decomposition_table():
     return get_decompositions(DEFAULT_DECOMPOSITIONS)
