@@ -11,6 +11,7 @@ import typing
 
 mb = ModuleBuilder()
 
+
 # CHECK-LABEL:   func.func @__torch__.prim_Loop_forlike(
 # CHECK-SAME:                            %[[MAX_ITERATIONS:.*]]: !torch.int) -> !torch.float {
 # CHECK:           %[[BOOL_TRUE:.*]] = torch.constant.bool true
