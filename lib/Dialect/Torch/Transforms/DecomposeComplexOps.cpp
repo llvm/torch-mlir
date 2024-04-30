@@ -2349,10 +2349,6 @@ public:
         loc, getTypeFromShape(expandShape), input,
         dimensionConstants[nLeadingDims], groups);
 
-    auto expandShapeValue = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(op->getContext())),
-        expandShape);
-
     SmallVector<Value> permutation{dimensionConstants.begin(),
                                    dimensionConstants.begin() + nLeadingDims};
 
