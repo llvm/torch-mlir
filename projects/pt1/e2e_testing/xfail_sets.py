@@ -2568,13 +2568,6 @@ ONNX_XFAIL_SET = {
     # these diagonal modules are currently failing due to dynamic shape.
     # We are currently testing aten.diagonal using DiagonalWithStaticShapeModule instead.
     # when the issue is fixed, please remove DiagonalWithStaticShapeModule as well as the xfails here.
-    "DiagonalModule_basic",
-    "DiagonalModule_nonsquare",
-    "DiagonalModule_transposed",
-    "DiagonalModule_with_dims",
-    "DiagonalModule_with_dims_and_offset",
-    "DiagonalModule_with_negative_dims",
-    "DiagonalModule_with_offset",
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
     # Failure - onnx_lowering: onnx.MaxPool
