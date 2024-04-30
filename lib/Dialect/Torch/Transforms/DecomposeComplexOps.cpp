@@ -1929,8 +1929,8 @@ public:
     Value self = op.getSelf();
     Value lambdValue = op.getLambd();
 
-    auto resTy = cast<BaseTensorType>(op.getType());
-    if (!resTy.hasDtype() || !resTy.hasSizes()) {
+    auto resTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!resTy || !resTy.hasDtype() || !resTy.hasSizes()) {
       return rewriter.notifyMatchFailure(op,
                                          "result should have dtype and size");
     }
