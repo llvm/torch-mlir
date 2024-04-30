@@ -138,6 +138,7 @@ LOWERING_PIPELINE = (
     "builtin.module("
     + ",".join(
         [
+            "func.func(linalg-fold-unit-extent-dims)",
             "func.func(refback-generalize-tensor-pad)",
             "func.func(refback-generalize-tensor-concat)",
             # Apply some optimizations. It would be great if MLIR had more useful
@@ -180,6 +181,7 @@ LOWERING_PIPELINE = (
             "func.func(tm-tensor-to-loops)",
             "func.func(refback-munge-memref-copy)",
             "func.func(convert-linalg-to-loops)",
+            "func.func(expand-realloc)",
             "func.func(lower-affine)",
             "convert-scf-to-cf",
             "func.func(refback-expand-ops-for-llvm)",
@@ -193,6 +195,7 @@ LOWERING_PIPELINE = (
             "convert-bufferization-to-memref",
             "finalize-memref-to-llvm",
             "func.func(convert-arith-to-llvm)",
+            "convert-vector-to-llvm",
             "convert-func-to-llvm",
             "convert-cf-to-llvm",
             "convert-complex-to-llvm",
