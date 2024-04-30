@@ -138,7 +138,6 @@ LOWERING_PIPELINE = (
     "builtin.module("
     + ",".join(
         [
-            "func.func(linalg-fold-unit-extent-dims)",
             "func.func(refback-generalize-tensor-pad)",
             "func.func(refback-generalize-tensor-concat)",
             # Apply some optimizations. It would be great if MLIR had more useful
