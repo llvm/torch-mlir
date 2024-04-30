@@ -15,10 +15,6 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::onnx_c;
 
-// debug
-#include "llvm/Support/Debug.h"
-#define DEBUG_TYPE "torch-onnx-to-torch-patterns"
-
 // Simple rewrites for the default domain.
 // See: https://onnx.ai/onnx/operators/
 // For operators that are effectively version invariant, we register with
@@ -172,11 +168,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         auto conditionType =
             conditionTensor.getType().cast<Torch::ValueTensorType>();
-        if (!conditionType || conditionType.getSizes().size() != 1) {
+        if (!conditionType || conditionType.getSizes().size() != 1)
           return rewriter.notifyMatchFailure(
               binder.op, "condition must have one single element per "
                          "https://onnx.ai/onnx/operators/onnx__If.html");
-        }
         auto conditionInt = rewriter.create<Torch::AtenItemOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             conditionTensor);
@@ -189,8 +184,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                                              "result type bind failure");
         }
 
-        Region *thenRegion;
-        Region *elseRegion;
+        Region *thenRegion, *elseRegion;
         if (binder.getRegionAtIndex(elseRegion, 0) ||
             binder.getRegionAtIndex(thenRegion, 1)) {
           return rewriter.notifyMatchFailure(binder.op, "region bind failure");
