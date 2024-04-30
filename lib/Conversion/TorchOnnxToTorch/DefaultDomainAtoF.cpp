@@ -220,17 +220,33 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp("Atanh", 9,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  Value operand;
-                  if (binder.tensorOperand(operand) ||
-                      binder.tensorResultType(resultType))
-                    return failure();
-                  rewriter.replaceOpWithNewOp<Torch::AtenAtanhOp>(
-                      binder.op, resultType, operand);
-                  return success();
-                });
+  patterns.onOp(
+      "Atanh", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        if (binder.tensorOperand(operand) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        // 1/2 * log((1 + x) / (1 - x))
+        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value add = rewriter.create<Torch::AtenAddScalarOp>(
+            binder.getLoc(), resultType, operand, cstOne, cstOne);
+        Value neg = rewriter.create<Torch::AtenNegOp>(binder.getLoc(),
+                                                      resultType, operand);
+        Value sub = rewriter.create<Torch::AtenAddScalarOp>(
+            binder.getLoc(), resultType, neg, cstOne, cstOne);
+        Value div = rewriter.create<Torch::AtenDivTensorOp>(
+            binder.getLoc(), resultType, add, sub);
+        Value log =
+            rewriter.create<Torch::AtenLogOp>(binder.getLoc(), resultType, div);
+        Value cstTwo = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(2));
+        rewriter.replaceOpWithNewOp<Torch::AtenDivScalarOp>(
+            binder.op, resultType, log, cstTwo);
+        return success();
+      });
   patterns.onOp("Acos", 7,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
