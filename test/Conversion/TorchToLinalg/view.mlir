@@ -254,4 +254,3 @@ func.func @torch.aten.view$dynamicInferredSame(%arg0: !torch.vtensor<[10,?,2,3],
   %1 = torch.aten.view %arg0, %0 : !torch.vtensor<[10,?,2,3],f32>, !torch.list<int> -> !torch.vtensor<[2,5,?,6],f32>
   return %1 : !torch.vtensor<[2,5,?,6],f32>
 }
-

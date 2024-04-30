@@ -186,4 +186,3 @@ func.func @torch.permute$negative_index_valid (%arg0: !torch.vtensor<[1,2,3],f32
   %3 = torch.aten.permute %arg0, %perm : !torch.vtensor<[1,2,3],f32>, !torch.list<int> -> !torch.vtensor<[1,2,3],f32>
    return %3 : !torch.vtensor<[1,2,3],f32>
 }
-

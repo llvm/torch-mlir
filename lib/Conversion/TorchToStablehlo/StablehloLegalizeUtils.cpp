@@ -9,6 +9,7 @@
 #include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
@@ -144,7 +145,7 @@ Value scalarToStablehloTensor(ConversionPatternRewriter &rewriter,
 
 Value promoteType(PatternRewriter &rewriter, Location loc, Value input,
                   TensorType outType) {
-  TensorType in_type = input.getType().cast<TensorType>();
+  TensorType in_type = cast<TensorType>(input.getType());
 
   if (in_type.getElementType() != outType.getElementType()) {
     TensorType promotedType =
@@ -162,7 +163,7 @@ Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
   //   dimension, the dimension sizes must either be equal, one of them is 1, or
   //   one of them does not exist.
   Operation *op = input.getDefiningOp();
-  TensorType in_type = input.getType().dyn_cast<TensorType>();
+  TensorType in_type = dyn_cast<TensorType>(input.getType());
 
   if (in_type.getElementType() != outType.getElementType()) {
     TensorType promoted_type =
@@ -189,9 +190,8 @@ Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
       do_bcast = true;
     } else {
       op->emitError("The size of tensor a (")
-          << inDim << ")"
-          << "must match the size of tensor b (" << outDim << ")"
-          << "at non-singleton dimension " << inPos;
+          << inDim << ")" << "must match the size of tensor b (" << outDim
+          << ")" << "at non-singleton dimension " << inPos;
     }
   }
   std::reverse(bcastDims.begin(), bcastDims.end());
@@ -217,7 +217,7 @@ FailureOr<SmallVector<Value, 4>> getDimSizesOfTensor(PatternRewriter &rewriter,
                                                      Operation *op, Value value,
                                                      ArrayRef<int64_t> inpDims,
                                                      size_t dimSizeIndexBits) {
-  auto valueTy = value.getType().dyn_cast<RankedTensorType>();
+  auto valueTy = dyn_cast<RankedTensorType>(value.getType());
   if (!valueTy) {
     return rewriter.notifyMatchFailure(
         op, "getDimSizesOfTensor(): the input is not a ranked tensor");
@@ -240,7 +240,7 @@ FailureOr<SmallVector<Value, 4>> getDimSizesOfTensor(PatternRewriter &rewriter,
 FailureOr<SmallVector<Value, 4>> getDimSizesOfTensor(PatternRewriter &rewriter,
                                                      Operation *op, Value value,
                                                      size_t dimSizeIndexBits) {
-  auto valueTy = value.getType().dyn_cast<RankedTensorType>();
+  auto valueTy = dyn_cast<RankedTensorType>(value.getType());
   if (!valueTy) {
     return rewriter.notifyMatchFailure(
         op, "getDimSizesOfTensor(): the input is not a ranked tensor");
@@ -279,7 +279,7 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
           op, "unsqueeze dimensions must be specified in order");
 
   auto loc = op->getLoc();
-  auto rankTy = tensor.getType().dyn_cast<RankedTensorType>();
+  auto rankTy = dyn_cast<RankedTensorType>(tensor.getType());
   auto oldShape = rankTy.getShape();
   Type intType = rewriter.getIntegerType(dimSizeIndexBits);
   auto one = rewriter.create<arith::ConstantOp>(
@@ -299,6 +299,136 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
       newShape.push_back(oldShape[i]);
       i++;
     }
+  }
+
+  auto outTy = RankedTensorType::get(newShape, rankTy.getElementType());
+  auto shape = rewriter.create<tensor::FromElementsOp>(loc, newDimSizes);
+  return rewriter.create<stablehlo::DynamicReshapeOp>(loc, outTy, tensor, shape)
+      .getResult();
+}
+
+FailureOr<Value> collapseTensor(PatternRewriter &rewriter, Operation *op,
+                                Value tensor, int64_t collapseStartDim,
+                                int64_t collapseEndDim,
+                                size_t dimSizeIndexBits) {
+
+  auto dimSizesInfo =
+      getDimSizesOfTensor(rewriter, op, tensor, dimSizeIndexBits);
+
+  if (failed(dimSizesInfo))
+    return rewriter.notifyMatchFailure(
+        op, "failed to get dimension sizes of the input");
+
+  auto dimSizes = *dimSizesInfo;
+  int64_t rank = dimSizes.size();
+
+  collapseStartDim = toPositiveDim(collapseStartDim, rank);
+  collapseEndDim = toPositiveDim(collapseEndDim, rank);
+
+  int64_t newRank = rank - (collapseEndDim - collapseStartDim + 1);
+
+  auto loc = op->getLoc();
+  auto rankTy = dyn_cast<RankedTensorType>(tensor.getType());
+  auto oldShape = rankTy.getShape();
+  Type intType = rewriter.getIntegerType(dimSizeIndexBits);
+
+  std::vector<Value> newDimSizes;
+  std::vector<int64_t> newShape;
+  newDimSizes.reserve(newRank);
+  newShape.reserve(newRank);
+
+  Value collapseDimSize = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getIntegerAttr(intType, 1));
+  int64_t collapseShape = 1;
+
+  for (int64_t k = collapseStartDim; k <= collapseEndDim; ++k) {
+    if (k < 0 || k >= rank) {
+      return rewriter.notifyMatchFailure(
+          op, "collapse dimensions must be within the rank of the tensor");
+    }
+    if (collapseShape == ShapedType::kDynamic ||
+        oldShape[k] == ShapedType::kDynamic) {
+      collapseShape = ShapedType::kDynamic;
+    } else {
+      collapseShape *= oldShape[k];
+    }
+    collapseDimSize =
+        rewriter.create<arith::MulIOp>(loc, collapseDimSize, dimSizes[k]);
+  }
+
+  for (int64_t k = 0; k < collapseStartDim; ++k) {
+    newDimSizes.push_back(dimSizes[k]);
+    newShape.push_back(oldShape[k]);
+  }
+  newDimSizes.push_back(collapseDimSize);
+  newShape.push_back(collapseShape);
+  for (int64_t k = collapseEndDim + 1; k < rank; ++k) {
+    newDimSizes.push_back(dimSizes[k]);
+    newShape.push_back(oldShape[k]);
+  }
+
+  auto outTy = RankedTensorType::get(newShape, rankTy.getElementType());
+  auto shape = rewriter.create<tensor::FromElementsOp>(loc, newDimSizes);
+  return rewriter.create<stablehlo::DynamicReshapeOp>(loc, outTy, tensor, shape)
+      .getResult();
+}
+
+// TODO: support splitDim & outerLength to be Value
+FailureOr<Value> splitTensor(PatternRewriter &rewriter, Operation *op,
+                             Value tensor, int64_t splitDim,
+                             int64_t outerLength, size_t dimSizeIndexBits) {
+  auto dimSizesInfo =
+      getDimSizesOfTensor(rewriter, op, tensor, dimSizeIndexBits);
+
+  if (failed(dimSizesInfo))
+    return rewriter.notifyMatchFailure(
+        op, "failed to get dimension sizes of the input");
+
+  auto dimSizes = *dimSizesInfo;
+  int64_t rank = dimSizes.size();
+  splitDim = toPositiveDim(splitDim, rank);
+
+  auto loc = op->getLoc();
+  auto rankTy = dyn_cast<RankedTensorType>(tensor.getType());
+  auto oldShape = rankTy.getShape();
+  Type intType = rewriter.getIntegerType(dimSizeIndexBits);
+
+  if (splitDim < 0 || splitDim >= rank) {
+    return rewriter.notifyMatchFailure(
+        op, "split dimensions must be within the rank of the tensor");
+  }
+
+  int64_t newRank = rank + 1;
+  auto outerLengthValue = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getIntegerAttr(intType, outerLength));
+
+  auto innerLengthValue = rewriter.create<arith::DivSIOp>(
+      loc, dimSizes[splitDim], outerLengthValue);
+
+  int64_t originShape = oldShape[splitDim];
+  int64_t outerShape = outerLength;
+  int64_t innerShape = originShape == ShapedType::kDynamic
+                           ? ShapedType::kDynamic
+                           : originShape / outerLength;
+
+  std::vector<Value> newDimSizes;
+  std::vector<int64_t> newShape;
+
+  newDimSizes.reserve(newRank);
+  newShape.reserve(newRank);
+
+  for (int64_t k = 0; k < splitDim; ++k) {
+    newDimSizes.push_back(dimSizes[k]);
+    newShape.push_back(oldShape[k]);
+  }
+  newDimSizes.push_back(outerLengthValue);
+  newShape.push_back(outerShape);
+  newDimSizes.push_back(innerLengthValue);
+  newShape.push_back(innerShape);
+
+  for (int64_t k = splitDim + 1; k < rank; ++k) {
+    newDimSizes.push_back(dimSizes[k]);
+    newShape.push_back(oldShape[k]);
   }
 
   auto outTy = RankedTensorType::get(newShape, rankTy.getElementType());

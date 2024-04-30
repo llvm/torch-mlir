@@ -369,7 +369,7 @@ def LowerToBackendContract
     to the backend contract. This pass does not do any global program
     restructuring -- it works entirely within a single semantic model
     of a `builtin.module` with `torch.global_slot` ops and `func.func` ops.
-    
+
     This pass runs a set of simplifications within that semantic model until
     the backend contract is satisfied, and fails if it cannot be satisfied.
     In particular, the backend contract consists of:

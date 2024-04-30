@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-from typing import Optional, Union, Dict, Tuple, Any
+from typing import Optional, Union, Dict, Tuple, Any, Callable
 
 import warnings
 
@@ -25,7 +25,7 @@ def export_and_import(
     dynamic_shapes: Optional[Union[Dict[str, Any], Tuple[Any]]] = None,
     experimental_support_mutation: bool = False,
     hooks: Optional[FxImporterHooks] = None,
-    decomposition_table: Optional[list] = None,
+    decomposition_table: Optional[Dict[torch._ops.OperatorBase, Callable]] = None,
     func_name: str = "main",
     enable_graph_printing: bool = False,
     **kwargs,
