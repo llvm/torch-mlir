@@ -1463,45 +1463,14 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                 });
   patterns.onOp(
       "CumSum", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Location loc = binder.getLoc();
         Torch::ValueTensorType resultType;
-        Value operand;
-        Value axisTensor;
+        Value operand, axisTensor;
+        int64_t exclusive, reverse;
         if (binder.tensorOperands(operand, axisTensor) ||
+            binder.s64IntegerAttr(exclusive, "exclusive", 0) ||
+            binder.s64IntegerAttr(reverse, "reverse", 0) ||
             binder.tensorResultType(resultType))
           return failure();
-
-        int64_t exclusive;
-        int64_t reverse;
-        // if bind succeeds and either is set, fail because not implemented
-        if (!binder.s64IntegerAttr(exclusive, "exclusive", 0))
-          if (exclusive != 0)
-            return rewriter.notifyMatchFailure(
-                binder.op, "unsupported onnx.CumSum conversion: exclusive");
-        if (!binder.s64IntegerAttr(reverse, "reverse", 0))
-          if (reverse != 0)
-            return rewriter.notifyMatchFailure(
-                binder.op, "unsupported onnx.CumSum conversion: reverse");
-
-        // deal with neg axis: if (axis < 0) axis += rank
-        int64_t rank =
-            cast<Torch::ValueTensorType>(operand.getType()).getSizes().size();
-        Value rankVal = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64), rank));
-        Value zero = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(0));
-
-        Value axisScalar = rewriter.create<Torch::AtenItemOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(), axisTensor);
-        Value isNegative = rewriter.create<Torch::AtenLtIntOp>(
-            binder.getLoc(), axisScalar, zero);
-        isNegative =
-            rewriter.create<Torch::AtenIntBoolOp>(binder.getLoc(), isNegative);
-        Value finalOffset = rewriter.create<Torch::AtenMulIntOp>(
-            binder.getLoc(), isNegative, rankVal);
-        Value dim = rewriter.create<Torch::AtenAddIntOp>(
-            binder.getLoc(), axisScalar, finalOffset);
 
         Torch::BaseTensorType resultTensorType =
             cast<Torch::BaseTensorType>(resultType);
@@ -1509,10 +1478,52 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return rewriter.notifyMatchFailure(
               binder.op, "expected result type to have a dtype");
         }
-        // resultTensorType.print(llvm::outs());
-        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
-        rewriter.replaceOpWithNewOp<Torch::AtenCumsumOp>(binder.op, resultType,
-                                                         operand, dim, none);
+
+        // deal with neg axis: if (axis < 0) axis += rank
+        int64_t rank =
+            cast<Torch::ValueTensorType>(operand.getType()).getSizes().size();
+        Value rankVal = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), rank));
+        Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+
+        Value axisScalar = rewriter.create<Torch::AtenItemOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(), axisTensor);
+        Value isNegative = rewriter.create<Torch::AtenLtIntOp>(
+            binder.getLoc(), axisScalar, cstZero);
+        isNegative =
+            rewriter.create<Torch::AtenIntBoolOp>(binder.getLoc(), isNegative);
+        Value finalOffset = rewriter.create<Torch::AtenMulIntOp>(
+            binder.getLoc(), isNegative, rankVal);
+        Value axis = rewriter.create<Torch::AtenAddIntOp>(
+            binder.getLoc(), axisScalar, finalOffset);
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+
+        Value res;
+        if (reverse) {
+          Value dims = rewriter.create<Torch::PrimListConstructOp>(
+              binder.getLoc(),
+              rewriter.getType<Torch::ListType>(
+                  rewriter.getType<Torch::IntType>()),
+              SmallVector<Value>{axis});
+          Value flip = rewriter.create<Torch::AtenFlipOp>(
+              binder.getLoc(), resultType, operand, dims);
+          Value cumsum = rewriter.create<Torch::AtenCumsumOp>(
+              binder.getLoc(), resultType, flip, axis, none);
+          res = rewriter.create<Torch::AtenFlipOp>(binder.getLoc(), resultType,
+                                                   cumsum, dims);
+        } else {
+          res = rewriter.create<Torch::AtenCumsumOp>(
+              binder.getLoc(), resultType, operand, axis, none);
+        }
+
+        if (exclusive)
+          res = rewriter.create<Torch::AtenSubTensorOp>(
+              binder.getLoc(), resultType, res, operand, cstOne);
+        rewriter.replaceOp(binder.op, res);
         return success();
       });
   patterns.onOp(
