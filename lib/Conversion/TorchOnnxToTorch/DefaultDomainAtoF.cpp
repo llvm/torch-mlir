@@ -1348,17 +1348,31 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp("Cosh", 9,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  Value operand;
-                  if (binder.tensorOperand(operand) ||
-                      binder.tensorResultType(resultType))
-                    return failure();
-                  rewriter.replaceOpWithNewOp<Torch::AtenCoshOp>(
-                      binder.op, resultType, operand);
-                  return success();
-                });
+  patterns.onOp(
+      "Cosh", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        if (binder.tensorOperand(operand) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        // 1/2 * (exp(x) + exp(-x))
+        Value x = rewriter.create<Torch::AtenExpOp>(binder.getLoc(), resultType,
+                                                    operand);
+        Value neg = rewriter.create<Torch::AtenNegOp>(binder.getLoc(),
+                                                      resultType, operand);
+        Value y =
+            rewriter.create<Torch::AtenExpOp>(binder.getLoc(), resultType, neg);
+        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value z = rewriter.create<Torch::AtenAddTensorOp>(
+            binder.getLoc(), resultType, x, y, cstOne);
+        Value cstTwo = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(2));
+        rewriter.replaceOpWithNewOp<Torch::AtenDivScalarOp>(
+            binder.op, resultType, z, cstTwo);
+        return success();
+      });
   patterns.onOp(
       "CumSum", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Location loc = binder.getLoc();
