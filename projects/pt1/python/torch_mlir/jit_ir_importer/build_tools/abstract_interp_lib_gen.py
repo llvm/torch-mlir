@@ -663,17 +663,8 @@ def aten〇channel_shuffle〡shape(self: List[int], groups: int) -> List[int]:
     assert len(self) >= 3, "input must be at least rank-3 in channel_shuffle"
 
     num_channels = self[-3]
-    height = self[-2]
-    width = self[-1]
-
     assert num_channels % groups == 0, "number of input channels must be divisible by groups in channel_shuffle"
-
-    out = self[0:-3]
-    out.append(num_channels // groups)
-    out.append(groups)
-    out.append(height)
-    out.append(width)
-    return out
+    return self
 
 
 def aten〇pixel_shuffle〡shape(self: List[int], upscale_factor: int) -> List[int]:
