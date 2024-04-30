@@ -11,7 +11,11 @@ import torch
 import torch.fx
 import torch._dynamo as dynamo
 from torch._dynamo.backends.common import aot_autograd
-from torch._functorch.aot_autograd import make_boxed_compiler, get_aot_compilation_context, set_model_name
+from torch._functorch.aot_autograd import (
+    make_boxed_compiler,
+    get_aot_compilation_context,
+    set_model_name,
+)
 
 from torch_mlir.compiler_utils import TorchMlirCompilerError
 from torch_mlir._dynamo_fx_importer import import_fx_graph_as_func
@@ -19,8 +23,9 @@ from torch_mlir_e2e_test.configs.torchdynamo import jit
 
 
 @make_boxed_compiler
-def my_aot_autograd_backend(gm: torch.fx.GraphModule,
-                            example_inputs: List[torch.Tensor]):
+def my_aot_autograd_backend(
+    gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]
+):
     print(gm.graph)
     *_, model_name, nth_graph = get_aot_compilation_context()
     mlir_module = import_fx_graph_as_func(gm.graph, model_name)
@@ -59,9 +64,7 @@ basic(torch.randn(3, 4))
 # CHECK:           return %[[RANDN]] : !torch.vtensor<[3,4],f16>
 @dynamo.optimize(my_backend)
 def literals_list_device_int_none_dtype():
-    return torch.ops.aten.randn([3, 4],
-                                device=torch.device("cpu"),
-                                dtype=torch.float16)
+    return torch.ops.aten.randn([3, 4], device=torch.device("cpu"), dtype=torch.float16)
 
 
 set_model_name("literals_list_device_int_none_dtype")

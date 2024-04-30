@@ -79,9 +79,9 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
     auto operand = adaptor.getOperands()[0];
-    auto operandTy = operand.getType().cast<RankedTensorType>();
+    auto operandTy = cast<RankedTensorType>(operand.getType());
     auto resultTy =
-        getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+        cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
 
     int64_t rank = operandTy.getRank();
     if (rank == 0) {

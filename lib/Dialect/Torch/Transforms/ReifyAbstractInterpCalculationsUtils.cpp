@@ -118,7 +118,7 @@ LogicalResult Torch::wrapWithCalculateOpIfLibraryFunctionAvailable(
     assert(call.getNumResults() == 1 &&
            "Multiple results are packed in a tuple in Python!");
     Value result = call.getResult(0);
-    if (auto tupleType = result.getType().dyn_cast<Torch::TupleType>()) {
+    if (auto tupleType = dyn_cast<Torch::TupleType>(result.getType())) {
       auto unpack = b.create<PrimTupleUnpackOp>(
           loc, tupleType.getContainedTypes(), result);
       llvm::append_range(unpackedResults, unpack.getResults());
@@ -275,7 +275,7 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
     // for i in range(len(operand)):
     //     adjusted_list.append(adjust(operand[i]))
     // return adjusted_list
-    auto providedType = operand.getType().cast<Torch::ListType>();
+    auto providedType = cast<Torch::ListType>(operand.getType());
     Value adjustedList =
         b.create<PrimListConstructOp>(loc, desiredListType, ValueRange({}));
     // Create a for-like PrimLoopOp.
@@ -312,7 +312,7 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
   // signature uses `Scalar` (see comments in torch_ods_gen.py for
   // explanation).
   if (isa<Torch::FloatType>(desiredType) &&
-      operand.getType().isa<Torch::IntType>()) {
+      isa<Torch::IntType>(operand.getType())) {
     return b.create<AtenFloatScalarOp>(loc, desiredType, operand).getResult();
   }
 

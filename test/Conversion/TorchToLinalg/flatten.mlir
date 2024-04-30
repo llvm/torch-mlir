@@ -82,5 +82,3 @@ func.func @torch.aten.flatten.using_ints$rank0(%arg0: !torch.vtensor<[],f32>) ->
   %0 = torch.aten.flatten.using_ints %arg0, %int0, %int0 : !torch.vtensor<[],f32>, !torch.int, !torch.int -> !torch.vtensor<[1],f32>
   return %0 : !torch.vtensor<[1],f32>
 }
-
-

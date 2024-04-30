@@ -64,7 +64,7 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
       loc, rewriter.getIntegerAttr(intType, 1));
 
   // sliceSizes
-  auto inputRankTy = input.getType().dyn_cast<RankedTensorType>();
+  auto inputRankTy = dyn_cast<RankedTensorType>(input.getType());
   auto inputRank = inputRankTy.getRank();
   SmallVector<Value, 4> sliceSizes;
   sliceSizes.reserve(inputRank);
@@ -85,7 +85,7 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
   for (int64_t r = 0; r < axis; ++r) {
     offsetDims.push_back(r);
   }
-  auto indicesRankTy = indices.getType().dyn_cast<RankedTensorType>();
+  auto indicesRankTy = dyn_cast<RankedTensorType>(indices.getType());
   auto indicesRank = indicesRankTy.getRank();
   for (int64_t r = axis + 1; r < inputRank; ++r) {
     offsetDims.push_back(r + indicesRank - 1);
@@ -132,8 +132,7 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
                                            SmallVector<Value> &strides) {
   Location loc = op.getLoc();
   auto input = adaptor.getSelf();
-  RankedTensorType inputType =
-      input.getType().template cast<RankedTensorType>();
+  RankedTensorType inputType = cast<RankedTensorType>(input.getType());
 
   Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
   Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
@@ -161,7 +160,7 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
 
   int64_t step;
   if (!matchPattern(op.getStep(), m_TorchConstantInt(&step))) {
-    if (!op.getStep().getType().template isa<Torch::NoneType>())
+    if (!isa<Torch::NoneType>(op.getStep().getType()))
       return op->emitError("unimplemented: step is not constant");
     step = 1;
   }
@@ -225,7 +224,7 @@ FailureOr<Value> broadcastAndConcatIndices(Operation *op,
   // concat index tensor into to indices tensor for concat
   for (size_t i = 0; i < indexTensors.size(); i++) {
     auto indexTensor = indexTensors[i];
-    auto indexTensorType = indexTensor.getType().cast<RankedTensorType>();
+    auto indexTensorType = cast<RankedTensorType>(indexTensor.getType());
     for (int64_t size : makeShapeTorchCompatible(indexTensorType.getShape())) {
       if (size == kUnknownSize)
         return failure();
@@ -249,7 +248,7 @@ FailureOr<Value> broadcastAndConcatIndices(Operation *op,
 
   SmallVector<Value> broadcastedIndices;
   Type indexElemTy =
-      indexTensors[0].getType().cast<RankedTensorType>().getElementType();
+      cast<RankedTensorType>(indexTensors[0].getType()).getElementType();
   RankedTensorType bcastIndexType =
       RankedTensorType::get(indicesShape, indexElemTy);
   for (auto indexTensor : indexTensors) {
@@ -290,7 +289,7 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
     AtenEmbeddingOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto weight = adaptor.getWeight();
-  auto weightTy = weight.getType().cast<RankedTensorType>();
+  auto weightTy = cast<RankedTensorType>(weight.getType());
   if (!weightTy)
     return op.emitError("only ranked tensor types are supported");
 
@@ -332,17 +331,17 @@ LogicalResult ConvertAtenOp<AtenEmbeddingBagPaddingIdxOp>::matchAndRewrite(
   Value indices = adaptor.getIndices();
   Value offsets = adaptor.getOffsets();
 
-  auto weightTy = weight.getType().cast<RankedTensorType>();
+  auto weightTy = cast<RankedTensorType>(weight.getType());
   if (weightTy && weightTy.hasStaticShape() && weightTy.getRank() != 2)
     return rewriter.notifyMatchFailure(
         op, "weight must be rank 2 tensor with static shapes");
 
-  auto indicesTy = indices.getType().cast<RankedTensorType>();
+  auto indicesTy = cast<RankedTensorType>(indices.getType());
   if (indicesTy && indicesTy.hasStaticShape() && indicesTy.getRank() != 1)
     return rewriter.notifyMatchFailure(
         op, "indices must be a vector with static shapes");
 
-  auto offsetsTy = offsets.getType().cast<RankedTensorType>();
+  auto offsetsTy = cast<RankedTensorType>(offsets.getType());
   if (offsetsTy && offsetsTy.getRank() != 1 && offsetsTy.hasStaticShape() &&
       offsetsTy.getShape()[0] == 1)
     return rewriter.notifyMatchFailure(
@@ -485,7 +484,7 @@ LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
     AtenIndexSelectOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
-  auto selfTy = self.getType().cast<RankedTensorType>();
+  auto selfTy = cast<RankedTensorType>(self.getType());
   if (!selfTy)
     return op.emitError("only ranked tensor types are supported");
   int64_t dim;
@@ -514,8 +513,8 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
   Location loc = op->getLoc();
   Value input = adaptor.getSelf();
   Value index = adaptor.getIndex();
-  auto inputType = input.getType().cast<RankedTensorType>();
-  auto indexType = index.getType().cast<RankedTensorType>();
+  auto inputType = cast<RankedTensorType>(input.getType());
+  auto indexType = cast<RankedTensorType>(index.getType());
   auto indexElemType = indexType.getElementType();
 
   if (indexType.getRank() != inputType.getRank()) {
@@ -623,7 +622,7 @@ LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
   }
 
   Value src = adaptor.getSrc();
-  auto srcType = src.getType().cast<RankedTensorType>();
+  auto srcType = cast<RankedTensorType>(src.getType());
   int64_t srcRank = srcType.getRank();
   SmallVector<int64_t> srcAbstractSizes(srcRank, kUnknownSize);
   auto abstractSrcType = RankedTensorType::get(
@@ -651,9 +650,9 @@ public:
     Value input = adaptor.getSelf();
     Value index = adaptor.getIndex();
     Value src = adaptor.getSrc();
-    auto inputType = input.getType().cast<RankedTensorType>();
-    auto indexType = index.getType().cast<RankedTensorType>();
-    auto srcType = src.getType().cast<RankedTensorType>();
+    auto inputType = cast<RankedTensorType>(input.getType());
+    auto indexType = cast<RankedTensorType>(index.getType());
+    auto srcType = cast<RankedTensorType>(src.getType());
     auto indexElemType = indexType.getElementType();
 
     if (indexType.getRank() != inputType.getRank() ||
@@ -789,9 +788,9 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   Location loc = op->getLoc();
   Value input = adaptor.getSelf();
-  auto inputTensorType = input.getType().cast<RankedTensorType>();
+  auto inputTensorType = cast<RankedTensorType>(input.getType());
   auto outType =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
   auto outShape = outType.getShape();
   Value indexList = op.getIndices();
   SmallVector<Value> indicesTorchType;
@@ -857,10 +856,10 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
   Value input = adaptor.getSelf();
   Value values = adaptor.getValues();
   auto outType =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
-  auto inputType = input.getType().cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  auto inputType = cast<RankedTensorType>(input.getType());
   int64_t inputRank = inputType.getRank();
-  auto valuesType = values.getType().cast<RankedTensorType>();
+  auto valuesType = cast<RankedTensorType>(values.getType());
   auto valuesShape = valuesType.getShape();
   bool accumulate;
   if (!matchPattern(op.getAccumulate(), m_TorchConstantBool(&accumulate))) {

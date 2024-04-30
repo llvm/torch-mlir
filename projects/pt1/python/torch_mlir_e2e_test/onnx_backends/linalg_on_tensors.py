@@ -4,13 +4,17 @@
 # Also available under a BSD-style license. See LICENSE.
 
 
-from torch_mlir.compiler_utils import run_pipeline_with_repro_report
+from torch_mlir.compiler_utils import (
+    run_pipeline_with_repro_report,
+    lower_mlir_module,
+    OutputType,
+)
 from torch_mlir.ir import *
 from torch_mlir.passmanager import *
-from torch_mlir.torchscript import OutputType
-from torch_mlir.torchscript import _lower_mlir_module
 
-from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
+from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import (
+    RefBackendLinalgOnTensorsBackend,
+)
 
 from .abc import OnnxBackend
 
@@ -20,9 +24,11 @@ __all__ = [
 
 # The pipeline of func.func passes that lower the ONNX backend contract to the
 # Linalg-on-Tensors backend contract accepted by RefBackend.
-ONNX_TO_TORCH_FUNC_PIPELINE = ",".join([
-    "convert-torch-onnx-to-torch",
-])
+ONNX_TO_TORCH_FUNC_PIPELINE = ",".join(
+    [
+        "convert-torch-onnx-to-torch",
+    ]
+)
 
 
 class LinalgOnTensorsOnnxBackend(OnnxBackend):
@@ -48,9 +54,14 @@ class LinalgOnTensorsOnnxBackend(OnnxBackend):
         run_pipeline_with_repro_report(
             imported_module,
             f"builtin.module(func.func({ONNX_TO_TORCH_FUNC_PIPELINE}))",
-            "Lowering Onnx backend contract to Linalg-on-Tensors backend contract")
+            "Lowering Onnx backend contract to Linalg-on-Tensors backend contract",
+        )
 
-        backend_legal_ops = ['aten.flatten.using_ints','aten.adaptive_avg_pool1d', 'aten.unflatten.int']
+        backend_legal_ops = [
+            "aten.flatten.using_ints",
+            "aten.adaptive_avg_pool1d",
+            "aten.unflatten.int",
+        ]
         option_string = "{backend-legal-ops=" + ",".join(backend_legal_ops) + "}"
         run_pipeline_with_repro_report(
             imported_module,
@@ -58,7 +69,9 @@ class LinalgOnTensorsOnnxBackend(OnnxBackend):
             "Lowering TorchFX IR -> Torch Backend IR",
         )
 
-        imported_module = _lower_mlir_module(False, OutputType.LINALG_ON_TENSORS, imported_module)
+        imported_module = lower_mlir_module(
+            False, OutputType.LINALG_ON_TENSORS, imported_module
+        )
         compiled_module = self.refbackend.compile(imported_module)
         return compiled_module
 

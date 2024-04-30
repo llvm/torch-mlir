@@ -104,10 +104,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(
               binder.op, "operand grid_sampler bind failure");
 
-        auto inputTensorType = input.getType().cast<Torch::ValueTensorType>();
+        auto inputTensorType = cast<Torch::ValueTensorType>(input.getType());
         ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
         uint32_t inputRank = inputShape.size();
-        auto gridTensorType = grid.getType().cast<Torch::ValueTensorType>();
+        auto gridTensorType = cast<Torch::ValueTensorType>(grid.getType());
         ArrayRef<int64_t> gridShape = gridTensorType.getSizes();
         uint32_t gridRank = gridShape.size();
 
@@ -124,11 +124,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(binder.op,
                                              "gridShape[3] expected to be 2");
         std::string mode;
-        if (binder.customOpNameStringAttr(mode, "mode", "bilinear"))
+        if (binder.customOpNameStringAttr(mode, "mode", "linear"))
           return rewriter.notifyMatchFailure(binder.op, "mode bind failure");
-        if (mode != "bilinear")
+        if (mode != "linear" && mode != "bilinear")
           return rewriter.notifyMatchFailure(
-              binder.op, "currently only mode : bilinear supported");
+              binder.op, "currently only mode : linear supported");
         std::string padding;
         if (binder.customOpNameStringAttr(padding, "padding_mode", "zeros"))
           return rewriter.notifyMatchFailure(binder.op,
@@ -287,7 +287,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           axis = rank + axis;
         }
         // need input type and sizes to flatten/unflatten later.
-        auto inputTy = input.getType().cast<Torch::ValueTensorType>();
+        auto inputTy = cast<Torch::ValueTensorType>(input.getType());
         if (!inputTy || !inputTy.hasSizes())
           return rewriter.notifyMatchFailure(
               binder.op, "failed to get input type or sizes");
@@ -682,18 +682,39 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp("Not", 1,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  Value operand;
-                  if (binder.tensorOperand(operand) ||
-                      binder.tensorResultType(resultType)) {
-                    return failure();
-                  }
-                  rewriter.replaceOpWithNewOp<Torch::AtenBitwiseNotOp>(
-                      binder.op, resultType, operand);
-                  return success();
-                });
+  patterns.onOp(
+      "Not", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        if (binder.tensorOperand(operand) ||
+            binder.tensorResultType(resultType)) {
+          return failure();
+        }
+
+        auto loc = binder.getLoc();
+        auto operandTy = cast<Torch::ValueTensorType>(operand.getType());
+        auto eTy = operandTy.getDtype();
+
+        if (!eTy.isInteger(1)) {
+          auto i1ty = rewriter.getI1Type();
+          auto ty = rewriter.getType<Torch::ValueTensorType>(
+              operandTy.getSizes(), i1ty);
+          auto torchqTy = Torch::getScalarTypeForType(i1ty);
+          Value tyConst = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                      static_cast<int64_t>(torchqTy)));
+          Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+          Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+          operand = rewriter.create<Torch::AtenToDtypeOp>(
+              loc, ty, operand, tyConst,
+              /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+              /*memory_format=*/none);
+        }
+        rewriter.replaceOpWithNewOp<Torch::AtenBitwiseNotOp>(
+            binder.op, resultType, operand);
+        return success();
+      });
   patterns.onOp("Or", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -1095,7 +1116,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 1));
 
         auto transpose = [&](Value m) -> Value {
-          auto tty = m.getType().cast<Torch::ValueTensorType>();
+          auto tty = cast<Torch::ValueTensorType>(m.getType());
           auto shape = tty.getOptionalSizes();
           if (shape.has_value()) {
             llvm::SmallVector<int64_t> newShape(shape.value());
@@ -1164,7 +1185,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType))
           return failure();
 
-        auto inputTensorType = operand.getType().cast<Torch::ValueTensorType>();
+        auto inputTensorType = cast<Torch::ValueTensorType>(operand.getType());
         if (!inputTensorType || !inputTensorType.hasSizes()) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected input type having sizes");
@@ -1258,7 +1279,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           rank = *maybeRank;
         SmallVector<Value> normalized;
         axis = Torch::toPositiveDim(axis, rank);
-        auto xType = x.getType().cast<Torch::ValueTensorType>();
+        auto xType = cast<Torch::ValueTensorType>(x.getType());
         if (!xType.hasSizes()) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected input (X) to have sizes");
@@ -1337,7 +1358,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         // Get pads shape and rank. The pads tensor is expected to be 1-D
         // tensor.
-        auto padsTensorType = pads.getType().cast<Torch::ValueTensorType>();
+        auto padsTensorType = cast<Torch::ValueTensorType>(pads.getType());
         if (!padsTensorType || !padsTensorType.hasSizes()) {
           return rewriter.notifyMatchFailure(binder.op,
                                              "Expect non empty pad tensor");
@@ -1349,9 +1370,18 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                                              "expect 1-d pad tensor");
 
         int64_t padsSize = padsShape[0];
-        if (padsSize == Torch::kUnknownSize)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "pad length is unknown");
+        if (padsSize == Torch::kUnknownSize) {
+          // As per onnx.Pad documentation, padSize = 2*num_data_axes
+          // (if axes param not passed). Need to be updated when adding
+          // support for `axes` param.
+          auto dataOpTy = cast<Torch::ValueTensorType>(data.getType());
+          TensorType dataTensor = dataOpTy.toBuiltinTensor();
+          if (!dataTensor || !dataTensor.hasRank())
+            return rewriter.notifyMatchFailure(
+                binder.op, "pad length unknown and data operand unranked");
+          int64_t dataRank = dataTensor.getRank();
+          padsSize = 2 * dataRank;
+        }
 
         Value constantValue;
         if (binder.getNumOperands() >= 3) {
@@ -1371,7 +1401,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         if (!constantValue) {
-          auto dataTensorType = data.getType().cast<Torch::ValueTensorType>();
+          auto dataTensorType = cast<Torch::ValueTensorType>(data.getType());
           if (dataTensorType.getDtype().isa<IntegerType>())
             constantValue = rewriter.create<Torch::ConstantIntOp>(
                 loc, rewriter.getI64IntegerAttr(0));
@@ -1587,6 +1617,107 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, input);
                   return success();
                 });
+  patterns.onOp(
+      "OneHot", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        llvm::SmallVector<Value> inputs;
+        Torch::ValueTensorType resultType;
+        if (binder.tensorOperandsList(inputs) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        if (inputs.size() != 3)
+          return rewriter.notifyMatchFailure(binder.op, "expected 3 operands");
+
+        int64_t axis;
+        if (binder.s64IntegerAttr(axis, "axis", -1))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "`axis` attr not found");
+
+        auto loc = binder.getLoc();
+        Value indices = inputs[0];
+        Value depth = inputs[1];
+        Value values = inputs[2];
+
+        auto indicesTy = cast<Torch::ValueTensorType>(indices.getType());
+        auto valuesTy = cast<Torch::ValueTensorType>(values.getType());
+        auto depthTy = cast<Torch::ValueTensorType>(depth.getType());
+
+        axis = axis < 0 ? axis + indicesTy.getSizes().size() + 1 : axis;
+
+        bool depthIsInt = isa<IntegerType>(depthTy.getDtype());
+        Type intTy = rewriter.getType<Torch::IntType>();
+        Type floatTy = rewriter.getType<Torch::FloatType>();
+        Type depthETy = depthIsInt ? intTy : floatTy;
+        depth = rewriter.create<Torch::AtenItemOp>(loc, depthETy, depth);
+
+        if (!depthIsInt)
+          depth = rewriter.create<Torch::AtenIntScalarOp>(
+              loc, rewriter.getType<Torch::IntType>(), depth);
+
+        auto selectTy = rewriter.getType<Torch::ValueTensorType>(
+            llvm::SmallVector<int64_t>{1}, valuesTy.getDtype());
+
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(0));
+        Value one = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(1));
+
+        Value off = rewriter.create<Torch::AtenSelectIntOp>(loc, selectTy,
+                                                            values, zero, zero);
+        off = rewriter.create<Torch::AtenItemOp>(
+            loc, rewriter.getType<Torch::IntType>(), off);
+
+        Value on = rewriter.create<Torch::AtenSelectIntOp>(loc, selectTy,
+                                                           values, zero, one);
+        on = rewriter.create<Torch::AtenItemOp>(
+            loc, rewriter.getType<Torch::IntType>(), on);
+
+        auto i32Ty = rewriter.getIntegerType(32, true);
+        llvm::SmallVector<int64_t> onehotShape(indicesTy.getSizes());
+        onehotShape.push_back(Torch::kUnknownSize);
+        auto onehotTy =
+            rewriter.getType<Torch::ValueTensorType>(onehotShape, i32Ty);
+
+        Value onehot = rewriter.create<Torch::AtenOneHotOp>(
+            binder.getLoc(), onehotTy, indices, depth);
+
+        for (int i = valuesTy.getSizes().size(); i > axis; ++i) {
+          std::swap(onehotShape[i - 1], onehotShape[i]);
+          Value iv0 = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(i));
+          Value iv1 = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(i - 1));
+
+          onehotTy =
+              rewriter.getType<Torch::ValueTensorType>(onehotShape, i32Ty);
+          onehot = rewriter.create<Torch::AtenTransposeIntOp>(loc, onehotTy,
+                                                              onehot, iv1, iv0);
+        }
+
+        // Change one hot to an array of booleans to select value:
+        auto i1Ty = rewriter.getI1Type();
+        auto torchqTy = Torch::getScalarTypeForType(i1Ty);
+        Value tyConst = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                    static_cast<int64_t>(torchqTy)));
+
+        onehotTy = rewriter.getType<Torch::ValueTensorType>(onehotShape, i1Ty);
+        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+        onehot = rewriter.create<Torch::AtenToDtypeOp>(
+            loc, onehotTy, onehot, tyConst,
+            /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+            /*memory_format=*/none);
+
+        onehotTy = rewriter.getType<Torch::ValueTensorType>(
+            onehotShape, resultType.getDtype());
+        onehot = rewriter.create<Torch::AtenWhereScalarOp>(loc, onehotTy,
+                                                           onehot, on, off);
+
+        rewriter.replaceOp(binder.op, onehot);
+        return success();
+      });
   patterns.onOp("HardSwish", 14,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
