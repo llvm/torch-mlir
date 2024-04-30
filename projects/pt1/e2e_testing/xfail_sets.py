@@ -2562,16 +2562,12 @@ ONNX_XFAIL_SET = {
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
     "_SoftmaxModule_basic",
+    # Failure - onnx_import
     # Failure - onnx_lowering: onnx.AveragePool
     "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
-    # Failure - onnx_lowering: onnx.If
-    "DiagonalModule_basic",
-    "DiagonalModule_nonsquare",
-    "DiagonalModule_transposed",
-    "DiagonalModule_with_dims",
-    "DiagonalModule_with_dims_and_offset",
-    "DiagonalModule_with_negative_dims",
-    "DiagonalModule_with_offset",
+    # these diagonal modules are currently failing due to dynamic shape.
+    # We are currently testing aten.diagonal using DiagonalWithStaticShapeModule instead.
+    # when the issue is fixed, please remove DiagonalWithStaticShapeModule as well as the xfails here.
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
     # Failure - onnx_lowering: onnx.MaxPool
