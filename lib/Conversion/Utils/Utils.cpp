@@ -52,7 +52,7 @@ LogicalResult checkNotNone(PatternRewriter &rewriter, Operation *op, Value v) {
 // Generate IR: dim = dim >= 0 ? dim : dim + inputRank
 Value toPositiveDimDynamic(OpBuilder &b, Location loc, Value dim,
                            Value inputRank) {
-  assert(dim.getType().isa<IntegerType>() &&
+  assert(isa<IntegerType>(dim.getType()) &&
          "dim arg of toPositiveDim must be integer type");
   Value dimAddInputRank = b.create<arith::AddIOp>(loc, dim, inputRank);
   Value cst0 =
@@ -132,7 +132,7 @@ Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
                            Type elemTy) {
   Value initTensor =
       b.create<tensor::EmptyOp>(loc, getAsOpFoldResult(sizes), elemTy);
-  RankedTensorType type = initTensor.getType().cast<RankedTensorType>();
+  RankedTensorType type = cast<RankedTensorType>(initTensor.getType());
   Value c0 =
       b.create<arith::ConstantOp>(loc, b.getZeroAttr(type.getElementType()));
   return b.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
@@ -172,7 +172,7 @@ Value getDimOp(OpBuilder &b, Location loc, Value v, int dim) {
 
 SmallVector<Value> getTensorSizesUntilDim(OpBuilder &b, Location loc,
                                           Value tensor, int dim) {
-  RankedTensorType type = tensor.getType().cast<RankedTensorType>();
+  RankedTensorType type = cast<RankedTensorType>(tensor.getType());
   assert(dim < type.getRank() &&
          "The given dim must be smaller than tensor rank");
   (void)type;
@@ -183,7 +183,7 @@ SmallVector<Value> getTensorSizesUntilDim(OpBuilder &b, Location loc,
 }
 
 SmallVector<Value> getTensorSizes(OpBuilder &b, Location loc, Value tensor) {
-  RankedTensorType type = tensor.getType().cast<RankedTensorType>();
+  RankedTensorType type = cast<RankedTensorType>(tensor.getType());
   return getTensorSizesUntilDim(b, loc, tensor, type.getRank() - 1);
 }
 

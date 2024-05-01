@@ -13,9 +13,9 @@ mb = ModuleBuilder()
 
 
 class TestModule(torch.nn.Module):
-  def __init__(self):
-    super().__init__()
-    self.d = {"key1": torch.tensor(1)}
+    def __init__(self):
+        super().__init__()
+        self.d = {"key1": torch.tensor(1)}
 
 
 # CHECK: torch.class_type @[[CLASSTYPE:.*]] {

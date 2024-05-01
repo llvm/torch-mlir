@@ -51,5 +51,5 @@ def main():
     report_results(results, set())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

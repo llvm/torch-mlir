@@ -59,3 +59,41 @@ bool mlir::torch::onnx_c::areAllElementsDistinct(SmallVector<int64_t> array) {
   // as array's size.
   return (set.size() == array.size());
 }
+
+std::optional<int64_t>
+mlir::torch::onnx_c::onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx) {
+  // TODO: Add complete mapping.
+  // Where are the ONNX and PyTorch dtype enums defined?
+  // ONNX:
+  //  https://github.com/shouxieai/tensorRT_Pro/blob/main/onnx/onnx-ml.proto
+  // PyTorch:
+  //  https://github.com/llvm/torch-mlir/blob/main/include/torch-mlir/Dialect/Torch/Utils/TorchUpstream.h#L88
+
+  std::optional<int64_t> dtypeIntTorch =
+      [dtypeIntOnnx]() -> std::optional<int64_t> {
+    switch (dtypeIntOnnx) {
+    case 1:
+      return 6; // float
+    case 2:
+      return 0; // uint8
+    case 3:
+      return 1; // int8
+    case 6:
+      return 3; // int32
+    case 7:
+      return 4; // int64
+    case 9:
+      return 11; // bool
+    case 10:
+      return 5; // half
+    case 11:
+      return 7; // double
+    case 16:
+      return 15; // bfloat16
+    default:
+      return std::nullopt; // No dtype
+    }
+  }();
+
+  return dtypeIntTorch;
+}

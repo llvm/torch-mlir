@@ -30,6 +30,7 @@ import traceback
 
 import multiprocess as mp
 from multiprocess import set_start_method
+
 try:
     set_start_method("spawn")
 except RuntimeError:
@@ -38,9 +39,13 @@ except RuntimeError:
 
 import torch
 
-TorchScriptValue = Union[int, float, List['TorchScriptValue'],
-                         Dict['TorchScriptValue',
-                              'TorchScriptValue'], torch.Tensor]
+TorchScriptValue = Union[
+    int,
+    float,
+    List["TorchScriptValue"],
+    Dict["TorchScriptValue", "TorchScriptValue"],
+    torch.Tensor,
+]
 
 
 class TraceItem(NamedTuple):
@@ -91,9 +96,11 @@ def clone_torch_script_value(v: TorchScriptValue):
 # TODO: Figure out the root cause of the failure and fix properly.
 def clone_trace(trace: Trace) -> Trace:
     return [
-        TraceItem(symbol=item.symbol,
-                  inputs=clone_torch_script_value(item.inputs),
-                  output=clone_torch_script_value(item.output))
+        TraceItem(
+            symbol=item.symbol,
+            inputs=clone_torch_script_value(item.inputs),
+            output=clone_torch_script_value(item.output),
+        )
         for item in trace
     ]
 
@@ -101,7 +108,8 @@ def clone_trace(trace: Trace) -> Trace:
 # A type shared between the result of `TestConfig.compile` and the input
 # to `TestConfig.run`. Each backend will likely have a different definition of
 # this type.
-CompiledArtifact = TypeVar('CompiledArtifact')
+CompiledArtifact = TypeVar("CompiledArtifact")
+
 
 class TestConfig(abc.ABC):
     """The interface implemented by backends to run tests.
@@ -136,6 +144,7 @@ class TestConfig(abc.ABC):
     backend (compiler backend and runtime target) will have an arbitrarily
     wild and wonderful set of possible configurations that we cannot predict.
     """
+
     # This is not a frontend-lowered module, to allow various testing at the PyTorch level.
     # We can have a helper class LinalgOnTensorsBackendTestConfig which does that.
     @abc.abstractmethod
@@ -202,8 +211,8 @@ class TestUtils:
 
 
 class Test(NamedTuple):
-    """A description of a test as produced by the test frontend.
-    """
+    """A description of a test as produced by the test frontend."""
+
     # Stable name for error reporting.
     #
     # This name's stability is also useful for backend, which want to
@@ -268,14 +277,20 @@ class _Tracer:
         inputs = [clone_torch_script_value(arg) for arg in args]
         output = self.__wrapped__(*args, **kwargs)
         self.__trace__.append(
-            TraceItem(symbol=".".join(self.__property_base_path__),
-                      inputs=inputs,
-                      output=output))
+            TraceItem(
+                symbol=".".join(self.__property_base_path__),
+                inputs=inputs,
+                output=output,
+            )
+        )
         return output
 
     def __getattr__(self, name):
-        return _Tracer(getattr(self.__wrapped__, name),
-                       self.__property_base_path__ + [name], self.__trace__)
+        return _Tracer(
+            getattr(self.__wrapped__, name),
+            self.__property_base_path__ + [name],
+            self.__trace__,
+        )
 
 
 def generate_golden_trace(test: Test) -> Trace:
@@ -297,40 +312,49 @@ def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
             print(f"Compiling {test.unique_name}...", file=sys.stderr)
         compiled = config.compile(test.program_factory())
     except Exception as e:
-        return TestResult(unique_name=test.unique_name,
-                          compilation_error="".join(
-                              traceback.format_exception(
-                                  type(e), e, e.__traceback__)),
-                          runtime_error=None,
-                          trace=None,
-                          golden_trace=None)
+        return TestResult(
+            unique_name=test.unique_name,
+            compilation_error="".join(
+                traceback.format_exception(type(e), e, e.__traceback__)
+            ),
+            runtime_error=None,
+            trace=None,
+            golden_trace=None,
+        )
     try:
         if verbose:
             print(f"Running {test.unique_name}...", file=sys.stderr)
         trace = config.run(compiled, golden_trace)
     except Exception as e:
-        return TestResult(unique_name=test.unique_name,
-                          compilation_error=None,
-                          runtime_error="".join(
-                              traceback.format_exception(
-                                  type(e), e, e.__traceback__)),
-                          trace=None,
-                          golden_trace=None)
-    return TestResult(unique_name=test.unique_name,
-                      compilation_error=None,
-                      runtime_error=None,
-                      trace=clone_trace(trace),
-                      golden_trace=clone_trace(golden_trace))
+        return TestResult(
+            unique_name=test.unique_name,
+            compilation_error=None,
+            runtime_error="".join(
+                traceback.format_exception(type(e), e, e.__traceback__)
+            ),
+            trace=None,
+            golden_trace=None,
+        )
+    return TestResult(
+        unique_name=test.unique_name,
+        compilation_error=None,
+        runtime_error=None,
+        trace=clone_trace(trace),
+        golden_trace=clone_trace(golden_trace),
+    )
 
 
-def run_tests(tests: List[Test], config: TestConfig, sequential=False, verbose=False) -> List[TestResult]:
+def run_tests(
+    tests: List[Test], config: TestConfig, sequential=False, verbose=False
+) -> List[TestResult]:
     """Invoke the given `Test`'s with the provided `TestConfig`."""
     num_processes = min(int(mp.cpu_count() * 0.8) + 1, len(tests))
     try:
         env_concurrency = int(os.getenv("TORCH_MLIR_TEST_CONCURRENCY", "0"))
     except ValueError as e:
-        raise ValueError("Bad value for TORCH_MLIR_TEST_CONCURRENCY env var: "
-                         "Expected integer.") from e
+        raise ValueError(
+            "Bad value for TORCH_MLIR_TEST_CONCURRENCY env var: " "Expected integer."
+        ) from e
     if env_concurrency > 0:
         num_processes = min(num_processes, env_concurrency)
 
@@ -374,10 +398,11 @@ def run_tests(tests: List[Test], config: TestConfig, sequential=False, verbose=F
         TestResult(
             unique_name=aborted_test_name,
             compilation_error=None,
-            runtime_error=
-            "Testing process terminated. Either the compiler crashed or the compiled code crashed at runtime.\n",
+            runtime_error="Testing process terminated. Either the compiler crashed or the compiled code crashed at runtime.\n",
             trace=None,
-            golden_trace=None) for aborted_test_name in aborted_tests
+            golden_trace=None,
+        )
+        for aborted_test_name in aborted_tests
     ]
     results.extend(aborted_tests_results)
     results.sort(key=lambda result: result.unique_name)

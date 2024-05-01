@@ -43,12 +43,13 @@ static void signShift(PatternRewriter &rewriter, Location loc, Value &arg,
   if (!isUnsignedType)
     return;
   int64_t minSI = -(1 << (numBits - 1));
-  Value minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, 32);
+  Value minSIValue = rewriter.create<arith::ConstantIntOp>(
+      loc, minSI, zp.getType().cast<mlir::IntegerType>().getWidth());
   zp = rewriter.create<arith::AddIOp>(loc, zp, minSIValue);
   minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, numBits);
   arg = torch_to_linalg::createElementwiseLinalgGeneric(
       rewriter, loc, ValueRange{arg},
-      arg.getType().cast<TensorType>().getElementType(),
+      cast<TensorType>(arg.getType()).getElementType(),
       [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
         Value result =
             rewriter.create<arith::AddIOp>(loc, payloadArgs[0], minSIValue);
@@ -58,7 +59,7 @@ static void signShift(PatternRewriter &rewriter, Location loc, Value &arg,
 
 static Value transposeValue(Location loc, Value value, ArrayRef<int64_t> perms,
                             PatternRewriter &rewriter) {
-  auto valueTy = value.getType().cast<RankedTensorType>();
+  auto valueTy = cast<RankedTensorType>(value.getType());
   auto inShape = valueTy.getShape();
   llvm::SmallVector<int64_t> outShape;
   llvm::SmallVector<Value> dynDims;
@@ -100,8 +101,8 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
-    RankedTensorType lhsType = lhs.getType().cast<RankedTensorType>();
-    RankedTensorType rhsType = rhs.getType().cast<RankedTensorType>();
+    RankedTensorType lhsType = cast<RankedTensorType>(lhs.getType());
+    RankedTensorType rhsType = cast<RankedTensorType>(rhs.getType());
 
     if (lhsType.getRank() != 2 || rhsType.getRank() != 2) {
       return rewriter.notifyMatchFailure(
@@ -109,9 +110,9 @@ public:
     }
 
     ValueTensorType lhsTorchType =
-        op.getSelf().getType().cast<ValueTensorType>();
+        cast<ValueTensorType>(op.getSelf().getType());
     ValueTensorType rhsTorchType =
-        op.getMat2().getType().cast<ValueTensorType>();
+        cast<ValueTensorType>(op.getMat2().getType());
 
     Value lhsZeroPoint, rhsZeroPoint;
     getZeroPoint(op.getSelf(), lhsZeroPoint);
@@ -148,7 +149,7 @@ public:
               "mismatching contracting dimension for torch.aten.mm"));
     }
 
-    auto resultTy = op.getType().cast<ValueTensorType>();
+    auto resultTy = cast<ValueTensorType>(op.getType());
     auto resultDTy = resultTy.toBuiltinTensor().getElementType();
     Type newResultType = getTypeConverter()->convertType(op.getType());
     Type elementType = cast<TensorType>(newResultType).getElementType();
@@ -176,9 +177,9 @@ public:
 
       // change uint8 quantization -> int8 quantization
       int64_t numBits =
-          lhsType.getElementType().cast<mlir::IntegerType>().getWidth();
+          cast<mlir::IntegerType>(lhsType.getElementType()).getWidth();
       signShift(rewriter, loc, lhs, lhsZeroPoint, isUnsigned, numBits);
-      numBits = rhsType.getElementType().cast<mlir::IntegerType>().getWidth();
+      numBits = cast<mlir::IntegerType>(rhsType.getElementType()).getWidth();
       signShift(rewriter, loc, rhs, rhsZeroPoint, isUnsignedR, numBits);
 
       matmul =
@@ -229,9 +230,9 @@ public:
     MLIRContext *context = op.getContext();
     Value self = adaptor.getSelf();
     auto selfRank =
-        adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
+        cast<RankedTensorType>(adaptor.getSelf().getType()).getRank();
     Type elementType =
-        adaptor.getSelf().getType().cast<RankedTensorType>().getElementType();
+        cast<RankedTensorType>(adaptor.getSelf().getType()).getElementType();
     Value c1 =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
 
@@ -299,8 +300,8 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter))) {
       return failure();
     }
-    auto lhsType = lhs.getType().cast<RankedTensorType>();
-    auto rhsType = rhs.getType().cast<RankedTensorType>();
+    auto lhsType = cast<RankedTensorType>(lhs.getType());
+    auto rhsType = cast<RankedTensorType>(rhs.getType());
 
     auto lhsTorchType = cast<ValueTensorType>(op.getSelf().getType());
     auto rhsTorchType = cast<ValueTensorType>(op.getOther().getType());
@@ -348,9 +349,9 @@ public:
 
       // change uint8 quantization -> int8 quantization
       int64_t numBits =
-          lhsType.getElementType().cast<mlir::IntegerType>().getWidth();
+          cast<mlir::IntegerType>(lhsType.getElementType()).getWidth();
       signShift(rewriter, loc, lhs, lhsZeroPoint, isUnsigned, numBits);
-      numBits = rhsType.getElementType().cast<mlir::IntegerType>().getWidth();
+      numBits = cast<mlir::IntegerType>(rhsType.getElementType()).getWidth();
       signShift(rewriter, loc, rhs, rhsZeroPoint, isUnsignedR, numBits);
 
       // for quantized vec-vec, vec-mat, and mat-vec cases, lower to
@@ -726,8 +727,8 @@ public:
     Location loc = op->getLoc();
     Value lhs = adaptor.getSelf();
     Value rhs = adaptor.getMat2();
-    RankedTensorType lhsType = lhs.getType().cast<RankedTensorType>();
-    RankedTensorType rhsType = rhs.getType().cast<RankedTensorType>();
+    RankedTensorType lhsType = cast<RankedTensorType>(lhs.getType());
+    RankedTensorType rhsType = cast<RankedTensorType>(rhs.getType());
     Type newResultType = getTypeConverter()->convertType(op.getType());
     Type resultElementType =
         cast<RankedTensorType>(newResultType).getElementType();
@@ -794,9 +795,11 @@ public:
     Value input = adaptor.getInput();   /* in form of N*C*H*W */
     Value weight = adaptor.getWeight(); /* in form of F*C*H*W */
     Value bias = adaptor.getBias();
-    auto resultTy = op.getType().cast<ValueTensorType>();
+    auto resultTy = cast<ValueTensorType>(op.getType());
 
     Value inputZp, weightZp;
+    bool inputUnsigned = false;
+    bool weightUnsigned = false;
     if (auto make = op.getInput()
                         .getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
       input = make.getSelf();
@@ -806,6 +809,8 @@ public:
       inputZp = typeConverter->materializeTargetConversion(
           rewriter, loc, typeConverter->convertType(inputZp.getType()),
           inputZp);
+      auto torchDtype = cast<ValueTensorType>(make.getType()).getDtype();
+      inputUnsigned = torch_to_linalg::isUnsignedTorchType(torchDtype);
     }
 
     if (auto make = op.getWeight()
@@ -818,6 +823,8 @@ public:
       weightZp = typeConverter->materializeTargetConversion(
           rewriter, loc, typeConverter->convertType(weightZp.getType()),
           weightZp);
+      auto torchDtype = cast<ValueTensorType>(make.getType()).getDtype();
+      weightUnsigned = torch_to_linalg::isUnsignedTorchType(torchDtype);
     }
 
     if (static_cast<bool>(inputZp) != static_cast<bool>(weightZp)) {
@@ -826,7 +833,7 @@ public:
     }
 
     if (inputZp && weightZp && !isa<Torch::NoneType>(bias.getType())) {
-      auto biasDTy = bias.getType().cast<RankedTensorType>().getElementType();
+      auto biasDTy = cast<RankedTensorType>(bias.getType()).getElementType();
       if (!biasDTy.isInteger(32)) {
         return rewriter.notifyMatchFailure(
             op, "quantized result ty should be i32 accumulator");
@@ -838,15 +845,15 @@ public:
       return rewriter.notifyMatchFailure(
           op, "unimplemented: only constant transposed supported");
 
-    auto inputDTy = input.getType().cast<RankedTensorType>().getElementType();
-    auto weightDTy = weight.getType().cast<RankedTensorType>().getElementType();
+    auto inputDTy = cast<RankedTensorType>(input.getType()).getElementType();
+    auto weightDTy = cast<RankedTensorType>(weight.getType()).getElementType();
     auto resultDTy = resultTy.toBuiltinTensor().getElementType();
 
     if (!isa<mlir::FloatType, mlir::IntegerType>(inputDTy) ||
         !isa<mlir::FloatType, mlir::IntegerType>(weightDTy) ||
         !isa<mlir::FloatType, mlir::IntegerType>(resultDTy))
       return op.emitError("unimplemented: non-fp not-int type");
-    size_t inRank = input.getType().cast<RankedTensorType>().getRank();
+    size_t inRank = cast<RankedTensorType>(input.getType()).getRank();
     size_t numSpatialDims = inRank - 2;
     if (numSpatialDims < 1 || numSpatialDims > 3)
       return rewriter.notifyMatchFailure(
@@ -916,15 +923,35 @@ public:
     SmallVector<Value> strideIntValues =
         getAsConstantIntValues(rewriter, loc, strideInts);
 
+    // convert any uint8 quantization to int8 quantization
+    if (auto integerType = dyn_cast<mlir::IntegerType>(inputDTy)) {
+      int64_t width = integerType.getWidth();
+      signShift(rewriter, loc, input, inputZp, inputUnsigned, width);
+    }
+    if (auto integerType = dyn_cast<mlir::IntegerType>(weightDTy)) {
+      int64_t width = integerType.getWidth();
+      signShift(rewriter, loc, weight, weightZp, weightUnsigned, width);
+    }
     // Pad the input tensor according to padding.
     SmallVector<Value> outDims{inBatch, weightBatch};
     Value paddedInput;
-    if (transposed) {
-      if (!isa<mlir::FloatType>(inputDTy) || !isa<mlir::FloatType>(weightDTy) ||
-          !isa<mlir::FloatType>(resultDTy))
-        return rewriter.notifyMatchFailure(
-            op, "transpose does not support non-fp type yet");
+    Value pad = inputZp;
+    if (!pad) {
+      if (isa<mlir::FloatType>(inputDTy))
+        pad = rewriter.create<arith::ConstantOp>(
+            op.getLoc(), rewriter.getFloatAttr(inputDTy, 0.0));
+      if (isa<mlir::IntegerType>(inputDTy))
+        pad = rewriter.create<arith::ConstantOp>(
+            op.getLoc(), rewriter.getIntegerAttr(inputDTy, 0));
+    }
+    if (pad.getType() != inputDTy) {
+      if (isa<mlir::FloatType>(inputDTy))
+        pad = rewriter.create<arith::TruncFOp>(op.getLoc(), inputDTy, pad);
 
+      if (isa<mlir::IntegerType>(inputDTy))
+        pad = rewriter.create<arith::TruncIOp>(op.getLoc(), inputDTy, pad);
+    }
+    if (transposed) {
       Value c0 =
           rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
       Value c1 =
@@ -994,7 +1021,7 @@ public:
 
       // Allocate padded input tensor
       Value initTensor =
-          createZeroInitTensor(rewriter, loc, outerSizes, inputDTy);
+          createInitTensor(rewriter, loc, outerSizes, inputDTy, pad);
 
       // Insert input into allocated tensor
       SmallVector<Value> strideIndexValues{c1, c1};
@@ -1017,24 +1044,6 @@ public:
       strideInts.clear();
       strideInts.append(numSpatialDims, 1);
     } else {
-      Value pad = inputZp;
-      if (!pad) {
-        if (isa<mlir::FloatType>(inputDTy))
-          pad = rewriter.create<arith::ConstantOp>(
-              op.getLoc(), rewriter.getFloatAttr(inputDTy, 0.0));
-        if (isa<mlir::IntegerType>(inputDTy))
-          pad = rewriter.create<arith::ConstantOp>(
-              op.getLoc(), rewriter.getIntegerAttr(inputDTy, 0));
-      }
-
-      if (pad.getType() != inputDTy) {
-        if (isa<mlir::FloatType>(inputDTy))
-          pad = rewriter.create<arith::TruncFOp>(op.getLoc(), inputDTy, pad);
-
-        if (isa<mlir::IntegerType>(inputDTy))
-          pad = rewriter.create<arith::TruncIOp>(op.getLoc(), inputDTy, pad);
-      }
-
       // Pad input
       paddedInput = torch_to_linalg::getDynamicZeroPaddedTensor(
           op, rewriter, input, paddingIntValues, /*unpaddedDims=*/2, pad);
@@ -1067,11 +1076,11 @@ public:
           rewriter.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
 
     } else {
-      auto biasType = bias.getType().cast<RankedTensorType>();
+      auto biasType = cast<RankedTensorType>(bias.getType());
       if (biasType.getRank() != 1)
         return rewriter.notifyMatchFailure(op, "expect bias to be rank 1");
 
-      auto resultRank = initTensor.getType().cast<RankedTensorType>().getRank();
+      auto resultRank = cast<RankedTensorType>(initTensor.getType()).getRank();
       SmallVector<AffineMap> indexingMaps = {
           // bias is used to initialize the channels - dimension 1 of output
           AffineMap::get(/*dimCount=*/resultRank, /*symbolCount=*/0,
@@ -1228,9 +1237,9 @@ public:
 
     // Special depthwise case
     auto inShape = makeShapeTorchCompatible(
-        input.getType().cast<RankedTensorType>().getShape());
+        cast<RankedTensorType>(input.getType()).getShape());
     auto weightShape = makeShapeTorchCompatible(
-        weight.getType().cast<RankedTensorType>().getShape());
+        cast<RankedTensorType>(weight.getType()).getShape());
     if (weightShape[0] != kUnknownSize && inShape[1] == groupSize &&
         weightShape[0] % inShape[1] == 0 && weightShape[1] == 1) {
       // Collapse weight shape
@@ -1264,7 +1273,7 @@ public:
 
     // Grouped case, use the grouped conv linalg op
     auto expandGroups = [&](Value tensor, size_t dim) {
-      auto inType = tensor.getType().cast<RankedTensorType>();
+      auto inType = cast<RankedTensorType>(tensor.getType());
       auto inShape = makeShapeTorchCompatible(inType.getShape());
 
       SmallVector<int64_t> outShape;
@@ -1297,7 +1306,7 @@ public:
 
     // expand F,C,H,W -> G,F/G,C,H,W
     auto expandWeight = [&](Value tensor) {
-      auto inType = tensor.getType().cast<RankedTensorType>();
+      auto inType = cast<RankedTensorType>(tensor.getType());
       auto inShape = makeShapeTorchCompatible(inType.getShape());
 
       SmallVector<int64_t> outShape{

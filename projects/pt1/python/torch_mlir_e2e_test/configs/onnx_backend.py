@@ -47,8 +47,8 @@ def convert_onnx(model: torch.nn.Module, inputs):
     examples = []
     input_names = []
     dynamic_tensors = {}
-    for (index, arg) in enumerate(inputs):
-        shape = map(lambda d : d if d >= 0 else 1, arg.shape)
+    for index, arg in enumerate(inputs):
+        shape = map(lambda d: d if d >= 0 else 1, arg.shape)
         shape = tuple(shape)
         examples.append(torch.zeros(size=shape, dtype=arg.dtype))
 
@@ -56,18 +56,20 @@ def convert_onnx(model: torch.nn.Module, inputs):
         input_names.append(input_name)
 
         dynamic_dims = {}
-        for (dimindex, dim) in enumerate(arg.shape):
-            if (dim < 0):
+        for dimindex, dim in enumerate(arg.shape):
+            if dim < 0:
                 dynamic_dims[dimindex] = "dim_{}_{}".format(index, dimindex)
 
-        if (dynamic_dims):
+        if dynamic_dims:
             dynamic_tensors[input_name] = dynamic_dims
 
-
-    examples=tuple(examples)
-    torch.onnx.export(model, examples, buffer, input_names=input_names, dynamic_axes=dynamic_tensors)
+    examples = tuple(examples)
+    torch.onnx.export(
+        model, examples, buffer, input_names=input_names, dynamic_axes=dynamic_tensors
+    )
     buffer = buffer.getvalue()
     return import_onnx(buffer)
+
 
 class OnnxBackendTestConfig(TestConfig):
     """Base class for TestConfig's that are implemented with ONNX.
@@ -75,6 +77,7 @@ class OnnxBackendTestConfig(TestConfig):
     This class handles all the common lowering that torch-mlir does before
     reaching the ONNX abstraction level.
     """
+
     def __init__(self, backend: OnnxBackend, use_make_fx: bool = False):
         super().__init__()
         self.backend = backend
@@ -87,8 +90,6 @@ class OnnxBackendTestConfig(TestConfig):
         compiled_module = self.backend.compile(onnx_module)
         return compiled_module
 
-
-
     def run(self, artifact: Any, trace: Trace) -> Trace:
         backend_module = self.backend.load(artifact)
         result: Trace = []
@@ -97,7 +98,6 @@ class OnnxBackendTestConfig(TestConfig):
             outputs = getattr(backend_module, "main_graph")(*numpy_inputs)
             output = recursively_convert_from_numpy(outputs)
             result.append(
-                TraceItem(symbol=item.symbol,
-                          inputs=item.inputs,
-                          output=output))
+                TraceItem(symbol=item.symbol, inputs=item.inputs, output=output)
+            )
         return result

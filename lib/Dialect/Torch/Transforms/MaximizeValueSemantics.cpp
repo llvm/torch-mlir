@@ -23,7 +23,7 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 static Value assertNonValueTensor(Value tensor) {
-  assert(tensor.getType().isa<NonValueTensorType>() &&
+  assert(isa<NonValueTensorType>(tensor.getType()) &&
          "tensor is expected to be a non-value tensor");
   return tensor;
 }
@@ -102,7 +102,7 @@ public:
         // to use value semantics (which happens for example with ops
         // that take two aliases as input), then it is possible that the
         // op no longer generates an alias.
-        if (userResult.getType().isa<NonValueTensorType>())
+        if (isa<NonValueTensorType>(userResult.getType()))
           availableAliases.insert(userResult);
         result.viewLikeOps.push_back(user);
       } else if (auto copyToValueTensor = dyn_cast<CopyToValueTensorOp>(user)) {
@@ -177,7 +177,7 @@ public:
     for (Operation *viewLikeOp : ops.viewLikeOps) {
       rewriter.modifyOpInPlace(viewLikeOp, [&] {
         Value result = viewLikeOp->getResult(0);
-        auto resultType = result.getType().dyn_cast<NonValueTensorType>();
+        auto resultType = dyn_cast<NonValueTensorType>(result.getType());
         if (resultType)
           result.setType(resultType.getWithValueSemantics());
       });
@@ -230,7 +230,7 @@ public:
       if (isViewLikeOp(op)) {
         // We currently only support view-like ops with one tensor output.
         if (op->getNumResults() != 1 ||
-            !op->getResult(0).getType().isa<BaseTensorType>()) {
+            !isa<BaseTensorType>(op->getResult(0).getType())) {
           return rewriter.notifyMatchFailure(
               copy, "unsupported: view-like ops must have one tensor output, "
                     "and the tensor output must be the first result");
@@ -242,7 +242,7 @@ public:
         // non-value tensor and the output being a value tensor. If this is the
         // case then there is no need to look at the users of the result of the
         // op.
-        if (opResult.getType().isa<NonValueTensorType>()) {
+        if (isa<NonValueTensorType>(opResult.getType())) {
           if (operand.getOperandNumber() == 0) {
             validViewLikeOps.insert(op);
             llvm::append_range(workList, opResult.getUses());
@@ -339,7 +339,7 @@ public:
     for (Operation *op : viewLikeOps) {
       rewriter.modifyOpInPlace(op, [&]() {
         if (auto nonValueTensorType =
-                op->getResult(0).getType().dyn_cast<NonValueTensorType>()) {
+                dyn_cast<NonValueTensorType>(op->getResult(0).getType())) {
           originalTypes[op->getResult(0)] = nonValueTensorType;
           op->getResult(0).setType(nonValueTensorType.getWithValueSemantics());
         }

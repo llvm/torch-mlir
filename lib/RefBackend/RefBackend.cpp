@@ -234,7 +234,7 @@ static LogicalResult bufferizeMLProgramGlobalOp(ml_program::GlobalOp globalOp,
   if (!globalOp.getValue().has_value())
     return globalOp.emitError("global op must have a value");
 
-  RankedTensorType tensorType = globalOp.getType().cast<RankedTensorType>();
+  RankedTensorType tensorType = cast<RankedTensorType>(globalOp.getType());
   MemRefType memrefType =
       MemRefType::get(tensorType.getShape(), tensorType.getElementType());
 
@@ -252,7 +252,7 @@ static LogicalResult bufferizeMLProgramGlobalOp(ml_program::GlobalOp globalOp,
 static LogicalResult
 bufferizeMLProgramGlobaLoadOp(ml_program::GlobalLoadOp globalLoadOp,
                               OpBuilder &b, SmallVector<Operation *> &toErase) {
-  RankedTensorType tensorType = globalLoadOp.getType().cast<RankedTensorType>();
+  RankedTensorType tensorType = cast<RankedTensorType>(globalLoadOp.getType());
   MemRefType memrefType =
       MemRefType::get(tensorType.getShape(), tensorType.getElementType());
 
@@ -271,7 +271,7 @@ bufferizeMLProgramGlobaStoreOp(ml_program::GlobalStoreOp globalStoreOp,
                                OpBuilder &b,
                                SmallVector<Operation *> &toErase) {
   RankedTensorType tensorType =
-      globalStoreOp.getValue().getType().cast<RankedTensorType>();
+      cast<RankedTensorType>(globalStoreOp.getValue().getType());
   MemRefType memrefType =
       MemRefType::get(tensorType.getShape(), tensorType.getElementType());
 
@@ -300,7 +300,7 @@ class MLProgramBufferize : public MLProgramBufferizeBase<MLProgramBufferize> {
     SmallVector<Operation *> toErase;
 
     auto walkResult = module.walk([&](ml_program::GlobalOp op) {
-      if (auto type = op.getType().dyn_cast<RankedTensorType>()) {
+      if (auto type = dyn_cast<RankedTensorType>(op.getType())) {
         if (!type.hasStaticShape()) {
           // If the ml_program.global has dynamically shaped tensor.
           op.emitError(
@@ -387,8 +387,8 @@ mlir::torch::RefBackend::createExpandOpsForLLVMPass() {
 
 Operation *createLinalgCopyOp(OpBuilder &b, Location loc, Value from,
                               Value to) {
-  auto memrefTypeFrom = from.getType().cast<MemRefType>();
-  auto memrefTypeTo = to.getType().cast<MemRefType>();
+  auto memrefTypeFrom = cast<MemRefType>(from.getType());
+  auto memrefTypeTo = cast<MemRefType>(to.getType());
   (void)memrefTypeFrom;
   assert(memrefTypeFrom && memrefTypeTo &&
          memrefTypeFrom.getRank() == memrefTypeTo.getRank());

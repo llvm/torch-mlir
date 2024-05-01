@@ -11,10 +11,12 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 # CHECK: module attributes {torch.debug_module_name = "TestModule"}
 class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
+
 
 test_module = TestModule()
 recursivescriptmodule = torch.jit.script(test_module)
