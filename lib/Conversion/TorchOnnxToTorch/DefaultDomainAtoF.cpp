@@ -258,29 +258,17 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp(
-      "Acosh", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        Value operand;
-        if (binder.tensorOperand(operand) ||
-            binder.tensorResultType(resultType))
-          return failure();
-
-        // log(x + sqrt(x**2 - 1))
-        Value square = rewriter.create<Torch::AtenSquareOp>(
-            binder.getLoc(), resultType, operand);
-        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(1));
-        Value sub = rewriter.create<Torch::AtenSubScalarOp>(
-            binder.getLoc(), resultType, square, cstOne, cstOne);
-        Value sqrt = rewriter.create<Torch::AtenSqrtOp>(binder.getLoc(),
-                                                        resultType, sub);
-        Value add = rewriter.create<Torch::AtenAddTensorOp>(
-            binder.getLoc(), resultType, operand, sqrt, cstOne);
-        rewriter.replaceOpWithNewOp<Torch::AtenLogOp>(binder.op, resultType,
-                                                      add);
-        return success();
-      });
+  patterns.onOp("Acosh", 9,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenAcoshOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
   patterns.onOp("BatchNormalization", 15,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
