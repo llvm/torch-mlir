@@ -4716,6 +4716,38 @@ LogicalResult AtenPermuteOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// PrimsConvertElementTypeOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult PrimsConvertElementTypeOp::fold(FoldAdaptor adaptor) {
+  if (getA().getType() == getResult().getType())
+    return getA();
+}
+
+//===----------------------------------------------------------------------===//
+// AtenMaxPool2dWithIndicesOp
+//===----------------------------------------------------------------------===//
+
+void AtenMaxPool2dWithIndicesOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenMaxPool2dWithIndicesOp op, PatternRewriter &rewriter) {
+    if (!op.getResult1().use_empty()) {
+      return rewriter.notifyMatchFailure(
+          op, "result1 of MaxPool2dWithIndices should be unused");
+    }
+
+    Value result = rewriter.create<Torch::AtenMaxPool2dOp>(
+        op->getLoc(), op.getResult0().getType(), op.getSelf(),
+        op.getKernelSize(), op.getStride(), op.getPadding(), op.getDilation(),
+        op.getCeilMode());
+
+    op.getResult0().replaceAllUsesWith(result);
+    rewriter.eraseOp(op);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenLinalgCrossOp
 //===----------------------------------------------------------------------===//
 
