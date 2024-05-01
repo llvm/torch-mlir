@@ -4722,6 +4722,7 @@ LogicalResult AtenPermuteOp::verify() {
 OpFoldResult PrimsConvertElementTypeOp::fold(FoldAdaptor adaptor) {
   if (getA().getType() == getResult().getType())
     return getA();
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
