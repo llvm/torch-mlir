@@ -272,6 +272,7 @@ TORCHDYNAMO_XFAIL_SET = {
     "QuantizedReluInt8_basic",
     "QuantizedReluUint8_basic",
     "Conv2dQInt8Module_basic",
+    "ConvTranspose2DQInt8_basic",
     # Dynamo not supporting conv_tbc
     "ConvTbcModule_basic",
     "FloatImplicitModule_basic",
@@ -372,6 +373,7 @@ FX_IMPORTER_XFAIL_SET = {
     "Conv2dQInt8Module_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "ConvTbcModule_basic",
+    "ConvTranspose2DQInt8_basic",
     "ConvolutionBackwardModule2DPadded_basic",
     "ConvolutionBackwardModule2DStrided_basic",
     "ConvolutionBackwardModule2D_basic",
@@ -544,6 +546,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ContainsIntList_True",
     "Conv2dQInt8Module_basic",
     "ConvTbcModule_basic",
+    "ConvTranspose2DQInt8_basic",
     "ConvolutionBackwardModule2DPadded_basic",
     "ConvolutionBackwardModule2DStrided_basic",
     "ConvolutionBackwardModule2D_basic",
@@ -1075,6 +1078,9 @@ STABLEHLO_PASS_SET = {
     "Matmul_vecmat",
     "MatmulStaticBroadcast_basic",
     "MaxPool2dStaticModule_basic",
+    "MaxPool2dEmptyStrideStaticModule_basic",
+    "MaxPool3dStaticModule_basic",
+    "MaxPool3dEmptyStrideStaticModule_basic",
     "MeanDimAllReduceModule_basic",
     "MeanDimEmptyDimModule_basic",
     "MeanDimNoneDimModule_basic",
@@ -2097,6 +2103,7 @@ LTC_XFAIL_SET = {
     "ElementwiseBitwiseAndScalarInt32Module_basic",
     "ElementwiseBitwiseAndScalarInt8Module_basic",
     "Conv2dQInt8Module_basic",
+    "ConvTranspose2DQInt8_basic",
 }
 
 ONNX_XFAIL_SET = {
@@ -2251,6 +2258,7 @@ ONNX_XFAIL_SET = {
     "Conv2dWithPaddingModule_basic",
     "Conv3dModule_basic",
     "ConvTbcModule_basic",
+    "ConvTranspose2DQInt8_basic",
     "Conv_Transpose2dModule_basic",
     "Convolution2DModule_basic",
     "Convolution2DStridedModule_basic",
@@ -2554,16 +2562,12 @@ ONNX_XFAIL_SET = {
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
     "_SoftmaxModule_basic",
+    # Failure - onnx_import
     # Failure - onnx_lowering: onnx.AveragePool
     "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
-    # Failure - onnx_lowering: onnx.If
-    "DiagonalModule_basic",
-    "DiagonalModule_nonsquare",
-    "DiagonalModule_transposed",
-    "DiagonalModule_with_dims",
-    "DiagonalModule_with_dims_and_offset",
-    "DiagonalModule_with_negative_dims",
-    "DiagonalModule_with_offset",
+    # these diagonal modules are currently failing due to dynamic shape.
+    # We are currently testing aten.diagonal using DiagonalWithStaticShapeModule instead.
+    # when the issue is fixed, please remove DiagonalWithStaticShapeModule as well as the xfails here.
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
     # Failure - onnx_lowering: onnx.MaxPool

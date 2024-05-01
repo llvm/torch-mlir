@@ -158,6 +158,60 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             alignCorners);
         return success();
       });
+  patterns.onOp(
+      "If", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value conditionTensor;
+        if (binder.tensorOperand(conditionTensor)) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "condition bind failure");
+        }
+
+        auto conditionType =
+            conditionTensor.getType().cast<Torch::ValueTensorType>();
+        if (!conditionType || conditionType.getSizes().size() != 1)
+          return rewriter.notifyMatchFailure(
+              binder.op, "condition must have one single element per "
+                         "https://onnx.ai/onnx/operators/onnx__If.html");
+        auto conditionInt = rewriter.create<Torch::AtenItemOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            conditionTensor);
+        auto conditionBool = rewriter.create<Torch::AtenBoolIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::BoolType>(), conditionInt);
+
+        llvm::SmallVector<mlir::Type> resultTypes;
+        if (binder.tensorResultTypes(resultTypes)) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "result type bind failure");
+        }
+
+        Region *thenRegion, *elseRegion;
+        if (binder.getRegionAtIndex(elseRegion, 0) ||
+            binder.getRegionAtIndex(thenRegion, 1)) {
+          return rewriter.notifyMatchFailure(binder.op, "region bind failure");
+        }
+
+        auto primIfOp = rewriter.create<Torch::PrimIfOp>(
+            binder.getLoc(), TypeRange(resultTypes), conditionBool);
+
+        auto inlineIfCase = [&](Region &srcRegion, Region &dstRegion) {
+          rewriter.inlineRegionBefore(srcRegion, dstRegion, dstRegion.begin());
+        };
+        inlineIfCase(*thenRegion, primIfOp.getThenRegion());
+        inlineIfCase(*elseRegion, primIfOp.getElseRegion());
+
+        auto replaceTerminator = [&](Region &region) {
+          PatternRewriter::InsertionGuard guard(rewriter);
+          Operation *terminator = region.front().getTerminator();
+          rewriter.setInsertionPoint(terminator);
+          rewriter.replaceOpWithNewOp<Torch::PrimIfYieldOp>(
+              terminator, terminator->getOperands());
+        };
+        replaceTerminator(primIfOp.getThenRegion());
+        replaceTerminator(primIfOp.getElseRegion());
+
+        rewriter.replaceOp(binder.op, primIfOp.getResults());
+        return success();
+      });
   patterns.onOp("Less", 13,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;

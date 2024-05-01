@@ -97,6 +97,31 @@ struct OpBinder {
     return success();
   }
 
+  ParseResult tensorResultTypes(llvm::SmallVector<mlir::Type> &typeList) {
+    for (auto result : op->getResults()) {
+      auto t = toValidTensorType(result.getType());
+      if (!t)
+        return failure();
+      typeList.push_back(t);
+    }
+    return success();
+  }
+
+  // The importer imports Onnx.GraphProto attributes as regions attached to the
+  // op.
+  ParseResult getRegionAtIndex(mlir::Region *&region, int64_t idx) {
+    if (idx >= op->getNumRegions())
+      return failure();
+
+    region = &op->getRegion(idx);
+
+    if (region == nullptr) {
+      return failure();
+    }
+
+    return success();
+  }
+
   ParseResult tensorResultTypeAtIndex(Torch::ValueTensorType &typeIdx,
                                       int64_t idx) {
     if (idx >= op->getNumResults())
