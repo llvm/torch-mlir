@@ -1,6 +1,8 @@
 [submodule "externals/llvm-project"]
 	path = externals/llvm-project
-	url = https://github.com/llvm/llvm-project.git
+	url = https://github.com/Jason048/llvm-project.git
+	branch = palm
 [submodule "externals/stablehlo"]
 	path = externals/stablehlo
-	url = https://github.com/openxla/stablehlo.git
+	url = https://github.com/Jason048/stablehlo.git
+	branch = palm
