@@ -777,7 +777,10 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::detach : (Tensor) -> (Tensor)", has_folder=True)
     emit("aten::device.with_index : (str, int) -> (Device)", has_canonicalizer=True)
     emit("aten::cuda : (Tensor) -> (Tensor)", has_canonicalizer=True)
-    emit("aten::embedding : (Tensor, Tensor, int, bool, bool) -> (Tensor)")
+    emit(
+        "aten::embedding : (Tensor, Tensor, int, bool, bool) -> (Tensor)",
+        has_canonicalizer=True,
+    )
     emit(
         "aten::embedding_bag.padding_idx : (Tensor, Tensor, Tensor, bool, int, bool, Tensor?, bool, int?) -> (Tensor, Tensor, Tensor, Tensor)"
     )

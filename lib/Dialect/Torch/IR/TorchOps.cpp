@@ -547,6 +547,46 @@ void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     return success();
   });
 }
+//===----------------------------------------------------------------------===//
+// AtenEmbeddingOp
+//===----------------------------------------------------------------------===//
+//
+// Converts PrimConvertElementTypeOp followed by AtenEmbeddingOp to
+// AtenEmbeddingOp followed by PrimConvertElementTypeOp.
+void AtenEmbeddingOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add(+[](AtenEmbeddingOp op, PatternRewriter &rewriter) {
+    //
+    auto checkWdthAGtWdthB = [](BaseTensorType aType, BaseTensorType bType) {
+      if (!(aType.hasDtype() && bType.hasDtype()))
+        return false;
+      auto aWidth = aType.getDtype().getIntOrFloatBitWidth();
+      auto bWidth = bType.getDtype().getIntOrFloatBitWidth();
+      return aWidth > bWidth;
+    };
+
+    auto convertOp =
+        op.getWeight().getDefiningOp<Torch::PrimsConvertElementTypeOp>();
+    if (!convertOp)
+      return failure();
+    Value getWeight = convertOp.getA();
+    auto weightType = getWeight.getType().cast<BaseTensorType>();
+    auto opType = op.getType().cast<BaseTensorType>();
+
+    if (!checkWdthAGtWdthB(opType, weightType))
+      return failure();
+
+    auto updateType =
+        opType.getWithSizesAndDtype(opType.getSizes(), weightType.getDtype());
+    Value newEmbedding = rewriter.create<AtenEmbeddingOp>(
+        op.getLoc(), updateType, getWeight, op.getIndices(), op.getPaddingIdx(),
+        op.getScaleGradByFreq(), op.getSparse());
+    Value updateRes = rewriter.create<Torch::PrimsConvertElementTypeOp>(
+        op.getLoc(), op.getType(), newEmbedding, convertOp.getDtype());
+    rewriter.replaceOp(op, updateRes);
+    return success();
+  });
+}
 
 //===----------------------------------------------------------------------===//
 // AtenDotOp

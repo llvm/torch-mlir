@@ -10106,6 +10106,7 @@ def Torch_AtenEmbeddingOp : Torch_Op<"aten.embedding", [
       printDefaultTorchOp(printer, *this, 5, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenEmbeddingBagPaddingIdxOp : Torch_Op<"aten.embedding_bag.padding_idx", [
