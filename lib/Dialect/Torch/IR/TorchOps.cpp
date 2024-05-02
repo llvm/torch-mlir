@@ -4722,9 +4722,13 @@ LogicalResult AtenPermuteOp::verify() {
 OpFoldResult PrimsConvertElementTypeOp::fold(FoldAdaptor adaptor) {
   auto inputType = cast<BaseTensorType>(getA().getType());
   auto outputType = cast<BaseTensorType>(getResult().getType());
-  if (inputType.getDtype() == outputType.getDtype())
-    return getA();
-  return nullptr;
+  if (inputType != outputType)
+    return nullptr;
+  if (!inputType.hasDtype() || !outputType.hasDtype())
+    return nullptr;
+  if (inputType.getDtype() != outputType.getDtype())
+    return nullptr;
+  return getA();
 }
 
 //===----------------------------------------------------------------------===//
