@@ -2974,3 +2974,44 @@ func.func @aten_log$fold_splat_f32() -> !torch.vtensor<[4], f32> {
   %result = torch.aten.log %cst : !torch.vtensor<[4], f32> -> !torch.vtensor<[4], f32>
   return %result : !torch.vtensor<[4], f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.prims.convert_element_type$fold(
+// CHECK:            %[[ARG:.*]]: !torch.vtensor<[64],f32>) -> !torch.vtensor<[64],f32> {
+// CHECK:      return %[[ARG]] : !torch.vtensor<[64],f32>
+func.func @torch.prims.convert_element_type$fold(%arg0: !torch.vtensor<[64],f32>) -> !torch.vtensor<[64],f32> {
+  %int6 = torch.constant.int 6
+  %0 = torch.prims.convert_element_type %arg0, %int6 : !torch.vtensor<[64],f32>, !torch.int -> !torch.vtensor<[64],f32>
+  return %0 : !torch.vtensor<[64],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.prims.convert_element_type$no_fold(
+// CHECK:            %[[ARG:.*]]: !torch.vtensor<[64],f32>) -> !torch.vtensor<[64],si32> {
+// CHECK:      %[[RET:.*]] = torch.prims.convert_element_type %[[ARG]], %{{.*}} : !torch.vtensor<[64],f32>, !torch.int -> !torch.vtensor<[64],si32>
+// CHECK:      return %[[RET]] : !torch.vtensor<[64],si32>
+func.func @torch.prims.convert_element_type$no_fold(%arg0: !torch.vtensor<[64],f32>) -> !torch.vtensor<[64],si32> {
+  %int6 = torch.constant.int 6
+  %0 = torch.prims.convert_element_type %arg0, %int6 : !torch.vtensor<[64],f32>, !torch.int -> !torch.vtensor<[64],si32>
+  return %0 : !torch.vtensor<[64],si32>
+}
+
+// -----
+
+// CHECK-LABEL:   @torch.aten.max_pool2d_with_indices$canonicalize(
+// CHECK:            %[[ARG:.*]]: !torch.vtensor<[10,64,112,112],f32>) -> !torch.vtensor<[10,64,56,56],f32> {
+// CHECK:      %[[RET:.*]] = torch.aten.max_pool2d %[[ARG]]
+// CHECK:      return %[[RET]] : !torch.vtensor<[10,64,56,56],f32>
+func.func @torch.aten.max_pool2d_with_indices$canonicalize(%arg0: !torch.vtensor<[10,64,112,112],f32>) -> !torch.vtensor<[10,64,56,56],f32> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %29 = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %30 = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %31 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %result0, %result1 = torch.aten.max_pool2d_with_indices %arg0, %29, %30, %31, %31, %false : !torch.vtensor<[10,64,112,112],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[10,64,56,56],f32>, !torch.vtensor<[10,64,56,56],si64>
+  return %result0 : !torch.vtensor<[10,64,56,56],f32>
+}
