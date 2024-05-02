@@ -27,7 +27,7 @@ from torch_mlir.ir import Context, Module
 def import_onnx(contents):
     # Import the ONNX model proto from the file contents:
     raw_model = onnx.load_from_string(contents)
-    model_proto = onnx.shape_inference.infer_shapes(raw_model)
+    model_proto = onnx.shape_inference.infer_shapes(raw_model, data_prop=True)
 
     # Import the ONNX module into an MLIR module:
     context = Context()

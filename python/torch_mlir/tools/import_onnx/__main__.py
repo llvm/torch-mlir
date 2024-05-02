@@ -85,7 +85,7 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
     # in-memory shape inference.  If not, go ahead and do the shape inference.
     try:
         onnx.checker.check_model(raw_model)
-        inferred_model = onnx.shape_inference.infer_shapes(raw_model)
+        inferred_model = onnx.shape_inference.infer_shapes(raw_model, data_prop=True)
         return inferred_model
     except ValueError:
         pass
@@ -103,7 +103,9 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
     # Model is too big for in-memory inference: do file-based shape inference
     # to a temp file.
     temp_inferred_file = temp_dir / "inferred.onnx"
-    onnx.shape_inference.infer_shapes_path(args.input_file, temp_inferred_file)
+    onnx.shape_inference.infer_shapes_path(
+        args.input_file, temp_inferred_file, data_prop=True
+    )
 
     # Sanity check the shape-inferred model to be sure we have a good model
     # for the importer.  This call uses the file-based method, as the
