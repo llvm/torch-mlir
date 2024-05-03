@@ -65,8 +65,8 @@ struct onnx_list_of_constant_ints_op_binder {
       return false;
 
     if (DenseResourceElementsAttr attr =
-            constOp->getAttr("torch.onnx.value")
-                .dyn_cast_or_null<DenseResourceElementsAttr>()) {
+        dyn_cast_or_null<DenseResourceElementsAttr>(
+            constOp->getAttr("torch.onnx.value"))) {
       // Bytes are stored in little endian order. Big endian support will
       // require swizzling.
       if (!Endian::little) {

@@ -442,8 +442,8 @@ def Torch_PrimDictConstructOp: Torch_Op<"prim.DictConstruct", [
   }];
 
   let extraClassDeclaration = [{
-    Type getKeyType() { return getType().cast<DictType>().getKeyType(); }
-    Type getValueType() { return getType().cast<DictType>().getValueType(); }
+    Type getKeyType() { return cast<DictType>(getType()).getKeyType(); }
+    Type getValueType() { return cast<DictType>(getType()).getValueType(); }
   }];
 }
 
@@ -1003,7 +1003,7 @@ def Torch_CopyToNonValueTensorOp : Torch_Op<"copy.to_tensor", [
     DeclareOpInterfaceMethods<InferTypeOpInterface>,
     TypesMatchWith<"operand is corresponding !torch.vtensor",
                    "result", "operand",
-                   "$_self.cast<NonValueTensorType>().getWithValueSemantics()">,
+                   "cast<NonValueTensorType>($_self).getWithValueSemantics()">,
   ]> {
   let summary = "Create a !torch.tensor with the same contents as the operand";
   let description = [{
@@ -1036,7 +1036,7 @@ def Torch_CopyToValueTensorOp : Torch_Op<"copy.to_vtensor", [
     DeclareOpInterfaceMethods<InferTypeOpInterface>,
     TypesMatchWith<"operand is corresponding !torch.tensor",
                    "result", "operand",
-                   "$_self.cast<ValueTensorType>().getWithoutValueSemantics()">,
+                   "cast<ValueTensorType>($_self).getWithoutValueSemantics()">,
   ]> {
   let summary = "Create a !torch.vtensor with the same contents as the operand";
   let description = [{
@@ -1064,7 +1064,7 @@ def Torch_CopyToValueTensorOp : Torch_Op<"copy.to_vtensor", [
 def Torch_OverwriteTensorContentsOp : Torch_Op<"overwrite.tensor.contents", [
     TypesMatchWith<"overwritten tensor type is corresponding !torch.tensor of value tensor type",
                    "value", "overwritten",
-                   "$_self.cast<ValueTensorType>().getWithoutValueSemantics()">
+                   "cast<ValueTensorType>($_self).getWithoutValueSemantics()">
   ]> {
   let summary = "Ovewrite the contents of tensor with values from another.";
   let description = [{
