@@ -1439,31 +1439,18 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                   return success();
                 });
 
-  patterns.onOp(
-      "Sinh", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        Value operand;
-        if (binder.tensorOperand(operand) ||
-            binder.tensorResultType(resultType))
-          return failure();
+  patterns.onOp("Sinh", 9,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
 
-        // 1/2 * (exp(x) – exp(-x))
-        Value x = rewriter.create<Torch::AtenExpOp>(binder.getLoc(), resultType,
-                                                    operand);
-        Value neg = rewriter.create<Torch::AtenNegOp>(binder.getLoc(),
-                                                      resultType, operand);
-        Value y =
-            rewriter.create<Torch::AtenExpOp>(binder.getLoc(), resultType, neg);
-        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(1));
-        Value z = rewriter.create<Torch::AtenSubTensorOp>(
-            binder.getLoc(), resultType, x, y, cstOne);
-        Value cstTwo = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(2));
-        rewriter.replaceOpWithNewOp<Torch::AtenDivScalarOp>(
-            binder.op, resultType, z, cstTwo);
-        return success();
-      });
+                  rewriter.replaceOpWithNewOp<Torch::AtenSinhOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
 
   // split with fixed-size parts
   // Arguments:

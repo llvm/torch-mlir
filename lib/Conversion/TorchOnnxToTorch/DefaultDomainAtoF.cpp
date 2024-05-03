@@ -300,29 +300,17 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp(
-      "Asinh", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        Value operand;
-        if (binder.tensorOperand(operand) ||
-            binder.tensorResultType(resultType))
-          return failure();
-
-        // log(x + sqrt(x**2 + 1))
-        Value square = rewriter.create<Torch::AtenSquareOp>(
-            binder.getLoc(), resultType, operand);
-        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(1));
-        Value add0 = rewriter.create<Torch::AtenAddScalarOp>(
-            binder.getLoc(), resultType, square, cstOne, cstOne);
-        Value sqrt = rewriter.create<Torch::AtenSqrtOp>(binder.getLoc(),
-                                                        resultType, add0);
-        Value add1 = rewriter.create<Torch::AtenAddTensorOp>(
-            binder.getLoc(), resultType, operand, sqrt, cstOne);
-        rewriter.replaceOpWithNewOp<Torch::AtenLogOp>(binder.op, resultType,
-                                                      add1);
-        return success();
-      });
+  patterns.onOp("Asinh", 9,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenAsinhOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
   patterns.onOp("Atan", 7,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -334,33 +322,17 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp(
-      "Atanh", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        Value operand;
-        if (binder.tensorOperand(operand) ||
-            binder.tensorResultType(resultType))
-          return failure();
-
-        // 1/2 * log((1 + x) / (1 - x))
-        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(1));
-        Value add = rewriter.create<Torch::AtenAddScalarOp>(
-            binder.getLoc(), resultType, operand, cstOne, cstOne);
-        Value neg = rewriter.create<Torch::AtenNegOp>(binder.getLoc(),
-                                                      resultType, operand);
-        Value sub = rewriter.create<Torch::AtenAddScalarOp>(
-            binder.getLoc(), resultType, neg, cstOne, cstOne);
-        Value div = rewriter.create<Torch::AtenDivTensorOp>(
-            binder.getLoc(), resultType, add, sub);
-        Value log =
-            rewriter.create<Torch::AtenLogOp>(binder.getLoc(), resultType, div);
-        Value cstTwo = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(2));
-        rewriter.replaceOpWithNewOp<Torch::AtenDivScalarOp>(
-            binder.op, resultType, log, cstTwo);
-        return success();
-      });
+  patterns.onOp("Atanh", 9,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenAtanhOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
   patterns.onOp("Acos", 7,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -372,29 +344,17 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp(
-      "Acosh", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        Value operand;
-        if (binder.tensorOperand(operand) ||
-            binder.tensorResultType(resultType))
-          return failure();
-
-        // log(x + sqrt(x**2 - 1))
-        Value square = rewriter.create<Torch::AtenSquareOp>(
-            binder.getLoc(), resultType, operand);
-        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(1));
-        Value sub = rewriter.create<Torch::AtenSubScalarOp>(
-            binder.getLoc(), resultType, square, cstOne, cstOne);
-        Value sqrt = rewriter.create<Torch::AtenSqrtOp>(binder.getLoc(),
-                                                        resultType, sub);
-        Value add = rewriter.create<Torch::AtenAddTensorOp>(
-            binder.getLoc(), resultType, operand, sqrt, cstOne);
-        rewriter.replaceOpWithNewOp<Torch::AtenLogOp>(binder.op, resultType,
-                                                      add);
-        return success();
-      });
+  patterns.onOp("Acosh", 9,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenAcoshOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
   patterns.onOp("BatchNormalization", 15,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -1490,31 +1450,17 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp(
-      "Cosh", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        Value operand;
-        if (binder.tensorOperand(operand) ||
-            binder.tensorResultType(resultType))
-          return failure();
-
-        // 1/2 * (exp(x) + exp(-x))
-        Value x = rewriter.create<Torch::AtenExpOp>(binder.getLoc(), resultType,
-                                                    operand);
-        Value neg = rewriter.create<Torch::AtenNegOp>(binder.getLoc(),
-                                                      resultType, operand);
-        Value y =
-            rewriter.create<Torch::AtenExpOp>(binder.getLoc(), resultType, neg);
-        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(1));
-        Value z = rewriter.create<Torch::AtenAddTensorOp>(
-            binder.getLoc(), resultType, x, y, cstOne);
-        Value cstTwo = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(2));
-        rewriter.replaceOpWithNewOp<Torch::AtenDivScalarOp>(
-            binder.op, resultType, z, cstTwo);
-        return success();
-      });
+  patterns.onOp("Cosh", 9,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+                  rewriter.replaceOpWithNewOp<Torch::AtenCoshOp>(
+                      binder.op, resultType, operand);
+                  return success();
+                });
   patterns.onOp(
       "CumSum", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Location loc = binder.getLoc();
