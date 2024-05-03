@@ -414,7 +414,7 @@ def IsListTypePred : CPred<"$_self.isa<::mlir::torch::Torch::ListType>()">;
 class ListOf<list<Type> allowedTypes, string descr> :
     ContainerType<AnyTypeOf<allowedTypes>,
             IsListTypePred,
-            "$_self.cast<::mlir::torch::Torch::ListType>().getContainedType()",
+            "cast<::mlir::torch::Torch::ListType>($_self).getContainedType()",
             descr, "::mlir::torch::Torch::ListType">;
 
 def AnyTorchListOfTorchBoolType : ListOf<[Torch_BoolType], "Bool list type (bool[])">;
