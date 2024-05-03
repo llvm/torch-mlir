@@ -129,23 +129,23 @@ namespace Torch {
 
 inline std::optional<ArrayRef<int64_t>>
 BaseTensorType::getOptionalSizes() const {
-  if (auto tensor = dyn_cast<NonValueTensorType>())
+  if (auto tensor = mlir::dyn_cast<NonValueTensorType>(*this))
     return tensor.getOptionalSizes();
-  if (auto tensor = dyn_cast<ValueTensorType>())
+  if (auto tensor = mlir::dyn_cast<ValueTensorType>(*this))
     return tensor.getOptionalSizes();
   llvm_unreachable("not a BaseTensorType!");
 }
 
 inline Type BaseTensorType::getOptionalDtype() const {
-  if (auto tensor = dyn_cast<NonValueTensorType>())
+  if (auto tensor = mlir::dyn_cast<NonValueTensorType>(*this))
     return tensor.getOptionalDtype();
-  if (auto tensor = dyn_cast<ValueTensorType>())
+  if (auto tensor = mlir::dyn_cast<ValueTensorType>(*this))
     return tensor.getOptionalDtype();
   llvm_unreachable("not a BaseTensorType!");
 }
 
 inline bool BaseTensorType::classof(Type type) {
-  return type.isa<NonValueTensorType, ValueTensorType>();
+  return mlir::isa<NonValueTensorType, ValueTensorType>(type);
 }
 
 } // namespace Torch
