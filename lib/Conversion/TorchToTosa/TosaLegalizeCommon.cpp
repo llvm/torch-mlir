@@ -114,9 +114,10 @@ tosa::MulOp createMulOpAndCast(PatternRewriter &rewriter, Operation *op,
 }
 
 template <>
-tosa::DivOp createBinaryOpAndCast<DivOp>(PatternRewriter &rewriter,
-                                         Operation *op, TensorType outType,
-                                         Value lhs, Value rhs) {
+tosa::IntDivOp createBinaryOpAndCast<IntDivOp>(PatternRewriter &rewriter,
+                                               Operation *op,
+                                               TensorType outType,
+                                               Value lhs, Value rhs) {
   auto lhsElemTy = cast<TensorType>(lhs.getType()).getElementType();
   auto rhsElemTy = cast<TensorType>(rhs.getType()).getElementType();
   if (isa<mlir::FloatType>(lhsElemTy) || isa<mlir::FloatType>(rhsElemTy)) {
@@ -126,8 +127,8 @@ tosa::DivOp createBinaryOpAndCast<DivOp>(PatternRewriter &rewriter,
 
   lhs = promoteType(rewriter, lhs, outType);
   rhs = promoteType(rewriter, rhs, outType);
-  return tosa::CreateOpAndInfer<tosa::DivOp>(rewriter, op->getLoc(), outType,
-                                             lhs, rhs);
+  return tosa::CreateOpAndInfer<tosa::IntDivOp>(rewriter, op->getLoc(), outType,
+                                                lhs, rhs);
 }
 
 std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
