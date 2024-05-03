@@ -114,10 +114,9 @@ tosa::MulOp createMulOpAndCast(PatternRewriter &rewriter, Operation *op,
 }
 
 template <>
-tosa::IntDivOp createBinaryOpAndCast<IntDivOp>(PatternRewriter &rewriter,
-                                               Operation *op,
-                                               TensorType outType,
-                                               Value lhs, Value rhs) {
+tosa::IntDivOp
+createBinaryOpAndCast<IntDivOp>(PatternRewriter &rewriter, Operation *op,
+                                TensorType outType, Value lhs, Value rhs) {
   auto lhsElemTy = cast<TensorType>(lhs.getType()).getElementType();
   auto rhsElemTy = cast<TensorType>(rhs.getType()).getElementType();
   if (isa<mlir::FloatType>(lhsElemTy) || isa<mlir::FloatType>(rhsElemTy)) {
