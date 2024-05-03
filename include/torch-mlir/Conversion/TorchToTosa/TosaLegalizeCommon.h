@@ -40,11 +40,9 @@ TosaOpT createBinaryOpAndCast(PatternRewriter &rewriter, Operation *op,
 // This specialization is for IntDiv op. Unlike other binary ops, it doesn't
 // support floating type.
 template <>
-tosa::IntDivOp createBinaryOpAndCast<IntDivOp>(PatternRewriter &rewriter,
-                                               Operation *op,
-                                               TensorType outType,
-                                               Value lhs,
-                                               Value rhs);
+tosa::IntDivOp
+createBinaryOpAndCast<IntDivOp>(PatternRewriter &rewriter, Operation *op,
+                                TensorType outType, Value lhs, Value rhs);
 
 std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
                                                   Operation *op,
