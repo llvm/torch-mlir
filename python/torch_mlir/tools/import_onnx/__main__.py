@@ -75,6 +75,7 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
 
     # Load the model, with possible external data coming from the default
     # location, or the location specified on the conmand line.
+    data_prop = False if args.no_data_prop else True
     if args.data_dir is None:
         raw_model = onnx.load(args.input_file)
     else:
@@ -85,7 +86,9 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
     # in-memory shape inference.  If not, go ahead and do the shape inference.
     try:
         onnx.checker.check_model(raw_model)
-        inferred_model = onnx.shape_inference.infer_shapes(raw_model, data_prop=True)
+        inferred_model = onnx.shape_inference.infer_shapes(
+            raw_model, data_prop=data_prop
+        )
         return inferred_model
     except ValueError:
         pass
@@ -104,7 +107,7 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
     # to a temp file.
     temp_inferred_file = temp_dir / "inferred.onnx"
     onnx.shape_inference.infer_shapes_path(
-        args.input_file, temp_inferred_file, data_prop=True
+        args.input_file, temp_inferred_file, data_prop=data_prop
     )
 
     # Sanity check the shape-inferred model to be sure we have a good model
@@ -139,6 +142,11 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         "--no-verify",
         action="store_true",
         help="Disable verification prior to printing",
+    )
+    parser.add_argument(
+        "--no-data-prop",
+        action="store_true",
+        help="Disable data propogation for onnx shape inference",
     )
     parser.add_argument(
         "--keep-temps", action="store_true", help="Keep intermediate files"
