@@ -575,6 +575,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ElementwiseErfIntModule_basic",
     "ElementwiseLogitModule_basic",
     "ElementwiseMulTensorComplexModule_basic",
+    "ElementwiseMulTensorComplexDiffModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorUIntModule_basic",
     "ElementwiseReciprocalIntModule_basic",
@@ -1923,11 +1924,6 @@ MAKE_FX_TOSA_PASS_SET = (
     # Dynamic shape, has extra unsupported broadcast ops
     "Matmul_3d",
     "MatmulStaticBroadcast_basic",
-    # failed to legalize operation 'torch.aten.max_pool2d_with_indices
-    "MaxPool2dEmptyStrideStaticModule_basic",
-    "MaxPool2dStaticCeilModeTrueModule_basic",
-    "MaxPool2dStaticModule_basic",
-    "ResNet18StaticModule_basic",
     # Unimplemented operator 'aten._index_put_impl_.hacked_twin'
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
     "IndexPutImpl1DIntNonAccumulateModule_basic",
@@ -2314,6 +2310,7 @@ ONNX_XFAIL_SET = {
     "ElementwiseExpm1Module_basic",
     "ElementwiseFmodTensor_Int_basic",
     "ElementwiseMulTensorComplexModule_basic",
+    "ElementwiseMulTensorComplexDiffModule_basic",
     "ElementwiseOrTensorModule_basic",
     "ElementwiseOrTensorStaticShapeModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
@@ -2562,16 +2559,12 @@ ONNX_XFAIL_SET = {
     "_ConvolutionDeprecated2DCudnnModule_basic",
     "_ConvolutionDeprecated2DDeterministicModule_basic",
     "_SoftmaxModule_basic",
+    # Failure - onnx_import
     # Failure - onnx_lowering: onnx.AveragePool
     "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
-    # Failure - onnx_lowering: onnx.If
-    "DiagonalModule_basic",
-    "DiagonalModule_nonsquare",
-    "DiagonalModule_transposed",
-    "DiagonalModule_with_dims",
-    "DiagonalModule_with_dims_and_offset",
-    "DiagonalModule_with_negative_dims",
-    "DiagonalModule_with_offset",
+    # these diagonal modules are currently failing due to dynamic shape.
+    # We are currently testing aten.diagonal using DiagonalWithStaticShapeModule instead.
+    # when the issue is fixed, please remove DiagonalWithStaticShapeModule as well as the xfails here.
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
     # Failure - onnx_lowering: onnx.MaxPool
