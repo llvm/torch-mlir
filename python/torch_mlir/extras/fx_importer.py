@@ -14,6 +14,8 @@ except ImportError:
 import logging
 import operator
 import re
+import sympy
+import math
 from dataclasses import dataclass
 from types import BuiltinMethodType, BuiltinFunctionType
 from typing import (
@@ -256,6 +258,12 @@ else:
     }
 
     SYMBOLIC_TORCH_OPS = {key for key in SYMBOLIC_OP_TO_TORCH_OP}
+
+
+@dataclass
+class RangeConstraint:
+    min_val: int
+    max_val: int
 
 
 @dataclass(frozen=True)
@@ -527,6 +535,9 @@ class FxImporter:
 
         sig = prog.graph_signature
 
+        # Populate range constraints for dynamic shapes if any
+        self._cc.set_range_constraints(prog)
+
         # Invert the (producer, node_name) maps for mutated user inputs and mutated
         # buffers. This is because we hit-detect based on the input node name.
         mutated_user_inputs = {
@@ -728,6 +739,9 @@ class FxImporter:
         state_dict = prog.state_dict
         arg_replacements: Dict[str, Any] = {}
 
+        # Populate range constraints for dynamic shapes if any
+        self._cc.set_range_constraints(prog)
+
         # If there is no "constants" attribute, consult the "state_dict". Otherwise, only look
         # at "constants". Relevant upstream patch: https://github.com/pytorch/pytorch/pull/118969
         if hasattr(prog, "constants"):
@@ -870,6 +884,7 @@ class ContextCache:
         "_c",
         "_dtype_to_type",
         "_tensor_metadata_cache",
+        "_range_constraints",
         "_py_attr_tracker",
         # Types.
         "torch_bool_type",
@@ -888,6 +903,7 @@ class ContextCache:
         self._tensor_metadata_cache: Dict[
             Tuple[torch.Size, torch.dtype, Optional[SparsityMeta], bool], IrType
         ] = {}
+        self._range_constraints: Dict = {}
         self._py_attr_tracker = py_attr_tracker or RefTracker()
 
         # Common types.
@@ -1037,6 +1053,48 @@ class ContextCache:
                 return Location.file(filename, line, col=0, context=self._c)
         return Location.unknown(context=self._c)
 
+    def set_range_constraints(
+        self, prog: torch.export.ExportedProgram
+    ) -> Dict[str, RangeConstraint]:
+        range_constraints = prog.range_constraints
+
+        def _sympy_int_to_int(val: sympy.Expr, adjust: str):
+            # Convert simple sympy Integers into concrete int
+            if val == sympy.oo:
+                return math.inf
+            if val == -sympy.oo:
+                return -math.inf
+            if isinstance(val, sympy.Integer):
+                return int(val)
+
+            # TODO: Remove this adjustment when fractional ranges are removed
+            logging.warning(
+                "Export constraints cannot be non-integer expressions. Found "
+                "type %s, and value %s. We will attempt to %s this value.",
+                type(val),
+                val,
+                adjust,
+            )
+
+            if adjust == "floor":
+                return math.floor(val)
+            elif adjust == "ceil":
+                return math.ceil(val)
+            else:
+                raise RuntimeError(f"Got invalid adjustment {adjust}")
+
+        if not self._range_constraints:
+            self._range_constraints = {
+                str(k): RangeConstraint(
+                    _sympy_int_to_int(v.lower, "ceil"),  # type: ignore[arg-type]
+                    _sympy_int_to_int(v.upper, "floor"),  # type: ignore[arg-type]
+                )
+                for k, v in range_constraints.items()
+            }
+
+    def get_range_constraints(self) -> Dict[str, RangeConstraint]:
+        return self._range_constraints
+
 
 class GraphNodeImporter:
     """Imports graph nodes into an MLIR function.
@@ -1050,6 +1108,7 @@ class GraphNodeImporter:
         "_cc",
         "_on_node_produced",
         "_v",
+        "_symbol_to_value",
         "_multi_result_nodes",
         "fx_importer",
     ]
@@ -1068,6 +1127,8 @@ class GraphNodeImporter:
         # Map of (Node, result_index) to MLIR Value or a callback that lazily
         # constructs and returns a value.
         self._v: Dict[Union[Callable[[], Value], Tuple[torch_fx.Node, int]], Value] = {}
+        # Map of Shape Symbol to MLIR Value
+        self._symbol_to_value: Dict[str, Value] = {}
         # Map of node name to hook that should be called when it is produced.
         self._on_node_produced: Dict[str, Callable[[Value], None]] = {}
         # Statically multi-result nodes which we have de-tupled are noted here.
@@ -1107,6 +1168,28 @@ class GraphNodeImporter:
         value = binding()
         self._v[key] = value
         return value
+
+    def bind_symbol_value(
+        self,
+        shape_symbol: str,
+        value: Value,
+    ):
+        """Binds a shape symbol to a global SSA value (and asserts if already bound)."""
+        assert (
+            shape_symbol not in self._symbol_to_value
+        ), f"Symbol already has a value: {shape_symbol}"
+        self._symbol_to_value[shape_symbol] = value
+
+    def resolve_symbol_value(self, shape_symbol: str) -> Value:
+        """Resolves a shape symbol to a value."""
+        try:
+            binding = self._symbol_to_value[shape_symbol]
+        except KeyError:
+            raise KeyError(
+                f"FX Shape Symbol {shape_symbol} has not been bound to an MLIR value"
+            )
+        if isinstance(binding, Value):
+            return binding
 
     def import_mutable_to_vtensor(
         self, loc: Location, node: Node, mutable_value: Value, producer_node_name: str
@@ -1194,6 +1277,11 @@ class GraphNodeImporter:
     ):
         with InsertionPoint(self._b):
             loc = Location.unknown()
+
+            # Import shape symbols and symbolic guards if any
+            range_constraints = self._cc.get_range_constraints()
+            self._import_shape_symbols_and_guards(loc, range_constraints)
+
             num_placeholders = 0
             for node in nodes:
                 op = node.op
@@ -1515,6 +1603,27 @@ class GraphNodeImporter:
         # Record value mapping.
         for i, value in enumerate(operation.results):
             self.bind_node_value(node, value, i)
+
+    def _import_shape_symbols_and_guards(
+        self, loc: Location, range_constraints: Dict[str, RangeConstraint]
+    ) -> Value:
+        for symbol, constraints in range_constraints.items():
+            # Create torch.sym_int ops
+            operation = Operation.create(
+                name="torch.symbolic_int",
+                attributes={"symbol_name": StringAttr.get(symbol)},
+                results=[self._cc.torch_int_type],
+                loc=loc,
+            )
+            self.bind_symbol_value(symbol, operation.result)
+
+            # Create torch.symbolic_guard ops
+            # operation = Operation.create(
+            #     name="torch.symbolic_guard",
+            #     operands=[self.resolve_symbol_value(symbol)],
+            #     attributes={"range_constraints": IntegerSet.get_empty(1, 1)},
+            #     loc=loc,
+            # )
 
     def _import_argument(
         self, loc: Location, arg: NodeArgument, expected_jit_type=None
