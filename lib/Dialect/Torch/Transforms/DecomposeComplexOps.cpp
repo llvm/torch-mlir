@@ -3386,6 +3386,25 @@ public:
 };
 } // namespace
 
+// Decompose aten.conv_transpose1d to aten.convolution
+namespace {
+class DecomposeAtenConvTranspose1dOp
+    : public OpRewritePattern<AtenConvTranspose1dInputOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenConvTranspose1dInputOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), true);
+    rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
+        op, op->getResultTypes(), op.getInput(), op.getWeight(), op.getBias(),
+        op.getStride(), op.getPadding(), op.getDilation(),
+        /*transposed=*/cstTrue, op.getOutputPadding(), op.getGroups());
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.conv_transpose2d to aten.convolution
 namespace {
 class DecomposeAtenConvTranspose2dOp
@@ -3393,6 +3412,25 @@ class DecomposeAtenConvTranspose2dOp
 public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenConvTranspose2dInputOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), true);
+    rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
+        op, op->getResultTypes(), op.getInput(), op.getWeight(), op.getBias(),
+        op.getStride(), op.getPadding(), op.getDilation(),
+        /*transposed=*/cstTrue, op.getOutputPadding(), op.getGroups());
+    return success();
+  }
+};
+} // namespace
+
+// Decompose aten.conv_transpose3d to aten.convolution
+namespace {
+class DecomposeAtenConvTranspose3dOp
+    : public OpRewritePattern<AtenConvTranspose3dInputOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenConvTranspose1dInputOp op,
                                 PatternRewriter &rewriter) const override {
 
     Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), true);
@@ -7672,7 +7710,9 @@ public:
         DecomposeAten_ConvolutionLikeOp<Aten_ConvolutionDeprecatedOp>>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvolutionBackwardOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenConvTranspose1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvTranspose2dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenConvTranspose3dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArangeStartOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposePrimsIotaOp>(patterns);
